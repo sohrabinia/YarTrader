@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from src.Data.External.models import DataSourceType, DataProviderMetadata, ExternalDataRequest, ExternalDataResponse, ProviderHealthStatus
@@ -8,6 +9,7 @@ class SimulationDataProvider(IDataProvider):
     """
     Simulation Provider delivering mock candle data to test external integration pipelines.
     Supports failure, missing data, and corrupted data injection.
+    Supports Phase 24 extended adapter simulation scenarios.
     """
     def __init__(
         self,
@@ -15,7 +17,7 @@ class SimulationDataProvider(IDataProvider):
         supported_symbols: Optional[List[str]] = None,
         health: ProviderHealthStatus = ProviderHealthStatus.HEALTHY
     ) -> None:
-        supported_symbols = supported_symbols or ["AAPL", "BTCUSD", "EURUSD"]
+        supported_symbols = supported_symbols or ["AAPL", "BTCUSD", "EURUSD", "GBPUSD", "US_CPI", "US_PAYROLL", "FOMC_NEWS"]
         self._metadata = DataProviderMetadata(
             provider_id=provider_id,
             source_type=DataSourceType.SIMULATION,
@@ -47,17 +49,20 @@ class SimulationDataProvider(IDataProvider):
 
         scenario = request.parameters.get("scenario", "VALID")
 
-        if scenario == "FAILURE":
+        if scenario == "FAILURE" or scenario == "MT5_UNAVAILABLE" or scenario == "ECONOMIC_API_FAILURE":
             return ExternalDataResponse(
                 request_id=request.request_id or str(datetime.now().timestamp()),
                 provider_id=self._metadata.provider_id,
                 raw_data=[],
                 is_success=False,
-                error_message="Simulated provider failure triggered."
+                error_message=f"Simulated provider failure triggered. Scenario: {scenario}"
             )
 
-        if scenario == "EXCEPTION":
-            raise RuntimeError("Simulated remote provider connection crashed.")
+        if scenario == "EXCEPTION" or scenario == "NEWS_PROVIDER_TIMEOUT":
+            raise RuntimeError(f"Simulated remote provider timeout or crash. Scenario: {scenario}")
+
+        if scenario == "DELAYED_DATA_RESPONSE":
+            time.sleep(0.01)  # Simulate slight network delay
 
         # Build records
         records = []
@@ -74,7 +79,7 @@ class SimulationDataProvider(IDataProvider):
                 "timestamp": current_time.isoformat()
             }
 
-            if scenario == "VALID":
+            if scenario == "VALID" or scenario == "DELAYED_DATA_RESPONSE":
                 record.update({
                     "open": base_price + i,
                     "high": base_price + i + 2,
@@ -89,7 +94,7 @@ class SimulationDataProvider(IDataProvider):
                     "close": base_price + i + 1,
                     "volume": 1000.0
                 })
-            elif scenario == "CORRUPTED_PRICES":
+            elif scenario == "CORRUPTED_PRICES" or scenario == "CORRUPTED_MARKET_DATA":
                 # Low price exceeds High price
                 record.update({
                     "open": base_price + i,
