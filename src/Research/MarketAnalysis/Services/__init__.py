@@ -1,1 +1,5 @@
-from src.Research.MarketAnalysis.Services.services import MarketAnalysisEngine, ResearchProcessor
+from src.Research.MarketAnalysis.Services.services import (
+    MarketAnalysisEngine,
+    ResearchProcessor,
+    FeatureExtractionResearchEngine
+)
