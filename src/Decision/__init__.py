@@ -20,4 +20,17 @@ from src.Decision.Intelligence import (
     DecisionReportBuilder,
     DecisionValidator,
     DecisionHistoryStore,
+
+    # Phase 21 Multi-Agent Layer
+    AgentMessage,
+    AgentContext,
+    AgentMemory,
+    IIntelligenceAgent,
+    ResearchAgent,
+    StrategyAnalystAgent,
+    RiskAgent,
+    ValidationAgent,
+    LearningAgent,
+    IntelligenceSupervisor,
+    AgentPerformanceTracker
 )

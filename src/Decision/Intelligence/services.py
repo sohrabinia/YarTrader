@@ -132,8 +132,10 @@ class DecisionAnalyzer:
                     if hasattr(sc, "Confidence"):
                         confs.append(getattr(sc, "Confidence"))
                 elif isinstance(s, dict):
-                    if "score" in s:
-                        scores.append(s["score"])
+                    # Check both 'score' and 'strategy_score' formats safely
+                    score_val = s.get("score", s.get("strategy_score"))
+                    if score_val is not None:
+                        scores.append(score_val)
                     if "confidence" in s:
                         confs.append(s["confidence"])
             if scores:
@@ -171,11 +173,15 @@ class DecisionAnalyzer:
                 if hasattr(r, "IsApproved"):
                     if not getattr(r, "IsApproved"):
                         risk_approved = False
-                elif isinstance(r, dict) and "IsApproved" in r:
-                    if not r["IsApproved"]:
+                elif isinstance(r, dict):
+                    # Check both uppercase and lowercase casings safely
+                    is_app_val = r.get("IsApproved", r.get("is_approved", r.get("risk_approved", True)))
+                    if not is_app_val:
                         risk_approved = False
                 if hasattr(r, "AssessmentNotes"):
                     risk_notes += getattr(r, "AssessmentNotes") + " "
+                elif isinstance(r, dict) and "assessment_notes" in r:
+                    risk_notes += r["assessment_notes"] + " "
 
         risk_compat = 1.0 if risk_approved else 0.0
 
@@ -272,8 +278,8 @@ class DecisionConflictResolver:
             desc = ""
             if hasattr(r, "Description"):
                 desc = getattr(r, "Description").lower()
-            elif isinstance(r, dict) and "description" in r:
-                desc = r["description"].lower()
+            elif isinstance(r, dict):
+                desc = str(r.get("description", r.get("research_sentiment", r.get("sentiment", "")))).lower()
             if "bearish" in desc or "negative" in desc or "downward" in desc or "reversal" in desc:
                 research_sentiment_positive = False
 
