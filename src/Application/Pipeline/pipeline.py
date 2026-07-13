@@ -60,6 +60,7 @@ class AdvancedPipelineResult:
     Risk: RiskAssessment
     DecisionReport: Any  # DecisionIntelligenceReport
     Feedback: Optional[LearningFeedback] = None
+    OptimizationReport: Optional[Any] = None  # Phase 19 OptimizationReport
     ExecutedAt: datetime = field(default_factory=datetime.now)
 
 
@@ -235,6 +236,26 @@ class IntelligencePipeline:
         )
         self._learning_engine.process_feedback(feedback)
 
+        # 6b. Advanced Learning & Optimization Integration
+        from src.Learning.Optimization.models import LearningFeedbackRecord
+        from src.Learning.Optimization.services import LearningProcessor as AdvancedLearningProcessor
+
+        adv_learning_record = LearningFeedbackRecord(
+            DecisionReference=decision_report.ReportId,
+            AnalysisContext={
+                "risk_approved": risk_assess.IsApproved,
+                "insights_count": len(dec_intel_context.ResearchInsights)
+            },
+            ExpectedQuality=decision_report.QualityScore.OverallScore if hasattr(decision_report, "QualityScore") else 0.85,
+            ObservedResult=outcome_metric,
+            ConfidenceInformation=decision_report.Confidence,
+            Timestamp=datetime.now()
+        )
+
+        adv_learning_processor = AdvancedLearningProcessor()
+        adv_learning_processor.process_feedback_record(adv_learning_record)
+        opt_report = adv_learning_processor.generate_optimization_report()
+
         return AdvancedPipelineResult(
             Context=context,
             MarketData=data_resp,
@@ -243,5 +264,6 @@ class IntelligencePipeline:
             Risk=risk_assess,
             DecisionReport=decision_report,
             Feedback=feedback,
+            OptimizationReport=opt_report,
             ExecutedAt=datetime.now()
         )
