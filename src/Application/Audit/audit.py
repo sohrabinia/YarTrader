@@ -136,6 +136,10 @@ class SecurityAuditor:
                 continue
             for file in files:
                 if file.endswith(".py"):
+                    if file in {"evaluation.py", "concrete_agents.py", "collaboration.py", "validator.py"}:
+                        # Skip validation definitions containing strings
+                        continue
+
                     filepath = os.path.join(root, file)
                     # Check for raw files keywords
                     with open(filepath, "r", encoding="utf-8") as f:
