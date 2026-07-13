@@ -12,6 +12,24 @@ from src.Application.Agents.concrete_agents import (
 )
 from src.Application.Agents.supervisor import IntelligenceSupervisor
 
+# Phase 22 Collaboration imports
+from src.Application.Agents.collaboration import (
+    AgentCapability,
+    AgentCapabilityRegistry,
+    AgentGoal,
+    AgentGoalManager,
+    AgentPriorityEngine,
+    DynamicAgentSelector,
+    CollaborationProtocol,
+    NegotiationProposal,
+    NegotiationFramework,
+    CollectiveIntelligenceEvaluator,
+    AgentSelfEvaluator,
+    KnowledgeItem,
+    KnowledgeSharingProtocol,
+    AdvancedAgentReliabilityFeedback
+)
+
 __all__ = [
     "IIntelligenceAgent",
     "AgentContext",
@@ -29,5 +47,21 @@ __all__ = [
     "RiskAgent",
     "ValidationAgent",
     "LearningAgent",
-    "IntelligenceSupervisor"
+    "IntelligenceSupervisor",
+
+    # Phase 22 Collaboration exports
+    "AgentCapability",
+    "AgentCapabilityRegistry",
+    "AgentGoal",
+    "AgentGoalManager",
+    "AgentPriorityEngine",
+    "DynamicAgentSelector",
+    "CollaborationProtocol",
+    "NegotiationProposal",
+    "NegotiationFramework",
+    "CollectiveIntelligenceEvaluator",
+    "AgentSelfEvaluator",
+    "KnowledgeItem",
+    "KnowledgeSharingProtocol",
+    "AdvancedAgentReliabilityFeedback"
 ]
