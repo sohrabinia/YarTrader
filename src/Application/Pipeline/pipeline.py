@@ -50,6 +50,19 @@ class PipelineResult:
     ExecutedAt: datetime = field(default_factory=datetime.now)
 
 
+@dataclass(frozen=True)
+class AdvancedPipelineResult:
+    """Represents the end-to-end outcome logs, final DecisionIntelligenceReport, and LearningFeedback of the pipeline."""
+    Context: PipelineContext
+    MarketData: MarketDataResponse
+    Research: ResearchResult
+    Strategy: StrategyEvaluation
+    Risk: RiskAssessment
+    DecisionReport: Any  # DecisionIntelligenceReport
+    Feedback: Optional[LearningFeedback] = None
+    ExecutedAt: datetime = field(default_factory=datetime.now)
+
+
 class IntelligencePipeline:
     """
     Orchestration controller coordinating the flow across Data, Research, Strategy, Risk, Decision, and Learning systems.
@@ -145,6 +158,90 @@ class IntelligencePipeline:
             Strategy=strat_eval,
             Risk=risk_assess,
             Decision=decision_res,
+            Feedback=feedback,
+            ExecutedAt=datetime.now()
+        )
+
+    def execute_advanced(self, context: PipelineContext) -> AdvancedPipelineResult:
+        """
+        Executes the advanced multi-factor intelligence pipeline incorporating
+        the Advanced Decision Intelligence Layer.
+        """
+        if not self._config.SimulationMode:
+            raise ValueError(
+                "Execution is strictly restricted to simulation mode only. "
+                "Real trading, broker connection, and real money operations are prohibited."
+            )
+
+        # 1. Ingest/Data Layer Acquisition
+        lookback = self._config.LookbackDays
+        data_req = MarketDataRequest(
+            Asset=context.Asset,
+            StartTime=context.StartTime - timedelta(days=lookback),
+            EndTime=context.StartTime,
+            Timeframe=context.Timeframe
+        )
+        data_resp = self._data_provider.retrieve_market_data(data_req)
+
+        # 2. Research Layer Interpretation
+        res_req = ResearchRequest(
+            Asset=context.Asset,
+            StartTime=data_req.StartTime,
+            EndTime=data_req.EndTime,
+            Context={"bars_count": len(data_resp.DataPoints), "simulation": self._config.SimulationMode}
+        )
+        research_res = self._research_engine.analyze_market(res_req)
+
+        # 3. Strategy Layer Assessment
+        candidate = StrategyCandidate(
+            Id=f"cand-{context.Asset}",
+            Name="Pipeline Momentum Concept",
+            Description=f"Momentum concept for {context.Asset}",
+            ResearchContext=research_res.Findings,
+            CreatedAt=datetime.now(),
+            EvaluationStatus="Pending"
+        )
+        strat_eval = self._strategy_evaluator.evaluate(candidate)
+
+        # 4. Risk Layer Verification
+        proposed_weights = {context.Asset: strat_eval.Score.OverallScore}
+        risk_assess = self._risk_engine.analyze_risk(proposed_weights, context.TargetRiskProfile)
+
+        # 5. Advanced Decision Layer Integration
+        from src.Decision.Intelligence.services import DecisionContextBuilder
+        from src.Decision.Intelligence.engine import DecisionEngine as AdvancedDecisionEngine
+
+        builder = DecisionContextBuilder()
+        dec_intel_context = builder.build_context(
+            research_output=research_res,
+            strategy_evaluation=strat_eval,
+            risk_assessment=risk_assess,
+            market_context={"timeframe": context.Timeframe},
+            metadata={"asset": context.Asset}
+        )
+
+        if hasattr(self._decision_engine, "evaluate_intelligence_context"):
+            decision_report = self._decision_engine.evaluate_intelligence_context(dec_intel_context)
+        else:
+            adv_engine = AdvancedDecisionEngine()
+            decision_report = adv_engine.evaluate_intelligence_context(dec_intel_context)
+
+        # 6. Learning Feedback Integration
+        outcome_metric = context.Metadata.get("ActualOutcomeMetric", self._config.DefaultOutcomeMetric)
+        feedback = LearningFeedback(
+            DecisionId=decision_report.ReportId,
+            ActualOutcomeMetric=outcome_metric,
+            RecordedAt=datetime.now()
+        )
+        self._learning_engine.process_feedback(feedback)
+
+        return AdvancedPipelineResult(
+            Context=context,
+            MarketData=data_resp,
+            Research=research_res,
+            Strategy=strat_eval,
+            Risk=risk_assess,
+            DecisionReport=decision_report,
             Feedback=feedback,
             ExecutedAt=datetime.now()
         )
