@@ -109,7 +109,11 @@ class FeatureExtractionResearchEngine(IResearchEngine):
         feature_pipeline: Optional[FeaturePipeline] = None
     ) -> None:
         self._data_provider = data_provider
-        self._base_engine = base_engine or ResearchProcessor()
+        if base_engine is None:
+            from src.Research.Engine.services import ResearchEngine
+            self._base_engine = ResearchEngine()
+        else:
+            self._base_engine = base_engine
         self._feature_pipeline = feature_pipeline or FeaturePipeline()
 
     @property
@@ -159,6 +163,7 @@ class FeatureExtractionResearchEngine(IResearchEngine):
 
         # 4. Enforce base engine execution with enriched context
         enriched_context = dict(request.Context)
+        enriched_context["market_feature_set"] = feature_set
         enriched_context["extracted_features"] = {
             name: {
                 "value": fval.Value,

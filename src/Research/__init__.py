@@ -28,3 +28,16 @@ from src.Research.Features.calculators import (
     StatisticalFeatureCalculator
 )
 from src.Research.Features.pipeline import FeaturePipeline
+
+# Research Engine Evolution (Phase 15)
+from src.Research.Engine.models import (
+    PatternObservation,
+    ResearchReport
+)
+from src.Research.Engine.services import (
+    ObservationAnalyzer,
+    PatternDetector,
+    InsightGenerator,
+    ResearchReportBuilder,
+    ResearchEngine
+)
