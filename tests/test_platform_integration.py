@@ -14,6 +14,9 @@ from src.Strategy.Models.models import StrategyCandidate, StrategyDefinition, St
 from src.Strategy.Evaluation.criteria import EvaluationCriteria
 from src.Risk.Models.models import RiskProfile, PortfolioRisk, RiskAssessment
 from src.Risk.Services.services import RiskAnalyzer, RiskAssessmentFramework
+from src.Research import ResearchRequest, ResearchResult
+from src.Strategy import StrategyScore, StrategyEvaluation
+from src.Risk import PortfolioRisk, RiskAssessment
 from src.Decision.Models.models import DecisionContext, DecisionState, DecisionReason, DecisionResult
 from src.Decision.Engine.engine import DecisionEngine, DecisionReasoningFramework
 from src.Learning.Services.services import LearningFramework
