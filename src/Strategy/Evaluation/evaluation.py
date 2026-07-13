@@ -1,9 +1,12 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from src.Strategy.Models.models import StrategyCandidate, StrategyEvaluation, StrategyScore, StrategyDefinition
 from src.Strategy.Interfaces.interfaces import IStrategyEvaluator
 from src.Strategy.Evaluation.criteria import EvaluationCriteria
+from src.Strategy.Evaluation.context import StrategyEvaluationContext
+from src.Strategy.Evaluation.scorer import StrategyScorer
+from src.Infrastructure.exceptions import ValidationException, AssessmentException
 
 @dataclass(frozen=True)
 class EvaluationResult:
@@ -20,23 +23,68 @@ class StrategyEvaluator(IStrategyEvaluator):
     Evaluates StrategyCandidate concepts against evaluation criteria.
     Strictly passive analysis; generates no trade recommendations.
     """
-    def evaluate(self, candidate: StrategyCandidate) -> StrategyEvaluation:
-        # Create standard scores based on qualitative research factors
-        criteria_scores = {
-            EvaluationCriteria.STABILITY: 0.85,
-            EvaluationCriteria.COMPLEXITY: 0.90,
-            EvaluationCriteria.DATA_REQUIREMENTS: 0.70,
-            EvaluationCriteria.RISK_COMPATIBILITY: 0.95
+
+    def _validate_safety(self, candidate: StrategyCandidate, context: Optional[StrategyEvaluationContext]) -> None:
+        # Validate candidate input
+        if not candidate:
+            raise ValidationException("StrategyCandidate cannot be None.")
+        if not candidate.Id or not candidate.Id.strip():
+            raise ValidationException("StrategyCandidate ID cannot be empty or blank.")
+        if not candidate.Name or not candidate.Name.strip():
+            raise ValidationException("StrategyCandidate Name cannot be empty or blank.")
+
+        # Prevent execution leakages / trading bot keywords
+        forbidden_keywords = {
+            "buy_order", "sell_order", "place_order", "broker_connection",
+            "live_trade", "execute_order", "buy_signal", "sell_signal",
+            "order_manager", "active_broker"
         }
 
-        # Calculate overall score as simple average
-        avg_score = sum(criteria_scores.values()) / len(criteria_scores)
+        def scan_object(obj: Any) -> None:
+            if isinstance(obj, str):
+                lower_str = obj.lower()
+                for keyword in forbidden_keywords:
+                    if keyword in lower_str:
+                        raise ValidationException(
+                            f"Safety Violation: Strategy Candidate contains forbidden execution-related keyword '{keyword}'."
+                        )
+            elif isinstance(obj, dict):
+                for k, v in obj.items():
+                    scan_object(k)
+                    scan_object(v)
+            elif isinstance(obj, (list, set, tuple)):
+                for item in obj:
+                    scan_object(item)
 
-        score = StrategyScore(
-            OverallScore=avg_score,
-            Confidence=0.88,
-            Criteria=criteria_scores
-        )
+        scan_object(candidate.Name)
+        scan_object(candidate.Description)
+        scan_object(candidate.ResearchContext)
+
+    def evaluate(
+        self,
+        candidate: StrategyCandidate,
+        context: Optional[StrategyEvaluationContext] = None
+    ) -> StrategyEvaluation:
+        """
+        Scores a Candidate based on strict suitability evaluation matrices.
+        Supports both direct evaluation and contextual evaluation.
+        """
+        # 1. Enforce safety and structure
+        self._validate_safety(candidate, context)
+
+        # 2. Synthesize context if missing
+        if context is None:
+            context = StrategyEvaluationContext(
+                ResearchInsights=[],
+                MarketObservations=[],
+                HistoricalScenarioInfo={},
+                RiskContext={},
+                Metadata=candidate.ResearchContext
+            )
+
+        # 3. Core dynamic scorer evaluation
+        scorer = StrategyScorer()
+        score = scorer.calculate_score(candidate, context)
 
         notes = (
             f"Concept '{candidate.Name}' evaluated successfully. "
@@ -50,9 +98,13 @@ class StrategyEvaluator(IStrategyEvaluator):
             EvaluatedAt=datetime.now()
         )
 
-    def evaluate_concept(self, candidate: StrategyCandidate) -> EvaluationResult:
+    def evaluate_concept(
+        self,
+        candidate: StrategyCandidate,
+        context: Optional[StrategyEvaluationContext] = None
+    ) -> EvaluationResult:
         """Convenience method returning a detailed EvaluationResult."""
-        evaluation = self.evaluate(candidate)
+        evaluation = self.evaluate(candidate, context)
         is_approved = evaluation.Score.OverallScore >= 0.80
         return EvaluationResult(
             CandidateId=candidate.Id,
@@ -79,9 +131,13 @@ class StrategyEvaluationFramework:
     def list_registered_concepts(self) -> List[StrategyDefinition]:
         return list(self._registry.values())
 
-    def evaluate_and_record(self, candidate: StrategyCandidate) -> StrategyEvaluation:
+    def evaluate_and_record(
+        self,
+        candidate: StrategyCandidate,
+        context: Optional[StrategyEvaluationContext] = None
+    ) -> StrategyEvaluation:
         """Runs rating evaluations, logs outcome to history register, and returns the evaluation."""
-        evaluation = self._evaluator.evaluate(candidate)
+        evaluation = self._evaluator.evaluate(candidate, context)
         self._history.append(evaluation)
         return evaluation
 
@@ -94,6 +150,7 @@ class StrategyEvaluationFramework:
         best_score = -1.0
 
         for cand in candidates:
+            # Reconstruct default context from each candidate context if possible
             eval_res = self._evaluator.evaluate(cand)
             if eval_res.Score.OverallScore > best_score:
                 best_score = eval_res.Score.OverallScore
