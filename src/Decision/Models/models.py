@@ -8,6 +8,7 @@ class DecisionState:
     REJECTED = "Rejected"
     REVIEW_REQUIRED = "ReviewRequired"
     NO_ACTION = "NoAction"
+    INSUFFICIENT_DATA = "InsufficientData"
 
 
 @dataclass(frozen=True)
