@@ -1,0 +1,1 @@
+from src.Data.HistoricalData.Interfaces.interfaces import IHistoricalDataRepository
