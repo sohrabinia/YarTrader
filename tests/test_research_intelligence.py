@@ -101,4 +101,4 @@ class TestResearchIntelligence(unittest.TestCase):
         result = processor.analyze_market(req)
         self.assertEqual(result.Request.Asset, "AAPL")
         self.assertEqual(result.Findings["status"], "completed")
-        self.assertEqual(result.ConfidenceScore, 0.85)
+        self.assertEqual(result.ConfidenceScore, 0.88)

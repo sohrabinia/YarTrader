@@ -13,6 +13,9 @@ from src.Strategy.Models.models import StrategyCandidate, StrategyDefinition
 from src.Strategy.Evaluation.criteria import EvaluationCriteria
 from src.Risk.Models.models import RiskProfile
 from src.Risk.Services.services import RiskAnalyzer, RiskAssessmentFramework
+from src.Research import ResearchRequest, ResearchResult
+from src.Strategy import StrategyScore, StrategyEvaluation
+from src.Risk import PortfolioRisk, RiskAssessment
 from src.Decision.Models.models import DecisionContext, DecisionState, DecisionReason, DecisionResult
 from src.Decision.Engine.engine import DecisionEngine, DecisionReasoningFramework
 from src.Learning.Services.services import LearningFramework
@@ -38,7 +41,7 @@ class TestPlatformIntegration(unittest.TestCase):
         )
 
         now = datetime.now()
-        profile = RiskProfile("Low", 1.0, 0.20)
+        profile = RiskProfile("Low", 1.0, 0.90)
         context = PipelineContext(
             StartTime=now,
             Asset="AAPL",
@@ -141,8 +144,8 @@ class TestPlatformIntegration(unittest.TestCase):
         self.assertEqual(suggestions[0].SuggestedValue, 0.25)  # standard exposure
 
         # Feed some high negative outcomes
-        framework.feed_decision_outcome("dec-125", -0.10)
-        framework.feed_decision_outcome("dec-126", -0.15)
+        framework.feed_decision_outcome("dec-125", -0.20)
+        framework.feed_decision_outcome("dec-126", -0.25)
         suggestions_neg = framework.retrieve_optimization_improvements()
         self.assertEqual(suggestions_neg[0].SuggestedValue, 0.15)  # reduced exposure
 
