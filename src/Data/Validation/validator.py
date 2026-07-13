@@ -69,19 +69,25 @@ class DataQualityAnalyzer:
         validator = MarketDataValidator()
 
         for idx, r in enumerate(records):
+            # Adapt schema expectation for "time" vs "timestamp" to support MT5 and raw standards seamlessly
+            actual_expected = list(expected_fields)
+            if "timestamp" in actual_expected and "time" in r and "timestamp" not in r:
+                actual_expected.remove("timestamp")
+                actual_expected.append("time")
+
             # 1. Schema check
-            mismatches = validator.validate_record_schema(r, expected_fields)
+            mismatches = validator.validate_record_schema(r, actual_expected)
             if mismatches:
                 schema_mismatches.extend([f"Record {idx}: {f}" for f in mismatches])
                 missing_count += len(mismatches)
 
             # count present but None fields as missing/incomplete
-            for f in expected_fields:
+            for f in actual_expected:
                 if f not in mismatches and r.get(f) is None:
                     missing_count += 1
 
             # 2. Timestamp check
-            ts = r.get("timestamp")
+            ts = r.get("timestamp") or r.get("time")
             if ts is None:
                 invalid_ts_count += 1
             else:
