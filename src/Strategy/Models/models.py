@@ -3,6 +3,26 @@ from datetime import datetime
 from typing import Any, Dict
 
 @dataclass(frozen=True)
+class StrategyMetadata:
+    """Represents core metadata fields of a strategy concept."""
+    Author: str
+    ExecutionCostRating: float  # e.g., 0.1 to 1.0 (complexity rating)
+    Tags: Dict[str, str] = field(default_factory=dict)
+
+    @property
+    def author(self) -> str:
+        return self.Author
+
+    @property
+    def execution_cost_rating(self) -> float:
+        return self.ExecutionCostRating
+
+    @property
+    def tags(self) -> Dict[str, str]:
+        return self.Tags
+
+
+@dataclass(frozen=True)
 class StrategyDefinition:
     """
     Represents a strategy concept definition.
@@ -14,6 +34,7 @@ class StrategyDefinition:
     CreatedAt: datetime
     Version: str
     Status: str  # e.g., "Draft", "Approved", "Deprecated"
+    Metadata: StrategyMetadata = field(default_factory=lambda: StrategyMetadata("System", 0.1))
 
     @property
     def id(self) -> str:
@@ -38,6 +59,10 @@ class StrategyDefinition:
     @property
     def status(self) -> str:
         return self.Status
+
+    @property
+    def metadata_info(self) -> StrategyMetadata:
+        return self.Metadata
 
 
 @dataclass(frozen=True)

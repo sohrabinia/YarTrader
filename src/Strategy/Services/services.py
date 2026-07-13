@@ -1,56 +1,5 @@
-from datetime import datetime
-from typing import Dict, Optional
-from src.Strategy.Interfaces.interfaces import IStrategyEvaluator, IStrategyRegistry, IRuleValidator
-from src.Strategy.Models.models import StrategyCandidate, StrategyEvaluation, StrategyScore, StrategyDefinition
-from src.Strategy.Evaluation.criteria import EvaluationCriteria
-
-class StrategyEvaluator(IStrategyEvaluator):
-    """
-    Evaluates StrategyCandidate concepts against evaluation criteria.
-    Strictly passive analysis; generates no trade recommendations.
-    """
-    def evaluate(self, candidate: StrategyCandidate) -> StrategyEvaluation:
-        # Create standard scores based on qualitative research factors
-        criteria_scores = {
-            EvaluationCriteria.STABILITY: 0.85,
-            EvaluationCriteria.COMPLEXITY: 0.90,
-            EvaluationCriteria.DATA_REQUIREMENTS: 0.70,
-            EvaluationCriteria.RISK_COMPATIBILITY: 0.95
-        }
-
-        # Calculate overall score as simple average
-        avg_score = sum(criteria_scores.values()) / len(criteria_scores)
-
-        score = StrategyScore(
-            OverallScore=avg_score,
-            Confidence=0.88,
-            Criteria=criteria_scores
-        )
-
-        notes = (
-            f"Concept '{candidate.Name}' evaluated successfully. "
-            f"Excellent compatibility with active risk limits."
-        )
-
-        return StrategyEvaluation(
-            StrategyId=candidate.Id,
-            Score=score,
-            EvaluationNotes=notes,
-            EvaluatedAt=datetime.now()
-        )
-
-
-class StrategyRegistry(IStrategyRegistry):
-    """In-memory registry implementation to keep track of approved StrategyDefinitions."""
-    def __init__(self) -> None:
-        self._store: Dict[str, StrategyDefinition] = {}
-
-    def register_strategy(self, definition: StrategyDefinition) -> None:
-        self._store[definition.Id] = definition
-
-    def get_strategy(self, strategy_id: str) -> Optional[StrategyDefinition]:
-        return self._store.get(strategy_id)
-
+from src.Strategy.Interfaces.interfaces import IRuleValidator
+from src.Strategy.Models.models import StrategyDefinition
 
 class StrategyAnalyzer(IRuleValidator):
     """
