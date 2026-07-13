@@ -4,3 +4,4 @@ from src.Research.MarketAnalysis.Interfaces import IResearchEngine, IMarketAnaly
 from src.Research.MarketAnalysis.Services import MarketAnalysisEngine, ResearchProcessor
 from src.Research.Indicators.Models import IndicatorDefinition, IndicatorResult
 from src.Research.Indicators.Interfaces import IIndicatorProvider
+from src.Research.Common import ResearchMetrics

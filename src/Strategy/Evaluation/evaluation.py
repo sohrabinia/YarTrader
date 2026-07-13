@@ -1,6 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from src.Strategy.Models.models import StrategyCandidate, StrategyEvaluation, StrategyScore
+from typing import Dict, List, Optional
+from src.Strategy.Models.models import StrategyCandidate, StrategyEvaluation, StrategyScore, StrategyDefinition
 from src.Strategy.Interfaces.interfaces import IStrategyEvaluator
 from src.Strategy.Evaluation.criteria import EvaluationCriteria
 
@@ -60,3 +61,46 @@ class StrategyEvaluator(IStrategyEvaluator):
             Notes=evaluation.EvaluationNotes,
             EvaluatedAt=evaluation.EvaluatedAt
         )
+
+
+class StrategyEvaluationFramework:
+    """
+    Enables comparative rating analysis and structured audit logs of strategy candidates over time.
+    """
+    def __init__(self) -> None:
+        self._registry: Dict[str, StrategyDefinition] = {}
+        self._evaluator = StrategyEvaluator()
+        self._history: List[StrategyEvaluation] = []
+
+    def register_concept(self, definition: StrategyDefinition) -> None:
+        """Saves an official StrategyDefinition model."""
+        self._registry[definition.Id] = definition
+
+    def list_registered_concepts(self) -> List[StrategyDefinition]:
+        return list(self._registry.values())
+
+    def evaluate_and_record(self, candidate: StrategyCandidate) -> StrategyEvaluation:
+        """Runs rating evaluations, logs outcome to history register, and returns the evaluation."""
+        evaluation = self._evaluator.evaluate(candidate)
+        self._history.append(evaluation)
+        return evaluation
+
+    def compare_candidates(self, candidates: List[StrategyCandidate]) -> Optional[StrategyCandidate]:
+        """Compares multiple candidates, returning the one with the highest overall evaluation score."""
+        if not candidates:
+            return None
+
+        best_candidate: Optional[StrategyCandidate] = None
+        best_score = -1.0
+
+        for cand in candidates:
+            eval_res = self._evaluator.evaluate(cand)
+            if eval_res.Score.OverallScore > best_score:
+                best_score = eval_res.Score.OverallScore
+                best_candidate = cand
+
+        return best_candidate
+
+    def get_evaluation_history(self, strategy_id: str) -> List[StrategyEvaluation]:
+        """Queries historical score traces for a strategy identifier."""
+        return [e for e in self._history if e.StrategyId == strategy_id]
