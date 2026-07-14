@@ -25,24 +25,24 @@ src/
 ---
 
 ## 2. Comprehensive Master Guides
-To get started developing, deploying, or testing the platform, refer to our comprehensive documentation guides:
+To get started developing, deploying, or testing the platform, refer to our comprehensive documentation guides under nested categories:
 * **[Developer Guide](docs/DEVELOPER_GUIDE.md)**: Workspace setup, package manifests, and codebase workflow.
-* **[Architecture Guide](docs/ARCHITECTURE_GUIDE.md)**: Clean architecture, layer separation rules, and SOLID compliance.
-* **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)**: Configuration parameters, secrets handling, and structured JSON logs.
+* **[Architecture Guide](docs/ARCHITECTURE/ARCHITECTURE_GUIDE.md)**: Clean architecture, layer separation rules, and SOLID compliance.
+* **[Deployment Guide](docs/DEPLOYMENT/DEPLOYMENT_GUIDE.md)**: Configuration parameters, secrets handling, and structured JSON logs.
 * **[API Guide](docs/API_GUIDE.md)**: Scoped, versioned endpoints, and parameter middle validation.
-* **[Testing Guide](docs/TESTING_GUIDE.md)**: Unit tests, coverage map, and safety leakage scanners.
+* **[Testing Guide](docs/TESTING/TESTING_GUIDE.md)**: Unit tests, coverage map, and safety leakage scanners.
 * **[User Guide](docs/USER_GUIDE.md)**: Running backtesting loops, demo scenarios, and shadow live sessions.
 
 ---
 
 ## 3. Engineering Reviews & Audits (Version 1.0)
-Before declaring Version 1.0 complete, the codebase has undergone thorough reviews:
-* **[Final Architecture Review](docs/FINAL_ARCHITECTURE_REVIEW.md)**: Evaluates clean boundaries and SOLID conformity.
-* **[Code Quality Review](docs/CODE_QUALITY_REVIEW.md)**: Verifies error handling, validations, and lack of duplicate/dead code.
-* **[Intelligence Subsystem Review](docs/INTELLIGENCE_REVIEW.md)**: Focuses on indicators, evaluations, risk limits, and agent synergy.
-* **[Dashboard Subsystem Review](docs/DASHBOARD_REVIEW.md)**: Audits aggregators, metrics consistency, and endpoint routing.
-* **[Testing Subsystem Review](docs/TESTING_REVIEW.md)**: Details test coverage, metrics, and discoverability.
-* **[Final Security Review](docs/SECURITY_FINAL_REVIEW.md)**: Certifies absolute non-trading boundaries and zero leakage.
+Before declaring Version 1.0 complete, the codebase has undergone thorough reviews placed in subfolders:
+* **[Final Architecture Review](docs/ARCHITECTURE/FINAL_ARCHITECTURE_REVIEW.md)**: Evaluates clean boundaries and SOLID conformity.
+* **[Code Quality Review](docs/AUDIT/CODE_QUALITY_REVIEW.md)**: Verifies error handling, validations, and lack of duplicate/dead code.
+* **[Intelligence Subsystem Review](docs/AUDIT/INTELLIGENCE_REVIEW.md)**: Focuses on indicators, evaluations, risk limits, and agent synergy.
+* **[Dashboard Subsystem Review](docs/DASHBOARD/DASHBOARD_REVIEW.md)**: Audits aggregators, metrics consistency, and endpoint routing.
+* **[Testing Subsystem Review](docs/TESTING/TESTING_REVIEW.md)**: Details test coverage, metrics, and discoverability.
+* **[Final Security Review](docs/SECURITY/SECURITY_FINAL_REVIEW.md)**: Certifies absolute non-trading boundaries and zero leakage.
 * **[Documentation Review](docs/DOCUMENTATION_REVIEW.md)**: Audits overall consistency.
 
 ---

@@ -2,7 +2,7 @@
 
 ## 1. Subsystem Responsibilities & Separation
 The intelligence capabilities of the platform are partitioned into isolated functional layers, ensuring that no active trade execution triggers exist:
-* **Research Engine Evolution**: Coordinates feature extraction, فنی pattern detection, and technical observations.
+* **Research Engine Evolution**: Coordinates feature extraction, pattern detection, and technical observations.
 * **Strategy Evaluation Framework**: Passive scoring of Multi-Factor strategy candidates on criteria like Stability and Risk Compatibility.
 * **Risk Intelligence Layer**: Audits proposed allocations against volatility-scaled Risk Profiles.
 * **Decision Intelligence Layer**: Formulates context-aware decisions and resolves technical layer conflicts.

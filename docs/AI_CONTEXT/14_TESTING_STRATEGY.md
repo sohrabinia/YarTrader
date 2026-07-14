@@ -2,7 +2,7 @@
 
 ## 1. Automated Test Framework
 
-The platform is backed by a massive, highly-optimized automated test suite of **1003 separate test cases** executing with a 100% success rate.
+The platform is backed by a massive, highly-optimized automated test suite of **1268 separate test cases** executing with a 100% success rate.
 
 ---
 
@@ -23,14 +23,17 @@ Stress-test systems under high load (e.g., sequentially routing 100 messages or 
 ### Simulation Tests
 Simulate data faults, corrupted prices, invalid epochs, and API timeouts using mock datasets.
 
+### Operational Tests
+Encompasses backtesting loops, demo scenario execution timing, and shadow mode sessions tracking.
+
 ---
 
 ## 3. Test Statistics Summary
 
-*   **Total Tests**: 1003
+*   **Total Tests**: 1268
 *   **Success Rate**: 100.0%
 *   **Execution Leakage**: Absolute 0 Leakage Detected
-*   **Compilation Time**: < 5 seconds
+*   **Compilation Time**: < 15 seconds
 
 ---
 

@@ -17,7 +17,7 @@ src/Application/   - Demo pipelines, Backtesting, Deployments, Shadow, and Dashb
 ---
 
 ## 2. Completed Phases Checklist
-- [x] Phase 1-31: Clean decoulped Passive Multi-Agent Intelligence Core
+- [x] Phase 1-31: Clean decoupled Passive Multi-Agent Intelligence Core
 - [x] Phase 32: Deep Engineering & Optimization Audit
 - [x] Phase 33: Non-Trading Backtesting Platform
 - [x] Phase 34: End-to-End Demo Scenario Platform
@@ -52,6 +52,6 @@ The RG_V3_AI platform is declared **100% PRODUCTION READY** for simulation, back
 ---
 
 ## 6. Long-Term Technical Roadmap
-1. **Multi-Asset Portfolio Auditing**: Expand the risk assessment layer to audit covariance-scaled multi-asset distributions.
-2. **Centralized Log Aggregators**: Connect `StructuredLogger` outputs to cloud-native Elastic or Loki stacks.
+1. **Multi-Asset Portfolio Auditing**: Expand the risk assessment layer to audit covariance-scaled multi-asset portfolios.
+2. **Centralized Log Shipping**: Connect `StructuredLogger` outputs to cloud-native Elastic or Loki stacks.
 3. **Continuous Compliance Checks**: Run security regex key scanners on git pre-push actions to prevent any trading leaks permanently.
