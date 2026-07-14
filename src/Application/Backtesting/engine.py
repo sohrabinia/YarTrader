@@ -73,6 +73,13 @@ class IntelligenceBacktestEngine:
 
     def run_backtest(self, scenario: BacktestScenario) -> BacktestResult:
         """Runs standard pipeline processing iteratively across the scenario date window."""
+        # Enforce zero execution leakage scanning on scenario parameters
+        forbidden_keywords = {"order", "position", "broker", "trade_command", "buy_signal", "sell_signal", "execute"}
+        for k, v in scenario.parameters.items():
+            for kw in forbidden_keywords:
+                if kw in str(k).lower() or kw in str(v).lower():
+                    raise ValidationException(f"Safety Violation: Backtest scenario parameters contain forbidden keyword '{kw}'.")
+
         reports: List[DecisionIntelligenceReport] = []
         current_time = scenario.start_time
         interval_minutes = scenario.parameters.get("interval_minutes", 60)
