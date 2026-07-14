@@ -1,7 +1,9 @@
+import os
 import time
 import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+from src.Application.Deployment.storage import TradeYarStorageManager
 
 
 class StructuredLogger:
@@ -10,6 +12,8 @@ class StructuredLogger:
     def __init__(self, service_name: str = "RG_V3_AI") -> None:
         self.service_name = service_name
         self._logs: List[str] = []
+        self._storage_manager = TradeYarStorageManager.get_manager()
+        self._log_file_path = os.path.join(self._storage_manager.get_log_dir(), "tradeyar_ai.log")
 
     def log(self, level: str, event: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         record = {
@@ -21,8 +25,15 @@ class StructuredLogger:
         }
         json_str = json.dumps(record)
         self._logs.append(json_str)
-        # Also print to stdout for standard container logging redirection
-        # print(json_str)
+
+        # Strictly isolate writes inside the TradeYarStorageRoot/Logs directory
+        try:
+            os.makedirs(os.path.dirname(self._log_file_path), exist_ok=True)
+            with open(self._log_file_path, "a", encoding="utf-8") as f:
+                f.write(json_str + "\n")
+        except Exception:
+            pass
+
         return json_str
 
     def debug(self, event: str, metadata: Optional[Dict[str, Any]] = None) -> str:

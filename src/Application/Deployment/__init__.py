@@ -14,6 +14,9 @@ from src.Application.Deployment.observability import (
 from src.Application.Deployment.health import (
     ProductionHealthChecker
 )
+from src.Application.Deployment.storage import (
+    TradeYarStorageManager
+)
 
 __all__ = [
     "DeploymentProfile",
@@ -23,5 +26,6 @@ __all__ = [
     "ConfigManager",
     "StructuredLogger",
     "PerformanceMetricsTracker",
-    "ProductionHealthChecker"
+    "ProductionHealthChecker",
+    "TradeYarStorageManager"
 ]

@@ -29,6 +29,7 @@ To get started developing, deploying, or testing the platform, refer to our comp
 * **[Developer Guide](docs/DEVELOPER_GUIDE.md)**: Workspace setup, package manifests, and codebase workflow.
 * **[Architecture Guide](docs/ARCHITECTURE/ARCHITECTURE_GUIDE.md)**: Clean architecture, layer separation rules, and SOLID compliance.
 * **[Deployment Guide](docs/DEPLOYMENT/DEPLOYMENT_GUIDE.md)**: Configuration parameters, secrets handling, and structured JSON logs.
+* **[Storage Isolation Specification](docs/DEPLOYMENT/TRADEYAR_STORAGE_ISOLATION.md)**: Details TradeYar AI storage root (H:\TradeYarAI\) path isolation.
 * **[API Guide](docs/API_GUIDE.md)**: Scoped, versioned endpoints, and parameter middle validation.
 * **[Testing Guide](docs/TESTING/TESTING_GUIDE.md)**: Unit tests, coverage map, and safety leakage scanners.
 * **[User Guide](docs/USER_GUIDE.md)**: Running backtesting loops, demo scenarios, and shadow live sessions.
