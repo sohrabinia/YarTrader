@@ -23,6 +23,7 @@ The platform successfully implements all 37 development phases, including:
 * **Demo Scenario Subsystem**: Runs 5 comprehensive synthetic price-drift scenario libraries with timing latency trace logs.
 * **Production Deployments Subsystem**: Validation config managers, structured JSON logs, and comprehensive diagnostics checker.
 * **Shadow Mode Subsystem**: Real-time tick tracking with sliding consistency snapshots.
+* **TradeYar Storage Isolation Subsystem (Phase 39)**: Isolates all generated data, logs, and reports inside the H:\TradeYarAI\ directory.
 
 ---
 

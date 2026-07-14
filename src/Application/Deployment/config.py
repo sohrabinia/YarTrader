@@ -43,6 +43,12 @@ class ProductionConfig:
         default_db_key = os.getenv("RG_DB_SECURE_TOKEN", self._settings.get("DB_SECURE_TOKEN", "secure-token-12345"))
         self.vault.store_secret("db_token", default_db_key)
 
+        # TradeYar Storage Isolation Configuration (Task 39)
+        default_root = "H:\\TradeYarAI\\" if os.name == "nt" else "/tmp/TradeYarAI/"
+        self.storage_root = os.getenv("TradeYarStorageRoot", self._settings.get("TradeYarStorageRoot", default_root))
+        if not self.storage_root:
+            self.storage_root = default_root
+
     def runtime_check(self) -> bool:
         """Executes a self-diagnostic check on system configuration parameters."""
         if not self.environment:
