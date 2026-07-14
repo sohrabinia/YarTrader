@@ -3,9 +3,25 @@ from src.Application.Deployment.deployment import (
     SecretsVault,
     ProductionDeploymentManager
 )
+from src.Application.Deployment.config import (
+    ProductionConfig,
+    ConfigManager
+)
+from src.Application.Deployment.observability import (
+    StructuredLogger,
+    PerformanceMetricsTracker
+)
+from src.Application.Deployment.health import (
+    ProductionHealthChecker
+)
 
 __all__ = [
     "DeploymentProfile",
     "SecretsVault",
-    "ProductionDeploymentManager"
+    "ProductionDeploymentManager",
+    "ProductionConfig",
+    "ConfigManager",
+    "StructuredLogger",
+    "PerformanceMetricsTracker",
+    "ProductionHealthChecker"
 ]
