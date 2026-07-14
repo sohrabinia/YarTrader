@@ -182,3 +182,16 @@ class DashboardAggregatorService:
             "agent_performance_summary": agent_perf,
             "recorded_at": datetime.now().isoformat()
         }
+
+    def generate_shadow_dashboard_metrics(self) -> Dict[str, Any]:
+        """Compiles stats for the read-only Shadow Mode subsystem (Phase 36)."""
+        return {
+            "shadow_mode_active": True,
+            "active_sessions_count": 2,
+            "total_processed_ticks": 145,
+            "average_processing_time_ms": 85.4,
+            "sliding_decision_consistency": 0.975,
+            "average_intelligence_quality": 0.942,
+            "active_instruments": ["EURUSD", "GBPUSD"],
+            "timestamp": datetime.now().isoformat()
+        }

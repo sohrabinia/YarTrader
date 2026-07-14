@@ -109,6 +109,9 @@ class ServiceOrchestrator:
             elif endpoint == "/v1/dashboard/demo":
                 demo = self._dashboard_aggregator.generate_demo_dashboard_metrics()
                 return ServiceResponseDTO(status_code=200, data={"demo": demo})
+            elif endpoint == "/v1/dashboard/shadow":
+                shadow = self._dashboard_aggregator.generate_shadow_dashboard_metrics()
+                return ServiceResponseDTO(status_code=200, data={"shadow": shadow})
 
         self._metrics["failed_requests"] += 1
         return ServiceResponseDTO(status_code=404, error_message=f"Endpoint '{endpoint}' not found.")
