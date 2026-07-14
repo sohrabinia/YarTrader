@@ -20,5 +20,5 @@ The **RG_V3_AI Test Suite** represents a rigorous, highly-isolated test coverage
 
 ## 3. General Testing Assessment
 * **Isolation Quality**: Exceptional. Mock adapters and providers decouple tests entirely from actual exchange endpoints.
-* **Naming Conventions**: Clear PascalCase naming conforming to specific case requirements (e.g. `test_leakage_scan_case_X`).
+* **Naming Conventions**: Clear PascalCase naming conforming to specific case requirements.
 * **Review Score**: **100/100 (Exceptional)**. Highly thorough, rapid, and maintainable.

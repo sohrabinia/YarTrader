@@ -12,7 +12,7 @@ The platform is guaranteed to contain:
 ---
 
 ## 2. Execution Leakage Assessment
-* **Active Scanners**: Multiple automated test cases (such as middleware checks, compliance auditors, and dedicated safety checks) scan session parameters and source files for contiguous execution-related keywords.
+* **Active Scanners**: Multiple automated test cases scan session parameters and source files for contiguous execution-related keywords.
 * **Leakage Rating**: **Exactly 0.0 (Zero Leakage)**.
 * **Obfuscated Keywords**: Scanners utilize obfuscated keyword concatenation to avoid triggering false-positives inside the security files themselves.
 

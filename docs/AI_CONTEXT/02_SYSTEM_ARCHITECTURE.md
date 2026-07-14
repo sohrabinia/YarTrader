@@ -31,6 +31,9 @@ Learning Optimization (LearningProcessor)
         │
         ▼
 Compliance Audit (ComplianceAuditor)
+        │
+        ▼
+Operational Suites (Backtesting, Demo, Shadow Mode)
 ```
 
 ---
@@ -50,6 +53,9 @@ Orchestrates pipelines (`IntelligencePipeline`), coordinates multi-agent supervi
 
 ### D. Decision Intelligence Core (`src/Decision/`)
 Synthesizes research, strategy, and risk assessments into structured decision report contexts.
+
+### E. Operational Subsystems (`src/Application/Demo/`, `Shadow/`, `Backtesting/`)
+Provides synthetic/historical scenarios execution, live-rates read-only shadow tracking, and sliding metrics diagnostics.
 
 ---
 

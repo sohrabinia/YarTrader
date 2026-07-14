@@ -10,7 +10,7 @@ src/Research/      - Indicator calculators, technically pattern matching, and in
 src/Strategy/      - Strategy evaluations and scoring
 src/Risk/          - Volatility-scaled exposure caps
 src/Decision/      - Evidence tracing and conflict resolvers
-src/Learning/      - Feedback optimization suggetion logging
+src/Learning/      - Feedback optimization suggested parameters
 src/Application/   - Orchestrators (Backtesting, Demo, Shadow, Deployments, Dashboard)
 ```
 
@@ -18,7 +18,7 @@ src/Application/   - Orchestrators (Backtesting, Demo, Shadow, Deployments, Dash
 
 ## 2. Completed Phases Inventory
 The platform successfully implements all 37 development phases, including:
-* **Advanced Multi-Agent layer**: Passive orchestration (Research -> Strategy -> Risk -> Validation -> Learning).
+* **Advanced Multi-Agent Layer**: Passive orchestration (Research -> Strategy -> Risk -> Validation -> Learning).
 * **Intelligence Backtesting Subsystem**: Simulates historical runs over chronological slices.
 * **Demo Scenario Subsystem**: Runs 5 comprehensive synthetic price-drift scenario libraries with timing latency trace logs.
 * **Production Deployments Subsystem**: Validation config managers, structured JSON logs, and comprehensive diagnostics checker.
