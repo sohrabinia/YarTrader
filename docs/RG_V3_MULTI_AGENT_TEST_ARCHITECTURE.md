@@ -1,82 +1,95 @@
-# RG_V3 Phase 21 — Multi-Agent Intelligence Architecture
+# RG_V3_AI Multi-Agent Intelligence Test Architecture
 
-This document describes the design, contract rules, boundaries, and testing architecture of the **Multi-Agent Intelligence Layer (Phase 21)** of the RG_V3 Autonomous Financial Intelligence Platform.
-
----
-
-## 1. Core Objectives & Scope
-
-The Multi-Agent Intelligence Layer coordinates autonomous micro-analytical entities (agents) to enrich, validate, and optimize analytical research and risk assessments before feeding them into the Decision Intelligence Core.
-
-**STRICT COMPLIANCE CONSTRAINT:**
-This system is strictly a passive analytical engine. It contains **ZERO trading capability**, **ZERO BUY/SELL signaling**, **ZERO live broker integrations**, and **ZERO money management/active trading systems**. It operates entirely within a simulation/offline reasoning boundary.
+This document describes the automated test architecture, contract rules, isolation mechanisms, and compliance validation rules implemented for **Phase 21: Multi-Agent Intelligence Architecture**.
 
 ---
 
-## 2. Component Design & Responsibilities
+## 1. Architectural Principles
 
-The Multi-Agent architecture is organized into clean, modular, and immutable components:
-
-### A. IIntelligenceAgent Contract
-Defines the standard interface for all agents:
-*   `agent_id`: Globally unique identifier of the agent.
-*   `name`: Human-readable name.
-*   `responsibility`: Descriptive scope of action.
-*   `process(context, message)`: Processes input context and message, returning an enriched, validated output `IntelligenceMessage`.
-
-### B. The 5 Core Intelligence Agents
-1.  **ResearchAgent**: Allowed: Market observation, Feature analysis, Pattern discovery. Forbidden: Execution, orders, trading commands.
-2.  **StrategyAnalystAgent**: Allowed: Strategy evaluation, comparison, scoring. Forbidden: Trading signals.
-3.  **RiskAgent**: Allowed: Risk analysis, exposure analysis, scenario evaluation. Forbidden: Position opening.
-4.  **ValidationAgent**: Allowed: Compliance checks, quality checks. Forbidden: Modifying decisions.
-5.  **LearningAgent**: Allowed: Learning optimization, performance tracking, feedback analysis. Forbidden: Active trading parameters, real-time model retraining.
-
-### C. IntelligenceSupervisor
-Orchestrates agent registrations, discoverability, lifecycles, and executes them in strict sequence:
-$$\text{Research} \rightarrow \text{Strategy} \rightarrow \text{Risk} \rightarrow \text{Validation} \rightarrow \text{Learning}$$
-It handles individual agent failures and timeouts gracefully, logging problems into the audit trail while keeping the pipeline active. Finally, it compiles the multi-agent `AgentContext` into a validated `DecisionIntelligenceContext`.
-
-### D. AgentContext (Shared Context)
-An immutable, copy-on-write, versioned metadata container. It preserves complete history and tracks an automated, unmodifiable `ContextAuditRecord` trail (timestamp, agent ID, action type) of all enrichments.
-
-### E. IntelligenceMessage (Communication)
-Defines structured message contracts supporting:
-*   Schema validation (valid types and presence of keys).
-*   Duplicate message prevention (de-duplication via `MessageRouter`).
-*   End-to-end traceability (appending step traces to `trace_trail`).
-*   Proactive execution leakage checks (payload scans against trading keywords).
-
-### F. AgentMemory (Structured Memory)
-An in-memory structured history repository. It isolates keys by agent namespace, permits tag-based indexing, and enforces expiration rules (both TTL based on age and FIFO based on maximum capacity) without using any external databases or machine learning frameworks.
-
-### G. AgentPerformanceTracker (Performance Evaluations)
-Records completeness, reliability, data quality, and consistency metrics (0.0 to 1.0) of each agent execution to detect performance drifts.
-
----
-
-## 3. Comprehensive Test Framework Layout
-
-Automated tests are structured to fully validate the integrity and safety of the multi-agent layer:
+The Multi-Agent Intelligence Architecture acts as a distributed passive synthesis layer that coordinates decoupled analytical intelligence without violating strict non-trading constraints.
 
 ```
-tests/
-  RG_V3_AI.Tests/
-    Agents/         # Contract validation & isolation checks
-    Supervisor/     # Lifecycle, registration, execution sequence & timeouts
-    Communication/  # Schema validations, duplicate detection & routing traces
-    Context/        # Immutability, versioning, audit trail tracking
-    Memory/         # In-memory storage, retrieval, TTL & FIFO capacity limits
-    Validation/     # Compliance and quality audits
-    Integration/    # End-to-end scenarios, stress-testing, and conflict resolution
-    Architecture/   # AST rule verification against trading imports
-    Compliance/     # APES-FIN standards and non-trading bot boundaries
+                  Intelligence Supervisor
+                             │
+       ┌─────────────────────┼─────────────────────┐
+       ▼                     ▼                     ▼
+ResearchAgent        StrategyAnalystAgent      RiskAgent
+(Observations)         (Evaluations)          (Exposure)
+       │                     │                     │
+       └─────────────────────┼─────────────────────┘
+                             ▼
+                    ValidationAgent
+                     (Compliance)
+                             ▼
+                     LearningAgent
+                     (Feedback Suggestions)
+                             ▼
+               Decision Intelligence Core
+```
+
+### Core Constraints (APES-FIN Standard)
+1. **No Execution Leakage**: Zero capability to connect to real/simulated broker order pathways.
+2. **Strict Passivity**: No active buy/sell signals, order size calculations, or direct portfolio manipulations.
+3. **Immutability of Context**: The shared `AgentContext` is structurally copy-on-write and versioned.
+4. **Agent Isolation**: Active runtime safety scanners enforce keyword blocklists per agent and per communication packet.
+
+---
+
+## 2. Test Project Structure
+
+Automated tests are isolated within the `tests/RG_V3_AI.Tests/` suite, mapped as follows:
+
+```
+tests/RG_V3_AI.Tests/
+├── Agents/
+│   ├── test_contract_and_isolation.py  # Contract validation and agent-level keyword scanners
+│   └── test_performance.py             # AgentPerformanceTracker scoring and drift checks
+├── Architecture/
+│   └── test_architecture.py            # Static AST checking and token scanners
+├── Communication/
+│   └── test_communication.py           # Message schema, trace trails, and de-duplication
+├── Compliance/
+│   └── test_compliance.py              # Strict APES-FIN validation checks
+├── Context/
+│   └── test_context.py                 # Immutability, versioning, and copy-on-write rules
+├── Integration/
+│   ├── test_integration.py             # E2E coordination and Decision Core hand-off
+│   └── test_stress_and_scenarios.py    # High-intensity stress, load, and failure scenarios
+├── Memory/
+│   └── test_memory.py                  # Structured isolation, TTL, and FIFO evictions
+├── Supervisor/
+│   └── test_supervisor.py              # Lifecycle, registration, ordering, and timeouts
+└── Validation/
+    └── test_validation.py              # Compliance audit reports and quality validation
 ```
 
 ---
 
-## 4. Multi-Agent Security Boundaries & Safety Guards
+## 3. Comprehensive Safety Protocols
 
-The system implements multiple levels of guards to guarantee zero execution leakage:
-1.  **Global Message Schema Guard**: All incoming and outgoing payloads are scanned for keyword patterns (`"order"`, `"position"`, `"broker"`, `"execute"`, `"buy_signal"`, etc.) and raise `ValidationException` instantly.
-2.  **Agent-Level Isolation Guard**: Individual agents maintain specialized restricted keyword scopes.
-3.  **AST Code Inspection Guard**: Architecture-compliance test parsing verifies that agent files never import or call modules under `src/Execution`, `Broker`, or order routing namespaces.
+### Static Safety AST Scanner
+Guarantees at compile/test time that no forbidden trading modules are referenced.
+* Scans all agent source codes.
+* Analyzes AST import tree.
+* Rejects any imports matching: `broker`, `order`, `execution`, `positionmanager`.
+
+### Raw Token Scan Check
+Rejects raw code lines that contain critical trading verbs such as `place_order`, `open_position`, or `execute_trade` in any active files outside of predefined mock rules.
+
+### Communication Payload Safety Scanners
+Every `IntelligenceMessage` and `AgentContext` enrich operation scans recursively for a forbidden word blocklist:
+* `order`
+* `position`
+* `broker`
+* `trade_command`
+* `buy_signal`
+* `sell_signal`
+* `execute`
+
+---
+
+## 4. Coordination & Synthesis
+
+The `IntelligenceSupervisor` coordinates execution, monitors lifetimes, applies timeout boundaries (with graceful fallback), and converts the compiled agent contexts directly into high-fidelity `DecisionIntelligenceContext` instances for consumption by the `DecisionEngine`.
+* **Conflict Resolution**: Resolves mismatched intelligence (e.g. positive research matched with extreme volatility risk alerts).
+* **Graceful Degradation**: If any agent experiences timeout or software crash, the supervisor bypasses the failed component, logs the error details, and continues execution safely.
