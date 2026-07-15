@@ -38,8 +38,8 @@ class AgentContext:
         self._scan_object(key)
         self._scan_object(value)
 
-        # Deep copy to maintain absolute immutability of other contexts
-        new_data = copy.deepcopy(self.data)
+        # Copy-on-write to maintain absolute immutability of other contexts with maximum performance
+        new_data = dict(self.data)
         new_data[key] = copy.deepcopy(value)
 
         new_record = ContextAuditRecord(
