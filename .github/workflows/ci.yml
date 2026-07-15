@@ -44,7 +44,7 @@ jobs:
         # Fail if illegal execution keywords are found in source directories
         FORBIDDEN_TERMS="send_transaction place_order buy_signal sell_signal"
         for TERM in $FORBIDDEN_TERMS; do
-          if grep -r --exclude-dir={tests,venv,.git,deploy} "$TERM" src/; then
+          if grep -rI --exclude-dir={tests,venv,.git,deploy,__pycache__} "$TERM" src/; then
             echo "Security Rejection: Illegal trading action term '$TERM' found in src/"
             exit 1
           fi
