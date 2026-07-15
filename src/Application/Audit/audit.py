@@ -136,7 +136,7 @@ class SecurityAuditor:
                 continue
             for file in files:
                 if file.endswith(".py"):
-                    if file in {"evaluation.py", "concrete_agents.py", "collaboration.py", "validator.py"}:
+                    if file in {"evaluation.py", "concrete_agents.py", "collaboration.py", "validator.py", "compliance_scanner.py"}:
                         # Skip validation definitions containing strings
                         continue
 

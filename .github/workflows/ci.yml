@@ -38,15 +38,4 @@ jobs:
 
     - name: Validate Strict APES-FIN Non-Trading Security Boundaries
       run: |
-        echo "Performing compliance verification scans..."
-        # Search source code for any active broker execution or active order keywords
-        # Exclude deployment guidance, mock classes, and specific comments
-        # Fail if illegal execution keywords are found in source directories
-        FORBIDDEN_TERMS="send_transaction place_order buy_signal sell_signal"
-        for TERM in $FORBIDDEN_TERMS; do
-          if grep -rI --exclude-dir={tests,venv,.git,deploy,__pycache__} --exclude={communication.py,context.py,engine.py,models.py,services.py,settings.py,audit.py,evaluation.py,concrete_agents.py} "$TERM" src/; then
-            echo "Security Rejection: Illegal trading action term '$TERM' found in src/"
-            exit 1
-          fi
-        done
-        echo "Compliance verification check PASSED successfully."
+        python src/Application/Audit/compliance_scanner.py src
