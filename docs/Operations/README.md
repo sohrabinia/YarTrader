@@ -11,6 +11,9 @@ python -m src.cli.cli status
 # Health checks:
 python -m src.cli.cli health
 
+# Subsystem diagnostics & latency:
+python -m src.cli.cli diagnostics
+
 # Run standard pipelines demo:
 python -m src.cli.cli run-demo
 

@@ -7,8 +7,10 @@ This document describes the structure and operations of the TradeYar AI (RG_V3_A
 2. **RuntimeHost**: Loads configurations and orchestrates DI container binding registration.
 3. **RuntimeLauncher**: Listens to system SIGINT/SIGTERM termination signals to execute graceful shutdowns of active host services.
 
-## 2. Environment Configurations
-- **Development**: Features mock connectors and simplified features extraction for local diagnostic analysis.
-- **Test**: Rigorous automated unit testing with isolation environments.
-- **Simulation**: Custom synthetic provider generation streams.
-- **Production**: Live MetaTrader5 and other external read-only platform metrics.
+## 2. Observability & Tracing Platform
+- **Structured JSON Logging**: Implements standard logging with correlation IDs tracking transactional pathways.
+- **Performance metrics**: Collects and exposes latencies across the pipeline down to milliseconds.
+- **Audit Trails**: Non-repudiation logging of system-critical events and agent actions.
+
+## 3. Dependency Injection Integrations
+- All core services (such as ResearchEngine, StrategyEvaluator, RiskAnalyzer, DecisionEngine, LearningProcessor, ReportEngine, and StorageManagers) are fully decoupled and registered inside the DI Container (`registrations.py`).

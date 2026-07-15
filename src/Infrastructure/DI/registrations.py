@@ -18,6 +18,12 @@ from src.Risk.Services.services import RiskAnalyzer
 from src.Decision.Intelligence.engine import DecisionEngine as AdvancedDecisionEngine
 from src.Learning.Services.services import LearningProcessor
 
+# New platform concrete classes
+from src.Application.Deployment.storage import TradeYarStorageManager
+from src.Application.Reporting.engine import ReportEngine
+from src.Application.Monitoring.monitoring import IntelligenceMonitoringPlatform
+from src.Application.Monitoring.diagnostics import PlatformDiagnosticsEngine
+
 def register_services(container: DIContainer = container_instance, environment: EnvironmentType = None) -> None:
     """Registers environment-specific dependencies in the DI Container."""
     env = environment or ConfigurationManager.get_active_environment()
@@ -30,6 +36,12 @@ def register_services(container: DIContainer = container_instance, environment: 
     container.register_singleton(IRiskEngine, RiskAnalyzer)
     container.register_singleton(IDecisionEngine, AdvancedDecisionEngine)
     container.register_singleton(ILearningEngine, LearningProcessor)
+
+    # Generic platform registries
+    container.register_singleton(TradeYarStorageManager, TradeYarStorageManager)
+    container.register_singleton(ReportEngine, ReportEngine)
+    container.register_singleton(IntelligenceMonitoringPlatform, IntelligenceMonitoringPlatform)
+    container.register_singleton(PlatformDiagnosticsEngine, PlatformDiagnosticsEngine)
 
     # Environment-specific registrations
     if env == EnvironmentType.DEVELOPMENT:

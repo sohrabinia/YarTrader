@@ -9,7 +9,7 @@ from src.Infrastructure.exceptions import ValidationException
 from src.Infrastructure.health import PlatformHealthChecker
 from src.Application.Runtime.launcher import RuntimeLauncher
 from src.Application.Deployment.health import ProductionHealthChecker
-from src.Application.Deployment.observability import PerformanceMetricsTracker
+from src.Application.Monitoring.diagnostics import PlatformDiagnosticsEngine
 from src.Application.Reporting.engine import ReportEngine
 
 # Demo components
@@ -265,26 +265,22 @@ def handle_generate_report(args):
 def handle_diagnostics(args):
     """Diagnostics output about platform state and subsystems."""
     print_title()
-    tracker = PerformanceMetricsTracker()
-
-    # Seed tracker with sample performance data
-    tracker.record_pipeline_execution(145.2)
-    tracker.record_pipeline_execution(120.8)
-    tracker.record_agent_latency(14.8)
-    tracker.record_scenario_execution(550.4)
-    tracker.record_decision_processing(35.2)
-    tracker.record_warning("Slight database latency detected.")
-
-    summary = tracker.get_performance_summary()
+    diag_engine = PlatformDiagnosticsEngine()
+    rep = diag_engine.compile_diagnostics_report()
 
     print("Performance & Diagnostic Telemetry:")
-    print(f"  Uptime Status:               OPERATIONAL")
-    print(f"  Avg Pipeline execution (ms): {summary['average_pipeline_execution_ms']}")
-    print(f"  Avg Agent Latency (ms):      {summary['average_agent_latency_ms']}")
-    print(f"  Avg Scenario execution (ms): {summary['average_scenario_execution_ms']}")
-    print(f"  Avg Decision processing (ms):{summary['average_decision_processing_ms']}")
-    print(f"  Active Warning Count:        {summary['warning_count']}")
-    print(f"  Active Error Count:          {summary['error_count']}")
+    print(f"  Uptime Status:               {rep['status']}")
+    print(f"  Uptime (seconds):            {rep['uptime_seconds']}")
+
+    print("\nSubsystems Status:")
+    for sub, status in rep["subsystems"].items():
+        print(f"  - {sub.capitalize():<25} : {status}")
+
+    print("\nTelemetry & Resource Profile:")
+    metrics = rep["performance_metrics"]
+    print(f"  Avg Pipeline Execution:      {metrics.get('average_pipeline_execution_ms', 0.0)} ms")
+    print(f"  Warning Anomaly Count:       {metrics.get('warning_count', 0)}")
+    print(f"  Error Anomaly Count:         {metrics.get('error_count', 0)}")
     print("==========================================================================")
 
 
