@@ -17,9 +17,16 @@ class TestProductionReadinessFoundation(unittest.TestCase):
 
     def setUp(self) -> None:
         ConfigManager.reset()
+        self._orig_env = os.environ.get("RG_ENV")
+        if "RG_ENV" in os.environ:
+            del os.environ["RG_ENV"]
 
     def tearDown(self) -> None:
         ConfigManager.reset()
+        if self._orig_env is not None:
+            os.environ["RG_ENV"] = self._orig_env
+        elif "RG_ENV" in os.environ:
+            del os.environ["RG_ENV"]
 
     def test_production_config_validation_success(self) -> None:
         """Verify valid configurations load and validate successfully."""

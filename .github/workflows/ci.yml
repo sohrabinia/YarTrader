@@ -1,0 +1,52 @@
+name: TradeYar AI CI/CD Readiness Workflow
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+    - name: Checkout Repository Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install Platform Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f deploy/requirements.txt ]; then pip install -r deploy/requirements.txt; fi
+        pip install pytest pytest-cov
+
+    - name: Execute Autonomous Tests Suite
+      env:
+        RG_ENV: test
+        TradeYarStorageRoot: /tmp/TradeYarAI/
+      run: |
+        PYTHONPATH=. pytest --cov=src --cov-report=xml
+
+    - name: Validate Strict APES-FIN Non-Trading Security Boundaries
+      run: |
+        echo "Performing compliance verification scans..."
+        # Search source code for any active broker execution or active order keywords
+        # Exclude deployment guidance, mock classes, and specific comments
+        # Fail if illegal execution keywords are found in source directories
+        FORBIDDEN_TERMS="send_transaction place_order buy_signal sell_signal"
+        for TERM in $FORBIDDEN_TERMS; do
+          if grep -r --exclude-dir={tests,venv,.git,deploy} "$TERM" src/; then
+            echo "Security Rejection: Illegal trading action term '$TERM' found in src/"
+            exit 1
+          fi
+        done
+        echo "Compliance verification check PASSED successfully."

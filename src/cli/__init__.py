@@ -1,0 +1,3 @@
+"""
+TradeYar AI CLI package.
+"""
