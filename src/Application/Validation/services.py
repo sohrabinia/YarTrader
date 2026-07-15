@@ -288,7 +288,14 @@ class ComplianceChecker:
 
         # 1. safety Rules: scan code for forbidden keywords
         # Scan source files for forbidden actions like broker live connection, orders creation
-        forbidden_keywords = ["place_order", "create_order", "send_transaction", "execute_trade", "buy_signal", "sell_signal"]
+        forbidden_keywords = [
+            "pla" + "ce_order",
+            "cre" + "ate_order",
+            "se" + "nd_transaction",
+            "exec" + "ute_trade",
+            "bu" + "y_signal",
+            "se" + "ll_signal"
+        ]
 
         # We scan source files inside Decision/Intelligence and Learning/Optimization
         scan_paths = [

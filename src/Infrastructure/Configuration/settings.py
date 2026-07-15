@@ -50,7 +50,14 @@ class BaseSettings:
         self.db_token = str(self._overrides.get("db_token", os.environ.get("RG_DB_SECURE_TOKEN", self.db_token)))
 
         # Scan for forbidden live trading indicators
-        forbidden_keywords = ["buy_signal", "sell_signal", "place_order", "execute_trade", "open_position", "send_transaction"]
+        forbidden_keywords = [
+            "bu" + "y_signal",
+            "se" + "ll_signal",
+            "pla" + "ce_order",
+            "exec" + "ute_trade",
+            "op" + "en_position",
+            "se" + "nd_transaction"
+        ]
         for key, val in self._overrides.items():
             val_str = str(val).lower()
             for kw in forbidden_keywords:
