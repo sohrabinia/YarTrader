@@ -12,6 +12,7 @@ from src.Learning.Interfaces.interfaces import ILearningEngine
 
 # Concrete classes
 from src.Data.MarketData.Providers.providers import MetaTrader5Provider, ExchangeProvider
+from src.Data.MarketData.Providers.mt5_provider import MetaTrader5MarketDataProvider
 from src.Research.MarketAnalysis.Services.services import ResearchProcessor
 from src.Strategy.Evaluation.evaluation import StrategyEvaluator
 from src.Risk.Services.services import RiskAnalyzer
@@ -46,12 +47,12 @@ def register_services(container: DIContainer = container_instance, environment: 
     # Environment-specific registrations
     if env == EnvironmentType.DEVELOPMENT:
         # Development environment maps simple/mock variants
-        container.register_singleton(IMarketDataProvider, MetaTrader5Provider)
+        container.register_singleton(IMarketDataProvider, MetaTrader5MarketDataProvider)
         container.register_singleton(IResearchEngine, ResearchProcessor)
 
     elif env == EnvironmentType.TEST:
         # Test environment maps mock variants with fast execution
-        container.register_singleton(IMarketDataProvider, MetaTrader5Provider)
+        container.register_singleton(IMarketDataProvider, MetaTrader5MarketDataProvider)
         container.register_singleton(IResearchEngine, ResearchProcessor)
 
     elif env == EnvironmentType.SIMULATION:
@@ -61,10 +62,10 @@ def register_services(container: DIContainer = container_instance, environment: 
 
     elif env == EnvironmentType.PRODUCTION:
         # Production environment uses robust primary implementations
-        container.register_singleton(IMarketDataProvider, MetaTrader5Provider)
+        container.register_singleton(IMarketDataProvider, MetaTrader5MarketDataProvider)
         container.register_singleton(IResearchEngine, ResearchProcessor)
 
     else:
         # Default fallback
-        container.register_singleton(IMarketDataProvider, MetaTrader5Provider)
+        container.register_singleton(IMarketDataProvider, MetaTrader5MarketDataProvider)
         container.register_singleton(IResearchEngine, ResearchProcessor)
