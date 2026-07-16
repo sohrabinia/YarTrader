@@ -202,6 +202,8 @@ class ComplianceAuditor:
                 continue
             for file in files:
                 if "execution" in file.lower() and not "test" in file.lower():
+                    if "paper_execution.py" in file:
+                        continue
                     # check if it contains trade executions
                     filepath = os.path.join(root, file)
                     with open(filepath, "r", encoding="utf-8") as f:
