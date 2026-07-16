@@ -11,6 +11,9 @@ from src.Application.Audit.audit import (
 from src.Infrastructure.exceptions import ValidationException
 
 
+import ast
+from src.Application.Audit.audit import SecurityASTVisitor
+
 class TestPhase25ProductionReadinessAndAudit(unittest.TestCase):
     """
     Test suite verifying architecture isolation, circular dependency checks,
@@ -24,8 +27,39 @@ class TestPhase25ProductionReadinessAndAudit(unittest.TestCase):
         self.perf = PerformanceAuditor()
         self.comp = ComplianceAuditor()
 
-    # We will dynamically generate 80 separate test methods below
+    def test_ast_security_scanner_context(self) -> None:
+        """Verify that the AST-based scanner detects active violations but ignores passive string literals."""
+        forbidden = {"place_order", "open_position", "execute_trade"}
+
+        # 1. Safe code: contains strings inside set/lists and comment lines
+        safe_code = """
+# This is a comment about place_order
+forbidden_keys = {"place_order", "open_position"}
+msg = "The user wanted to execute_trade but was blocked."
+"""
+        tree_safe = ast.parse(safe_code)
+        visitor_safe = SecurityASTVisitor(forbidden)
+        visitor_safe.visit(tree_safe)
+        self.assertEqual(len(visitor_safe.anomalies), 0, "AST scanner flagged passive string literals or comments.")
+
+        # 2. Unsafe code: contains active function definition
+        unsafe_code_1 = """
+def place_order(symbol, qty):
     pass
+"""
+        tree_unsafe_1 = ast.parse(unsafe_code_1)
+        visitor_unsafe_1 = SecurityASTVisitor(forbidden)
+        visitor_unsafe_1.visit(tree_unsafe_1)
+        self.assertGreater(len(visitor_unsafe_1.anomalies), 0, "AST scanner missed forbidden function definition.")
+
+        # 3. Unsafe code: contains active function call
+        unsafe_code_2 = """
+client.open_position()
+"""
+        tree_unsafe_2 = ast.parse(unsafe_code_2)
+        visitor_unsafe_2 = SecurityASTVisitor(forbidden)
+        visitor_unsafe_2.visit(tree_unsafe_2)
+        self.assertGreater(len(visitor_unsafe_2.anomalies), 0, "AST scanner missed forbidden method call.")
 
 
 # Generate 80 distinct test cases dynamically

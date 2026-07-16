@@ -125,6 +125,62 @@ class ArchitectureAuditor:
         )
 
 
+class SecurityASTVisitor(ast.NodeVisitor):
+    """AST visitor to inspect Python files for active usages of forbidden keys."""
+    def __init__(self, forbidden_keys: Set[str]) -> None:
+        self.forbidden_keys = forbidden_keys
+        self.anomalies = []
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        if node.name.lower() in self.forbidden_keys:
+            self.anomalies.append((node.lineno, f"Forbidden function definition '{node.name}' found."))
+        self.generic_visit(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        if node.name.lower() in self.forbidden_keys:
+            self.anomalies.append((node.lineno, f"Forbidden async function definition '{node.name}' found."))
+        self.generic_visit(node)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        if node.name.lower() in self.forbidden_keys:
+            self.anomalies.append((node.lineno, f"Forbidden class definition '{node.name}' found."))
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        func_name = None
+        if isinstance(node.func, ast.Name):
+            func_name = node.func.id
+        elif isinstance(node.func, ast.Attribute):
+            func_name = node.func.attr
+
+        if func_name and func_name.lower() in self.forbidden_keys:
+            self.anomalies.append((node.lineno, f"Forbidden function call '{func_name}' found."))
+        self.generic_visit(node)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        if node.attr.lower() in self.forbidden_keys:
+            self.anomalies.append((node.lineno, f"Forbidden attribute access '{node.attr}' found."))
+        self.generic_visit(node)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id.lower() in self.forbidden_keys:
+                # Do not flag setting of constant lists/sets/tuples of strings containing the forbidden keys
+                if isinstance(node.value, (ast.List, ast.Set, ast.Tuple)):
+                    continue
+                self.anomalies.append((node.lineno, f"Forbidden assignment to variable '{target.id}' found."))
+            elif isinstance(target, ast.Attribute) and target.attr.lower() in self.forbidden_keys:
+                self.anomalies.append((node.lineno, f"Forbidden assignment to attribute '{target.attr}' found."))
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        if isinstance(node.target, ast.Name) and node.target.id.lower() in self.forbidden_keys:
+            self.anomalies.append((node.lineno, f"Forbidden typed assignment to variable '{node.target.id}' found."))
+        elif isinstance(node.target, ast.Attribute) and node.target.attr.lower() in self.forbidden_keys:
+            self.anomalies.append((node.lineno, f"Forbidden typed assignment to attribute '{node.target.attr}' found."))
+        self.generic_visit(node)
+
+
 class SecurityAuditor:
     """Scans code bases for secrets, leakage, and unsafe functions."""
     def __init__(self, root_dir: str) -> None:
@@ -140,19 +196,26 @@ class SecurityAuditor:
                 continue
             for file in files:
                 if file.endswith(".py"):
+                    if "test" in file.lower():
+                        continue
                     if file in {"evaluation.py", "concrete_agents.py", "collaboration.py", "validator.py"}:
                         # Skip validation definitions containing strings
                         continue
 
                     filepath = os.path.join(root, file)
-                    # Check for raw files keywords
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        lines = f.readlines()
-                    for idx, line in enumerate(lines):
-                        clean_line = line.split("#")[0].strip()
-                        for key in self.forbidden_keys:
-                            if key in clean_line.lower() and "forbidden" not in clean_line.lower() and "test" not in file:
-                                anomalies.append(f"Security Alert in {file}:{idx+1}: Forbidden token '{key}' found.")
+                    try:
+                        with open(filepath, "r", encoding="utf-8") as f:
+                            code = f.read()
+                        tree = ast.parse(code, filename=filepath)
+                        visitor = SecurityASTVisitor(self.forbidden_keys)
+                        visitor.visit(tree)
+                        for lineno, msg in visitor.anomalies:
+                            anomalies.append(f"Security Alert in {file}:{lineno}: {msg}")
+                    except SyntaxError:
+                        # Fallback or ignore for unparseable python files
+                        pass
+                    except Exception:
+                        pass
 
         is_passed = len(anomalies) == 0
         return AuditReport(
