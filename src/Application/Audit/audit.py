@@ -21,7 +21,9 @@ class DependencyAnalyzer:
     """Analyzes imports to build dependency graphs and detect circular dependencies."""
     def build_dependency_graph(self, root_dir: str) -> Dict[str, Set[str]]:
         graph = {}
-        for root, _, files in os.walk(root_dir):
+        exclude_dirs = {".venv", "venv", "env", "site-packages", "__pycache__", ".git", ".pytest_cache"}
+        for root, dirs, files in os.walk(root_dir):
+            dirs[:] = [d for d in dirs if d not in exclude_dirs]
             if "__pycache__" in root:
                 continue
             for file in files:
@@ -131,7 +133,9 @@ class SecurityAuditor:
 
     def audit_security(self) -> AuditReport:
         anomalies = []
+        exclude_dirs = {".venv", "venv", "env", "site-packages", "__pycache__", ".git", ".pytest_cache"}
         for root, dirs, files in os.walk(self.root_dir):
+            dirs[:] = [d for d in dirs if d not in exclude_dirs]
             if "__pycache__" in root:
                 continue
             for file in files:
@@ -197,7 +201,9 @@ class ComplianceAuditor:
     """Verifies complete conformity to passive, non-trading APES-FIN rules."""
     def audit_compliance(self, root_dir: str) -> AuditReport:
         non_compliance = []
+        exclude_dirs = {".venv", "venv", "env", "site-packages", "__pycache__", ".git", ".pytest_cache"}
         for root, dirs, files in os.walk(root_dir):
+            dirs[:] = [d for d in dirs if d not in exclude_dirs]
             if "__pycache__" in root:
                 continue
             for file in files:
