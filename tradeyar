@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""
+TradeYar CLI Command Wrapper
+Enables command: ./tradeyar validate
+"""
+
+import sys
+import os
+import subprocess
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "validate":
+        # Determine Python path
+        python_exec = sys.executable
+        pyenv_python = "/home/jules/.pyenv/versions/3.12.13/bin/python"
+        if os.path.exists(pyenv_python):
+            python_exec = pyenv_python
+
+        cmd = [python_exec, "validate_release.py"]
+        res = subprocess.run(cmd)
+        sys.exit(res.returncode)
+    else:
+        print("Usage: ./tradeyar validate")
+        print("To run the full autonomous release verification suite.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

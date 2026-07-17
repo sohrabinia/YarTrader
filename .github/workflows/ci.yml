@@ -1,0 +1,47 @@
+name: TradeYar AI Production Acceptance & Release Validation
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  schedule:
+    # Nightly run at 2:00 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  validate-and-test:
+    name: Production Validation Workflow
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Pinned Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest fastapi uvicorn httpx
+
+      - name: Execute Autonomous Validation Runner
+        run: |
+          python validate_release.py
+
+      - name: Archive Production Validation Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradeyar-validation-reports
+          path: |
+            validation/
+            logs/validation.log
