@@ -52,3 +52,10 @@ Static import trees and AST-based auditors confirm that the dependency graph is 
 
 * **100% Read-Only Operations**: Verified that absolutely no references to `order_send`, `buy_order`, `sell_order`, `margin`, `balance`, `equity`, or `position_close` exist in the Phase 21 runtime.
 * **Security Scanner Compliance**: Run-time compliance scanners confirm 0 false-positive active trade definitions, assuring absolute execution safety.
+
+---
+
+## 5. Verification Limitations & Status
+
+* **Live Validation Limitation**: Production MT5 live terminal validation remains an external environment validation step. Runtime evidence was validated using sandbox/mock fallback mode because real MT5 terminal execution was unavailable in the execution environment.
+* **Project Status**: Phase 21 — COMPLETED & FROZEN

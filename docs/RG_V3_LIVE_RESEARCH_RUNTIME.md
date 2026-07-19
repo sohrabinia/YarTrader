@@ -87,5 +87,11 @@ The Live Research Runtime complies 100% with standard **APES-FIN** (Autonomous P
 
 ## 6. Known Limitations
 
-- **Simulated Windows Fallback**: Since the official MT5 Python Library is restricted to Windows OS environments, non-Windows systems (including standard Docker/Linux environments) automatically execute using a synthetic historical sequence generator within `MT5DataProvider`, ensuring complete environment portability and validation coverage.
+- **Simulated Windows Fallback**: Since the official MT5 Python Library is restricted to Windows OS environments, non-Windows systems (including standard Docker/Linux environments) automatically execute using a synthetic historical sequence generator within `MT5DataProvider`, ensuring complete environment portability and validation coverage. Production MT5 live terminal validation remains an external environment validation step.
 - **In-Memory Retention**: Currently records completed report states in memory caches. Production rollouts should swap memory stores for highly durable persistent databases under high frequency or long execution periods.
+
+---
+
+## 7. Project Status
+
+Phase 21 — COMPLETED & FROZEN
