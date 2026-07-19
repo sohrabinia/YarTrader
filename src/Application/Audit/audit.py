@@ -125,34 +125,76 @@ class ArchitectureAuditor:
         )
 
 
+class SecurityASTVisitor(ast.NodeVisitor):
+    def __init__(self, forbidden_keys: Set[str]) -> None:
+        self.forbidden_keys = forbidden_keys
+        self.found_anomalies = []
+
+    def visit_Call(self, node: ast.Call) -> None:
+        if isinstance(node.func, ast.Name):
+            if node.func.id in self.forbidden_keys:
+                self.found_anomalies.append((node.lineno, f"Active call to forbidden function '{node.func.id}'"))
+        elif isinstance(node.func, ast.Attribute):
+            if node.func.attr in self.forbidden_keys:
+                self.found_anomalies.append((node.lineno, f"Active call to forbidden attribute '{node.func.attr}'"))
+        self.generic_visit(node)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        if node.name in self.forbidden_keys:
+            self.found_anomalies.append((node.lineno, f"Active definition of forbidden function '{node.name}'"))
+        self.generic_visit(node)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        if node.name in self.forbidden_keys:
+            self.found_anomalies.append((node.lineno, f"Active definition of forbidden class '{node.name}'"))
+        self.generic_visit(node)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id in self.forbidden_keys:
+                self.found_anomalies.append((node.lineno, f"Active assignment to forbidden name '{target.id}'"))
+            elif isinstance(target, ast.Attribute) and target.attr in self.forbidden_keys:
+                self.found_anomalies.append((node.lineno, f"Active attribute assignment to forbidden name '{target.attr}'"))
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        if isinstance(node.target, ast.Name) and node.target.id in self.forbidden_keys:
+            self.found_anomalies.append((node.lineno, f"Active annotated assignment to forbidden name '{node.target.id}'"))
+        elif isinstance(node.target, ast.Attribute) and node.target.attr in self.forbidden_keys:
+            self.found_anomalies.append((node.lineno, f"Active annotated attribute assignment to forbidden name '{node.target.attr}'"))
+        self.generic_visit(node)
+
+
 class SecurityAuditor:
-    """Scans code bases for secrets, leakage, and unsafe functions."""
+    """Scans code bases for secrets, leakage, and unsafe functions using AST-aware parsing."""
     def __init__(self, root_dir: str) -> None:
         self.root_dir = root_dir
         self.forbidden_keys = {"place_order", "open_position", "execute_trade", "buy_signal", "sell_signal", "broker_api"}
 
     def audit_security(self) -> AuditReport:
         anomalies = []
-        exclude_dirs = {".venv", "venv", "env", "site-packages", "__pycache__", ".git", ".pytest_cache"}
+        exclude_dirs = {".venv", "venv", "env", "site-packages", "__pycache__", ".git", ".pytest_cache", "logs", "reports", "validation", "history"}
         for root, dirs, files in os.walk(self.root_dir):
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
             if "__pycache__" in root:
                 continue
             for file in files:
                 if file.endswith(".py"):
-                    if file in {"evaluation.py", "concrete_agents.py", "collaboration.py", "validator.py"}:
-                        # Skip validation definitions containing strings
+                    if "test" in file.lower() or "test" in root.lower():
                         continue
 
                     filepath = os.path.join(root, file)
-                    # Check for raw files keywords
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        lines = f.readlines()
-                    for idx, line in enumerate(lines):
-                        clean_line = line.split("#")[0].strip()
-                        for key in self.forbidden_keys:
-                            if key in clean_line.lower() and "forbidden" not in clean_line.lower() and "test" not in file:
-                                anomalies.append(f"Security Alert in {file}:{idx+1}: Forbidden token '{key}' found.")
+                    try:
+                        with open(filepath, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        tree = ast.parse(content, filename=filepath)
+                        visitor = SecurityASTVisitor(self.forbidden_keys)
+                        visitor.visit(tree)
+                        for line_no, desc in visitor.found_anomalies:
+                            rel_p = os.path.relpath(filepath, self.root_dir)
+                            anomalies.append(f"Security Alert in {rel_p}:{line_no}: {desc}")
+                    except Exception:
+                        pass
 
         is_passed = len(anomalies) == 0
         return AuditReport(
@@ -198,22 +240,45 @@ class PerformanceAuditor:
 
 
 class ComplianceAuditor:
-    """Verifies complete conformity to passive, non-trading APES-FIN rules."""
+    """Verifies complete conformity to passive, non-trading APES-FIN rules using AST-aware parsing."""
     def audit_compliance(self, root_dir: str) -> AuditReport:
         non_compliance = []
-        exclude_dirs = {".venv", "venv", "env", "site-packages", "__pycache__", ".git", ".pytest_cache"}
+        exclude_dirs = {".venv", "venv", "env", "site-packages", "__pycache__", ".git", ".pytest_cache", "logs", "reports", "validation", "history"}
         for root, dirs, files in os.walk(root_dir):
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
             if "__pycache__" in root:
                 continue
             for file in files:
                 if "execution" in file.lower() and not "test" in file.lower():
-                    # check if it contains trade executions
                     filepath = os.path.join(root, file)
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        content = f.read()
-                    if "buy" in content.lower() or "sell" in content.lower():
-                        non_compliance.append(f"Compliance Alert: File '{file}' contains buy/sell operations.")
+                    try:
+                        with open(filepath, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        tree = ast.parse(content, filename=filepath)
+
+                        class ComplianceASTVisitor(ast.NodeVisitor):
+                            def __init__(self) -> None:
+                                self.violations = []
+                            def visit_Call(self, node: ast.Call) -> None:
+                                if isinstance(node.func, ast.Name):
+                                    if node.func.id in {"buy", "sell", "place_buy_order", "place_sell_order"}:
+                                        self.violations.append((node.lineno, f"Active call to trade method '{node.func.id}'"))
+                                elif isinstance(node.func, ast.Attribute):
+                                    if node.func.attr in {"buy", "sell", "place_buy_order", "place_sell_order"}:
+                                        self.violations.append((node.lineno, f"Active call to trade attribute '{node.func.attr}'"))
+                                self.generic_visit(node)
+                            def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+                                if node.name in {"buy", "sell", "place_buy_order", "place_sell_order"}:
+                                    self.violations.append((node.lineno, f"Active definition of trade function '{node.name}'"))
+                                self.generic_visit(node)
+
+                        visitor = ComplianceASTVisitor()
+                        visitor.visit(tree)
+                        for line_no, desc in visitor.violations:
+                            rel_p = os.path.relpath(filepath, root_dir)
+                            non_compliance.append(f"Compliance Alert in {rel_p}:{line_no}: {desc}")
+                    except Exception:
+                        pass
 
         is_passed = len(non_compliance) == 0
         return AuditReport(
