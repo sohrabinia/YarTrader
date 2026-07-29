@@ -311,3 +311,110 @@ class AnalysisReport:
             reasoning_quality_score=float(data["reasoning_quality_score"]),
             is_read_only_compliant=bool(data.get("is_read_only_compliant", True))
         )
+
+
+@dataclass
+class Hypothesis:
+    """Represents a generated brain hypothesis for similar reactions found historically."""
+    hypothesis_id: str
+    sequence_signature: List[float]
+    expected_direction: str  # BUY, SELL, WAIT
+    supporting_samples: List[Dict[str, Any]] = field(default_factory=list)
+    contradicting_samples: List[Dict[str, Any]] = field(default_factory=list)
+    confidence: float = 0.0  # 0.0 to 100.0
+    validation_status: str = "PENDING"  # PENDING, VALIDATED, REJECTED
+    meta: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Hypothesis":
+        return cls(
+            hypothesis_id=data["hypothesis_id"],
+            sequence_signature=data["sequence_signature"],
+            expected_direction=data["expected_direction"],
+            supporting_samples=data.get("supporting_samples", []),
+            contradicting_samples=data.get("contradicting_samples", []),
+            confidence=float(data["confidence"]),
+            validation_status=data.get("validation_status", "PENDING"),
+            meta=data.get("meta", {})
+        )
+
+
+@dataclass(frozen=True)
+class ReplayEpisode:
+    """Represents an immutable recorded training experience episode."""
+    episode_id: str
+    symbol: str
+    start_time: datetime
+    decision_time: datetime
+    market_context: Dict[str, Any]
+    observed_sequence: List[Dict[str, Any]]
+    brain_hypothesis: Optional[Dict[str, Any]]
+    simulation_decision: Optional[Dict[str, Any]]
+    actual_outcome: Optional[Dict[str, Any]]
+    judge_result: Optional[Dict[str, Any]]
+    learning_feedback: Optional[Dict[str, Any]]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "episode_id": self.episode_id,
+            "symbol": self.symbol,
+            "start_time": self.start_time.isoformat(),
+            "decision_time": self.decision_time.isoformat(),
+            "market_context": self.market_context,
+            "observed_sequence": self.observed_sequence,
+            "brain_hypothesis": self.brain_hypothesis,
+            "simulation_decision": self.simulation_decision,
+            "actual_outcome": self.actual_outcome,
+            "judge_result": self.judge_result,
+            "learning_feedback": self.learning_feedback
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ReplayEpisode":
+        return cls(
+            episode_id=data["episode_id"],
+            symbol=data["symbol"],
+            start_time=datetime.fromisoformat(data["start_time"]),
+            decision_time=datetime.fromisoformat(data["decision_time"]),
+            market_context=data.get("market_context", {}),
+            observed_sequence=data.get("observed_sequence", []),
+            brain_hypothesis=data.get("brain_hypothesis"),
+            simulation_decision=data.get("simulation_decision"),
+            actual_outcome=data.get("actual_outcome"),
+            judge_result=data.get("judge_result"),
+            learning_feedback=data.get("learning_feedback")
+        )
+
+
+@dataclass
+class ConceptMemory:
+    """Stores validated, consolidated market knowledge approved by the Judge with ample samples."""
+    concept_id: str
+    name: str
+    sequence_signature: List[float]
+    sample_count: int
+    validation_score: float
+    is_approved: bool
+    created_at: datetime = field(default_factory=datetime.now)
+    meta: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = asdict(self)
+        d["created_at"] = self.created_at.isoformat()
+        return d
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ConceptMemory":
+        return cls(
+            concept_id=data["concept_id"],
+            name=data["name"],
+            sequence_signature=data["sequence_signature"],
+            sample_count=int(data["sample_count"]),
+            validation_score=float(data["validation_score"]),
+            is_approved=bool(data["is_approved"]),
+            created_at=datetime.fromisoformat(data["created_at"]),
+            meta=data.get("meta", {})
+        )

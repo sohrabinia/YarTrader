@@ -184,7 +184,10 @@ def test_pattern_discovery_engine_similarity_matching():
 def test_simulation_brain_and_outcome_evaluation_engine():
     """Tests simulated trade creation, excursion tracking, and feedback learning updates."""
     memory_system = MarketMemorySystem(storage_dir=TEST_STORAGE_DIR)
-    sim_brain = SimulationBrain(symbol="XAUUSD", timeframe="H1")
+    sim_brain = SimulationBrain(
+        symbol="XAUUSD", timeframe="H1",
+        spread_points=0.0, slippage_points=0.0, commission_points=0.0
+    )
     eval_engine = OutcomeEvaluationEngine(memory_system)
 
     # Seed an initial Pattern in Pattern Memory

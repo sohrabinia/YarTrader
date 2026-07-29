@@ -1,0 +1,33 @@
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [222251]
+INFO:     Started server process [255166]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+Starting research iteration for XAUUSD on H1...
+MT5 Connected
+Symbol: XAUUSD
+Timeframe: H1
+Candles Received: 60
+Features Generated: true
+Research Completed: true
+Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-b0fddd2c.json
+Research cycle completed successfully. Result ID: rpt-XAUUSD-b0fddd2c
+Starting research iteration for XAUUSD on H1...
+MT5 Connected
+Symbol: XAUUSD
+Timeframe: H1
+Candles Received: 60
+Features Generated: true
+Research Completed: true
+Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5467c652.json
+Research cycle completed successfully. Result ID: rpt-XAUUSD-5467c652
+INFO:     127.0.0.1:55144 - "GET /dashboard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55144 - "GET /api/validation/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55156 - "GET /api/validation/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55144 - "GET /api/research/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55168 - "GET /api/replay/training-monitor HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55184 - "GET /api/replay/learning-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55192 - "GET /api/replay/error-analysis HTTP/1.1" 200 OK
