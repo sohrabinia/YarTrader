@@ -1,6 +1,5 @@
 import unittest
 from datetime import datetime, timedelta
-from typing import List
 from src.Data.MarketData.Models.models import MarketDataPoint
 from src.Research.MarketAnalysis.Discovery.models import (
     MarketObservation,
@@ -15,7 +14,13 @@ from src.Research.MarketAnalysis.Discovery.models import (
     DynamicTimeScale,
     MultiScaleRelationship,
     AIView,
-    HumanView
+    HumanView,
+    ConceptMemory,
+    Hypothesis,
+    JudgeReport,
+    MemoryAssociation,
+    CuriosityQuestion,
+    LearningEpisode
 )
 from src.Research.MarketAnalysis.Discovery.brain import (
     DataRealityLayer,
@@ -30,7 +35,15 @@ from src.Research.MarketAnalysis.Discovery.brain import (
     LearningMemoryUpdate,
     LiveAnalysisBrain,
     DynamicTimeStructureDiscoveryEngine,
-    MultiScaleMarketPerception
+    MultiScaleMarketPerception,
+    MemoryAssociationEngine,
+    CuriosityEngine,
+    HypothesisEngine,
+    ScientificTestingEngine,
+    MarketUnderstandingModel,
+    ConfidenceEngine,
+    IndependentJudgeBrain,
+    AntiSelfDeceptionLayer
 )
 
 
@@ -288,3 +301,128 @@ class TestNewbornMarketDiscoveryBrain(unittest.TestCase):
         self.assertEqual(human_view.CandlesCount, 10)
         self.assertEqual(len(human_view.Timeline), 10)
         self.assertEqual(len(human_view.OhlcData), 10)
+
+    # =========================================================================
+    # COGNITIVE LEARNING SYSTEM PHASE 2 TESTS
+    # =========================================================================
+
+    # 12. Memory Association Engine Tests
+    def test_cognitive_1_memory_association_engine(self) -> None:
+        assoc_engine = MemoryAssociationEngine()
+        obs1 = MarketObservation(self.asset, self.now, 1800.0, 1810.0, 1790.0, 1805.0, 100, self.timeframe)
+        obs2 = MarketObservation(self.asset, self.now + timedelta(days=30), 1820.0, 1830.0, 1815.0, 1825.0, 150, self.timeframe)
+
+        assoc = assoc_engine.associate_episodes(obs1, obs2, correlation_score=0.88)
+        self.assertTrue(isinstance(assoc, MemoryAssociation))
+        self.assertEqual(assoc.RegimeCorrelationScore, 0.88)
+        self.assertEqual(len(assoc_engine.associations), 1)
+
+    # 13. Curiosity Engine Question Formulation
+    def test_cognitive_2_curiosity_engine(self) -> None:
+        cur_engine = CuriosityEngine()
+        q = cur_engine.ask_question(
+            target_behavior="Gold multi-day downward runs",
+            gap_desc="Why does point reaction expand on US market session opening?"
+        )
+        self.assertTrue(isinstance(q, CuriosityQuestion))
+        self.assertEqual(q.TargetBehavior, "Gold multi-day downward runs")
+        self.assertEqual(len(cur_engine.questions), 1)
+
+    # 14. Hypothesis Lifecycle & Status Transition Checks
+    def test_cognitive_3_hypothesis_lifecycle_and_testing(self) -> None:
+        hyp_engine = HypothesisEngine()
+        testing_engine = ScientificTestingEngine()
+
+        hyp = hyp_engine.formulate_hypothesis(
+            description="Consecutive downward runs under H1 repeat on H4",
+            evidence_ids=["obs_1", "obs_2"],
+            prior_confidence=0.5
+        )
+        self.assertEqual(hyp.Status, "PENDING")
+
+        # Replay hypothesis against OOS data
+        layer = DataRealityLayer()
+        oos_obs = layer.receive_data(self.dummy_data, self.timeframe)
+        oos_seq = MarketSequence(Asset=self.asset, Timeframe=self.timeframe, Observations=oos_obs)
+
+        status, score = testing_engine.test_hypothesis(hyp, oos_seq)
+        hyp_engine.transition_status(hyp.HypothesisId, status, score)
+
+        updated_hyp = hyp_engine.hypotheses[hyp.HypothesisId]
+        self.assertEqual(updated_hyp.Status, status)
+        self.assertEqual(updated_hyp.Confidence, score)
+
+    # 15. Market Understanding and Concept Memory Expansion
+    def test_cognitive_4_market_understanding_concepts(self) -> None:
+        memory = MemorySystem()
+        model = MarketUnderstandingModel(memory)
+
+        # Empty report state default
+        report = model.get_understanding_report()
+        self.assertTrue(report["unknown_state_active"])
+
+        # Add validated concept
+        concept = model.build_concept("Long-range point run correlation on gold metals", sample_count=124, confidence=0.78)
+        self.assertTrue(isinstance(concept, ConceptMemory))
+        self.assertEqual(concept.Confidence, 0.78)
+
+        report_new = model.get_understanding_report()
+        self.assertFalse(report_new["unknown_state_active"])
+        self.assertEqual(report_new["verified_concepts_count"], 1)
+
+    # 16. Evidence-Based Confidence Engine Calibration
+    def test_cognitive_5_confidence_calibration(self) -> None:
+        engine = ConfidenceEngine()
+
+        # Default/Unknown state when zero samples
+        score_unknown = engine.calibrate_confidence(sample_count=0, judge_score=1.0, contradiction_count=0)
+        self.assertEqual(score_unknown, 0.5)
+
+        # Confidence increases with more samples and judge approval
+        score_strong = engine.calibrate_confidence(sample_count=5, judge_score=0.9, contradiction_count=0)
+
+        # Confidence decreases on contradiction
+        score_contradict = engine.calibrate_confidence(sample_count=5, judge_score=0.9, contradiction_count=2)
+        self.assertLess(score_contradict, score_strong)
+
+    # 17. Independent Judge Brain & Safeguards
+    def test_cognitive_6_independent_judge_brain_approval(self) -> None:
+        judge = IndependentJudgeBrain()
+        v_engine = VirtualTradingEngine()
+
+        trade = v_engine.create_virtual_trade(
+            asset=self.asset, timeframe=self.timeframe, direction="BUY",
+            entry_price=1800.0, stop_loss=1790.0, target_price=1830.0,
+            expected_scenario="upward_H1", entry_time=self.now
+        )
+        sim_res = SimulationResult(
+            TradeId=trade.TradeId, IsSuccess=True,
+            MaxFavorableMovementPoints=30.0, MaxAdverseMovementPoints=1.0, FinalResult="WIN"
+        )
+
+        # Disapproved due to insufficient sample count (< 3)
+        rep_fail = judge.evaluate_virtual_trade(trade, sim_res, sample_count=2)
+        self.assertEqual(rep_fail.Verdict, "DISAPPROVED")
+        self.assertFalse(rep_fail.IsScientificallyValid)
+
+        # Approved under sufficient samples
+        rep_ok = judge.evaluate_virtual_trade(trade, sim_res, sample_count=10)
+        self.assertEqual(rep_ok.Verdict, "APPROVED")
+        self.assertTrue(rep_ok.IsScientificallyValid)
+
+    # 18. Anti Self-Deception Future Leakage Checks
+    def test_cognitive_7_anti_self_deception_leakage(self) -> None:
+        deception_layer = AntiSelfDeceptionLayer()
+        current_time = self.now + timedelta(hours=3)
+
+        # Candidate observations - observation 3 is at current_time (boundary), observation 5 is in future
+        layer = DataRealityLayer()
+        candidate_obs = layer.receive_data(self.dummy_data, self.timeframe)
+
+        # Verify look-ahead error is raised when future leakage occurs
+        with self.assertRaises(ValueError):
+            deception_layer.verify_no_future_leakage(current_time, candidate_obs)
+
+        # Verify it passes cleanly if all candidates are within current boundary
+        clean_obs = candidate_obs[:3]
+        deception_layer.verify_no_future_leakage(current_time, clean_obs)

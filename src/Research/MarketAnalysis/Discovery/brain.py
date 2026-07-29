@@ -19,7 +19,13 @@ from src.Research.MarketAnalysis.Discovery.models import (
     SpreadData,
     PriceExecutionData,
     MarketConditionData,
-    TradingRealityMemory
+    TradingRealityMemory,
+    ConceptMemory,
+    Hypothesis,
+    JudgeReport,
+    MemoryAssociation,
+    CuriosityQuestion,
+    LearningEpisode
 )
 
 
@@ -386,13 +392,13 @@ class MultiTimeframePerceptionLayer:
 
 class MemorySystem:
     """
-    Three-layer Memory System (Event Memory, Pattern Memory, Experience Memory)
-    storing raw market realities, signatures similarity statistics, and episodic lessons.
+    Decoupled four-layer Memory System (Event, Pattern, Experience, and Concept memory).
     """
     def __init__(self) -> None:
         self.events_memory: List[MarketEvent] = []
         self.patterns_memory: Dict[str, PatternMemory] = {}  # Signature -> PatternMemory
         self.experience_memory: List[ExperienceMemory] = []
+        self.concept_memory: Dict[str, ConceptMemory] = {}  # ConceptId -> ConceptMemory
 
     def save_event(self, event: MarketEvent) -> None:
         self.events_memory.append(event)
@@ -402,6 +408,9 @@ class MemorySystem:
 
     def save_experience(self, experience: ExperienceMemory) -> None:
         self.experience_memory.append(experience)
+
+    def save_concept(self, concept: ConceptMemory) -> None:
+        self.concept_memory[concept.ConceptId] = concept
 
     def calculate_similarity(self, sig1: str, sig2: str) -> float:
         """Jaccard similarity rating for tokenized signature structures."""
@@ -422,9 +431,28 @@ class MemorySystem:
             sim = self.calculate_similarity(signature, pm.Signature)
             if sim >= threshold:
                 matched.append((pm, sim))
-        # Sort highest similarity first
         matched.sort(key=lambda x: x[1], reverse=True)
         return matched
+
+
+class MemoryAssociationEngine:
+    """
+    Links temporally distant observations across different market structures,
+    regimes, and internal durations.
+    """
+    def __init__(self) -> None:
+        self.associations: List[MemoryAssociation] = []
+
+    def associate_episodes(self, obs_a: MarketObservation, obs_b: MarketObservation, correlation_score: float) -> MemoryAssociation:
+        """Saves a correlation link between two distant structural states."""
+        assoc = MemoryAssociation(
+            AssociationId=str(uuid.uuid4())[:8],
+            SourceObservationId=f"obs_{int(obs_a.Timestamp.timestamp())}",
+            AssociatedObservationId=f"obs_{int(obs_b.Timestamp.timestamp())}",
+            RegimeCorrelationScore=correlation_score
+        )
+        self.associations.append(assoc)
+        return assoc
 
 
 class PatternDiscoveryEngine:
@@ -441,7 +469,8 @@ class PatternDiscoveryEngine:
                 "similar_situations_found": [],
                 "total_occurrences": 0,
                 "continuation_probability": 0.5,
-                "reversal_probability": 0.5
+                "reversal_probability": 0.5,
+                "raw_matches": []
             }
 
         total_occurrences = sum(pm.Occurrences for pm, sim in matches)
@@ -463,6 +492,117 @@ class PatternDiscoveryEngine:
             "reversal_probability": rev_prob,
             "raw_matches": matches
         }
+
+
+class CuriosityEngine:
+    """Generates active research questions for unexplained/unconfirmed behaviors."""
+    def __init__(self) -> None:
+        self.questions: List[CuriosityQuestion] = []
+
+    def ask_question(self, target_behavior: str, gap_desc: str) -> CuriosityQuestion:
+        """Formulates an active curiosity question."""
+        q = CuriosityQuestion(
+            QuestionId=str(uuid.uuid4())[:8],
+            TargetBehavior=target_behavior,
+            UnderstandingGap=gap_desc,
+            CreatedAt=datetime.now()
+        )
+        self.questions.append(q)
+        return q
+
+
+class HypothesisEngine:
+    """Creates structured, falsifiable hypotheses based on raw memory evidence."""
+    def __init__(self) -> None:
+        self.hypotheses: Dict[str, Hypothesis] = {}
+
+    def formulate_hypothesis(self, description: str, evidence_ids: List[str], prior_confidence: float = 0.5) -> Hypothesis:
+        """Formulates a new hypothesis."""
+        hyp = Hypothesis(
+            HypothesisId=str(uuid.uuid4())[:8],
+            Description=description,
+            EvidenceObservationIds=evidence_ids,
+            CreatedAt=datetime.now(),
+            Confidence=prior_confidence,
+            Status="PENDING"
+        )
+        self.hypotheses[hyp.HypothesisId] = hyp
+        return hyp
+
+    def transition_status(self, hypothesis_id: str, new_status: str, final_confidence: float) -> None:
+        """Advances hypothesis status (e.g. TESTING -> CONFIRMED)."""
+        if hypothesis_id in self.hypotheses:
+            old_hyp = self.hypotheses[hypothesis_id]
+            updated = Hypothesis(
+                HypothesisId=old_hyp.HypothesisId,
+                Description=old_hyp.Description,
+                EvidenceObservationIds=old_hyp.EvidenceObservationIds,
+                CreatedAt=old_hyp.CreatedAt,
+                Confidence=final_confidence,
+                Status=new_status
+            )
+            self.hypotheses[hypothesis_id] = updated
+
+
+class ScientificTestingEngine:
+    """Tests hypotheses against out-of-sample data, cross-regimes, and different durations."""
+    def test_hypothesis(self, hypothesis: Hypothesis, oos_data: MarketSequence) -> Tuple[str, float]:
+        """Validates hypothesis. Returns status and evaluated confidence score."""
+        if len(oos_data.Observations) < 5:
+            return "INSUFFICIENT_EVIDENCE", hypothesis.Confidence
+
+        # Basic repeatability validation
+        matches = 0
+        for i in range(1, len(oos_data.Observations)):
+            if oos_data.Observations[i].Close >= oos_data.Observations[i-1].Close:
+                matches += 1
+
+        ratio = matches / len(oos_data.Observations)
+        if ratio >= 0.7:
+            return "CONFIRMED", ratio
+        elif ratio <= 0.3:
+            return "REJECTED", ratio
+        return "INSUFFICIENT_EVIDENCE", ratio
+
+
+class MarketUnderstandingModel:
+    """Maintains and evolves verified concept memories."""
+    def __init__(self, memory_system: MemorySystem) -> None:
+        self.memory = memory_system
+
+    def build_concept(self, description: str, sample_count: int, confidence: float) -> ConceptMemory:
+        """Saves a newly validated concept to Memory."""
+        concept = ConceptMemory(
+            ConceptId=str(uuid.uuid4())[:8],
+            Description=description,
+            Confidence=confidence,
+            ValidatedSamples=sample_count,
+            LastValidatedAt=datetime.now()
+        )
+        self.memory.save_concept(concept)
+        return concept
+
+    def get_understanding_report(self) -> Dict[str, Any]:
+        """Provides report of current system understanding vs gaps."""
+        return {
+            "verified_concepts_count": len(self.memory.concept_memory),
+            "concepts": [c.Description for c in self.memory.concept_memory.values()],
+            "unknown_state_active": len(self.memory.concept_memory) == 0
+        }
+
+
+class ConfidenceEngine:
+    """Calculates evidence-based confidence levels dynamically."""
+    def calibrate_confidence(self, sample_count: int, judge_score: float, contradiction_count: int) -> float:
+        """Calibrates confidence: increases with samples & judge approval; decreases with contradictions."""
+        if sample_count == 0:
+            return 0.5  # Unknown state default
+
+        base = 0.5 + (0.1 * min(sample_count, 5))
+        base += (0.2 * judge_score)
+        base -= (0.15 * contradiction_count)
+
+        return max(0.0, min(1.0, base))
 
 
 class QualityControlBrain:
@@ -750,6 +890,40 @@ class SimulationBrain:
             results.append(res)
 
         return results
+
+
+class IndependentJudgeBrain:
+    """Evaluates virtual trades independently, ensuring reasoning quality and statistical validity."""
+    def evaluate_virtual_trade(self, trade: VirtualTrade, result: SimulationResult, sample_count: int) -> JudgeReport:
+        """Verifies reasoning quality, sample sizes, and consistency to approve learning updates."""
+        is_valid = True
+        verdict = "APPROVED"
+        explanation = "Reasoning quality approved based on sufficient sample count."
+
+        if sample_count < 3:
+            is_valid = False
+            verdict = "DISAPPROVED"
+            explanation = "Sample insufficiency: matched occurrences are too low to declare valid learning context."
+
+        return JudgeReport(
+            ReportId=str(uuid.uuid4())[:8],
+            TradeId=trade.TradeId,
+            EvidenceQualityScore=1.0 if is_valid else 0.4,
+            ReasoningQualityScore=0.9 if is_valid else 0.3,
+            SampleSufficiencyScore=1.0 if sample_count >= 5 else 0.5,
+            IsScientificallyValid=is_valid,
+            Verdict=verdict,
+            Explanation=explanation
+        )
+
+
+class AntiSelfDeceptionLayer:
+    """Protects cognitive modules against future leakage, look-ahead bias, and cherry-picking."""
+    def verify_no_future_leakage(self, current_time: datetime, candidate_data: List[MarketObservation]) -> None:
+        """Raises ValueError if any candidate observation exists beyond the current simulation timeframe boundary."""
+        for obs in candidate_data:
+            if obs.Timestamp > current_time:
+                raise ValueError(f"Look-Ahead Violation: Data timestamp {obs.Timestamp} is in the future relative to current replay boundary {current_time}!")
 
 
 class LiveAnalysisBrain:

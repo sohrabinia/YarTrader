@@ -248,3 +248,71 @@ class TradingRealityMemory:
     AverageSlippage: float
     ExecutionImpact: float
     Session: str
+
+
+# =========================================================================
+# NEW COGNITIVE CORES & JUDGE DATABASE MODELS
+# =========================================================================
+
+@dataclass(frozen=True)
+class ConceptMemory:
+    """Stores validated market discovery principles, supporting samples and validation time."""
+    ConceptId: str
+    Description: str
+    Confidence: float
+    ValidatedSamples: int
+    LastValidatedAt: datetime
+
+
+@dataclass(frozen=True)
+class Hypothesis:
+    """Falsifiable hypothesis created from raw memory evidence with progression status."""
+    HypothesisId: str
+    Description: str
+    EvidenceObservationIds: List[str]
+    CreatedAt: datetime
+    Confidence: float
+    Status: str  # "PENDING", "TESTING", "CONFIRMED", "REJECTED", "INSUFFICIENT_EVIDENCE"
+
+
+@dataclass(frozen=True)
+class JudgeReport:
+    """Independent evaluate report checking decision and reasoning quality."""
+    ReportId: str
+    TradeId: str
+    EvidenceQualityScore: float  # 0.0 to 1.0
+    ReasoningQualityScore: float  # 0.0 to 1.0
+    SampleSufficiencyScore: float  # 0.0 to 1.0
+    IsScientificallyValid: bool
+    Verdict: str  # "APPROVED", "DISAPPROVED"
+    Explanation: str
+
+
+@dataclass(frozen=True)
+class MemoryAssociation:
+    """A long-range connection linking two temporally distant market observation segments."""
+    AssociationId: str
+    SourceObservationId: str
+    AssociatedObservationId: str
+    RegimeCorrelationScore: float
+
+
+@dataclass(frozen=True)
+class CuriosityQuestion:
+    """Represents an active research question directing future simulation/testing trials."""
+    QuestionId: str
+    TargetBehavior: str
+    UnderstandingGap: str
+    CreatedAt: datetime
+
+
+@dataclass(frozen=True)
+class LearningEpisode:
+    """Episodic learn update record containing full traceability back to audit keys."""
+    EpisodeId: str
+    CreatedAt: datetime
+    ObservationIds: List[str]
+    PatternIds: List[str]
+    HypothesisIds: List[str]
+    JudgeReportIds: List[str]
+    EvolvedConceptId: str
