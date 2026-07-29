@@ -39,6 +39,12 @@ class ConversationEngine:
         understanding_status = "UNKNOWN"
         evidence_ids = []
 
+        # Additional requested metadata for traceability audit
+        evidence_count = 0
+        data_coverage = "Scanned all available historical terminal ticks"
+        confidence_source = "None - Default Unknown"
+        validation_level = "PENDING"
+
         # 1. Topic: Learned Concepts
         if "learned concepts" in q_lower or "what did you understand" in q_lower:
             requested_sources.append("ConceptMemory")
@@ -54,6 +60,9 @@ class ConversationEngine:
                 unknown_factors = "Behavior under unvalidated highly volatile regimes remains untested."
                 understanding_status = "VALIDATED"
                 evidence_ids = [c.ConceptId]
+                evidence_count = c.ValidatedSamples
+                confidence_source = "Based on validated sample consistency"
+                validation_level = "VALIDATED"
             else:
                 unknown_factors = "No concepts have been validated yet. Evidence is insufficient. System remains in default 'Unknown' state."
 
@@ -72,6 +81,9 @@ class ConversationEngine:
                 unknown_factors = "Structural timeframe nested relationships remain unproven."
                 understanding_status = "TESTING" if p.Occurrences < 5 else "OBSERVED"
                 evidence_ids = [p.PatternId]
+                evidence_count = p.Occurrences
+                confidence_source = "Based on historical frequency"
+                validation_level = "TESTING" if p.Occurrences < 5 else "OBSERVED"
             else:
                 unknown_factors = "No recurring structural patterns have been recorded yet."
 
@@ -90,6 +102,9 @@ class ConversationEngine:
                 unknown_factors = f"Pattern correction underway for signature {f.SituationSignature}."
                 understanding_status = "REJECTED"
                 evidence_ids = [f.MemoryId]
+                evidence_count = len(failures)
+                confidence_source = "Based on direct execution failure"
+                validation_level = "REJECTED"
             else:
                 unknown_factors = "No learning failures or losses have been recorded in Experience Memory yet."
 
@@ -107,6 +122,9 @@ class ConversationEngine:
                 unknown_factors = q.UnderstandingGap
                 understanding_status = "HYPOTHESIS"
                 evidence_ids = [q.QuestionId]
+                evidence_count = len(cur_engine.questions)
+                confidence_source = "Awaiting empirical tests"
+                validation_level = "HYPOTHESIS"
             else:
                 unknown_factors = "No active curiosity questions are currently formulated."
 
@@ -124,6 +142,9 @@ class ConversationEngine:
                 unknown_factors = "OOS repeatability remains unproven."
                 understanding_status = h.Status
                 evidence_ids = [h.HypothesisId]
+                evidence_count = len(h.EvidenceObservationIds)
+                confidence_source = "Initial prior probability"
+                validation_level = h.Status
             else:
                 unknown_factors = "No active scientific hypotheses are currently in testing state."
 
@@ -137,7 +158,13 @@ class ConversationEngine:
             "Contradicting Evidence": contradicting_evidence,
             "Unknown Factors": unknown_factors,
             "Current Understanding Status": understanding_status,
-            "EvidenceIds": evidence_ids
+            "EvidenceIds": evidence_ids,
+
+            # Traceability Metadata block
+            "Evidence Count": evidence_count,
+            "Data Coverage": data_coverage,
+            "Confidence Source": confidence_source,
+            "Validation Level": validation_level
         }
 
         # Log into the secure audit trail

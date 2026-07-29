@@ -67,6 +67,12 @@ class TestMarketIntelligenceConversationLayer(unittest.TestCase):
         self.assertEqual(ans["EvidenceIds"], ["concept-101"])
         self.assertIn("concept-101", ans["Evidence"])
 
+        # Verify Traceability Metadata block
+        self.assertEqual(ans["Evidence Count"], 1240)
+        self.assertIsNotNone(ans["Data Coverage"])
+        self.assertIsNotNone(ans["Confidence Source"])
+        self.assertEqual(ans["Validation Level"], "VALIDATED")
+
     # 3. Test Discovered Patterns Query
     def test_patterns_query_returns_correct_evidence(self) -> None:
         p = PatternMemory(PatternId="pat-202", Signature="upward_12")
@@ -86,6 +92,10 @@ class TestMarketIntelligenceConversationLayer(unittest.TestCase):
         self.assertEqual(ans["Confidence Level"], "70%")  # 35 / 50 = 70%
         self.assertEqual(ans["Historical Samples"], 50)
         self.assertEqual(ans["EvidenceIds"], ["pat-202"])
+
+        # Verify metadata
+        self.assertEqual(ans["Evidence Count"], 50)
+        self.assertEqual(ans["Validation Level"], "OBSERVED")
 
     # 4. Test Self Criticism and Mistakes Queries
     def test_self_criticism_and_losses_query(self) -> None:
@@ -107,6 +117,10 @@ class TestMarketIntelligenceConversationLayer(unittest.TestCase):
         self.assertEqual(ans["Current Understanding Status"], "REJECTED")
         self.assertEqual(ans["EvidenceIds"], ["exp-loss-99"])
         self.assertIn("exp-loss-99", ans["Evidence"])
+
+        # Verify metadata
+        self.assertEqual(ans["Evidence Count"], 1)
+        self.assertEqual(ans["Validation Level"], "REJECTED")
 
     # 5. Test Audit Trail Logging and Traceability
     def test_conversation_audit_logs_integrity(self) -> None:
