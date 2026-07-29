@@ -20,6 +20,13 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertIn("text/html", resp1.headers["content-type"])
         self.assertIn("TradeYar AI — Management Dashboard", resp1.text)
 
+        # Test default language and RTL markers are loaded correctly
+        self.assertIn('lang="fa"', resp1.text)
+        self.assertIn('dir="rtl"', resp1.text)
+        self.assertIn('Vazirmatn', resp1.text)
+        self.assertIn('id="lang-fa"', resp1.text)
+        self.assertIn('id="lang-en"', resp1.text)
+
         resp2 = self.client.get("/dashboard")
         self.assertEqual(resp2.status_code, 200)
         self.assertIn("text/html", resp2.headers["content-type"])

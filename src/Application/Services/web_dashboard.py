@@ -15,6 +15,7 @@ LOGS_DIR = "logs"
 REPORTS_DIR = "reports"
 VALIDATION_DIR = "validation"
 HISTORY_DIR = "history"
+LOCALES_DIR = os.path.join(os.path.dirname(__file__), "locales")
 
 app = FastAPI(
     title="TradeYar AI Autonomous Management & Acceptance Portal",
@@ -49,8 +50,8 @@ def run_acceptance_runner_thread():
     with state_lock:
         val_state.is_running = True
         val_state.current_phase = "Environment Verification"
-        val_state.current_component = "System Context"
-        val_state.current_test = "Initializing directories and path scopes"
+        val_state.current_component = "MT5 Connection"
+        val_state.current_test = "Querying terminal availability and rate fallback streams"
         val_state.passed_count = 0
         val_state.failed_count = 0
         val_state.skipped_count = 0
@@ -116,6 +117,15 @@ def run_acceptance_runner_thread():
         val_state.is_running = False
 
 
+# Helper to load locales
+def load_locale(lang: str) -> Dict[str, str]:
+    file_path = os.path.join(LOCALES_DIR, f"{lang}.json")
+    if os.path.exists(file_path):
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
 # ==============================================================================
 # 1. WEB MANAGEMENT DASHBOARD & SPA PAGE
 # ==============================================================================
@@ -123,28 +133,32 @@ def run_acceptance_runner_thread():
 @app.get("/dashboard", response_class=HTMLResponse)
 def get_dashboard_spa():
     """Serves the rich, production-grade System Validation Center SPA page."""
-    html_content = """<!DOCTYPE html>
-<html lang="en">
+    fa_translations = json.dumps(load_locale("fa"), ensure_ascii=False)
+    en_translations = json.dumps(load_locale("en"), ensure_ascii=False)
+
+    html_content = f"""<!DOCTYPE html>
+<html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TradeYar AI — Management Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
-        :root {
+        :root {{
             --primary: #1d3557;
             --accent: #2ec4b6;
             --danger: #e71d36;
             --warning: #ff9f1c;
             --dark: #2b2d42;
             --light: #f7f9fa;
-        }
-        body {
+        }}
+        body {{
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             background-color: var(--light);
             color: var(--dark);
-        }
-        .header {
+        }}
+        .header {{
             background-color: var(--primary);
             color: white;
             padding: 20px 40px;
@@ -152,46 +166,46 @@ def get_dashboard_spa():
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-        }
-        .container {
+        }}
+        .container {{
             max-width: 1200px;
             margin: 30px auto;
             padding: 0 20px;
-        }
-        .grid {
+        }}
+        .grid {{
             display: grid;
             grid-template-columns: 2fr 1fr;
             gap: 25px;
-        }
-        .card {
+        }}
+        .card {{
             background: white;
             border-radius: 8px;
             padding: 25px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.03);
             margin-bottom: 25px;
-        }
-        .status-board {
+        }}
+        .status-board {{
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 15px;
             margin: 20px 0;
-        }
-        .status-item {
+        }}
+        .status-item {{
             background: #edf2f4;
             padding: 15px;
             border-radius: 6px;
             text-align: center;
-        }
-        .status-val {
+        }}
+        .status-val {{
             font-weight: bold;
             font-size: 1.1em;
             margin-top: 5px;
-        }
-        .status-passed { color: var(--accent); }
-        .status-failed { color: var(--danger); }
-        .status-warn { color: var(--warning); }
+        }}
+        .status-passed {{ color: var(--accent); }}
+        .status-failed {{ color: var(--danger); }}
+        .status-warn {{ color: var(--warning); }}
 
-        .score-circle {
+        .score-circle {{
             width: 150px;
             height: 150px;
             border-radius: 50%;
@@ -202,12 +216,12 @@ def get_dashboard_spa():
             align-items: center;
             margin: 20px auto;
             font-weight: bold;
-        }
-        .score-num {
+        }}
+        .score-num {{
             font-size: 2em;
             color: var(--primary);
-        }
-        .btn {
+        }}
+        .btn {{
             background-color: var(--accent);
             color: white;
             border: none;
@@ -218,17 +232,17 @@ def get_dashboard_spa():
             cursor: pointer;
             box-shadow: 0 4px 10px rgba(46,196,182,0.3);
             transition: all 0.2s ease;
-        }
-        .btn:hover {
+        }}
+        .btn:hover {{
             transform: translateY(-2px);
             box-shadow: 0 6px 15px rgba(46,196,182,0.4);
-        }
-        .btn:disabled {
+        }}
+        .btn:disabled {{
             background-color: #cccccc;
             cursor: not-allowed;
             box-shadow: none;
-        }
-        .logs-box {
+        }}
+        .logs-box {{
             background-color: #1e1e24;
             color: #a9b7c6;
             font-family: 'Courier New', Courier, monospace;
@@ -237,28 +251,152 @@ def get_dashboard_spa():
             height: 250px;
             overflow-y: auto;
             font-size: 0.9em;
-        }
-        table {
+        }}
+        table {{
             width: 100%;
             border-collapse: collapse;
             margin-top: 15px;
-        }
-        th, td {
+        }}
+        th, td {{
             text-align: left;
             padding: 10px 15px;
             border-bottom: 1px solid #edf2f4;
-        }
-        th { background-color: #edf2f4; }
+        }}
+        th {{ background-color: #edf2f4; }}
+
+        /* Bilingual & RTL Styling */
+        .lang-switch {{
+            display: flex;
+            gap: 10px;
+        }}
+        .lang-btn {{
+            background: transparent;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s ease;
+        }}
+        .lang-btn.active {{
+            background-color: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }}
+        .lang-btn:hover {{
+            border-color: white;
+        }}
+
+        [dir="rtl"] {{
+            direction: rtl;
+            text-align: right;
+            font-family: 'Vazirmatn', Tahoma, Arial, sans-serif;
+        }}
+        [dir="rtl"] th, [dir="rtl"] td {{
+            text-align: right;
+        }}
+        [dir="rtl"] .border-card {{
+            border-left: none;
+            border-right: 4px solid var(--accent);
+            border-radius: 4px 0 0 4px;
+        }}
     </style>
     <script>
-        async function fetchStatus() {
-            try {
+        const translations = {{
+            fa: {fa_translations},
+            en: {en_translations}
+        }};
+
+        let currentLang = localStorage.getItem("tradeYar_language") || "fa";
+
+        function t(key) {{
+            if (!key) return "";
+            const dict = translations[currentLang];
+            if (dict && dict[key] !== undefined) {{
+                return dict[key];
+            }}
+            return key;
+        }}
+
+        function setLanguage(lang) {{
+            currentLang = lang;
+            localStorage.setItem("tradeYar_language", lang);
+            updateUI();
+        }}
+
+        function formatTimestamp(dtStr) {{
+            if (!dtStr) return "";
+            const cleanStr = dtStr.replace(" ", "T");
+            const date = new Date(cleanStr);
+            if (isNaN(date.getTime())) {{
+                return dtStr;
+            }}
+            if (currentLang === "fa") {{
+                const options = {{
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                }};
+                const formatter = new Intl.DateTimeFormat('fa-IR', options);
+                return formatter.format(date).replace("،", "");
+            }} else {{
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                const hh = String(date.getHours()).padStart(2, '0');
+                const mm = String(date.getMinutes()).padStart(2, '0');
+                return `${{y}}-${{m}}-${{d}} ${{hh}}:${{mm}}`;
+            }}
+        }}
+
+        function updateUI() {{
+            // Apply dir and lang to HTML document element
+            const html = document.documentElement;
+            if (currentLang === "fa") {{
+                html.setAttribute("dir", "rtl");
+                html.setAttribute("lang", "fa");
+                document.getElementById("lang-fa").classList.add("active");
+                document.getElementById("lang-en").classList.remove("active");
+            }} else {{
+                html.setAttribute("dir", "ltr");
+                html.setAttribute("lang", "en");
+                document.getElementById("lang-en").classList.add("active");
+                document.getElementById("lang-fa").classList.remove("active");
+            }}
+
+            // Update all elements with data-i18n attribute
+            document.querySelectorAll("[data-i18n]").forEach(el => {{
+                const key = el.getAttribute("data-i18n");
+                el.innerText = t(key);
+            }});
+
+            // Update placeholder/text of dynamic values if any are currently present
+            const runBtn = document.getElementById('run-btn');
+            if (runBtn) {{
+                if (runBtn.getAttribute('data-validating') === 'true') {{
+                    runBtn.innerText = t('validating');
+                }} else {{
+                    runBtn.innerText = t('run_validation');
+                }}
+            }}
+
+            // Rerender history timestamps and status values
+            fetchHistory();
+            fetchStatus();
+        }}
+
+        async function fetchStatus() {{
+            try {{
                 let response = await fetch('/api/validation/status');
                 let data = await response.json();
 
-                document.getElementById('phase').innerText = data.current_phase;
-                document.getElementById('component').innerText = data.current_component;
-                document.getElementById('test').innerText = data.current_test;
+                document.getElementById('phase').innerText = t(data.current_phase);
+                document.getElementById('component').innerText = t(data.current_component);
+                document.getElementById('test').innerText = t(data.current_test);
 
                 document.getElementById('passed').innerText = data.passed_count;
                 document.getElementById('failed').innerText = data.failed_count;
@@ -266,110 +404,136 @@ def get_dashboard_spa():
                 document.getElementById('warnings').innerText = data.warning_count;
 
                 document.getElementById('score-val').innerText = data.readiness_score + '%';
-                document.getElementById('score-status').innerText = data.readiness_status;
-                document.getElementById('summary-explanation').innerText = data.readiness_explanation;
+                document.getElementById('score-status').innerText = t(data.readiness_status);
+                document.getElementById('summary-explanation').innerText = t(data.readiness_explanation);
 
                 // Stream logs
                 let logBox = document.getElementById('logs');
-                logBox.innerHTML = data.logs.join('<br>');
-                if (data.is_running) {
-                    document.getElementById('run-btn').disabled = true;
-                    document.getElementById('run-btn').innerText = 'Validating...';
+                if (data.logs.length === 0) {{
+                    logBox.innerText = t('waiting_logs');
+                }} else {{
+                    let translatedLogs = data.logs.map(log => {{
+                        let temp = log;
+                        if (currentLang === 'fa') {{
+                            temp = temp.replace("Initiated acceptance validation via Web Management Dashboard.", "اعتبارسنجی پذیرش از طریق داشبورد مدیریت وب شروع شد.")
+                                      .replace("Verifying MetaTrader5 link and environment isolate settings.", "تایید پیوند MetaTrader5 و تنظیمات ایزولاسیون محیط.")
+                                      .replace("Executing complete automatic test discovery recursively.", "در حال اجرای جستجوی خودکار تمام تست‌ها به صورت بازگشتی.")
+                                      .replace("Acceptance runner report parsed. Readiness Score:", "گزارش اجراکننده پذیرش پارس شد. امتیاز آمادگی:");
+                        }}
+                        return temp;
+                    }});
+                    logBox.innerHTML = translatedLogs.join('<br>');
+                }}
+
+                const runBtn = document.getElementById('run-btn');
+                if (data.is_running) {{
+                    runBtn.disabled = true;
+                    runBtn.setAttribute('data-validating', 'true');
+                    runBtn.innerText = t('validating');
                     setTimeout(fetchStatus, 1000);
-                } else {
-                    document.getElementById('run-btn').disabled = false;
-                    document.getElementById('run-btn').innerText = 'Run Full Validation';
-                }
-            } catch(e) {}
-        }
+                }} else {{
+                    runBtn.disabled = false;
+                    runBtn.setAttribute('data-validating', 'false');
+                    runBtn.innerText = t('run_validation');
+                }}
+            }} catch(e) {{}}
+        }}
 
-        async function triggerValidation() {
-            document.getElementById('run-btn').disabled = true;
-            await fetch('/api/validation/run', { method: 'POST' });
+        async function triggerValidation() {{
+            const runBtn = document.getElementById('run-btn');
+            runBtn.disabled = true;
+            runBtn.setAttribute('data-validating', 'true');
+            runBtn.innerText = t('validating');
+            await fetch('/api/validation/run', {{ method: 'POST' }});
             setTimeout(fetchStatus, 500);
-        }
+        }}
 
-        async function fetchHistory() {
-            try {
+        async function fetchHistory() {{
+            try {{
                 let response = await fetch('/api/validation/history');
                 let data = await response.json();
                 let tbody = document.getElementById('history-body');
                 tbody.innerHTML = '';
-                data.forEach(run => {
+                data.forEach(run => {{
                     tbody.innerHTML += `
                         <tr>
-                            <td>${run.timestamp}</td>
-                            <td>${run.duration_sec}s</td>
-                            <td>${run.passed}/${run.total}</td>
-                            <td><strong style="color: ${run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)'}">${run.readiness_status}</strong></td>
-                            <td><strong>${run.readiness_score}%</strong></td>
+                            <td>\${{formatTimestamp(run.timestamp)}}</td>
+                            <td>\${{run.duration_sec}}s</td>
+                            <td>\${{run.passed}}/\${{run.total}}</td>
+                            <td><strong style="color: \${{run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)'}}">\${{t(run.readiness_status)}}</strong></td>
+                            <td><strong>\${{run.readiness_score}}%</strong></td>
                         </tr>
                     `;
-                });
-            } catch(e) {}
-        }
+                }});
+            }} catch(e) {{}}
+        }}
 
-        window.onload = () => {
-            fetchStatus();
-            fetchHistory();
-        }
+        window.onload = () => {{
+            updateUI();
+        }}
     </script>
 </head>
 <body>
     <div class="header">
-        <h1 style="margin: 0; font-size: 1.5em; letter-spacing: 1px;">TRADEYAR AI</h1>
-        <div><span style="font-weight: bold; color: var(--accent);">● ONLINE</span> — Production Acceptance Portal</div>
+        <h1 style="margin: 0; font-size: 1.5em; letter-spacing: 1px;" data-i18n="title">TradeYar AI</h1>
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div data-i18n="online_status">● ONLINE — Production Acceptance Portal</div>
+            <div class="lang-switch">
+                <button id="lang-fa" class="lang-btn" onclick="setLanguage('fa')">فارسی</button>
+                <button id="lang-en" class="lang-btn" onclick="setLanguage('en')">English</button>
+            </div>
+        </div>
     </div>
     <div class="container">
         <div class="grid">
             <div>
                 <div class="card">
                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #edf2f4; padding-bottom: 15px; margin-bottom: 20px;">
-                        <h2 style="margin: 0; color: var(--primary);">System Validation Center</h2>
-                        <button id="run-btn" class="btn" onclick="triggerValidation()">Run Full Validation</button>
+                        <h2 style="margin: 0; color: var(--primary);" data-i18n="system_val_center">System Validation Center</h2>
+                        <button id="run-btn" class="btn" onclick="triggerValidation()" data-i18n="run_validation">Run Full Validation</button>
                     </div>
 
                     <div class="status-board">
                         <div class="status-item">
-                            <div>Passed</div>
+                            <div data-i18n="passed">Passed</div>
                             <div id="passed" class="status-val status-passed">0</div>
                         </div>
                         <div class="status-item">
-                            <div>Failed</div>
+                            <div data-i18n="failed">Failed</div>
                             <div id="failed" class="status-val status-failed">0</div>
                         </div>
                         <div class="status-item">
-                            <div>Skipped</div>
+                            <div data-i18n="skipped">Skipped</div>
                             <div id="skipped" class="status-val">0</div>
                         </div>
                         <div class="status-item">
-                            <div>Warnings</div>
+                            <div data-i18n="warnings">Warnings</div>
                             <div id="warnings" class="status-val status-warn">0</div>
                         </div>
                     </div>
 
-                    <div style="background: #f8f9fa; border-left: 4px solid var(--accent); padding: 15px; border-radius: 0 4px 4px 0; margin-bottom: 20px;">
-                        <p style="margin: 5px 0;"><strong>Active Phase:</strong> <span id="phase">IDLE</span></p>
-                        <p style="margin: 5px 0;"><strong>Component Boundaries:</strong> <span id="component">ReleaseValidationPlatform</span></p>
-                        <p style="margin: 5px 0;"><strong>Current Verification Trace:</strong> <code id="test">Waiting...</code></p>
+                    <div class="border-card" style="background: #f8f9fa; border-left: 4px solid var(--accent); padding: 15px; border-radius: 0 4px 4px 0; margin-bottom: 20px;">
+                        <p style="margin: 5px 0;"><strong data-i18n="active_phase">Active Phase:</strong> <span id="phase">IDLE</span></p>
+                        <p style="margin: 5px 0;"><strong data-i18n="comp_boundaries">Component Boundaries:</strong> <span id="component">ReleaseValidationPlatform</span></p>
+                        <p style="margin: 5px 0;"><strong data-i18n="curr_trace">Current Verification Trace:</strong> <code id="test">Waiting...</code></p>
                     </div>
 
-                    <h3>Live Trace Logs</h3>
-                    <div id="logs" class="logs-box">
+                    <h3 data-i18n="live_logs">Live Trace Logs</h3>
+                    <div id="logs" class="logs-box" data-i18n="waiting_logs">
                         Waiting for run request...
                     </div>
                 </div>
 
                 <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;">Historical Acceptance Summary</h3>
+                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="hist_summary">Historical Acceptance Summary</h3>
                     <table>
                         <thead>
                             <tr>
-                                <th>Timestamp</th>
-                                <th>Duration</th>
-                                <th>Test Ratio</th>
-                                <th>Readiness Status</th>
-                                <th>Acceptance Score</th>
+                                <th data-i18n="timestamp">Timestamp</th>
+                                <th data-i18n="duration">Duration</th>
+                                <th data-i18n="test_ratio">Test Ratio</th>
+                                <th data-i18n="readiness_status_lbl">Readiness Status</th>
+                                <th data-i18n="acceptance_score">Acceptance Score</th>
                             </tr>
                         </thead>
                         <tbody id="history-body">
@@ -381,31 +545,31 @@ def get_dashboard_spa():
 
             <div>
                 <div class="card" style="text-align: center;">
-                    <h3 style="color: var(--primary); margin-top: 0;">Production Readiness Score</h3>
+                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="readiness_score_lbl">Production Readiness Score</h3>
                     <div class="score-circle">
                         <div id="score-val" class="score-num">0%</div>
-                        <div id="score-status" style="font-size: 0.85em; color: var(--dark); text-transform: uppercase; margin-top: 5px;">Not Run</div>
+                        <div id="score-status" style="font-size: 0.85em; color: var(--dark); text-transform: uppercase; margin-top: 5px;" data-i18n="Not Run">Not Run</div>
                     </div>
-                    <p id="summary-explanation" style="font-size: 0.9em; color: #555; line-height: 1.5;">Validation runner is waiting to be triggered.</p>
+                    <p id="summary-explanation" style="font-size: 0.9em; color: #555; line-height: 1.5;" data-i18n="Validation runner is waiting to be triggered.">Validation runner is waiting to be triggered.</p>
                 </div>
 
                 <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;">Subsystem Health Monitors</h3>
+                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="subsystem_monitors">Subsystem Health Monitors</h3>
                     <div style="line-height: 1.8;">
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong>System Health:</strong> <span style="color: var(--accent);">Healthy</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong>MT5 Data Fallback:</strong> <span style="color: var(--warning);">Active fallback</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong>Runtime Host:</strong> <span style="color: var(--accent);">Ready</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong>Scheduler Loop:</strong> <span style="color: var(--accent);">Ready</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong>Security Compliance:</strong> <span style="color: var(--accent);">Verified</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="system_health">System Health:</strong> <span id="health-sys" style="color: var(--accent);" data-i18n="healthy">Healthy</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="mt5_fallback">MT5 Data Fallback:</strong> <span style="color: var(--warning);" data-i18n="active_fallback">Active fallback</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="runtime_host">Runtime Host:</strong> <span style="color: var(--accent);" data-i18n="ready">Ready</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="scheduler_loop">Scheduler Loop:</strong> <span style="color: var(--accent);" data-i18n="ready">Ready</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="security_compliance">Security Compliance:</strong> <span style="color: var(--accent);" data-i18n="verified">Verified</span></p>
                     </div>
                 </div>
 
                 <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;">Acceptance Reports Download</h3>
+                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="download_reports">Acceptance Reports Download</h3>
                     <div style="line-height: 2;">
-                        <div>👉 <a href="/api/validation/reports/download?type=html" target="_blank">Download HTML Report</a></div>
-                        <div>👉 <a href="/api/validation/reports/download?type=json" target="_blank">Download JSON Report</a></div>
-                        <div>👉 <a href="/api/validation/reports/download?type=markdown" target="_blank">Download Markdown Report</a></div>
+                        <div>👉 <a href="/api/validation/reports/download?type=html" target="_blank" data-i18n="download_html">Download HTML Report</a></div>
+                        <div>👉 <a href="/api/validation/reports/download?type=json" target="_blank" data-i18n="download_json">Download JSON Report</a></div>
+                        <div>👉 <a href="/api/validation/reports/download?type=markdown" target="_blank" data-i18n="download_md">Download Markdown Report</a></div>
                     </div>
                 </div>
             </div>
