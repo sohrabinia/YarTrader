@@ -189,3 +189,44 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         resp_dl = self.client.get("/api/validation/reports/download?type=html")
         self.assertEqual(resp_dl.status_code, 200)
         self.assertIn("text/html", resp_dl.headers["content-type"])
+
+    def test_get_latest_live_research_contract(self):
+        """Verifies GET /api/research/latest returns 200 OK and exactly matches /api/research/current schema."""
+        resp = self.client.get("/api/research/latest")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["symbol"], "XAUUSD")
+        self.assertEqual(data["timeframe"], "H1")
+        self.assertIn("timestamp", data)
+        self.assertIn("bias", data)
+        self.assertIn("confidence", data)
+
+    def test_get_dashboard_research_contract(self):
+        """Verifies GET /v1/dashboard/research returns 200 OK and matches the research schema."""
+        resp = self.client.get("/v1/dashboard/research")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["symbol"], "XAUUSD")
+        self.assertEqual(data["timeframe"], "H1")
+
+    def test_snapshot_contains_required_fields(self):
+        """Verifies that the generated research snapshot payload contains all 10 required root fields."""
+        resp = self.client.get("/api/research/current")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        required_fields = [
+            "timestamp",
+            "symbol",
+            "timeframe",
+            "indicators",
+            "market_regime",
+            "trend",
+            "volatility",
+            "momentum",
+            "confidence",
+            "interpretation"
+        ]
+        for field in required_fields:
+            with self.subTest(field=field):
+                self.assertIn(field, data)

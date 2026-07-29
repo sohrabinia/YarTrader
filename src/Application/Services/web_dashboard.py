@@ -42,6 +42,27 @@ class ValidationState:
         self.logs = []
         self.last_run_timestamp = None
 
+        # On startup, load from validation/production_acceptance_report.json if it exists
+        report_path = os.path.join(VALIDATION_DIR, "production_acceptance_report.json")
+        if os.path.exists(report_path):
+            try:
+                with open(report_path, "r", encoding="utf-8") as f:
+                    report = json.load(f)
+                self.current_phase = "Concluded"
+                self.current_component = "Reporting Platform"
+                self.current_test = "Acceptance verification loaded from previous run"
+                self.passed_count = report.get("tests", {}).get("passed", 0)
+                self.failed_count = report.get("tests", {}).get("failed", 0)
+                self.skipped_count = report.get("tests", {}).get("skipped", 0)
+                self.warning_count = report.get("tests", {}).get("warnings", 0)
+                self.readiness_score = report.get("readiness_score", 0.0)
+                self.readiness_status = report.get("readiness_status", "Not Run")
+                self.readiness_explanation = report.get("readiness_explanation", "")
+                self.last_run_timestamp = report.get("timestamp", None)
+                self.logs = ["[INFO] Loaded previous acceptance validation report on startup."]
+            except Exception:
+                pass
+
 val_state = ValidationState()
 state_lock = threading.Lock()
 
@@ -346,6 +367,14 @@ def get_dashboard_spa():
             updateUI();
         }}
 
+        function localizeNumber(num) {{
+            if (num === null || num === undefined) return "";
+            let numStr = String(num);
+            if (currentLang !== "fa") return numStr;
+            const persianDigits = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
+            return numStr.replace(/[0-9]/g, w => persianDigits[parseInt(w)]);
+        }}
+
         function formatTimestamp(dtStr) {{
             if (!dtStr) return "";
             const cleanStr = dtStr.replace(" ", "T");
@@ -421,12 +450,12 @@ def get_dashboard_spa():
                 document.getElementById('component').innerText = t(data.current_component);
                 document.getElementById('test').innerText = t(data.current_test);
 
-                document.getElementById('passed').innerText = data.passed_count;
-                document.getElementById('failed').innerText = data.failed_count;
-                document.getElementById('skipped').innerText = data.skipped_count;
-                document.getElementById('warnings').innerText = data.warning_count;
+                document.getElementById('passed').innerText = localizeNumber(data.passed_count);
+                document.getElementById('failed').innerText = localizeNumber(data.failed_count);
+                document.getElementById('skipped').innerText = localizeNumber(data.skipped_count);
+                document.getElementById('warnings').innerText = localizeNumber(data.warning_count);
 
-                document.getElementById('score-val').innerText = data.readiness_score + '%';
+                document.getElementById('score-val').innerText = localizeNumber(data.readiness_score) + '%';
                 document.getElementById('score-status').innerText = t(data.readiness_status);
                 document.getElementById('summary-explanation').innerText = t(data.readiness_explanation);
 
@@ -479,14 +508,21 @@ def get_dashboard_spa():
                 }}
 
                 document.getElementById('res-bias').innerText = t(data.bias);
-                document.getElementById('res-confidence').innerText = data.confidence + "%";
+                document.getElementById('res-confidence').innerText = localizeNumber(data.confidence) + "%";
+
+                // Update RSI
+                if (data.indicators && data.indicators.rsi !== undefined) {{
+                    document.getElementById('res-rsi').innerText = localizeNumber(data.indicators.rsi);
+                }} else {{
+                    document.getElementById('res-rsi').innerText = "...";
+                }}
 
                 // Reasoning list
                 let reasoningList = document.getElementById('res-reasoning');
                 reasoningList.innerHTML = "";
                 if (data.reasoning) {{
                     data.reasoning.forEach(r => {{
-                        reasoningList.innerHTML += `<li>${{r}}</li>`;
+                        reasoningList.innerHTML += "<li>" + r + "</li>";
                     }});
                 }}
             }} catch(e) {{}}
@@ -532,17 +568,20 @@ def get_dashboard_spa():
                 let data = await response.json();
                 let tbody = document.getElementById('history-body');
                 tbody.innerHTML = '';
-                data.forEach(run => {{
-                    tbody.innerHTML += `
-                        <tr>
-                            <td>${{formatTimestamp(run.timestamp)}}</td>
-                            <td>${{run.duration_sec}}s</td>
-                            <td>${{run.passed}}/${{run.total}}</td>
-                            <td><strong style="color: ${{run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)'}}">${{t(run.readiness_status)}}</strong></td>
-                            <td><strong>${{run.readiness_score}}%</strong></td>
-                        </tr>
-                    `;
-                }});
+                if (data.length === 0) {{
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">' + t('waiting') + '</td></tr>';
+                }} else {{
+                    data.forEach(run => {{
+                        let statusColor = run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)';
+                        tbody.innerHTML += '<tr>' +
+                            '<td>' + formatTimestamp(run.timestamp) + '</td>' +
+                            '<td>' + localizeNumber(run.duration_sec) + 's</td>' +
+                            '<td>' + localizeNumber(run.passed) + '/' + localizeNumber(run.total) + '</td>' +
+                            '<td><strong style="color: ' + statusColor + '">' + t(run.readiness_status) + '</strong></td>' +
+                            '<td><strong>' + localizeNumber(run.readiness_score) + '%</strong></td>' +
+                            '</tr>';
+                    }});
+                }}
             }} catch(e) {{}}
         }}
 
@@ -641,6 +680,7 @@ def get_dashboard_spa():
                         <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="research_tf">Timeframe:</strong> <span id="res-timeframe" style="font-weight: bold; color: var(--primary);">H1</span></p>
                         <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="last_polled_lbl">Last Polled:</strong> <span id="res-last-analysis">...</span></p>
                         <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="last_candle_time">Last Candle Time:</strong> <span id="res-last-candle">...</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong>RSI:</strong> <span id="res-rsi" style="font-weight: bold; color: var(--primary);">...</span></p>
 
                         <div style="border-top: 1px solid #edf2f4; margin: 10px 0; padding-top: 10px;">
                             <p style="margin: 5px 0; display: flex; justify-content: space-between;"><strong data-i18n="trend">Trend:</strong> <span id="res-trend">...</span></p>
@@ -710,6 +750,18 @@ def get_current_live_research():
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to retrieve current research: {str(e)}")
     return res
+
+
+@app.get("/api/research/latest")
+def get_latest_live_research():
+    """Retrieves the latest compiled live research result payload (alias of current)."""
+    return get_current_live_research()
+
+
+@app.get("/v1/dashboard/research")
+def get_dashboard_research_current():
+    """Retrieves the latest compiled live research result payload for the dashboard."""
+    return get_current_live_research()
 
 
 @app.get("/api/research/history")

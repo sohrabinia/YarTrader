@@ -215,6 +215,8 @@ class LiveResearchWorker:
             "trend": trend_str,
             "volatility": volatility_str,
             "momentum": momentum_str,
+            "market_regime": regime_str,
+            "interpretation": reasoning,
             "market_state": {
                 "trend": trend_str,
                 "momentum": momentum_str,
