@@ -148,3 +148,147 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         # Stop check
         runtime.stop()
         self.assertFalse(runtime._is_running)
+
+    # 3. Dedicated Live Research & Intelligence Pipeline Tests (Phase 21 Activation)
+    def test_live_market_research_integration_flow(self) -> None:
+        """Verify real MT5 candles flow into all 6 analytical and smart interpretation engines."""
+        from src.Research.analysis_pipeline import (
+            TechnicalAnalysisEngine,
+            FeatureEngineeringLayer,
+            MarketRegimeDetection,
+            TrendAnalysis,
+            VolatilityAnalysis,
+            MomentumAnalysis,
+            SmartInterpretationEngine
+        )
+
+        # 1. Fetch data from adapter
+        req = TargetMarketDataRequest(
+            Asset="XAUUSD",
+            StartTime=self.now - timedelta(hours=2),
+            EndTime=self.now,
+            Timeframe="H1"
+        )
+        resp = self.adapter.retrieve_market_data(req)
+        self.assertGreater(len(resp.DataPoints), 0)
+
+        # 2. Feed into six analytical layers
+        tech_eng = TechnicalAnalysisEngine()
+        tech_res = tech_eng.analyze(resp.DataPoints)
+        self.assertIn("sma_20", tech_res)
+        self.assertIn("rsi", tech_res)
+        self.assertIn("macd", tech_res)
+        self.assertIn("atr", tech_res)
+        self.assertIn("support", tech_res)
+        self.assertIn("resistance", tech_res)
+
+        feat_layer = FeatureEngineeringLayer()
+        feature_set = feat_layer.process(resp.DataPoints)
+        self.assertEqual(feature_set.AssetId, "XAUUSD")
+
+        trend_eng = TrendAnalysis()
+        trend_res = trend_eng.analyze(resp.DataPoints, feature_set)
+        self.assertIn("direction_label", trend_res)
+        self.assertIn("is_trending", trend_res)
+
+        vol_eng = VolatilityAnalysis()
+        vol_res = vol_eng.analyze(resp.DataPoints, feature_set)
+        self.assertIn("rolling_volatility", vol_res)
+        self.assertIn("volatility_state", vol_res)
+
+        mom_eng = MomentumAnalysis()
+        mom_res = mom_eng.analyze(resp.DataPoints, feature_set)
+        self.assertIn("rate_of_change_pct", mom_res)
+        self.assertIn("momentum_state", mom_res)
+
+        reg_eng = MarketRegimeDetection()
+        reg_res = reg_eng.detect(resp.DataPoints, feature_set)
+        self.assertIn("regime", reg_res)
+        self.assertIn("explanation", reg_res)
+
+        # 3. Feed into Smart Interpretation
+        smart_eng = SmartInterpretationEngine()
+        smart_res = smart_eng.interpret(
+            candles=resp.DataPoints,
+            tech=tech_res,
+            trend=trend_res,
+            vol=vol_res,
+            mom=mom_res,
+            regime=reg_res
+        )
+        self.assertIn("bias", smart_res)
+        self.assertIn("confidence", smart_res)
+        self.assertIn("reasoning", smart_res)
+        self.assertIn(smart_res["bias"], ["Bullish", "Bearish", "Neutral"])
+        self.assertGreaterEqual(smart_res["confidence"], 50)
+        self.assertLessEqual(smart_res["confidence"], 95)
+        self.assertGreater(len(smart_res["reasoning"]), 0)
+
+    def test_research_runtime_error_and_connection_recovery(self) -> None:
+        """Verify that runtime worker gracefully logs health, recovers after disconnects, and never crashes."""
+        runtime = ResearchRuntime(
+            provider=self.adapter,
+            symbol="XAUUSD",
+            timeframe="H1",
+            evidence_dir=self.evidence_dir
+        )
+
+        # Disconnect delegate
+        self.delegate.set_connected(False)
+        with self.assertRaises(ValidationException):
+            runtime.run_once()
+
+        # Reconnect and verify it recovers successfully
+        self.delegate.set_connected(True)
+        res = runtime.run_once()
+        self.assertIsNotNone(res)
+        self.assertEqual(res.Request.Asset, "XAUUSD")
+
+    def test_api_research_endpoints(self) -> None:
+        """Verify web API current, history, and health endpoints return schema-compliant outputs."""
+        from fastapi.testclient import TestClient
+        from src.Application.Services.web_dashboard import app
+
+        client = TestClient(app)
+
+        # A. Current endpoint
+        resp_curr = client.get("/api/research/current")
+        self.assertEqual(resp_curr.status_code, 200)
+        curr_data = resp_curr.json()
+        self.assertEqual(curr_data["symbol"], "XAUUSD")
+        self.assertEqual(curr_data["timeframe"], "H1")
+        self.assertIn(curr_data["bias"], ["Bullish", "Bearish", "Neutral"])
+        self.assertIn("confidence", curr_data)
+        self.assertIn("reasoning", curr_data)
+        self.assertIn("indicators", curr_data)
+        self.assertIn("timestamp", curr_data)
+
+        # B. History endpoint
+        resp_hist = client.get("/api/research/history")
+        self.assertEqual(resp_hist.status_code, 200)
+        hist_data = resp_hist.json()
+        self.assertGreater(len(hist_data), 0)
+        self.assertEqual(hist_data[-1]["symbol"], "XAUUSD")
+
+        # C. Health endpoint
+        resp_health = client.get("/api/research/health")
+        self.assertEqual(resp_health.status_code, 200)
+        health_data = resp_health.json()
+        self.assertIn(health_data["mt5_status"], ["CONNECTED", "DISCONNECTED"])
+        self.assertIsNotNone(health_data["last_analysis_time"])
+        self.assertIn("worker_status", health_data)
+
+    def test_strict_read_only_compliance_no_trading_api(self) -> None:
+        """Verify that absolutely no active trading functions (buy, sell, order_send) are defined or called."""
+        forbidden = ["order_send", "place_order", "send_transaction", "order_modify"]
+        paths = ["src/Research", "src/Application/Runtime"]
+
+        for path in paths:
+            for root, _, files in os.walk(path):
+                for file in files:
+                    if file.endswith(".py"):
+                        filepath = os.path.join(root, file)
+                        with open(filepath, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        for keyword in forbidden:
+                            self.assertNotIn(keyword + "(", content.replace(" ", ""))

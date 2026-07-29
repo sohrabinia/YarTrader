@@ -149,8 +149,51 @@ class FeatureExtractionResearchEngine(IResearchEngine):
                 f"Validation Error: Failed to fetch market data for feature extraction: {str(e)}"
             ) from e
 
-        # 2. Execute feature pipeline to extract features
-        feature_set = self._feature_pipeline.execute(market_data_response.DataPoints)
+        # Feed real candles explicitly into the six dedicated pipeline/analytical engines
+        from src.Research.analysis_pipeline import (
+            TechnicalAnalysisEngine,
+            FeatureEngineeringLayer,
+            MarketRegimeDetection,
+            TrendAnalysis,
+            VolatilityAnalysis,
+            MomentumAnalysis
+        )
+
+        # A. Technical Analysis Engine
+        tech_engine = TechnicalAnalysisEngine()
+        tech_results = tech_engine.analyze(market_data_response.DataPoints)
+
+        # B. Feature Engineering Layer
+        feat_layer = FeatureEngineeringLayer(pipeline=self._feature_pipeline)
+        feature_set = feat_layer.process(market_data_response.DataPoints)
+
+        # C. Trend Analysis
+        trend_analysis = TrendAnalysis()
+        trend_results = trend_analysis.analyze(market_data_response.DataPoints, feature_set)
+
+        # D. Volatility Analysis
+        vol_analysis = VolatilityAnalysis()
+        vol_results = vol_analysis.analyze(market_data_response.DataPoints, feature_set)
+
+        # E. Momentum Analysis
+        mom_analysis = MomentumAnalysis()
+        mom_results = mom_analysis.analyze(market_data_response.DataPoints, feature_set)
+
+        # F. Market Regime Detection
+        regime_detector = MarketRegimeDetection()
+        regime_results = regime_detector.detect(market_data_response.DataPoints, feature_set)
+
+        # G. Smart Interpretation Engine (combines results to generate qualitative bias & confidence)
+        from src.Research.analysis_pipeline import SmartInterpretationEngine
+        interpretation_engine = SmartInterpretationEngine()
+        smart_results = interpretation_engine.interpret(
+            candles=market_data_response.DataPoints,
+            tech=tech_results,
+            trend=trend_results,
+            vol=vol_results,
+            mom=mom_results,
+            regime=regime_results
+        )
 
         # 3. Create MarketObservation from MarketFeatureSet
         observations_map = {name: fval.Value for name, fval in feature_set.Features.items()}
@@ -177,6 +220,13 @@ class FeatureExtractionResearchEngine(IResearchEngine):
             "observations": market_observation.Observations,
             "source": market_observation.Source
         }
+        # Inject explicit pipeline results into enriched context
+        enriched_context["technical_analysis"] = tech_results
+        enriched_context["trend_analysis"] = trend_results
+        enriched_context["volatility_analysis"] = vol_results
+        enriched_context["momentum_analysis"] = mom_results
+        enriched_context["market_regime"] = regime_results
+        enriched_context["smart_interpretation"] = smart_results
 
         enriched_request = ResearchRequest(
             Asset=request.Asset,
@@ -197,9 +247,22 @@ class FeatureExtractionResearchEngine(IResearchEngine):
         }
         enriched_findings["observation_summary"] = market_observation.Observations
 
+        # Expose final compiled pipeline outputs in the findings dict
+        enriched_findings["pipeline_outputs"] = {
+            "technical_analysis": tech_results,
+            "trend_analysis": trend_results,
+            "volatility_analysis": vol_results,
+            "momentum_analysis": mom_results,
+            "market_regime": regime_results,
+            "smart_interpretation": smart_results
+        }
+
+        # Dynamically set the confidence score from smart interpretation (converted back to fraction [0, 1])
+        conf_score = float(smart_results.get("confidence", 50.0)) / 100.0
+
         return ResearchResult(
             Request=request,
             Findings=enriched_findings,
-            ConfidenceScore=base_result.ConfidenceScore,
+            ConfidenceScore=conf_score,
             CreatedAt=datetime.now()
         )
