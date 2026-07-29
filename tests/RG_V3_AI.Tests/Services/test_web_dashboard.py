@@ -128,3 +128,14 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         resp_dl = self.client.get("/api/validation/reports/download?type=html")
         self.assertEqual(resp_dl.status_code, 200)
         self.assertIn("text/html", resp_dl.headers["content-type"])
+
+    def test_get_dashboard_cognitive(self):
+        """Verifies cognitive monitoring panel endpoint returns correct payload structures."""
+        resp = self.client.get("/v1/dashboard/cognitive")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("cognitive", data)
+        cognitive_data = data["cognitive"]
+        self.assertIn("Learning Progress", cognitive_data)
+        self.assertIn("Brain Weakness", cognitive_data)
+        self.assertEqual(cognitive_data["Learning Progress"]["Validated Concepts"], 12)

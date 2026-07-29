@@ -112,6 +112,9 @@ class ServiceOrchestrator:
             elif endpoint == "/v1/dashboard/shadow":
                 shadow = self._dashboard_aggregator.generate_shadow_dashboard_metrics()
                 return ServiceResponseDTO(status_code=200, data={"shadow": shadow})
+            elif endpoint == "/v1/dashboard/cognitive":
+                cognitive = self._dashboard_aggregator.generate_cognitive_dashboard_metrics()
+                return ServiceResponseDTO(status_code=200, data={"cognitive": cognitive})
 
         self._metrics["failed_requests"] += 1
         return ServiceResponseDTO(status_code=404, error_message=f"Endpoint '{endpoint}' not found.")
