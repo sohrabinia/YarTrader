@@ -561,6 +561,7 @@ def get_dashboard_spa():
 # 2. REST API CONTRACTS AND SERVICE ENDPOINTS
 # ==============================================================================
 
+@app.get("/api/research/latest")
 @app.get("/api/research/current")
 def get_current_analysis():
     """Returns the latest generated analysis."""
@@ -605,15 +606,22 @@ def get_analysis_history():
 
 @app.get("/api/research/health")
 def get_research_health():
-    """Returns MT5 status, last candle time, last analysis time, worker status."""
+    """Returns MT5 status, last candle time, last analysis time, worker status, and last result ID."""
     global research_tracker
     conn_health = global_research_runtime.provider.delegate.get_connection_health()
     research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
+
+    last_res_id = "None"
+    history = global_research_runtime.history
+    if history:
+        last_res_id = history[-1].Findings.get("report_id", "None")
+
     return {
         "mt5_status": research_tracker["mt5_status"],
         "last_candle_time": research_tracker["last_candle_time"],
         "last_analysis_time": research_tracker["last_analysis_time"],
-        "worker_status": research_tracker["worker_status"]
+        "worker_status": research_tracker["worker_status"],
+        "last_result_id": last_res_id
     }
 
 
