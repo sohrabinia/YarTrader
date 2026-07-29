@@ -223,7 +223,7 @@ class TestNewbornMarketDiscoveryBrain(unittest.TestCase):
         p = PatternMemory(PatternId="pat_live", Signature="downward_6", Occurrences=10, ContinuationCount=8, ReversalCount=2)
         memory.save_pattern(p)
 
-        report, ai_view, human_view = live_brain.analyze_live_market(self.dummy_data, self.timeframe, memory)
+        report, ai_view, human_view, spread_data = live_brain.analyze_live_market(self.dummy_data, self.timeframe, memory)
         self.assertTrue(isinstance(report, AnalysisReport))
         self.assertEqual(report.Asset, self.asset)
         self.assertGreater(report.QCScore, 0.0)

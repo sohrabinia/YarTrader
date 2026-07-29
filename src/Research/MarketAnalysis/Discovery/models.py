@@ -90,7 +90,7 @@ class ExperienceMemory:
 
 @dataclass
 class VirtualTrade:
-    """An internal, virtual trade simulation with risk boundaries and scenarios."""
+    """An internal, virtual trade simulation with risk boundaries, spreads, and execution costs."""
     TradeId: str
     Asset: str
     Timeframe: str
@@ -100,6 +100,11 @@ class VirtualTrade:
     TargetPrice: float
     EntryTime: datetime
     ExpectedScenario: str
+    Bid: float = 0.0
+    Ask: float = 0.0
+    Spread: float = 0.0
+    Commission: float = 0.0
+    Slippage: float = 0.0
     State: str = "OPEN"  # "OPEN", "CLOSED"
     ExitPrice: Optional[float] = None
     ExitTime: Optional[Optional[datetime]] = None
@@ -196,3 +201,50 @@ class HumanView:
     CandlesCount: int
     Timeline: List[datetime]
     OhlcData: List[Dict[str, float]]
+
+
+# =========================================================================
+# NEW TRADING REALITY MODELS
+# =========================================================================
+
+@dataclass(frozen=True)
+class SpreadData:
+    """Real-time and historical bid-ask spread tracking record."""
+    Timestamp: datetime
+    Symbol: str
+    Bid: float
+    Ask: float
+    SpreadValue: float
+    SpreadPercentage: float
+    SpreadChange: float
+
+
+@dataclass(frozen=True)
+class PriceExecutionData:
+    """Simulated execution cost and slippage tracking details."""
+    ExpectedEntry: float
+    ActualEntry: float
+    BidAskDifference: float
+    ExecutionDifference: float
+    Slippage: float
+
+
+@dataclass(frozen=True)
+class MarketConditionData:
+    """Execution session details, volatility state, and liquidity indicators."""
+    TimeOfDay: str
+    TradingSession: str
+    VolatilityState: str
+    TickFrequency: int
+
+
+@dataclass(frozen=True)
+class TradingRealityMemory:
+    """Separate database layer storing historical execution performance and costs."""
+    MemoryId: str
+    Timestamp: datetime
+    Symbol: str
+    AverageSpread: float
+    AverageSlippage: float
+    ExecutionImpact: float
+    Session: str

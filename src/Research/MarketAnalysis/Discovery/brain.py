@@ -15,8 +15,57 @@ from src.Research.MarketAnalysis.Discovery.models import (
     DynamicTimeScale,
     MultiScaleRelationship,
     AIView,
-    HumanView
+    HumanView,
+    SpreadData,
+    PriceExecutionData,
+    MarketConditionData,
+    TradingRealityMemory
 )
+
+
+class TradingRealityEngine:
+    """
+    Ties execution conditions, dynamic spread, slippage, and trading session metrics
+    into a realism framework. Maintains separate memory storage to avoid pattern bias.
+    """
+    def __init__(self) -> None:
+        self.reality_memories: List[TradingRealityMemory] = []
+
+    def observe_spread(self, symbol: str, bid: float, ask: float) -> SpreadData:
+        """Calculates and stores standard bid-ask spread records."""
+        spread_val = ask - bid
+        mid = (ask + bid) / 2.0
+        spread_pct = (spread_val / mid) * 100.0 if mid > 0 else 0.0
+
+        return SpreadData(
+            Timestamp=datetime.now(),
+            Symbol=symbol,
+            Bid=bid,
+            Ask=ask,
+            SpreadValue=spread_val,
+            SpreadPercentage=spread_pct,
+            SpreadChange=0.0  # calculated over intervals
+        )
+
+    def simulate_slippage(self, base_price: float, volatility_factor: float = 1.0) -> float:
+        """Simulates variable slippage based on volatility state."""
+        # Simple point-slippage multiplier
+        return 0.1 * volatility_factor
+
+    def evaluate_execution(self, expected_price: float, actual_price: float) -> PriceExecutionData:
+        """Evaluates entry price versus requested signal price to calculate exact execution lag/slippage."""
+        diff = actual_price - expected_price
+        return PriceExecutionData(
+            ExpectedEntry=expected_price,
+            ActualEntry=actual_price,
+            BidAskDifference=abs(diff),
+            ExecutionDifference=diff,
+            Slippage=abs(diff)
+        )
+
+    def save_reality_record(self, record: TradingRealityMemory) -> None:
+        """Stores a separate execution performance memory."""
+        self.reality_memories.append(record)
 
 
 class DynamicTimeStructureDiscoveryEngine:
@@ -444,7 +493,10 @@ class QualityControlBrain:
 
 
 class VirtualTradingEngine:
-    """Handles creation and bar-by-bar evaluation of internal simulated virtual trades."""
+    """Handles creation and bar-by-bar evaluation of internal simulated virtual trades with realistic bid-ask spread friction."""
+    def __init__(self, reality_engine: Optional[TradingRealityEngine] = None) -> None:
+        self.reality_engine = reality_engine or TradingRealityEngine()
+
     def create_virtual_trade(
         self,
         asset: str,
@@ -454,57 +506,81 @@ class VirtualTradingEngine:
         stop_loss: float,
         target_price: float,
         expected_scenario: str,
-        entry_time: datetime
+        entry_time: datetime,
+        spread_val: float = 0.5,
+        commission: float = 0.0,
+        volatility: float = 1.0
     ) -> VirtualTrade:
-        """Returns a newly opened VirtualTrade instance."""
+        """Returns a newly opened VirtualTrade instance with realistic bid/ask spread markup applied."""
+        # Calculate realistic entry using spread
+        slippage = self.reality_engine.simulate_slippage(entry_price, volatility)
+
+        if direction == "BUY":
+            bid = entry_price - spread_val / 2.0
+            ask = entry_price + spread_val / 2.0
+            actual_entry = ask + slippage
+        else:
+            bid = entry_price - spread_val / 2.0
+            ask = entry_price + spread_val / 2.0
+            actual_entry = bid - slippage
+
         return VirtualTrade(
             TradeId=str(uuid.uuid4())[:8],
             Asset=asset,
             Timeframe=timeframe,
             Direction=direction,
-            EntryPrice=entry_price,
+            EntryPrice=actual_entry,
             StopLoss=stop_loss,
             TargetPrice=target_price,
             EntryTime=entry_time,
-            ExpectedScenario=expected_scenario
+            ExpectedScenario=expected_scenario,
+            Bid=bid,
+            Ask=ask,
+            Spread=spread_val,
+            Commission=commission,
+            Slippage=slippage
         )
 
     def update_trade_progress(self, trade: VirtualTrade, current_obs: MarketObservation) -> Optional[SimulationResult]:
-        """Updates trade price records, checking stops and targets. Returns SimulationResult if closed."""
+        """Updates trade price records, checking stops and targets using Bid/Ask margins. Returns SimulationResult if closed."""
         if trade.State == "CLOSED":
             return None
 
-        # Update high/low tracking
-        if trade.Direction == "BUY":
-            trade.MaxFavorablePrice = max(trade.MaxFavorablePrice, current_obs.High)
-            trade.MaxAdversePrice = min(trade.MaxAdversePrice, current_obs.Low)
-        else:
-            trade.MaxFavorablePrice = min(trade.MaxFavorablePrice, current_obs.Low)
-            trade.MaxAdversePrice = max(trade.MaxAdversePrice, current_obs.High)
+        # Bid/Ask simulation for the current candle
+        bid_price = current_obs.Close - trade.Spread / 2.0
+        ask_price = current_obs.Close + trade.Spread / 2.0
 
-        # Evaluate target and stop conditions
+        # Update high/low tracking using bid/ask
+        if trade.Direction == "BUY":
+            trade.MaxFavorablePrice = max(trade.MaxFavorablePrice, bid_price)
+            trade.MaxAdversePrice = min(trade.MaxAdversePrice, bid_price)
+        else:
+            trade.MaxFavorablePrice = min(trade.MaxFavorablePrice, ask_price)
+            trade.MaxAdversePrice = max(trade.MaxAdversePrice, ask_price)
+
+        # Evaluate target and stop conditions using realistic execution price
         is_closed = False
         exit_price = current_obs.Close
         failure_reason = None
         result_type = "LOSS"
 
         if trade.Direction == "BUY":
-            if current_obs.Low <= trade.StopLoss:
+            if (current_obs.Low - trade.Spread / 2.0) <= trade.StopLoss:
                 is_closed = True
                 exit_price = trade.StopLoss
-                failure_reason = "Stop Loss Hit - Adverse price movement touched boundary."
+                failure_reason = "Stop Loss Hit - Adverse bid price touched SL boundary."
                 result_type = "LOSS"
-            elif current_obs.High >= trade.TargetPrice:
+            elif (current_obs.High - trade.Spread / 2.0) >= trade.TargetPrice:
                 is_closed = True
                 exit_price = trade.TargetPrice
                 result_type = "WIN"
         else:
-            if current_obs.High >= trade.StopLoss:
+            if (current_obs.High + trade.Spread / 2.0) >= trade.StopLoss:
                 is_closed = True
                 exit_price = trade.StopLoss
-                failure_reason = "Stop Loss Hit - Adverse price movement touched boundary."
+                failure_reason = "Stop Loss Hit - Adverse ask price touched SL boundary."
                 result_type = "LOSS"
-            elif current_obs.Low <= trade.TargetPrice:
+            elif (current_obs.Low + trade.Spread / 2.0) <= trade.TargetPrice:
                 is_closed = True
                 exit_price = trade.TargetPrice
                 result_type = "WIN"
@@ -514,13 +590,13 @@ class VirtualTradingEngine:
             trade.ExitPrice = exit_price
             trade.ExitTime = current_obs.Timestamp
 
-            # Compute MFM and MAM in points
+            # Compute MFM and MAM in points including spread and costs
             if trade.Direction == "BUY":
-                mfm = trade.MaxFavorablePrice - trade.EntryPrice
-                mam = trade.EntryPrice - trade.MaxAdversePrice
+                mfm = trade.MaxFavorablePrice - trade.EntryPrice - trade.Commission
+                mam = trade.EntryPrice - trade.MaxAdversePrice + trade.Commission
             else:
-                mfm = trade.EntryPrice - trade.MaxFavorablePrice
-                mam = trade.MaxAdversePrice - trade.EntryPrice
+                mfm = trade.EntryPrice - trade.MaxFavorablePrice - trade.Commission
+                mam = trade.MaxAdversePrice - trade.EntryPrice + trade.Commission
 
             return SimulationResult(
                 TradeId=trade.TradeId,
@@ -542,12 +618,12 @@ class OutcomeEvaluationEngine:
         trade.ExitTime = closed_time
 
         if trade.Direction == "BUY":
-            mfm = trade.MaxFavorablePrice - trade.EntryPrice
-            mam = trade.EntryPrice - trade.MaxAdversePrice
+            mfm = trade.MaxFavorablePrice - trade.EntryPrice - trade.Commission
+            mam = trade.EntryPrice - trade.MaxAdversePrice + trade.Commission
             is_success = (final_price >= trade.EntryPrice)
         else:
-            mfm = trade.EntryPrice - trade.MaxFavorablePrice
-            mam = trade.MaxAdversePrice - trade.EntryPrice
+            mfm = trade.EntryPrice - trade.MaxFavorablePrice - trade.Commission
+            mam = trade.MaxAdversePrice - trade.EntryPrice + trade.Commission
             is_success = (final_price <= trade.EntryPrice)
 
         res_type = "WIN" if is_success else "LOSS"
@@ -612,9 +688,10 @@ class LearningMemoryUpdate:
 
 
 class SimulationBrain:
-    """Orchestrates historical sequence replays and internally simulates virtual decisions."""
-    def __init__(self) -> None:
-        self.trading_engine = VirtualTradingEngine()
+    """Orchestrates historical sequence replays and internally simulates virtual decisions including execution conditions."""
+    def __init__(self, reality_engine: Optional[TradingRealityEngine] = None) -> None:
+        self.reality_engine = reality_engine or TradingRealityEngine()
+        self.trading_engine = VirtualTradingEngine(reality_engine=self.reality_engine)
         self.evaluator = OutcomeEvaluationEngine()
 
     def simulate_replay(
@@ -623,9 +700,12 @@ class SimulationBrain:
         memory: MemorySystem,
         direction: str,
         stop_loss_pts: float,
-        target_pts: float
+        target_pts: float,
+        spread_val: float = 0.5,
+        commission: float = 0.0,
+        volatility: float = 1.0
     ) -> List[SimulationResult]:
-        """Runs sequential simulation over a chronological market segment."""
+        """Runs sequential simulation over a chronological market segment applying spreads and costs."""
         results = []
         obs_list = sequence.Observations
         if len(obs_list) < 5:
@@ -650,7 +730,10 @@ class SimulationBrain:
             stop_loss=sl,
             target_price=tp,
             expected_scenario=f"{sequence.Timeframe}_start_movement",
-            entry_time=entry_obs.Timestamp
+            entry_time=entry_obs.Timestamp,
+            spread_val=spread_val,
+            commission=commission,
+            volatility=volatility
         )
 
         # Replay the sequence bar-by-bar
@@ -673,16 +756,23 @@ class LiveAnalysisBrain:
     """
     Live market monitor. Runs dynamically with live MT5 feeds.
     Strictly forbids trading, providing 100% read-only analysis and reasoning.
-    Generates dual AI-View and Human-View representations.
+    Generates dual AI-View and Human-View representations, including Trading Reality statistics.
     """
-    def __init__(self) -> None:
+    def __init__(self, reality_engine: Optional[TradingRealityEngine] = None) -> None:
         self.reality_layer = DataRealityLayer()
         self.observation_brain = ObservationBrain()
         self.discovery_engine = PatternDiscoveryEngine()
         self.qc_brain = QualityControlBrain()
+        self.reality_engine = reality_engine or TradingRealityEngine()
 
-    def analyze_live_market(self, live_data: List[MarketDataPoint], timeframe: str, memory: MemorySystem) -> Tuple[AnalysisReport, AIView, HumanView]:
-        """Analyzes live market feed, checks QC reasoning, and returns AnalysisReport with dual Views."""
+    def analyze_live_market(
+        self,
+        live_data: List[MarketDataPoint],
+        timeframe: str,
+        memory: MemorySystem,
+        current_spread_val: float = 0.5
+    ) -> Tuple[AnalysisReport, AIView, HumanView, SpreadData]:
+        """Analyzes live market feed, checks QC reasoning, and returns AnalysisReport, Views, and SpreadData."""
         if not live_data:
             raise ValueError("No live data available for analysis.")
 
@@ -725,4 +815,9 @@ class LiveAnalysisBrain:
         ai_view = self.observation_brain.generate_ai_view(seq, events)
         human_view = self.observation_brain.generate_human_view(seq)
 
-        return report, ai_view, human_view
+        # Generate SpreadData from execution conditions
+        bid = current_obs.Close - current_spread_val / 2.0
+        ask = current_obs.Close + current_spread_val / 2.0
+        spread_data = self.reality_engine.observe_spread(current_obs.Asset, bid, ask)
+
+        return report, ai_view, human_view, spread_data
