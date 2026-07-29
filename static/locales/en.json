@@ -42,7 +42,7 @@
   "Failed": "Failed",
   "Environment Verification": "Environment Verification",
   "System Context": "System Context",
-  "Initializing directories and path scopes": "Initializing directories and path scopes",
+  "Initializing directories and path scopes": "Initializing directories and scopes",
   "MT5 Connection": "MT5 Connection",
   "Querying terminal availability and rate fallback streams": "Querying terminal availability and rate fallback streams",
   "Verifying MetaTrader5 link and environment isolate settings.": "Verifying MetaTrader5 link and environment isolate settings.",

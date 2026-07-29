@@ -3283,3 +3283,821 @@
 [INFO] [04:26:24] Starting automatic test discovery and execution...
 [INFO] [04:26:24] Running automated tests command: pytest --tb=short -p no:warnings
 [INFO] [04:26:39] Starting automatic environment validation...
+[INFO] [04:26:39] Available Disk Space: 94169.4 MB
+[FAILED] [04:26:39] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:26:39] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:26:39] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:26:39] Starting automatic test discovery and execution...
+[INFO] [04:26:39] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:26:50] Starting automatic environment validation...
+[INFO] [04:26:50] Available Disk Space: 94169.3 MB
+[FAILED] [04:26:50] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:26:50] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:26:50] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:26:50] Starting automatic test discovery and execution...
+[INFO] [04:26:50] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:27:06] Starting automatic environment validation...
+[INFO] [04:27:06] Available Disk Space: 94169.3 MB
+[FAILED] [04:27:06] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:27:06] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:27:06] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:27:06] Starting automatic test discovery and execution...
+[INFO] [04:27:06] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:27:17] Starting automatic environment validation...
+[INFO] [04:27:17] Available Disk Space: 94169.3 MB
+[FAILED] [04:27:17] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:27:17] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:27:17] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:27:17] Starting automatic test discovery and execution...
+[INFO] [04:27:17] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:27:39] Starting automatic environment validation...
+[INFO] [04:27:39] Available Disk Space: 94169.3 MB
+[FAILED] [04:27:39] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:27:39] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:27:39] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:27:39] Starting automatic test discovery and execution...
+[INFO] [04:27:40] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:27:50] Starting automatic environment validation...
+[INFO] [04:27:50] Available Disk Space: 94169.2 MB
+[FAILED] [04:27:50] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:27:50] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:27:50] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:27:50] Starting automatic test discovery and execution...
+[INFO] [04:27:50] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:28:07] Starting automatic environment validation...
+[INFO] [04:28:07] Available Disk Space: 94169.2 MB
+[FAILED] [04:28:07] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:28:07] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:28:07] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:28:07] Starting automatic test discovery and execution...
+[INFO] [04:28:07] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:28:17] Starting automatic environment validation...
+[INFO] [04:28:17] Available Disk Space: 94169.2 MB
+[FAILED] [04:28:17] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:28:17] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:28:17] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:28:17] Starting automatic test discovery and execution...
+[INFO] [04:28:17] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:28:35] Starting automatic environment validation...
+[INFO] [04:28:35] Available Disk Space: 94169.2 MB
+[FAILED] [04:28:35] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:28:35] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:28:35] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:28:35] Starting automatic test discovery and execution...
+[INFO] [04:28:35] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:28:43] Starting automatic environment validation...
+[INFO] [04:28:43] Available Disk Space: 94169.2 MB
+[FAILED] [04:28:43] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:28:43] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:28:43] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:28:43] Starting automatic test discovery and execution...
+[INFO] [04:28:43] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:29:00] Starting automatic environment validation...
+[INFO] [04:29:00] Available Disk Space: 94169.2 MB
+[FAILED] [04:29:00] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:29:00] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:29:00] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:29:00] Starting automatic test discovery and execution...
+[INFO] [04:29:00] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:29:10] Starting automatic environment validation...
+[INFO] [04:29:10] Available Disk Space: 94169.2 MB
+[FAILED] [04:29:10] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:29:10] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:29:10] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:29:10] Starting automatic test discovery and execution...
+[INFO] [04:29:10] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:29:26] Starting automatic environment validation...
+[INFO] [04:29:26] Available Disk Space: 94169.2 MB
+[FAILED] [04:29:26] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:29:26] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:29:26] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:29:26] Starting automatic test discovery and execution...
+[INFO] [04:29:26] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:29:35] Starting automatic environment validation...
+[INFO] [04:29:35] Available Disk Space: 94169.2 MB
+[FAILED] [04:29:35] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:29:35] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:29:35] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:29:35] Starting automatic test discovery and execution...
+[INFO] [04:29:35] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:29:52] Starting automatic environment validation...
+[INFO] [04:29:52] Available Disk Space: 94169.2 MB
+[FAILED] [04:29:52] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:29:52] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:29:52] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:29:52] Starting automatic test discovery and execution...
+[INFO] [04:29:52] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:30:03] Starting automatic environment validation...
+[INFO] [04:30:03] Available Disk Space: 94169.2 MB
+[FAILED] [04:30:04] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:30:04] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:30:04] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:30:04] Starting automatic test discovery and execution...
+[INFO] [04:30:04] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:30:20] Starting automatic environment validation...
+[INFO] [04:30:21] Available Disk Space: 94169.2 MB
+[FAILED] [04:30:21] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:30:21] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:30:21] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:30:21] Starting automatic test discovery and execution...
+[INFO] [04:30:21] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:30:30] Starting automatic environment validation...
+[INFO] [04:30:30] Available Disk Space: 94169.2 MB
+[FAILED] [04:30:31] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:30:31] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:30:31] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:30:31] Starting automatic test discovery and execution...
+[INFO] [04:30:31] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:30:48] Starting automatic environment validation...
+[INFO] [04:30:48] Available Disk Space: 94169.1 MB
+[FAILED] [04:30:48] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:30:48] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:30:48] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:30:48] Starting automatic test discovery and execution...
+[INFO] [04:30:48] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:30:57] Starting automatic environment validation...
+[INFO] [04:30:57] Available Disk Space: 94169.1 MB
+[FAILED] [04:30:57] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:30:57] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:30:57] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:30:57] Starting automatic test discovery and execution...
+[INFO] [04:30:57] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:31:15] Starting automatic environment validation...
+[INFO] [04:31:15] Available Disk Space: 94169.1 MB
+[FAILED] [04:31:15] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:31:15] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:31:15] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:31:15] Starting automatic test discovery and execution...
+[INFO] [04:31:15] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:31:24] Starting automatic environment validation...
+[INFO] [04:31:24] Available Disk Space: 94169.1 MB
+[FAILED] [04:31:24] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:31:24] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:31:24] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:31:24] Starting automatic test discovery and execution...
+[INFO] [04:31:24] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:31:41] Starting automatic environment validation...
+[INFO] [04:31:41] Available Disk Space: 94169.1 MB
+[FAILED] [04:31:41] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:31:41] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:31:41] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:31:41] Starting automatic test discovery and execution...
+[INFO] [04:31:41] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:31:50] Starting automatic environment validation...
+[INFO] [04:31:50] Available Disk Space: 94169.0 MB
+[FAILED] [04:31:50] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:31:50] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:31:50] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:31:50] Starting automatic test discovery and execution...
+[INFO] [04:31:50] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:32:07] Starting automatic environment validation...
+[INFO] [04:32:07] Available Disk Space: 94169.0 MB
+[FAILED] [04:32:07] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:32:07] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:32:07] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:32:07] Starting automatic test discovery and execution...
+[INFO] [04:32:07] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:32:15] Starting automatic environment validation...
+[INFO] [04:32:15] Available Disk Space: 94169.0 MB
+[FAILED] [04:32:15] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:32:15] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:32:15] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:32:15] Starting automatic test discovery and execution...
+[INFO] [04:32:15] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:32:32] Starting automatic environment validation...
+[INFO] [04:32:32] Available Disk Space: 94169.0 MB
+[FAILED] [04:32:32] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:32:32] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:32:32] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:32:32] Starting automatic test discovery and execution...
+[INFO] [04:32:32] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:32:41] Starting automatic environment validation...
+[INFO] [04:32:41] Available Disk Space: 94168.9 MB
+[FAILED] [04:32:41] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:32:41] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:32:41] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:32:41] Starting automatic test discovery and execution...
+[INFO] [04:32:41] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:32:48] Starting automatic environment validation...
+[INFO] [04:32:48] Available Disk Space: 94168.9 MB
+[FAILED] [04:32:48] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:32:48] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:32:48] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:32:48] Starting automatic test discovery and execution...
+[INFO] [04:32:48] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:32:58] Starting automatic environment validation...
+[INFO] [04:32:58] Available Disk Space: 94168.9 MB
+[FAILED] [04:32:58] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:32:58] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:32:58] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:32:58] Starting automatic test discovery and execution...
+[INFO] [04:32:58] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:33:07] Starting automatic environment validation...
+[INFO] [04:33:07] Available Disk Space: 94168.9 MB
+[FAILED] [04:33:07] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:33:07] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:33:07] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:33:07] Starting automatic test discovery and execution...
+[INFO] [04:33:07] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:33:15] Starting automatic environment validation...
+[INFO] [04:33:15] Available Disk Space: 94168.9 MB
+[FAILED] [04:33:15] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:33:15] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:33:15] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:33:15] Starting automatic test discovery and execution...
+[INFO] [04:33:15] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:33:25] Starting automatic environment validation...
+[INFO] [04:33:25] Available Disk Space: 94168.9 MB
+[FAILED] [04:33:25] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:33:25] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:33:25] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:33:25] Starting automatic test discovery and execution...
+[INFO] [04:33:25] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:33:33] Starting automatic environment validation...
+[INFO] [04:33:33] Available Disk Space: 94168.9 MB
+[FAILED] [04:33:34] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:33:34] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:33:34] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:33:34] Starting automatic test discovery and execution...
+[INFO] [04:33:34] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:33:41] Starting automatic environment validation...
+[INFO] [04:33:41] Available Disk Space: 94168.9 MB
+[FAILED] [04:33:41] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:33:41] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:33:41] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:33:41] Starting automatic test discovery and execution...
+[INFO] [04:33:41] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:33:50] Starting automatic environment validation...
+[INFO] [04:33:50] Available Disk Space: 94168.9 MB
+[FAILED] [04:33:50] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:33:50] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:33:50] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:33:50] Starting automatic test discovery and execution...
+[INFO] [04:33:50] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:33:59] Starting automatic environment validation...
+[INFO] [04:33:59] Available Disk Space: 94168.9 MB
+[FAILED] [04:33:59] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:33:59] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:33:59] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:33:59] Starting automatic test discovery and execution...
+[INFO] [04:33:59] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:34:06] Starting automatic environment validation...
+[INFO] [04:34:06] Available Disk Space: 94168.9 MB
+[FAILED] [04:34:06] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:34:06] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:34:06] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:34:06] Starting automatic test discovery and execution...
+[INFO] [04:34:06] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:34:17] Starting automatic environment validation...
+[INFO] [04:34:17] Available Disk Space: 94168.9 MB
+[FAILED] [04:34:17] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:34:17] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:34:17] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:34:17] Starting automatic test discovery and execution...
+[INFO] [04:34:17] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:34:25] Starting automatic environment validation...
+[INFO] [04:34:25] Available Disk Space: 94168.9 MB
+[FAILED] [04:34:25] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:34:25] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:34:25] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:34:25] Starting automatic test discovery and execution...
+[INFO] [04:34:25] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:34:32] Starting automatic environment validation...
+[INFO] [04:34:32] Available Disk Space: 94168.9 MB
+[FAILED] [04:34:32] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:34:32] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:34:32] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:34:32] Starting automatic test discovery and execution...
+[INFO] [04:34:32] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:34:44] Starting automatic environment validation...
+[INFO] [04:34:44] Available Disk Space: 94168.9 MB
+[FAILED] [04:34:44] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:34:44] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:34:44] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:34:44] Starting automatic test discovery and execution...
+[INFO] [04:34:44] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:34:50] Starting automatic environment validation...
+[INFO] [04:34:50] Available Disk Space: 94168.9 MB
+[FAILED] [04:34:50] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:34:50] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:34:50] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:34:50] Starting automatic test discovery and execution...
+[INFO] [04:34:50] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:34:57] Starting automatic environment validation...
+[INFO] [04:34:57] Available Disk Space: 94168.9 MB
+[FAILED] [04:34:57] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:34:57] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:34:57] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:34:57] Starting automatic test discovery and execution...
+[INFO] [04:34:57] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:35:10] Starting automatic environment validation...
+[INFO] [04:35:10] Available Disk Space: 94168.9 MB
+[FAILED] [04:35:10] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:35:10] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:35:10] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:35:10] Starting automatic test discovery and execution...
+[INFO] [04:35:10] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:35:18] Starting automatic environment validation...
+[INFO] [04:35:18] Available Disk Space: 94168.9 MB
+[FAILED] [04:35:18] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:35:18] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:35:18] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:35:18] Starting automatic test discovery and execution...
+[INFO] [04:35:18] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:35:25] Starting automatic environment validation...
+[INFO] [04:35:25] Available Disk Space: 94168.8 MB
+[FAILED] [04:35:25] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:35:25] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:35:25] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:35:25] Starting automatic test discovery and execution...
+[INFO] [04:35:25] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:35:37] Starting automatic environment validation...
+[INFO] [04:35:37] Available Disk Space: 94168.8 MB
+[FAILED] [04:35:37] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:35:37] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:35:37] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:35:37] Starting automatic test discovery and execution...
+[INFO] [04:35:37] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:35:43] Starting automatic environment validation...
+[INFO] [04:35:43] Available Disk Space: 94168.8 MB
+[FAILED] [04:35:43] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:35:43] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:35:43] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:35:43] Starting automatic test discovery and execution...
+[INFO] [04:35:43] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:35:50] Starting automatic environment validation...
+[INFO] [04:35:50] Available Disk Space: 94168.7 MB
+[FAILED] [04:35:50] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:35:50] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:35:50] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:35:50] Starting automatic test discovery and execution...
+[INFO] [04:35:50] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:36:03] Starting automatic environment validation...
+[INFO] [04:36:03] Available Disk Space: 94168.7 MB
+[FAILED] [04:36:03] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:36:03] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:36:03] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:36:03] Starting automatic test discovery and execution...
+[INFO] [04:36:03] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:36:09] Starting automatic environment validation...
+[INFO] [04:36:09] Available Disk Space: 94168.7 MB
+[FAILED] [04:36:09] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:36:09] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:36:09] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:36:09] Starting automatic test discovery and execution...
+[INFO] [04:36:09] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:36:16] Starting automatic environment validation...
+[INFO] [04:36:16] Available Disk Space: 94168.7 MB
+[FAILED] [04:36:16] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:36:16] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:36:16] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:36:16] Starting automatic test discovery and execution...
+[INFO] [04:36:16] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:36:29] Starting automatic environment validation...
+[INFO] [04:36:29] Available Disk Space: 94168.6 MB
+[FAILED] [04:36:29] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:36:29] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:36:29] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:36:29] Starting automatic test discovery and execution...
+[INFO] [04:36:29] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:36:35] Starting automatic environment validation...
+[INFO] [04:36:35] Available Disk Space: 94168.6 MB
+[FAILED] [04:36:35] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:36:35] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:36:35] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:36:35] Starting automatic test discovery and execution...
+[INFO] [04:36:35] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:36:42] Starting automatic environment validation...
+[INFO] [04:36:42] Available Disk Space: 94168.6 MB
+[FAILED] [04:36:42] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:36:42] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:36:42] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:36:42] Starting automatic test discovery and execution...
+[INFO] [04:36:42] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:36:54] Starting automatic environment validation...
+[INFO] [04:36:54] Available Disk Space: 94168.5 MB
+[FAILED] [04:36:54] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:36:54] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:36:54] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:36:54] Starting automatic test discovery and execution...
+[INFO] [04:36:54] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:37:01] Starting automatic environment validation...
+[INFO] [04:37:01] Available Disk Space: 94168.5 MB
+[FAILED] [04:37:01] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:37:01] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:37:01] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:37:01] Starting automatic test discovery and execution...
+[INFO] [04:37:01] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:37:07] Starting automatic environment validation...
+[INFO] [04:37:07] Available Disk Space: 94168.5 MB
+[FAILED] [04:37:07] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:37:07] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:37:07] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:37:07] Starting automatic test discovery and execution...
+[INFO] [04:37:07] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:37:21] Starting automatic environment validation...
+[INFO] [04:37:21] Available Disk Space: 94168.5 MB
+[FAILED] [04:37:21] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:37:21] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:37:21] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:37:21] Starting automatic test discovery and execution...
+[INFO] [04:37:21] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:37:27] Starting automatic environment validation...
+[INFO] [04:37:27] Available Disk Space: 94168.5 MB
+[FAILED] [04:37:27] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:37:27] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:37:27] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:37:27] Starting automatic test discovery and execution...
+[INFO] [04:37:27] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:37:34] Starting automatic environment validation...
+[INFO] [04:37:34] Available Disk Space: 94168.5 MB
+[FAILED] [04:37:34] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:37:34] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:37:34] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:37:34] Starting automatic test discovery and execution...
+[INFO] [04:37:34] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:37:47] Starting automatic environment validation...
+[INFO] [04:37:47] Available Disk Space: 94168.5 MB
+[FAILED] [04:37:47] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:37:47] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:37:47] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:37:47] Starting automatic test discovery and execution...
+[INFO] [04:37:47] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:37:52] Starting automatic environment validation...
+[INFO] [04:37:52] Available Disk Space: 94168.5 MB
+[FAILED] [04:37:53] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:37:53] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:37:53] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:37:53] Starting automatic test discovery and execution...
+[INFO] [04:37:53] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:37:59] Starting automatic environment validation...
+[INFO] [04:37:59] Available Disk Space: 94168.5 MB
+[FAILED] [04:37:59] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:37:59] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:37:59] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:37:59] Starting automatic test discovery and execution...
+[INFO] [04:37:59] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:38:12] Starting automatic environment validation...
+[INFO] [04:38:12] Available Disk Space: 94168.5 MB
+[INFO] [04:38:12] Starting automatic environment validation...
+[INFO] [04:38:12] Available Disk Space: 94168.5 MB
+[FAILED] [04:38:12] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:38:12] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:38:12] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:38:12] Starting automatic test discovery and execution...
+[INFO] [04:38:12] Running automated tests command: pytest --tb=short -p no:warnings
+[FAILED] [04:38:12] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:38:12] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:38:12] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:38:12] Starting automatic test discovery and execution...
+[INFO] [04:38:12] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:38:18] Starting automatic environment validation...
+[INFO] [04:38:18] Available Disk Space: 94168.5 MB
+[FAILED] [04:38:18] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:38:18] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:38:18] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:38:18] Starting automatic test discovery and execution...
+[INFO] [04:38:18] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:38:25] Starting automatic environment validation...
+[INFO] [04:38:25] Available Disk Space: 94168.5 MB
+[FAILED] [04:38:25] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:38:25] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:38:25] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:38:25] Starting automatic test discovery and execution...
+[INFO] [04:38:25] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:38:38] Starting automatic environment validation...
+[INFO] [04:38:38] Available Disk Space: 94168.5 MB
+[FAILED] [04:38:38] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:38:38] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:38:38] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:38:38] Starting automatic test discovery and execution...
+[INFO] [04:38:38] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:38:43] Starting automatic environment validation...
+[INFO] [04:38:43] Available Disk Space: 94168.5 MB
+[FAILED] [04:38:43] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:38:43] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:38:43] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:38:43] Starting automatic test discovery and execution...
+[INFO] [04:38:43] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:38:43] Starting automatic environment validation...
+[INFO] [04:38:43] Available Disk Space: 94168.5 MB
+[FAILED] [04:38:44] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:38:44] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:38:44] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:38:44] Starting automatic test discovery and execution...
+[INFO] [04:38:44] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:38:50] Starting automatic environment validation...
+[INFO] [04:38:50] Available Disk Space: 94168.5 MB
+[FAILED] [04:38:50] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:38:50] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:38:50] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:38:50] Starting automatic test discovery and execution...
+[INFO] [04:38:50] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:39:03] Starting automatic environment validation...
+[INFO] [04:39:03] Available Disk Space: 94168.5 MB
+[FAILED] [04:39:03] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:39:03] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:39:03] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:39:03] Starting automatic test discovery and execution...
+[INFO] [04:39:03] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:39:08] Starting automatic environment validation...
+[INFO] [04:39:08] Available Disk Space: 94168.5 MB
+[FAILED] [04:39:08] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:39:08] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:39:08] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:39:08] Starting automatic test discovery and execution...
+[INFO] [04:39:08] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:39:09] Starting automatic environment validation...
+[INFO] [04:39:09] Available Disk Space: 94168.5 MB
+[FAILED] [04:39:09] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:39:09] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:39:09] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:39:09] Starting automatic test discovery and execution...
+[INFO] [04:39:09] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:39:15] Starting automatic environment validation...
+[INFO] [04:39:15] Available Disk Space: 94168.5 MB
+[FAILED] [04:39:15] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:39:15] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:39:15] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:39:15] Starting automatic test discovery and execution...
+[INFO] [04:39:15] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:39:30] Starting automatic environment validation...
+[INFO] [04:39:30] Available Disk Space: 94168.5 MB
+[FAILED] [04:39:30] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:39:30] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:39:30] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:39:30] Starting automatic test discovery and execution...
+[INFO] [04:39:30] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:39:35] Starting automatic environment validation...
+[INFO] [04:39:35] Available Disk Space: 94168.5 MB
+[FAILED] [04:39:35] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:39:35] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:39:35] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:39:35] Starting automatic test discovery and execution...
+[INFO] [04:39:35] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:39:35] Starting automatic environment validation...
+[INFO] [04:39:35] Available Disk Space: 94168.5 MB
+[FAILED] [04:39:35] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:39:35] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:39:35] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:39:35] Starting automatic test discovery and execution...
+[INFO] [04:39:35] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:39:43] Starting automatic environment validation...
+[INFO] [04:39:43] Available Disk Space: 94168.5 MB
+[FAILED] [04:39:43] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:39:43] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:39:43] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:39:43] Starting automatic test discovery and execution...
+[INFO] [04:39:43] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:39:55] Starting automatic environment validation...
+[INFO] [04:39:55] Available Disk Space: 94168.5 MB
+[FAILED] [04:39:55] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:39:55] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:39:55] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:39:55] Starting automatic test discovery and execution...
+[INFO] [04:39:55] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:40:00] Starting automatic environment validation...
+[INFO] [04:40:00] Available Disk Space: 94168.5 MB
+[FAILED] [04:40:00] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:40:00] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:40:00] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:40:00] Starting automatic test discovery and execution...
+[INFO] [04:40:00] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:40:01] Starting automatic environment validation...
+[INFO] [04:40:01] Available Disk Space: 94168.5 MB
+[FAILED] [04:40:01] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:40:01] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:40:01] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:40:01] Starting automatic test discovery and execution...
+[INFO] [04:40:01] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:40:09] Starting automatic environment validation...
+[INFO] [04:40:09] Available Disk Space: 94168.5 MB
+[FAILED] [04:40:09] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:40:09] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:40:09] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:40:09] Starting automatic test discovery and execution...
+[INFO] [04:40:09] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:40:21] Starting automatic environment validation...
+[INFO] [04:40:21] Available Disk Space: 94168.5 MB
+[FAILED] [04:40:21] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:40:21] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:40:21] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:40:21] Starting automatic test discovery and execution...
+[INFO] [04:40:21] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:40:26] Starting automatic environment validation...
+[INFO] [04:40:26] Available Disk Space: 94168.5 MB
+[FAILED] [04:40:26] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:40:26] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:40:26] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:40:26] Starting automatic test discovery and execution...
+[INFO] [04:40:26] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:40:27] Starting automatic environment validation...
+[INFO] [04:40:27] Available Disk Space: 94168.5 MB
+[FAILED] [04:40:27] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:40:27] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:40:27] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:40:27] Starting automatic test discovery and execution...
+[INFO] [04:40:27] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:40:35] Starting automatic environment validation...
+[INFO] [04:40:35] Available Disk Space: 94168.5 MB
+[FAILED] [04:40:35] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:40:35] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:40:35] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:40:35] Starting automatic test discovery and execution...
+[INFO] [04:40:35] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:40:48] Starting automatic environment validation...
+[INFO] [04:40:48] Available Disk Space: 94168.5 MB
+[FAILED] [04:40:48] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:40:48] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:40:48] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:40:48] Starting automatic test discovery and execution...
+[INFO] [04:40:48] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:40:52] Starting automatic environment validation...
+[INFO] [04:40:52] Available Disk Space: 94168.5 MB
+[FAILED] [04:40:52] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:40:52] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:40:52] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:40:52] Starting automatic test discovery and execution...
+[INFO] [04:40:52] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:40:53] Starting automatic environment validation...
+[INFO] [04:40:53] Available Disk Space: 94168.4 MB
+[FAILED] [04:40:53] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:40:53] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:40:53] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:40:53] Starting automatic test discovery and execution...
+[INFO] [04:40:53] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:41:03] Starting automatic environment validation...
+[INFO] [04:41:03] Available Disk Space: 94168.4 MB
+[FAILED] [04:41:03] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:41:03] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:41:03] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:41:03] Starting automatic test discovery and execution...
+[INFO] [04:41:03] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:41:16] Starting automatic environment validation...
+[INFO] [04:41:16] Available Disk Space: 94168.4 MB
+[FAILED] [04:41:16] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:41:16] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:41:16] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:41:16] Starting automatic test discovery and execution...
+[INFO] [04:41:16] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:41:20] Starting automatic environment validation...
+[INFO] [04:41:20] Available Disk Space: 94168.4 MB
+[FAILED] [04:41:20] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:41:20] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:41:20] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:41:20] Starting automatic test discovery and execution...
+[INFO] [04:41:20] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:41:21] Starting automatic environment validation...
+[INFO] [04:41:21] Available Disk Space: 94168.4 MB
+[FAILED] [04:41:21] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:41:21] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:41:21] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:41:21] Starting automatic test discovery and execution...
+[INFO] [04:41:21] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:41:33] Starting automatic environment validation...
+[INFO] [04:41:33] Available Disk Space: 94168.3 MB
+[FAILED] [04:41:33] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:41:33] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:41:33] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:41:33] Starting automatic test discovery and execution...
+[INFO] [04:41:33] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:41:46] Starting automatic environment validation...
+[INFO] [04:41:46] Available Disk Space: 94168.3 MB
+[FAILED] [04:41:46] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:41:46] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:41:46] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:41:46] Starting automatic test discovery and execution...
+[INFO] [04:41:46] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:41:50] Starting automatic environment validation...
+[INFO] [04:41:50] Available Disk Space: 94168.3 MB
+[FAILED] [04:41:50] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:41:50] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:41:50] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:41:50] Starting automatic test discovery and execution...
+[INFO] [04:41:50] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:41:51] Starting automatic environment validation...
+[INFO] [04:41:51] Available Disk Space: 94168.2 MB
+[FAILED] [04:41:51] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:41:51] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:41:51] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:41:51] Starting automatic test discovery and execution...
+[INFO] [04:41:51] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:42:01] Starting automatic environment validation...
+[INFO] [04:42:01] Available Disk Space: 94168.2 MB
+[FAILED] [04:42:01] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:42:01] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:42:01] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:42:01] Starting automatic test discovery and execution...
+[INFO] [04:42:01] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:42:14] Starting automatic environment validation...
+[INFO] [04:42:14] Available Disk Space: 94168.2 MB
+[FAILED] [04:42:14] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:42:14] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:42:14] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:42:14] Starting automatic test discovery and execution...
+[INFO] [04:42:14] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:42:18] Starting automatic environment validation...
+[INFO] [04:42:18] Available Disk Space: 94168.2 MB
+[FAILED] [04:42:18] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:42:18] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:42:18] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:42:18] Starting automatic test discovery and execution...
+[INFO] [04:42:18] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:42:19] Starting automatic environment validation...
+[INFO] [04:42:19] Available Disk Space: 94168.2 MB
+[FAILED] [04:42:19] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:42:19] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:42:19] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:42:19] Starting automatic test discovery and execution...
+[INFO] [04:42:19] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:42:29] Starting automatic environment validation...
+[INFO] [04:42:29] Available Disk Space: 94168.1 MB
+[FAILED] [04:42:29] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:42:29] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:42:29] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:42:29] Starting automatic test discovery and execution...
+[INFO] [04:42:29] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:42:41] Starting automatic environment validation...
+[INFO] [04:42:42] Available Disk Space: 94168.1 MB
+[FAILED] [04:42:42] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:42:42] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:42:42] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:42:42] Starting automatic test discovery and execution...
+[INFO] [04:42:42] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:42:45] Starting automatic environment validation...
+[INFO] [04:42:45] Available Disk Space: 94168.1 MB
+[FAILED] [04:42:45] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:42:45] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:42:45] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:42:45] Starting automatic test discovery and execution...
+[INFO] [04:42:45] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:42:47] Starting automatic environment validation...
+[INFO] [04:42:47] Available Disk Space: 94168.1 MB
+[FAILED] [04:42:47] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:42:47] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:42:47] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:42:47] Starting automatic test discovery and execution...
+[INFO] [04:42:47] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:42:56] Starting automatic environment validation...
+[INFO] [04:42:56] Available Disk Space: 94168.1 MB
+[FAILED] [04:42:56] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:42:56] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:42:56] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:42:56] Starting automatic test discovery and execution...
+[INFO] [04:42:56] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:43:08] Starting automatic environment validation...
+[INFO] [04:43:08] Available Disk Space: 94168.1 MB
+[FAILED] [04:43:08] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:43:08] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:43:08] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:43:08] Starting automatic test discovery and execution...
+[INFO] [04:43:08] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:43:11] Starting automatic environment validation...
+[INFO] [04:43:11] Available Disk Space: 94168.1 MB
+[FAILED] [04:43:11] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:43:11] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:43:11] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:43:11] Starting automatic test discovery and execution...
+[INFO] [04:43:11] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:43:13] Starting automatic environment validation...
+[INFO] [04:43:13] Available Disk Space: 94168.1 MB
+[FAILED] [04:43:13] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:43:13] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:43:13] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:43:13] Starting automatic test discovery and execution...
+[INFO] [04:43:13] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:43:22] Starting automatic environment validation...
+[INFO] [04:43:22] Available Disk Space: 94168.1 MB
+[FAILED] [04:43:22] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:43:22] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:43:22] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:43:22] Starting automatic test discovery and execution...
+[INFO] [04:43:22] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:43:35] Starting automatic environment validation...
+[INFO] [04:43:35] Available Disk Space: 94168.1 MB
+[FAILED] [04:43:35] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:43:35] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:43:35] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:43:35] Starting automatic test discovery and execution...
+[INFO] [04:43:35] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:43:38] Starting automatic environment validation...
+[INFO] [04:43:38] Available Disk Space: 94168.1 MB
+[FAILED] [04:43:38] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:43:38] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:43:38] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:43:38] Starting automatic test discovery and execution...
+[INFO] [04:43:38] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:43:40] Starting automatic environment validation...
+[INFO] [04:43:41] Available Disk Space: 94168.0 MB
+[FAILED] [04:43:41] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:43:41] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:43:41] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:43:41] Starting automatic test discovery and execution...
+[INFO] [04:43:41] Running automated tests command: pytest --tb=short -p no:warnings
+[INFO] [04:43:50] Starting automatic environment validation...
+[INFO] [04:43:50] Available Disk Space: 94168.0 MB
+[FAILED] [04:43:50] Missing required packages: ['pytest', 'fastapi', 'uvicorn']
+[SUGGESTION] [04:43:50] Self-healing recommendation: Install dependencies via 'pip install pytest fastapi uvicorn'.
+[INFO] [04:43:50] MT5 Verification: Synthetic Fallback Mode Active (Non-Windows platform)
+[INFO] [04:43:50] Starting automatic test discovery and execution...
+[INFO] [04:43:50] Running automated tests command: pytest --tb=short -p no:warnings

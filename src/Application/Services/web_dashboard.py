@@ -15,7 +15,7 @@ LOGS_DIR = "logs"
 REPORTS_DIR = "reports"
 VALIDATION_DIR = "validation"
 HISTORY_DIR = "history"
-LOCALES_DIR = os.path.join(os.path.dirname(__file__), "locales")
+LOCALES_DIR = "static/locales"
 
 app = FastAPI(
     title="TradeYar AI Autonomous Management & Acceptance Portal",
@@ -301,6 +301,20 @@ def get_dashboard_spa():
             border-right: 4px solid var(--accent);
             border-radius: 4px 0 0 4px;
         }}
+
+        [dir="ltr"] {{
+            direction: ltr;
+            text-align: left;
+            font-family: system-ui, -apple-system, sans-serif;
+        }}
+        [dir="ltr"] th, [dir="ltr"] td {{
+            text-align: left;
+        }}
+        [dir="ltr"] .border-card {{
+            border-right: none;
+            border-left: 4px solid var(--accent);
+            border-radius: 0 4px 4px 0;
+        }}
     </style>
     <script>
         const translations = {{
@@ -308,7 +322,7 @@ def get_dashboard_spa():
             en: {en_translations}
         }};
 
-        let currentLang = localStorage.getItem("tradeYar_language") || "fa";
+        let currentLang = localStorage.getItem("tradeyar_language") || "fa";
 
         function t(key) {{
             if (!key) return "";
@@ -321,7 +335,7 @@ def get_dashboard_spa():
 
         function setLanguage(lang) {{
             currentLang = lang;
-            localStorage.setItem("tradeYar_language", lang);
+            localStorage.setItem("tradeyar_language", lang);
             updateUI();
         }}
 
@@ -457,11 +471,11 @@ def get_dashboard_spa():
                 data.forEach(run => {{
                     tbody.innerHTML += `
                         <tr>
-                            <td>\${{formatTimestamp(run.timestamp)}}</td>
-                            <td>\${{run.duration_sec}}s</td>
-                            <td>\${{run.passed}}/\${{run.total}}</td>
-                            <td><strong style="color: \${{run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)'}}">\${{t(run.readiness_status)}}</strong></td>
-                            <td><strong>\${{run.readiness_score}}%</strong></td>
+                            <td>${{formatTimestamp(run.timestamp)}}</td>
+                            <td>${{run.duration_sec}}s</td>
+                            <td>${{run.passed}}/${{run.total}}</td>
+                            <td><strong style="color: ${{run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)'}}">${{t(run.readiness_status)}}</strong></td>
+                            <td><strong>${{run.readiness_score}}%</strong></td>
                         </tr>
                     `;
                 }});

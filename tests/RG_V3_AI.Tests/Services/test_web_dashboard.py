@@ -26,6 +26,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertIn('Vazirmatn', resp1.text)
         self.assertIn('id="lang-fa"', resp1.text)
         self.assertIn('id="lang-en"', resp1.text)
+        self.assertIn('tradeyar_language', resp1.text)
 
         resp2 = self.client.get("/dashboard")
         self.assertEqual(resp2.status_code, 200)
