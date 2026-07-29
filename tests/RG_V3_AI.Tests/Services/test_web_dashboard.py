@@ -44,6 +44,47 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertIn("latest_insights" if "latest_insights" in data else "reasoning", data)
         self.assertIn("mt5_status" if "mt5_status" in data else "last_candle_time", data)
 
+    def test_get_current_live_research_contract(self):
+        """Verifies GET /api/research/current returns 200 OK and exactly matches the required keys and values."""
+        resp = self.client.get("/api/research/current")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["symbol"], "XAUUSD")
+        self.assertEqual(data["timeframe"], "H1")
+        self.assertIn("timestamp", data)
+        self.assertIn("bias", data)
+        self.assertIn("confidence", data)
+        self.assertIn("trend", data)
+        self.assertIn("volatility", data)
+        self.assertIn("momentum", data)
+        self.assertIn("indicators", data)
+        self.assertIn("reasoning", data)
+
+    def test_get_historical_live_research_contract(self):
+        """Verifies GET /api/research/history returns 200 OK and is a list of snapshots with correct fields."""
+        resp = self.client.get("/api/research/history")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIsInstance(data, list)
+        if data:
+            item = data[0]
+            self.assertIn("timestamp", item)
+            self.assertIn("symbol", item)
+            self.assertIn("timeframe", item)
+            self.assertIn("confidence", item)
+            self.assertIn("bias", item)
+
+    def test_get_live_research_health_contract(self):
+        """Verifies GET /api/research/health returns 200 OK with mt5_status, worker_status, and timestamps."""
+        resp = self.client.get("/api/research/health")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("mt5_status", data)
+        self.assertIn("worker_status", data)
+        self.assertIn("last_candle_time", data)
+        self.assertIn("last_analysis_time", data)
+        self.assertIn("latest_result_id", data)
+
     def test_get_health_diagnostics(self):
         """Verifies health diagnostics API returns successful schema."""
         resp = self.client.get("/v1/health")
@@ -121,7 +162,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertTrue(resp.json()["emergency_stop_triggered"])
 
     def test_get_scorecard(self):
-        """Verifies production readiness scorecards."""
+        """Verifies production readiness scorecard."""
         resp = self.client.get("/api/production-readiness")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["production_readiness_score"], 100.0)

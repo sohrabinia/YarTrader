@@ -1,0 +1,20 @@
+INFO:     Started server process [813129]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+[INFO] [10:49:15] Worker polling cycle initiated for XAUUSD...
+[INFO] [10:49:15] Worker started: continuous polling thread initialized for XAUUSD H1 at 60.0s interval.
+[INFO] [10:49:15] Worker analysis complete. Latency: 13.33ms
+INFO:     127.0.0.1:54090 - "GET / HTTP/1.1" 200 OK
+[INFO] [10:50:15] Worker polling cycle initiated for XAUUSD...
+[INFO] [10:50:15] Worker analysis complete. Latency: 1.11ms
+INFO:     127.0.0.1:54090 - "GET /api/validation/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54096 - "GET /api/validation/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54112 - "GET /api/research/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54114 - "GET /api/research/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54114 - "GET /api/validation/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54090 - "GET /api/research/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54096 - "GET /api/research/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54112 - "GET /api/validation/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54112 - "GET /api/research/current HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54096 - "GET /api/research/health HTTP/1.1" 200 OK

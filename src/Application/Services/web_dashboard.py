@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.Application.Runtime.live_worker import LiveResearchWorker, get_current_research, get_research_history
+from src.Application.Runtime.live_worker import LiveResearchWorker, get_current_research, get_research_history, SNAPSHOT_DIR
 
 # Setup directory paths relative to repo root
 LOGS_DIR = "logs"
@@ -498,7 +498,7 @@ def get_dashboard_spa():
                 let data = await response.json();
 
                 let mt5El = document.getElementById('res-mt5-status');
-                if (data.mt5_connected) {{
+                if (data.mt5_status === "ONLINE") {{
                     mt5El.innerText = t('healthy');
                     mt5El.style.color = 'var(--accent)';
                 }} else {{
@@ -507,7 +507,7 @@ def get_dashboard_spa():
                 }}
 
                 let workerEl = document.getElementById('res-worker-status');
-                if (data.worker_running) {{
+                if (data.worker_status === "RUNNING") {{
                     workerEl.innerText = t('active_status');
                     workerEl.style.color = 'var(--accent)';
                 }} else {{
@@ -714,8 +714,30 @@ def get_current_live_research():
 
 @app.get("/api/research/history")
 def get_historical_live_research():
-    """Retrieves standard historical list of serialized research payloads."""
-    return get_research_history()
+    """Retrieves standard historical list of serialized research payloads loaded directly from snapshot folder."""
+    history = []
+    if os.path.exists(SNAPSHOT_DIR):
+        for file in os.listdir(SNAPSHOT_DIR):
+            if file.startswith("snapshot_") and file.endswith(".json"):
+                file_path = os.path.join(SNAPSHOT_DIR, file)
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    history.append({
+                        "timestamp": data.get("timestamp"),
+                        "symbol": data.get("symbol"),
+                        "timeframe": data.get("timeframe"),
+                        "confidence": data.get("confidence"),
+                        "bias": data.get("bias"),
+                        "trend": data.get("trend"),
+                        "volatility": data.get("volatility"),
+                        "momentum": data.get("momentum")
+                    })
+                except Exception:
+                    pass
+    # Sort descending by timestamp
+    history.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    return history
 
 
 @app.get("/api/research/health")
@@ -723,14 +745,16 @@ def get_live_research_health():
     """Retrieves structured diagnostic indicators about the live research runtime pipeline."""
     curr = get_current_research() or {}
     conn_health = live_worker.provider.delegate.get_connection_health()
+
+    # Compile a unique latest_result_id
+    latest_result_id = "res-xauusd-" + curr.get("timestamp", "").replace(" ", "-").replace(":", "-") if curr else ""
+
     return {
-        "mt5_connected": conn_health.connected,
-        "worker_running": live_worker.is_running,
-        "last_candle": curr.get("last_candle_time", "N/A"),
-        "last_analysis": curr.get("timestamp", "N/A"),
-        "research_latency": live_worker.latency_ms,
-        "current_symbol": live_worker.symbol,
-        "current_timeframe": live_worker.timeframe
+        "mt5_status": "ONLINE" if conn_health.connected else "OFFLINE",
+        "worker_status": "RUNNING" if live_worker.is_running else "STOPPED",
+        "last_candle_time": curr.get("last_candle_time", "N/A"),
+        "last_analysis_time": curr.get("timestamp", "N/A"),
+        "latest_result_id": latest_result_id
     }
 
 

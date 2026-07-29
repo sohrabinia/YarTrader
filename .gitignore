@@ -59,13 +59,9 @@ venv.bak/
 .idea/
 *.swp
 *.swo
-# Runtime generated files
-logs/
-runtime_logs/
-uvicorn.log
-api.json
 
-# Validation artifacts
-validation/*.html
-validation/*.json
-validation/*.md
+# Local runtime logs and temporary research snapshot caches
+runtime_logs/research_snapshots/
+validation/research_history.json
+uvicorn.log
+test_runtime_logs/

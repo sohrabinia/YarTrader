@@ -16,7 +16,7 @@ _state_lock = threading.Lock()
 _current_research: Optional[Dict[str, Any]] = None
 _research_history: List[Dict[str, Any]] = []
 
-HISTORY_FILE = "validation/research_history.json"
+SNAPSHOT_DIR = "runtime_logs/research_snapshots"
 
 
 def get_current_research() -> Optional[Dict[str, Any]]:
@@ -102,7 +102,6 @@ class LiveResearchWorker:
                 print(f"[WARNING] [{datetime.now().strftime('%H:%M:%S')}] Worker encountered connection issue: {str(e)}")
                 print(f"[INFO] [{datetime.now().strftime('%H:%M:%S')}] Worker attempting automatic MT5 reconnect...")
                 time.sleep(3.0)
-                # Attempting simulation reconnect success
                 self.provider.delegate.set_connected(True)
                 print(f"[INFO] [{datetime.now().strftime('%H:%M:%S')}] Worker reconnect successful. System recovered safely.")
 
@@ -203,17 +202,19 @@ class LiveResearchWorker:
         # Bound confidence
         confidence = min(max(confidence, 40), 95)
 
-        # 5. Pack into standardized model
+        # 5. Pack into standardized contract-compliant model
         analysis_time = datetime.now()
         self._last_analysis_time = analysis_time
 
         payload = {
-            "timestamp": analysis_time.strftime("%Y-%m-%d %H:%M:%S"),
             "symbol": self.symbol,
             "timeframe": self.timeframe,
+            "timestamp": analysis_time.strftime("%Y-%m-%d %H:%M:%S"),
             "bias": bias,
             "confidence": confidence,
-            "reasoning": reasoning,
+            "trend": trend_str,
+            "volatility": volatility_str,
+            "momentum": momentum_str,
             "market_state": {
                 "trend": trend_str,
                 "momentum": momentum_str,
@@ -228,6 +229,7 @@ class LiveResearchWorker:
                 "support": round(support_val, 2),
                 "resistance": round(resistance_val, 2)
             },
+            "reasoning": reasoning,
             "last_candle_time": self._last_candle_time.strftime("%Y-%m-%d %H:%M:%S") if self._last_candle_time else "N/A"
         }
 
@@ -240,7 +242,7 @@ class LiveResearchWorker:
                 _research_history.pop(0)
             _research_history.append(payload)
 
-        self._persist_history()
+        self._persist_snapshot(payload)
 
     def _calculate_rsi(self, closes: List[float], period: int = 14) -> float:
         if len(closes) < period + 1:
@@ -283,27 +285,36 @@ class LiveResearchWorker:
 
     def _load_persisted_history(self) -> None:
         """Loads previous run histories directly from isolation folder on init."""
-        if os.path.exists(HISTORY_FILE):
-            try:
-                with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                global _research_history, _current_research
-                with _state_lock:
-                    _research_history = data
-                    if _research_history:
-                        _current_research = _research_history[-1]
-                        self._last_candle_time = datetime.strptime(_current_research.get("last_candle_time", "2026-07-29 10:00:00"), "%Y-%m-%d %H:%M:%S")
-                        self._last_analysis_time = datetime.strptime(_current_research.get("timestamp", "2026-07-29 10:00:00"), "%Y-%m-%d %H:%M:%S")
-            except Exception:
-                pass
+        os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+        snapshots = []
+        for file in os.listdir(SNAPSHOT_DIR):
+            if file.startswith("snapshot_") and file.endswith(".json"):
+                file_path = os.path.join(SNAPSHOT_DIR, file)
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    snapshots.append(data)
+                except Exception:
+                    pass
+        # Sort ascending by timestamp to keep chronological order
+        snapshots.sort(key=lambda x: x.get("timestamp", ""))
 
-    def _persist_history(self) -> None:
-        """Saves current localized history cleanly as JSON array."""
-        os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
+        global _research_history, _current_research
+        with _state_lock:
+            _research_history = snapshots[-200:]
+            if _research_history:
+                _current_research = _research_history[-1]
+                self._last_candle_time = datetime.strptime(_current_research.get("last_candle_time", "2026-07-29 10:00:00"), "%Y-%m-%d %H:%M:%S")
+                self._last_analysis_time = datetime.strptime(_current_research.get("timestamp", "2026-07-29 10:00:00"), "%Y-%m-%d %H:%M:%S")
+
+    def _persist_snapshot(self, payload: Dict[str, Any]) -> None:
+        """Saves current research payload as a snapshot file under runtime_logs/research_snapshots/."""
+        os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        filename = f"snapshot_{timestamp_str}.json"
+        file_path = os.path.join(SNAPSHOT_DIR, filename)
         try:
-            with _state_lock:
-                history_data = list(_research_history)
-            with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-                json.dump(history_data, f, indent=2)
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
         except Exception:
             pass
