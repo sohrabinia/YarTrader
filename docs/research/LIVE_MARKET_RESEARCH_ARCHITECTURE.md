@@ -84,79 +84,11 @@ The flow of information moves in a strictly unidirectional, descriptive-analytic
 6. **Feature Engineering Layer (`src/Research/analysis_pipeline.py`)**: Executes the standard registered feature pipeline to extract multi-factor price, statistical, trend, and volatility properties.
 7. **Market Regime Detection (`src/Research/analysis_pipeline.py`)**: Classifies the market regime state (e.g. Quiet Range-Bound, High Volatility Breakout/Expansion, Strong Trending).
 8. **Smart Interpretation Engine (`src/Research/analysis_pipeline.py`)**: Evaluates compiled signals to synthesize a final market bias (Bullish/Bearish/Neutral), quantitative confidence score, and qualitative reasoning bullet points.
-9. **Dashboard Integration & API (`src/Application/Services/web_dashboard.py`)**: Exposes the REST endpoints and renders a beautiful bilingual live visual card on the single-page application dashboard.
+9. **Dashboard Integration & API (`src/Application/Services/web_dashboard.py`)**: Exposes four dedicated endpoints (`/v1/dashboard/research`, `/api/research/current`, `/api/research/history`, `/api/research/health`) and renders a beautiful live visual card on the single-page application dashboard.
 
 ---
 
-## 3. REST API Contract
-
-The following endpoints comprise the finalized, production-hardened Live Market Research API Contract:
-
-### A. GET `/api/research/current`
-Returns the latest completed market research snapshot, checking disk storage snapshots first for true persistence across boots, with in-memory fallback.
-* **Response Schema:**
-  ```json
-  {
-    "symbol": "XAUUSD",
-    "timeframe": "H1",
-    "bias": "Bullish",
-    "confidence": 77,
-    "reasoning": [
-      "Price is trading above the SMA20 short-term trend line.",
-      "RSI is in bullish territory (>50) with positive demand accumulation.",
-      "MACD histogram remains above zero, confirming upward momentum."
-    ],
-    "timestamp": "2026-07-29T10:29:19.486497",
-    "indicators": {
-      "sma_20": 2305.05,
-      "ema_12": 2305.45,
-      "rsi": 100.0,
-      "atr": 0.3
-    }
-  }
-  ```
-
-### B. GET `/api/research/latest`
-Returns the latest completed market research analysis. Alias of `/api/research/current`.
-
-### C. GET `/api/research/history`
-Returns a list of the previous analyses (up to the latest 50 files) read dynamically from disk serialized snapshots for absolute persistence.
-
-### D. GET `/api/research/health`
-Returns details on worker lifecycle states, connection states, and polling metrics metadata.
-* **Response Schema:**
-  ```json
-  {
-    "mt5_status": "ONLINE",
-    "worker_running": true,
-    "last_analysis_time": "2026-07-29T10:29:19.486497",
-    "symbol": "XAUUSD",
-    "timeframe": "H1",
-    "worker_started_at": "2026-07-29T10:28:19.001254",
-    "last_successful_cycle": "2026-07-29T10:29:19.486497",
-    "cycle_count": 1,
-    "last_error": null,
-    "last_candle_time": "2026-07-29T10:29:19.486497",
-    "last_result_id": "rpt-XAUUSD-3636238b"
-  }
-  ```
-
-### E. GET `/v1/dashboard/live-research`
-Backward-compatible alias of `/api/research/current`.
-
----
-
-## 4. Dashboard Integration Flow
-
-The single-page application (SPA) Dashboard integrates with the Live Market Research worker dynamically:
-1. **On Load**: Detects user language (defaulting to Persian `fa` with an RTL layout and system/Vazirmatn fonts; supports switching to English `en` LTR layout).
-2. **Periodic Polling**: Connects to the `/api/research/current` REST endpoint every 5 seconds.
-3. **Dynamic Translation & Mapping**: Updates all labels, market bias (Bullish/Bearish/Neutral), confidence levels, technical metrics, and qualitative AI explanations dynamically using zero template literal syntax to avoid any leakage or parsing failures.
-4. **Validation Center Sync**: Automatically loads the existing `validation/production_acceptance_report.json` report on FastAPI boot to initialize the Production Readiness Score card with real results (e.g., 100% Readiness) on page load instead of displaying 0%.
-
----
-
-## 5. Strict APES-FIN Safety Boundaries & Security Model
+## 3. Strict APES-FIN Safety Boundaries
 
 TradeYar AI is structurally restricted to a passive, read-only administrative control center. The following design parameters enforce absolute safety:
 
@@ -166,21 +98,22 @@ TradeYar AI is structurally restricted to a passive, read-only administrative co
 
 ---
 
-## 6. Configuration & Troubleshooting
+## 4. Configuration & Troubleshooting
 
-### Deployment Instructions
+### Configuration
 
-To launch the Live Market Research Platform:
-1. Ensure the Python environment is set up with dependencies pinned in `requirements.txt`.
-2. Run the main web management gateway dashboard:
-   ```bash
-   PYTHONPATH=. uvicorn src.Application.Services.web_dashboard:app --host 0.0.0.0 --port 8000
-   ```
-3. Navigate to `http://localhost:8000` to view the localized dashboard and live panel.
+The background polling loop frequency is configured via the standard scheduled parameter:
 
-### Troubleshooting Guide
+```python
+RESEARCH_INTERVAL_SECONDS = 60.0
+```
 
-- **MT5 Status Shows DISCONNECTED / OFFLINE**:
+Snapshots are automatically persisted under:
+`runtime_logs/research_snapshots/snapshot_<report_id>.json`
+
+### Troubleshooting
+
+- **MT5 Status Shows DISCONNECTED**:
   1. Verify the MT5 Terminal is running on the host system.
   2. Confirm "Allow Algorithmic Trading" is checked in the MT5 Terminal Settings.
   3. Ensure that the active network broker account is connected.

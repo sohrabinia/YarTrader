@@ -272,11 +272,11 @@ class SmartInterpretationEngine:
             bullish_signals += 1
             total_signals += 1
         elif rsi > 50.0:
-            reasoning.append("RSI is in bullish territory (>50) with positive demand accumulation.")
+            reasoning.append("RSI is in bullish territory (>50) with positive buying pressure.")
             bullish_signals += 0.5
             total_signals += 0.5
         else:
-            reasoning.append("RSI is in bearish territory (<50) with active distribution pressure.")
+            reasoning.append("RSI is in bearish territory (<50) with active selling pressure.")
             bearish_signals += 0.5
             total_signals += 0.5
 
