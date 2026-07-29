@@ -277,6 +277,7 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         self.assertIn(health_data["mt5_status"], ["CONNECTED", "DISCONNECTED"])
         self.assertIsNotNone(health_data["last_analysis_time"])
         self.assertIn("worker_status", health_data)
+        self.assertIn("last_result_id", health_data)
 
     def test_strict_read_only_compliance_no_trading_api(self) -> None:
         """Verify that absolutely no active trading functions (buy, sell, order_send) are defined or called."""
