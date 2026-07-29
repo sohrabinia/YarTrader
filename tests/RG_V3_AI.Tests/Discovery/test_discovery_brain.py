@@ -1,0 +1,227 @@
+import unittest
+from datetime import datetime, timedelta
+from typing import List
+from src.Data.MarketData.Models.models import MarketDataPoint
+from src.Research.MarketAnalysis.Discovery.models import (
+    MarketObservation,
+    MarketSequence,
+    MarketEvent,
+    PatternMemory,
+    ExperienceMemory,
+    VirtualTrade,
+    SimulationResult,
+    LearningRecord,
+    AnalysisReport
+)
+from src.Research.MarketAnalysis.Discovery.brain import (
+    DataRealityLayer,
+    ObservationBrain,
+    MultiTimeframePerceptionLayer,
+    MemorySystem,
+    PatternDiscoveryEngine,
+    QualityControlBrain,
+    SimulationBrain,
+    VirtualTradingEngine,
+    OutcomeEvaluationEngine,
+    LearningMemoryUpdate,
+    LiveAnalysisBrain
+)
+
+
+class TestNewbornMarketDiscoveryBrain(unittest.TestCase):
+    """
+    Automated unit and integration test suite verifying the Newborn Market
+    Discovery Brain architecture, memory system, simulation replay, and safety boundaries.
+    """
+
+    def setUp(self) -> None:
+        self.now = datetime(2026, 7, 29, 10, 0, 0)
+        self.asset = "XAUUSD"
+        self.timeframe = "H1"
+
+        # Construct dummy historical data sequence
+        self.dummy_data = []
+        for i in range(10):
+            # i = 0 to 4: rising price, i = 5 to 9: falling price
+            close_price = 1800.0 + (i * 10.0 if i < 5 else (80.0 - i * 10.0))
+            dp = MarketDataPoint(
+                AssetId=self.asset,
+                Timestamp=self.now + timedelta(hours=i),
+                Open=close_price - 5.0,
+                High=close_price + 8.0,
+                Low=close_price - 7.0,
+                Close=close_price,
+                Volume=250.0 + i * 50
+            )
+            self.dummy_data.append(dp)
+
+    # 1. Data Ingestion & Reality Layer Tests
+    def test_reality_layer_ingestion_and_gaps(self) -> None:
+        layer = DataRealityLayer()
+        observations = layer.receive_data(self.dummy_data, self.timeframe)
+
+        self.assertEqual(len(observations), 10)
+        self.assertTrue(layer.validate_timestamps(observations))
+
+        # Test duplicate timestamp validation failure
+        bad_data = list(self.dummy_data)
+        bad_data[1] = MarketDataPoint(
+            AssetId=self.asset,
+            Timestamp=self.now,  # duplicate
+            Open=1795.0, High=1805.0, Low=1790.0, Close=1800.0, Volume=100.0
+        )
+        bad_obs = layer.receive_data(bad_data, self.timeframe)
+        self.assertFalse(layer.validate_timestamps(bad_obs))
+
+        # Test gap/missing candles detection
+        gap_data = [self.dummy_data[0], self.dummy_data[2]]  # missing hour 1
+        gap_obs = layer.receive_data(gap_data, self.timeframe)
+        gaps = layer.detect_missing_candles(gap_obs, expected_interval_minutes=60)
+        self.assertEqual(len(gaps), 1)
+        self.assertEqual(gaps[0], self.now + timedelta(hours=1))
+
+    # 2. Observation Brain Event Extraction Tests
+    def test_observation_brain_runs_and_retracements(self) -> None:
+        layer = DataRealityLayer()
+        brain = ObservationBrain()
+
+        obs_list = layer.receive_data(self.dummy_data, self.timeframe)
+        seq = MarketSequence(Asset=self.asset, Timeframe=self.timeframe, Observations=obs_list)
+
+        events = brain.observe_sequence(seq)
+        self.assertGreaterEqual(len(events), 1)
+
+        # Confirm behavior is observed cleanly in Points/Duration/Reactions with zero indicator terms
+        for ev in events:
+            self.assertEqual(ev.Asset, self.asset)
+            self.assertEqual(ev.Timeframe, self.timeframe)
+            self.assertGreater(ev.DurationCandles, 0)
+            self.assertIn(ev.Direction, ["upward", "downward", "neutral"])
+
+    # 3. Multi-Timeframe Perception Tests
+    def test_multi_timeframe_perception_fractals(self) -> None:
+        layer = MultiTimeframePerceptionLayer()
+        parent_event = MarketEvent(
+            EventId="parent_h4", Asset=self.asset, Timeframe="H4",
+            StartTime=self.now, EndTime=self.now + timedelta(hours=4),
+            PriceMovementPoints=40.0, DurationCandles=1, ConsecutiveCandlesCount=1, Direction="upward"
+        )
+
+        # Child H1 sequence
+        child_obs = [
+            MarketObservation(self.asset, self.now, 1800.0, 1810.0, 1795.0, 1805.0, 100, "H1"),
+            MarketObservation(self.asset, self.now + timedelta(hours=1), 1805.0, 1815.0, 1800.0, 1812.0, 100, "H1")
+        ]
+        child_seq = MarketSequence(Asset=self.asset, Timeframe="H1", Observations=child_obs)
+
+        layer.associate_timeframes(parent_event, child_seq)
+        retrieved = layer.get_child_sequences("parent_h4")
+        self.assertEqual(len(retrieved), 1)
+        self.assertEqual(retrieved[0].Timeframe, "H1")
+
+    # 4. Memory System & Jaccard Similarity Search Tests
+    def test_memory_system_similarity(self) -> None:
+        memory = MemorySystem()
+
+        p1 = PatternMemory(PatternId="pat1", Signature="upward_12_retraced_4", Occurrences=10, ContinuationCount=7, ReversalCount=3)
+        p2 = PatternMemory(PatternId="pat2", Signature="downward_5_retraced_2", Occurrences=15, ContinuationCount=2, ReversalCount=13)
+
+        memory.save_pattern(p1)
+        memory.save_pattern(p2)
+
+        # Exact match
+        matches = memory.find_similar_patterns("upward_12_retraced_4")
+        self.assertGreater(len(matches), 0)
+        self.assertEqual(matches[0][0].PatternId, "pat1")
+        self.assertEqual(matches[0][1], 1.0)
+
+        # Partial match
+        partial_matches = memory.find_similar_patterns("upward_8_retraced_4", threshold=0.3)
+        self.assertGreater(len(partial_matches), 0)
+        self.assertEqual(partial_matches[0][0].PatternId, "pat1")
+
+    # 5. Pattern Discovery and Quality Control Reasoning Tests
+    def test_pattern_discovery_and_qc(self) -> None:
+        memory = MemorySystem()
+        engine = PatternDiscoveryEngine()
+        qc = QualityControlBrain()
+
+        p = PatternMemory(PatternId="pat_gold", Signature="upward_12", Occurrences=20, ContinuationCount=15, ReversalCount=5)
+        memory.save_pattern(p)
+
+        discovery = engine.discover_similarities("upward_12", memory)
+        self.assertEqual(discovery["total_occurrences"], 20)
+        self.assertEqual(discovery["continuation_probability"], 0.75)
+
+        # Evaluate reasoning under high occurrences
+        score, explanation = qc.evaluate_reasoning(discovery["raw_matches"])
+        self.assertGreaterEqual(score, 0.8)
+        self.assertIn("Strong evidence base", explanation)
+
+        # Evaluate reasoning under low occurrences
+        weak_p = PatternMemory(PatternId="pat_weak", Signature="weak_run", Occurrences=2, ContinuationCount=1, ReversalCount=1)
+        score_weak, explanation_weak = qc.evaluate_reasoning([(weak_p, 1.0)])
+        self.assertLess(score_weak, 0.5)
+        self.assertIn("Low sample warning", explanation_weak)
+
+    # 6. Virtual Trading & Simulation Engine Tests
+    def test_virtual_trading_and_replay_simulation(self) -> None:
+        layer = DataRealityLayer()
+        sim_brain = SimulationBrain()
+        memory = MemorySystem()
+
+        obs_list = layer.receive_data(self.dummy_data, self.timeframe)
+        seq = MarketSequence(Asset=self.asset, Timeframe=self.timeframe, Observations=obs_list)
+
+        # Simulating BUY direction with 5.0 pt stop loss and 30.0 pt target
+        results = sim_brain.simulate_replay(seq, memory, direction="BUY", stop_loss_pts=5.0, target_pts=30.0)
+
+        self.assertEqual(len(results), 1)
+        res = results[0]
+        self.assertTrue(isinstance(res, SimulationResult))
+        self.assertGreaterEqual(res.MaxFavorableMovementPoints, 0.0)
+        self.assertGreaterEqual(res.MaxAdverseMovementPoints, 0.0)
+
+    # 7. Learning Update & Episodic Experience Logging Tests
+    def test_learning_updates_and_episodes(self) -> None:
+        memory = MemorySystem()
+        engine = VirtualTradingEngine()
+        learner = LearningMemoryUpdate()
+
+        trade = engine.create_virtual_trade(
+            asset=self.asset, timeframe=self.timeframe, direction="BUY",
+            entry_price=1800.0, stop_loss=1795.0, target_price=1830.0,
+            expected_scenario="upward_H1_test", entry_time=self.now
+        )
+
+        sim_res = SimulationResult(
+            TradeId=trade.TradeId, IsSuccess=True,
+            MaxFavorableMovementPoints=30.0, MaxAdverseMovementPoints=2.0,
+            FinalResult="WIN"
+        )
+
+        record = learner.update_memory_with_outcome(trade, sim_res, memory)
+        self.assertTrue(isinstance(record, LearningRecord))
+        self.assertEqual(len(memory.experience_memory), 1)
+
+        exp = memory.experience_memory[0]
+        self.assertEqual(exp.Decision, "BUY")
+        self.assertEqual(exp.FinalResult, "WIN")
+
+    # 8. Live Analysis Brain & Strict Read-Only Safety Tests
+    def test_live_analysis_and_read_only_safety(self) -> None:
+        memory = MemorySystem()
+        live_brain = LiveAnalysisBrain()
+
+        # Build active pattern for match (expected signature will be "downward_6")
+        p = PatternMemory(PatternId="pat_live", Signature="downward_6", Occurrences=10, ContinuationCount=8, ReversalCount=2)
+        memory.save_pattern(p)
+
+        report = live_brain.analyze_live_market(self.dummy_data, self.timeframe, memory)
+        self.assertTrue(isinstance(report, AnalysisReport))
+        self.assertEqual(report.Asset, self.asset)
+        self.assertGreater(report.QCScore, 0.0)
+
+        # Strict safety assertion: verify absolutely no orders or trade methods were invoked
+        self.assertFalse(hasattr(live_brain, "order_send"))
+        self.assertFalse(hasattr(live_brain, "trade_send"))

@@ -1,0 +1,578 @@
+import uuid
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
+from src.Data.MarketData.Models.models import MarketDataPoint
+from src.Research.MarketAnalysis.Discovery.models import (
+    MarketObservation,
+    MarketSequence,
+    MarketEvent,
+    PatternMemory,
+    ExperienceMemory,
+    VirtualTrade,
+    SimulationResult,
+    LearningRecord,
+    AnalysisReport
+)
+
+
+class DataRealityLayer:
+    """
+    Input validation and normalization layer.
+    Receives raw market data from MT5 or historical feeds, validates sequence order,
+    detects missing candle intervals, and formats observations. No interpretation.
+    """
+    def receive_data(self, data_points: List[MarketDataPoint], timeframe: str) -> List[MarketObservation]:
+        """Translates raw DataPoints into clean MarketObservation snapshots."""
+        observations = []
+        for dp in data_points:
+            obs = MarketObservation(
+                Asset=dp.AssetId,
+                Timestamp=dp.Timestamp,
+                Open=dp.Open,
+                High=dp.High,
+                Low=dp.Low,
+                Close=dp.Close,
+                Volume=dp.Volume,
+                Timeframe=timeframe
+            )
+            observations.append(obs)
+        return observations
+
+    def validate_timestamps(self, observations: List[MarketObservation]) -> bool:
+        """Verifies that timestamps are sorted chronologically and contain no duplicates."""
+        if len(observations) <= 1:
+            return True
+        for i in range(1, len(observations)):
+            if observations[i].Timestamp <= observations[i-1].Timestamp:
+                return False
+        return True
+
+    def detect_missing_candles(self, observations: List[MarketObservation], expected_interval_minutes: int) -> List[datetime]:
+        """Calculates differences between consecutive candles and identifies gaps."""
+        missing = []
+        if len(observations) <= 1:
+            return missing
+
+        delta = timedelta(minutes=expected_interval_minutes)
+        for i in range(1, len(observations)):
+            diff = observations[i].Timestamp - observations[i-1].Timestamp
+            if diff > delta:
+                # Add expected timestamps that are missing
+                curr = observations[i-1].Timestamp + delta
+                while curr < observations[i].Timestamp:
+                    missing.append(curr)
+                    curr += delta
+        return missing
+
+    def normalize_market_event(self, obs: MarketObservation) -> Dict[str, Any]:
+        """Converts raw snapshot into standard key-value dictionary representing reality."""
+        return {
+            "asset": obs.Asset,
+            "timestamp": obs.Timestamp.isoformat(),
+            "open": obs.Open,
+            "high": obs.High,
+            "low": obs.Low,
+            "close": obs.Close,
+            "volume": obs.Volume,
+            "timeframe": obs.Timeframe
+        }
+
+
+class ObservationBrain:
+    """
+    Observes price-action sequences purely through movement, points, durations,
+    and reaction sequences. Strictly forbids predefined indicators (RSI, MACD)
+    or human-defined breakout/resistance terms.
+    """
+    def observe_sequence(self, sequence: MarketSequence) -> List[MarketEvent]:
+        """Parses a market sequence into structural Point-Duration-Reaction Events."""
+        events = []
+        obs_list = sequence.Observations
+        if len(obs_list) < 2:
+            return events
+
+        # Group observations into consecutive price movements (runs)
+        current_run: List[MarketObservation] = [obs_list[0]]
+
+        for i in range(1, len(obs_list)):
+            current_obs = obs_list[i]
+            prev_obs = obs_list[i-1]
+
+            # Determine direction of the current candle
+            current_direction = "upward" if current_obs.Close >= prev_obs.Close else "downward"
+            prev_direction = "upward" if prev_obs.Close >= obs_list[max(0, i-2)].Close else "downward"
+
+            if current_direction == prev_direction:
+                current_run.append(current_obs)
+            else:
+                # End of a run, finalize Event
+                event = self._build_event_from_run(sequence.Asset, sequence.Timeframe, current_run)
+                if event:
+                    events.append(event)
+                current_run = [prev_obs, current_obs]
+
+        # Handle the last remaining run
+        if len(current_run) >= 2:
+            event = self._build_event_from_run(sequence.Asset, sequence.Timeframe, current_run)
+            if event:
+                events.append(event)
+
+        # Calculate retracement/reactions by comparing consecutive events
+        for j in range(1, len(events)):
+            prev_ev = events[j-1]
+            curr_ev = events[j]
+            if prev_ev.Direction != curr_ev.Direction:
+                # Retracement points size is the price movement of current event
+                # Assign retracement details to the parent previous event
+                retraced_points = abs(curr_ev.PriceMovementPoints)
+                retraced_duration = curr_ev.DurationCandles
+
+                # Re-build previous event with retracement points
+                events[j-1] = MarketEvent(
+                    EventId=prev_ev.EventId,
+                    Asset=prev_ev.Asset,
+                    Timeframe=prev_ev.Timeframe,
+                    StartTime=prev_ev.StartTime,
+                    EndTime=prev_ev.EndTime,
+                    PriceMovementPoints=prev_ev.PriceMovementPoints,
+                    DurationCandles=prev_ev.DurationCandles,
+                    ConsecutiveCandlesCount=prev_ev.ConsecutiveCandlesCount,
+                    Direction=prev_ev.Direction,
+                    RetracementPoints=retraced_points,
+                    RetracementDuration=retraced_duration
+                )
+
+        return events
+
+    def _build_event_from_run(self, asset: str, timeframe: str, run: List[MarketObservation]) -> Optional[MarketEvent]:
+        if len(run) < 2:
+            return None
+        start = run[0]
+        end = run[-1]
+
+        move_points = end.Close - start.Open
+        direction = "upward" if move_points >= 0 else "downward"
+
+        # Calculate consecutive candles in the direction of the movement
+        consecutive_count = 0
+        for i in range(1, len(run)):
+            candle_direction = "upward" if run[i].Close >= run[i-1].Close else "downward"
+            if candle_direction == direction:
+                consecutive_count += 1
+
+        return MarketEvent(
+            EventId=str(uuid.uuid4())[:8],
+            Asset=asset,
+            Timeframe=timeframe,
+            StartTime=start.Timestamp,
+            EndTime=end.Timestamp,
+            PriceMovementPoints=move_points,
+            DurationCandles=len(run),
+            ConsecutiveCandlesCount=consecutive_count,
+            Direction=direction
+        )
+
+
+class MultiTimeframePerceptionLayer:
+    """
+    Fractal perception engine mapping nested price behaviors across multiple
+    timeframes (Daily -> H4 -> H1 -> M15 -> M5 -> M1).
+    """
+    def __init__(self) -> None:
+        self.associations: Dict[str, List[MarketSequence]] = {}  # event_id -> child_sequences
+
+    def associate_timeframes(self, parent_event: MarketEvent, child_sequence: MarketSequence) -> None:
+        """Stores fractal nested relationship between parent event and child sequence."""
+        if parent_event.EventId not in self.associations:
+            self.associations[parent_event.EventId] = []
+        self.associations[parent_event.EventId].append(child_sequence)
+
+    def get_child_sequences(self, parent_event_id: str) -> List[MarketSequence]:
+        """Retrieves child timeframe sequences associated with the parent event."""
+        return self.associations.get(parent_event_id, [])
+
+
+class MemorySystem:
+    """
+    Three-layer Memory System (Event Memory, Pattern Memory, Experience Memory)
+    storing raw market realities, signatures similarity statistics, and episodic lessons.
+    """
+    def __init__(self) -> None:
+        self.events_memory: List[MarketEvent] = []
+        self.patterns_memory: Dict[str, PatternMemory] = {}  # Signature -> PatternMemory
+        self.experience_memory: List[ExperienceMemory] = []
+
+    def save_event(self, event: MarketEvent) -> None:
+        self.events_memory.append(event)
+
+    def save_pattern(self, pattern: PatternMemory) -> None:
+        self.patterns_memory[pattern.Signature] = pattern
+
+    def save_experience(self, experience: ExperienceMemory) -> None:
+        self.experience_memory.append(experience)
+
+    def calculate_similarity(self, sig1: str, sig2: str) -> float:
+        """Jaccard similarity rating for tokenized signature structures."""
+        if sig1 == sig2:
+            return 1.0
+        tokens1 = set(sig1.split("_"))
+        tokens2 = set(sig2.split("_"))
+        intersection = tokens1.intersection(tokens2)
+        union = tokens1.union(tokens2)
+        if not union:
+            return 0.0
+        return len(intersection) / len(union)
+
+    def find_similar_patterns(self, signature: str, threshold: float = 0.5) -> List[Tuple[PatternMemory, float]]:
+        """Searches Pattern Memory and returns matched entries with similarity scores."""
+        matched = []
+        for pm in self.patterns_memory.values():
+            sim = self.calculate_similarity(signature, pm.Signature)
+            if sim >= threshold:
+                matched.append((pm, sim))
+        # Sort highest similarity first
+        matched.sort(key=lambda x: x[1], reverse=True)
+        return matched
+
+
+class PatternDiscoveryEngine:
+    """
+    Extracts matches from MemorySystem to discover similarity-based behavior
+    without forecasting or ML models.
+    """
+    def discover_similarities(self, current_signature: str, memory: MemorySystem) -> Dict[str, Any]:
+        """Answers: 'Have I seen something similar before?'."""
+        matches = memory.find_similar_patterns(current_signature, threshold=0.5)
+
+        if not matches:
+            return {
+                "similar_situations_found": [],
+                "total_occurrences": 0,
+                "continuation_probability": 0.5,
+                "reversal_probability": 0.5
+            }
+
+        total_occurrences = sum(pm.Occurrences for pm, sim in matches)
+        total_cont = sum(pm.ContinuationCount for pm, sim in matches)
+        total_rev = sum(pm.ReversalCount for pm, sim in matches)
+
+        cont_prob = total_cont / total_occurrences if total_occurrences > 0 else 0.5
+        rev_prob = total_rev / total_occurrences if total_occurrences > 0 else 0.5
+
+        descriptions = []
+        for pm, sim in matches:
+            desc = f"Pattern {pm.PatternId} ({pm.Signature}): Match {int(sim*100)}%, Occurrences: {pm.Occurrences}"
+            descriptions.append(desc)
+
+        return {
+            "similar_situations_found": descriptions,
+            "total_occurrences": total_occurrences,
+            "continuation_probability": cont_prob,
+            "reversal_probability": rev_prob,
+            "raw_matches": matches
+        }
+
+
+class QualityControlBrain:
+    """
+    Independent reasoning quality evaluator. Enforces statistical rigor
+    and warns against overfitting or weak evidence base.
+    """
+    def evaluate_reasoning(self, matched_patterns: List[Tuple[PatternMemory, float]], sample_threshold: int = 5) -> Tuple[float, str]:
+        """Evaluates confidence based on matched samples, similarity metrics, and overfitting checks."""
+        if not matched_patterns:
+            return 0.0, "Weak evidence base: Absolutely no similar patterns found in historical memory."
+
+        highest_sim = matched_patterns[0][1]
+        total_samples = sum(pm.Occurrences for pm, sim in matched_patterns)
+
+        if total_samples < sample_threshold:
+            return 0.3, f"Low sample warning: Reasoning is based on only {total_samples} historical occurrences (threshold: {sample_threshold})."
+
+        if highest_sim < 0.7:
+            return 0.5, f"Weak similarity match: Highest similarity is {int(highest_sim*100)}%. Reasoning may be accidental."
+
+        # Detect potential overfitting (e.g. perfect continuation rate with very few samples)
+        for pm, sim in matched_patterns:
+            if pm.Occurrences < 3 and (pm.continuation_probability == 1.0 or pm.reversal_probability == 1.0):
+                return 0.4, f"Overfitting hazard: Match {pm.PatternId} exhibits 100% rate but with only {pm.Occurrences} samples."
+
+        return 0.9, f"Strong evidence base: Verified across {total_samples} historical cases with match similarity up to {int(highest_sim*100)}%."
+
+
+class VirtualTradingEngine:
+    """Handles creation and bar-by-bar evaluation of internal simulated virtual trades."""
+    def create_virtual_trade(
+        self,
+        asset: str,
+        timeframe: str,
+        direction: str,
+        entry_price: float,
+        stop_loss: float,
+        target_price: float,
+        expected_scenario: str,
+        entry_time: datetime
+    ) -> VirtualTrade:
+        """Returns a newly opened VirtualTrade instance."""
+        return VirtualTrade(
+            TradeId=str(uuid.uuid4())[:8],
+            Asset=asset,
+            Timeframe=timeframe,
+            Direction=direction,
+            EntryPrice=entry_price,
+            StopLoss=stop_loss,
+            TargetPrice=target_price,
+            EntryTime=entry_time,
+            ExpectedScenario=expected_scenario
+        )
+
+    def update_trade_progress(self, trade: VirtualTrade, current_obs: MarketObservation) -> Optional[SimulationResult]:
+        """Updates trade price records, checking stops and targets. Returns SimulationResult if closed."""
+        if trade.State == "CLOSED":
+            return None
+
+        # Update high/low tracking
+        if trade.Direction == "BUY":
+            trade.MaxFavorablePrice = max(trade.MaxFavorablePrice, current_obs.High)
+            trade.MaxAdversePrice = min(trade.MaxAdversePrice, current_obs.Low)
+        else:
+            trade.MaxFavorablePrice = min(trade.MaxFavorablePrice, current_obs.Low)
+            trade.MaxAdversePrice = max(trade.MaxAdversePrice, current_obs.High)
+
+        # Evaluate target and stop conditions
+        is_closed = False
+        exit_price = current_obs.Close
+        failure_reason = None
+        result_type = "LOSS"
+
+        if trade.Direction == "BUY":
+            if current_obs.Low <= trade.StopLoss:
+                is_closed = True
+                exit_price = trade.StopLoss
+                failure_reason = "Stop Loss Hit - Adverse price movement touched boundary."
+                result_type = "LOSS"
+            elif current_obs.High >= trade.TargetPrice:
+                is_closed = True
+                exit_price = trade.TargetPrice
+                result_type = "WIN"
+        else:
+            if current_obs.High >= trade.StopLoss:
+                is_closed = True
+                exit_price = trade.StopLoss
+                failure_reason = "Stop Loss Hit - Adverse price movement touched boundary."
+                result_type = "LOSS"
+            elif current_obs.Low <= trade.TargetPrice:
+                is_closed = True
+                exit_price = trade.TargetPrice
+                result_type = "WIN"
+
+        if is_closed:
+            trade.State = "CLOSED"
+            trade.ExitPrice = exit_price
+            trade.ExitTime = current_obs.Timestamp
+
+            # Compute MFM and MAM in points
+            if trade.Direction == "BUY":
+                mfm = trade.MaxFavorablePrice - trade.EntryPrice
+                mam = trade.EntryPrice - trade.MaxAdversePrice
+            else:
+                mfm = trade.EntryPrice - trade.MaxFavorablePrice
+                mam = trade.MaxAdversePrice - trade.EntryPrice
+
+            return SimulationResult(
+                TradeId=trade.TradeId,
+                IsSuccess=(result_type == "WIN"),
+                MaxFavorableMovementPoints=mfm,
+                MaxAdverseMovementPoints=mam,
+                FinalResult=result_type,
+                FailureReason=failure_reason
+            )
+        return None
+
+
+class OutcomeEvaluationEngine:
+    """Independent outcome engine calculating decision efficacy stats."""
+    def evaluate_outcome(self, trade: VirtualTrade, final_price: float, closed_time: datetime) -> SimulationResult:
+        """Evaluates closed virtual trade performance metrics."""
+        trade.State = "CLOSED"
+        trade.ExitPrice = final_price
+        trade.ExitTime = closed_time
+
+        if trade.Direction == "BUY":
+            mfm = trade.MaxFavorablePrice - trade.EntryPrice
+            mam = trade.EntryPrice - trade.MaxAdversePrice
+            is_success = (final_price >= trade.EntryPrice)
+        else:
+            mfm = trade.EntryPrice - trade.MaxFavorablePrice
+            mam = trade.MaxAdversePrice - trade.EntryPrice
+            is_success = (final_price <= trade.EntryPrice)
+
+        res_type = "WIN" if is_success else "LOSS"
+        fail_reason = None if is_success else "Simulated target period expired without positive closure."
+
+        return SimulationResult(
+            TradeId=trade.TradeId,
+            IsSuccess=is_success,
+            MaxFavorableMovementPoints=mfm,
+            MaxAdverseMovementPoints=mam,
+            FinalResult=res_type,
+            FailureReason=fail_reason
+        )
+
+
+class LearningMemoryUpdate:
+    """Updates Pattern and Experience episodic libraries using evaluated simulated outcomes."""
+    def update_memory_with_outcome(self, trade: VirtualTrade, result: SimulationResult, memory: MemorySystem) -> LearningRecord:
+        """Updates frequencies and continuation statistics, recording episodic experiences."""
+        sig = trade.ExpectedScenario
+
+        # Retrieve or create pattern
+        if sig not in memory.patterns_memory:
+            pat = PatternMemory(PatternId=str(uuid.uuid4())[:8], Signature=sig)
+            memory.save_pattern(pat)
+        else:
+            pat = memory.patterns_memory[sig]
+
+        prior_prob = pat.continuation_probability
+
+        # Update counts
+        pat.Occurrences += 1
+        if result.FinalResult == "WIN":
+            pat.ContinuationCount += 1
+        else:
+            pat.ReversalCount += 1
+
+        new_prob = pat.continuation_probability
+
+        # Save episodic Experience
+        exp = ExperienceMemory(
+            MemoryId=str(uuid.uuid4())[:8],
+            Timestamp=datetime.now(),
+            SituationSignature=sig,
+            Decision=trade.Direction,
+            MaxFavorableMovement=result.MaxFavorableMovementPoints,
+            MaxAdverseMovement=result.MaxAdverseMovementPoints,
+            FinalResult=result.FinalResult,
+            Lesson=f"Decision {trade.Direction} ended in {result.FinalResult}. Fail: {result.FailureReason}"
+        )
+        memory.save_experience(exp)
+
+        return LearningRecord(
+            RecordId=str(uuid.uuid4())[:8],
+            CreatedAt=datetime.now(),
+            SourceTradeId=trade.TradeId,
+            UpdatedPatternId=pat.PatternId,
+            PriorContinuationProb=prior_prob,
+            NewContinuationProb=new_prob,
+            LessonLearned=f"Updated pattern {pat.PatternId} continuation odds to {int(new_prob*100)}% based on simulated episodic lesson."
+        )
+
+
+class SimulationBrain:
+    """Orchestrates historical sequence replays and internally simulates virtual decisions."""
+    def __init__(self) -> None:
+        self.trading_engine = VirtualTradingEngine()
+        self.evaluator = OutcomeEvaluationEngine()
+
+    def simulate_replay(
+        self,
+        sequence: MarketSequence,
+        memory: MemorySystem,
+        direction: str,
+        stop_loss_pts: float,
+        target_pts: float
+    ) -> List[SimulationResult]:
+        """Runs sequential simulation over a chronological market segment."""
+        results = []
+        obs_list = sequence.Observations
+        if len(obs_list) < 5:
+            return results
+
+        # Create entry parameters based on the first candle
+        entry_obs = obs_list[0]
+        entry_price = entry_obs.Close
+
+        if direction == "BUY":
+            sl = entry_price - stop_loss_pts
+            tp = entry_price + target_pts
+        else:
+            sl = entry_price + stop_loss_pts
+            tp = entry_price - target_pts
+
+        trade = self.trading_engine.create_virtual_trade(
+            asset=sequence.Asset,
+            timeframe=sequence.Timeframe,
+            direction=direction,
+            entry_price=entry_price,
+            stop_loss=sl,
+            target_price=tp,
+            expected_scenario=f"{sequence.Timeframe}_start_movement",
+            entry_time=entry_obs.Timestamp
+        )
+
+        # Replay the sequence bar-by-bar
+        for obs in obs_list[1:]:
+            res = self.trading_engine.update_trade_progress(trade, obs)
+            if res:
+                results.append(res)
+                break
+
+        # If not closed by the end of sequence, evaluate with final close
+        if trade.State == "OPEN":
+            final_obs = obs_list[-1]
+            res = self.evaluator.evaluate_outcome(trade, final_obs.Close, final_obs.Timestamp)
+            results.append(res)
+
+        return results
+
+
+class LiveAnalysisBrain:
+    """
+    Live market monitor. Runs dynamically with live MT5 feeds.
+    Strictly forbids trading, providing 100% read-only analysis and reasoning.
+    """
+    def __init__(self) -> None:
+        self.reality_layer = DataRealityLayer()
+        self.observation_brain = ObservationBrain()
+        self.discovery_engine = PatternDiscoveryEngine()
+        self.qc_brain = QualityControlBrain()
+
+    def analyze_live_market(self, live_data: List[MarketDataPoint], timeframe: str, memory: MemorySystem) -> AnalysisReport:
+        """Analyzes live market feed, checks QC reasoning, and builds AnalysisReport."""
+        if not live_data:
+            raise ValueError("No live data available for analysis.")
+
+        observations = self.reality_layer.receive_data(live_data, timeframe)
+        current_obs = observations[-1]
+
+        # Extract sequence and events
+        seq = MarketSequence(Asset=current_obs.Asset, Timeframe=timeframe, Observations=observations)
+        events = self.observation_brain.observe_sequence(seq)
+
+        sig = "neutral_flat_structure"
+        if events:
+            latest_event = events[-1]
+            sig = f"{latest_event.Direction}_{latest_event.DurationCandles}"
+
+        # Discover similarities
+        discovery = self.discovery_engine.discover_similarities(sig, memory)
+        qc_score, qc_msg = self.qc_brain.evaluate_reasoning(discovery.get("raw_matches", []))
+
+        # Formulate active hypothesis based on statistics
+        if discovery["continuation_probability"] > 0.6:
+            active_hyp = f"Continuation hypothesis active based on pattern match ({int(discovery['continuation_probability']*100)}% odds)."
+        elif discovery["reversal_probability"] > 0.6:
+            active_hyp = f"Reversal hypothesis active based on pattern match ({int(discovery['reversal_probability']*100)}% odds)."
+        else:
+            active_hyp = "Neutral consensus: Expecting lateral flat fluctuation structure."
+
+        return AnalysisReport(
+            ReportId=str(uuid.uuid4())[:8],
+            Asset=current_obs.Asset,
+            Timestamp=datetime.now(),
+            CurrentObservation=current_obs,
+            ActiveHypothesis=active_hyp,
+            SimulatedTradeCount=len(memory.experience_memory),
+            QCScore=qc_score,
+            QCExplanation=qc_msg
+        )
