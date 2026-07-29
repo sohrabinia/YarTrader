@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from src.Application.Runtime.research_runtime import ResearchRuntime
+from src.Application.Runtime.live_worker import LiveResearchWorker, get_current_research, get_research_history
 
 # Setup directory paths relative to repo root
 LOGS_DIR = "logs"
@@ -128,15 +128,9 @@ def load_locale(lang: str) -> Dict[str, str]:
     return {}
 
 
-# Continuous live market research runtime instance
-live_research_runtime = ResearchRuntime(symbol="XAUUSD", timeframe="H1")
-
-def start_research_polling_bg():
-    time.sleep(2.0)
-    # limit_cycles=None ensures continuous analysis
-    live_research_runtime.start_polling_loop(interval_seconds=15.0)
-
-threading.Thread(target=start_research_polling_bg, daemon=True).start()
+# Continuous live market research runtime background worker
+live_worker = LiveResearchWorker(symbol="XAUUSD", timeframe="H1")
+live_worker.start()
 
 
 # ==============================================================================
@@ -415,6 +409,7 @@ def get_dashboard_spa():
             fetchHistory();
             fetchStatus();
             fetchLiveResearch();
+            fetchResearchHealth();
         }}
 
         async function fetchStatus() {{
@@ -469,24 +464,55 @@ def get_dashboard_spa():
 
         async function fetchLiveResearch() {{
             try {{
-                let response = await fetch('/v1/dashboard/live-research');
+                let response = await fetch('/api/research/current');
                 let data = await response.json();
 
-                document.getElementById('research-last-polled').innerText = formatTimestamp(data.last_polled);
+                document.getElementById('res-symbol').innerText = data.symbol || "XAUUSD";
+                document.getElementById('res-timeframe').innerText = data.timeframe || "H1";
+                document.getElementById('res-last-candle').innerText = formatTimestamp(data.last_candle_time);
+                document.getElementById('res-last-analysis').innerText = formatTimestamp(data.timestamp);
 
-                let featuresStr = "";
-                if (data.features_calculated) {{
-                    let trendVal = t(data.features_calculated.price_trend);
-                    featuresStr = `${{t('trend')}}: ${{trendVal}}, ${{t('volatility')}}: ${{data.features_calculated.volatility_index}}, RSI: ${{data.features_calculated.rsi_indicator}}`;
-                }} else {{
-                    featuresStr = "N/A";
+                if (data.market_state) {{
+                    document.getElementById('res-trend').innerText = t(data.market_state.trend);
+                    document.getElementById('res-momentum').innerText = t(data.market_state.momentum);
+                    document.getElementById('res-volatility').innerText = t(data.market_state.volatility);
                 }}
-                document.getElementById('research-features').innerText = featuresStr;
 
-                if (data.latest_insights && data.latest_insights.length > 0) {{
-                    document.getElementById('research-insights').innerText = t(data.latest_insights[0]);
+                document.getElementById('res-bias').innerText = t(data.bias);
+                document.getElementById('res-confidence').innerText = data.confidence + "%";
+
+                // Reasoning list
+                let reasoningList = document.getElementById('res-reasoning');
+                reasoningList.innerHTML = "";
+                if (data.reasoning) {{
+                    data.reasoning.forEach(r => {{
+                        reasoningList.innerHTML += `<li>${{r}}</li>`;
+                    }});
+                }}
+            }} catch(e) {{}}
+        }}
+
+        async function fetchResearchHealth() {{
+            try {{
+                let response = await fetch('/api/research/health');
+                let data = await response.json();
+
+                let mt5El = document.getElementById('res-mt5-status');
+                if (data.mt5_connected) {{
+                    mt5El.innerText = t('healthy');
+                    mt5El.style.color = 'var(--accent)';
                 }} else {{
-                    document.getElementById('research-insights').innerText = "...";
+                    mt5El.innerText = t('offline');
+                    mt5El.style.color = 'var(--danger)';
+                }}
+
+                let workerEl = document.getElementById('res-worker-status');
+                if (data.worker_running) {{
+                    workerEl.innerText = t('active_status');
+                    workerEl.style.color = 'var(--accent)';
+                }} else {{
+                    workerEl.innerText = t('inactive_status');
+                    workerEl.style.color = 'var(--danger)';
                 }}
             }} catch(e) {{}}
         }}
@@ -509,11 +535,11 @@ def get_dashboard_spa():
                 data.forEach(run => {{
                     tbody.innerHTML += `
                         <tr>
-                            <td>\${{formatTimestamp(run.timestamp)}}</td>
-                            <td>\${{run.duration_sec}}s</td>
-                            <td>\${{run.passed}}/\${{run.total}}</td>
-                            <td><strong style="color: \${{run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)'}}">\${{t(run.readiness_status)}}</strong></td>
-                            <td><strong>\${{run.readiness_score}}%</strong></td>
+                            <td>${{formatTimestamp(run.timestamp)}}</td>
+                            <td>${{run.duration_sec}}s</td>
+                            <td>${{run.passed}}/${{run.total}}</td>
+                            <td><strong style="color: ${{run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)'}}">${{t(run.readiness_status)}}</strong></td>
+                            <td><strong>${{run.readiness_score}}%</strong></td>
                         </tr>
                     `;
                 }});
@@ -523,6 +549,7 @@ def get_dashboard_spa():
         window.onload = () => {{
             updateUI();
             setInterval(fetchLiveResearch, 3000);
+            setInterval(fetchResearchHealth, 3000);
         }}
     </script>
 </head>
@@ -610,11 +637,33 @@ def get_dashboard_spa():
                 <div class="card">
                     <h3 style="color: var(--primary); margin-top: 0;" data-i18n="live_research_monitor">Live Research Monitor</h3>
                     <div style="line-height: 1.8;">
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="research_symbol">Symbol:</strong> <span style="font-weight: bold; color: var(--primary);">XAUUSD</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="research_tf">Timeframe:</strong> <span style="font-weight: bold; color: var(--primary);">H1</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="last_polled_lbl">Last Polled:</strong> <span id="research-last-polled">...</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="calculated_features">Features:</strong> <span id="research-features">...</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="research_insights">Latest Insight:</strong> <span id="research-insights" style="color: var(--accent); font-weight: bold;">...</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="research_symbol">Symbol:</strong> <span id="res-symbol" style="font-weight: bold; color: var(--primary);">XAUUSD</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="research_tf">Timeframe:</strong> <span id="res-timeframe" style="font-weight: bold; color: var(--primary);">H1</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="last_polled_lbl">Last Polled:</strong> <span id="res-last-analysis">...</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="last_candle_time">Last Candle Time:</strong> <span id="res-last-candle">...</span></p>
+
+                        <div style="border-top: 1px solid #edf2f4; margin: 10px 0; padding-top: 10px;">
+                            <p style="margin: 5px 0; display: flex; justify-content: space-between;"><strong data-i18n="trend">Trend:</strong> <span id="res-trend">...</span></p>
+                            <p style="margin: 5px 0; display: flex; justify-content: space-between;"><strong data-i18n="momentum">Momentum:</strong> <span id="res-momentum">...</span></p>
+                            <p style="margin: 5px 0; display: flex; justify-content: space-between;"><strong data-i18n="volatility">Volatility:</strong> <span id="res-volatility">...</span></p>
+                        </div>
+
+                        <div style="border-top: 1px solid #edf2f4; margin: 10px 0; padding-top: 10px;">
+                            <p style="margin: 5px 0; display: flex; justify-content: space-between;"><strong data-i18n="bias_lbl">Live Bias:</strong> <span id="res-bias" style="font-weight: bold; color: var(--accent);">...</span></p>
+                            <p style="margin: 5px 0; display: flex; justify-content: space-between;"><strong data-i18n="confidence_lbl">Confidence Score:</strong> <span id="res-confidence" style="font-weight: bold;">...</span></p>
+                        </div>
+
+                        <div style="border-top: 1px solid #edf2f4; margin: 10px 0; padding-top: 10px;">
+                            <strong data-i18n="ai_explanation">AI Intelligence Reasoning:</strong>
+                            <ul id="res-reasoning" style="margin: 5px 0; padding-left: 20px; font-size: 0.9em; color: #555;">
+                                <!-- Populated dynamically -->
+                            </ul>
+                        </div>
+
+                        <div style="border-top: 1px solid #edf2f4; margin: 10px 0; padding-top: 10px; font-size: 0.85em;">
+                            <p style="margin: 5px 0; display: flex; justify-content: space-between;"><strong data-i18n="worker_status_lbl">Research Worker:</strong> <span id="res-worker-status" style="font-weight: bold;">...</span></p>
+                            <p style="margin: 5px 0; display: flex; justify-content: space-between;"><strong data-i18n="mt5_status_lbl">MetaTrader5 Link:</strong> <span id="res-mt5-status" style="font-weight: bold;">...</span></p>
+                        </div>
                     </div>
                 </div>
 
@@ -650,52 +699,45 @@ def get_dashboard_spa():
 # 2. REST API CONTRACTS AND SERVICE ENDPOINTS
 # ==============================================================================
 
-@app.get("/v1/dashboard/live-research")
-def get_live_research_status():
-    """Retrieves the latest results of the continuous live market research pipeline."""
-    global live_research_runtime
-    history = live_research_runtime.history
-    if not history:
+@app.get("/api/research/current")
+def get_current_live_research():
+    """Retrieves the latest compiled live research result payload (bias, confidence, indicators, reasoning)."""
+    res = get_current_research()
+    if not res:
         try:
-            latest = live_research_runtime.run_once()
+            live_worker._poll_and_analyze()
+            res = get_current_research()
         except Exception as e:
-            return {
-                "symbol": "XAUUSD",
-                "timeframe": "H1",
-                "last_polled": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "features_calculated": {
-                    "price_trend": "stable",
-                    "volatility_index": 0.0,
-                    "rsi_indicator": 50.0
-                },
-                "latest_insights": [f"Connection offline or loading rates: {str(e)}"],
-                "mt5_status": "OFFLINE",
-                "is_running": False
-            }
-    else:
-        latest = history[-1]
+            raise HTTPException(status_code=500, detail=f"Failed to retrieve current research: {str(e)}")
+    return res
 
-    findings = latest.Findings
-    feature_set = findings.get("feature_set", {})
-    obs_summary = findings.get("observation_summary", {})
 
+@app.get("/api/research/history")
+def get_historical_live_research():
+    """Retrieves standard historical list of serialized research payloads."""
+    return get_research_history()
+
+
+@app.get("/api/research/health")
+def get_live_research_health():
+    """Retrieves structured diagnostic indicators about the live research runtime pipeline."""
+    curr = get_current_research() or {}
+    conn_health = live_worker.provider.delegate.get_connection_health()
     return {
-        "symbol": "XAUUSD",
-        "timeframe": "H1",
-        "last_polled": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "features_calculated": {
-            "price_trend": feature_set.get("trend", "stable"),
-            "volatility_index": feature_set.get("volatility", 0.0),
-            "rsi_indicator": feature_set.get("rsi", 50.0)
-        },
-        "latest_insights": [
-            obs_summary.get("direction", "Steady trend under observation"),
-            obs_summary.get("strength", "Normal momentum parameters"),
-            "All components evaluated under passive non-trading APES-FIN rules."
-        ],
-        "mt5_status": "ONLINE" if live_research_runtime.provider.delegate.get_connection_health().connected else "OFFLINE",
-        "is_running": True
+        "mt5_connected": conn_health.connected,
+        "worker_running": live_worker.is_running,
+        "last_candle": curr.get("last_candle_time", "N/A"),
+        "last_analysis": curr.get("timestamp", "N/A"),
+        "research_latency": live_worker.latency_ms,
+        "current_symbol": live_worker.symbol,
+        "current_timeframe": live_worker.timeframe
     }
+
+
+@app.get("/v1/dashboard/live-research")
+def get_dashboard_live_research_status():
+    """Proxy fallback to current research payload for backward compatibility."""
+    return get_current_live_research()
 
 
 @app.get("/v1/health")

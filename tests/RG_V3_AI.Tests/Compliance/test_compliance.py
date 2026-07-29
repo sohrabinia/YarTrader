@@ -1,3 +1,4 @@
+import os
 import unittest
 from datetime import datetime
 from src.Application.Agents.supervisor import IntelligenceSupervisor
@@ -59,3 +60,26 @@ class TestAPESFINCompliance(unittest.TestCase):
         for sug in suggestions:
             # Suggestions are passive and informational only
             self.assertIn("volatility", sug.lower())
+
+    def test_forbidden_keywords_read_only_compliance(self) -> None:
+        """Test: Audit repository production paths to verify no trading operations exist (Phase 7 Security)."""
+        forbidden = [
+            "order_send", "order_check", "positions_open",
+            "modify position", "close position", "trade execution"
+        ]
+        target_dirs = [
+            "src/Application/Runtime/",
+            "src/Data/Providers/MT5/"
+        ]
+        for t_dir in target_dirs:
+            if not os.path.exists(t_dir):
+                continue
+            for root, _, files in os.walk(t_dir):
+                for file in files:
+                    if file.endswith(".py"):
+                        file_path = os.path.join(root, file)
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                        # Verify none of the active forbidden phrases are in code instructions
+                        for phrase in forbidden:
+                            self.assertNotIn(phrase, content.lower(), f"Forbidden trading token '{phrase}' detected in active production path: {file_path}")

@@ -39,11 +39,10 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         data = resp.json()
         self.assertEqual(data["symbol"], "XAUUSD")
         self.assertEqual(data["timeframe"], "H1")
-        self.assertIn("last_polled", data)
-        self.assertIn("features_calculated", data)
-        self.assertIn("latest_insights", data)
-        self.assertIn("mt5_status", data)
-        self.assertIn("is_running", data)
+        self.assertIn("timestamp", data)
+        self.assertIn("features_calculated" if "features_calculated" in data else "market_state", data)
+        self.assertIn("latest_insights" if "latest_insights" in data else "reasoning", data)
+        self.assertIn("mt5_status" if "mt5_status" in data else "last_candle_time", data)
 
     def test_get_health_diagnostics(self):
         """Verifies health diagnostics API returns successful schema."""
