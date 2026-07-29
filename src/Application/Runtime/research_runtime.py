@@ -31,6 +31,12 @@ class ResearchRuntime:
         self._history: List[ResearchResult] = []
         self._is_running = False
 
+        # Diagnostics / Polling status metrics
+        self.worker_started_at: Optional[datetime] = None
+        self.last_successful_cycle: Optional[datetime] = None
+        self.cycle_count: int = 0
+        self.last_error: Optional[str] = None
+
     @property
     def provider(self) -> MetaTrader5Provider:
         return self._provider
@@ -103,9 +109,15 @@ class ResearchRuntime:
             self._store_snapshot(result)
             self._log_evidence(f"Research cycle completed successfully. Result ID: {result.Findings.get('report_id', 'unknown')}")
 
+            # Update metrics
+            self.last_successful_cycle = datetime.now()
+            self.cycle_count += 1
+            self.last_error = None
+
             return result
 
         except Exception as e:
+            self.last_error = str(e)
             self._log_evidence(f"Research cycle encountered an error: {str(e)}")
             raise
 
@@ -115,6 +127,7 @@ class ResearchRuntime:
         Can be limited to a specific cycle count (useful for testing or one-off jobs).
         """
         self._is_running = True
+        self.worker_started_at = datetime.now()
         cycle_count = 0
 
         while self._is_running:
@@ -153,10 +166,36 @@ class ResearchRuntime:
             "findings": result.Findings
         }
 
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(snapshot_data, f, indent=4)
+        # Thread-safe write using temp file renaming pattern
+        temp_filepath = filepath + ".tmp"
+        try:
+            with open(temp_filepath, "w", encoding="utf-8") as f:
+                json.dump(snapshot_data, f, indent=4)
+            os.replace(temp_filepath, filepath)
+        except Exception as e:
+            if os.path.exists(temp_filepath):
+                try:
+                    os.remove(temp_filepath)
+                except OSError:
+                    pass
+            raise e
 
         self._log_evidence(f"Saved research snapshot to: {filepath}")
+
+        # Rotation strategy: keep the last 50 snapshots
+        try:
+            files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
+            if len(files) > 50:
+                files_paths = [os.path.join(snapshot_dir, f) for f in files]
+                files_paths.sort(key=os.path.getmtime)
+                # Delete the oldest files
+                for old_file in files_paths[:-50]:
+                    try:
+                        os.remove(old_file)
+                    except OSError:
+                        pass
+        except Exception:
+            pass
 
     def _log_evidence(self, message: str) -> None:
         """Appends formatted message to console, system log, and the dedicated runtime evidence log file."""

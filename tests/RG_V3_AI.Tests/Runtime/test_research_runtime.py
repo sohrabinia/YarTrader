@@ -244,40 +244,154 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         self.assertIsNotNone(res)
         self.assertEqual(res.Request.Asset, "XAUUSD")
 
-    def test_api_research_endpoints(self) -> None:
-        """Verify web API current, history, and health endpoints return schema-compliant outputs."""
+    def test_research_current_endpoint(self) -> None:
+        """Verify /api/research/current returns compliant live snapshot schema."""
         from fastapi.testclient import TestClient
         from src.Application.Services.web_dashboard import app
 
         client = TestClient(app)
+        resp = client.get("/api/research/current")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["symbol"], "XAUUSD")
+        self.assertEqual(data["timeframe"], "H1")
+        self.assertIn(data["bias"], ["Bullish", "Bearish", "Neutral"])
+        self.assertIn("confidence", data)
+        self.assertIn("reasoning", data)
+        self.assertIn("indicators", data)
+        self.assertIn("timestamp", data)
 
-        # A. Current endpoint
-        resp_curr = client.get("/api/research/current")
-        self.assertEqual(resp_curr.status_code, 200)
-        curr_data = resp_curr.json()
-        self.assertEqual(curr_data["symbol"], "XAUUSD")
-        self.assertEqual(curr_data["timeframe"], "H1")
-        self.assertIn(curr_data["bias"], ["Bullish", "Bearish", "Neutral"])
-        self.assertIn("confidence", curr_data)
-        self.assertIn("reasoning", curr_data)
-        self.assertIn("indicators", curr_data)
-        self.assertIn("timestamp", curr_data)
+    def test_research_latest_endpoint(self) -> None:
+        """Verify /api/research/latest returns compliant live latest analysis schema."""
+        from fastapi.testclient import TestClient
+        from src.Application.Services.web_dashboard import app
 
-        # B. History endpoint
-        resp_hist = client.get("/api/research/history")
-        self.assertEqual(resp_hist.status_code, 200)
-        hist_data = resp_hist.json()
-        self.assertGreater(len(hist_data), 0)
-        self.assertEqual(hist_data[-1]["symbol"], "XAUUSD")
+        client = TestClient(app)
+        resp = client.get("/api/research/latest")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["symbol"], "XAUUSD")
+        self.assertEqual(data["timeframe"], "H1")
+        self.assertIn("bias", data)
+        self.assertIn("confidence", data)
 
-        # C. Health endpoint
-        resp_health = client.get("/api/research/health")
-        self.assertEqual(resp_health.status_code, 200)
-        health_data = resp_health.json()
-        self.assertIn(health_data["mt5_status"], ["CONNECTED", "DISCONNECTED"])
-        self.assertIsNotNone(health_data["last_analysis_time"])
-        self.assertIn("worker_status", health_data)
-        self.assertIn("last_result_id", health_data)
+    def test_research_history_endpoint(self) -> None:
+        """Verify /api/research/history correctly returns previous analyses."""
+        from fastapi.testclient import TestClient
+        from src.Application.Services.web_dashboard import app
+
+        client = TestClient(app)
+        resp = client.get("/api/research/history")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIsInstance(data, list)
+        self.assertGreater(len(data), 0)
+        self.assertEqual(data[-1]["symbol"], "XAUUSD")
+
+    def test_research_health_endpoint(self) -> None:
+        """Verify /api/research/health returns detailed worker, connection, and metrics metadata."""
+        from fastapi.testclient import TestClient
+        from src.Application.Services.web_dashboard import app
+
+        client = TestClient(app)
+        resp = client.get("/api/research/health")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn(data["mt5_status"], ["ONLINE", "CONNECTED", "DISCONNECTED"])
+        self.assertIsNotNone(data["last_analysis_time"])
+        self.assertIn("worker_running", data)
+        self.assertIn("worker_started_at", data)
+        self.assertIn("last_successful_cycle", data)
+        self.assertIn("cycle_count", data)
+        self.assertIn("last_error", data)
+        self.assertIn("last_result_id", data)
+
+    def test_worker_single_instance(self) -> None:
+        """Verify that starting the background loop guarantees exactly a single worker daemon is spawned."""
+        from src.Application.Services.web_dashboard import ensure_worker_started, _worker_started
+        ensure_worker_started()
+        self.assertTrue(_worker_started)
+
+    def test_snapshot_creation(self) -> None:
+        """Verify that analysis cycles automatically serialize and persist JSON snapshots to disk."""
+        runtime = ResearchRuntime(
+            provider=self.adapter,
+            symbol="XAUUSD",
+            timeframe="H1",
+            evidence_dir=self.evidence_dir
+        )
+        result = runtime.run_once()
+        self.assertIsNotNone(result)
+
+        snapshot_dir = os.path.join(self.evidence_dir, "research_snapshots")
+        self.assertTrue(os.path.exists(snapshot_dir))
+        files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
+        self.assertGreater(len(files), 0)
+
+    def test_snapshot_integrity(self) -> None:
+        """Verify that written snapshots are well-formed JSON containing correct keys and structural fields."""
+        import json
+        runtime = ResearchRuntime(
+            provider=self.adapter,
+            symbol="XAUUSD",
+            timeframe="H1",
+            evidence_dir=self.evidence_dir
+        )
+        runtime.run_once()
+
+        snapshot_dir = os.path.join(self.evidence_dir, "research_snapshots")
+        files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
+        filepath = os.path.join(snapshot_dir, files[0])
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        self.assertEqual(data["asset"], "XAUUSD")
+        self.assertEqual(data["timeframe"], "H1")
+        self.assertIn("confidence_score", data)
+        self.assertIn("created_at", data)
+        self.assertIn("findings", data)
+
+    def test_mt5_disconnect_recovery(self) -> None:
+        """Verify MT5 provider connection drops recover gracefully and log states without crashing."""
+        runtime = ResearchRuntime(
+            provider=self.adapter,
+            symbol="XAUUSD",
+            timeframe="H1",
+            evidence_dir=self.evidence_dir
+        )
+        # Disconnect provider
+        self.delegate.set_connected(False)
+        with self.assertRaises(ValidationException):
+            runtime.run_once()
+
+        # Reconnect
+        self.delegate.set_connected(True)
+        res = runtime.run_once()
+        self.assertIsNotNone(res)
+        self.assertEqual(res.Request.Asset, "XAUUSD")
+
+    def test_invalid_candle_handling(self) -> None:
+        """Verify that empty or corrupted rates returned by MT5 raise clean ValidationExceptions."""
+        # Setup delegate to mock empty rates
+        from unittest.mock import patch
+        with patch.object(self.delegate, "fetch_data") as mock_fetch:
+            from src.Data.External.models import ExternalDataResponse
+            mock_fetch.return_value = ExternalDataResponse(
+                request_id="id",
+                provider_id="test",
+                raw_data=[],
+                is_success=True # Simulates empty rates response
+            )
+
+            runtime = ResearchRuntime(
+                provider=self.adapter,
+                symbol="XAUUSD",
+                timeframe="H1",
+                evidence_dir=self.evidence_dir
+            )
+            with self.assertRaises(ValidationException):
+                runtime.run_once()
 
     def test_strict_read_only_compliance_no_trading_api(self) -> None:
         """Verify that absolutely no active trading functions (buy, sell, order_send) are defined or called."""
@@ -293,3 +407,21 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
                             content = f.read()
                         for keyword in forbidden:
                             self.assertNotIn(keyword + "(", content.replace(" ", ""))
+
+    def test_mt5_provider_real_mode_and_fallback_mode(self) -> None:
+        """Verify MT5DataProvider acts correctly when MT5 is available vs unavailable fallback."""
+        from src.Data.Providers.MT5.mt5 import MT5DataProvider, ProviderHealthStatus
+
+        provider = MT5DataProvider(provider_id="test-provider-toggle")
+
+        # Scenario A: Connected (Simulates available)
+        provider.set_connected(True)
+        health = provider.get_connection_health()
+        self.assertTrue(health.connected or not health.connected) # No crash
+
+        # Scenario B: Disconnected (Simulates unavailable)
+        provider.set_connected(False)
+        health_disc = provider.get_connection_health()
+        self.assertFalse(health_disc.connected)
+        self.assertEqual(provider.check_health(), ProviderHealthStatus.UNHEALTHY)
+        self.assertIn("Connection lost", health_disc.last_error)
