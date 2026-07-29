@@ -10,10 +10,16 @@ except ImportError:
 
     mock_term_info = MagicMock()
     mock_term_info.connected = True
+    mock_term_info.path = "C:\\Program Files\\MetaTrader 5"
     mock_mt5.terminal_info.return_value = mock_term_info
 
-    mock_mt5.symbols_get.return_value = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
-    mock_mt5.account_info.return_value = None
+    mock_mt5.symbols_get.return_value = ["XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY"]
+
+    mock_acc_info = MagicMock()
+    mock_acc_info.login = 12345678
+    mock_acc_info.server = "Demo-Server"
+    mock_mt5.account_info.return_value = mock_acc_info
+
     mock_mt5.last_error.return_value = (0, "Success")
 
     mock_mt5.TIMEFRAME_M1 = 1
@@ -24,12 +30,17 @@ except ImportError:
     mock_mt5.TIMEFRAME_H4 = 16388
     mock_mt5.TIMEFRAME_D1 = 16408
 
+    # Symbol info mock - returns a valid mock for any symbol, allowing all repository tests to pass
+    mock_mt5.symbol_info.side_effect = lambda sym: None if sym == "INVALID_SYM" else MagicMock(name=sym)
+
     def mock_copy_rates_range(symbol, timeframe, date_from, date_to):
         from datetime import timedelta
         base_price = 1.1000 if "JPY" not in symbol else 145.0
         if "XAU" in symbol:
             base_price = 1800.0
-        increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.01
+        elif "XAG" in symbol:
+            base_price = 25.0
+        increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol and "XAG" not in symbol else 0.01
 
         rates = []
         curr = date_from

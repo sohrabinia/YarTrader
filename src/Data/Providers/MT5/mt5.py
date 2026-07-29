@@ -18,9 +18,12 @@ except ImportError:
 @dataclass(frozen=True)
 class MT5ConnectionHealth:
     connected: bool
+    terminal_path: str
     server: str
-    ping_ms: float
+    login: int
+    ping: float
     last_error: Optional[str] = None
+    last_successful_fetch: Optional[str] = None
 
 
 class MT5DataMapper:
@@ -64,6 +67,22 @@ class MT5DataProvider(IDataProvider):
     """
     Read-only adapter for MetaTrader 5 (MT5).
     Strictly forbids trading commands, orders, positions, and account modifications.
+
+    ========================== SAFETY ENFORCEMENT ==========================
+    FORBIDDEN:
+    ❌ order_send (No execution of market or pending orders)
+    ❌ positions modification (No closing, scaling, or modifying trades)
+    ❌ trade requests (No execution or management of any trading activity)
+    ❌ account modifications (No settings, password, or leverage changes)
+
+    ALLOWED (Read-only metadata & historical data):
+    ✅ initialize (Initialize MT5 terminal connection)
+    ✅ terminal_info (Query MT5 terminal execution details)
+    ✅ account_info (Read account configuration and balance details)
+    ✅ symbols_get (List available instruments)
+    ✅ symbol_info (Query single instrument specifications)
+    ✅ copy_rates_range / copy_rates_from_pos (Fetch read-only candle records)
+    ========================================================================
     """
     def __init__(
         self,
@@ -71,7 +90,7 @@ class MT5DataProvider(IDataProvider):
         server: str = "Demo-Server",
         supported_symbols: Optional[List[str]] = None
     ) -> None:
-        supported_symbols = supported_symbols or ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
+        supported_symbols = supported_symbols or ["XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY"]
         self._metadata = DataProviderMetadata(
             provider_id=provider_id,
             source_type=DataSourceType.MT5,
@@ -83,13 +102,24 @@ class MT5DataProvider(IDataProvider):
         self._mapper = MT5DataMapper()
         self._initialized = False
 
+        # Diagnostics fields
+        self._terminal_path = "C:\\Program Files\\MetaTrader 5"
+        self._login = 12345678
+        self._last_error = None
+        self._last_successful_fetch = None
+
         # Attempt initialization if MT5 is available
         if MT5_AVAILABLE and mt5 is not None:
             try:
                 if mt5.initialize():
                     self._initialized = True
-            except Exception:
+                    self._update_diagnostics()
+                else:
+                    err_code, err_msg = mt5.last_error()
+                    self._last_error = f"MT5 initialization failed: {err_msg} (code {err_code})"
+            except Exception as e:
                 self._initialized = False
+                self._last_error = f"Exception during MT5 initialization: {str(e)}"
 
     @property
     def metadata(self) -> DataProviderMetadata:
@@ -97,6 +127,22 @@ class MT5DataProvider(IDataProvider):
 
     def set_connected(self, connected: bool) -> None:
         self._connected = connected
+
+    def _update_diagnostics(self) -> None:
+        """Fetch real values dynamically from terminal_info and account_info."""
+        if not MT5_AVAILABLE or mt5 is None or not self._initialized:
+            return
+        try:
+            term_info = mt5.terminal_info()
+            if term_info is not None:
+                self._terminal_path = getattr(term_info, "path", self._terminal_path)
+
+            acc_info = mt5.account_info()
+            if acc_info is not None:
+                self._login = getattr(acc_info, "login", self._login)
+                self._server = getattr(acc_info, "server", self._server)
+        except Exception:
+            pass
 
     def _map_timeframe(self, tf: str) -> int:
         if not MT5_AVAILABLE or mt5 is None:
@@ -122,30 +168,40 @@ class MT5DataProvider(IDataProvider):
         if not self._connected:
             return MT5ConnectionHealth(
                 connected=False,
+                terminal_path=self._terminal_path,
                 server=self._server,
-                ping_ms=0.0,
-                last_error="Connection lost to MT5 terminal."
+                login=self._login,
+                ping=0.0,
+                last_error="Connection lost to MT5 terminal.",
+                last_successful_fetch=self._last_successful_fetch
             )
 
         if not MT5_AVAILABLE or mt5 is None:
             return MT5ConnectionHealth(
                 connected=False,
+                terminal_path=self._terminal_path,
                 server=self._server,
-                ping_ms=0.0,
-                last_error="MetaTrader5 Python package is not available in this environment."
+                login=self._login,
+                ping=0.0,
+                last_error="MetaTrader5 Python package is not available in this environment.",
+                last_successful_fetch=self._last_successful_fetch
             )
 
         try:
             if not self._initialized:
                 if mt5.initialize():
                     self._initialized = True
+                    self._update_diagnostics()
                 else:
                     err_code, err_msg = mt5.last_error()
                     return MT5ConnectionHealth(
                         connected=False,
+                        terminal_path=self._terminal_path,
                         server=self._server,
-                        ping_ms=0.0,
-                        last_error=f"MT5 initialization failed: {err_msg} (code {err_code})"
+                        login=self._login,
+                        ping=0.0,
+                        last_error=f"MT5 initialization failed: {err_msg} (code {err_code})",
+                        last_successful_fetch=self._last_successful_fetch
                     )
 
             term_info = mt5.terminal_info()
@@ -153,52 +209,64 @@ class MT5DataProvider(IDataProvider):
                 err_code, err_msg = mt5.last_error()
                 return MT5ConnectionHealth(
                     connected=False,
+                    terminal_path=self._terminal_path,
                     server=self._server,
-                    ping_ms=0.0,
-                    last_error=f"Failed to get terminal info: {err_msg} (code {err_code})"
+                    login=self._login,
+                    ping=0.0,
+                    last_error=f"Failed to get terminal info: {err_msg} (code {err_code})",
+                    last_successful_fetch=self._last_successful_fetch
                 )
 
             if not getattr(term_info, "connected", False):
                 return MT5ConnectionHealth(
                     connected=False,
+                    terminal_path=self._terminal_path,
                     server=self._server,
-                    ping_ms=0.0,
-                    last_error="MT5 terminal is not connected to the broker."
+                    login=self._login,
+                    ping=0.0,
+                    last_error="MT5 terminal is not connected to the broker.",
+                    last_successful_fetch=self._last_successful_fetch
                 )
 
             symbols = mt5.symbols_get()
             if symbols is None or len(symbols) == 0:
                 return MT5ConnectionHealth(
                     connected=False,
+                    terminal_path=self._terminal_path,
                     server=self._server,
-                    ping_ms=0.0,
-                    last_error="No symbols available from MT5 terminal."
+                    login=self._login,
+                    ping=0.0,
+                    last_error="No symbols available from MT5 terminal.",
+                    last_successful_fetch=self._last_successful_fetch
                 )
 
-            acc_info = mt5.account_info()
-            server_name = self._server
-            if acc_info is not None and getattr(acc_info, "server", None):
-                server_name = acc_info.server
+            self._update_diagnostics()
 
             return MT5ConnectionHealth(
                 connected=True,
-                server=server_name,
-                ping_ms=self._ping,
-                last_error=None
+                terminal_path=self._terminal_path,
+                server=self._server,
+                login=self._login,
+                ping=self._ping,
+                last_error=None,
+                last_successful_fetch=self._last_successful_fetch
             )
         except Exception as e:
             return MT5ConnectionHealth(
                 connected=False,
+                terminal_path=self._terminal_path,
                 server=self._server,
-                ping_ms=0.0,
-                last_error=f"Exception in health check: {str(e)}"
+                login=self._login,
+                ping=0.0,
+                last_error=f"Exception in health check: {str(e)}",
+                last_successful_fetch=self._last_successful_fetch
             )
 
     def check_health(self) -> ProviderHealthStatus:
         health = self.get_connection_health()
         if not health.connected:
             return ProviderHealthStatus.UNHEALTHY
-        if health.ping_ms > 100.0:
+        if health.ping > 100.0:
             return ProviderHealthStatus.DEGRADED
         return ProviderHealthStatus.HEALTHY
 
@@ -213,6 +281,27 @@ class MT5DataProvider(IDataProvider):
                 is_success=False,
                 error_message=health.last_error or "MT5 connection is offline."
             )
+
+        # Dynamic Symbol Validation using mt5.symbol_info
+        if MT5_AVAILABLE and mt5 is not None:
+            try:
+                sym_info = mt5.symbol_info(request.symbol)
+                if sym_info is None:
+                    return ExternalDataResponse(
+                        request_id=request.request_id or "id",
+                        provider_id=self._metadata.provider_id,
+                        raw_data=[],
+                        is_success=False,
+                        error_message=f"Symbol {request.symbol} is not found on MetaTrader 5 terminal."
+                    )
+            except Exception as e:
+                return ExternalDataResponse(
+                    request_id=request.request_id or "id",
+                    provider_id=self._metadata.provider_id,
+                    raw_data=[],
+                    is_success=False,
+                    error_message=f"Exception during symbol info check: {str(e)}"
+                )
 
         mt5_tf = self._map_timeframe(request.timeframe)
         try:
@@ -236,7 +325,6 @@ class MT5DataProvider(IDataProvider):
 
             raw_rates = []
             for rate in rates:
-                # rate can be dict-like or sequence, handle safe item access
                 if isinstance(rate, dict):
                     time_val = rate.get("time")
                     open_val = rate.get("open")
@@ -245,7 +333,6 @@ class MT5DataProvider(IDataProvider):
                     close_val = rate.get("close")
                     vol_val = rate.get("tick_volume") or rate.get("volume", 0)
                 else:
-                    # named tuple or numpy record access
                     try:
                         time_val = rate["time"]
                         open_val = rate["open"]
@@ -254,7 +341,6 @@ class MT5DataProvider(IDataProvider):
                         close_val = rate["close"]
                         vol_val = rate["tick_volume"] if hasattr(rate, "dtype") and "tick_volume" in rate.dtype.names else rate["volume"]
                     except (TypeError, IndexError, ValueError, KeyError):
-                        # try attribute access
                         time_val = getattr(rate, "time")
                         open_val = getattr(rate, "open")
                         high_val = getattr(rate, "high")
@@ -270,6 +356,9 @@ class MT5DataProvider(IDataProvider):
                     "close": float(close_val),
                     "tick_volume": float(vol_val)
                 })
+
+            # Update last successful fetch
+            self._last_successful_fetch = datetime.now().isoformat()
 
             return ExternalDataResponse(
                 request_id=request.request_id or "id",

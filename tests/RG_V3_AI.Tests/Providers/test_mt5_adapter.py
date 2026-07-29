@@ -13,10 +13,16 @@ mock_mt5.initialize.return_value = True
 
 mock_term_info = MagicMock()
 mock_term_info.connected = True
+mock_term_info.path = "C:\\Program Files\\MetaTrader 5"
 mock_mt5.terminal_info.return_value = mock_term_info
 
-mock_mt5.symbols_get.return_value = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
-mock_mt5.account_info.return_value = None  # to preserve original custom server name tests
+mock_mt5.symbols_get.return_value = ["XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY"]
+
+mock_acc_info = MagicMock()
+mock_acc_info.login = 12345678
+mock_acc_info.server = "Demo-Server"
+mock_mt5.account_info.return_value = mock_acc_info
+
 mock_mt5.last_error.return_value = (0, "Success")
 
 mock_mt5.TIMEFRAME_M1 = 1
@@ -27,11 +33,15 @@ mock_mt5.TIMEFRAME_H1 = 16385
 mock_mt5.TIMEFRAME_H4 = 16388
 mock_mt5.TIMEFRAME_D1 = 16408
 
+mock_mt5.symbol_info.side_effect = lambda sym: None if sym == "INVALID_SYM" else MagicMock(name=sym)
+
 def mock_copy_rates_range(symbol, timeframe, date_from, date_to):
     base_price = 1.1000 if "JPY" not in symbol else 145.0
     if "XAU" in symbol:
         base_price = 1800.0
-    increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.01
+    elif "XAG" in symbol:
+        base_price = 25.0
+    increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol and "XAG" not in symbol else 0.01
 
     rates = []
     curr = date_from
@@ -49,6 +59,7 @@ def mock_copy_rates_range(symbol, timeframe, date_from, date_to):
         curr += timedelta(minutes=15)
     return rates
 
+mock_copy_rates_range_ref = mock_copy_rates_range
 mock_mt5.copy_rates_range.side_effect = mock_copy_rates_range
 
 # Save original values to restore in tearDown if needed
@@ -63,7 +74,7 @@ mt5_module.MT5_AVAILABLE = True
 class TestMT5AdapterAndMapper(unittest.TestCase):
     """
     Test suite verifying the read-only MT5 Data Provider connection health,
-    rates-to-candles mapping, and validation failure scenarios. (33 unit tests)
+    rates-to-candles mapping, validation, safety, and failure scenarios.
     """
 
     def setUp(self) -> None:
@@ -73,10 +84,14 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         mock_mt5.initialize.return_value = True
         mock_term_info.connected = True
         mock_mt5.terminal_info.return_value = mock_term_info
-        mock_mt5.symbols_get.return_value = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
-        mock_mt5.account_info.return_value = None
+        mock_mt5.symbols_get.return_value = ["XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY"]
+        mock_mt5.account_info.return_value = mock_acc_info
         mock_mt5.last_error.return_value = (0, "Success")
         mock_mt5.copy_rates_range.side_effect = mock_copy_rates_range
+        mock_mt5.symbol_info.side_effect = lambda sym: None if sym == "INVALID_SYM" else MagicMock(name=sym)
+
+        # Reset MagicMock call history
+        mock_mt5.reset_mock()
 
         self.provider = MT5DataProvider(provider_id="mt5-test", server="Demo-Server")
         self.mapper = MT5DataMapper()
@@ -88,11 +103,13 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         mt5_module.MT5_AVAILABLE = ORIG_AVAILABLE
         mt5_module.mt5 = ORIG_MT5
 
-    # 1. Connection Health Tests (10 tests)
+    # 1. Connection Health Tests
     def test_connection_1_default_state_healthy(self) -> None:
         health = self.provider.get_connection_health()
         self.assertTrue(health.connected)
         self.assertEqual(health.server, "Demo-Server")
+        self.assertEqual(health.login, 12345678)
+        self.assertEqual(health.terminal_path, "C:\\Program Files\\MetaTrader 5")
         self.assertIsNone(health.last_error)
 
     def test_connection_2_offline_reported_unhealthy(self) -> None:
@@ -111,18 +128,20 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         self.assertIn("EURUSD", meta.supported_symbols)
 
     def test_connection_5_custom_server_name(self) -> None:
+        # If account_info is None, server matches what is set on provider
+        mock_mt5.account_info.return_value = None
         p = MT5DataProvider(server="Live-Server")
         health = p.get_connection_health()
         self.assertEqual(health.server, "Live-Server")
 
     def test_connection_6_latency_reported_when_online(self) -> None:
         health = self.provider.get_connection_health()
-        self.assertGreater(health.ping_ms, 0.0)
+        self.assertGreater(health.ping, 0.0)
 
     def test_connection_7_latency_is_zero_when_offline(self) -> None:
         self.provider.set_connected(False)
         health = self.provider.get_connection_health()
-        self.assertEqual(health.ping_ms, 0.0)
+        self.assertEqual(health.ping, 0.0)
 
     def test_connection_8_degraded_on_high_ping(self) -> None:
         self.provider._ping = 150.0  # mock high ping
@@ -135,7 +154,7 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         self.assertEqual(self.instrument.digits, 5)
         self.assertEqual(self.instrument.contract_size, 100000.0)
 
-    # 2. Data Mapper Tests (10 tests)
+    # 2. Data Mapper Tests
     def test_mapper_1_rates_mapping_to_candles_success(self) -> None:
         raw_rates = [
             {"time": 1600000000, "open": 1.1000, "high": 1.1020, "low": 1.0990, "close": 1.1010, "tick_volume": 100},
@@ -191,7 +210,7 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         candles = self.mapper.map_rates_to_candles(raw)
         self.assertEqual(candles[0].timestamp, self.now)
 
-    # 3. Validation & Failure Tests (10 tests)
+    # 3. Validation & Failure Tests
     def test_failure_1_fetch_data_when_offline_fails(self) -> None:
         self.provider.set_connected(False)
         req = ExternalDataRequest("EURUSD", "M15", self.now, self.now)
@@ -207,7 +226,6 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         self.assertIn("Connection lost to MT5 terminal", resp.error_message)
 
     def test_failure_3_fetch_market_data_unsuccessful_fetch_propagates_failure(self) -> None:
-        # Simulate copy_rates_range returning None
         mock_mt5.copy_rates_range.side_effect = None
         mock_mt5.copy_rates_range.return_value = None
         mock_mt5.last_error.return_value = (-1, "Symbol not found")
@@ -253,20 +271,22 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         self.assertEqual(resp.candles[0].open, 145.0)
 
     def test_failure_10_fetch_market_data_respects_end_time_limit(self) -> None:
-        # short window
         req = MarketDataRequest(self.instrument, "M15", self.now, self.now + timedelta(minutes=5))
         resp = self.provider.fetch_market_data(req)
         self.assertEqual(len(resp.candles), 1)
 
-    # 4. New Phase 24 real MT5 Integration tests
+    # 4. Phase 24 real MT5 Integration tests
     def test_new_1_mt5_initialization_health(self) -> None:
-        """Test 1: Verify MT5 initialization health reports connected=True."""
+        """Verify MT5 initialization health reports connected=True and contains full diagnostic details."""
         health = self.provider.get_connection_health()
         self.assertTrue(health.connected)
+        self.assertEqual(health.terminal_path, "C:\\Program Files\\MetaTrader 5")
+        self.assertEqual(health.login, 12345678)
+        self.assertEqual(health.server, "Demo-Server")
         self.assertIsNone(health.last_error)
 
     def test_new_2_xauusd_h1_retrieval(self) -> None:
-        """Test 2: Verify XAUUSD H1 retrieval fetches and maps valid candles."""
+        """Verify XAUUSD H1 retrieval fetches and maps valid candles, updating successful fetch time."""
         req = MarketDataRequest(
             instrument=MarketInstrument("XAUUSD", "Metals"),
             timeframe="H1",
@@ -277,17 +297,19 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         self.assertTrue(resp.is_success)
         self.assertGreater(len(resp.candles), 0)
 
-        # Verify candle properties
         candle = resp.candles[0]
         self.assertGreater(candle.open, 0.0)
         self.assertGreater(candle.close, 0.0)
         self.assertGreater(candle.high, 0.0)
         self.assertGreater(candle.low, 0.0)
 
+        # Check last successful fetch updated
+        health = self.provider.get_connection_health()
+        self.assertIsNotNone(health.last_successful_fetch)
+
     def test_new_3_failure_handling_unavailable(self) -> None:
-        """Test 3: Verify failure handling when MT5 package/terminal is simulated unavailable."""
+        """Verify failure handling when MT5 package/terminal is simulated unavailable."""
         try:
-            # Simulate MT5 unavailable
             mt5_module.MT5_AVAILABLE = False
             mt5_module.mt5 = None
 
@@ -305,6 +327,34 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
             self.assertFalse(resp.is_success)
             self.assertIsNotNone(resp.error_message)
         finally:
-            # Setup will restore, but let's be safe here
             mt5_module.MT5_AVAILABLE = True
             mt5_module.mt5 = mock_mt5
+
+    def test_new_4_dynamic_symbol_validation_fail(self) -> None:
+        """Verify that fetching data for a symbol not supported by the broker fails dynamically."""
+        req = MarketDataRequest(
+            instrument=MarketInstrument("INVALID_SYM", "FX"),
+            timeframe="H1",
+            start_time=self.now - timedelta(hours=5),
+            end_time=self.now
+        )
+        resp = self.provider.fetch_market_data(req)
+        self.assertFalse(resp.is_success)
+        self.assertIn("not found on MetaTrader 5 terminal", resp.error_message)
+
+    def test_new_5_read_only_safety_enforcement(self) -> None:
+        """Verify that absolutely no write or trading methods are ever called on the MT5 package."""
+        req = MarketDataRequest(
+            instrument=MarketInstrument("XAUUSD", "Metals"),
+            timeframe="H1",
+            start_time=self.now - timedelta(hours=5),
+            end_time=self.now
+        )
+        resp = self.provider.fetch_market_data(req)
+        self.assertTrue(resp.is_success)
+
+        # Assert no trading/modification methods were called on the mock MT5 module
+        self.assertFalse(hasattr(mock_mt5, "order_send") and mock_mt5.order_send.called)
+        self.assertFalse(hasattr(mock_mt5, "positions_get") and mock_mt5.positions_get.called)
+        self.assertFalse(hasattr(mock_mt5, "trade_send") and mock_mt5.trade_send.called)
+        self.assertFalse(hasattr(mock_mt5, "orders_get") and mock_mt5.orders_get.called)
