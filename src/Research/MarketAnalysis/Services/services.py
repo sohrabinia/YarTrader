@@ -235,6 +235,21 @@ class FeatureExtractionResearchEngine(IResearchEngine):
             Context=enriched_context
         )
 
+        # H. Newborn Market Discovery Brain v1 Integration
+        from src.Research.Brain.live_brain import LiveAnalysisBrain
+        newborn_brain = LiveAnalysisBrain(request.Asset, timeframe)
+        newborn_report = None
+        for dp in market_data_response.DataPoints:
+            raw_candle_dict = {
+                "timestamp": dp.Timestamp.isoformat() if isinstance(dp.Timestamp, datetime) else str(dp.Timestamp),
+                "open": dp.Open,
+                "high": dp.High,
+                "low": dp.Low,
+                "close": dp.Close,
+                "volume": dp.Volume
+            }
+            newborn_report = newborn_brain.process_live_candle(raw_candle_dict)
+
         base_result = self._base_engine.analyze_market(enriched_request)
 
         # 5. Enrich findings with features and observations
@@ -256,6 +271,10 @@ class FeatureExtractionResearchEngine(IResearchEngine):
             "market_regime": regime_results,
             "smart_interpretation": smart_results
         }
+
+        # Embed Newborn Market Discovery Brain v1 report if generated
+        if newborn_report:
+            enriched_findings["newborn_brain_report"] = newborn_report.to_dict()
 
         # Dynamically set the confidence score from smart interpretation (converted back to fraction [0, 1])
         conf_score = float(smart_results.get("confidence", 50.0)) / 100.0
