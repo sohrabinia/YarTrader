@@ -1,13 +1,40 @@
-INFO:     Started server process [150231]
+INFO:     Started server process [354242]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:34730 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34730 - "GET /api/validation/history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34738 - "GET /api/validation/status HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34738 - "GET /api/validation/history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34738 - "GET /api/validation/status HTTP/1.1" 200 OK
+Starting research iteration for XAUUSD on H1...
+MT5 Connected
+Symbol: XAUUSD
+Timeframe: H1
+Candles Received: 10
+Features Generated: true
+Research Completed: true
+Research cycle completed successfully. Result ID: rpt-XAUUSD-7f519179
+Starting research iteration for XAUUSD on H1...
+MT5 Connected
+Symbol: XAUUSD
+Timeframe: H1
+Candles Received: 10
+Features Generated: true
+Research Completed: true
+Research cycle completed successfully. Result ID: rpt-XAUUSD-ea5aa15f
+Starting research iteration for XAUUSD on H1...
+MT5 Connected
+Symbol: XAUUSD
+Timeframe: H1
+Candles Received: 10
+Features Generated: true
+Research Completed: true
+Research cycle completed successfully. Result ID: rpt-XAUUSD-7e03b7ef
+INFO:     127.0.0.1:41618 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41618 - "GET /api/validation/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56026 - "GET /api/validation/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56028 - "GET /v1/dashboard/live-research HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56028 - "GET /api/validation/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56026 - "GET /api/validation/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41618 - "GET /v1/dashboard/live-research HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41618 - "GET /v1/dashboard/live-research HTTP/1.1" 200 OK
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [150231]
+INFO:     Finished server process [354242]

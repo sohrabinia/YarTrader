@@ -10,6 +10,8 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from src.Application.Runtime.research_runtime import ResearchRuntime
+
 # Setup directory paths relative to repo root
 LOGS_DIR = "logs"
 REPORTS_DIR = "reports"
@@ -124,6 +126,17 @@ def load_locale(lang: str) -> Dict[str, str]:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     return {}
+
+
+# Continuous live market research runtime instance
+live_research_runtime = ResearchRuntime(symbol="XAUUSD", timeframe="H1")
+
+def start_research_polling_bg():
+    time.sleep(2.0)
+    # limit_cycles=None ensures continuous analysis
+    live_research_runtime.start_polling_loop(interval_seconds=15.0)
+
+threading.Thread(target=start_research_polling_bg, daemon=True).start()
 
 
 # ==============================================================================
@@ -401,6 +414,7 @@ def get_dashboard_spa():
             // Rerender history timestamps and status values
             fetchHistory();
             fetchStatus();
+            fetchLiveResearch();
         }}
 
         async function fetchStatus() {{
@@ -453,6 +467,30 @@ def get_dashboard_spa():
             }} catch(e) {{}}
         }}
 
+        async function fetchLiveResearch() {{
+            try {{
+                let response = await fetch('/v1/dashboard/live-research');
+                let data = await response.json();
+
+                document.getElementById('research-last-polled').innerText = formatTimestamp(data.last_polled);
+
+                let featuresStr = "";
+                if (data.features_calculated) {{
+                    let trendVal = t(data.features_calculated.price_trend);
+                    featuresStr = `${{t('trend')}}: ${{trendVal}}, ${{t('volatility')}}: ${{data.features_calculated.volatility_index}}, RSI: ${{data.features_calculated.rsi_indicator}}`;
+                }} else {{
+                    featuresStr = "N/A";
+                }}
+                document.getElementById('research-features').innerText = featuresStr;
+
+                if (data.latest_insights && data.latest_insights.length > 0) {{
+                    document.getElementById('research-insights').innerText = t(data.latest_insights[0]);
+                }} else {{
+                    document.getElementById('research-insights').innerText = "...";
+                }}
+            }} catch(e) {{}}
+        }}
+
         async function triggerValidation() {{
             const runBtn = document.getElementById('run-btn');
             runBtn.disabled = true;
@@ -471,11 +509,11 @@ def get_dashboard_spa():
                 data.forEach(run => {{
                     tbody.innerHTML += `
                         <tr>
-                            <td>${{formatTimestamp(run.timestamp)}}</td>
-                            <td>${{run.duration_sec}}s</td>
-                            <td>${{run.passed}}/${{run.total}}</td>
-                            <td><strong style="color: ${{run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)'}}">${{t(run.readiness_status)}}</strong></td>
-                            <td><strong>${{run.readiness_score}}%</strong></td>
+                            <td>\${{formatTimestamp(run.timestamp)}}</td>
+                            <td>\${{run.duration_sec}}s</td>
+                            <td>\${{run.passed}}/\${{run.total}}</td>
+                            <td><strong style="color: \${{run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)'}}">\${{t(run.readiness_status)}}</strong></td>
+                            <td><strong>\${{run.readiness_score}}%</strong></td>
                         </tr>
                     `;
                 }});
@@ -484,6 +522,7 @@ def get_dashboard_spa():
 
         window.onload = () => {{
             updateUI();
+            setInterval(fetchLiveResearch, 3000);
         }}
     </script>
 </head>
@@ -567,6 +606,18 @@ def get_dashboard_spa():
                     <p id="summary-explanation" style="font-size: 0.9em; color: #555; line-height: 1.5;" data-i18n="Validation runner is waiting to be triggered.">Validation runner is waiting to be triggered.</p>
                 </div>
 
+                <!-- Live Research Monitor Section -->
+                <div class="card">
+                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="live_research_monitor">Live Research Monitor</h3>
+                    <div style="line-height: 1.8;">
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="research_symbol">Symbol:</strong> <span style="font-weight: bold; color: var(--primary);">XAUUSD</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="research_tf">Timeframe:</strong> <span style="font-weight: bold; color: var(--primary);">H1</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="last_polled_lbl">Last Polled:</strong> <span id="research-last-polled">...</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="calculated_features">Features:</strong> <span id="research-features">...</span></p>
+                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="research_insights">Latest Insight:</strong> <span id="research-insights" style="color: var(--accent); font-weight: bold;">...</span></p>
+                    </div>
+                </div>
+
                 <div class="card">
                     <h3 style="color: var(--primary); margin-top: 0;" data-i18n="subsystem_monitors">Subsystem Health Monitors</h3>
                     <div style="line-height: 1.8;">
@@ -598,6 +649,54 @@ def get_dashboard_spa():
 # ==============================================================================
 # 2. REST API CONTRACTS AND SERVICE ENDPOINTS
 # ==============================================================================
+
+@app.get("/v1/dashboard/live-research")
+def get_live_research_status():
+    """Retrieves the latest results of the continuous live market research pipeline."""
+    global live_research_runtime
+    history = live_research_runtime.history
+    if not history:
+        try:
+            latest = live_research_runtime.run_once()
+        except Exception as e:
+            return {
+                "symbol": "XAUUSD",
+                "timeframe": "H1",
+                "last_polled": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "features_calculated": {
+                    "price_trend": "stable",
+                    "volatility_index": 0.0,
+                    "rsi_indicator": 50.0
+                },
+                "latest_insights": [f"Connection offline or loading rates: {str(e)}"],
+                "mt5_status": "OFFLINE",
+                "is_running": False
+            }
+    else:
+        latest = history[-1]
+
+    findings = latest.Findings
+    feature_set = findings.get("feature_set", {})
+    obs_summary = findings.get("observation_summary", {})
+
+    return {
+        "symbol": "XAUUSD",
+        "timeframe": "H1",
+        "last_polled": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "features_calculated": {
+            "price_trend": feature_set.get("trend", "stable"),
+            "volatility_index": feature_set.get("volatility", 0.0),
+            "rsi_indicator": feature_set.get("rsi", 50.0)
+        },
+        "latest_insights": [
+            obs_summary.get("direction", "Steady trend under observation"),
+            obs_summary.get("strength", "Normal momentum parameters"),
+            "All components evaluated under passive non-trading APES-FIN rules."
+        ],
+        "mt5_status": "ONLINE" if live_research_runtime.provider.delegate.get_connection_health().connected else "OFFLINE",
+        "is_running": True
+    }
+
 
 @app.get("/v1/health")
 def get_health_diagnostics():

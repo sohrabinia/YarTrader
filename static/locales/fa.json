@@ -36,6 +36,15 @@
   "download_json": "دانلود گزارش JSON",
   "download_md": "دانلود گزارش Markdown",
 
+  "live_research_monitor": "مانیتور پژوهش زنده بازار",
+  "research_symbol": "نماد:",
+  "research_tf": "تایم‌فریم:",
+  "last_polled_lbl": "آخرین بررسی:",
+  "calculated_features": "شاخص‌ها:",
+  "research_insights": "آخرین تحلیل:",
+  "trend": "روند",
+  "volatility": "نوسان",
+
   "IDLE": "آماده به کار",
   "Not Run": "اجرا نشده",
   "Production Ready": "آماده تولید",

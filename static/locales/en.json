@@ -36,6 +36,15 @@
   "download_json": "Download JSON Report",
   "download_md": "Download Markdown Report",
 
+  "live_research_monitor": "Live Market Research Monitor",
+  "research_symbol": "Symbol:",
+  "research_tf": "Timeframe:",
+  "last_polled_lbl": "Last Polled:",
+  "calculated_features": "Features:",
+  "research_insights": "Latest Insight:",
+  "trend": "Trend",
+  "volatility": "Volatility",
+
   "IDLE": "IDLE",
   "Not Run": "Not Run",
   "Production Ready": "Production Ready",

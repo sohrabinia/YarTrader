@@ -32,6 +32,19 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertEqual(resp2.status_code, 200)
         self.assertIn("text/html", resp2.headers["content-type"])
 
+    def test_get_live_research_endpoint(self):
+        """Verifies that the new live research REST endpoint returns a valid JSON schema with XAUUSD H1 metrics."""
+        resp = self.client.get("/v1/dashboard/live-research")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["symbol"], "XAUUSD")
+        self.assertEqual(data["timeframe"], "H1")
+        self.assertIn("last_polled", data)
+        self.assertIn("features_calculated", data)
+        self.assertIn("latest_insights", data)
+        self.assertIn("mt5_status", data)
+        self.assertIn("is_running", data)
+
     def test_get_health_diagnostics(self):
         """Verifies health diagnostics API returns successful schema."""
         resp = self.client.get("/v1/health")
