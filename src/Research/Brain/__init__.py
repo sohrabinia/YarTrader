@@ -1,10 +1,13 @@
 # Newborn Market Discovery Brain v1 module
 from src.Research.Brain.models import (
-    MarketObservation, MarketSequence, MarketEvent, PatternMemory,
+    SimulatedDecision, MarketObservation, MarketSequence, MarketEvent, PatternMemory,
     ExperienceMemory, VirtualTrade, SimulationResult, LearningRecord, AnalysisReport
 )
 from src.Research.Brain.data_reality import DataRealityLayer
 from src.Research.Brain.observation import ObservationBrain
+from src.Research.Brain.judge import JudgeBrain
+from src.Research.Brain.integrity import IntelligenceIntegrityService
+from src.Research.Brain.query import KnowledgeQueryInterface
 from src.Research.Brain.multi_timeframe import MultiTimeframePerception
 from src.Research.Brain.memory import MarketMemorySystem
 from src.Research.Brain.discovery import PatternDiscoveryEngine
