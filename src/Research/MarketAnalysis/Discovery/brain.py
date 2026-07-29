@@ -11,8 +11,93 @@ from src.Research.MarketAnalysis.Discovery.models import (
     VirtualTrade,
     SimulationResult,
     LearningRecord,
-    AnalysisReport
+    AnalysisReport,
+    DynamicTimeScale,
+    MultiScaleRelationship,
+    AIView,
+    HumanView
 )
+
+
+class DynamicTimeStructureDiscoveryEngine:
+    """
+    Discovers adaptive, custom internal time-scales based on state-change thresholds
+    (e.g., price movements, volume accumulations) rather than static calendar/terminal timeframes.
+    """
+    def discover_scales(self, observations: List[MarketObservation], price_threshold: float = 10.0) -> List[DynamicTimeScale]:
+        """Segments observations dynamically into state-based DynamicTimeScale blocks."""
+        scales = []
+        if len(observations) < 2:
+            return scales
+
+        current_segment: List[MarketObservation] = [observations[0]]
+        start_price = observations[0].Close
+
+        for i in range(1, len(observations)):
+            current_obs = observations[i]
+            current_segment.append(current_obs)
+
+            # Check if state change threshold is met
+            price_change = abs(current_obs.Close - start_price)
+            if price_change >= price_threshold or i == len(observations) - 1:
+                # Segment finalized, calculate duration
+                duration_mins = (current_obs.Timestamp - current_segment[0].Timestamp).total_seconds() / 60.0
+                if duration_mins == 0:
+                    duration_mins = 1.0  # safety floor
+
+                vol_sum = sum(o.Volume for o in current_segment)
+                net_change = current_obs.Close - start_price
+
+                scales.append(
+                    DynamicTimeScale(
+                        ScaleId=str(uuid.uuid4())[:8],
+                        DurationMinutes=duration_mins,
+                        TotalVolume=vol_sum,
+                        PriceChangePoints=net_change,
+                        CreatedByMovementCount=len(current_segment)
+                    )
+                )
+                # Reset for next scale segment
+                current_segment = [current_obs]
+                start_price = current_obs.Close
+
+        return scales
+
+
+class MultiScaleMarketPerception:
+    """
+    Performs multi-scale relationship mapping and tests fractal-like behavioral recurrence
+    hypotheses between discovered time-scales.
+    """
+    def test_scale_hypothesis(self, parent_scale: DynamicTimeScale, child_scale: DynamicTimeScale) -> MultiScaleRelationship:
+        """Formulates and tests the recurrence hypothesis between parent and child scales."""
+        # Calculate similarity based on point movement ratios and durations
+        p_ratio = abs(parent_scale.PriceChangePoints)
+        c_ratio = abs(child_scale.PriceChangePoints)
+
+        if p_ratio == 0:
+            p_ratio = 1.0
+        ratio_sim = min(c_ratio, p_ratio) / max(c_ratio, p_ratio)
+
+        # Determine hypothesis verification state
+        if parent_scale.CreatedByMovementCount < 3 or child_scale.CreatedByMovementCount < 3:
+            state = "INSUFFICIENT_EVIDENCE"
+            sim_score = ratio_sim * 0.5
+        elif ratio_sim >= 0.8:
+            state = "CONFIRMED"
+            sim_score = ratio_sim
+        else:
+            state = "REJECTED"
+            sim_score = ratio_sim
+
+        return MultiScaleRelationship(
+            RelationshipId=str(uuid.uuid4())[:8],
+            ParentScaleId=parent_scale.ScaleId,
+            ChildScaleId=child_scale.ScaleId,
+            HypothesisType="behavior_repeats",
+            HypothesisState=state,
+            SimilarityScore=sim_score
+        )
 
 
 class DataRealityLayer:
@@ -83,6 +168,7 @@ class ObservationBrain:
     Observes price-action sequences purely through movement, points, durations,
     and reaction sequences. Strictly forbids predefined indicators (RSI, MACD)
     or human-defined breakout/resistance terms.
+    Generates dual Human/AI views of price action.
     """
     def observe_sequence(self, sequence: MarketSequence) -> List[MarketEvent]:
         """Parses a market sequence into structural Point-Duration-Reaction Events."""
@@ -170,6 +256,63 @@ class ObservationBrain:
             DurationCandles=len(run),
             ConsecutiveCandlesCount=consecutive_count,
             Direction=direction
+        )
+
+    def generate_ai_view(self, sequence: MarketSequence, events: List[MarketEvent]) -> AIView:
+        """Generates math-first AI-View representing structural price dependencies for the AI brain."""
+        price_seq = [o.Close for o in sequence.Observations]
+
+        move_struct = []
+        for ev in events:
+            move_struct.append({
+                "direction": ev.Direction,
+                "points": ev.PriceMovementPoints,
+                "candles": ev.DurationCandles
+            })
+
+        reaction_map = {}
+        if events:
+            latest = events[-1]
+            reaction_map = {
+                "latest_event_id": latest.EventId,
+                "retraced_points": latest.RetracementPoints,
+                "retraced_duration": latest.RetracementDuration
+            }
+
+        temporal_relationship = []
+        for i in range(1, len(events)):
+            temporal_relationship.append({
+                "from_event": events[i-1].EventId,
+                "to_event": events[i].EventId,
+                "distance_candles": events[i].DurationCandles
+            })
+
+        return AIView(
+            PriceSequence=price_seq,
+            MovementStructure=move_struct,
+            ReactionMap=reaction_map,
+            TemporalRelationship=temporal_relationship
+        )
+
+    def generate_human_view(self, sequence: MarketSequence) -> HumanView:
+        """Generates classic, visual Human-View representing candle charts and timelines for human dashboards."""
+        ohlc_data = []
+        timeline = []
+        for o in sequence.Observations:
+            ohlc_data.append({
+                "open": o.Open,
+                "high": o.High,
+                "low": o.Low,
+                "close": o.Close,
+                "volume": o.Volume
+            })
+            timeline.append(o.Timestamp)
+
+        return HumanView(
+            Symbol=sequence.Asset,
+            CandlesCount=sequence.length,
+            Timeline=timeline,
+            OhlcData=ohlc_data
         )
 
 
@@ -530,6 +673,7 @@ class LiveAnalysisBrain:
     """
     Live market monitor. Runs dynamically with live MT5 feeds.
     Strictly forbids trading, providing 100% read-only analysis and reasoning.
+    Generates dual AI-View and Human-View representations.
     """
     def __init__(self) -> None:
         self.reality_layer = DataRealityLayer()
@@ -537,8 +681,8 @@ class LiveAnalysisBrain:
         self.discovery_engine = PatternDiscoveryEngine()
         self.qc_brain = QualityControlBrain()
 
-    def analyze_live_market(self, live_data: List[MarketDataPoint], timeframe: str, memory: MemorySystem) -> AnalysisReport:
-        """Analyzes live market feed, checks QC reasoning, and builds AnalysisReport."""
+    def analyze_live_market(self, live_data: List[MarketDataPoint], timeframe: str, memory: MemorySystem) -> Tuple[AnalysisReport, AIView, HumanView]:
+        """Analyzes live market feed, checks QC reasoning, and returns AnalysisReport with dual Views."""
         if not live_data:
             raise ValueError("No live data available for analysis.")
 
@@ -566,7 +710,7 @@ class LiveAnalysisBrain:
         else:
             active_hyp = "Neutral consensus: Expecting lateral flat fluctuation structure."
 
-        return AnalysisReport(
+        report = AnalysisReport(
             ReportId=str(uuid.uuid4())[:8],
             Asset=current_obs.Asset,
             Timestamp=datetime.now(),
@@ -576,3 +720,9 @@ class LiveAnalysisBrain:
             QCScore=qc_score,
             QCExplanation=qc_msg
         )
+
+        # Generate Dual representation Views
+        ai_view = self.observation_brain.generate_ai_view(seq, events)
+        human_view = self.observation_brain.generate_human_view(seq)
+
+        return report, ai_view, human_view

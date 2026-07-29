@@ -147,3 +147,52 @@ class AnalysisReport:
     SimulatedTradeCount: int
     QCScore: float  # 0.0 to 1.0 rating reasoning strength
     QCExplanation: str
+
+
+# =========================================================================
+# NEW TIMELESS & MULTI-SCALE DISCOVERY MODELS
+# =========================================================================
+
+@dataclass(frozen=True)
+class DynamicTimeScale:
+    """
+    An adaptive, discovered market time scale determined purely by price state evolution
+    (e.g., 37 minutes, 128 minutes, multiple days) rather than static calendar increments.
+    """
+    ScaleId: str
+    DurationMinutes: float
+    TotalVolume: float
+    PriceChangePoints: float
+    CreatedByMovementCount: int
+
+
+@dataclass(frozen=True)
+class MultiScaleRelationship:
+    """
+    Models relational mappings and tests fractal recurrence hypotheses across scales.
+    Hypothesis State: "CONFIRMED", "REJECTED", "INSUFFICIENT_EVIDENCE".
+    """
+    RelationshipId: str
+    ParentScaleId: str
+    ChildScaleId: str
+    HypothesisType: str  # e.g. "behavior_repeats"
+    HypothesisState: str  # "CONFIRMED", "REJECTED", "INSUFFICIENT_EVIDENCE"
+    SimilarityScore: float
+
+
+@dataclass(frozen=True)
+class AIView:
+    """A structural, math-first price relationship view optimized purely for the AI's Brain."""
+    PriceSequence: List[float]
+    MovementStructure: List[Dict[str, Any]]
+    ReactionMap: Dict[str, Any]
+    TemporalRelationship: List[Dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class HumanView:
+    """A visual, classic candle/timeline chart representation optimized for the human Dashboard."""
+    Symbol: str
+    CandlesCount: int
+    Timeline: List[datetime]
+    OhlcData: List[Dict[str, float]]

@@ -11,7 +11,11 @@ from src.Research.MarketAnalysis.Discovery.models import (
     VirtualTrade,
     SimulationResult,
     LearningRecord,
-    AnalysisReport
+    AnalysisReport,
+    DynamicTimeScale,
+    MultiScaleRelationship,
+    AIView,
+    HumanView
 )
 from src.Research.MarketAnalysis.Discovery.brain import (
     DataRealityLayer,
@@ -24,7 +28,9 @@ from src.Research.MarketAnalysis.Discovery.brain import (
     VirtualTradingEngine,
     OutcomeEvaluationEngine,
     LearningMemoryUpdate,
-    LiveAnalysisBrain
+    LiveAnalysisBrain,
+    DynamicTimeStructureDiscoveryEngine,
+    MultiScaleMarketPerception
 )
 
 
@@ -217,7 +223,7 @@ class TestNewbornMarketDiscoveryBrain(unittest.TestCase):
         p = PatternMemory(PatternId="pat_live", Signature="downward_6", Occurrences=10, ContinuationCount=8, ReversalCount=2)
         memory.save_pattern(p)
 
-        report = live_brain.analyze_live_market(self.dummy_data, self.timeframe, memory)
+        report, ai_view, human_view = live_brain.analyze_live_market(self.dummy_data, self.timeframe, memory)
         self.assertTrue(isinstance(report, AnalysisReport))
         self.assertEqual(report.Asset, self.asset)
         self.assertGreater(report.QCScore, 0.0)
@@ -225,3 +231,60 @@ class TestNewbornMarketDiscoveryBrain(unittest.TestCase):
         # Strict safety assertion: verify absolutely no orders or trade methods were invoked
         self.assertFalse(hasattr(live_brain, "order_send"))
         self.assertFalse(hasattr(live_brain, "trade_send"))
+
+    # 9. Dynamic Time Scale Discovery Engine Tests
+    def test_new_9_dynamic_time_scale_discovery(self) -> None:
+        layer = DataRealityLayer()
+        engine = DynamicTimeStructureDiscoveryEngine()
+
+        observations = layer.receive_data(self.dummy_data, self.timeframe)
+
+        # Test scale discovery with a threshold of 15.0 points
+        scales = engine.discover_scales(observations, price_threshold=15.0)
+        self.assertGreater(len(scales), 0)
+
+        first_scale = scales[0]
+        self.assertTrue(isinstance(first_scale, DynamicTimeScale))
+        self.assertGreater(first_scale.DurationMinutes, 0.0)
+        self.assertGreater(first_scale.TotalVolume, 0.0)
+        self.assertNotEqual(first_scale.PriceChangePoints, 0.0)
+
+    # 10. Multi-Scale Hypothesis Recurrence Tests
+    def test_new_10_multi_scale_hypothesis_recurrence(self) -> None:
+        perception = MultiScaleMarketPerception()
+
+        parent = DynamicTimeScale("p_scale", 120.0, 5000.0, 20.0, 5)
+        child_confirmed = DynamicTimeScale("c_scale_1", 30.0, 1000.0, 19.5, 4)
+        child_insufficient = DynamicTimeScale("c_scale_2", 15.0, 400.0, 2.0, 2) # creation count < 3
+
+        # Test CONFIRMED state
+        rel1 = perception.test_scale_hypothesis(parent, child_confirmed)
+        self.assertEqual(rel1.HypothesisState, "CONFIRMED")
+        self.assertGreaterEqual(rel1.SimilarityScore, 0.8)
+
+        # Test INSUFFICIENT_EVIDENCE state
+        rel2 = perception.test_scale_hypothesis(parent, child_insufficient)
+        self.assertEqual(rel2.HypothesisState, "INSUFFICIENT_EVIDENCE")
+
+    # 11. Dual Human/AI Views Mapping Tests
+    def test_new_11_dual_human_ai_views(self) -> None:
+        layer = DataRealityLayer()
+        brain = ObservationBrain()
+
+        observations = layer.receive_data(self.dummy_data, self.timeframe)
+        seq = MarketSequence(Asset=self.asset, Timeframe=self.timeframe, Observations=observations)
+        events = brain.observe_sequence(seq)
+
+        # AI-View checking (structural)
+        ai_view = brain.generate_ai_view(seq, events)
+        self.assertTrue(isinstance(ai_view, AIView))
+        self.assertEqual(len(ai_view.PriceSequence), 10)
+        self.assertGreater(len(ai_view.MovementStructure), 0)
+
+        # Human-View checking (candles, timelines)
+        human_view = brain.generate_human_view(seq)
+        self.assertTrue(isinstance(human_view, HumanView))
+        self.assertEqual(human_view.Symbol, self.asset)
+        self.assertEqual(human_view.CandlesCount, 10)
+        self.assertEqual(len(human_view.Timeline), 10)
+        self.assertEqual(len(human_view.OhlcData), 10)
