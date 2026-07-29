@@ -793,6 +793,63 @@ def get_dashboard_spa():
 # 2. REST API CONTRACTS AND SERVICE ENDPOINTS
 # ==============================================================================
 
+# Global variable to hold temporary training session replay data
+# Instantiated with empty mock details
+_mock_replay_session = {
+    "active": True,
+    "current_episode_id": "ep-9941a3",
+    "processed_episodes_count": 142,
+    "total_episodes_count": 500,
+    "progress_pct": 28.4,
+    "brain_knowledge": {
+        "concepts_count": 18,
+        "patterns_discovered": 45,
+        "patterns_rejected_by_integrity": 12,
+        "hypotheses_tested": 312,
+        "decision_quality_trend": [0.52, 0.58, 0.65, 0.72, 0.78, 0.81]
+    },
+    "error_analysis": {
+        "repeated_mistakes": [
+            {"pattern_signature": [1.0, -0.5, 0.2], "mistake_count": 8, "uncertainty_score": 9.2, "issue": "Timing lag under wide spreads"}
+        ],
+        "failed_concepts": ["Short consolidation exit", "Rapid mean-reversion attempt"],
+        "weakness_areas": ["Low-volume consolidation", "Wide spread extensions"]
+    }
+}
+
+@app.get("/api/replay/training-monitor")
+def get_replay_training_monitor():
+    """Retrieves current replay session, processed episodes, and progress metrics."""
+    return {
+        "status": "RUNNING" if _mock_replay_session["active"] else "IDLE",
+        "current_episode": _mock_replay_session["current_episode_id"],
+        "episodes_processed": _mock_replay_session["processed_episodes_count"],
+        "episodes_total": _mock_replay_session["total_episodes_count"],
+        "progress_pct": _mock_replay_session["progress_pct"]
+    }
+
+@app.get("/api/replay/learning-status")
+def get_brain_learning_status():
+    """Retrieves brain knowledge growth, validated concepts count, and confidence levels."""
+    return {
+        "concepts_count": _mock_replay_session["brain_knowledge"]["concepts_count"],
+        "patterns_discovered": _mock_replay_session["brain_knowledge"]["patterns_discovered"],
+        "patterns_rejected": _mock_replay_session["brain_knowledge"]["patterns_rejected_by_integrity"],
+        "hypotheses_tested": _mock_replay_session["brain_knowledge"]["hypotheses_tested"],
+        "decision_quality_trend": _mock_replay_session["brain_knowledge"]["decision_quality_trend"],
+        "unknown_areas_count": len(_mock_replay_session["error_analysis"]["weakness_areas"])
+    }
+
+@app.get("/api/replay/error-analysis")
+def get_replay_error_analysis():
+    """Retrieves repeated mistakes, failed concepts, and uncertainty/weakness areas."""
+    return {
+        "repeated_mistakes": _mock_replay_session["error_analysis"]["repeated_mistakes"],
+        "failed_concepts": _mock_replay_session["error_analysis"]["failed_concepts"],
+        "weakness_areas": _mock_replay_session["error_analysis"]["weakness_areas"]
+    }
+
+
 @app.get("/api/research/latest")
 @app.get("/api/research/current")
 @app.get("/v1/dashboard/live-research")

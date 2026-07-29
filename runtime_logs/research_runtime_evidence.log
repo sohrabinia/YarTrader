@@ -108033,3 +108033,2595 @@
 [2026-07-29 16:20:02] Research Completed: true
 [2026-07-29 16:20:02] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-2839e237.json
 [2026-07-29 16:20:02] Research cycle completed successfully. Result ID: rpt-XAUUSD-2839e237
+[2026-07-29 18:36:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:36:35] MT5 Connected
+[2026-07-29 18:36:35] Symbol: XAUUSD
+[2026-07-29 18:36:35] Timeframe: H1
+[2026-07-29 18:36:35] Candles Received: 10
+[2026-07-29 18:36:35] Features Generated: true
+[2026-07-29 18:36:35] Research Completed: true
+[2026-07-29 18:36:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-6bfe3c09.json
+[2026-07-29 18:36:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-6bfe3c09
+[2026-07-29 18:36:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:36:35] MT5 Connected
+[2026-07-29 18:36:35] Symbol: XAUUSD
+[2026-07-29 18:36:35] Timeframe: H1
+[2026-07-29 18:36:35] Candles Received: 10
+[2026-07-29 18:36:35] Features Generated: true
+[2026-07-29 18:36:35] Research Completed: true
+[2026-07-29 18:36:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-e9daec43.json
+[2026-07-29 18:36:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-e9daec43
+[2026-07-29 18:37:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:37:06] MT5 Connected
+[2026-07-29 18:37:06] Symbol: XAUUSD
+[2026-07-29 18:37:06] Timeframe: H1
+[2026-07-29 18:37:06] Candles Received: 10
+[2026-07-29 18:37:06] Features Generated: true
+[2026-07-29 18:37:06] Research Completed: true
+[2026-07-29 18:37:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9c62405b.json
+[2026-07-29 18:37:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-9c62405b
+[2026-07-29 18:37:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:37:06] MT5 Connected
+[2026-07-29 18:37:06] Symbol: XAUUSD
+[2026-07-29 18:37:06] Timeframe: H1
+[2026-07-29 18:37:06] Candles Received: 10
+[2026-07-29 18:37:06] Features Generated: true
+[2026-07-29 18:37:06] Research Completed: true
+[2026-07-29 18:37:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9626affe.json
+[2026-07-29 18:37:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-9626affe
+[2026-07-29 18:37:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:37:35] MT5 Connected
+[2026-07-29 18:37:35] Symbol: XAUUSD
+[2026-07-29 18:37:35] Timeframe: H1
+[2026-07-29 18:37:35] Candles Received: 10
+[2026-07-29 18:37:35] Features Generated: true
+[2026-07-29 18:37:35] Research Completed: true
+[2026-07-29 18:37:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-64667eae.json
+[2026-07-29 18:37:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-64667eae
+[2026-07-29 18:37:38] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:37:38] MT5 Connected
+[2026-07-29 18:37:38] Symbol: XAUUSD
+[2026-07-29 18:37:38] Timeframe: H1
+[2026-07-29 18:37:38] Candles Received: 10
+[2026-07-29 18:37:38] Features Generated: true
+[2026-07-29 18:37:38] Research Completed: true
+[2026-07-29 18:37:38] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c3e661b9.json
+[2026-07-29 18:37:38] Research cycle completed successfully. Result ID: rpt-XAUUSD-c3e661b9
+[2026-07-29 18:37:38] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:37:38] MT5 Connected
+[2026-07-29 18:37:38] Symbol: XAUUSD
+[2026-07-29 18:37:38] Timeframe: H1
+[2026-07-29 18:37:38] Candles Received: 10
+[2026-07-29 18:37:38] Features Generated: true
+[2026-07-29 18:37:38] Research Completed: true
+[2026-07-29 18:37:38] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-bf0f30b7.json
+[2026-07-29 18:37:38] Research cycle completed successfully. Result ID: rpt-XAUUSD-bf0f30b7
+[2026-07-29 18:38:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:38:06] MT5 Connected
+[2026-07-29 18:38:06] Symbol: XAUUSD
+[2026-07-29 18:38:06] Timeframe: H1
+[2026-07-29 18:38:06] Candles Received: 10
+[2026-07-29 18:38:06] Features Generated: true
+[2026-07-29 18:38:06] Research Completed: true
+[2026-07-29 18:38:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ba138feb.json
+[2026-07-29 18:38:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-ba138feb
+[2026-07-29 18:38:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:38:08] MT5 Connected
+[2026-07-29 18:38:08] Symbol: XAUUSD
+[2026-07-29 18:38:08] Timeframe: H1
+[2026-07-29 18:38:08] Candles Received: 10
+[2026-07-29 18:38:08] Features Generated: true
+[2026-07-29 18:38:08] Research Completed: true
+[2026-07-29 18:38:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d843bd6f.json
+[2026-07-29 18:38:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-d843bd6f
+[2026-07-29 18:38:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:38:08] MT5 Connected
+[2026-07-29 18:38:08] Symbol: XAUUSD
+[2026-07-29 18:38:08] Timeframe: H1
+[2026-07-29 18:38:08] Candles Received: 10
+[2026-07-29 18:38:08] Features Generated: true
+[2026-07-29 18:38:08] Research Completed: true
+[2026-07-29 18:38:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-49ffcdf1.json
+[2026-07-29 18:38:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-49ffcdf1
+[2026-07-29 18:38:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:38:35] MT5 Connected
+[2026-07-29 18:38:35] Symbol: XAUUSD
+[2026-07-29 18:38:35] Timeframe: H1
+[2026-07-29 18:38:35] Candles Received: 10
+[2026-07-29 18:38:35] Features Generated: true
+[2026-07-29 18:38:35] Research Completed: true
+[2026-07-29 18:38:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-1ff8900f.json
+[2026-07-29 18:38:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-1ff8900f
+[2026-07-29 18:38:38] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:38:38] MT5 Connected
+[2026-07-29 18:38:38] Symbol: XAUUSD
+[2026-07-29 18:38:38] Timeframe: H1
+[2026-07-29 18:38:38] Candles Received: 10
+[2026-07-29 18:38:38] Features Generated: true
+[2026-07-29 18:38:38] Research Completed: true
+[2026-07-29 18:38:38] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f0c9f870.json
+[2026-07-29 18:38:38] Research cycle completed successfully. Result ID: rpt-XAUUSD-f0c9f870
+[2026-07-29 18:38:43] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:38:43] MT5 Connected
+[2026-07-29 18:38:43] Symbol: XAUUSD
+[2026-07-29 18:38:43] Timeframe: H1
+[2026-07-29 18:38:43] Candles Received: 10
+[2026-07-29 18:38:43] Features Generated: true
+[2026-07-29 18:38:43] Research Completed: true
+[2026-07-29 18:38:43] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f2f0655a.json
+[2026-07-29 18:38:43] Research cycle completed successfully. Result ID: rpt-XAUUSD-f2f0655a
+[2026-07-29 18:38:43] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:38:43] MT5 Connected
+[2026-07-29 18:38:43] Symbol: XAUUSD
+[2026-07-29 18:38:43] Timeframe: H1
+[2026-07-29 18:38:43] Candles Received: 10
+[2026-07-29 18:38:43] Features Generated: true
+[2026-07-29 18:38:43] Research Completed: true
+[2026-07-29 18:38:43] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-bf085771.json
+[2026-07-29 18:38:43] Research cycle completed successfully. Result ID: rpt-XAUUSD-bf085771
+[2026-07-29 18:39:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:39:06] MT5 Connected
+[2026-07-29 18:39:06] Symbol: XAUUSD
+[2026-07-29 18:39:06] Timeframe: H1
+[2026-07-29 18:39:06] Candles Received: 10
+[2026-07-29 18:39:06] Features Generated: true
+[2026-07-29 18:39:06] Research Completed: true
+[2026-07-29 18:39:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ca8ff664.json
+[2026-07-29 18:39:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-ca8ff664
+[2026-07-29 18:39:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:39:08] MT5 Connected
+[2026-07-29 18:39:08] Symbol: XAUUSD
+[2026-07-29 18:39:08] Timeframe: H1
+[2026-07-29 18:39:08] Candles Received: 10
+[2026-07-29 18:39:08] Features Generated: true
+[2026-07-29 18:39:08] Research Completed: true
+[2026-07-29 18:39:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-7fcfb54a.json
+[2026-07-29 18:39:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-7fcfb54a
+[2026-07-29 18:39:15] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:39:15] MT5 Connected
+[2026-07-29 18:39:15] Symbol: XAUUSD
+[2026-07-29 18:39:15] Timeframe: H1
+[2026-07-29 18:39:15] Candles Received: 10
+[2026-07-29 18:39:15] Features Generated: true
+[2026-07-29 18:39:15] Research Completed: true
+[2026-07-29 18:39:15] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c73d3c9f.json
+[2026-07-29 18:39:15] Research cycle completed successfully. Result ID: rpt-XAUUSD-c73d3c9f
+[2026-07-29 18:39:15] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:39:15] MT5 Connected
+[2026-07-29 18:39:15] Symbol: XAUUSD
+[2026-07-29 18:39:15] Timeframe: H1
+[2026-07-29 18:39:15] Candles Received: 10
+[2026-07-29 18:39:15] Features Generated: true
+[2026-07-29 18:39:15] Research Completed: true
+[2026-07-29 18:39:15] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-537e224e.json
+[2026-07-29 18:39:15] Research cycle completed successfully. Result ID: rpt-XAUUSD-537e224e
+[2026-07-29 18:39:38] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:39:38] MT5 Connected
+[2026-07-29 18:39:38] Symbol: XAUUSD
+[2026-07-29 18:39:38] Timeframe: H1
+[2026-07-29 18:39:38] Candles Received: 10
+[2026-07-29 18:39:38] Features Generated: true
+[2026-07-29 18:39:38] Research Completed: true
+[2026-07-29 18:39:38] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-998f518a.json
+[2026-07-29 18:39:38] Research cycle completed successfully. Result ID: rpt-XAUUSD-998f518a
+[2026-07-29 18:39:43] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:39:43] MT5 Connected
+[2026-07-29 18:39:43] Symbol: XAUUSD
+[2026-07-29 18:39:43] Timeframe: H1
+[2026-07-29 18:39:43] Candles Received: 10
+[2026-07-29 18:39:43] Features Generated: true
+[2026-07-29 18:39:43] Research Completed: true
+[2026-07-29 18:39:43] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-431ea5bc.json
+[2026-07-29 18:39:43] Research cycle completed successfully. Result ID: rpt-XAUUSD-431ea5bc
+[2026-07-29 18:39:45] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:39:45] MT5 Connected
+[2026-07-29 18:39:45] Symbol: XAUUSD
+[2026-07-29 18:39:45] Timeframe: H1
+[2026-07-29 18:39:45] Candles Received: 10
+[2026-07-29 18:39:45] Features Generated: true
+[2026-07-29 18:39:45] Research Completed: true
+[2026-07-29 18:39:45] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-2e60c246.json
+[2026-07-29 18:39:45] Research cycle completed successfully. Result ID: rpt-XAUUSD-2e60c246
+[2026-07-29 18:39:45] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:39:45] MT5 Connected
+[2026-07-29 18:39:45] Symbol: XAUUSD
+[2026-07-29 18:39:45] Timeframe: H1
+[2026-07-29 18:39:45] Candles Received: 10
+[2026-07-29 18:39:45] Features Generated: true
+[2026-07-29 18:39:45] Research Completed: true
+[2026-07-29 18:39:45] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-58af38ce.json
+[2026-07-29 18:39:45] Research cycle completed successfully. Result ID: rpt-XAUUSD-58af38ce
+[2026-07-29 18:40:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:40:08] MT5 Connected
+[2026-07-29 18:40:08] Symbol: XAUUSD
+[2026-07-29 18:40:08] Timeframe: H1
+[2026-07-29 18:40:08] Candles Received: 10
+[2026-07-29 18:40:08] Features Generated: true
+[2026-07-29 18:40:08] Research Completed: true
+[2026-07-29 18:40:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-10ff786e.json
+[2026-07-29 18:40:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-10ff786e
+[2026-07-29 18:40:14] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:40:14] MT5 Connected
+[2026-07-29 18:40:14] Symbol: XAUUSD
+[2026-07-29 18:40:14] Timeframe: H1
+[2026-07-29 18:40:14] Candles Received: 10
+[2026-07-29 18:40:14] Features Generated: true
+[2026-07-29 18:40:14] Research Completed: true
+[2026-07-29 18:40:14] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-eab3689f.json
+[2026-07-29 18:40:14] Research cycle completed successfully. Result ID: rpt-XAUUSD-eab3689f
+[2026-07-29 18:40:14] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:40:14] MT5 Connected
+[2026-07-29 18:40:14] Symbol: XAUUSD
+[2026-07-29 18:40:14] Timeframe: H1
+[2026-07-29 18:40:14] Candles Received: 10
+[2026-07-29 18:40:14] Features Generated: true
+[2026-07-29 18:40:14] Research Completed: true
+[2026-07-29 18:40:14] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-79c7fbd4.json
+[2026-07-29 18:40:14] Research cycle completed successfully. Result ID: rpt-XAUUSD-79c7fbd4
+[2026-07-29 18:40:15] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:40:15] MT5 Connected
+[2026-07-29 18:40:15] Symbol: XAUUSD
+[2026-07-29 18:40:15] Timeframe: H1
+[2026-07-29 18:40:15] Candles Received: 10
+[2026-07-29 18:40:15] Features Generated: true
+[2026-07-29 18:40:15] Research Completed: true
+[2026-07-29 18:40:15] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-368c8830.json
+[2026-07-29 18:40:15] Research cycle completed successfully. Result ID: rpt-XAUUSD-368c8830
+[2026-07-29 18:40:43] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:40:43] MT5 Connected
+[2026-07-29 18:40:43] Symbol: XAUUSD
+[2026-07-29 18:40:43] Timeframe: H1
+[2026-07-29 18:40:43] Candles Received: 10
+[2026-07-29 18:40:43] Features Generated: true
+[2026-07-29 18:40:43] Research Completed: true
+[2026-07-29 18:40:43] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d4c57d37.json
+[2026-07-29 18:40:43] Research cycle completed successfully. Result ID: rpt-XAUUSD-d4c57d37
+[2026-07-29 18:40:44] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:40:44] MT5 Connected
+[2026-07-29 18:40:44] Symbol: XAUUSD
+[2026-07-29 18:40:44] Timeframe: H1
+[2026-07-29 18:40:44] Candles Received: 10
+[2026-07-29 18:40:44] Features Generated: true
+[2026-07-29 18:40:44] Research Completed: true
+[2026-07-29 18:40:44] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-eb26bce2.json
+[2026-07-29 18:40:44] Research cycle completed successfully. Result ID: rpt-XAUUSD-eb26bce2
+[2026-07-29 18:40:44] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:40:44] MT5 Connected
+[2026-07-29 18:40:45] Symbol: XAUUSD
+[2026-07-29 18:40:45] Timeframe: H1
+[2026-07-29 18:40:45] Candles Received: 10
+[2026-07-29 18:40:45] Features Generated: true
+[2026-07-29 18:40:45] Research Completed: true
+[2026-07-29 18:40:45] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-389b52fb.json
+[2026-07-29 18:40:45] Research cycle completed successfully. Result ID: rpt-XAUUSD-389b52fb
+[2026-07-29 18:40:45] Starting research iteration for XAUUSD on H1...
+[2026-07-29 18:40:45] MT5 Connected
+[2026-07-29 18:40:45] Symbol: XAUUSD
+[2026-07-29 18:40:45] Timeframe: H1
+[2026-07-29 18:40:45] Candles Received: 10
+[2026-07-29 18:40:45] Features Generated: true
+[2026-07-29 18:40:45] Research Completed: true
+[2026-07-29 18:40:45] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5b34dfd4.json
+[2026-07-29 18:40:45] Research cycle completed successfully. Result ID: rpt-XAUUSD-5b34dfd4
+[2026-07-29 19:06:55] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:06:55] MT5 Connected
+[2026-07-29 19:06:55] Symbol: XAUUSD
+[2026-07-29 19:06:55] Timeframe: H1
+[2026-07-29 19:06:55] Candles Received: 10
+[2026-07-29 19:06:55] Features Generated: true
+[2026-07-29 19:06:55] Research Completed: true
+[2026-07-29 19:06:55] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-96fcb0ec.json
+[2026-07-29 19:06:55] Research cycle completed successfully. Result ID: rpt-XAUUSD-96fcb0ec
+[2026-07-29 19:06:55] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:06:55] MT5 Connected
+[2026-07-29 19:06:55] Symbol: XAUUSD
+[2026-07-29 19:06:55] Timeframe: H1
+[2026-07-29 19:06:55] Candles Received: 10
+[2026-07-29 19:06:55] Features Generated: true
+[2026-07-29 19:06:55] Research Completed: true
+[2026-07-29 19:06:55] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-6cd6b49a.json
+[2026-07-29 19:06:55] Research cycle completed successfully. Result ID: rpt-XAUUSD-6cd6b49a
+[2026-07-29 19:06:57] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:06:57] MT5 Connected
+[2026-07-29 19:06:57] Symbol: XAUUSD
+[2026-07-29 19:06:57] Timeframe: H1
+[2026-07-29 19:06:57] Candles Received: 10
+[2026-07-29 19:06:57] Features Generated: true
+[2026-07-29 19:06:57] Research Completed: true
+[2026-07-29 19:06:57] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9131033d.json
+[2026-07-29 19:06:57] Research cycle completed successfully. Result ID: rpt-XAUUSD-9131033d
+[2026-07-29 19:06:57] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:06:57] MT5 Connected
+[2026-07-29 19:06:57] Symbol: XAUUSD
+[2026-07-29 19:06:57] Timeframe: H1
+[2026-07-29 19:06:57] Candles Received: 10
+[2026-07-29 19:06:57] Features Generated: true
+[2026-07-29 19:06:57] Research Completed: true
+[2026-07-29 19:06:57] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-06d587d0.json
+[2026-07-29 19:06:57] Research cycle completed successfully. Result ID: rpt-XAUUSD-06d587d0
+[2026-07-29 19:07:25] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:07:25] MT5 Connected
+[2026-07-29 19:07:25] Symbol: XAUUSD
+[2026-07-29 19:07:25] Timeframe: H1
+[2026-07-29 19:07:25] Candles Received: 10
+[2026-07-29 19:07:25] Features Generated: true
+[2026-07-29 19:07:25] Research Completed: true
+[2026-07-29 19:07:25] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-b09824da.json
+[2026-07-29 19:07:25] Research cycle completed successfully. Result ID: rpt-XAUUSD-b09824da
+[2026-07-29 19:07:25] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:07:25] MT5 Connected
+[2026-07-29 19:07:25] Symbol: XAUUSD
+[2026-07-29 19:07:25] Timeframe: H1
+[2026-07-29 19:07:25] Candles Received: 10
+[2026-07-29 19:07:25] Features Generated: true
+[2026-07-29 19:07:25] Research Completed: true
+[2026-07-29 19:07:25] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-bf7e1bc6.json
+[2026-07-29 19:07:25] Research cycle completed successfully. Result ID: rpt-XAUUSD-bf7e1bc6
+[2026-07-29 19:07:30] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:07:30] MT5 Connected
+[2026-07-29 19:07:30] Symbol: XAUUSD
+[2026-07-29 19:07:30] Timeframe: H1
+[2026-07-29 19:07:30] Candles Received: 10
+[2026-07-29 19:07:30] Features Generated: true
+[2026-07-29 19:07:30] Research Completed: true
+[2026-07-29 19:07:30] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ef03b4c4.json
+[2026-07-29 19:07:30] Research cycle completed successfully. Result ID: rpt-XAUUSD-ef03b4c4
+[2026-07-29 19:07:30] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:07:30] MT5 Connected
+[2026-07-29 19:07:30] Symbol: XAUUSD
+[2026-07-29 19:07:30] Timeframe: H1
+[2026-07-29 19:07:30] Candles Received: 10
+[2026-07-29 19:07:30] Features Generated: true
+[2026-07-29 19:07:30] Research Completed: true
+[2026-07-29 19:07:30] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-32d03b37.json
+[2026-07-29 19:07:30] Research cycle completed successfully. Result ID: rpt-XAUUSD-32d03b37
+[2026-07-29 19:07:55] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:07:55] MT5 Connected
+[2026-07-29 19:07:55] Symbol: XAUUSD
+[2026-07-29 19:07:55] Timeframe: H1
+[2026-07-29 19:07:55] Candles Received: 10
+[2026-07-29 19:07:55] Features Generated: true
+[2026-07-29 19:07:55] Research Completed: true
+[2026-07-29 19:07:55] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c5cec791.json
+[2026-07-29 19:07:55] Research cycle completed successfully. Result ID: rpt-XAUUSD-c5cec791
+[2026-07-29 19:07:57] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:07:57] MT5 Connected
+[2026-07-29 19:07:57] Symbol: XAUUSD
+[2026-07-29 19:07:57] Timeframe: H1
+[2026-07-29 19:07:57] Candles Received: 10
+[2026-07-29 19:07:57] Features Generated: true
+[2026-07-29 19:07:57] Research Completed: true
+[2026-07-29 19:07:57] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-77f8d882.json
+[2026-07-29 19:07:57] Research cycle completed successfully. Result ID: rpt-XAUUSD-77f8d882
+[2026-07-29 19:08:02] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:08:02] MT5 Connected
+[2026-07-29 19:08:02] Symbol: XAUUSD
+[2026-07-29 19:08:02] Timeframe: H1
+[2026-07-29 19:08:02] Candles Received: 10
+[2026-07-29 19:08:02] Features Generated: true
+[2026-07-29 19:08:02] Research Completed: true
+[2026-07-29 19:08:02] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d22483f2.json
+[2026-07-29 19:08:02] Research cycle completed successfully. Result ID: rpt-XAUUSD-d22483f2
+[2026-07-29 19:08:02] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:08:02] MT5 Connected
+[2026-07-29 19:08:02] Symbol: XAUUSD
+[2026-07-29 19:08:02] Timeframe: H1
+[2026-07-29 19:08:02] Candles Received: 10
+[2026-07-29 19:08:02] Features Generated: true
+[2026-07-29 19:08:02] Research Completed: true
+[2026-07-29 19:08:02] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a6b224ef.json
+[2026-07-29 19:08:02] Research cycle completed successfully. Result ID: rpt-XAUUSD-a6b224ef
+[2026-07-29 19:08:25] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:08:25] MT5 Connected
+[2026-07-29 19:08:25] Symbol: XAUUSD
+[2026-07-29 19:08:25] Timeframe: H1
+[2026-07-29 19:08:25] Candles Received: 10
+[2026-07-29 19:08:25] Features Generated: true
+[2026-07-29 19:08:25] Research Completed: true
+[2026-07-29 19:08:25] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-bd7a6780.json
+[2026-07-29 19:08:25] Research cycle completed successfully. Result ID: rpt-XAUUSD-bd7a6780
+[2026-07-29 19:08:30] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:08:30] MT5 Connected
+[2026-07-29 19:08:30] Symbol: XAUUSD
+[2026-07-29 19:08:30] Timeframe: H1
+[2026-07-29 19:08:30] Candles Received: 10
+[2026-07-29 19:08:30] Features Generated: true
+[2026-07-29 19:08:30] Research Completed: true
+[2026-07-29 19:08:30] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-01a17b03.json
+[2026-07-29 19:08:30] Research cycle completed successfully. Result ID: rpt-XAUUSD-01a17b03
+[2026-07-29 19:08:36] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:08:36] MT5 Connected
+[2026-07-29 19:08:36] Symbol: XAUUSD
+[2026-07-29 19:08:36] Timeframe: H1
+[2026-07-29 19:08:36] Candles Received: 10
+[2026-07-29 19:08:36] Features Generated: true
+[2026-07-29 19:08:36] Research Completed: true
+[2026-07-29 19:08:36] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-65a4c6ac.json
+[2026-07-29 19:08:36] Research cycle completed successfully. Result ID: rpt-XAUUSD-65a4c6ac
+[2026-07-29 19:08:36] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:08:36] MT5 Connected
+[2026-07-29 19:08:36] Symbol: XAUUSD
+[2026-07-29 19:08:36] Timeframe: H1
+[2026-07-29 19:08:36] Candles Received: 10
+[2026-07-29 19:08:36] Features Generated: true
+[2026-07-29 19:08:36] Research Completed: true
+[2026-07-29 19:08:36] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-3368acf3.json
+[2026-07-29 19:08:36] Research cycle completed successfully. Result ID: rpt-XAUUSD-3368acf3
+[2026-07-29 19:08:57] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:08:57] MT5 Connected
+[2026-07-29 19:08:57] Symbol: XAUUSD
+[2026-07-29 19:08:57] Timeframe: H1
+[2026-07-29 19:08:57] Candles Received: 10
+[2026-07-29 19:08:57] Features Generated: true
+[2026-07-29 19:08:57] Research Completed: true
+[2026-07-29 19:08:57] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-812072e5.json
+[2026-07-29 19:08:57] Research cycle completed successfully. Result ID: rpt-XAUUSD-812072e5
+[2026-07-29 19:09:02] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:09:02] MT5 Connected
+[2026-07-29 19:09:02] Symbol: XAUUSD
+[2026-07-29 19:09:02] Timeframe: H1
+[2026-07-29 19:09:02] Candles Received: 10
+[2026-07-29 19:09:02] Features Generated: true
+[2026-07-29 19:09:02] Research Completed: true
+[2026-07-29 19:09:02] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5b7181e9.json
+[2026-07-29 19:09:02] Research cycle completed successfully. Result ID: rpt-XAUUSD-5b7181e9
+[2026-07-29 19:09:07] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:09:07] MT5 Connected
+[2026-07-29 19:09:07] Symbol: XAUUSD
+[2026-07-29 19:09:07] Timeframe: H1
+[2026-07-29 19:09:07] Candles Received: 10
+[2026-07-29 19:09:07] Features Generated: true
+[2026-07-29 19:09:07] Research Completed: true
+[2026-07-29 19:09:07] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-284e167f.json
+[2026-07-29 19:09:07] Research cycle completed successfully. Result ID: rpt-XAUUSD-284e167f
+[2026-07-29 19:09:07] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:09:07] MT5 Connected
+[2026-07-29 19:09:07] Symbol: XAUUSD
+[2026-07-29 19:09:07] Timeframe: H1
+[2026-07-29 19:09:07] Candles Received: 10
+[2026-07-29 19:09:07] Features Generated: true
+[2026-07-29 19:09:07] Research Completed: true
+[2026-07-29 19:09:07] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-4f026382.json
+[2026-07-29 19:09:07] Research cycle completed successfully. Result ID: rpt-XAUUSD-4f026382
+[2026-07-29 19:09:30] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:09:30] MT5 Connected
+[2026-07-29 19:09:30] Symbol: XAUUSD
+[2026-07-29 19:09:30] Timeframe: H1
+[2026-07-29 19:09:30] Candles Received: 10
+[2026-07-29 19:09:30] Features Generated: true
+[2026-07-29 19:09:30] Research Completed: true
+[2026-07-29 19:09:30] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a2ef0e1e.json
+[2026-07-29 19:09:30] Research cycle completed successfully. Result ID: rpt-XAUUSD-a2ef0e1e
+[2026-07-29 19:09:36] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:09:36] MT5 Connected
+[2026-07-29 19:09:36] Symbol: XAUUSD
+[2026-07-29 19:09:36] Timeframe: H1
+[2026-07-29 19:09:36] Candles Received: 10
+[2026-07-29 19:09:36] Features Generated: true
+[2026-07-29 19:09:36] Research Completed: true
+[2026-07-29 19:09:36] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-0cef53e5.json
+[2026-07-29 19:09:36] Research cycle completed successfully. Result ID: rpt-XAUUSD-0cef53e5
+[2026-07-29 19:09:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:09:37] MT5 Connected
+[2026-07-29 19:09:37] Symbol: XAUUSD
+[2026-07-29 19:09:37] Timeframe: H1
+[2026-07-29 19:09:37] Candles Received: 10
+[2026-07-29 19:09:37] Features Generated: true
+[2026-07-29 19:09:37] Research Completed: true
+[2026-07-29 19:09:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f7299b57.json
+[2026-07-29 19:09:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-f7299b57
+[2026-07-29 19:09:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:09:37] MT5 Connected
+[2026-07-29 19:09:37] Symbol: XAUUSD
+[2026-07-29 19:09:37] Timeframe: H1
+[2026-07-29 19:09:37] Candles Received: 10
+[2026-07-29 19:09:37] Features Generated: true
+[2026-07-29 19:09:37] Research Completed: true
+[2026-07-29 19:09:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f8f35765.json
+[2026-07-29 19:09:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-f8f35765
+[2026-07-29 19:10:02] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:10:02] MT5 Connected
+[2026-07-29 19:10:02] Symbol: XAUUSD
+[2026-07-29 19:10:02] Timeframe: H1
+[2026-07-29 19:10:02] Candles Received: 10
+[2026-07-29 19:10:02] Features Generated: true
+[2026-07-29 19:10:02] Research Completed: true
+[2026-07-29 19:10:02] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-be1fb775.json
+[2026-07-29 19:10:02] Research cycle completed successfully. Result ID: rpt-XAUUSD-be1fb775
+[2026-07-29 19:10:07] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:10:07] MT5 Connected
+[2026-07-29 19:10:07] Symbol: XAUUSD
+[2026-07-29 19:10:07] Timeframe: H1
+[2026-07-29 19:10:07] Candles Received: 10
+[2026-07-29 19:10:07] Features Generated: true
+[2026-07-29 19:10:07] Research Completed: true
+[2026-07-29 19:10:07] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-0851b564.json
+[2026-07-29 19:10:07] Research cycle completed successfully. Result ID: rpt-XAUUSD-0851b564
+[2026-07-29 19:10:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:10:08] MT5 Connected
+[2026-07-29 19:10:08] Symbol: XAUUSD
+[2026-07-29 19:10:08] Timeframe: H1
+[2026-07-29 19:10:08] Candles Received: 10
+[2026-07-29 19:10:08] Features Generated: true
+[2026-07-29 19:10:08] Research Completed: true
+[2026-07-29 19:10:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-6247fb08.json
+[2026-07-29 19:10:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-6247fb08
+[2026-07-29 19:10:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:10:08] MT5 Connected
+[2026-07-29 19:10:08] Symbol: XAUUSD
+[2026-07-29 19:10:08] Timeframe: H1
+[2026-07-29 19:10:08] Candles Received: 10
+[2026-07-29 19:10:08] Features Generated: true
+[2026-07-29 19:10:08] Research Completed: true
+[2026-07-29 19:10:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ecaa9d7a.json
+[2026-07-29 19:10:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-ecaa9d7a
+[2026-07-29 19:10:36] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:10:36] MT5 Connected
+[2026-07-29 19:10:36] Symbol: XAUUSD
+[2026-07-29 19:10:36] Timeframe: H1
+[2026-07-29 19:10:36] Candles Received: 10
+[2026-07-29 19:10:36] Features Generated: true
+[2026-07-29 19:10:36] Research Completed: true
+[2026-07-29 19:10:36] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ea324419.json
+[2026-07-29 19:10:36] Research cycle completed successfully. Result ID: rpt-XAUUSD-ea324419
+[2026-07-29 19:10:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:10:37] MT5 Connected
+[2026-07-29 19:10:37] Symbol: XAUUSD
+[2026-07-29 19:10:37] Timeframe: H1
+[2026-07-29 19:10:37] Candles Received: 10
+[2026-07-29 19:10:37] Features Generated: true
+[2026-07-29 19:10:37] Research Completed: true
+[2026-07-29 19:10:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-6e69795d.json
+[2026-07-29 19:10:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-6e69795d
+[2026-07-29 19:10:39] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:10:39] MT5 Connected
+[2026-07-29 19:10:39] Symbol: XAUUSD
+[2026-07-29 19:10:39] Timeframe: H1
+[2026-07-29 19:10:39] Candles Received: 10
+[2026-07-29 19:10:39] Features Generated: true
+[2026-07-29 19:10:39] Research Completed: true
+[2026-07-29 19:10:39] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-2b382bc9.json
+[2026-07-29 19:10:39] Research cycle completed successfully. Result ID: rpt-XAUUSD-2b382bc9
+[2026-07-29 19:10:39] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:10:39] MT5 Connected
+[2026-07-29 19:10:39] Symbol: XAUUSD
+[2026-07-29 19:10:39] Timeframe: H1
+[2026-07-29 19:10:39] Candles Received: 10
+[2026-07-29 19:10:39] Features Generated: true
+[2026-07-29 19:10:39] Research Completed: true
+[2026-07-29 19:10:39] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-261e7080.json
+[2026-07-29 19:10:39] Research cycle completed successfully. Result ID: rpt-XAUUSD-261e7080
+[2026-07-29 19:11:07] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:11:07] MT5 Connected
+[2026-07-29 19:11:07] Symbol: XAUUSD
+[2026-07-29 19:11:07] Timeframe: H1
+[2026-07-29 19:11:07] Candles Received: 10
+[2026-07-29 19:11:07] Features Generated: true
+[2026-07-29 19:11:07] Research Completed: true
+[2026-07-29 19:11:07] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-3674d070.json
+[2026-07-29 19:11:07] Research cycle completed successfully. Result ID: rpt-XAUUSD-3674d070
+[2026-07-29 19:11:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:11:08] MT5 Connected
+[2026-07-29 19:11:08] Symbol: XAUUSD
+[2026-07-29 19:11:08] Timeframe: H1
+[2026-07-29 19:11:08] Candles Received: 10
+[2026-07-29 19:11:08] Features Generated: true
+[2026-07-29 19:11:08] Research Completed: true
+[2026-07-29 19:11:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d0a83d49.json
+[2026-07-29 19:11:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-d0a83d49
+[2026-07-29 19:11:10] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:11:10] MT5 Connected
+[2026-07-29 19:11:10] Symbol: XAUUSD
+[2026-07-29 19:11:10] Timeframe: H1
+[2026-07-29 19:11:10] Candles Received: 10
+[2026-07-29 19:11:10] Features Generated: true
+[2026-07-29 19:11:10] Research Completed: true
+[2026-07-29 19:11:10] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-01f6c7c1.json
+[2026-07-29 19:11:10] Research cycle completed successfully. Result ID: rpt-XAUUSD-01f6c7c1
+[2026-07-29 19:11:10] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:11:10] MT5 Connected
+[2026-07-29 19:11:10] Symbol: XAUUSD
+[2026-07-29 19:11:10] Timeframe: H1
+[2026-07-29 19:11:10] Candles Received: 10
+[2026-07-29 19:11:10] Features Generated: true
+[2026-07-29 19:11:10] Research Completed: true
+[2026-07-29 19:11:10] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9e896ce7.json
+[2026-07-29 19:11:10] Research cycle completed successfully. Result ID: rpt-XAUUSD-9e896ce7
+[2026-07-29 19:11:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:11:37] MT5 Connected
+[2026-07-29 19:11:37] Symbol: XAUUSD
+[2026-07-29 19:11:37] Timeframe: H1
+[2026-07-29 19:11:37] Candles Received: 10
+[2026-07-29 19:11:37] Features Generated: true
+[2026-07-29 19:11:37] Research Completed: true
+[2026-07-29 19:11:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9b2bba41.json
+[2026-07-29 19:11:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-9b2bba41
+[2026-07-29 19:11:39] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:11:39] MT5 Connected
+[2026-07-29 19:11:39] Symbol: XAUUSD
+[2026-07-29 19:11:39] Timeframe: H1
+[2026-07-29 19:11:39] Candles Received: 10
+[2026-07-29 19:11:39] Features Generated: true
+[2026-07-29 19:11:39] Research Completed: true
+[2026-07-29 19:11:39] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-8987b0cb.json
+[2026-07-29 19:11:39] Research cycle completed successfully. Result ID: rpt-XAUUSD-8987b0cb
+[2026-07-29 19:11:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:11:40] MT5 Connected
+[2026-07-29 19:11:40] Symbol: XAUUSD
+[2026-07-29 19:11:40] Timeframe: H1
+[2026-07-29 19:11:40] Candles Received: 10
+[2026-07-29 19:11:40] Features Generated: true
+[2026-07-29 19:11:40] Research Completed: true
+[2026-07-29 19:11:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-8a91d08c.json
+[2026-07-29 19:11:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-8a91d08c
+[2026-07-29 19:11:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:11:40] MT5 Connected
+[2026-07-29 19:11:40] Symbol: XAUUSD
+[2026-07-29 19:11:40] Timeframe: H1
+[2026-07-29 19:11:40] Candles Received: 10
+[2026-07-29 19:11:40] Features Generated: true
+[2026-07-29 19:11:40] Research Completed: true
+[2026-07-29 19:11:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d9c8e7df.json
+[2026-07-29 19:11:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-d9c8e7df
+[2026-07-29 19:12:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:12:08] MT5 Connected
+[2026-07-29 19:12:08] Symbol: XAUUSD
+[2026-07-29 19:12:08] Timeframe: H1
+[2026-07-29 19:12:08] Candles Received: 10
+[2026-07-29 19:12:08] Features Generated: true
+[2026-07-29 19:12:08] Research Completed: true
+[2026-07-29 19:12:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-fda6fc66.json
+[2026-07-29 19:12:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-fda6fc66
+[2026-07-29 19:12:10] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:12:10] MT5 Connected
+[2026-07-29 19:12:10] Symbol: XAUUSD
+[2026-07-29 19:12:10] Timeframe: H1
+[2026-07-29 19:12:10] Candles Received: 10
+[2026-07-29 19:12:10] Features Generated: true
+[2026-07-29 19:12:10] Research Completed: true
+[2026-07-29 19:12:10] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d41e7ede.json
+[2026-07-29 19:12:10] Research cycle completed successfully. Result ID: rpt-XAUUSD-d41e7ede
+[2026-07-29 19:12:10] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:12:10] MT5 Connected
+[2026-07-29 19:12:10] Symbol: XAUUSD
+[2026-07-29 19:12:10] Timeframe: H1
+[2026-07-29 19:12:10] Candles Received: 10
+[2026-07-29 19:12:10] Features Generated: true
+[2026-07-29 19:12:10] Research Completed: true
+[2026-07-29 19:12:10] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-1f1b8088.json
+[2026-07-29 19:12:10] Research cycle completed successfully. Result ID: rpt-XAUUSD-1f1b8088
+[2026-07-29 19:12:10] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:12:10] MT5 Connected
+[2026-07-29 19:12:10] Symbol: XAUUSD
+[2026-07-29 19:12:10] Timeframe: H1
+[2026-07-29 19:12:10] Candles Received: 10
+[2026-07-29 19:12:10] Features Generated: true
+[2026-07-29 19:12:10] Research Completed: true
+[2026-07-29 19:12:10] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-360e251b.json
+[2026-07-29 19:12:10] Research cycle completed successfully. Result ID: rpt-XAUUSD-360e251b
+[2026-07-29 19:12:39] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:12:39] MT5 Connected
+[2026-07-29 19:12:39] Symbol: XAUUSD
+[2026-07-29 19:12:39] Timeframe: H1
+[2026-07-29 19:12:39] Candles Received: 10
+[2026-07-29 19:12:39] Features Generated: true
+[2026-07-29 19:12:39] Research Completed: true
+[2026-07-29 19:12:39] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a0a51ce0.json
+[2026-07-29 19:12:39] Research cycle completed successfully. Result ID: rpt-XAUUSD-a0a51ce0
+[2026-07-29 19:12:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:12:40] MT5 Connected
+[2026-07-29 19:12:40] Symbol: XAUUSD
+[2026-07-29 19:12:40] Timeframe: H1
+[2026-07-29 19:12:40] Candles Received: 10
+[2026-07-29 19:12:40] Features Generated: true
+[2026-07-29 19:12:40] Research Completed: true
+[2026-07-29 19:12:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-2719670c.json
+[2026-07-29 19:12:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-2719670c
+[2026-07-29 19:12:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:12:40] MT5 Connected
+[2026-07-29 19:12:40] Symbol: XAUUSD
+[2026-07-29 19:12:40] Timeframe: H1
+[2026-07-29 19:12:40] Candles Received: 10
+[2026-07-29 19:12:40] Features Generated: true
+[2026-07-29 19:12:40] Research Completed: true
+[2026-07-29 19:12:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-1a7fa0ad.json
+[2026-07-29 19:12:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-1a7fa0ad
+[2026-07-29 19:12:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:12:40] MT5 Connected
+[2026-07-29 19:12:40] Symbol: XAUUSD
+[2026-07-29 19:12:40] Timeframe: H1
+[2026-07-29 19:12:40] Candles Received: 10
+[2026-07-29 19:12:40] Features Generated: true
+[2026-07-29 19:12:40] Research Completed: true
+[2026-07-29 19:12:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-4c3f44a4.json
+[2026-07-29 19:12:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-4c3f44a4
+[2026-07-29 19:22:03] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:22:03] MT5 Connected
+[2026-07-29 19:22:03] Symbol: XAUUSD
+[2026-07-29 19:22:03] Timeframe: H1
+[2026-07-29 19:22:03] Candles Received: 10
+[2026-07-29 19:22:03] Features Generated: true
+[2026-07-29 19:22:03] Research Completed: true
+[2026-07-29 19:22:03] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-546f6a3d.json
+[2026-07-29 19:22:03] Research cycle completed successfully. Result ID: rpt-XAUUSD-546f6a3d
+[2026-07-29 19:22:03] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:22:03] MT5 Connected
+[2026-07-29 19:22:03] Symbol: XAUUSD
+[2026-07-29 19:22:03] Timeframe: H1
+[2026-07-29 19:22:03] Candles Received: 10
+[2026-07-29 19:22:03] Features Generated: true
+[2026-07-29 19:22:03] Research Completed: true
+[2026-07-29 19:22:03] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-af032028.json
+[2026-07-29 19:22:03] Research cycle completed successfully. Result ID: rpt-XAUUSD-af032028
+[2026-07-29 19:22:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:22:35] MT5 Connected
+[2026-07-29 19:22:35] Symbol: XAUUSD
+[2026-07-29 19:22:35] Timeframe: H1
+[2026-07-29 19:22:35] Candles Received: 10
+[2026-07-29 19:22:35] Features Generated: true
+[2026-07-29 19:22:35] Research Completed: true
+[2026-07-29 19:22:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-2c53defe.json
+[2026-07-29 19:22:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-2c53defe
+[2026-07-29 19:22:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:22:35] MT5 Connected
+[2026-07-29 19:22:35] Symbol: XAUUSD
+[2026-07-29 19:22:35] Timeframe: H1
+[2026-07-29 19:22:35] Candles Received: 10
+[2026-07-29 19:22:35] Features Generated: true
+[2026-07-29 19:22:35] Research Completed: true
+[2026-07-29 19:22:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a99dcbbb.json
+[2026-07-29 19:22:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-a99dcbbb
+[2026-07-29 19:23:03] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:23:03] MT5 Connected
+[2026-07-29 19:23:03] Symbol: XAUUSD
+[2026-07-29 19:23:03] Timeframe: H1
+[2026-07-29 19:23:03] Candles Received: 10
+[2026-07-29 19:23:03] Features Generated: true
+[2026-07-29 19:23:03] Research Completed: true
+[2026-07-29 19:23:03] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ff6ffa83.json
+[2026-07-29 19:23:03] Research cycle completed successfully. Result ID: rpt-XAUUSD-ff6ffa83
+[2026-07-29 19:23:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:23:06] MT5 Connected
+[2026-07-29 19:23:06] Symbol: XAUUSD
+[2026-07-29 19:23:06] Timeframe: H1
+[2026-07-29 19:23:06] Candles Received: 10
+[2026-07-29 19:23:06] Features Generated: true
+[2026-07-29 19:23:06] Research Completed: true
+[2026-07-29 19:23:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-25f9f391.json
+[2026-07-29 19:23:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-25f9f391
+[2026-07-29 19:23:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:23:06] MT5 Connected
+[2026-07-29 19:23:06] Symbol: XAUUSD
+[2026-07-29 19:23:06] Timeframe: H1
+[2026-07-29 19:23:06] Candles Received: 10
+[2026-07-29 19:23:06] Features Generated: true
+[2026-07-29 19:23:06] Research Completed: true
+[2026-07-29 19:23:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-dc06dffc.json
+[2026-07-29 19:23:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-dc06dffc
+[2026-07-29 19:23:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:23:35] MT5 Connected
+[2026-07-29 19:23:35] Symbol: XAUUSD
+[2026-07-29 19:23:35] Timeframe: H1
+[2026-07-29 19:23:35] Candles Received: 10
+[2026-07-29 19:23:35] Features Generated: true
+[2026-07-29 19:23:35] Research Completed: true
+[2026-07-29 19:23:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-57262789.json
+[2026-07-29 19:23:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-57262789
+[2026-07-29 19:23:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:23:37] MT5 Connected
+[2026-07-29 19:23:37] Symbol: XAUUSD
+[2026-07-29 19:23:37] Timeframe: H1
+[2026-07-29 19:23:37] Candles Received: 10
+[2026-07-29 19:23:37] Features Generated: true
+[2026-07-29 19:23:37] Research Completed: true
+[2026-07-29 19:23:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-e2756386.json
+[2026-07-29 19:23:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-e2756386
+[2026-07-29 19:23:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:23:37] MT5 Connected
+[2026-07-29 19:23:37] Symbol: XAUUSD
+[2026-07-29 19:23:37] Timeframe: H1
+[2026-07-29 19:23:37] Candles Received: 10
+[2026-07-29 19:23:37] Features Generated: true
+[2026-07-29 19:23:37] Research Completed: true
+[2026-07-29 19:23:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9f9d4a2a.json
+[2026-07-29 19:23:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-9f9d4a2a
+[2026-07-29 19:24:03] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:24:03] MT5 Connected
+[2026-07-29 19:24:03] Symbol: XAUUSD
+[2026-07-29 19:24:03] Timeframe: H1
+[2026-07-29 19:24:03] Candles Received: 10
+[2026-07-29 19:24:03] Features Generated: true
+[2026-07-29 19:24:03] Research Completed: true
+[2026-07-29 19:24:03] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-69b413a9.json
+[2026-07-29 19:24:03] Research cycle completed successfully. Result ID: rpt-XAUUSD-69b413a9
+[2026-07-29 19:24:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:24:06] MT5 Connected
+[2026-07-29 19:24:06] Symbol: XAUUSD
+[2026-07-29 19:24:06] Timeframe: H1
+[2026-07-29 19:24:06] Candles Received: 10
+[2026-07-29 19:24:06] Features Generated: true
+[2026-07-29 19:24:06] Research Completed: true
+[2026-07-29 19:24:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-63884ccc.json
+[2026-07-29 19:24:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-63884ccc
+[2026-07-29 19:24:07] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:24:08] MT5 Connected
+[2026-07-29 19:24:08] Symbol: XAUUSD
+[2026-07-29 19:24:08] Timeframe: H1
+[2026-07-29 19:24:08] Candles Received: 10
+[2026-07-29 19:24:08] Features Generated: true
+[2026-07-29 19:24:08] Research Completed: true
+[2026-07-29 19:24:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-73ded500.json
+[2026-07-29 19:24:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-73ded500
+[2026-07-29 19:24:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:24:08] MT5 Connected
+[2026-07-29 19:24:08] Symbol: XAUUSD
+[2026-07-29 19:24:08] Timeframe: H1
+[2026-07-29 19:24:08] Candles Received: 10
+[2026-07-29 19:24:08] Features Generated: true
+[2026-07-29 19:24:08] Research Completed: true
+[2026-07-29 19:24:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-fa9ab1ee.json
+[2026-07-29 19:24:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-fa9ab1ee
+[2026-07-29 19:24:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:24:35] MT5 Connected
+[2026-07-29 19:24:35] Symbol: XAUUSD
+[2026-07-29 19:24:35] Timeframe: H1
+[2026-07-29 19:24:35] Candles Received: 10
+[2026-07-29 19:24:35] Features Generated: true
+[2026-07-29 19:24:35] Research Completed: true
+[2026-07-29 19:24:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-0a3f0bb9.json
+[2026-07-29 19:24:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-0a3f0bb9
+[2026-07-29 19:24:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:24:37] MT5 Connected
+[2026-07-29 19:24:37] Symbol: XAUUSD
+[2026-07-29 19:24:37] Timeframe: H1
+[2026-07-29 19:24:37] Candles Received: 10
+[2026-07-29 19:24:37] Features Generated: true
+[2026-07-29 19:24:37] Research Completed: true
+[2026-07-29 19:24:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-6e1aacdb.json
+[2026-07-29 19:24:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-6e1aacdb
+[2026-07-29 19:24:38] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:24:38] MT5 Connected
+[2026-07-29 19:24:38] Symbol: XAUUSD
+[2026-07-29 19:24:38] Timeframe: H1
+[2026-07-29 19:24:38] Candles Received: 10
+[2026-07-29 19:24:38] Features Generated: true
+[2026-07-29 19:24:38] Research Completed: true
+[2026-07-29 19:24:38] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-78832232.json
+[2026-07-29 19:24:38] Research cycle completed successfully. Result ID: rpt-XAUUSD-78832232
+[2026-07-29 19:24:38] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:24:38] MT5 Connected
+[2026-07-29 19:24:38] Symbol: XAUUSD
+[2026-07-29 19:24:38] Timeframe: H1
+[2026-07-29 19:24:38] Candles Received: 10
+[2026-07-29 19:24:38] Features Generated: true
+[2026-07-29 19:24:38] Research Completed: true
+[2026-07-29 19:24:38] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ab09fb48.json
+[2026-07-29 19:24:38] Research cycle completed successfully. Result ID: rpt-XAUUSD-ab09fb48
+[2026-07-29 19:25:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:25:06] MT5 Connected
+[2026-07-29 19:25:06] Symbol: XAUUSD
+[2026-07-29 19:25:06] Timeframe: H1
+[2026-07-29 19:25:06] Candles Received: 10
+[2026-07-29 19:25:06] Features Generated: true
+[2026-07-29 19:25:06] Research Completed: true
+[2026-07-29 19:25:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9a9b5a45.json
+[2026-07-29 19:25:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-9a9b5a45
+[2026-07-29 19:25:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:25:08] MT5 Connected
+[2026-07-29 19:25:08] Symbol: XAUUSD
+[2026-07-29 19:25:08] Timeframe: H1
+[2026-07-29 19:25:08] Candles Received: 10
+[2026-07-29 19:25:08] Features Generated: true
+[2026-07-29 19:25:08] Research Completed: true
+[2026-07-29 19:25:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-e6e7a8f5.json
+[2026-07-29 19:25:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-e6e7a8f5
+[2026-07-29 19:25:09] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:25:09] MT5 Connected
+[2026-07-29 19:25:09] Symbol: XAUUSD
+[2026-07-29 19:25:09] Timeframe: H1
+[2026-07-29 19:25:09] Candles Received: 10
+[2026-07-29 19:25:09] Features Generated: true
+[2026-07-29 19:25:09] Research Completed: true
+[2026-07-29 19:25:09] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-1ecc11c5.json
+[2026-07-29 19:25:09] Research cycle completed successfully. Result ID: rpt-XAUUSD-1ecc11c5
+[2026-07-29 19:25:09] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:25:09] MT5 Connected
+[2026-07-29 19:25:09] Symbol: XAUUSD
+[2026-07-29 19:25:09] Timeframe: H1
+[2026-07-29 19:25:09] Candles Received: 10
+[2026-07-29 19:25:09] Features Generated: true
+[2026-07-29 19:25:09] Research Completed: true
+[2026-07-29 19:25:09] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-fb79d88f.json
+[2026-07-29 19:25:09] Research cycle completed successfully. Result ID: rpt-XAUUSD-fb79d88f
+[2026-07-29 19:25:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:25:37] MT5 Connected
+[2026-07-29 19:25:37] Symbol: XAUUSD
+[2026-07-29 19:25:37] Timeframe: H1
+[2026-07-29 19:25:37] Candles Received: 10
+[2026-07-29 19:25:37] Features Generated: true
+[2026-07-29 19:25:37] Research Completed: true
+[2026-07-29 19:25:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-bf54e750.json
+[2026-07-29 19:25:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-bf54e750
+[2026-07-29 19:25:38] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:25:38] MT5 Connected
+[2026-07-29 19:25:38] Symbol: XAUUSD
+[2026-07-29 19:25:38] Timeframe: H1
+[2026-07-29 19:25:38] Candles Received: 10
+[2026-07-29 19:25:38] Features Generated: true
+[2026-07-29 19:25:38] Research Completed: true
+[2026-07-29 19:25:38] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-6ffc4531.json
+[2026-07-29 19:25:38] Research cycle completed successfully. Result ID: rpt-XAUUSD-6ffc4531
+[2026-07-29 19:25:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:25:40] MT5 Connected
+[2026-07-29 19:25:40] Symbol: XAUUSD
+[2026-07-29 19:25:40] Timeframe: H1
+[2026-07-29 19:25:40] Candles Received: 10
+[2026-07-29 19:25:40] Features Generated: true
+[2026-07-29 19:25:40] Research Completed: true
+[2026-07-29 19:25:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c6aefa02.json
+[2026-07-29 19:25:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-c6aefa02
+[2026-07-29 19:25:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:25:40] MT5 Connected
+[2026-07-29 19:25:40] Symbol: XAUUSD
+[2026-07-29 19:25:40] Timeframe: H1
+[2026-07-29 19:25:40] Candles Received: 10
+[2026-07-29 19:25:40] Features Generated: true
+[2026-07-29 19:25:40] Research Completed: true
+[2026-07-29 19:25:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-cf46bce9.json
+[2026-07-29 19:25:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-cf46bce9
+[2026-07-29 19:26:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:26:08] MT5 Connected
+[2026-07-29 19:26:08] Symbol: XAUUSD
+[2026-07-29 19:26:08] Timeframe: H1
+[2026-07-29 19:26:08] Candles Received: 10
+[2026-07-29 19:26:08] Features Generated: true
+[2026-07-29 19:26:08] Research Completed: true
+[2026-07-29 19:26:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ff39e898.json
+[2026-07-29 19:26:08] Research cycle completed successfully. Result ID: rpt-XAUUSD-ff39e898
+[2026-07-29 19:26:09] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:26:09] MT5 Connected
+[2026-07-29 19:26:09] Symbol: XAUUSD
+[2026-07-29 19:26:09] Timeframe: H1
+[2026-07-29 19:26:09] Candles Received: 10
+[2026-07-29 19:26:09] Features Generated: true
+[2026-07-29 19:26:09] Research Completed: true
+[2026-07-29 19:26:09] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-6d781960.json
+[2026-07-29 19:26:09] Research cycle completed successfully. Result ID: rpt-XAUUSD-6d781960
+[2026-07-29 19:26:10] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:26:10] MT5 Connected
+[2026-07-29 19:26:10] Symbol: XAUUSD
+[2026-07-29 19:26:10] Timeframe: H1
+[2026-07-29 19:26:10] Candles Received: 10
+[2026-07-29 19:26:10] Features Generated: true
+[2026-07-29 19:26:10] Research Completed: true
+[2026-07-29 19:26:10] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f51de7e8.json
+[2026-07-29 19:26:10] Research cycle completed successfully. Result ID: rpt-XAUUSD-f51de7e8
+[2026-07-29 19:26:10] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:26:10] MT5 Connected
+[2026-07-29 19:26:10] Symbol: XAUUSD
+[2026-07-29 19:26:10] Timeframe: H1
+[2026-07-29 19:26:10] Candles Received: 10
+[2026-07-29 19:26:10] Features Generated: true
+[2026-07-29 19:26:10] Research Completed: true
+[2026-07-29 19:26:10] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-6c3bc27c.json
+[2026-07-29 19:26:10] Research cycle completed successfully. Result ID: rpt-XAUUSD-6c3bc27c
+[2026-07-29 19:26:32] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:26:32] MT5 Connected
+[2026-07-29 19:26:32] Symbol: XAUUSD
+[2026-07-29 19:26:32] Timeframe: H1
+[2026-07-29 19:26:32] Candles Received: 10
+[2026-07-29 19:26:32] Features Generated: true
+[2026-07-29 19:26:32] Research Completed: true
+[2026-07-29 19:26:32] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-48465bed.json
+[2026-07-29 19:26:32] Research cycle completed successfully. Result ID: rpt-XAUUSD-48465bed
+[2026-07-29 19:26:32] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:26:32] MT5 Connected
+[2026-07-29 19:26:32] Symbol: XAUUSD
+[2026-07-29 19:26:32] Timeframe: H1
+[2026-07-29 19:26:32] Candles Received: 10
+[2026-07-29 19:26:32] Features Generated: true
+[2026-07-29 19:26:32] Research Completed: true
+[2026-07-29 19:26:32] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-de178007.json
+[2026-07-29 19:26:32] Research cycle completed successfully. Result ID: rpt-XAUUSD-de178007
+[2026-07-29 19:26:38] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:26:38] MT5 Connected
+[2026-07-29 19:26:38] Symbol: XAUUSD
+[2026-07-29 19:26:38] Timeframe: H1
+[2026-07-29 19:26:38] Candles Received: 10
+[2026-07-29 19:26:38] Features Generated: true
+[2026-07-29 19:26:38] Research Completed: true
+[2026-07-29 19:26:38] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a4f0d20f.json
+[2026-07-29 19:26:38] Research cycle completed successfully. Result ID: rpt-XAUUSD-a4f0d20f
+[2026-07-29 19:26:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:26:40] MT5 Connected
+[2026-07-29 19:26:40] Symbol: XAUUSD
+[2026-07-29 19:26:40] Timeframe: H1
+[2026-07-29 19:26:40] Candles Received: 10
+[2026-07-29 19:26:40] Features Generated: true
+[2026-07-29 19:26:40] Research Completed: true
+[2026-07-29 19:26:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ddc18628.json
+[2026-07-29 19:26:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-ddc18628
+[2026-07-29 19:26:42] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:26:42] MT5 Connected
+[2026-07-29 19:26:42] Symbol: XAUUSD
+[2026-07-29 19:26:42] Timeframe: H1
+[2026-07-29 19:26:42] Candles Received: 10
+[2026-07-29 19:26:42] Features Generated: true
+[2026-07-29 19:26:42] Research Completed: true
+[2026-07-29 19:26:42] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-1843bfba.json
+[2026-07-29 19:26:42] Research cycle completed successfully. Result ID: rpt-XAUUSD-1843bfba
+[2026-07-29 19:26:42] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:26:42] MT5 Connected
+[2026-07-29 19:26:42] Symbol: XAUUSD
+[2026-07-29 19:26:42] Timeframe: H1
+[2026-07-29 19:26:42] Candles Received: 10
+[2026-07-29 19:26:42] Features Generated: true
+[2026-07-29 19:26:42] Research Completed: true
+[2026-07-29 19:26:42] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f2817cf6.json
+[2026-07-29 19:26:42] Research cycle completed successfully. Result ID: rpt-XAUUSD-f2817cf6
+[2026-07-29 19:27:04] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:04] MT5 Connected
+[2026-07-29 19:27:04] Symbol: XAUUSD
+[2026-07-29 19:27:04] Timeframe: H1
+[2026-07-29 19:27:04] Candles Received: 10
+[2026-07-29 19:27:04] Features Generated: true
+[2026-07-29 19:27:04] Research Completed: true
+[2026-07-29 19:27:04] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-e3e62630.json
+[2026-07-29 19:27:04] Research cycle completed successfully. Result ID: rpt-XAUUSD-e3e62630
+[2026-07-29 19:27:04] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:04] MT5 Connected
+[2026-07-29 19:27:04] Symbol: XAUUSD
+[2026-07-29 19:27:04] Timeframe: H1
+[2026-07-29 19:27:04] Candles Received: 10
+[2026-07-29 19:27:04] Features Generated: true
+[2026-07-29 19:27:04] Research Completed: true
+[2026-07-29 19:27:04] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ab216780.json
+[2026-07-29 19:27:04] Research cycle completed successfully. Result ID: rpt-XAUUSD-ab216780
+[2026-07-29 19:27:09] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:09] MT5 Connected
+[2026-07-29 19:27:09] Symbol: XAUUSD
+[2026-07-29 19:27:09] Timeframe: H1
+[2026-07-29 19:27:09] Candles Received: 10
+[2026-07-29 19:27:09] Features Generated: true
+[2026-07-29 19:27:09] Research Completed: true
+[2026-07-29 19:27:09] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-7c5d2c1d.json
+[2026-07-29 19:27:09] Research cycle completed successfully. Result ID: rpt-XAUUSD-7c5d2c1d
+[2026-07-29 19:27:10] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:10] MT5 Connected
+[2026-07-29 19:27:10] Symbol: XAUUSD
+[2026-07-29 19:27:10] Timeframe: H1
+[2026-07-29 19:27:10] Candles Received: 10
+[2026-07-29 19:27:10] Features Generated: true
+[2026-07-29 19:27:10] Research Completed: true
+[2026-07-29 19:27:10] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-3a51ded2.json
+[2026-07-29 19:27:10] Research cycle completed successfully. Result ID: rpt-XAUUSD-3a51ded2
+[2026-07-29 19:27:14] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:14] MT5 Connected
+[2026-07-29 19:27:14] Symbol: XAUUSD
+[2026-07-29 19:27:14] Timeframe: H1
+[2026-07-29 19:27:14] Candles Received: 10
+[2026-07-29 19:27:14] Features Generated: true
+[2026-07-29 19:27:14] Research Completed: true
+[2026-07-29 19:27:14] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-606817fd.json
+[2026-07-29 19:27:14] Research cycle completed successfully. Result ID: rpt-XAUUSD-606817fd
+[2026-07-29 19:27:14] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:14] MT5 Connected
+[2026-07-29 19:27:14] Symbol: XAUUSD
+[2026-07-29 19:27:14] Timeframe: H1
+[2026-07-29 19:27:14] Candles Received: 10
+[2026-07-29 19:27:14] Features Generated: true
+[2026-07-29 19:27:14] Research Completed: true
+[2026-07-29 19:27:14] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-09f13f69.json
+[2026-07-29 19:27:14] Research cycle completed successfully. Result ID: rpt-XAUUSD-09f13f69
+[2026-07-29 19:27:32] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:32] MT5 Connected
+[2026-07-29 19:27:32] Symbol: XAUUSD
+[2026-07-29 19:27:32] Timeframe: H1
+[2026-07-29 19:27:32] Candles Received: 10
+[2026-07-29 19:27:32] Features Generated: true
+[2026-07-29 19:27:32] Research Completed: true
+[2026-07-29 19:27:32] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a6b5e299.json
+[2026-07-29 19:27:32] Research cycle completed successfully. Result ID: rpt-XAUUSD-a6b5e299
+[2026-07-29 19:27:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:35] MT5 Connected
+[2026-07-29 19:27:35] Symbol: XAUUSD
+[2026-07-29 19:27:35] Timeframe: H1
+[2026-07-29 19:27:35] Candles Received: 10
+[2026-07-29 19:27:35] Features Generated: true
+[2026-07-29 19:27:35] Research Completed: true
+[2026-07-29 19:27:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5c778889.json
+[2026-07-29 19:27:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-5c778889
+[2026-07-29 19:27:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:35] MT5 Connected
+[2026-07-29 19:27:35] Symbol: XAUUSD
+[2026-07-29 19:27:35] Timeframe: H1
+[2026-07-29 19:27:35] Candles Received: 10
+[2026-07-29 19:27:35] Features Generated: true
+[2026-07-29 19:27:35] Research Completed: true
+[2026-07-29 19:27:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a6db1630.json
+[2026-07-29 19:27:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-a6db1630
+[2026-07-29 19:27:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:40] MT5 Connected
+[2026-07-29 19:27:40] Symbol: XAUUSD
+[2026-07-29 19:27:40] Timeframe: H1
+[2026-07-29 19:27:40] Candles Received: 10
+[2026-07-29 19:27:40] Features Generated: true
+[2026-07-29 19:27:40] Research Completed: true
+[2026-07-29 19:27:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f282c0c6.json
+[2026-07-29 19:27:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-f282c0c6
+[2026-07-29 19:27:42] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:42] MT5 Connected
+[2026-07-29 19:27:42] Symbol: XAUUSD
+[2026-07-29 19:27:42] Timeframe: H1
+[2026-07-29 19:27:42] Candles Received: 10
+[2026-07-29 19:27:42] Features Generated: true
+[2026-07-29 19:27:42] Research Completed: true
+[2026-07-29 19:27:42] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-82840602.json
+[2026-07-29 19:27:42] Research cycle completed successfully. Result ID: rpt-XAUUSD-82840602
+[2026-07-29 19:27:44] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:44] MT5 Connected
+[2026-07-29 19:27:44] Symbol: XAUUSD
+[2026-07-29 19:27:44] Timeframe: H1
+[2026-07-29 19:27:44] Candles Received: 10
+[2026-07-29 19:27:44] Features Generated: true
+[2026-07-29 19:27:44] Research Completed: true
+[2026-07-29 19:27:44] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-6a082d53.json
+[2026-07-29 19:27:44] Research cycle completed successfully. Result ID: rpt-XAUUSD-6a082d53
+[2026-07-29 19:27:44] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:27:44] MT5 Connected
+[2026-07-29 19:27:44] Symbol: XAUUSD
+[2026-07-29 19:27:45] Timeframe: H1
+[2026-07-29 19:27:45] Candles Received: 10
+[2026-07-29 19:27:45] Features Generated: true
+[2026-07-29 19:27:45] Research Completed: true
+[2026-07-29 19:27:45] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9afe249c.json
+[2026-07-29 19:27:45] Research cycle completed successfully. Result ID: rpt-XAUUSD-9afe249c
+[2026-07-29 19:28:04] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:04] MT5 Connected
+[2026-07-29 19:28:04] Symbol: XAUUSD
+[2026-07-29 19:28:04] Timeframe: H1
+[2026-07-29 19:28:04] Candles Received: 10
+[2026-07-29 19:28:04] Features Generated: true
+[2026-07-29 19:28:04] Research Completed: true
+[2026-07-29 19:28:04] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-82263eee.json
+[2026-07-29 19:28:04] Research cycle completed successfully. Result ID: rpt-XAUUSD-82263eee
+[2026-07-29 19:28:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:06] MT5 Connected
+[2026-07-29 19:28:06] Symbol: XAUUSD
+[2026-07-29 19:28:06] Timeframe: H1
+[2026-07-29 19:28:06] Candles Received: 10
+[2026-07-29 19:28:06] Features Generated: true
+[2026-07-29 19:28:06] Research Completed: true
+[2026-07-29 19:28:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-409b0ab6.json
+[2026-07-29 19:28:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-409b0ab6
+[2026-07-29 19:28:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:06] MT5 Connected
+[2026-07-29 19:28:06] Symbol: XAUUSD
+[2026-07-29 19:28:06] Timeframe: H1
+[2026-07-29 19:28:06] Candles Received: 10
+[2026-07-29 19:28:06] Features Generated: true
+[2026-07-29 19:28:06] Research Completed: true
+[2026-07-29 19:28:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-89e9118e.json
+[2026-07-29 19:28:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-89e9118e
+[2026-07-29 19:28:10] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:10] MT5 Connected
+[2026-07-29 19:28:10] Symbol: XAUUSD
+[2026-07-29 19:28:10] Timeframe: H1
+[2026-07-29 19:28:10] Candles Received: 10
+[2026-07-29 19:28:10] Features Generated: true
+[2026-07-29 19:28:10] Research Completed: true
+[2026-07-29 19:28:10] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-e6e63fcb.json
+[2026-07-29 19:28:10] Research cycle completed successfully. Result ID: rpt-XAUUSD-e6e63fcb
+[2026-07-29 19:28:14] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:14] MT5 Connected
+[2026-07-29 19:28:14] Symbol: XAUUSD
+[2026-07-29 19:28:14] Timeframe: H1
+[2026-07-29 19:28:14] Candles Received: 10
+[2026-07-29 19:28:14] Features Generated: true
+[2026-07-29 19:28:14] Research Completed: true
+[2026-07-29 19:28:14] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-b320dbe0.json
+[2026-07-29 19:28:14] Research cycle completed successfully. Result ID: rpt-XAUUSD-b320dbe0
+[2026-07-29 19:28:15] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:15] MT5 Connected
+[2026-07-29 19:28:15] Symbol: XAUUSD
+[2026-07-29 19:28:15] Timeframe: H1
+[2026-07-29 19:28:16] Candles Received: 10
+[2026-07-29 19:28:16] Features Generated: true
+[2026-07-29 19:28:16] Research Completed: true
+[2026-07-29 19:28:16] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5a7d9b2a.json
+[2026-07-29 19:28:16] Research cycle completed successfully. Result ID: rpt-XAUUSD-5a7d9b2a
+[2026-07-29 19:28:16] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:16] MT5 Connected
+[2026-07-29 19:28:16] Symbol: XAUUSD
+[2026-07-29 19:28:16] Timeframe: H1
+[2026-07-29 19:28:16] Candles Received: 10
+[2026-07-29 19:28:16] Features Generated: true
+[2026-07-29 19:28:16] Research Completed: true
+[2026-07-29 19:28:16] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-05f6c4d7.json
+[2026-07-29 19:28:16] Research cycle completed successfully. Result ID: rpt-XAUUSD-05f6c4d7
+[2026-07-29 19:28:32] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:32] MT5 Connected
+[2026-07-29 19:28:32] Symbol: XAUUSD
+[2026-07-29 19:28:32] Timeframe: H1
+[2026-07-29 19:28:32] Candles Received: 10
+[2026-07-29 19:28:32] Features Generated: true
+[2026-07-29 19:28:32] Research Completed: true
+[2026-07-29 19:28:32] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5bc61ed9.json
+[2026-07-29 19:28:32] Research cycle completed successfully. Result ID: rpt-XAUUSD-5bc61ed9
+[2026-07-29 19:28:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:35] MT5 Connected
+[2026-07-29 19:28:35] Symbol: XAUUSD
+[2026-07-29 19:28:35] Timeframe: H1
+[2026-07-29 19:28:35] Candles Received: 10
+[2026-07-29 19:28:35] Features Generated: true
+[2026-07-29 19:28:35] Research Completed: true
+[2026-07-29 19:28:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-b46d7600.json
+[2026-07-29 19:28:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-b46d7600
+[2026-07-29 19:28:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:37] MT5 Connected
+[2026-07-29 19:28:37] Symbol: XAUUSD
+[2026-07-29 19:28:37] Timeframe: H1
+[2026-07-29 19:28:37] Candles Received: 10
+[2026-07-29 19:28:37] Features Generated: true
+[2026-07-29 19:28:37] Research Completed: true
+[2026-07-29 19:28:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-8e9c9389.json
+[2026-07-29 19:28:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-8e9c9389
+[2026-07-29 19:28:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:37] MT5 Connected
+[2026-07-29 19:28:37] Symbol: XAUUSD
+[2026-07-29 19:28:37] Timeframe: H1
+[2026-07-29 19:28:37] Candles Received: 10
+[2026-07-29 19:28:37] Features Generated: true
+[2026-07-29 19:28:37] Research Completed: true
+[2026-07-29 19:28:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-6c06baec.json
+[2026-07-29 19:28:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-6c06baec
+[2026-07-29 19:28:42] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:42] MT5 Connected
+[2026-07-29 19:28:42] Symbol: XAUUSD
+[2026-07-29 19:28:42] Timeframe: H1
+[2026-07-29 19:28:42] Candles Received: 10
+[2026-07-29 19:28:42] Features Generated: true
+[2026-07-29 19:28:42] Research Completed: true
+[2026-07-29 19:28:42] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f6e9a895.json
+[2026-07-29 19:28:42] Research cycle completed successfully. Result ID: rpt-XAUUSD-f6e9a895
+[2026-07-29 19:28:45] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:45] MT5 Connected
+[2026-07-29 19:28:45] Symbol: XAUUSD
+[2026-07-29 19:28:45] Timeframe: H1
+[2026-07-29 19:28:45] Candles Received: 10
+[2026-07-29 19:28:45] Features Generated: true
+[2026-07-29 19:28:45] Research Completed: true
+[2026-07-29 19:28:45] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9dd96fae.json
+[2026-07-29 19:28:45] Research cycle completed successfully. Result ID: rpt-XAUUSD-9dd96fae
+[2026-07-29 19:28:47] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:47] MT5 Connected
+[2026-07-29 19:28:47] Symbol: XAUUSD
+[2026-07-29 19:28:47] Timeframe: H1
+[2026-07-29 19:28:47] Candles Received: 10
+[2026-07-29 19:28:47] Features Generated: true
+[2026-07-29 19:28:47] Research Completed: true
+[2026-07-29 19:28:47] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-8565d429.json
+[2026-07-29 19:28:47] Research cycle completed successfully. Result ID: rpt-XAUUSD-8565d429
+[2026-07-29 19:28:47] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:28:47] MT5 Connected
+[2026-07-29 19:28:47] Symbol: XAUUSD
+[2026-07-29 19:28:47] Timeframe: H1
+[2026-07-29 19:28:47] Candles Received: 10
+[2026-07-29 19:28:47] Features Generated: true
+[2026-07-29 19:28:47] Research Completed: true
+[2026-07-29 19:28:47] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9863d5a3.json
+[2026-07-29 19:28:47] Research cycle completed successfully. Result ID: rpt-XAUUSD-9863d5a3
+[2026-07-29 19:29:04] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:04] MT5 Connected
+[2026-07-29 19:29:04] Symbol: XAUUSD
+[2026-07-29 19:29:04] Timeframe: H1
+[2026-07-29 19:29:04] Candles Received: 10
+[2026-07-29 19:29:04] Features Generated: true
+[2026-07-29 19:29:04] Research Completed: true
+[2026-07-29 19:29:04] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-cc347268.json
+[2026-07-29 19:29:04] Research cycle completed successfully. Result ID: rpt-XAUUSD-cc347268
+[2026-07-29 19:29:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:06] MT5 Connected
+[2026-07-29 19:29:06] Symbol: XAUUSD
+[2026-07-29 19:29:06] Timeframe: H1
+[2026-07-29 19:29:06] Candles Received: 10
+[2026-07-29 19:29:06] Features Generated: true
+[2026-07-29 19:29:06] Research Completed: true
+[2026-07-29 19:29:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-1c2bebc4.json
+[2026-07-29 19:29:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-1c2bebc4
+[2026-07-29 19:29:08] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:08] MT5 Connected
+[2026-07-29 19:29:08] Symbol: XAUUSD
+[2026-07-29 19:29:08] Timeframe: H1
+[2026-07-29 19:29:08] Candles Received: 10
+[2026-07-29 19:29:08] Features Generated: true
+[2026-07-29 19:29:08] Research Completed: true
+[2026-07-29 19:29:08] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f7589f28.json
+[2026-07-29 19:29:09] Research cycle completed successfully. Result ID: rpt-XAUUSD-f7589f28
+[2026-07-29 19:29:09] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:09] MT5 Connected
+[2026-07-29 19:29:09] Symbol: XAUUSD
+[2026-07-29 19:29:09] Timeframe: H1
+[2026-07-29 19:29:09] Candles Received: 10
+[2026-07-29 19:29:09] Features Generated: true
+[2026-07-29 19:29:09] Research Completed: true
+[2026-07-29 19:29:09] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-41559458.json
+[2026-07-29 19:29:09] Research cycle completed successfully. Result ID: rpt-XAUUSD-41559458
+[2026-07-29 19:29:14] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:14] MT5 Connected
+[2026-07-29 19:29:14] Symbol: XAUUSD
+[2026-07-29 19:29:14] Timeframe: H1
+[2026-07-29 19:29:14] Candles Received: 10
+[2026-07-29 19:29:14] Features Generated: true
+[2026-07-29 19:29:14] Research Completed: true
+[2026-07-29 19:29:14] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d4eb4cf0.json
+[2026-07-29 19:29:14] Research cycle completed successfully. Result ID: rpt-XAUUSD-d4eb4cf0
+[2026-07-29 19:29:16] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:16] MT5 Connected
+[2026-07-29 19:29:16] Symbol: XAUUSD
+[2026-07-29 19:29:16] Timeframe: H1
+[2026-07-29 19:29:16] Candles Received: 10
+[2026-07-29 19:29:16] Features Generated: true
+[2026-07-29 19:29:16] Research Completed: true
+[2026-07-29 19:29:16] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-0f9587de.json
+[2026-07-29 19:29:16] Research cycle completed successfully. Result ID: rpt-XAUUSD-0f9587de
+[2026-07-29 19:29:18] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:18] MT5 Connected
+[2026-07-29 19:29:18] Symbol: XAUUSD
+[2026-07-29 19:29:18] Timeframe: H1
+[2026-07-29 19:29:18] Candles Received: 10
+[2026-07-29 19:29:18] Features Generated: true
+[2026-07-29 19:29:18] Research Completed: true
+[2026-07-29 19:29:18] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-54f06da2.json
+[2026-07-29 19:29:18] Research cycle completed successfully. Result ID: rpt-XAUUSD-54f06da2
+[2026-07-29 19:29:18] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:18] MT5 Connected
+[2026-07-29 19:29:18] Symbol: XAUUSD
+[2026-07-29 19:29:18] Timeframe: H1
+[2026-07-29 19:29:18] Candles Received: 10
+[2026-07-29 19:29:18] Features Generated: true
+[2026-07-29 19:29:18] Research Completed: true
+[2026-07-29 19:29:18] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-735b1363.json
+[2026-07-29 19:29:18] Research cycle completed successfully. Result ID: rpt-XAUUSD-735b1363
+[2026-07-29 19:29:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:35] MT5 Connected
+[2026-07-29 19:29:35] Symbol: XAUUSD
+[2026-07-29 19:29:35] Timeframe: H1
+[2026-07-29 19:29:35] Candles Received: 10
+[2026-07-29 19:29:35] Features Generated: true
+[2026-07-29 19:29:35] Research Completed: true
+[2026-07-29 19:29:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-e31125ac.json
+[2026-07-29 19:29:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-e31125ac
+[2026-07-29 19:29:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:37] MT5 Connected
+[2026-07-29 19:29:37] Symbol: XAUUSD
+[2026-07-29 19:29:37] Timeframe: H1
+[2026-07-29 19:29:37] Candles Received: 10
+[2026-07-29 19:29:37] Features Generated: true
+[2026-07-29 19:29:37] Research Completed: true
+[2026-07-29 19:29:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-82733a4e.json
+[2026-07-29 19:29:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-82733a4e
+[2026-07-29 19:29:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:40] MT5 Connected
+[2026-07-29 19:29:40] Symbol: XAUUSD
+[2026-07-29 19:29:40] Timeframe: H1
+[2026-07-29 19:29:40] Candles Received: 10
+[2026-07-29 19:29:40] Features Generated: true
+[2026-07-29 19:29:40] Research Completed: true
+[2026-07-29 19:29:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-353c816a.json
+[2026-07-29 19:29:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-353c816a
+[2026-07-29 19:29:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:40] MT5 Connected
+[2026-07-29 19:29:40] Symbol: XAUUSD
+[2026-07-29 19:29:40] Timeframe: H1
+[2026-07-29 19:29:40] Candles Received: 10
+[2026-07-29 19:29:40] Features Generated: true
+[2026-07-29 19:29:40] Research Completed: true
+[2026-07-29 19:29:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c29c4d5d.json
+[2026-07-29 19:29:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-c29c4d5d
+[2026-07-29 19:29:45] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:45] MT5 Connected
+[2026-07-29 19:29:45] Symbol: XAUUSD
+[2026-07-29 19:29:45] Timeframe: H1
+[2026-07-29 19:29:45] Candles Received: 10
+[2026-07-29 19:29:45] Features Generated: true
+[2026-07-29 19:29:45] Research Completed: true
+[2026-07-29 19:29:45] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-8b8635dc.json
+[2026-07-29 19:29:45] Research cycle completed successfully. Result ID: rpt-XAUUSD-8b8635dc
+[2026-07-29 19:29:47] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:47] MT5 Connected
+[2026-07-29 19:29:47] Symbol: XAUUSD
+[2026-07-29 19:29:47] Timeframe: H1
+[2026-07-29 19:29:47] Candles Received: 10
+[2026-07-29 19:29:47] Features Generated: true
+[2026-07-29 19:29:47] Research Completed: true
+[2026-07-29 19:29:47] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-24b8051f.json
+[2026-07-29 19:29:47] Research cycle completed successfully. Result ID: rpt-XAUUSD-24b8051f
+[2026-07-29 19:29:49] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:49] MT5 Connected
+[2026-07-29 19:29:49] Symbol: XAUUSD
+[2026-07-29 19:29:49] Timeframe: H1
+[2026-07-29 19:29:49] Candles Received: 10
+[2026-07-29 19:29:49] Features Generated: true
+[2026-07-29 19:29:49] Research Completed: true
+[2026-07-29 19:29:49] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-1c76fecc.json
+[2026-07-29 19:29:49] Research cycle completed successfully. Result ID: rpt-XAUUSD-1c76fecc
+[2026-07-29 19:29:49] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:29:49] MT5 Connected
+[2026-07-29 19:29:49] Symbol: XAUUSD
+[2026-07-29 19:29:49] Timeframe: H1
+[2026-07-29 19:29:49] Candles Received: 10
+[2026-07-29 19:29:49] Features Generated: true
+[2026-07-29 19:29:49] Research Completed: true
+[2026-07-29 19:29:49] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-75f00c3c.json
+[2026-07-29 19:29:49] Research cycle completed successfully. Result ID: rpt-XAUUSD-75f00c3c
+[2026-07-29 19:30:06] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:06] MT5 Connected
+[2026-07-29 19:30:06] Symbol: XAUUSD
+[2026-07-29 19:30:06] Timeframe: H1
+[2026-07-29 19:30:06] Candles Received: 10
+[2026-07-29 19:30:06] Features Generated: true
+[2026-07-29 19:30:06] Research Completed: true
+[2026-07-29 19:30:06] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-3ec6a938.json
+[2026-07-29 19:30:06] Research cycle completed successfully. Result ID: rpt-XAUUSD-3ec6a938
+[2026-07-29 19:30:09] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:09] MT5 Connected
+[2026-07-29 19:30:09] Symbol: XAUUSD
+[2026-07-29 19:30:09] Timeframe: H1
+[2026-07-29 19:30:09] Candles Received: 10
+[2026-07-29 19:30:09] Features Generated: true
+[2026-07-29 19:30:09] Research Completed: true
+[2026-07-29 19:30:09] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-225f38d0.json
+[2026-07-29 19:30:09] Research cycle completed successfully. Result ID: rpt-XAUUSD-225f38d0
+[2026-07-29 19:30:11] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:11] MT5 Connected
+[2026-07-29 19:30:11] Symbol: XAUUSD
+[2026-07-29 19:30:11] Timeframe: H1
+[2026-07-29 19:30:11] Candles Received: 10
+[2026-07-29 19:30:11] Features Generated: true
+[2026-07-29 19:30:11] Research Completed: true
+[2026-07-29 19:30:11] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-eaab729d.json
+[2026-07-29 19:30:11] Research cycle completed successfully. Result ID: rpt-XAUUSD-eaab729d
+[2026-07-29 19:30:11] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:11] MT5 Connected
+[2026-07-29 19:30:11] Symbol: XAUUSD
+[2026-07-29 19:30:11] Timeframe: H1
+[2026-07-29 19:30:11] Candles Received: 10
+[2026-07-29 19:30:11] Features Generated: true
+[2026-07-29 19:30:11] Research Completed: true
+[2026-07-29 19:30:11] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-08ba9ba5.json
+[2026-07-29 19:30:11] Research cycle completed successfully. Result ID: rpt-XAUUSD-08ba9ba5
+[2026-07-29 19:30:16] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:16] MT5 Connected
+[2026-07-29 19:30:16] Symbol: XAUUSD
+[2026-07-29 19:30:16] Timeframe: H1
+[2026-07-29 19:30:16] Candles Received: 10
+[2026-07-29 19:30:16] Features Generated: true
+[2026-07-29 19:30:16] Research Completed: true
+[2026-07-29 19:30:16] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-b4da4721.json
+[2026-07-29 19:30:16] Research cycle completed successfully. Result ID: rpt-XAUUSD-b4da4721
+[2026-07-29 19:30:18] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:18] MT5 Connected
+[2026-07-29 19:30:18] Symbol: XAUUSD
+[2026-07-29 19:30:18] Timeframe: H1
+[2026-07-29 19:30:18] Candles Received: 10
+[2026-07-29 19:30:18] Features Generated: true
+[2026-07-29 19:30:18] Research Completed: true
+[2026-07-29 19:30:18] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-1b5bb8be.json
+[2026-07-29 19:30:18] Research cycle completed successfully. Result ID: rpt-XAUUSD-1b5bb8be
+[2026-07-29 19:30:20] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:20] MT5 Connected
+[2026-07-29 19:30:20] Symbol: XAUUSD
+[2026-07-29 19:30:20] Timeframe: H1
+[2026-07-29 19:30:20] Candles Received: 10
+[2026-07-29 19:30:20] Features Generated: true
+[2026-07-29 19:30:20] Research Completed: true
+[2026-07-29 19:30:20] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-3ade4c78.json
+[2026-07-29 19:30:20] Research cycle completed successfully. Result ID: rpt-XAUUSD-3ade4c78
+[2026-07-29 19:30:20] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:20] MT5 Connected
+[2026-07-29 19:30:20] Symbol: XAUUSD
+[2026-07-29 19:30:20] Timeframe: H1
+[2026-07-29 19:30:20] Candles Received: 10
+[2026-07-29 19:30:20] Features Generated: true
+[2026-07-29 19:30:20] Research Completed: true
+[2026-07-29 19:30:20] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ca7f2f98.json
+[2026-07-29 19:30:20] Research cycle completed successfully. Result ID: rpt-XAUUSD-ca7f2f98
+[2026-07-29 19:30:29] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:29] MT5 Connected
+[2026-07-29 19:30:29] Symbol: XAUUSD
+[2026-07-29 19:30:29] Timeframe: H1
+[2026-07-29 19:30:29] Candles Received: 60
+[2026-07-29 19:30:29] Features Generated: true
+[2026-07-29 19:30:29] Research Completed: true
+[2026-07-29 19:30:29] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-164c791b.json
+[2026-07-29 19:30:29] Research cycle completed successfully. Result ID: rpt-XAUUSD-164c791b
+[2026-07-29 19:30:29] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:29] MT5 Connected
+[2026-07-29 19:30:29] Symbol: XAUUSD
+[2026-07-29 19:30:29] Timeframe: H1
+[2026-07-29 19:30:29] Candles Received: 60
+[2026-07-29 19:30:29] Features Generated: true
+[2026-07-29 19:30:29] Research Completed: true
+[2026-07-29 19:30:29] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-650cf57c.json
+[2026-07-29 19:30:29] Research cycle completed successfully. Result ID: rpt-XAUUSD-650cf57c
+[2026-07-29 19:30:37] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:37] MT5 Connected
+[2026-07-29 19:30:37] Symbol: XAUUSD
+[2026-07-29 19:30:37] Timeframe: H1
+[2026-07-29 19:30:37] Candles Received: 10
+[2026-07-29 19:30:37] Features Generated: true
+[2026-07-29 19:30:37] Research Completed: true
+[2026-07-29 19:30:37] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f59107a1.json
+[2026-07-29 19:30:37] Research cycle completed successfully. Result ID: rpt-XAUUSD-f59107a1
+[2026-07-29 19:30:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:40] MT5 Connected
+[2026-07-29 19:30:40] Symbol: XAUUSD
+[2026-07-29 19:30:40] Timeframe: H1
+[2026-07-29 19:30:40] Candles Received: 10
+[2026-07-29 19:30:40] Features Generated: true
+[2026-07-29 19:30:40] Research Completed: true
+[2026-07-29 19:30:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-aa3572dc.json
+[2026-07-29 19:30:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-aa3572dc
+[2026-07-29 19:30:42] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:42] MT5 Connected
+[2026-07-29 19:30:42] Symbol: XAUUSD
+[2026-07-29 19:30:42] Timeframe: H1
+[2026-07-29 19:30:42] Candles Received: 10
+[2026-07-29 19:30:42] Features Generated: true
+[2026-07-29 19:30:42] Research Completed: true
+[2026-07-29 19:30:42] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c2dab0ad.json
+[2026-07-29 19:30:42] Research cycle completed successfully. Result ID: rpt-XAUUSD-c2dab0ad
+[2026-07-29 19:30:42] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:42] MT5 Connected
+[2026-07-29 19:30:42] Symbol: XAUUSD
+[2026-07-29 19:30:42] Timeframe: H1
+[2026-07-29 19:30:42] Candles Received: 10
+[2026-07-29 19:30:42] Features Generated: true
+[2026-07-29 19:30:42] Research Completed: true
+[2026-07-29 19:30:42] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f49f6e44.json
+[2026-07-29 19:30:42] Research cycle completed successfully. Result ID: rpt-XAUUSD-f49f6e44
+[2026-07-29 19:30:47] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:47] MT5 Connected
+[2026-07-29 19:30:47] Symbol: XAUUSD
+[2026-07-29 19:30:47] Timeframe: H1
+[2026-07-29 19:30:47] Candles Received: 10
+[2026-07-29 19:30:47] Features Generated: true
+[2026-07-29 19:30:47] Research Completed: true
+[2026-07-29 19:30:47] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-bd6b6be5.json
+[2026-07-29 19:30:47] Research cycle completed successfully. Result ID: rpt-XAUUSD-bd6b6be5
+[2026-07-29 19:30:49] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:49] MT5 Connected
+[2026-07-29 19:30:49] Symbol: XAUUSD
+[2026-07-29 19:30:49] Timeframe: H1
+[2026-07-29 19:30:49] Candles Received: 10
+[2026-07-29 19:30:49] Features Generated: true
+[2026-07-29 19:30:49] Research Completed: true
+[2026-07-29 19:30:49] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-17e38c30.json
+[2026-07-29 19:30:49] Research cycle completed successfully. Result ID: rpt-XAUUSD-17e38c30
+[2026-07-29 19:30:51] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:51] MT5 Connected
+[2026-07-29 19:30:51] Symbol: XAUUSD
+[2026-07-29 19:30:51] Timeframe: H1
+[2026-07-29 19:30:51] Candles Received: 10
+[2026-07-29 19:30:51] Features Generated: true
+[2026-07-29 19:30:51] Research Completed: true
+[2026-07-29 19:30:51] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f34c49ea.json
+[2026-07-29 19:30:51] Research cycle completed successfully. Result ID: rpt-XAUUSD-f34c49ea
+[2026-07-29 19:30:51] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:30:51] MT5 Connected
+[2026-07-29 19:30:51] Symbol: XAUUSD
+[2026-07-29 19:30:51] Timeframe: H1
+[2026-07-29 19:30:51] Candles Received: 10
+[2026-07-29 19:30:51] Features Generated: true
+[2026-07-29 19:30:51] Research Completed: true
+[2026-07-29 19:30:51] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-654b03a0.json
+[2026-07-29 19:30:51] Research cycle completed successfully. Result ID: rpt-XAUUSD-654b03a0
+[2026-07-29 19:31:09] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:09] MT5 Connected
+[2026-07-29 19:31:09] Symbol: XAUUSD
+[2026-07-29 19:31:09] Timeframe: H1
+[2026-07-29 19:31:09] Candles Received: 10
+[2026-07-29 19:31:09] Features Generated: true
+[2026-07-29 19:31:09] Research Completed: true
+[2026-07-29 19:31:09] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5a066382.json
+[2026-07-29 19:31:09] Research cycle completed successfully. Result ID: rpt-XAUUSD-5a066382
+[2026-07-29 19:31:11] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:11] MT5 Connected
+[2026-07-29 19:31:11] Symbol: XAUUSD
+[2026-07-29 19:31:11] Timeframe: H1
+[2026-07-29 19:31:11] Candles Received: 10
+[2026-07-29 19:31:11] Features Generated: true
+[2026-07-29 19:31:11] Research Completed: true
+[2026-07-29 19:31:11] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f90b55ab.json
+[2026-07-29 19:31:11] Research cycle completed successfully. Result ID: rpt-XAUUSD-f90b55ab
+[2026-07-29 19:31:13] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:13] MT5 Connected
+[2026-07-29 19:31:13] Symbol: XAUUSD
+[2026-07-29 19:31:13] Timeframe: H1
+[2026-07-29 19:31:13] Candles Received: 10
+[2026-07-29 19:31:13] Features Generated: true
+[2026-07-29 19:31:13] Research Completed: true
+[2026-07-29 19:31:13] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-e577448c.json
+[2026-07-29 19:31:13] Research cycle completed successfully. Result ID: rpt-XAUUSD-e577448c
+[2026-07-29 19:31:13] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:13] MT5 Connected
+[2026-07-29 19:31:13] Symbol: XAUUSD
+[2026-07-29 19:31:13] Timeframe: H1
+[2026-07-29 19:31:13] Candles Received: 10
+[2026-07-29 19:31:13] Features Generated: true
+[2026-07-29 19:31:13] Research Completed: true
+[2026-07-29 19:31:13] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-4acdef6a.json
+[2026-07-29 19:31:13] Research cycle completed successfully. Result ID: rpt-XAUUSD-4acdef6a
+[2026-07-29 19:31:18] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:18] MT5 Connected
+[2026-07-29 19:31:18] Symbol: XAUUSD
+[2026-07-29 19:31:18] Timeframe: H1
+[2026-07-29 19:31:18] Candles Received: 10
+[2026-07-29 19:31:18] Features Generated: true
+[2026-07-29 19:31:18] Research Completed: true
+[2026-07-29 19:31:18] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5adb8724.json
+[2026-07-29 19:31:18] Research cycle completed successfully. Result ID: rpt-XAUUSD-5adb8724
+[2026-07-29 19:31:20] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:20] MT5 Connected
+[2026-07-29 19:31:20] Symbol: XAUUSD
+[2026-07-29 19:31:20] Timeframe: H1
+[2026-07-29 19:31:20] Candles Received: 10
+[2026-07-29 19:31:20] Features Generated: true
+[2026-07-29 19:31:20] Research Completed: true
+[2026-07-29 19:31:20] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-946ee552.json
+[2026-07-29 19:31:20] Research cycle completed successfully. Result ID: rpt-XAUUSD-946ee552
+[2026-07-29 19:31:22] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:22] MT5 Connected
+[2026-07-29 19:31:22] Symbol: XAUUSD
+[2026-07-29 19:31:22] Timeframe: H1
+[2026-07-29 19:31:22] Candles Received: 10
+[2026-07-29 19:31:22] Features Generated: true
+[2026-07-29 19:31:22] Research Completed: true
+[2026-07-29 19:31:22] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ab09bb47.json
+[2026-07-29 19:31:22] Research cycle completed successfully. Result ID: rpt-XAUUSD-ab09bb47
+[2026-07-29 19:31:22] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:22] MT5 Connected
+[2026-07-29 19:31:22] Symbol: XAUUSD
+[2026-07-29 19:31:22] Timeframe: H1
+[2026-07-29 19:31:22] Candles Received: 10
+[2026-07-29 19:31:22] Features Generated: true
+[2026-07-29 19:31:22] Research Completed: true
+[2026-07-29 19:31:22] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d543879e.json
+[2026-07-29 19:31:22] Research cycle completed successfully. Result ID: rpt-XAUUSD-d543879e
+[2026-07-29 19:31:29] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:29] MT5 Connected
+[2026-07-29 19:31:29] Symbol: XAUUSD
+[2026-07-29 19:31:29] Timeframe: H1
+[2026-07-29 19:31:29] Candles Received: 60
+[2026-07-29 19:31:29] Features Generated: true
+[2026-07-29 19:31:29] Research Completed: true
+[2026-07-29 19:31:29] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-ca4308e2.json
+[2026-07-29 19:31:29] Research cycle completed successfully. Result ID: rpt-XAUUSD-ca4308e2
+[2026-07-29 19:31:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:40] MT5 Connected
+[2026-07-29 19:31:40] Symbol: XAUUSD
+[2026-07-29 19:31:40] Timeframe: H1
+[2026-07-29 19:31:40] Candles Received: 10
+[2026-07-29 19:31:40] Features Generated: true
+[2026-07-29 19:31:40] Research Completed: true
+[2026-07-29 19:31:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-950856bf.json
+[2026-07-29 19:31:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-950856bf
+[2026-07-29 19:31:42] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:42] MT5 Connected
+[2026-07-29 19:31:42] Symbol: XAUUSD
+[2026-07-29 19:31:42] Timeframe: H1
+[2026-07-29 19:31:42] Candles Received: 10
+[2026-07-29 19:31:42] Features Generated: true
+[2026-07-29 19:31:42] Research Completed: true
+[2026-07-29 19:31:42] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-fb7a7d6d.json
+[2026-07-29 19:31:42] Research cycle completed successfully. Result ID: rpt-XAUUSD-fb7a7d6d
+[2026-07-29 19:31:44] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:44] MT5 Connected
+[2026-07-29 19:31:44] Symbol: XAUUSD
+[2026-07-29 19:31:44] Timeframe: H1
+[2026-07-29 19:31:44] Candles Received: 10
+[2026-07-29 19:31:44] Features Generated: true
+[2026-07-29 19:31:44] Research Completed: true
+[2026-07-29 19:31:44] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-87cbb407.json
+[2026-07-29 19:31:44] Research cycle completed successfully. Result ID: rpt-XAUUSD-87cbb407
+[2026-07-29 19:31:44] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:44] MT5 Connected
+[2026-07-29 19:31:44] Symbol: XAUUSD
+[2026-07-29 19:31:45] Timeframe: H1
+[2026-07-29 19:31:45] Candles Received: 10
+[2026-07-29 19:31:45] Features Generated: true
+[2026-07-29 19:31:45] Research Completed: true
+[2026-07-29 19:31:45] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-318a16ab.json
+[2026-07-29 19:31:45] Research cycle completed successfully. Result ID: rpt-XAUUSD-318a16ab
+[2026-07-29 19:31:49] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:49] MT5 Connected
+[2026-07-29 19:31:49] Symbol: XAUUSD
+[2026-07-29 19:31:49] Timeframe: H1
+[2026-07-29 19:31:49] Candles Received: 10
+[2026-07-29 19:31:49] Features Generated: true
+[2026-07-29 19:31:49] Research Completed: true
+[2026-07-29 19:31:49] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-8d5a9098.json
+[2026-07-29 19:31:49] Research cycle completed successfully. Result ID: rpt-XAUUSD-8d5a9098
+[2026-07-29 19:31:51] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:51] MT5 Connected
+[2026-07-29 19:31:51] Symbol: XAUUSD
+[2026-07-29 19:31:51] Timeframe: H1
+[2026-07-29 19:31:51] Candles Received: 10
+[2026-07-29 19:31:51] Features Generated: true
+[2026-07-29 19:31:51] Research Completed: true
+[2026-07-29 19:31:51] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-10c62716.json
+[2026-07-29 19:31:51] Research cycle completed successfully. Result ID: rpt-XAUUSD-10c62716
+[2026-07-29 19:31:54] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:54] MT5 Connected
+[2026-07-29 19:31:54] Symbol: XAUUSD
+[2026-07-29 19:31:54] Timeframe: H1
+[2026-07-29 19:31:54] Candles Received: 10
+[2026-07-29 19:31:54] Features Generated: true
+[2026-07-29 19:31:54] Research Completed: true
+[2026-07-29 19:31:54] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c08d3f12.json
+[2026-07-29 19:31:54] Research cycle completed successfully. Result ID: rpt-XAUUSD-c08d3f12
+[2026-07-29 19:31:54] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:31:54] MT5 Connected
+[2026-07-29 19:31:54] Symbol: XAUUSD
+[2026-07-29 19:31:54] Timeframe: H1
+[2026-07-29 19:31:54] Candles Received: 10
+[2026-07-29 19:31:54] Features Generated: true
+[2026-07-29 19:31:54] Research Completed: true
+[2026-07-29 19:31:54] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d079c24b.json
+[2026-07-29 19:31:54] Research cycle completed successfully. Result ID: rpt-XAUUSD-d079c24b
+[2026-07-29 19:32:11] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:11] MT5 Connected
+[2026-07-29 19:32:11] Symbol: XAUUSD
+[2026-07-29 19:32:11] Timeframe: H1
+[2026-07-29 19:32:11] Candles Received: 10
+[2026-07-29 19:32:11] Features Generated: true
+[2026-07-29 19:32:11] Research Completed: true
+[2026-07-29 19:32:11] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-92bb6c3b.json
+[2026-07-29 19:32:11] Research cycle completed successfully. Result ID: rpt-XAUUSD-92bb6c3b
+[2026-07-29 19:32:13] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:13] MT5 Connected
+[2026-07-29 19:32:13] Symbol: XAUUSD
+[2026-07-29 19:32:13] Timeframe: H1
+[2026-07-29 19:32:13] Candles Received: 10
+[2026-07-29 19:32:13] Features Generated: true
+[2026-07-29 19:32:13] Research Completed: true
+[2026-07-29 19:32:13] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-b68c354c.json
+[2026-07-29 19:32:13] Research cycle completed successfully. Result ID: rpt-XAUUSD-b68c354c
+[2026-07-29 19:32:16] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:16] MT5 Connected
+[2026-07-29 19:32:16] Symbol: XAUUSD
+[2026-07-29 19:32:16] Timeframe: H1
+[2026-07-29 19:32:16] Candles Received: 10
+[2026-07-29 19:32:16] Features Generated: true
+[2026-07-29 19:32:16] Research Completed: true
+[2026-07-29 19:32:16] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-686321ff.json
+[2026-07-29 19:32:16] Research cycle completed successfully. Result ID: rpt-XAUUSD-686321ff
+[2026-07-29 19:32:16] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:16] MT5 Connected
+[2026-07-29 19:32:16] Symbol: XAUUSD
+[2026-07-29 19:32:16] Timeframe: H1
+[2026-07-29 19:32:16] Candles Received: 10
+[2026-07-29 19:32:16] Features Generated: true
+[2026-07-29 19:32:16] Research Completed: true
+[2026-07-29 19:32:16] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a3addb48.json
+[2026-07-29 19:32:16] Research cycle completed successfully. Result ID: rpt-XAUUSD-a3addb48
+[2026-07-29 19:32:20] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:20] MT5 Connected
+[2026-07-29 19:32:20] Symbol: XAUUSD
+[2026-07-29 19:32:20] Timeframe: H1
+[2026-07-29 19:32:20] Candles Received: 10
+[2026-07-29 19:32:20] Features Generated: true
+[2026-07-29 19:32:20] Research Completed: true
+[2026-07-29 19:32:20] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-60bd6199.json
+[2026-07-29 19:32:20] Research cycle completed successfully. Result ID: rpt-XAUUSD-60bd6199
+[2026-07-29 19:32:22] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:22] MT5 Connected
+[2026-07-29 19:32:22] Symbol: XAUUSD
+[2026-07-29 19:32:22] Timeframe: H1
+[2026-07-29 19:32:22] Candles Received: 10
+[2026-07-29 19:32:22] Features Generated: true
+[2026-07-29 19:32:22] Research Completed: true
+[2026-07-29 19:32:22] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-954b1aea.json
+[2026-07-29 19:32:22] Research cycle completed successfully. Result ID: rpt-XAUUSD-954b1aea
+[2026-07-29 19:32:24] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:24] MT5 Connected
+[2026-07-29 19:32:24] Symbol: XAUUSD
+[2026-07-29 19:32:24] Timeframe: H1
+[2026-07-29 19:32:24] Candles Received: 10
+[2026-07-29 19:32:24] Features Generated: true
+[2026-07-29 19:32:24] Research Completed: true
+[2026-07-29 19:32:24] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-679783d4.json
+[2026-07-29 19:32:24] Research cycle completed successfully. Result ID: rpt-XAUUSD-679783d4
+[2026-07-29 19:32:24] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:24] MT5 Connected
+[2026-07-29 19:32:24] Symbol: XAUUSD
+[2026-07-29 19:32:24] Timeframe: H1
+[2026-07-29 19:32:24] Candles Received: 10
+[2026-07-29 19:32:25] Features Generated: true
+[2026-07-29 19:32:25] Research Completed: true
+[2026-07-29 19:32:25] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-014c5cb5.json
+[2026-07-29 19:32:25] Research cycle completed successfully. Result ID: rpt-XAUUSD-014c5cb5
+[2026-07-29 19:32:29] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:29] MT5 Connected
+[2026-07-29 19:32:29] Symbol: XAUUSD
+[2026-07-29 19:32:29] Timeframe: H1
+[2026-07-29 19:32:29] Candles Received: 60
+[2026-07-29 19:32:29] Features Generated: true
+[2026-07-29 19:32:29] Research Completed: true
+[2026-07-29 19:32:29] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-b6590191.json
+[2026-07-29 19:32:29] Research cycle completed successfully. Result ID: rpt-XAUUSD-b6590191
+[2026-07-29 19:32:42] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:42] MT5 Connected
+[2026-07-29 19:32:42] Symbol: XAUUSD
+[2026-07-29 19:32:42] Timeframe: H1
+[2026-07-29 19:32:42] Candles Received: 10
+[2026-07-29 19:32:42] Features Generated: true
+[2026-07-29 19:32:42] Research Completed: true
+[2026-07-29 19:32:42] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-012166da.json
+[2026-07-29 19:32:42] Research cycle completed successfully. Result ID: rpt-XAUUSD-012166da
+[2026-07-29 19:32:45] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:45] MT5 Connected
+[2026-07-29 19:32:45] Symbol: XAUUSD
+[2026-07-29 19:32:45] Timeframe: H1
+[2026-07-29 19:32:45] Candles Received: 10
+[2026-07-29 19:32:45] Features Generated: true
+[2026-07-29 19:32:45] Research Completed: true
+[2026-07-29 19:32:45] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-cc40982e.json
+[2026-07-29 19:32:45] Research cycle completed successfully. Result ID: rpt-XAUUSD-cc40982e
+[2026-07-29 19:32:47] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:47] MT5 Connected
+[2026-07-29 19:32:47] Symbol: XAUUSD
+[2026-07-29 19:32:47] Timeframe: H1
+[2026-07-29 19:32:47] Candles Received: 10
+[2026-07-29 19:32:47] Features Generated: true
+[2026-07-29 19:32:47] Research Completed: true
+[2026-07-29 19:32:47] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-481709f5.json
+[2026-07-29 19:32:47] Research cycle completed successfully. Result ID: rpt-XAUUSD-481709f5
+[2026-07-29 19:32:47] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:47] MT5 Connected
+[2026-07-29 19:32:47] Symbol: XAUUSD
+[2026-07-29 19:32:47] Timeframe: H1
+[2026-07-29 19:32:47] Candles Received: 10
+[2026-07-29 19:32:47] Features Generated: true
+[2026-07-29 19:32:47] Research Completed: true
+[2026-07-29 19:32:47] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-dd8bdeba.json
+[2026-07-29 19:32:47] Research cycle completed successfully. Result ID: rpt-XAUUSD-dd8bdeba
+[2026-07-29 19:32:51] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:51] MT5 Connected
+[2026-07-29 19:32:51] Symbol: XAUUSD
+[2026-07-29 19:32:51] Timeframe: H1
+[2026-07-29 19:32:51] Candles Received: 10
+[2026-07-29 19:32:51] Features Generated: true
+[2026-07-29 19:32:51] Research Completed: true
+[2026-07-29 19:32:51] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9a7716e7.json
+[2026-07-29 19:32:51] Research cycle completed successfully. Result ID: rpt-XAUUSD-9a7716e7
+[2026-07-29 19:32:54] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:54] MT5 Connected
+[2026-07-29 19:32:54] Symbol: XAUUSD
+[2026-07-29 19:32:54] Timeframe: H1
+[2026-07-29 19:32:54] Candles Received: 10
+[2026-07-29 19:32:54] Features Generated: true
+[2026-07-29 19:32:54] Research Completed: true
+[2026-07-29 19:32:54] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-b25f9224.json
+[2026-07-29 19:32:54] Research cycle completed successfully. Result ID: rpt-XAUUSD-b25f9224
+[2026-07-29 19:32:57] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:57] MT5 Connected
+[2026-07-29 19:32:57] Symbol: XAUUSD
+[2026-07-29 19:32:57] Timeframe: H1
+[2026-07-29 19:32:57] Candles Received: 10
+[2026-07-29 19:32:57] Features Generated: true
+[2026-07-29 19:32:57] Research Completed: true
+[2026-07-29 19:32:57] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d0581e11.json
+[2026-07-29 19:32:57] Research cycle completed successfully. Result ID: rpt-XAUUSD-d0581e11
+[2026-07-29 19:32:57] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:32:57] MT5 Connected
+[2026-07-29 19:32:57] Symbol: XAUUSD
+[2026-07-29 19:32:57] Timeframe: H1
+[2026-07-29 19:32:57] Candles Received: 10
+[2026-07-29 19:32:57] Features Generated: true
+[2026-07-29 19:32:57] Research Completed: true
+[2026-07-29 19:32:57] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a892db1b.json
+[2026-07-29 19:32:57] Research cycle completed successfully. Result ID: rpt-XAUUSD-a892db1b
+[2026-07-29 19:33:13] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:13] MT5 Connected
+[2026-07-29 19:33:13] Symbol: XAUUSD
+[2026-07-29 19:33:13] Timeframe: H1
+[2026-07-29 19:33:13] Candles Received: 10
+[2026-07-29 19:33:13] Features Generated: true
+[2026-07-29 19:33:13] Research Completed: true
+[2026-07-29 19:33:13] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d4845402.json
+[2026-07-29 19:33:13] Research cycle completed successfully. Result ID: rpt-XAUUSD-d4845402
+[2026-07-29 19:33:16] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:16] MT5 Connected
+[2026-07-29 19:33:16] Symbol: XAUUSD
+[2026-07-29 19:33:16] Timeframe: H1
+[2026-07-29 19:33:16] Candles Received: 10
+[2026-07-29 19:33:16] Features Generated: true
+[2026-07-29 19:33:16] Research Completed: true
+[2026-07-29 19:33:16] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-e9d02ca9.json
+[2026-07-29 19:33:16] Research cycle completed successfully. Result ID: rpt-XAUUSD-e9d02ca9
+[2026-07-29 19:33:21] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:21] MT5 Connected
+[2026-07-29 19:33:21] Symbol: XAUUSD
+[2026-07-29 19:33:21] Timeframe: H1
+[2026-07-29 19:33:21] Candles Received: 10
+[2026-07-29 19:33:21] Features Generated: true
+[2026-07-29 19:33:21] Research Completed: true
+[2026-07-29 19:33:21] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-80e279ea.json
+[2026-07-29 19:33:21] Research cycle completed successfully. Result ID: rpt-XAUUSD-80e279ea
+[2026-07-29 19:33:21] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:21] MT5 Connected
+[2026-07-29 19:33:21] Symbol: XAUUSD
+[2026-07-29 19:33:21] Timeframe: H1
+[2026-07-29 19:33:21] Candles Received: 10
+[2026-07-29 19:33:21] Features Generated: true
+[2026-07-29 19:33:21] Research Completed: true
+[2026-07-29 19:33:21] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-e4ba6701.json
+[2026-07-29 19:33:21] Research cycle completed successfully. Result ID: rpt-XAUUSD-e4ba6701
+[2026-07-29 19:33:22] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:22] MT5 Connected
+[2026-07-29 19:33:22] Symbol: XAUUSD
+[2026-07-29 19:33:22] Timeframe: H1
+[2026-07-29 19:33:22] Candles Received: 10
+[2026-07-29 19:33:22] Features Generated: true
+[2026-07-29 19:33:22] Research Completed: true
+[2026-07-29 19:33:22] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d1a7cd43.json
+[2026-07-29 19:33:22] Research cycle completed successfully. Result ID: rpt-XAUUSD-d1a7cd43
+[2026-07-29 19:33:25] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:25] MT5 Connected
+[2026-07-29 19:33:25] Symbol: XAUUSD
+[2026-07-29 19:33:25] Timeframe: H1
+[2026-07-29 19:33:25] Candles Received: 10
+[2026-07-29 19:33:25] Features Generated: true
+[2026-07-29 19:33:25] Research Completed: true
+[2026-07-29 19:33:25] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-0e4b6808.json
+[2026-07-29 19:33:25] Research cycle completed successfully. Result ID: rpt-XAUUSD-0e4b6808
+[2026-07-29 19:33:29] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:29] MT5 Connected
+[2026-07-29 19:33:29] Symbol: XAUUSD
+[2026-07-29 19:33:29] Timeframe: H1
+[2026-07-29 19:33:29] Candles Received: 60
+[2026-07-29 19:33:29] Features Generated: true
+[2026-07-29 19:33:29] Research Completed: true
+[2026-07-29 19:33:29] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-bb4a367f.json
+[2026-07-29 19:33:29] Research cycle completed successfully. Result ID: rpt-XAUUSD-bb4a367f
+[2026-07-29 19:33:31] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:31] MT5 Connected
+[2026-07-29 19:33:31] Symbol: XAUUSD
+[2026-07-29 19:33:31] Timeframe: H1
+[2026-07-29 19:33:31] Candles Received: 10
+[2026-07-29 19:33:31] Features Generated: true
+[2026-07-29 19:33:31] Research Completed: true
+[2026-07-29 19:33:31] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5ad0e3b7.json
+[2026-07-29 19:33:31] Research cycle completed successfully. Result ID: rpt-XAUUSD-5ad0e3b7
+[2026-07-29 19:33:31] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:31] MT5 Connected
+[2026-07-29 19:33:31] Symbol: XAUUSD
+[2026-07-29 19:33:31] Timeframe: H1
+[2026-07-29 19:33:31] Candles Received: 10
+[2026-07-29 19:33:31] Features Generated: true
+[2026-07-29 19:33:31] Research Completed: true
+[2026-07-29 19:33:31] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-cd23eada.json
+[2026-07-29 19:33:31] Research cycle completed successfully. Result ID: rpt-XAUUSD-cd23eada
+[2026-07-29 19:33:45] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:45] MT5 Connected
+[2026-07-29 19:33:45] Symbol: XAUUSD
+[2026-07-29 19:33:45] Timeframe: H1
+[2026-07-29 19:33:45] Candles Received: 10
+[2026-07-29 19:33:45] Features Generated: true
+[2026-07-29 19:33:45] Research Completed: true
+[2026-07-29 19:33:45] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-0623796f.json
+[2026-07-29 19:33:45] Research cycle completed successfully. Result ID: rpt-XAUUSD-0623796f
+[2026-07-29 19:33:47] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:47] MT5 Connected
+[2026-07-29 19:33:47] Symbol: XAUUSD
+[2026-07-29 19:33:47] Timeframe: H1
+[2026-07-29 19:33:47] Candles Received: 10
+[2026-07-29 19:33:47] Features Generated: true
+[2026-07-29 19:33:47] Research Completed: true
+[2026-07-29 19:33:47] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-24ed6f0f.json
+[2026-07-29 19:33:47] Research cycle completed successfully. Result ID: rpt-XAUUSD-24ed6f0f
+[2026-07-29 19:33:53] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:53] MT5 Connected
+[2026-07-29 19:33:53] Symbol: XAUUSD
+[2026-07-29 19:33:53] Timeframe: H1
+[2026-07-29 19:33:53] Candles Received: 10
+[2026-07-29 19:33:53] Features Generated: true
+[2026-07-29 19:33:53] Research Completed: true
+[2026-07-29 19:33:53] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-290670a4.json
+[2026-07-29 19:33:53] Research cycle completed successfully. Result ID: rpt-XAUUSD-290670a4
+[2026-07-29 19:33:53] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:53] MT5 Connected
+[2026-07-29 19:33:53] Symbol: XAUUSD
+[2026-07-29 19:33:53] Timeframe: H1
+[2026-07-29 19:33:53] Candles Received: 10
+[2026-07-29 19:33:54] Features Generated: true
+[2026-07-29 19:33:54] Research Completed: true
+[2026-07-29 19:33:54] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-07bdcf97.json
+[2026-07-29 19:33:54] Research cycle completed successfully. Result ID: rpt-XAUUSD-07bdcf97
+[2026-07-29 19:33:54] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:54] MT5 Connected
+[2026-07-29 19:33:54] Symbol: XAUUSD
+[2026-07-29 19:33:54] Timeframe: H1
+[2026-07-29 19:33:54] Candles Received: 10
+[2026-07-29 19:33:54] Features Generated: true
+[2026-07-29 19:33:54] Research Completed: true
+[2026-07-29 19:33:54] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-894ab6d0.json
+[2026-07-29 19:33:54] Research cycle completed successfully. Result ID: rpt-XAUUSD-894ab6d0
+[2026-07-29 19:33:57] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:33:57] MT5 Connected
+[2026-07-29 19:33:57] Symbol: XAUUSD
+[2026-07-29 19:33:57] Timeframe: H1
+[2026-07-29 19:33:57] Candles Received: 10
+[2026-07-29 19:33:57] Features Generated: true
+[2026-07-29 19:33:57] Research Completed: true
+[2026-07-29 19:33:57] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-42722569.json
+[2026-07-29 19:33:57] Research cycle completed successfully. Result ID: rpt-XAUUSD-42722569
+[2026-07-29 19:34:04] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:04] MT5 Connected
+[2026-07-29 19:34:04] Symbol: XAUUSD
+[2026-07-29 19:34:04] Timeframe: H1
+[2026-07-29 19:34:04] Candles Received: 10
+[2026-07-29 19:34:04] Features Generated: true
+[2026-07-29 19:34:04] Research Completed: true
+[2026-07-29 19:34:04] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-025191e5.json
+[2026-07-29 19:34:04] Research cycle completed successfully. Result ID: rpt-XAUUSD-025191e5
+[2026-07-29 19:34:04] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:04] MT5 Connected
+[2026-07-29 19:34:04] Symbol: XAUUSD
+[2026-07-29 19:34:04] Timeframe: H1
+[2026-07-29 19:34:04] Candles Received: 10
+[2026-07-29 19:34:04] Features Generated: true
+[2026-07-29 19:34:04] Research Completed: true
+[2026-07-29 19:34:04] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-2d4c79b8.json
+[2026-07-29 19:34:04] Research cycle completed successfully. Result ID: rpt-XAUUSD-2d4c79b8
+[2026-07-29 19:34:16] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:16] MT5 Connected
+[2026-07-29 19:34:16] Symbol: XAUUSD
+[2026-07-29 19:34:16] Timeframe: H1
+[2026-07-29 19:34:16] Candles Received: 10
+[2026-07-29 19:34:16] Features Generated: true
+[2026-07-29 19:34:16] Research Completed: true
+[2026-07-29 19:34:16] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-7f55e9d1.json
+[2026-07-29 19:34:16] Research cycle completed successfully. Result ID: rpt-XAUUSD-7f55e9d1
+[2026-07-29 19:34:19] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:19] MT5 Connected
+[2026-07-29 19:34:19] Symbol: XAUUSD
+[2026-07-29 19:34:19] Timeframe: H1
+[2026-07-29 19:34:19] Candles Received: 60
+[2026-07-29 19:34:19] Features Generated: true
+[2026-07-29 19:34:19] Research Completed: true
+[2026-07-29 19:34:19] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-b0fddd2c.json
+[2026-07-29 19:34:19] Research cycle completed successfully. Result ID: rpt-XAUUSD-b0fddd2c
+[2026-07-29 19:34:19] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:19] MT5 Connected
+[2026-07-29 19:34:19] Symbol: XAUUSD
+[2026-07-29 19:34:19] Timeframe: H1
+[2026-07-29 19:34:19] Candles Received: 60
+[2026-07-29 19:34:19] Features Generated: true
+[2026-07-29 19:34:19] Research Completed: true
+[2026-07-29 19:34:19] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5467c652.json
+[2026-07-29 19:34:19] Research cycle completed successfully. Result ID: rpt-XAUUSD-5467c652
+[2026-07-29 19:34:21] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:21] MT5 Connected
+[2026-07-29 19:34:21] Symbol: XAUUSD
+[2026-07-29 19:34:21] Timeframe: H1
+[2026-07-29 19:34:21] Candles Received: 10
+[2026-07-29 19:34:21] Features Generated: true
+[2026-07-29 19:34:21] Research Completed: true
+[2026-07-29 19:34:21] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-e4155360.json
+[2026-07-29 19:34:21] Research cycle completed successfully. Result ID: rpt-XAUUSD-e4155360
+[2026-07-29 19:34:24] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:24] MT5 Connected
+[2026-07-29 19:34:24] Symbol: XAUUSD
+[2026-07-29 19:34:24] Timeframe: H1
+[2026-07-29 19:34:24] Candles Received: 10
+[2026-07-29 19:34:24] Features Generated: true
+[2026-07-29 19:34:24] Research Completed: true
+[2026-07-29 19:34:24] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f7c15bdd.json
+[2026-07-29 19:34:24] Research cycle completed successfully. Result ID: rpt-XAUUSD-f7c15bdd
+[2026-07-29 19:34:24] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:24] MT5 Connected
+[2026-07-29 19:34:24] Symbol: XAUUSD
+[2026-07-29 19:34:24] Timeframe: H1
+[2026-07-29 19:34:24] Candles Received: 10
+[2026-07-29 19:34:24] Features Generated: true
+[2026-07-29 19:34:24] Research Completed: true
+[2026-07-29 19:34:24] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-84379f69.json
+[2026-07-29 19:34:24] Research cycle completed successfully. Result ID: rpt-XAUUSD-84379f69
+[2026-07-29 19:34:25] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:25] MT5 Connected
+[2026-07-29 19:34:25] Symbol: XAUUSD
+[2026-07-29 19:34:25] Timeframe: H1
+[2026-07-29 19:34:25] Candles Received: 10
+[2026-07-29 19:34:25] Features Generated: true
+[2026-07-29 19:34:25] Research Completed: true
+[2026-07-29 19:34:25] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-64c6fb64.json
+[2026-07-29 19:34:25] Research cycle completed successfully. Result ID: rpt-XAUUSD-64c6fb64
+[2026-07-29 19:34:31] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:31] MT5 Connected
+[2026-07-29 19:34:31] Symbol: XAUUSD
+[2026-07-29 19:34:31] Timeframe: H1
+[2026-07-29 19:34:31] Candles Received: 10
+[2026-07-29 19:34:31] Features Generated: true
+[2026-07-29 19:34:31] Research Completed: true
+[2026-07-29 19:34:31] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f360cd45.json
+[2026-07-29 19:34:31] Research cycle completed successfully. Result ID: rpt-XAUUSD-f360cd45
+[2026-07-29 19:34:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:35] MT5 Connected
+[2026-07-29 19:34:35] Symbol: XAUUSD
+[2026-07-29 19:34:35] Timeframe: H1
+[2026-07-29 19:34:35] Candles Received: 10
+[2026-07-29 19:34:35] Features Generated: true
+[2026-07-29 19:34:35] Research Completed: true
+[2026-07-29 19:34:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d7f27486.json
+[2026-07-29 19:34:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-d7f27486
+[2026-07-29 19:34:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:35] MT5 Connected
+[2026-07-29 19:34:35] Symbol: XAUUSD
+[2026-07-29 19:34:35] Timeframe: H1
+[2026-07-29 19:34:35] Candles Received: 10
+[2026-07-29 19:34:35] Features Generated: true
+[2026-07-29 19:34:35] Research Completed: true
+[2026-07-29 19:34:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-bf3f44f7.json
+[2026-07-29 19:34:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-bf3f44f7
+[2026-07-29 19:34:47] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:47] MT5 Connected
+[2026-07-29 19:34:47] Symbol: XAUUSD
+[2026-07-29 19:34:47] Timeframe: H1
+[2026-07-29 19:34:47] Candles Received: 10
+[2026-07-29 19:34:47] Features Generated: true
+[2026-07-29 19:34:47] Research Completed: true
+[2026-07-29 19:34:47] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-2c2be611.json
+[2026-07-29 19:34:47] Research cycle completed successfully. Result ID: rpt-XAUUSD-2c2be611
+[2026-07-29 19:34:54] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:54] MT5 Connected
+[2026-07-29 19:34:54] Symbol: XAUUSD
+[2026-07-29 19:34:54] Timeframe: H1
+[2026-07-29 19:34:54] Candles Received: 10
+[2026-07-29 19:34:54] Features Generated: true
+[2026-07-29 19:34:54] Research Completed: true
+[2026-07-29 19:34:54] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c64a43ad.json
+[2026-07-29 19:34:54] Research cycle completed successfully. Result ID: rpt-XAUUSD-c64a43ad
+[2026-07-29 19:34:55] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:55] MT5 Connected
+[2026-07-29 19:34:55] Symbol: XAUUSD
+[2026-07-29 19:34:55] Timeframe: H1
+[2026-07-29 19:34:55] Candles Received: 10
+[2026-07-29 19:34:55] Features Generated: true
+[2026-07-29 19:34:55] Research Completed: true
+[2026-07-29 19:34:55] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-1102eafb.json
+[2026-07-29 19:34:55] Research cycle completed successfully. Result ID: rpt-XAUUSD-1102eafb
+[2026-07-29 19:34:55] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:55] MT5 Connected
+[2026-07-29 19:34:55] Symbol: XAUUSD
+[2026-07-29 19:34:55] Timeframe: H1
+[2026-07-29 19:34:55] Candles Received: 10
+[2026-07-29 19:34:55] Features Generated: true
+[2026-07-29 19:34:55] Research Completed: true
+[2026-07-29 19:34:55] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-8b500790.json
+[2026-07-29 19:34:55] Research cycle completed successfully. Result ID: rpt-XAUUSD-8b500790
+[2026-07-29 19:34:57] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:34:57] MT5 Connected
+[2026-07-29 19:34:57] Symbol: XAUUSD
+[2026-07-29 19:34:57] Timeframe: H1
+[2026-07-29 19:34:57] Candles Received: 10
+[2026-07-29 19:34:57] Features Generated: true
+[2026-07-29 19:34:57] Research Completed: true
+[2026-07-29 19:34:57] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-81f2b784.json
+[2026-07-29 19:34:57] Research cycle completed successfully. Result ID: rpt-XAUUSD-81f2b784
+[2026-07-29 19:35:04] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:04] MT5 Connected
+[2026-07-29 19:35:04] Symbol: XAUUSD
+[2026-07-29 19:35:04] Timeframe: H1
+[2026-07-29 19:35:04] Candles Received: 10
+[2026-07-29 19:35:04] Features Generated: true
+[2026-07-29 19:35:04] Research Completed: true
+[2026-07-29 19:35:04] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-fc5ba427.json
+[2026-07-29 19:35:04] Research cycle completed successfully. Result ID: rpt-XAUUSD-fc5ba427
+[2026-07-29 19:35:05] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:05] MT5 Connected
+[2026-07-29 19:35:05] Symbol: XAUUSD
+[2026-07-29 19:35:05] Timeframe: H1
+[2026-07-29 19:35:05] Candles Received: 10
+[2026-07-29 19:35:05] Features Generated: true
+[2026-07-29 19:35:05] Research Completed: true
+[2026-07-29 19:35:05] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-77dd9875.json
+[2026-07-29 19:35:05] Research cycle completed successfully. Result ID: rpt-XAUUSD-77dd9875
+[2026-07-29 19:35:05] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:05] MT5 Connected
+[2026-07-29 19:35:05] Symbol: XAUUSD
+[2026-07-29 19:35:05] Timeframe: H1
+[2026-07-29 19:35:05] Candles Received: 10
+[2026-07-29 19:35:05] Features Generated: true
+[2026-07-29 19:35:05] Research Completed: true
+[2026-07-29 19:35:05] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-fffb047b.json
+[2026-07-29 19:35:05] Research cycle completed successfully. Result ID: rpt-XAUUSD-fffb047b
+[2026-07-29 19:35:19] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:19] MT5 Connected
+[2026-07-29 19:35:19] Symbol: XAUUSD
+[2026-07-29 19:35:19] Timeframe: H1
+[2026-07-29 19:35:19] Candles Received: 60
+[2026-07-29 19:35:19] Features Generated: true
+[2026-07-29 19:35:19] Research Completed: true
+[2026-07-29 19:35:19] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a726f152.json
+[2026-07-29 19:35:19] Research cycle completed successfully. Result ID: rpt-XAUUSD-a726f152
+[2026-07-29 19:35:21] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:21] MT5 Connected
+[2026-07-29 19:35:21] Symbol: XAUUSD
+[2026-07-29 19:35:21] Timeframe: H1
+[2026-07-29 19:35:21] Candles Received: 10
+[2026-07-29 19:35:21] Features Generated: true
+[2026-07-29 19:35:21] Research Completed: true
+[2026-07-29 19:35:21] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-4747d884.json
+[2026-07-29 19:35:21] Research cycle completed successfully. Result ID: rpt-XAUUSD-4747d884
+[2026-07-29 19:35:24] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:24] MT5 Connected
+[2026-07-29 19:35:24] Symbol: XAUUSD
+[2026-07-29 19:35:24] Timeframe: H1
+[2026-07-29 19:35:24] Candles Received: 10
+[2026-07-29 19:35:24] Features Generated: true
+[2026-07-29 19:35:24] Research Completed: true
+[2026-07-29 19:35:24] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a483428d.json
+[2026-07-29 19:35:24] Research cycle completed successfully. Result ID: rpt-XAUUSD-a483428d
+[2026-07-29 19:35:26] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:26] MT5 Connected
+[2026-07-29 19:35:26] Symbol: XAUUSD
+[2026-07-29 19:35:26] Timeframe: H1
+[2026-07-29 19:35:26] Candles Received: 10
+[2026-07-29 19:35:26] Features Generated: true
+[2026-07-29 19:35:26] Research Completed: true
+[2026-07-29 19:35:26] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-0442fe21.json
+[2026-07-29 19:35:26] Research cycle completed successfully. Result ID: rpt-XAUUSD-0442fe21
+[2026-07-29 19:35:26] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:26] MT5 Connected
+[2026-07-29 19:35:26] Symbol: XAUUSD
+[2026-07-29 19:35:26] Timeframe: H1
+[2026-07-29 19:35:26] Candles Received: 10
+[2026-07-29 19:35:26] Features Generated: true
+[2026-07-29 19:35:26] Research Completed: true
+[2026-07-29 19:35:26] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-2e06ea63.json
+[2026-07-29 19:35:26] Research cycle completed successfully. Result ID: rpt-XAUUSD-2e06ea63
+[2026-07-29 19:35:31] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:31] MT5 Connected
+[2026-07-29 19:35:31] Symbol: XAUUSD
+[2026-07-29 19:35:31] Timeframe: H1
+[2026-07-29 19:35:31] Candles Received: 10
+[2026-07-29 19:35:31] Features Generated: true
+[2026-07-29 19:35:31] Research Completed: true
+[2026-07-29 19:35:31] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f2b875a4.json
+[2026-07-29 19:35:31] Research cycle completed successfully. Result ID: rpt-XAUUSD-f2b875a4
+[2026-07-29 19:35:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:35] MT5 Connected
+[2026-07-29 19:35:35] Symbol: XAUUSD
+[2026-07-29 19:35:35] Timeframe: H1
+[2026-07-29 19:35:35] Candles Received: 10
+[2026-07-29 19:35:35] Features Generated: true
+[2026-07-29 19:35:35] Research Completed: true
+[2026-07-29 19:35:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-0b991139.json
+[2026-07-29 19:35:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-0b991139
+[2026-07-29 19:35:36] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:36] MT5 Connected
+[2026-07-29 19:35:36] Symbol: XAUUSD
+[2026-07-29 19:35:36] Timeframe: H1
+[2026-07-29 19:35:36] Candles Received: 10
+[2026-07-29 19:35:36] Features Generated: true
+[2026-07-29 19:35:36] Research Completed: true
+[2026-07-29 19:35:36] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-99508c13.json
+[2026-07-29 19:35:36] Research cycle completed successfully. Result ID: rpt-XAUUSD-99508c13
+[2026-07-29 19:35:36] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:36] MT5 Connected
+[2026-07-29 19:35:36] Symbol: XAUUSD
+[2026-07-29 19:35:36] Timeframe: H1
+[2026-07-29 19:35:36] Candles Received: 10
+[2026-07-29 19:35:36] Features Generated: true
+[2026-07-29 19:35:36] Research Completed: true
+[2026-07-29 19:35:36] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-8ab1050e.json
+[2026-07-29 19:35:36] Research cycle completed successfully. Result ID: rpt-XAUUSD-8ab1050e
+[2026-07-29 19:35:54] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:54] MT5 Connected
+[2026-07-29 19:35:54] Symbol: XAUUSD
+[2026-07-29 19:35:54] Timeframe: H1
+[2026-07-29 19:35:54] Candles Received: 10
+[2026-07-29 19:35:54] Features Generated: true
+[2026-07-29 19:35:54] Research Completed: true
+[2026-07-29 19:35:54] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c285e440.json
+[2026-07-29 19:35:54] Research cycle completed successfully. Result ID: rpt-XAUUSD-c285e440
+[2026-07-29 19:35:55] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:55] MT5 Connected
+[2026-07-29 19:35:55] Symbol: XAUUSD
+[2026-07-29 19:35:55] Timeframe: H1
+[2026-07-29 19:35:55] Candles Received: 10
+[2026-07-29 19:35:55] Features Generated: true
+[2026-07-29 19:35:55] Research Completed: true
+[2026-07-29 19:35:55] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-82fd2313.json
+[2026-07-29 19:35:55] Research cycle completed successfully. Result ID: rpt-XAUUSD-82fd2313
+[2026-07-29 19:35:57] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:57] MT5 Connected
+[2026-07-29 19:35:57] Symbol: XAUUSD
+[2026-07-29 19:35:57] Timeframe: H1
+[2026-07-29 19:35:57] Candles Received: 10
+[2026-07-29 19:35:57] Features Generated: true
+[2026-07-29 19:35:57] Research Completed: true
+[2026-07-29 19:35:57] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-3790113e.json
+[2026-07-29 19:35:57] Research cycle completed successfully. Result ID: rpt-XAUUSD-3790113e
+[2026-07-29 19:35:57] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:35:57] MT5 Connected
+[2026-07-29 19:35:57] Symbol: XAUUSD
+[2026-07-29 19:35:57] Timeframe: H1
+[2026-07-29 19:35:57] Candles Received: 10
+[2026-07-29 19:35:57] Features Generated: true
+[2026-07-29 19:35:57] Research Completed: true
+[2026-07-29 19:35:57] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-e5b3e4c2.json
+[2026-07-29 19:35:57] Research cycle completed successfully. Result ID: rpt-XAUUSD-e5b3e4c2
+[2026-07-29 19:36:04] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:04] MT5 Connected
+[2026-07-29 19:36:04] Symbol: XAUUSD
+[2026-07-29 19:36:04] Timeframe: H1
+[2026-07-29 19:36:04] Candles Received: 10
+[2026-07-29 19:36:04] Features Generated: true
+[2026-07-29 19:36:04] Research Completed: true
+[2026-07-29 19:36:04] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5b913193.json
+[2026-07-29 19:36:04] Research cycle completed successfully. Result ID: rpt-XAUUSD-5b913193
+[2026-07-29 19:36:05] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:05] MT5 Connected
+[2026-07-29 19:36:05] Symbol: XAUUSD
+[2026-07-29 19:36:05] Timeframe: H1
+[2026-07-29 19:36:05] Candles Received: 10
+[2026-07-29 19:36:05] Features Generated: true
+[2026-07-29 19:36:05] Research Completed: true
+[2026-07-29 19:36:05] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-eff24c38.json
+[2026-07-29 19:36:05] Research cycle completed successfully. Result ID: rpt-XAUUSD-eff24c38
+[2026-07-29 19:36:07] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:07] MT5 Connected
+[2026-07-29 19:36:07] Symbol: XAUUSD
+[2026-07-29 19:36:07] Timeframe: H1
+[2026-07-29 19:36:07] Candles Received: 10
+[2026-07-29 19:36:07] Features Generated: true
+[2026-07-29 19:36:07] Research Completed: true
+[2026-07-29 19:36:07] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-fe79e02c.json
+[2026-07-29 19:36:07] Research cycle completed successfully. Result ID: rpt-XAUUSD-fe79e02c
+[2026-07-29 19:36:07] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:07] MT5 Connected
+[2026-07-29 19:36:07] Symbol: XAUUSD
+[2026-07-29 19:36:07] Timeframe: H1
+[2026-07-29 19:36:07] Candles Received: 10
+[2026-07-29 19:36:07] Features Generated: true
+[2026-07-29 19:36:07] Research Completed: true
+[2026-07-29 19:36:07] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-2f9fc20e.json
+[2026-07-29 19:36:07] Research cycle completed successfully. Result ID: rpt-XAUUSD-2f9fc20e
+[2026-07-29 19:36:19] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:19] MT5 Connected
+[2026-07-29 19:36:19] Symbol: XAUUSD
+[2026-07-29 19:36:19] Timeframe: H1
+[2026-07-29 19:36:19] Candles Received: 60
+[2026-07-29 19:36:19] Features Generated: true
+[2026-07-29 19:36:19] Research Completed: true
+[2026-07-29 19:36:19] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-86334cda.json
+[2026-07-29 19:36:19] Research cycle completed successfully. Result ID: rpt-XAUUSD-86334cda
+[2026-07-29 19:36:24] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:24] MT5 Connected
+[2026-07-29 19:36:24] Symbol: XAUUSD
+[2026-07-29 19:36:24] Timeframe: H1
+[2026-07-29 19:36:24] Candles Received: 10
+[2026-07-29 19:36:24] Features Generated: true
+[2026-07-29 19:36:24] Research Completed: true
+[2026-07-29 19:36:24] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-9d8416ae.json
+[2026-07-29 19:36:24] Research cycle completed successfully. Result ID: rpt-XAUUSD-9d8416ae
+[2026-07-29 19:36:26] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:26] MT5 Connected
+[2026-07-29 19:36:26] Symbol: XAUUSD
+[2026-07-29 19:36:26] Timeframe: H1
+[2026-07-29 19:36:26] Candles Received: 10
+[2026-07-29 19:36:26] Features Generated: true
+[2026-07-29 19:36:26] Research Completed: true
+[2026-07-29 19:36:26] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a78ac222.json
+[2026-07-29 19:36:26] Research cycle completed successfully. Result ID: rpt-XAUUSD-a78ac222
+[2026-07-29 19:36:28] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:28] MT5 Connected
+[2026-07-29 19:36:28] Symbol: XAUUSD
+[2026-07-29 19:36:28] Timeframe: H1
+[2026-07-29 19:36:28] Candles Received: 10
+[2026-07-29 19:36:28] Features Generated: true
+[2026-07-29 19:36:28] Research Completed: true
+[2026-07-29 19:36:28] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5f5b53d8.json
+[2026-07-29 19:36:28] Research cycle completed successfully. Result ID: rpt-XAUUSD-5f5b53d8
+[2026-07-29 19:36:28] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:28] MT5 Connected
+[2026-07-29 19:36:28] Symbol: XAUUSD
+[2026-07-29 19:36:28] Timeframe: H1
+[2026-07-29 19:36:28] Candles Received: 10
+[2026-07-29 19:36:28] Features Generated: true
+[2026-07-29 19:36:28] Research Completed: true
+[2026-07-29 19:36:28] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5dc9332e.json
+[2026-07-29 19:36:28] Research cycle completed successfully. Result ID: rpt-XAUUSD-5dc9332e
+[2026-07-29 19:36:35] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:35] MT5 Connected
+[2026-07-29 19:36:35] Symbol: XAUUSD
+[2026-07-29 19:36:35] Timeframe: H1
+[2026-07-29 19:36:35] Candles Received: 10
+[2026-07-29 19:36:35] Features Generated: true
+[2026-07-29 19:36:35] Research Completed: true
+[2026-07-29 19:36:35] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-6959e5a4.json
+[2026-07-29 19:36:35] Research cycle completed successfully. Result ID: rpt-XAUUSD-6959e5a4
+[2026-07-29 19:36:36] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:36] MT5 Connected
+[2026-07-29 19:36:36] Symbol: XAUUSD
+[2026-07-29 19:36:36] Timeframe: H1
+[2026-07-29 19:36:36] Candles Received: 10
+[2026-07-29 19:36:36] Features Generated: true
+[2026-07-29 19:36:36] Research Completed: true
+[2026-07-29 19:36:36] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-986ac7de.json
+[2026-07-29 19:36:36] Research cycle completed successfully. Result ID: rpt-XAUUSD-986ac7de
+[2026-07-29 19:36:39] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:39] MT5 Connected
+[2026-07-29 19:36:39] Symbol: XAUUSD
+[2026-07-29 19:36:39] Timeframe: H1
+[2026-07-29 19:36:40] Candles Received: 10
+[2026-07-29 19:36:40] Features Generated: true
+[2026-07-29 19:36:40] Research Completed: true
+[2026-07-29 19:36:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d58e07c6.json
+[2026-07-29 19:36:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-d58e07c6
+[2026-07-29 19:36:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:40] MT5 Connected
+[2026-07-29 19:36:40] Symbol: XAUUSD
+[2026-07-29 19:36:40] Timeframe: H1
+[2026-07-29 19:36:40] Candles Received: 10
+[2026-07-29 19:36:40] Features Generated: true
+[2026-07-29 19:36:40] Research Completed: true
+[2026-07-29 19:36:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-4199d94a.json
+[2026-07-29 19:36:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-4199d94a
+[2026-07-29 19:36:55] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:55] MT5 Connected
+[2026-07-29 19:36:55] Symbol: XAUUSD
+[2026-07-29 19:36:55] Timeframe: H1
+[2026-07-29 19:36:55] Candles Received: 10
+[2026-07-29 19:36:55] Features Generated: true
+[2026-07-29 19:36:55] Research Completed: true
+[2026-07-29 19:36:55] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a63669f1.json
+[2026-07-29 19:36:55] Research cycle completed successfully. Result ID: rpt-XAUUSD-a63669f1
+[2026-07-29 19:36:57] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:57] MT5 Connected
+[2026-07-29 19:36:57] Symbol: XAUUSD
+[2026-07-29 19:36:57] Timeframe: H1
+[2026-07-29 19:36:57] Candles Received: 10
+[2026-07-29 19:36:57] Features Generated: true
+[2026-07-29 19:36:57] Research Completed: true
+[2026-07-29 19:36:57] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c706f0d9.json
+[2026-07-29 19:36:57] Research cycle completed successfully. Result ID: rpt-XAUUSD-c706f0d9
+[2026-07-29 19:36:59] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:59] MT5 Connected
+[2026-07-29 19:36:59] Symbol: XAUUSD
+[2026-07-29 19:36:59] Timeframe: H1
+[2026-07-29 19:36:59] Candles Received: 10
+[2026-07-29 19:36:59] Features Generated: true
+[2026-07-29 19:36:59] Research Completed: true
+[2026-07-29 19:36:59] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-3a66ac70.json
+[2026-07-29 19:36:59] Research cycle completed successfully. Result ID: rpt-XAUUSD-3a66ac70
+[2026-07-29 19:36:59] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:36:59] MT5 Connected
+[2026-07-29 19:36:59] Symbol: XAUUSD
+[2026-07-29 19:36:59] Timeframe: H1
+[2026-07-29 19:36:59] Candles Received: 10
+[2026-07-29 19:36:59] Features Generated: true
+[2026-07-29 19:36:59] Research Completed: true
+[2026-07-29 19:36:59] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-f0573697.json
+[2026-07-29 19:36:59] Research cycle completed successfully. Result ID: rpt-XAUUSD-f0573697
+[2026-07-29 19:37:05] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:05] MT5 Connected
+[2026-07-29 19:37:05] Symbol: XAUUSD
+[2026-07-29 19:37:05] Timeframe: H1
+[2026-07-29 19:37:05] Candles Received: 10
+[2026-07-29 19:37:05] Features Generated: true
+[2026-07-29 19:37:05] Research Completed: true
+[2026-07-29 19:37:05] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-b0fb117f.json
+[2026-07-29 19:37:05] Research cycle completed successfully. Result ID: rpt-XAUUSD-b0fb117f
+[2026-07-29 19:37:07] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:07] MT5 Connected
+[2026-07-29 19:37:07] Symbol: XAUUSD
+[2026-07-29 19:37:07] Timeframe: H1
+[2026-07-29 19:37:07] Candles Received: 10
+[2026-07-29 19:37:07] Features Generated: true
+[2026-07-29 19:37:07] Research Completed: true
+[2026-07-29 19:37:07] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-fe1f6297.json
+[2026-07-29 19:37:07] Research cycle completed successfully. Result ID: rpt-XAUUSD-fe1f6297
+[2026-07-29 19:37:10] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:10] MT5 Connected
+[2026-07-29 19:37:10] Symbol: XAUUSD
+[2026-07-29 19:37:10] Timeframe: H1
+[2026-07-29 19:37:10] Candles Received: 10
+[2026-07-29 19:37:10] Features Generated: true
+[2026-07-29 19:37:10] Research Completed: true
+[2026-07-29 19:37:10] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c1f2c333.json
+[2026-07-29 19:37:10] Research cycle completed successfully. Result ID: rpt-XAUUSD-c1f2c333
+[2026-07-29 19:37:10] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:10] MT5 Connected
+[2026-07-29 19:37:10] Symbol: XAUUSD
+[2026-07-29 19:37:10] Timeframe: H1
+[2026-07-29 19:37:10] Candles Received: 10
+[2026-07-29 19:37:10] Features Generated: true
+[2026-07-29 19:37:10] Research Completed: true
+[2026-07-29 19:37:10] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-b053e73d.json
+[2026-07-29 19:37:10] Research cycle completed successfully. Result ID: rpt-XAUUSD-b053e73d
+[2026-07-29 19:37:19] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:19] MT5 Connected
+[2026-07-29 19:37:19] Symbol: XAUUSD
+[2026-07-29 19:37:19] Timeframe: H1
+[2026-07-29 19:37:19] Candles Received: 60
+[2026-07-29 19:37:19] Features Generated: true
+[2026-07-29 19:37:19] Research Completed: true
+[2026-07-29 19:37:19] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-5036bd80.json
+[2026-07-29 19:37:19] Research cycle completed successfully. Result ID: rpt-XAUUSD-5036bd80
+[2026-07-29 19:37:26] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:26] MT5 Connected
+[2026-07-29 19:37:26] Symbol: XAUUSD
+[2026-07-29 19:37:26] Timeframe: H1
+[2026-07-29 19:37:26] Candles Received: 10
+[2026-07-29 19:37:26] Features Generated: true
+[2026-07-29 19:37:26] Research Completed: true
+[2026-07-29 19:37:26] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-66c947cf.json
+[2026-07-29 19:37:26] Research cycle completed successfully. Result ID: rpt-XAUUSD-66c947cf
+[2026-07-29 19:37:28] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:28] MT5 Connected
+[2026-07-29 19:37:28] Symbol: XAUUSD
+[2026-07-29 19:37:28] Timeframe: H1
+[2026-07-29 19:37:28] Candles Received: 10
+[2026-07-29 19:37:28] Features Generated: true
+[2026-07-29 19:37:28] Research Completed: true
+[2026-07-29 19:37:28] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-7f908ace.json
+[2026-07-29 19:37:28] Research cycle completed successfully. Result ID: rpt-XAUUSD-7f908ace
+[2026-07-29 19:37:30] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:30] MT5 Connected
+[2026-07-29 19:37:30] Symbol: XAUUSD
+[2026-07-29 19:37:30] Timeframe: H1
+[2026-07-29 19:37:30] Candles Received: 10
+[2026-07-29 19:37:30] Features Generated: true
+[2026-07-29 19:37:30] Research Completed: true
+[2026-07-29 19:37:30] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-85669fa7.json
+[2026-07-29 19:37:30] Research cycle completed successfully. Result ID: rpt-XAUUSD-85669fa7
+[2026-07-29 19:37:30] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:30] MT5 Connected
+[2026-07-29 19:37:30] Symbol: XAUUSD
+[2026-07-29 19:37:30] Timeframe: H1
+[2026-07-29 19:37:30] Candles Received: 10
+[2026-07-29 19:37:30] Features Generated: true
+[2026-07-29 19:37:30] Research Completed: true
+[2026-07-29 19:37:30] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d94889cc.json
+[2026-07-29 19:37:30] Research cycle completed successfully. Result ID: rpt-XAUUSD-d94889cc
+[2026-07-29 19:37:36] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:36] MT5 Connected
+[2026-07-29 19:37:36] Symbol: XAUUSD
+[2026-07-29 19:37:36] Timeframe: H1
+[2026-07-29 19:37:36] Candles Received: 10
+[2026-07-29 19:37:36] Features Generated: true
+[2026-07-29 19:37:36] Research Completed: true
+[2026-07-29 19:37:36] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-710f864b.json
+[2026-07-29 19:37:36] Research cycle completed successfully. Result ID: rpt-XAUUSD-710f864b
+[2026-07-29 19:37:40] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:40] MT5 Connected
+[2026-07-29 19:37:40] Symbol: XAUUSD
+[2026-07-29 19:37:40] Timeframe: H1
+[2026-07-29 19:37:40] Candles Received: 10
+[2026-07-29 19:37:40] Features Generated: true
+[2026-07-29 19:37:40] Research Completed: true
+[2026-07-29 19:37:40] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-d1a73397.json
+[2026-07-29 19:37:40] Research cycle completed successfully. Result ID: rpt-XAUUSD-d1a73397
+[2026-07-29 19:37:41] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:41] MT5 Connected
+[2026-07-29 19:37:41] Symbol: XAUUSD
+[2026-07-29 19:37:41] Timeframe: H1
+[2026-07-29 19:37:41] Candles Received: 10
+[2026-07-29 19:37:41] Features Generated: true
+[2026-07-29 19:37:41] Research Completed: true
+[2026-07-29 19:37:41] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-c11341f8.json
+[2026-07-29 19:37:41] Research cycle completed successfully. Result ID: rpt-XAUUSD-c11341f8
+[2026-07-29 19:37:41] Starting research iteration for XAUUSD on H1...
+[2026-07-29 19:37:41] MT5 Connected
+[2026-07-29 19:37:41] Symbol: XAUUSD
+[2026-07-29 19:37:41] Timeframe: H1
+[2026-07-29 19:37:41] Candles Received: 10
+[2026-07-29 19:37:41] Features Generated: true
+[2026-07-29 19:37:41] Research Completed: true
+[2026-07-29 19:37:41] Saved research snapshot to: runtime_logs/research_snapshots/rpt-XAUUSD-a01820b4.json
+[2026-07-29 19:37:41] Research cycle completed successfully. Result ID: rpt-XAUUSD-a01820b4
