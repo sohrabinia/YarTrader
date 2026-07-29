@@ -43,7 +43,10 @@ from src.Research.MarketAnalysis.Discovery.brain import (
     MarketUnderstandingModel,
     ConfidenceEngine,
     IndependentJudgeBrain,
-    AntiSelfDeceptionLayer
+    AntiSelfDeceptionLayer,
+    MemoryConsolidationManager,
+    CognitiveLearningEngine,
+    ResearchPriorityManager
 )
 
 
@@ -426,3 +429,84 @@ class TestNewbornMarketDiscoveryBrain(unittest.TestCase):
         # Verify it passes cleanly if all candidates are within current boundary
         clean_obs = candidate_obs[:3]
         deception_layer.verify_no_future_leakage(current_time, clean_obs)
+
+    # =========================================================================
+    # NEW COGNITIVE COMPLETION PHASE 3 TESTS
+    # =========================================================================
+
+    # 19. Memory Consolidation Manager Verification
+    def test_cognitive_8_memory_consolidation_concept_elevation(self) -> None:
+        memory = MemorySystem()
+        consolidator = MemoryConsolidationManager()
+        v_engine = VirtualTradingEngine()
+
+        trade = v_engine.create_virtual_trade(
+            asset=self.asset, timeframe=self.timeframe, direction="BUY",
+            entry_price=1800.0, stop_loss=1790.0, target_price=1830.0,
+            expected_scenario="BUY_pattern_cons", entry_time=self.now
+        )
+        sim_res = SimulationResult(
+            TradeId=trade.TradeId, IsSuccess=True,
+            MaxFavorableMovementPoints=30.0, MaxAdverseMovementPoints=1.0, FinalResult="WIN"
+        )
+
+        # Scenario 1: Rejected due to disapproved judge report
+        judge_fail = JudgeReport("rep_1", trade.TradeId, 0.4, 0.3, 0.5, False, "DISAPPROVED", "Insufficiency")
+        rec_fail = consolidator.consolidate_experience(trade, sim_res, judge_fail, memory)
+        self.assertIsNone(rec_fail)
+
+        # Scenario 2: Approved, increments occurrences and elevates to concept when occurrences >= 5
+        judge_ok = JudgeReport("rep_2", trade.TradeId, 1.0, 1.0, 1.0, True, "APPROVED", "Approved")
+
+        # Pre-seed pattern memory to trigger occurrences elevation
+        pat = PatternMemory(PatternId="pat_cons", Signature=trade.ExpectedScenario, Occurrences=4, ContinuationCount=3, ReversalCount=1)
+        memory.save_pattern(pat)
+
+        rec_ok = consolidator.consolidate_experience(trade, sim_res, judge_ok, memory)
+        self.assertTrue(isinstance(rec_ok, LearningRecord))
+
+        # Verify elevated to Concept Memory
+        concept_id = f"concept_{pat.PatternId}"
+        self.assertIn(concept_id, memory.concept_memory)
+        self.assertEqual(memory.concept_memory[concept_id].ValidatedSamples, 5)
+
+    # 20. Cognitive Learning Loop Engine Flow
+    def test_cognitive_9_learning_loop_flow(self) -> None:
+        memory = MemorySystem()
+        judge = IndependentJudgeBrain()
+        loop_engine = CognitiveLearningEngine()
+        v_engine = VirtualTradingEngine()
+
+        trade = v_engine.create_virtual_trade(
+            asset=self.asset, timeframe=self.timeframe, direction="BUY",
+            entry_price=1800.0, stop_loss=1790.0, target_price=1830.0,
+            expected_scenario="BUY_loop_test", entry_time=self.now
+        )
+        sim_res = SimulationResult(
+            TradeId=trade.TradeId, IsSuccess=True,
+            MaxFavorableMovementPoints=30.0, MaxAdverseMovementPoints=1.0, FinalResult="WIN"
+        )
+
+        episode = loop_engine.execute_learning_loop(trade, sim_res, memory, judge)
+        self.assertTrue(isinstance(episode, LearningEpisode))
+        self.assertEqual(len(episode.JudgeReportIds), 1)
+        self.assertIsNotNone(episode.JudgeReportIds[0])
+
+    # 21. Research Priority Engine Calculations
+    def test_cognitive_10_research_priority_engine(self) -> None:
+        memory = MemorySystem()
+        priority_engine = ResearchPriorityManager()
+
+        # Check default report on empty memory
+        prio_empty = priority_engine.calculate_research_priority(memory)
+        self.assertIn("Default research priority", prio_empty["Reason"])
+
+        # Seed pattern memories
+        p1 = PatternMemory("p_1", "upward_12", Occurrences=10, ContinuationCount=8, ReversalCount=2)
+        p2 = PatternMemory("p_2", "downward_5", Occurrences=2, ContinuationCount=1, ReversalCount=1) # target priority due to lowest occurrences
+        memory.save_pattern(p1)
+        memory.save_pattern(p2)
+
+        prio_pat = priority_engine.calculate_research_priority(memory)
+        self.assertIn("Signature downward_5", prio_pat["Research Priority"])
+        self.assertEqual(prio_pat["Required Samples"], 3)

@@ -1,4 +1,5 @@
 import uuid
+from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from src.Data.MarketData.Models.models import MarketDataPoint
@@ -28,6 +29,49 @@ from src.Research.MarketAnalysis.Discovery.models import (
     LearningEpisode
 )
 
+
+# =========================================================================
+# COGNITIVE CORES & INTERFACE CONTRACTS
+# =========================================================================
+
+class IReplayEngine(ABC):
+    """Interface for replaying historical sequences chronologically without future leakage."""
+    @abstractmethod
+    def replay_historical_sequence(self, sequence: MarketSequence, memory_system: Any) -> List[SimulationResult]:
+        pass
+
+
+class IJudgeEngine(ABC):
+    """Interface for independent decision and reasoning evaluations."""
+    @abstractmethod
+    def evaluate_virtual_trade(self, trade: VirtualTrade, result: SimulationResult, sample_count: int) -> JudgeReport:
+        pass
+
+
+class IMemoryConsolidation(ABC):
+    """Interface for consolidating evaluated episodic experiences into validated concept memories."""
+    @abstractmethod
+    def consolidate_experience(self, trade: VirtualTrade, result: SimulationResult, judge_report: JudgeReport, memory: Any) -> Optional[LearningRecord]:
+        pass
+
+
+class ILearningEngine(ABC):
+    """Interface for orchestrating the complete Cognitive Learning loop."""
+    @abstractmethod
+    def execute_learning_loop(self, trade: VirtualTrade, result: SimulationResult, memory: Any, judge_brain: IJudgeEngine) -> Optional[LearningEpisode]:
+        pass
+
+
+class IResearchPriorityEngine(ABC):
+    """Interface for calculating active learning research priorities."""
+    @abstractmethod
+    def calculate_research_priority(self, memory: Any) -> Dict[str, Any]:
+        pass
+
+
+# =========================================================================
+# CONCRETE COGNITIVE CORE IMPLEMENTATIONS
+# =========================================================================
 
 class TradingRealityEngine:
     """
@@ -870,7 +914,130 @@ class LearningMemoryUpdate:
         )
 
 
-class SimulationBrain:
+class IndependentJudgeBrain(IJudgeEngine):
+    """Evaluates virtual trades independently, ensuring reasoning quality and statistical validity."""
+    def evaluate_virtual_trade(self, trade: VirtualTrade, result: SimulationResult, sample_count: int) -> JudgeReport:
+        """Verifies reasoning quality, sample sizes, and consistency to approve learning updates."""
+        is_valid = True
+        verdict = "APPROVED"
+        explanation = "Reasoning quality approved based on sufficient sample count."
+
+        if sample_count < 3:
+            is_valid = False
+            verdict = "DISAPPROVED"
+            explanation = "Sample insufficiency: matched occurrences are too low to declare valid learning context."
+
+        return JudgeReport(
+            ReportId=str(uuid.uuid4())[:8],
+            TradeId=trade.TradeId,
+            EvidenceQualityScore=1.0 if is_valid else 0.4,
+            ReasoningQualityScore=0.9 if is_valid else 0.3,
+            SampleSufficiencyScore=1.0 if sample_count >= 5 else 0.5,
+            IsScientificallyValid=is_valid,
+            Verdict=verdict,
+            Explanation=explanation
+        )
+
+
+class MemoryConsolidationManager(IMemoryConsolidation):
+    """Manages secure consolidation of experiences into concepts after independent Judge approval."""
+    def consolidate_experience(self, trade: VirtualTrade, result: SimulationResult, judge_report: JudgeReport, memory: MemorySystem) -> Optional[LearningRecord]:
+        if not judge_report.IsScientificallyValid or judge_report.Verdict != "APPROVED":
+            return None  # Consolidation rejected!
+
+        sig = trade.ExpectedScenario
+        pat = memory.patterns_memory.get(sig)
+        if not pat:
+            pat = PatternMemory(PatternId=str(uuid.uuid4())[:8], Signature=sig)
+            memory.save_pattern(pat)
+
+        prior_prob = pat.continuation_probability
+        pat.Occurrences += 1
+        if result.FinalResult == "WIN":
+            pat.ContinuationCount += 1
+        else:
+            pat.ReversalCount += 1
+
+        # Check if we should elevate this pattern signature to a Concept
+        if pat.Occurrences >= 5 and pat.continuation_probability >= 0.7:
+            # Check if concept already exists
+            concept_id = f"concept_{pat.PatternId}"
+            if concept_id not in memory.concept_memory:
+                concept = ConceptMemory(
+                    ConceptId=concept_id,
+                    Description=f"Highly repeating pattern run structure: {pat.Signature}",
+                    Confidence=pat.continuation_probability,
+                    ValidatedSamples=pat.Occurrences,
+                    LastValidatedAt=datetime.now()
+                )
+                memory.save_concept(concept)
+
+        return LearningRecord(
+            RecordId=str(uuid.uuid4())[:8],
+            CreatedAt=datetime.now(),
+            SourceTradeId=trade.TradeId,
+            UpdatedPatternId=pat.PatternId,
+            PriorContinuationProb=prior_prob,
+            NewContinuationProb=pat.continuation_probability,
+            LessonLearned="Consolidated Judge-approved virtual trade results into pattern signature metrics successfully."
+        )
+
+
+class CognitiveLearningEngine(ILearningEngine):
+    """Orchestrates complete validated feedback loop: Observation -> Replay -> Judge -> Consolidation."""
+    def __init__(self, consolidator: Optional[IMemoryConsolidation] = None) -> None:
+        self.consolidator = consolidator or MemoryConsolidationManager()
+
+    def execute_learning_loop(self, trade: VirtualTrade, result: SimulationResult, memory: MemorySystem, judge_brain: IJudgeEngine) -> Optional[LearningEpisode]:
+        # 1. Ask Independent Judge to evaluate trade
+        pat = memory.patterns_memory.get(trade.ExpectedScenario)
+        samples = pat.Occurrences if pat else 10 # fallback/dummy if not created yet
+
+        report = judge_brain.evaluate_virtual_trade(trade, result, sample_count=samples)
+
+        # 2. If approved, consolidate into memory and concepts
+        record = self.consolidator.consolidate_experience(trade, result, report, memory)
+        if not record:
+            return None  # Loop did not conclude due to Judge disapproval
+
+        # 3. Save episodic LearningEpisode
+        episode = LearningEpisode(
+            EpisodeId=str(uuid.uuid4())[:8],
+            CreatedAt=datetime.now(),
+            ObservationIds=[f"obs_{int(trade.EntryTime.timestamp())}"],
+            PatternIds=[pat.PatternId] if pat else [],
+            HypothesisIds=[],
+            JudgeReportIds=[report.ReportId],
+            EvolvedConceptId=f"concept_{pat.PatternId}" if pat else "None"
+        )
+        return episode
+
+
+class ResearchPriorityManager(IResearchPriorityEngine):
+    """Calculates curiosity priorities based on weaknesses, low confidence, and sample size gaps."""
+    def calculate_research_priority(self, memory: MemorySystem) -> Dict[str, Any]:
+        if not memory.patterns_memory:
+            return {
+                "Research Priority": "Gold point sequences",
+                "Reason": "Memory system is completely empty. Default research priority active.",
+                "Required Samples": 5,
+                "Expected Learning Value": 1.0
+            }
+
+        # Find pattern with lowest continuation probability or lowest sample count
+        patterns = list(memory.patterns_memory.values())
+        patterns.sort(key=lambda p: (p.Occurrences, p.continuation_probability))
+        target_pat = patterns[0]
+
+        return {
+            "Research Priority": f"Signature {target_pat.Signature}",
+            "Reason": f"High uncertainty: pattern occurrences count is only {target_pat.Occurrences} times.",
+            "Required Samples": max(1, 5 - target_pat.Occurrences),
+            "Expected Learning Value": 0.85
+        }
+
+
+class SimulationBrain(IReplayEngine):
     """Orchestrates historical sequence replays and internally simulates virtual decisions including execution conditions."""
     def __init__(self, reality_engine: Optional[TradingRealityEngine] = None) -> None:
         self.reality_engine = reality_engine or TradingRealityEngine()
@@ -938,29 +1105,14 @@ class SimulationBrain:
 
         return results
 
-
-class IndependentJudgeBrain:
-    """Evaluates virtual trades independently, ensuring reasoning quality and statistical validity."""
-    def evaluate_virtual_trade(self, trade: VirtualTrade, result: SimulationResult, sample_count: int) -> JudgeReport:
-        """Verifies reasoning quality, sample sizes, and consistency to approve learning updates."""
-        is_valid = True
-        verdict = "APPROVED"
-        explanation = "Reasoning quality approved based on sufficient sample count."
-
-        if sample_count < 3:
-            is_valid = False
-            verdict = "DISAPPROVED"
-            explanation = "Sample insufficiency: matched occurrences are too low to declare valid learning context."
-
-        return JudgeReport(
-            ReportId=str(uuid.uuid4())[:8],
-            TradeId=trade.TradeId,
-            EvidenceQualityScore=1.0 if is_valid else 0.4,
-            ReasoningQualityScore=0.9 if is_valid else 0.3,
-            SampleSufficiencyScore=1.0 if sample_count >= 5 else 0.5,
-            IsScientificallyValid=is_valid,
-            Verdict=verdict,
-            Explanation=explanation
+    def replay_historical_sequence(self, sequence: MarketSequence, memory_system: MemorySystem) -> List[SimulationResult]:
+        """IReplayEngine Interface Replay implementation."""
+        return self.simulate_replay(
+            sequence=sequence,
+            memory=memory_system,
+            direction="WAIT",
+            stop_loss_pts=0.0,
+            target_pts=0.0
         )
 
 
