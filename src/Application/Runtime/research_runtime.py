@@ -1,5 +1,6 @@
 import os
 import time
+import json
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from src.Infrastructure.exceptions import ValidationException
@@ -99,6 +100,7 @@ class ResearchRuntime:
 
             # 7. Store Result
             self._history.append(result)
+            self._store_snapshot(result)
             self._log_evidence(f"Research cycle completed successfully. Result ID: {result.Findings.get('report_id', 'unknown')}")
 
             return result
@@ -131,6 +133,30 @@ class ResearchRuntime:
     def stop(self) -> None:
         """Signals the polling loop to gracefully terminate."""
         self._is_running = False
+
+    def _store_snapshot(self, result: ResearchResult) -> None:
+        """Stores the research result snapshot as a serialized JSON file for persistence."""
+        snapshot_dir = os.path.join(self._evidence_dir, "research_snapshots")
+        os.makedirs(snapshot_dir, exist_ok=True)
+
+        report_id = result.Findings.get("report_id", f"snapshot_{int(time.time())}")
+        filename = f"{report_id}.json"
+        filepath = os.path.join(snapshot_dir, filename)
+
+        # Build serializable dict
+        snapshot_data = {
+            "report_id": report_id,
+            "asset": result.Request.Asset,
+            "timeframe": result.Request.Context.get("timeframe", "H1"),
+            "confidence_score": result.ConfidenceScore,
+            "created_at": result.CreatedAt.isoformat(),
+            "findings": result.Findings
+        }
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(snapshot_data, f, indent=4)
+
+        self._log_evidence(f"Saved research snapshot to: {filepath}")
 
     def _log_evidence(self, message: str) -> None:
         """Appends formatted message to console, system log, and the dedicated runtime evidence log file."""

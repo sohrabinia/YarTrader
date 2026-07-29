@@ -112,6 +112,23 @@ class ServiceOrchestrator:
             elif endpoint == "/v1/dashboard/shadow":
                 shadow = self._dashboard_aggregator.generate_shadow_dashboard_metrics()
                 return ServiceResponseDTO(status_code=200, data={"shadow": shadow})
+            elif endpoint == "/v1/dashboard/research":
+                # Expose the latest research snapshot by reading from the disk persistence layer
+                import json
+                import os
+                snapshot_dir = "runtime_logs/research_snapshots"
+                if os.path.exists(snapshot_dir):
+                    files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
+                    if files:
+                        files.sort(key=lambda x: os.path.getmtime(os.path.join(snapshot_dir, x)))
+                        latest_file = files[-1]
+                        try:
+                            with open(os.path.join(snapshot_dir, latest_file), "r", encoding="utf-8") as f:
+                                data = json.load(f)
+                            return ServiceResponseDTO(status_code=200, data=data)
+                        except Exception:
+                            pass
+                return ServiceResponseDTO(status_code=404, error_message="No research snapshots found on disk.")
 
         self._metrics["failed_requests"] += 1
         return ServiceResponseDTO(status_code=404, error_message=f"Endpoint '{endpoint}' not found.")

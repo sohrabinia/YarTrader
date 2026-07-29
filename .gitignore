@@ -59,3 +59,11 @@ venv.bak/
 .idea/
 *.swp
 *.swo
+
+# Project logs, snapshots, and reports
+test_runtime_logs/
+runtime_logs/
+history/
+logs/
+validation/
+uvicorn.log

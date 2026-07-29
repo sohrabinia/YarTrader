@@ -22,6 +22,66 @@ app = FastAPI(
     description="Descriptive, analytical non-trading administrative panel and System Validation Center"
 )
 
+# -----------------------------------------------------------------------------
+# LIVE MARKET RESEARCH WORKER & PIPELINE COUPLING (APES-FIN Read-Only Compliance)
+# -----------------------------------------------------------------------------
+from src.Application.Runtime.research_runtime import ResearchRuntime
+
+# Instantiate global, thread-safe, passive ResearchRuntime using real read-only MT5 provider
+global_research_runtime = ResearchRuntime(
+    symbol="XAUUSD",
+    timeframe="H1",
+    evidence_dir="runtime_logs"
+)
+
+research_tracker = {
+    "last_analysis_time": None,
+    "last_candle_time": None,
+    "worker_status": "NOT_STARTED",
+    "mt5_status": "UNKNOWN"
+}
+
+def run_research_background_loop():
+    """Continuous, crash-resistant scheduled polling worker for live XAUUSD H1 analysis."""
+    global research_tracker
+    research_tracker["worker_status"] = "RUNNING"
+
+    # Run once immediately on server boot to generate the initial baseline snapshot
+    try:
+        res = global_research_runtime.run_once()
+        research_tracker["last_analysis_time"] = datetime.now().isoformat()
+        if res.Request.EndTime:
+            research_tracker["last_candle_time"] = res.Request.EndTime.isoformat()
+        research_tracker["mt5_status"] = "CONNECTED"
+    except Exception as e:
+        # Graceful failure handling and fallback representation
+        research_tracker["mt5_status"] = "DISCONNECTED"
+        research_tracker["worker_status"] = "RECOVERING"
+
+    # Polling loop at scheduled research intervals (60s as specified in config example)
+    while True:
+        try:
+            # Active read-only connection check
+            conn_health = global_research_runtime.provider.delegate.get_connection_health()
+            research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
+
+            res = global_research_runtime.run_once()
+            research_tracker["last_analysis_time"] = datetime.now().isoformat()
+            if res.Request.EndTime:
+                research_tracker["last_candle_time"] = res.Request.EndTime.isoformat()
+            research_tracker["worker_status"] = "RUNNING"
+        except Exception:
+            # Automatic self-healing, logging health, and never crashing the host FastAPI app
+            research_tracker["worker_status"] = "RECOVERING"
+            research_tracker["mt5_status"] = "DISCONNECTED"
+
+        time.sleep(60.0)
+
+# Spawn continuous live analytical thread
+research_thread = threading.Thread(target=run_research_background_loop, daemon=True)
+research_thread.start()
+
+
 # Active live state tracker of the acceptance validation platform
 class ValidationState:
     def __init__(self) -> None:
@@ -309,9 +369,62 @@ def get_dashboard_spa():
             } catch(e) {}
         }
 
+        async function fetchResearch() {
+            try {
+                let response = await fetch('/api/research/current');
+                let data = await response.json();
+
+                document.getElementById('res-symbol').innerText = data.symbol;
+                document.getElementById('res-timeframe').innerText = data.timeframe;
+                document.getElementById('res-bias').innerText = data.bias;
+                document.getElementById('res-confidence').innerText = data.confidence + '%';
+                document.getElementById('res-time').innerText = data.timestamp;
+
+                // Colorize bias text
+                let biasEl = document.getElementById('res-bias');
+                if (data.bias === 'Bullish') {
+                    biasEl.style.color = 'var(--accent)';
+                } else if (data.bias === 'Bearish') {
+                    biasEl.style.color = 'var(--danger)';
+                } else {
+                    biasEl.style.color = 'var(--warning)';
+                }
+
+                // Indicators list
+                let ind = data.indicators;
+                if (ind) {
+                    let sma_20_val = ind.sma_20 !== undefined ? ind.sma_20.toFixed(2) : '--';
+                    let ema_12_val = ind.ema_12 !== undefined ? ind.ema_12.toFixed(2) : '--';
+                    let rsi_val = ind.rsi !== undefined ? ind.rsi.toFixed(2) : '--';
+                    let atr_val = ind.atr !== undefined ? ind.atr.toFixed(4) : '--';
+
+                    document.getElementById('res-indicators').innerHTML = `
+                        <strong>SMA20:</strong> ${sma_20_val} |
+                        <strong>EMA12:</strong> ${ema_12_val} |
+                        <strong>RSI:</strong> ${rsi_val} |
+                        <strong>ATR:</strong> ${atr_val}
+                    `;
+                }
+
+                // Bullet reasoning list
+                let reasonHtml = '';
+                if (data.reasoning && data.reasoning.length > 0) {
+                    data.reasoning.forEach(r => {
+                        reasonHtml += `<li>${r}</li>`;
+                    });
+                } else {
+                    reasonHtml = '<li>No active indicators triggered.</li>';
+                }
+                document.getElementById('res-reasoning').innerHTML = reasonHtml;
+            } catch(e) {}
+        }
+
         window.onload = () => {
             fetchStatus();
             fetchHistory();
+            fetchResearch();
+            // Continuously refresh research panel every 5 seconds
+            setInterval(fetchResearch, 5000);
         }
     </script>
 </head>
@@ -323,6 +436,33 @@ def get_dashboard_spa():
     <div class="container">
         <div class="grid">
             <div>
+                <!-- LIVE MARKET RESEARCH PANEL -->
+                <div class="card" style="border-left: 6px solid var(--accent);">
+                    <h2 style="margin: 0 0 15px 0; color: var(--primary);">Live Market Research Panel</h2>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
+                        <div style="line-height: 1.8;">
+                            <div><strong>Current Symbol:</strong> <span id="res-symbol">XAUUSD</span> (<span id="res-timeframe">H1</span>)</div>
+                            <div><strong>Last Update:</strong> <span id="res-time" style="font-size: 0.9em; color: #555;">Loading...</span></div>
+                            <div style="font-size: 1.2em; margin-top: 10px;">
+                                <strong>Market Bias:</strong> <span id="res-bias" style="font-weight: bold; color: var(--accent);">Bullish</span>
+                            </div>
+                            <div style="font-size: 1.2em;">
+                                <strong>Confidence:</strong> <span id="res-confidence" style="font-weight: bold; color: var(--primary);">78%</span>
+                            </div>
+                        </div>
+                        <div>
+                            <strong>Technical Metrics:</strong>
+                            <div id="res-indicators" style="background: #f1f5f9; padding: 10px; border-radius: 6px; font-size: 0.9em; margin-top: 5px; line-height: 1.6;">
+                                SMA20: -- | EMA20: -- | RSI: -- | ATR: --
+                            </div>
+                        </div>
+                    </div>
+                    <strong>Latest AI Explanation:</strong>
+                    <ul id="res-reasoning" style="margin: 5px 0 0 0; padding-left: 20px; line-height: 1.6; font-size: 0.95em;">
+                        <li>Loading reasoning elements...</li>
+                    </ul>
+                </div>
+
                 <div class="card">
                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #edf2f4; padding-bottom: 15px; margin-bottom: 20px;">
                         <h2 style="margin: 0; color: var(--primary);">System Validation Center</h2>
@@ -420,6 +560,62 @@ def get_dashboard_spa():
 # ==============================================================================
 # 2. REST API CONTRACTS AND SERVICE ENDPOINTS
 # ==============================================================================
+
+@app.get("/api/research/current")
+def get_current_analysis():
+    """Returns the latest generated analysis."""
+    history = global_research_runtime.history
+    if not history:
+        try:
+            res = global_research_runtime.run_once()
+            history = [res]
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"No analysis generated yet. Error: {str(e)}")
+
+    latest = history[-1]
+    po = latest.Findings.get("pipeline_outputs", {})
+    smart = po.get("smart_interpretation", {})
+    return {
+        "symbol": latest.Request.Asset,
+        "timeframe": latest.Request.Context.get("timeframe", "H1"),
+        "bias": smart.get("bias", "Neutral"),
+        "confidence": smart.get("confidence", 50),
+        "reasoning": smart.get("reasoning", []),
+        "timestamp": latest.CreatedAt.isoformat(),
+        "indicators": po.get("technical_analysis", {})
+    }
+
+
+@app.get("/api/research/history")
+def get_analysis_history():
+    """Returns previous analyses."""
+    history = global_research_runtime.history
+    return [
+        {
+            "symbol": item.Request.Asset,
+            "timeframe": item.Request.Context.get("timeframe", "H1"),
+            "bias": item.Findings.get("pipeline_outputs", {}).get("smart_interpretation", {}).get("bias", "Neutral"),
+            "confidence": item.Findings.get("pipeline_outputs", {}).get("smart_interpretation", {}).get("confidence", 50),
+            "reasoning": item.Findings.get("pipeline_outputs", {}).get("smart_interpretation", {}).get("reasoning", []),
+            "timestamp": item.CreatedAt.isoformat()
+        }
+        for item in history
+    ]
+
+
+@app.get("/api/research/health")
+def get_research_health():
+    """Returns MT5 status, last candle time, last analysis time, worker status."""
+    global research_tracker
+    conn_health = global_research_runtime.provider.delegate.get_connection_health()
+    research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
+    return {
+        "mt5_status": research_tracker["mt5_status"],
+        "last_candle_time": research_tracker["last_candle_time"],
+        "last_analysis_time": research_tracker["last_analysis_time"],
+        "worker_status": research_tracker["worker_status"]
+    }
+
 
 @app.get("/v1/health")
 def get_health_diagnostics():
