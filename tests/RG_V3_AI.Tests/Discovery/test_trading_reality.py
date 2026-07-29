@@ -147,3 +147,33 @@ class TestTradingRealityEngineAndSpreadAwareness(unittest.TestCase):
         self.assertFalse(hasattr(reality, "positions_get"))
         self.assertFalse(hasattr(live_brain, "buy"))
         self.assertFalse(hasattr(live_brain, "sell"))
+
+    # 6. Test NO_TRADE and WAIT Decision States
+    def test_no_trade_and_wait_states(self) -> None:
+        reality = TradingRealityEngine()
+        engine = VirtualTradingEngine(reality_engine=reality)
+        sim_brain = SimulationBrain(reality_engine=reality)
+        memory = MemorySystem()
+
+        layer = DataRealityLayer()
+        observations = layer.receive_data(self.dummy_data, self.timeframe)
+        seq = MarketSequence(Asset=self.symbol, Timeframe=self.timeframe, Observations=observations)
+
+        # Verify NO_TRADE creates immutable trade with zero spread cost
+        trade_no = engine.create_virtual_trade(
+            asset=self.symbol, timeframe=self.timeframe, direction="NO_TRADE",
+            entry_price=1800.0, stop_loss=1800.0, target_price=1800.0,
+            expected_scenario="NO_TRADE_EXPECTED", entry_time=self.now
+        )
+        self.assertEqual(trade_no.EntryPrice, 1800.0)
+        self.assertEqual(trade_no.Spread, 0.0)
+
+        # Verify WAIT resolves instantly with 0 points
+        results = sim_brain.simulate_replay(
+            seq, memory, direction="WAIT", stop_loss_pts=0.0, target_pts=0.0
+        )
+        self.assertEqual(len(results), 1)
+        res = results[0]
+        self.assertEqual(res.FinalResult, "NEUTRAL")
+        self.assertEqual(res.MaxFavorableMovementPoints, 0.0)
+        self.assertEqual(res.MaxAdverseMovementPoints, 0.0)

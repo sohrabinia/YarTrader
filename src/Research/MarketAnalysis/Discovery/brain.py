@@ -652,6 +652,25 @@ class VirtualTradingEngine:
         volatility: float = 1.0
     ) -> VirtualTrade:
         """Returns a newly opened VirtualTrade instance with realistic bid/ask spread markup applied."""
+        # Check for NO_TRADE or WAIT states - they don't apply slippage or spreads
+        if direction in ["WAIT", "NO TRADE", "NO_TRADE"]:
+            return VirtualTrade(
+                TradeId=str(uuid.uuid4())[:8],
+                Asset=asset,
+                Timeframe=timeframe,
+                Direction=direction,
+                EntryPrice=entry_price,
+                StopLoss=stop_loss,
+                TargetPrice=target_price,
+                EntryTime=entry_time,
+                ExpectedScenario=expected_scenario,
+                Bid=entry_price,
+                Ask=entry_price,
+                Spread=0.0,
+                Commission=0.0,
+                Slippage=0.0
+            )
+
         # Calculate realistic entry using spread
         slippage = self.reality_engine.simulate_slippage(entry_price, volatility)
 
@@ -685,6 +704,20 @@ class VirtualTradingEngine:
         """Updates trade price records, checking stops and targets using Bid/Ask margins. Returns SimulationResult if closed."""
         if trade.State == "CLOSED":
             return None
+
+        # Handle WAIT or NO_TRADE directly. They resolve neutral on progress immediately.
+        if trade.Direction in ["WAIT", "NO TRADE", "NO_TRADE"]:
+            trade.State = "CLOSED"
+            trade.ExitPrice = trade.EntryPrice
+            trade.ExitTime = current_obs.Timestamp
+            return SimulationResult(
+                TradeId=trade.TradeId,
+                IsSuccess=True,
+                MaxFavorableMovementPoints=0.0,
+                MaxAdverseMovementPoints=0.0,
+                FinalResult="NEUTRAL",
+                FailureReason="Trade resolved cleanly as neutral waiting state."
+            )
 
         # Bid/Ask simulation for the current candle
         bid_price = current_obs.Close - trade.Spread / 2.0
@@ -756,6 +789,16 @@ class OutcomeEvaluationEngine:
         trade.State = "CLOSED"
         trade.ExitPrice = final_price
         trade.ExitTime = closed_time
+
+        if trade.Direction in ["WAIT", "NO TRADE", "NO_TRADE"]:
+            return SimulationResult(
+                TradeId=trade.TradeId,
+                IsSuccess=True,
+                MaxFavorableMovementPoints=0.0,
+                MaxAdverseMovementPoints=0.0,
+                FinalResult="NEUTRAL",
+                FailureReason="Trade resolved cleanly as neutral waiting state."
+            )
 
         if trade.Direction == "BUY":
             mfm = trade.MaxFavorablePrice - trade.EntryPrice - trade.Commission
@@ -858,9 +901,13 @@ class SimulationBrain:
         if direction == "BUY":
             sl = entry_price - stop_loss_pts
             tp = entry_price + target_pts
-        else:
+        elif direction == "SELL":
             sl = entry_price + stop_loss_pts
             tp = entry_price - target_pts
+        else:
+            # WAIT or NO TRADE - resolved immediately
+            sl = entry_price
+            tp = entry_price
 
         trade = self.trading_engine.create_virtual_trade(
             asset=sequence.Asset,
