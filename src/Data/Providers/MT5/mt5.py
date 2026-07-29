@@ -323,7 +323,7 @@ class MT5DataProvider(IDataProvider):
                     error_message=f"MT5 copy_rates_range returned None. Error: {err_msg} (code {err_code})"
                 )
 
-            raw_rates = []
+            rates_list = []
             for rate in rates:
                 if isinstance(rate, dict):
                     time_val = rate.get("time")
@@ -348,7 +348,7 @@ class MT5DataProvider(IDataProvider):
                         close_val = getattr(rate, "close")
                         vol_val = getattr(rate, "tick_volume", getattr(rate, "volume", 0))
 
-                raw_rates.append({
+                rates_list.append({
                     "time": int(time_val),
                     "open": float(open_val),
                     "high": float(high_val),
@@ -363,7 +363,7 @@ class MT5DataProvider(IDataProvider):
             return ExternalDataResponse(
                 request_id=request.request_id or "id",
                 provider_id=self._metadata.provider_id,
-                raw_data=raw_rates,
+                raw_data=rates_list,
                 is_success=True
             )
         except Exception as e:
