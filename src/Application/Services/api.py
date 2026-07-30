@@ -112,6 +112,9 @@ class ServiceOrchestrator:
             elif endpoint == "/v1/dashboard/shadow":
                 shadow = self._dashboard_aggregator.generate_shadow_dashboard_metrics()
                 return ServiceResponseDTO(status_code=200, data={"shadow": shadow})
+            elif endpoint == "/v1/dashboard/cognitive":
+                cognitive = self._dashboard_aggregator.generate_cognitive_dashboard_metrics()
+                return ServiceResponseDTO(status_code=200, data={"cognitive": cognitive})
             elif endpoint == "/v1/dashboard/research":
                 # Expose the latest research snapshot by reading from the disk persistence layer
                 import json

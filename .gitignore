@@ -61,9 +61,9 @@ venv.bak/
 *.swo
 
 # Project logs, snapshots, and reports
+logs/*.log
+runtime_logs/*.log
+runtime_logs/research_snapshots/*.json
 test_runtime_logs/
-runtime_logs/
-history/
-logs/
-validation/
+history/*.json
 uvicorn.log
