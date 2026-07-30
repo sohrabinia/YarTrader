@@ -18,7 +18,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         resp1 = self.client.get("/")
         self.assertEqual(resp1.status_code, 200)
         self.assertIn("text/html", resp1.headers["content-type"])
-        self.assertIn("TradeYar AI — Management Dashboard", resp1.text)
+        self.assertIn("TradeYar AI", resp1.text)
 
         resp2 = self.client.get("/dashboard")
         self.assertEqual(resp2.status_code, 200)

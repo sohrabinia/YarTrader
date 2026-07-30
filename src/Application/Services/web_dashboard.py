@@ -6,9 +6,72 @@ import threading
 import subprocess
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Response, Form, Cookie, Request, status
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+
+# Import Production Authentication, Repository, and Audit stack
+from src.Application.Dashboard.auth_repo import AuthRepository
+from src.Application.Dashboard.auth_service import AuthService
+from src.Application.Dashboard.audit_service import AuditLogService
+
+# Initialize Auth repository, service, and logger
+auth_repo = AuthRepository()
+auth_service = AuthService(auth_repo)
+audit_log_service = AuditLogService()
+
+# Import Complementary Launch Platform Services
+from src.Application.Dashboard.content_system import ContentIntelligenceSystem
+from src.Application.Dashboard.support_service import SupportAIService
+from src.Application.Dashboard.payment_service import PaymentService
+from src.Application.Dashboard.seo_service import SEOService
+from src.Application.Dashboard.email_service import EmailService
+from src.Application.Dashboard.telegram_service import TelegramService
+
+# Instantiate complementary systems
+content_intelligence = ContentIntelligenceSystem()
+support_ai_service = SupportAIService()
+payment_service_instance = PaymentService()
+seo_service_instance = SEOService()
+email_service_instance = EmailService()
+telegram_service_instance = TelegramService()
+
+# Seed default admin if missing
+if not auth_repo.get_user("admin@tradeyar.ai"):
+    auth_service.register_user("admin@tradeyar.ai", "AdminPassSecure!123", role="ADMIN")
+
+def get_current_user_optional(request: Request) -> Optional[dict]:
+    """Helper to retrieve authenticated user from cookie or authorization header."""
+    token = request.cookies.get("tradeyar_session")
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+
+    if token:
+        return auth_service.validate_token(token)
+    return None
+
+def get_current_user_mandatory(request: Request) -> dict:
+    """Enforces authentication; raises 401 Unauthorized if invalid or missing session."""
+    user = get_current_user_optional(request)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized access. Please login first."
+        )
+    return user
+
+def require_role(roles: List[str]):
+    """Decorator dependency to enforce user-role access limits."""
+    def dependency(user: dict = Depends(get_current_user_mandatory)):
+        if user.get("role") not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access forbidden. Requires one of these roles: {roles}"
+            )
+        return user
+    return dependency
 
 # Setup directory paths relative to repo root
 LOGS_DIR = "logs"
@@ -221,28 +284,50 @@ def run_acceptance_runner_thread():
 
 
 # ==============================================================================
-# 1. WEB MANAGEMENT DASHBOARD & SPA PAGE
+# 1. WEB MANAGEMENT DASHBOARD & SPA PAGE (BILINGUAL, MULTI-TAB WITH COOKIES & CONSENT)
 # ==============================================================================
+
 @app.get("/", response_class=HTMLResponse)
+@app.get("/fa", response_class=HTMLResponse)
+@app.get("/en", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
-def get_dashboard_spa():
-    """Serves the rich, production-grade System Validation Center SPA page with full bilingual RTL/LTR support."""
+@app.get("/fa/dashboard", response_class=HTMLResponse)
+@app.get("/en/dashboard", response_class=HTMLResponse)
+@app.get("/admin", response_class=HTMLResponse)
+@app.get("/fa/admin", response_class=HTMLResponse)
+@app.get("/en/admin", response_class=HTMLResponse)
+@app.get("/terms", response_class=HTMLResponse)
+@app.get("/privacy", response_class=HTMLResponse)
+@app.get("/cookie-policy", response_class=HTMLResponse)
+@app.get("/disclaimer", response_class=HTMLResponse)
+def get_dashboard_spa(request: Request):
+    """
+    Serves the beautiful, production-grade bilingual launch platform SPA.
+    Accommodates Onboarding flow, Cookie consent GPDR banner, Terms & legal pages,
+    Visitor Demo Mode, interactive AI Support chat, secure authentication views,
+    User workspaces, and completely segregated Admin Intelligence Centers.
+    """
+    # Track page view in product analytics
+    auth_repo.increment_analytic("page_views")
+
     html_content = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TradeYar AI — Management Dashboard</title>
+    <title>TradeYar AI — Global Financial Intelligence Platform</title>
     <!-- Optimized Persian Font Support -->
     <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
     <style>
         :root {
-            --primary: #1d3557;
-            --accent: #2ec4b6;
-            --danger: #e71d36;
-            --warning: #ff9f1c;
-            --dark: #2b2d42;
-            --light: #f7f9fa;
+            --primary: #1e293b;
+            --accent: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --dark: #0f172a;
+            --light: #f8fafc;
+            --card-bg: #ffffff;
+            --border: #e2e8f0;
         }
         body {
             font-family: 'Vazirmatn', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -254,118 +339,154 @@ def get_dashboard_spa():
         .header {
             background-color: var(--primary);
             color: white;
-            padding: 20px 40px;
+            padding: 15px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        .nav-link {
+            color: #94a3b8;
+            text-decoration: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: white;
         }
         .container {
             max-width: 1200px;
-            margin: 30px auto;
+            margin: 25px auto;
             padding: 0 20px;
         }
-        .grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 25px;
-        }
-        @media (max-width: 900px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
-        }
         .card {
-            background: white;
-            border-radius: 8px;
-            padding: 25px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-            margin-bottom: 25px;
-        }
-        .status-board {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 15px;
-            margin: 20px 0;
-        }
-        .status-item {
-            background: #edf2f4;
-            padding: 15px;
-            border-radius: 6px;
-            text-align: center;
-        }
-        .status-val {
-            font-weight: bold;
-            font-size: 1.1em;
-            margin-top: 5px;
-        }
-        .status-passed { color: var(--accent); }
-        .status-failed { color: var(--danger); }
-        .status-warn { color: var(--warning); }
-
-        .score-circle {
-            width: 150px;
-            height: 150px;
-            border-radius: 50%;
-            border: 8px solid var(--accent);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            margin: 20px auto;
-            font-weight: bold;
-        }
-        .score-num {
-            font-size: 2em;
-            color: var(--primary);
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
         }
         .btn {
             background-color: var(--accent);
             color: white;
             border: none;
-            padding: 12px 25px;
-            font-size: 1.1em;
+            padding: 10px 20px;
+            font-size: 1em;
             font-weight: bold;
-            border-radius: 50px;
+            border-radius: 8px;
             cursor: pointer;
-            box-shadow: 0 4px 10px rgba(46,196,182,0.3);
-            transition: all 0.2s ease;
+            transition: all 0.2s;
         }
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(46,196,182,0.4);
+            opacity: 0.9;
+            transform: translateY(-1px);
         }
-        .btn:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-            box-shadow: none;
+        .btn-secondary {
+            background-color: #64748b;
+        }
+        .btn-danger {
+            background-color: var(--danger);
         }
         .lang-btn {
             background-color: transparent;
             color: white;
-            border: 1px solid white;
-            padding: 5px 15px;
+            border: 1px solid #475569;
+            padding: 6px 12px;
             font-size: 0.9em;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.2s;
-            margin: 0 10px;
         }
         .lang-btn:hover {
             background-color: white;
             color: var(--primary);
         }
-        .logs-box {
-            background-color: #1e1e24;
-            color: #a9b7c6;
-            font-family: 'Courier New', Courier, monospace;
-            padding: 15px;
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
             border-radius: 6px;
-            height: 250px;
+            box-sizing: border-box;
+            background: var(--light);
+        }
+        /* Cookie Banner */
+        .cookie-banner {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: var(--primary);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+            z-index: 9999;
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        /* Tab panels */
+        .tab-panel {
+            display: none;
+        }
+        .tab-panel.active {
+            display: block;
+        }
+        /* Grid layouts */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+        @media (max-width: 900px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            .cookie-banner {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+        /* Chat box */
+        .chat-box {
+            height: 300px;
             overflow-y: auto;
-            font-size: 0.9em;
-            text-align: left;
-            direction: ltr;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+            background: var(--light);
+            margin-bottom: 15px;
+        }
+        .chat-msg {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+        .chat-msg.user {
+            background-color: #dbeafe;
+            margin-left: auto;
+            text-align: right;
+        }
+        .chat-msg.bot {
+            background-color: #e2e8f0;
+            margin-right: auto;
         }
         table {
             width: 100%;
@@ -374,113 +495,138 @@ def get_dashboard_spa():
         }
         th, td {
             text-align: inherit;
-            padding: 10px 15px;
-            border-bottom: 1px solid #edf2f4;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
         }
-        th { background-color: #edf2f4; }
+        th {
+            background-color: var(--light);
+        }
     </style>
     <script>
         const translations = {
             fa: {
-                title: "سامانه هوشمند تحلیل بازار و تاییدیه تولید TradeYar AI",
-                portal_status: "تاییدیه تولید فعال",
-                live_research_title: "پنل تحقیقاتی زنده بازار",
-                current_symbol: "نماد فعلی",
-                last_update: "آخرین بروزرسانی",
-                market_bias: "جهت‌گیری بازار",
-                confidence: "میزان اطمینان",
-                technical_metrics: "شاخص‌های فنی",
-                latest_ai_explanation: "تحلیل و تفسیر هوش مصنوعی",
-                validation_center_title: "مرکز تایید و اعتبارسنجی سیستم",
-                run_validation_btn: "اجرای فرآیند تایید نهایی",
-                validating_btn: "در حال اعتبارسنجی...",
-                passed: "پاس شده",
-                failed: "خطا",
-                skipped: "نادیده گرفته شده",
-                warnings: "هشدارها",
-                active_phase: "فاز فعال",
-                component_boundaries: "محدوده مؤلفه",
-                current_trace: "ردیابی زنده فرآیند",
-                live_trace_logs: "گزارش‌های زنده سیستم",
-                historical_summary_title: "خلاصه سوابق تاییدیه سیستم",
-                col_timestamp: "زمان ثبت",
-                col_duration: "مدت زمان",
-                col_ratio: "نسبت تست‌ها",
-                col_status: "وضعیت نهایی",
-                col_score: "امتیاز تاییدیه",
-                readiness_score_title: "امتیاز آمادگی نهایی تولید",
-                subsystems_health_title: "وضعیت سلامت زیرسیستم‌ها",
-                sys_health: "سلامت کلی سیستم",
-                mt5_fallback: "وضعیت اتصال به MT5",
-                runtime_host: "میزبان اصلی سیستم",
-                scheduler_loop: "حلقه زمان‌بندی",
-                security_compliance: "انطباق امنیتی",
-                reports_download_title: "دانلود گزارش‌های نهایی تاییدیه",
-                dl_html: "دانلود گزارش HTML",
-                dl_json: "دانلود گزارش JSON",
-                dl_markdown: "دانلود گزارش Markdown",
-                loading: "درحال بارگذاری...",
-                healthy: "سالم / فعال",
-                active_fallback: "حالت شبیه‌سازی فعال",
-                ready: "آماده به کار",
-                verified: "تایید شده",
-                not_executed: "اجرا نشده",
-                production_ready: "آماده برای تولید"
+                brand: "ترید‌یار هوشمند — سامانه جامع مالی",
+                nav_home: "صفحه اصلی",
+                nav_demo: "نسخه دمو",
+                nav_dashboard: "داشبورد من",
+                nav_admin: "مدیریت سیستم",
+                nav_terms: "قوانین",
+                nav_privacy: "حریم خصوصی",
+                nav_cookie: "کوکی‌ها",
+                nav_disclaimer: "سلب مسئولیت",
+                btn_login: "ورود",
+                btn_register: "ثبت‌نام",
+                btn_logout: "خروج",
+                cookie_msg: "ما برای بهبود تجربه کاربری شما از کوکی‌ها استفاده می‌کنیم. با ادامه فعالیت، شما موافقت خود را اعلام می‌کنید.",
+                cookie_accept: "پذیرش همه کوکی‌ها",
+                cookie_reject: "رد کردن",
+                disclaimer_title: "سلب مسئولیت و ریسک معاملات",
+                disclaimer_body: "کلیه تحلیل‌ها و ارزیابی‌های ارائه شده توسط هوش مصنوعی ترید‌یار صرفاً با اهداف آموزشی و اطلاعاتی بوده و به هیچ عنوان توصیه معاملاتی، مالی یا پیشنهاد سرمایه‌گذاری مستقیم محسوب نمی‌شوند. بازارهای مالی حاوی ریسک‌های بسیار بالای از دست رفتن سرمایه هستند و ترید‌یار هیچ‌گونه مسئولیتی در قبال سود یا زیان شما بر عهده نمی‌گیرد.",
+                demo_title: "نسخه دمو (بازدیدکننده)",
+                demo_desc: "اینجا نمونه‌ای از تحلیل لحظه‌ای ارائه شده به کاربران ترید‌یار را بدون نیاز به ورود یا ثبت‌نام مشاهده می‌کنید:",
+                demo_analysis: "تحلیل نمونه هوش مصنوعی — طلا (XAUUSD H1)",
+                demo_direction: "جهت‌گیری فرضی: صعودی (Bullish)",
+                demo_confidence: "میزان اطمینان کلی: ۷۸٪",
+                demo_explanation: "توضیح عملکرد هوش مصنوعی: مدل با پایش زنده ساختارهای حرکتی قیمت و عدم دخالت شاخص‌های تکنیکال تاخیری، رفتارهای تقاضا را کشف می‌کند.",
+                login_title: "ورود امن به حساب کاربری",
+                register_title: "ایجاد حساب کاربری جدید ترید‌یار",
+                recover_title: "بازیابی رمز عبور",
+                email: "ایمیل / نام کاربری",
+                password: "رمز عبور",
+                role: "سطح دسترسی پیش‌فرض",
+                support_title: "پشتیبانی هوشمند هوش مصنوعی",
+                support_limit: "محدودیت درخواست شما:",
+                support_send: "ارسال پیام",
+                support_placeholder: "سوال خود را درباره بازار بپرسید...",
+                upgrade_title: "ارتقای اشتراک و پرداخت",
+                upgrade_desc: "حساب کاربری خود را به سطح PRO یا PREMIUM ارتقا دهید و به قابلیت‌های منحصربه‌فرد ترید‌یار دسترسی پیدا کنید:",
+                upgrade_pro: "خرید اشتراک PRO (۲۹.۹۹ دلار)",
+                upgrade_premium: "خرید اشتراک PREMIUM (۹۹.۹۹ دلار)",
+                upgrade_sim: "پرداخت شبیه‌سازی شده کریپتو (تایید آنی)",
+                admin_title: "پنل نظارت و کنترل هوشمند ترید‌یار (مدیر)",
+                admin_users: "لیست کاربران ثبت‌نام شده",
+                admin_logs: "پایش لاگ‌های امنیتی و سیستمی زنده",
+                admin_publish_queue: "صف تایید محتوای تولیدی هوش مصنوعی",
+                admin_approve: "تایید و انتشار",
+                watchlist_title: "دیده‌بان بازار من",
+                watchlist_desc: "نمادهای موردعلاقه خود را رصد کنید:",
+                saved_analyses: "تحلیل‌های ذخیره شده من",
+                saved_analyses_empty: "هنوز هیچ تحلیلی را ذخیره نکرده‌اید.",
+                notifications_title: "اعلان‌های سیستم ترید‌یار",
+                profile_title: "تنظیمات کاربری من",
+                profile_desc: "اطلاعات حساب کاربری فعال:"
             },
             en: {
-                title: "TradeYar AI — Management Dashboard & Acceptance Portal",
-                portal_status: "Production Acceptance Portal Active",
-                live_research_title: "Live Market Research Panel",
-                current_symbol: "Current Symbol",
-                last_update: "Last Update",
-                market_bias: "Market Bias",
-                confidence: "Confidence",
-                technical_metrics: "Technical Metrics",
-                latest_ai_explanation: "Latest AI Explanation",
-                validation_center_title: "System Validation Center",
-                run_validation_btn: "Run Full Validation",
-                validating_btn: "Validating...",
-                passed: "Passed",
-                failed: "Failed",
-                skipped: "Skipped",
-                warnings: "Warnings",
-                active_phase: "Active Phase",
-                component_boundaries: "Component Boundaries",
-                current_trace: "Current Verification Trace",
-                live_trace_logs: "Live Trace Logs",
-                historical_summary_title: "Historical Acceptance Summary",
-                col_timestamp: "Timestamp",
-                col_duration: "Duration",
-                col_ratio: "Test Ratio",
-                col_status: "Readiness Status",
-                col_score: "Acceptance Score",
-                readiness_score_title: "Production Readiness Score",
-                subsystems_health_title: "Subsystem Health Monitors",
-                sys_health: "System Health",
-                mt5_fallback: "MT5 Data Fallback",
-                runtime_host: "Runtime Host",
-                scheduler_loop: "Scheduler Loop",
-                security_compliance: "Security Compliance",
-                reports_download_title: "Acceptance Reports Download",
-                dl_html: "Download HTML Report",
-                dl_json: "Download JSON Report",
-                dl_markdown: "Download Markdown Report",
-                loading: "Loading...",
-                healthy: "Healthy",
-                active_fallback: "Active fallback",
-                ready: "Ready",
-                verified: "Verified",
-                not_executed: "Not Run",
-                production_ready: "Production Ready"
+                brand: "TradeYar AI — Financial Intelligence Platform",
+                nav_home: "Home",
+                nav_demo: "Demo Mode",
+                nav_dashboard: "My Dashboard",
+                nav_admin: "Admin Center",
+                nav_terms: "Terms",
+                nav_privacy: "Privacy",
+                nav_cookie: "Cookies",
+                nav_disclaimer: "Disclaimer",
+                btn_login: "Login",
+                btn_register: "Register",
+                btn_logout: "Logout",
+                cookie_msg: "We use cookies to guarantee high-performance analytics. By continuing to browse, you agree to our policies.",
+                cookie_accept: "Accept Cookies",
+                cookie_reject: "Reject",
+                disclaimer_title: "Risk Disclosure & Disclaimer",
+                disclaimer_body: "All market evaluations and AI outputs generated by TradeYar are purely for informational and educational purposes. They do not constitute financial advice, investment brokerage, or trade incentives. Financial asset speculation contains high loss risks. TradeYar accepts zero liabilities for any user losses.",
+                demo_title: "Demo Visitor Mode",
+                demo_desc: "Explore a live sample analytical output produced by TradeYar AI without needing an active account:",
+                demo_analysis: "Sample AI Analytical Snapshot — XAUUSD H1",
+                demo_direction: "Direction: Bullish",
+                demo_confidence: "Confidence Level: 78%",
+                demo_explanation: "How the AI works: The engine continuously monitors underlying fractal structural run changes and raw price velocity without lagging technical indicators.",
+                login_title: "Secure Account Login",
+                register_title: "Create Free TradeYar Account",
+                recover_title: "Account Password Recovery",
+                email: "Email / Username",
+                password: "Password",
+                role: "Default Role Tier",
+                support_title: "AI Support Smart Assistant",
+                support_limit: "Your Quota Counter:",
+                support_send: "Send Message",
+                support_placeholder: "Ask about the platform or market...",
+                upgrade_title: "Subscription Upgrades & Payments",
+                upgrade_desc: "Instantly unlock advanced AI market reasoning, technical metrics, and multi-market summaries:",
+                upgrade_pro: "Upgrade to PRO ($29.99/mo)",
+                upgrade_premium: "Upgrade to PREMIUM ($99.99/mo)",
+                upgrade_sim: "Simulated Crypto Gateway Pay (Instant)",
+                admin_title: "Admin Intelligence Center",
+                admin_users: "Registered User Base",
+                admin_logs: "Security, System & Operations Logs",
+                admin_publish_queue: "AI Content Approval Pipeline",
+                admin_approve: "Approve & Publish",
+                watchlist_title: "My Market Watchlist",
+                watchlist_desc: "Monitor your favorite analytical targets:",
+                saved_analyses: "My Saved Analyses",
+                saved_analyses_empty: "No saved analyses registered.",
+                notifications_title: "TradeYar System Notifications",
+                profile_title: "My Profile Settings",
+                profile_desc: "Active Account Metadata Details:"
             }
         };
 
-        let currentLang = 'fa'; // Persian RTL is default as specified in Phase 21 requirements
+        let currentLang = 'fa';
+        let currentUser = null;
 
-        function formatTimestamp(ts) {
-            if (!ts) return '';
-            // Cleans up ISO format and removes milliseconds
-            return ts.replace('T', ' ').split('.')[0];
+        function applyLanguage() {
+            const dictionary = translations[currentLang];
+            document.body.style.direction = currentLang === 'fa' ? 'rtl' : 'ltr';
+            document.body.style.fontFamily = currentLang === 'fa' ? "'Vazirmatn', sans-serif" : "'Segoe UI', sans-serif";
+
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (dictionary[key]) {
+                    el.innerText = dictionary[key];
+                }
+            });
+
+            // Adjust lang button text
+            document.getElementById('lang-btn').innerText = currentLang === 'fa' ? 'English' : 'فارسی';
         }
 
         function toggleLanguage() {
@@ -489,297 +635,656 @@ def get_dashboard_spa():
             applyLanguage();
         }
 
-        function applyLanguage() {
-            const dictionary = translations[currentLang];
-
-            // Set body direction and font
-            if (currentLang === 'fa') {
-                document.body.style.direction = 'rtl';
-                document.body.style.fontFamily = "'Vazirmatn', sans-serif";
-            } else {
-                document.body.style.direction = 'ltr';
-                document.body.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+        function checkCookieConsent() {
+            const accepted = localStorage.getItem('tradeyar_cookies_accepted');
+            if (!accepted) {
+                document.getElementById('cookie-consent-banner').style.display = 'flex';
             }
+        }
 
-            // Map elements with i18n keys
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (dictionary[key]) {
-                    el.innerText = dictionary[key];
-                }
+        function acceptCookies(consent) {
+            localStorage.setItem('tradeyar_cookies_accepted', consent ? 'accepted' : 'rejected');
+            document.getElementById('cookie-consent-banner').style.display = 'none';
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
             });
 
-            document.getElementById('lang-btn').innerText = currentLang === 'fa' ? 'English' : 'فارسی';
-            fetchStatus();
-            fetchHistory();
-            fetchResearch();
+            document.getElementById(tabId).classList.add('active');
+            const navLink = document.querySelector('[onclick="switchTab(\'' + tabId + '\')"]');
+            if (navLink) {
+                navLink.classList.add('active');
+            }
         }
 
-        async function fetchStatus() {
+        // Authentication API utilities
+        async function handleRegister(event) {
+            event.preventDefault();
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+            const role = document.getElementById('reg-role').value;
+
             try {
-                let response = await fetch('/api/validation/status');
-                let data = await response.json();
-                const dictionary = translations[currentLang];
-
-                document.getElementById('phase').innerText = data.current_phase;
-                document.getElementById('component').innerText = data.current_component;
-                document.getElementById('test').innerText = data.current_test;
-
-                document.getElementById('passed').innerText = data.passed_count;
-                document.getElementById('failed').innerText = data.failed_count;
-                document.getElementById('skipped').innerText = data.skipped_count;
-                document.getElementById('warnings').innerText = data.warning_count;
-
-                document.getElementById('score-val').innerText = data.readiness_score + '%';
-
-                // Translate readiness status dynamically
-                let statusText = data.readiness_status;
-                if (statusText === 'Production Ready') {
-                    statusText = dictionary.production_ready;
-                } else if (statusText === 'Not Run') {
-                    statusText = dictionary.not_executed;
-                }
-                document.getElementById('score-status').innerText = statusText;
-
-                // Handle default wait explanation translate
-                let explanationText = data.readiness_explanation;
-                if (!explanationText || explanationText.includes("waiting to be triggered")) {
-                    explanationText = dictionary.not_executed;
-                }
-                document.getElementById('summary-explanation').innerText = explanationText;
-
-                // Stream logs
-                let logBox = document.getElementById('logs');
-                logBox.innerHTML = data.logs.join('<br>');
-
-                const runBtn = document.getElementById('run-btn');
-                if (data.is_running) {
-                    runBtn.disabled = true;
-                    runBtn.innerText = dictionary.validating_btn;
-                    setTimeout(fetchStatus, 1000);
+                const response = await fetch('/api/v1/auth/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({email, password, role})
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    alert(currentLang === 'fa' ? 'ثبت‌نام با موفقیت انجام شد. اکنون وارد شوید.' : 'Registration successful! Please login.');
+                    switchTab('tab-login');
                 } else {
-                    runBtn.disabled = false;
-                    runBtn.innerText = dictionary.run_validation_btn;
+                    alert(data.detail);
+                }
+            } catch(e) {
+                alert('Connection error');
+            }
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                const response = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({email, password})
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    currentUser = data.user;
+                    localStorage.setItem('tradeyar_user_email', currentUser.email);
+                    document.getElementById('auth-section').style.display = 'none';
+                    document.getElementById('user-section').style.display = 'flex';
+                    document.getElementById('user-display-email').innerText = currentUser.email;
+
+                    // Show dashboard elements
+                    document.getElementById('dashboard-unauth').style.display = 'none';
+                    document.getElementById('dashboard-auth').style.display = 'block';
+                    document.getElementById('prof-email').innerText = currentUser.email;
+                    document.getElementById('prof-role').innerText = currentUser.role;
+                    document.getElementById('prof-plan').innerText = currentUser.subscription_plan;
+
+                    // Show admin link if admin
+                    if (currentUser.role === 'ADMIN') {
+                        document.getElementById('admin-nav').style.display = 'block';
+                        fetchAdminData();
+                    } else {
+                        document.getElementById('admin-nav').style.display = 'none';
+                    }
+
+                    // Refresh page metrics
+                    fetchQuota();
+                    fetchAnalysis();
+                    switchTab('tab-dashboard');
+                } else {
+                    alert(data.detail);
+                }
+            } catch(e) {
+                alert('Connection error');
+            }
+        }
+
+        async function handleLogout() {
+            await fetch('/api/v1/auth/logout', {method: 'POST'});
+            currentUser = null;
+            localStorage.removeItem('tradeyar_user_email');
+            document.getElementById('auth-section').style.display = 'flex';
+            document.getElementById('user-section').style.display = 'none';
+            document.getElementById('dashboard-unauth').style.display = 'block';
+            document.getElementById('dashboard-auth').style.display = 'none';
+            document.getElementById('admin-nav').style.display = 'none';
+            switchTab('tab-home');
+        }
+
+        async function handleRecoverRequest(event) {
+            event.preventDefault();
+            const email = document.getElementById('recover-email').value;
+            try {
+                const response = await fetch('/api/v1/auth/recover-request', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({email})
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('recovery-code-display').innerText =
+                        (currentLang === 'fa' ? 'کد امنیتی بازیابی شما: ' : 'Your security recovery code is: ') + data.code;
+                    document.getElementById('reset-fields').style.display = 'block';
+                } else {
+                    alert(data.detail);
                 }
             } catch(e) {}
         }
 
-        async function triggerValidation() {
-            document.getElementById('run-btn').disabled = true;
-            await fetch('/api/validation/run', { method: 'POST' });
-            setTimeout(fetchStatus, 500);
+        async function handleRecoverReset(event) {
+            event.preventDefault();
+            const email = document.getElementById('recover-email').value;
+            const code = document.getElementById('recover-code').value;
+            const new_password = document.getElementById('recover-new-password').value;
+
+            try {
+                const response = await fetch('/api/v1/auth/recover-reset', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({email, code, new_password})
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    alert(currentLang === 'fa' ? 'رمز عبور با موفقیت بروز شد.' : 'Password reset successful!');
+                    switchTab('tab-login');
+                } else {
+                    alert(data.detail);
+                }
+            } catch(e) {}
         }
 
-        async function fetchHistory() {
+        // Watchlist helper
+        function addToWatchlist(symbol) {
+            const listEl = document.getElementById('watchlist-items');
+            if (listEl.innerHTML.includes(symbol)) return;
+            listEl.innerHTML += '<div style="background: #edf2f7; padding: 10px; margin: 5px 0; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">' +
+                '<strong>' + symbol + '</strong>' +
+                '<span style="color: var(--accent);">● LIVE ANALYZING</span>' +
+                '</div>';
+        }
+
+        // Support Chat Assistant
+        async function sendSupportMsg() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const chatBox = document.getElementById('chat-box');
+            chatBox.innerHTML += '<div class="chat-msg user">' + text + '</div>';
+            input.value = '';
+            chatBox.scrollTop = chatBox.scrollHeight;
+
             try {
-                let response = await fetch('/api/validation/history');
-                let data = await response.json();
-                let tbody = document.getElementById('history-body');
-                tbody.innerHTML = '';
+                const response = await fetch('/api/v1/cost-limit');
+                const costData = await response.json();
 
-                const dictionary = translations[currentLang];
+                // Simulate AI response with cost limit enforcement
+                if (costData.remaining_quota <= 0) {
+                    chatBox.innerHTML += '<div class="chat-msg bot" style="color: var(--danger);">' +
+                        (currentLang === 'fa' ? 'محدودیت تعداد درخواست روزانه هوش مصنوعی شما به پایان رسیده است. لطفا حساب خود را ارتقا دهید.' : 'AI daily requests limit exceeded. Please upgrade your subscription plan.') +
+                        '</div>';
+                    return;
+                }
 
-                data.forEach(run => {
-                    let statusColor = run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)';
-                    let statusText = run.readiness_status === 'Production Ready' ? dictionary.production_ready : run.readiness_status;
-                    let formattedTime = formatTimestamp(run.timestamp);
+                // Call AI Support engine simulation
+                chatBox.innerHTML += '<div class="chat-msg bot"><em>Thinking...</em></div>';
+                chatBox.scrollTop = chatBox.scrollHeight;
 
-                    // Anti-leak classical string concatenation
-                    tbody.innerHTML += '<tr>' +
-                        '<td>' + formattedTime + '</td>' +
-                        '<td>' + run.duration_sec + 's</td>' +
-                        '<td>' + run.passed + '/' + run.total + '</td>' +
-                        '<td><strong style="color: ' + statusColor + '">' + statusText + '</strong></td>' +
-                        '<td><strong>' + run.readiness_score + '%</strong></td>' +
+                setTimeout(async () => {
+                    // Update quota counter
+                    await fetch('/api/v1/cost-limit'); // Increments usage in backend
+
+                    // Remove thinking loader
+                    chatBox.removeChild(chatBox.lastChild);
+
+                    let reply = "";
+                    if (currentLang === 'fa') {
+                        reply = "مدل‌های تحلیلی هوش مصنوعی ترید‌یار در حال بررسی طلا در محدوده قیمتی زنده هستند. طبق ارزیابی‌ها، سطح تقاضای انباشته شده بر عرضه برتری دارد.";
+                    } else {
+                        reply = "TradeYar AI models are currently analyzing live GOLD structures. Our observations indicate a stable demand accumulation holding strong above major support scales.";
+                    }
+                    chatBox.innerHTML += '<div class="chat-msg bot">' + reply + '</div>';
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                    fetchQuota();
+                }, 1000);
+
+            } catch(e) {}
+        }
+
+        async function fetchQuota() {
+            try {
+                const response = await fetch('/api/v1/cost-limit');
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('quota-counter').innerText = data.requests_made + ' / ' + data.daily_limit;
+                }
+            } catch(e) {}
+        }
+
+        async function fetchAnalysis() {
+            try {
+                const response = await fetch('/api/v1/analysis');
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('auth-bias').innerText = data.bias;
+                    document.getElementById('auth-confidence').innerText = data.confidence;
+
+                    if (data.indicators === 'RESTRICTED') {
+                        document.getElementById('auth-indicators-box').innerHTML =
+                            '<p style="color: var(--warning);">' + data.message + '</p>';
+                    } else {
+                        let ind = data.indicators;
+                        document.getElementById('auth-indicators-box').innerHTML =
+                            '<strong>SMA20:</strong> ' + (ind.sma_20 ? ind.sma_20.toFixed(2) : '--') + ' | ' +
+                            '<strong>EMA12:</strong> ' + (ind.ema_12 ? ind.ema_12.toFixed(2) : '--') + ' | ' +
+                            '<strong>RSI:</strong> ' + (ind.rsi ? ind.rsi.toFixed(2) : '--');
+                    }
+
+                    let reasoningHtml = '';
+                    if (data.reasoning === 'RESTRICTED') {
+                        reasoningHtml = '<li>Restricted: Upgrade to PRO or PREMIUM to view active AI explanations.</li>';
+                    } else {
+                        data.reasoning.forEach(r => {
+                            reasoningHtml += '<li>' + r + '</li>';
+                        });
+                    }
+                    document.getElementById('auth-reasoning-list').innerHTML = reasoningHtml;
+                }
+            } catch(e) {}
+        }
+
+        // Admin center triggers
+        async function fetchAdminData() {
+            try {
+                const resUsers = await fetch('/api/v1/users');
+                const users = await resUsers.json();
+                let tableHtml = '';
+                users.forEach(u => {
+                    tableHtml += '<tr>' +
+                        '<td>' + u.email + '</td>' +
+                        '<td>' + u.role + '</td>' +
+                        '<td>' + u.status + '</td>' +
+                        '<td>' +
+                            '<button class="btn" style="padding: 5px 10px; font-size: 0.85em; margin: 0 5px;" onclick="updateUserRole(\'' + u.email + '\', \'PRO\')">Make PRO</button>' +
+                            '<button class="btn" style="padding: 5px 10px; font-size: 0.85em;" onclick="updateUserRole(\'' + u.email + '\', \'PREMIUM\')">Make PREMIUM</button>' +
+                        '</td>' +
                         '</tr>';
                 });
+                document.getElementById('admin-users-table').innerHTML = tableHtml;
+
+                const resAnalytics = await fetch('/api/v1/analytics');
+                const analytics = await resAnalytics.json();
+                document.getElementById('analytics-registrations').innerText = analytics.registrations || 0;
+                document.getElementById('analytics-views').innerText = analytics.page_views || 0;
+                document.getElementById('analytics-conversions').innerText = analytics.pro_conversions || 0;
+
             } catch(e) {}
         }
 
-        async function fetchResearch() {
+        async function updateUserRole(email, role) {
             try {
-                let response = await fetch('/api/research/current');
-                let data = await response.json();
-
-                document.getElementById('res-symbol').innerText = data.symbol;
-                document.getElementById('res-timeframe').innerText = data.timeframe;
-                document.getElementById('res-bias').innerText = data.bias;
-                document.getElementById('res-confidence').innerText = data.confidence + '%';
-                document.getElementById('res-time').innerText = formatTimestamp(data.timestamp);
-
-                // Colorize bias text
-                let biasEl = document.getElementById('res-bias');
-                if (data.bias === 'Bullish') {
-                    biasEl.style.color = 'var(--accent)';
-                } else if (data.bias === 'Bearish') {
-                    biasEl.style.color = 'var(--danger)';
-                } else {
-                    biasEl.style.color = 'var(--warning)';
+                const response = await fetch('/api/v1/users/update-role', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({email, role})
+                });
+                if (response.ok) {
+                    alert('Role updated successfully!');
+                    fetchAdminData();
                 }
+            } catch(e) {}
+        }
 
-                // Indicators list using classic concatenation
-                let ind = data.indicators;
-                if (ind) {
-                    let sma_20_val = ind.sma_20 !== undefined ? ind.sma_20.toFixed(2) : '--';
-                    let ema_12_val = ind.ema_12 !== undefined ? ind.ema_12.toFixed(2) : '--';
-                    let rsi_val = ind.rsi !== undefined ? ind.rsi.toFixed(2) : '--';
-                    let atr_val = ind.atr !== undefined ? ind.atr.toFixed(4) : '--';
-
-                    document.getElementById('res-indicators').innerHTML =
-                        '<strong>SMA20:</strong> ' + sma_20_val + ' | ' +
-                        '<strong>EMA12:</strong> ' + ema_12_val + ' | ' +
-                        '<strong>RSI:</strong> ' + rsi_val + ' | ' +
-                        '<strong>ATR:</strong> ' + atr_val;
+        // Upgrade subscription simulated
+        async function upgradePlan(plan) {
+            if (!currentUser) {
+                alert('Please login first to upgrade your subscription.');
+                return;
+            }
+            try {
+                const response = await fetch('/api/v1/users/update-role', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({email: currentUser.email, role: plan})
+                });
+                if (response.ok) {
+                    alert(currentLang === 'fa' ? 'پرداخت فرضی تایید شد! حساب شما به سطح ' + plan + ' ارتقا یافت.' : 'Simulated crypto payment approved! Your plan upgraded to ' + plan);
+                    currentUser.role = plan;
+                    currentUser.subscription_plan = plan;
+                    document.getElementById('prof-role').innerText = plan;
+                    document.getElementById('prof-plan').innerText = plan;
+                    fetchQuota();
+                    fetchAnalysis();
                 }
-
-                // Bullet reasoning list
-                let reasonHtml = '';
-                if (data.reasoning && data.reasoning.length > 0) {
-                    data.reasoning.forEach(r => {
-                        reasonHtml += '<li>' + r + '</li>';
-                    });
-                } else {
-                    reasonHtml = '<li>No active indicators triggered.</li>';
-                }
-                document.getElementById('res-reasoning').innerHTML = reasonHtml;
             } catch(e) {}
         }
 
         window.onload = () => {
-            // LocalStorage preference defaults to 'fa' RTL
             const savedLang = localStorage.getItem('tradeyar_language');
             if (savedLang === 'fa' || savedLang === 'en') {
                 currentLang = savedLang;
             }
             applyLanguage();
-            // Continuously refresh research panel every 5 seconds
-            setInterval(fetchResearch, 5000);
+            checkCookieConsent();
+
+            // Check session from storage
+            const savedEmail = localStorage.getItem('tradeyar_user_email');
+            if (savedEmail) {
+                // Keep UI session representation
+                document.getElementById('auth-section').style.display = 'none';
+                document.getElementById('user-section').style.display = 'flex';
+                document.getElementById('user-display-email').innerText = savedEmail;
+            }
         }
     </script>
 </head>
 <body>
+    <!-- HEADER -->
     <div class="header">
-        <h1 style="margin: 0; font-size: 1.5em; letter-spacing: 1px;">TRADEYAR AI</h1>
-        <div style="display: flex; align-items: center;">
+        <h1 style="margin: 0; font-size: 1.4em;" data-i18n="brand">ترید‌یار هوشمند — سامانه جامع مالی</h1>
+        <div class="nav-links">
+            <span class="nav-link active" onclick="switchTab('tab-home')" data-i18n="nav_home">صفحه اصلی</span>
+            <span class="nav-link" onclick="switchTab('tab-demo')" data-i18n="nav_demo">نسخه دمو</span>
+            <span class="nav-link" onclick="switchTab('tab-dashboard')" data-i18n="nav_dashboard">داشبورد من</span>
+            <span class="nav-link" id="admin-nav" style="display: none;" onclick="switchTab('tab-admin')" data-i18n="nav_admin">مدیریت سیستم</span>
             <button id="lang-btn" class="lang-btn" onclick="toggleLanguage()">English</button>
-            <div><span style="font-weight: bold; color: var(--accent);">● ONLINE</span> — <span data-i18n="portal_status">تاییدیه تولید فعال</span></div>
         </div>
     </div>
+
     <div class="container">
-        <div class="grid">
-            <div>
-                <!-- LIVE MARKET RESEARCH PANEL -->
-                <div class="card" style="border-left: 6px solid var(--accent); border-right: 6px solid var(--accent);">
-                    <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="live_research_title">پنل تحقیقاتی زنده بازار</h2>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
-                        <div style="line-height: 1.8;">
-                            <div><strong data-i18n="current_symbol">نماد فعلی</strong>: <span id="res-symbol">XAUUSD</span> (<span id="res-timeframe">H1</span>)</div>
-                            <div><strong data-i18n="last_update">آخرین بروزرسانی</strong>: <span id="res-time" style="font-size: 0.9em; color: #555;">Loading...</span></div>
-                            <div style="font-size: 1.2em; margin-top: 10px;">
-                                <strong data-i18n="market_bias">جهت‌گیری بازار</strong>: <span id="res-bias" style="font-weight: bold; color: var(--accent);">Bullish</span>
-                            </div>
-                            <div style="font-size: 1.2em;">
-                                <strong data-i18n="confidence">میزان اطمینان</strong>: <span id="res-confidence" style="font-weight: bold; color: var(--primary);">78%</span>
-                            </div>
-                        </div>
-                        <div>
-                            <strong data-i18n="technical_metrics">شاخص‌های فنی</strong>:
-                            <div id="res-indicators" style="background: #f1f5f9; padding: 10px; border-radius: 6px; font-size: 0.9em; margin-top: 5px; line-height: 1.6;">
-                                SMA20: -- | EMA12: -- | RSI: -- | ATR: --
-                            </div>
-                        </div>
-                    </div>
-                    <strong data-i18n="latest_ai_explanation">تحلیل و تفسیر هوش مصنوعی</strong>:
-                    <ul id="res-reasoning" style="margin: 5px 0 0 0; padding-left: 20px; padding-right: 20px; line-height: 1.6; font-size: 0.95em;">
-                        <li>Loading...</li>
-                    </ul>
+        <!-- COOKIE GDPR CONSENT BANNER -->
+        <div id="cookie-consent-banner" class="cookie-banner">
+            <span data-i18n="cookie_msg">ما برای بهبود تجربه کاربری شما از کوکی‌ها استفاده می‌کنیم. با ادامه فعالیت، شما موافقت خود را اعلام می‌کنید.</span>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn" onclick="acceptCookies(true)" data-i18n="cookie_accept">پذیرش همه کوکی‌ها</button>
+                <button class="btn btn-secondary" onclick="acceptCookies(false)" data-i18n="cookie_reject">رد کردن</button>
+            </div>
+        </div>
+
+        <!-- 1. HOME TAB PANEL -->
+        <div id="tab-home" class="tab-panel active">
+            <div class="card" style="text-align: center; border-bottom: 5px solid var(--accent);">
+                <h1 style="color: var(--primary); font-size: 2.2em; margin-bottom: 10px;">TRADEYAR AI</h1>
+                <p style="font-size: 1.2em; color: #475569;" data-i18n="brand">ترید‌یار هوشمند — سامانه جامع مالی</p>
+                <div id="auth-section" style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
+                    <button class="btn" onclick="switchTab('tab-login')" data-i18n="btn_login">ورود</button>
+                    <button class="btn btn-secondary" onclick="switchTab('tab-register')" data-i18n="btn_register">ثبت‌نام</button>
                 </div>
-
-                <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #edf2f4; padding-bottom: 15px; margin-bottom: 20px;">
-                        <h2 style="margin: 0; color: var(--primary);" data-i18n="validation_center_title">مرکز تایید و اعتبارسنجی سیستم</h2>
-                        <button id="run-btn" class="btn" onclick="triggerValidation()" data-i18n="run_validation_btn">اجرای فرآیند تایید نهایی</button>
-                    </div>
-
-                    <div class="status-board">
-                        <div class="status-item">
-                            <div data-i18n="passed">پاس شده</div>
-                            <div id="passed" class="status-val status-passed">0</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="failed">خطا</div>
-                            <div id="failed" class="status-val status-failed">0</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="skipped">نادیده گرفته شده</div>
-                            <div id="skipped" class="status-val">0</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="warnings">هشدارها</div>
-                            <div id="warnings" class="status-val status-warn">0</div>
-                        </div>
-                    </div>
-
-                    <div style="background: #f8f9fa; border-left: 4px solid var(--accent); border-right: 4px solid var(--accent); padding: 15px; border-radius: 4px; margin-bottom: 20px;">
-                        <p style="margin: 5px 0;"><strong data-i18n="active_phase">فاز فعال</strong>: <span id="phase">IDLE</span></p>
-                        <p style="margin: 5px 0;"><strong data-i18n="component_boundaries">محدوده مؤلفه</strong>: <span id="component">ReleaseValidationPlatform</span></p>
-                        <p style="margin: 5px 0;"><strong data-i18n="current_trace">ردیابی زنده فرآیند</strong>: <code id="test">Waiting...</code></p>
-                    </div>
-
-                    <h3 data-i18n="live_trace_logs">گزارش‌های زنده سیستم</h3>
-                    <div id="logs" class="logs-box">
-                        Waiting for run request...
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="historical_summary_title">خلاصه سوابق تاییدیه سیستم</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th data-i18n="col_timestamp">زمان ثبت</th>
-                                <th data-i18n="col_duration">مدت زمان</th>
-                                <th data-i18n="col_ratio">نسبت تست‌ها</th>
-                                <th data-i18n="col_status">وضعیت نهایی</th>
-                                <th data-i18n="col_score">امتیاز تاییدیه</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-body">
-                            <!-- Populated dynamically -->
-                        </tbody>
-                    </table>
+                <div id="user-section" style="display: none; gap: 15px; justify-content: center; margin-top: 20px; align-items: center;">
+                    <span style="font-weight: bold; color: var(--accent);">● ONLINE</span>
+                    <span id="user-display-email" style="font-weight: 500;"></span>
+                    <button class="btn btn-danger" onclick="handleLogout()" data-i18n="btn_logout">خروج</button>
                 </div>
             </div>
 
-            <div>
-                <div class="card" style="text-align: center;">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="readiness_score_title">امتیاز آمادگی نهایی تولید</h3>
-                    <div class="score-circle">
-                        <div id="score-val" class="score-num">0%</div>
-                        <div id="score-status" style="font-size: 0.85em; color: var(--dark); text-transform: uppercase; margin-top: 5px;" data-i18n="not_executed">اجرا نشده</div>
+            <div class="dashboard-grid">
+                <div>
+                    <div class="card">
+                        <h2 data-i18n="disclaimer_title">سلب مسئولیت و ریسک معاملات</h2>
+                        <p id="risk-disclosure-p" style="line-height: 1.8; color: #ef4444;" data-i18n="disclaimer_body">
+                            کلیه تحلیل‌ها و ارزیابی‌های ارائه شده توسط هوش مصنوعی ترید‌یار صرفاً با اهداف آموزشی و اطلاعاتی بوده...
+                        </p>
                     </div>
-                    <p id="summary-explanation" style="font-size: 0.9em; color: #555; line-height: 1.5;" data-i18n="not_executed">اجرا نشده</p>
-                </div>
 
-                <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="subsystems_health_title">وضعیت سلامت زیرسیستم‌ها</h3>
-                    <div style="line-height: 1.8;">
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="sys_health">سلامت کلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="healthy">سالم / فعال</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="mt5_fallback">وضعیت اتصال به MT5</strong>: <span style="color: var(--warning);" data-i18n="active_fallback">حالت شبیه‌سازی فعال</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="runtime_host">میزبان اصلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="scheduler_loop">حلقه زمان‌بندی</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="security_compliance">انطباق امنیتی</strong>: <span style="color: var(--accent);" data-i18n="verified">تایید شده</span></p>
+                    <div class="card">
+                        <h2 data-i18n="nav_disclaimer">سلب مسئولیت</h2>
+                        <p style="line-height: 1.6; color: #475569;">
+                            TradeYar AI does not operate automated trading execution terminals. All analyses are completely descriptive, read-only analytical products. Speculation contains high leverage risk. Under no circumstances should users risk capital they cannot afford to lose completely.
+                        </p>
                     </div>
                 </div>
 
-                <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="reports_download_title">دانلود گزارش‌های نهایی تاییدیه</h3>
-                    <div style="line-height: 2;">
-                        <div>👉 <a href="/api/validation/reports/download?type=html" target="_blank" data-i18n="dl_html">دانلود گزارش HTML</a></div>
-                        <div>👉 <a href="/api/validation/reports/download?type=json" target="_blank" data-i18n="dl_json">دانلود گزارش JSON</a></div>
-                        <div>👉 <a href="/api/validation/reports/download?type=markdown" target="_blank" data-i18n="dl_markdown">دانلود گزارش Markdown</a></div>
+                <div>
+                    <div class="card">
+                        <h3>TradeYar Legal Hub</h3>
+                        <div style="line-height: 2;">
+                            <div>👉 <span class="nav-link" style="color: var(--accent);" onclick="switchTab('tab-terms')" data-i18n="nav_terms">قوانین</span></div>
+                            <div>👉 <span class="nav-link" style="color: var(--accent);" onclick="switchTab('tab-privacy')" data-i18n="nav_privacy">حریم خصوصی</span></div>
+                            <div>👉 <span class="nav-link" style="color: var(--accent);" onclick="switchTab('tab-cookie')" data-i18n="nav_cookie">کوکی‌ها</span></div>
+                            <div>👉 <span class="nav-link" style="color: var(--accent);" onclick="switchTab('tab-disclaimer')" data-i18n="nav_disclaimer">سلب مسئولیت</span></div>
+                        </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- 2. DEMO VISITOR MODE PANEL -->
+        <div id="tab-demo" class="tab-panel">
+            <div class="card" style="border-left: 6px solid var(--warning);">
+                <h2 data-i18n="demo_title">نسخه دمو (بازدیدکننده)</h2>
+                <p data-i18n="demo_desc">اینجا نمونه‌ای از تحلیل لحظه‌ای ارائه شده به کاربران ترید‌یار را بدون نیاز به ورود یا ثبت‌نام مشاهده می‌کنید:</p>
+                <div style="background: #edf2f7; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                    <h3 id="demo-analysis-title" data-i18n="demo_analysis" style="margin-top: 0;">تحلیل نمونه هوش مصنوعی — طلا (XAUUSD H1)</h3>
+                    <p><strong data-i18n="demo_direction">جهت‌گیری فرضی: صعودی (Bullish)</strong></p>
+                    <p><strong data-i18n="demo_confidence">میزان اطمینان کلی: ۷۸٪</strong></p>
+                    <p style="font-size: 0.95em; color: #475569;" data-i18n="demo_explanation">مدل با پایش زنده ساختارهای حرکتی قیمت و عدم دخالت شاخص‌های تکنیکال تاخیری، رفتارهای تقاضا را کشف می‌کند.</p>
+                </div>
+                <button class="btn" onclick="switchTab('tab-register')" data-i18n="btn_register">ثبت‌نام برای دریافت تحلیل‌های زنده</button>
+            </div>
+        </div>
+
+        <!-- 3. LOGIN PANEL -->
+        <div id="tab-login" class="tab-panel">
+            <div class="card" style="max-width: 450px; margin: 0 auto;">
+                <h2 data-i18n="login_title">ورود امن به حساب کاربری</h2>
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label data-i18n="email">ایمیل / نام کاربری</label>
+                        <input type="text" id="login-email" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="password">رمز عبور</label>
+                        <input type="password" id="login-password" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn" style="width: 100%;" data-i18n="btn_login">ورود</button>
+                    <p style="text-align: center; margin-top: 15px;">
+                        <span class="nav-link" style="color: var(--accent);" onclick="switchTab('tab-recover')" data-i18n="recover_title">بازیابی رمز عبور</span>
+                    </p>
+                </form>
+            </div>
+        </div>
+
+        <!-- 4. REGISTER PANEL -->
+        <div id="tab-register" class="tab-panel">
+            <div class="card" style="max-width: 450px; margin: 0 auto;">
+                <h2 data-i18n="register_title">ایجاد حساب کاربری جدید ترید‌یار</h2>
+                <form onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label data-i18n="email">ایمیل / نام کاربری</label>
+                        <input type="email" id="reg-email" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="password">رمز عبور</label>
+                        <input type="password" id="reg-password" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label data-i18n="role">سطح دسترسی پیش‌فرض</label>
+                        <select id="reg-role" class="form-control">
+                            <option value="USER">FREE Tier</option>
+                            <option value="PRO">PRO Tier</option>
+                            <option value="PREMIUM">PREMIUM Tier</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn" style="width: 100%;" data-i18n="btn_register">ثبت‌نام</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 5. RECOVER PANEL -->
+        <div id="tab-recover" class="tab-panel">
+            <div class="card" style="max-width: 450px; margin: 0 auto;">
+                <h2 data-i18n="recover_title">بازیابی رمز عبور</h2>
+                <form onsubmit="handleRecoverRequest(event)">
+                    <div class="form-group">
+                        <label data-i18n="email">ایمیل حساب کاربری</label>
+                        <input type="email" id="recover-email" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn" style="width: 100%;" data-i18n="recover_title">بازیابی</button>
+                </form>
+
+                <div id="reset-fields" style="display: none; margin-top: 20px; border-top: 1px solid var(--border); padding-top: 15px;">
+                    <div id="recovery-code-display" style="color: var(--accent); font-weight: bold; margin-bottom: 15px;"></div>
+                    <form onsubmit="handleRecoverReset(event)">
+                        <div class="form-group">
+                            <label>کد امنیتی بازیابی</label>
+                            <input type="text" id="recover-code" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>رمز عبور جدید</label>
+                            <input type="password" id="recover-new-password" class="form-control" required>
+                        </div>
+                        <button type="submit" class="btn" style="width: 100%;">ثبت رمز جدید</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. USER DASHBOARD PANEL -->
+        <div id="tab-dashboard" class="tab-panel">
+            <div id="dashboard-unauth" class="card" style="text-align: center;">
+                <h3 style="color: var(--danger);">داشبورد قفل شده است</h3>
+                <p>برای دسترسی به ابزارهای هوش مصنوعی و داشبورد، لطفاً ابتدا وارد حساب کاربری خود شوید یا ثبت‌نام کنید.</p>
+                <button class="btn" onclick="switchTab('tab-login')" data-i18n="btn_login">ورود</button>
+            </div>
+
+            <div id="dashboard-auth" style="display: none;">
+                <div class="dashboard-grid">
+                    <div>
+                        <!-- AI LIVE REPORT CARD -->
+                        <div class="card" style="border-left: 6px solid var(--accent);">
+                            <h2 style="margin: 0 0 15px 0; color: var(--primary);">طلا (XAUUSD H1) — گزارش زنده هوش مصنوعی</h2>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
+                                <div>
+                                    <p>جهت‌گیری زنده: <strong id="auth-bias" style="color: var(--accent);">Loading...</strong></p>
+                                    <p>میزان اطمینان: <strong id="auth-confidence" style="color: var(--primary);">Loading...</strong></p>
+                                </div>
+                                <div>
+                                    <strong>شاخص‌های تکنیکال:</strong>
+                                    <div id="auth-indicators-box" style="background: var(--light); padding: 8px; border-radius: 6px; font-size: 0.9em; margin-top: 5px;">
+                                        Loading...
+                                    </div>
+                                </div>
+                            </div>
+                            <strong>تفسیر و استدلال عمیق هوش مصنوعی:</strong>
+                            <ul id="auth-reasoning-list" style="margin-top: 5px; padding-left: 20px; line-height: 1.6;">
+                                <li>Loading...</li>
+                            </ul>
+                        </div>
+
+                        <!-- UPGRADE TIER CARD -->
+                        <div class="card" style="border-left: 6px solid var(--warning);">
+                            <h2 data-i18n="upgrade_title">ارتقای اشتراک و پرداخت</h2>
+                            <p data-i18n="upgrade_desc">حساب کاربری خود را به سطح PRO یا PREMIUM ارتقا دهید...</p>
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 15px;">
+                                <button class="btn" onclick="upgradePlan('PRO')" data-i18n="upgrade_pro">خرید اشتراک PRO (۲۹.۹۹ دلار)</button>
+                                <button class="btn" style="background-color: var(--warning);" onclick="upgradePlan('PREMIUM')" data-i18n="upgrade_premium">خرید اشتراک PREMIUM (۹۹.۹۹ دلار)</button>
+                            </div>
+                        </div>
+
+                        <!-- AI SUPPORT CHAT -->
+                        <div class="card">
+                            <h2 data-i18n="support_title">پشتیبانی هوشمند هوش مصنوعی</h2>
+                            <p><span data-i18n="support_limit">محدودیت درخواست شما:</span> <strong id="quota-counter" style="color: var(--accent);">0 / 10</strong></p>
+                            <div id="chat-box" class="chat-box">
+                                <div class="chat-msg bot">سلام! من دستیار هوشمند ترید‌یار هستم. چطور می‌توانم شما را راهنمایی کنم؟</div>
+                            </div>
+                            <div style="display: flex; gap: 10px;">
+                                <input type="text" id="chat-input" class="form-control" placeholder="سوال خود را بنویسید..." onkeydown="if(event.key === 'Enter') sendSupportMsg()">
+                                <button class="btn" onclick="sendSupportMsg()" data-i18n="support_send">ارسال</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <!-- WATCHLIST -->
+                        <div class="card">
+                            <h3 data-i18n="watchlist_title">دیده‌بان بازار من</h3>
+                            <p data-i18n="watchlist_desc">نمادهای موردعلاقه خود را رصد کنید:</p>
+                            <div style="display: flex; gap: 5px; margin-bottom: 10px;">
+                                <button class="btn" style="padding: 5px 10px; font-size: 0.9em;" onclick="addToWatchlist('XAUUSD')">XAUUSD</button>
+                                <button class="btn" style="padding: 5px 10px; font-size: 0.9em;" onclick="addToWatchlist('EURUSD')">EURUSD</button>
+                                <button class="btn" style="padding: 5px 10px; font-size: 0.9em;" onclick="addToWatchlist('GBPUSD')">GBPUSD</button>
+                            </div>
+                            <div id="watchlist-items">
+                                <!-- Appended dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- PROFILE METADATA -->
+                        <div class="card">
+                            <h3 data-i18n="profile_title">تنظیمات کاربری من</h3>
+                            <p data-i18n="profile_desc">اطلاعات حساب کاربری فعال:</p>
+                            <div style="line-height: 1.8; font-size: 0.95em;">
+                                <div>ایمیل: <strong id="prof-email"></strong></div>
+                                <div>نقش دسترسی: <strong id="prof-role"></strong></div>
+                                <div>پلن فعال: <strong id="prof-plan"></strong></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. ADMIN CENTER PANEL -->
+        <div id="tab-admin" class="tab-panel">
+            <div class="card">
+                <h2 data-i18n="admin_title">پنل نظارت و کنترل هوشمند ترید‌یار (مدیر)</h2>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px;">
+                    <div style="background: #edf2f7; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div>ثبت‌نام‌های کل</div>
+                        <h3 id="analytics-registrations" style="margin: 5px 0 0 0; font-size: 1.6em; color: var(--primary);">0</h3>
+                    </div>
+                    <div style="background: #edf2f7; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div>بازدید صفحات کل</div>
+                        <h3 id="analytics-views" style="margin: 5px 0 0 0; font-size: 1.6em; color: var(--primary);">0</h3>
+                    </div>
+                    <div style="background: #edf2f7; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div>تبدیل به حساب PRO</div>
+                        <h3 id="analytics-conversions" style="margin: 5px 0 0 0; font-size: 1.6em; color: var(--primary);">0</h3>
+                    </div>
+                </div>
+
+                <h3 data-i18n="admin_users">لیست کاربران ثبت‌نام شده</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-users-table">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 8. LEGAL SUBPAGES -->
+        <div id="tab-terms" class="tab-panel">
+            <div class="card">
+                <h2>TradeYar AI — Terms of Service</h2>
+                <p>Effective Date: October 2025</p>
+                <p>Welcome to TradeYar AI. By accessing or using our read-only financial analysis website, platform services, or software features, you explicitly agree to these Terms of Service. If you do not accept these conditions, you are forbidden from utilizing the platform.</p>
+                <h3>1. Read-Only Passivity</h3>
+                <p>TradeYar AI does not operate transaction order terminals, place automated trades, or provide brokerage services. All output results are strictly descriptive, mathematical summaries of market price movements.</p>
+            </div>
+        </div>
+
+        <div id="tab-privacy" class="tab-panel">
+            <div class="card">
+                <h2>TradeYar AI — Privacy Policy</h2>
+                <p>We are fully committed to protecting your personal data in complete compliance with international standards, including GDPR. We secure registered emails with robust hashing protocols and store active sessions with strict time-to-live restrictions.</p>
+            </div>
+        </div>
+
+        <div id="tab-cookie" class="tab-panel">
+            <div class="card">
+                <h2>TradeYar AI — Cookie Policy</h2>
+                <p>We utilize cookies to maintain your login session state, secure your workspace tokens, and store your language and preference preferences. By accepting cookies, you allow TradeYar to offer a smooth, responsive, and secure experience.</p>
+            </div>
+        </div>
+
+        <div id="tab-disclaimer" class="tab-panel">
+            <div class="card" style="border-left: 6px solid var(--danger);">
+                <h2 data-i18n="disclaimer_title">سلب مسئولیت و ریسک معاملات</h2>
+                <p data-i18n="disclaimer_body"></p>
+                <p>TradeYar AI offers no financial guarantees. speculatve assets feature high volatility. Speculators operate entirely at their own risk.</p>
             </div>
         </div>
     </div>
@@ -990,15 +1495,44 @@ def get_research_health():
     }
 
 
+@app.get("/health")
 @app.get("/v1/health")
 def get_health_diagnostics():
-    """Health diagnostics API."""
+    """
+    Production Health diagnostics API.
+    Monitors: API, MT5 connection, AI Engine loop, Local Storage, and Background Polling tasks.
+    """
+    # 1. API status
+    api_status = "Healthy"
+
+    # 2. MT5 connection health
+    mt5_conn = "ONLINE" if research_tracker.get("mt5_status") == "CONNECTED" else "SIMULATED_FALLBACK"
+
+    # 3. AI Engine state
+    ai_engine_status = "ACTIVE" if _worker_started else "IDLE"
+
+    # 4. Storage check
+    logs_available = os.path.exists("logs") or os.path.exists("runtime_logs")
+    storage_status = "ACCESSIBLE" if logs_available else "UNINITIALIZED"
+
+    # 5. Background task status
+    background_worker = "RUNNING" if (research_tracker.get("worker_status") == "RUNNING" and _worker_started) else "RECOVERING"
+
+    overall_status = "Healthy" if (logs_available and _worker_started) else "Degraded"
+
     return {
-        "status": "Healthy",
+        "status": overall_status,
         "reported_at": datetime.now().isoformat(),
-        "environment": "Production Sandbox",
+        "environment": "Production",
         "apes_fin_compliant": True,
-        "active_threads_count": threading.active_count()
+        "active_threads_count": threading.active_count(),
+        "monitors": {
+            "api": api_status,
+            "mt5": mt5_conn,
+            "ai_engine": ai_engine_status,
+            "storage": storage_status,
+            "background_tasks": background_worker
+        }
     }
 
 
@@ -1012,6 +1546,360 @@ def get_runtime_status():
         "polling_loop_delay_ms": 100.0,
         "simulated_fallback_active": True
     }
+
+
+# -----------------------------------------------------------------------------
+# AI COST CONTROL & API VERSIONING MIDDLEWARE / ENDPOINTS (PHASE 3, 4, 14)
+# -----------------------------------------------------------------------------
+
+def enforce_ai_cost_limit(user: dict) -> int:
+    """
+    Enforces daily AI request limits based on user role.
+    FREE (USER) -> 10 requests, PRO -> 100 requests, PREMIUM -> 500 requests, ADMIN -> unlimited.
+    Protecting server resources with absolute zero extra cost.
+    """
+    role = user.get("role", "USER")
+    email = user.get("email")
+    current_count = auth_repo.get_ai_request_count(email)
+
+    limits = {
+        "USER": 10,
+        "PRO": 100,
+        "PREMIUM": 500,
+        "ADMIN": 999999
+    }
+    limit = limits.get(role, 10)
+
+    if current_count >= limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"AI limit reached for tier {role} ({limit} requests/day). Please upgrade your plan."
+        )
+
+    # Log usage
+    new_count = auth_repo.log_ai_request(email)
+    return new_count
+
+
+@app.post("/api/v1/auth/register")
+def api_register_user(payload: Dict[str, str]):
+    """Versioned API: Registers a new user on the platform."""
+    email = payload.get("email", "")
+    password = payload.get("password", "")
+    role = payload.get("role", "USER")
+
+    try:
+        user = auth_service.register_user(email, password, role)
+        # Track product analytics
+        auth_repo.increment_analytic("registrations")
+        audit_log_service.log_security_event(email, "REGISTER", "SUCCESS", f"Registered with role {role}")
+
+        # Hook up Transactional Onboarding Email
+        email_service_instance.send_welcome_email(user["email"])
+
+        return {"status": "Success", "message": "User registered successfully.", "email": user["email"]}
+    except ValueError as e:
+        audit_log_service.log_security_event(email, "REGISTER", "FAILED", str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/v1/auth/login")
+def api_login_user(response: Response, payload: Dict[str, str]):
+    """Versioned API: Securely logs in user and sets secure tradeyar_session cookie."""
+    email = payload.get("email", "")
+    password = payload.get("password", "")
+
+    token = auth_service.authenticate_user(email, password)
+    if not token:
+        audit_log_service.log_security_event(email, "LOGIN", "FAILED", "Invalid credentials or inactive account")
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    # Set session cookie
+    response.set_cookie(
+        key="tradeyar_session",
+        value=token,
+        httponly=True,
+        max_age=auth_service.session_ttl_sec,
+        samesite="lax"
+    )
+
+    user = auth_repo.get_user(email)
+    audit_log_service.log_security_event(email, "LOGIN", "SUCCESS", f"Session token issued: {token[:8]}...")
+    return {
+        "status": "Success",
+        "token": token,
+        "user": {
+            "email": user["email"],
+            "role": user["role"],
+            "subscription_plan": user["subscription_plan"]
+        }
+    }
+
+
+@app.post("/api/v1/auth/logout")
+def api_logout_user(response: Response, request: Request):
+    """Versioned API: Invalidates user session and clears cookie."""
+    token = request.cookies.get("tradeyar_session")
+    if token:
+        user = auth_service.validate_token(token)
+        if user:
+            auth_service.logout_user(token)
+            audit_log_service.log_security_event(user["email"], "LOGOUT", "SUCCESS", "Session invalidated")
+
+    response.delete_cookie("tradeyar_session")
+    return {"status": "Success", "message": "Logged out successfully."}
+
+
+@app.post("/api/v1/auth/recover-request")
+def api_recover_request(payload: Dict[str, str]):
+    """Versioned API: Requests numerical recovery reset code."""
+    email = payload.get("email", "")
+    code = auth_service.generate_password_recovery_code(email)
+    if code:
+        audit_log_service.log_security_event(email, "RECOVERY_REQUEST", "SUCCESS", f"Recovery code issued: {code}")
+
+        # Send transactional password recovery email
+        email_service_instance.send_password_recovery_email(email, code)
+
+        return {"status": "Success", "message": "Recovery code generated.", "code": code}
+
+    audit_log_service.log_security_event(email, "RECOVERY_REQUEST", "FAILED", "Email not found")
+    raise HTTPException(status_code=404, detail="Email address not found.")
+
+
+@app.post("/api/v1/auth/recover-reset")
+def api_recover_reset(payload: Dict[str, str]):
+    """Versioned API: Resets user password using reset code."""
+    email = payload.get("email", "")
+    code = payload.get("code", "")
+    new_password = payload.get("new_password", "")
+
+    try:
+        success = auth_service.reset_password_with_code(email, code, new_password)
+        if success:
+            audit_log_service.log_security_event(email, "RECOVERY_RESET", "SUCCESS", "Password reset succeeded")
+            return {"status": "Success", "message": "Password updated successfully."}
+
+        audit_log_service.log_security_event(email, "RECOVERY_RESET", "FAILED", "Incorrect recovery code")
+        raise HTTPException(status_code=400, detail="Invalid recovery code.")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/v1/analysis")
+def api_get_analysis(user: dict = Depends(get_current_user_mandatory)):
+    """
+    Versioned API: Access control analysis endpoint.
+    Restricts detail visibility based on active user subscription roles.
+    """
+    role = user.get("role", "USER")
+    auth_repo.increment_analytic("analyses_viewed")
+
+    # Fetch core research snapshot
+    snapshot_dir = "runtime_logs/research_snapshots"
+    base_data = {
+        "symbol": "XAUUSD",
+        "timeframe": "H1",
+        "bias": "Bullish",
+        "confidence": 78,
+        "timestamp": datetime.now().isoformat()
+    }
+    if os.path.exists(snapshot_dir):
+        try:
+            files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
+            if files:
+                files.sort(key=lambda x: os.path.getmtime(os.path.join(snapshot_dir, x)))
+                with open(os.path.join(snapshot_dir, files[-1]), "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                findings = data.get("findings", {})
+                po = findings.get("pipeline_outputs", {})
+                smart = po.get("smart_interpretation", {})
+                base_data = {
+                    "symbol": data.get("asset", "XAUUSD"),
+                    "timeframe": data.get("timeframe", "H1"),
+                    "bias": smart.get("bias", "Neutral"),
+                    "confidence": smart.get("confidence", 50),
+                    "reasoning": smart.get("reasoning", []),
+                    "timestamp": data.get("created_at", datetime.now().isoformat()),
+                    "indicators": po.get("technical_analysis", {})
+                }
+        except Exception:
+            pass
+
+    # Restrict views
+    if role == "USER":
+        # FREE Users get basic direction/confidence with message to upgrade
+        return {
+            "tier": "FREE",
+            "symbol": base_data["symbol"],
+            "bias": base_data["bias"],
+            "confidence": f"{base_data['confidence']}%",
+            "message": "Upgrade to PRO or PREMIUM to view advanced technical metrics, bullet reasoning, and the AI support assistant.",
+            "indicators": "RESTRICTED",
+            "reasoning": "RESTRICTED"
+        }
+    elif role == "PRO":
+        # PRO Users view indicators & bias, but restricted reasoning detail
+        return {
+            "tier": "PRO",
+            "symbol": base_data["symbol"],
+            "bias": base_data["bias"],
+            "confidence": f"{base_data['confidence']}%",
+            "indicators": base_data.get("indicators", {}),
+            "reasoning": ["Restricted: Upgrade to PREMIUM for full explanatory AI reasoning mapping."]
+        }
+    else:
+        # PREMIUM and ADMIN get full access
+        return {
+            "tier": role,
+            "symbol": base_data["symbol"],
+            "bias": base_data["bias"],
+            "confidence": f"{base_data['confidence']}%",
+            "indicators": base_data.get("indicators", {}),
+            "reasoning": base_data.get("reasoning", ["Stable market trend continuation predicted."]),
+            "risk_disclosure": "Financial trading contains high risks. Past performances never guarantee future profits."
+        }
+
+
+@app.get("/api/v1/users")
+def api_list_users(admin: dict = Depends(require_role(["ADMIN"]))):
+    """Versioned API: Lists all registered platform users (ADMIN only)."""
+    return auth_repo.list_users()
+
+
+@app.post("/api/v1/users/update-role")
+def api_update_user_role(payload: Dict[str, str], admin: dict = Depends(require_role(["ADMIN"]))):
+    """
+    Versioned API: Admin updates user role dynamically (ADMIN only).
+    Fires full transaction history record, transactional billing invoice, and Telegram broadcast notification.
+    """
+    email = payload.get("email", "")
+    new_role = payload.get("role", "")
+
+    if new_role not in ("USER", "PRO", "PREMIUM", "ADMIN"):
+        raise HTTPException(status_code=400, detail="Invalid role type.")
+
+    user = auth_repo.get_user(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    old_role = user["role"]
+    user["role"] = new_role
+    user["subscription_plan"] = "FREE" if new_role == "USER" else new_role
+    auth_repo.save_user(user)
+
+    # Fire simulated payment transaction record for auditing & billing
+    amount = 29.99 if new_role == "PRO" else (99.99 if new_role == "PREMIUM" else 0.0)
+    if amount > 0.0:
+        tx = payment_service_instance.initiate_crypto_payment(email, new_role, amount)
+        payment_service_instance.verify_payment_transaction(tx["tx_id"])
+
+        # Send Invoice Email
+        email_service_instance.send_subscription_invoice(email, new_role, amount)
+
+        # Dispatch Telegram Direct alert
+        telegram_service_instance.send_account_alert(email, f"Invoice paid successfully! Subscription plan {new_role} is now active.")
+        audit_log_service.log_user_activity(email, "PURCHASE_PLAN", f"plan_{new_role}", f"Amount: ${amount}")
+
+    # Increment pro conversion if upgraded from USER to PRO/PREMIUM
+    if old_role == "USER" and new_role in ("PRO", "PREMIUM"):
+        auth_repo.increment_analytic("pro_conversions")
+
+    audit_log_service.log_security_event(admin["email"], "UPDATE_USER_ROLE", "SUCCESS", f"Updated {email} from {old_role} to {new_role}")
+    return {"status": "Success", "message": f"User {email} updated to role {new_role}."}
+
+
+@app.get("/api/v1/analytics")
+def api_get_analytics(admin: dict = Depends(require_role(["ADMIN"]))):
+    """Versioned API: Returns Product Analytics scorecard (ADMIN only)."""
+    return auth_repo.get_analytics()
+
+
+@app.get("/api/v1/cost-limit")
+def api_get_cost_limit(user: dict = Depends(get_current_user_mandatory)):
+    """Versioned API: Returns user AI request count and daily limit quota."""
+    role = user.get("role", "USER")
+    limits = {
+        "USER": 10,
+        "PRO": 100,
+        "PREMIUM": 500,
+        "ADMIN": 999999
+    }
+    limit = limits.get(role, 10)
+    count = auth_repo.get_ai_request_count(user["email"])
+    return {
+        "email": user["email"],
+        "role": role,
+        "requests_made": count,
+        "daily_limit": limit,
+        "remaining_quota": max(0, limit - count)
+    }
+
+
+# -----------------------------------------------------------------------------
+# SEO, CONTENT AI, & AI SUPPORT INTERACTIVE SERVICES (PHASE 10, 11, 13)
+# -----------------------------------------------------------------------------
+
+@app.get("/sitemap.xml")
+def get_sitemap():
+    """Serves dynamically constructed SEO sitemap.xml for indexing public pages."""
+    content = seo_service_instance.generate_sitemap_xml()
+    return Response(content=content, media_type="application/xml")
+
+
+@app.post("/api/v1/content/generate")
+def api_generate_content(payload: Dict[str, str], admin: dict = Depends(require_role(["ADMIN"]))):
+    """Admin endpoint: Triggers descriptive AI educational market analysis generation."""
+    topic = payload.get("topic", "Market Consolidation")
+    category = payload.get("category", "blog")
+    language = payload.get("language", "en")
+
+    # Generate through complete fact check and risk check pipelines
+    res = content_intelligence.generate_and_publish_pipeline(topic, category, language)
+    audit_log_service.log_user_activity(admin["email"], "GENERATE_CONTENT", category, f"Topic: {topic}")
+    return res
+
+
+@app.post("/api/v1/content/approve")
+def api_approve_content(payload: Dict[str, str], admin: dict = Depends(require_role(["ADMIN"]))):
+    """Admin endpoint: Publishes content and broadcasts immediately to Telegram educational channel."""
+    title = payload.get("title", "Market Scales")
+    body = payload.get("body", "Descriptive education on fractal analysis.")
+
+    # Broadcast to Telegram channel
+    telegram_service_instance.broadcast_educational_post(title, body)
+    audit_log_service.log_security_event(admin["email"], "PUBLISH_CONTENT", "SUCCESS", f"Title: {title}")
+    return {"status": "Success", "message": "Content published and broadcasted to Telegram."}
+
+
+@app.post("/api/v1/support/query")
+def api_support_query(payload: Dict[str, str], user: dict = Depends(get_current_user_mandatory)):
+    """User endpoint: Smart AI FAQ and support chat. Enforces Cost usage control limits."""
+    query = payload.get("query", "")
+    language = payload.get("language", "en")
+    email = user["email"]
+
+    # Enforce daily AI usage limits
+    enforce_ai_cost_limit(user)
+
+    # Process through FAQ assistant
+    reply = support_ai_service.process_ai_query(email, query, language)
+    auth_repo.increment_analytic("support_queries")
+    return {"reply": reply}
+
+
+@app.get("/api/v1/support/history")
+def api_support_history(user: dict = Depends(get_current_user_mandatory)):
+    """User endpoint: Retrieves persistence chat message thread history."""
+    return support_ai_service.get_conversation_history(user["email"])
+
+
+@app.post("/api/v1/support/escalate")
+def api_support_escalate(user: dict = Depends(get_current_user_mandatory)):
+    """User endpoint: Escalates conversation thread to platform administrators."""
+    support_ai_service.escalate_thread(user["email"])
+    audit_log_service.log_user_activity(user["email"], "ESCALATE_CHAT", "support", "Escalated to administrator queue")
+    return {"status": "Success", "message": "Your conversation thread has been escalated. An admin will review it."}
 
 
 @app.post("/api/validation/run")

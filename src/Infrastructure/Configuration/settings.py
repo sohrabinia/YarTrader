@@ -13,6 +13,14 @@ class BaseSettings:
         self.log_level: str = "INFO"
         self.storage_root: str = "H:\\TradeYarAI\\" if os.name == "nt" else "/tmp/TradeYarAI/"
         self.db_token: str = "dev-token-12345"
+
+        # Production Authentication & Subscription variables
+        self.auth_db_path: str = "runtime_logs/auth.json"
+        self.secret_key: str = "tradeyar-super-secure-production-key-99381"
+        self.session_ttl_sec: int = 86400
+        self.pro_plan_price: float = 29.99
+        self.premium_plan_price: float = 99.99
+
         self._load_and_validate()
 
     def _load_and_validate(self) -> None:
@@ -49,6 +57,16 @@ class BaseSettings:
 
         self.db_token = str(self._overrides.get("db_token", os.environ.get("RG_DB_SECURE_TOKEN", self.db_token)))
 
+        # Load Auth & Subscription configs
+        self.auth_db_path = str(self._overrides.get("auth_db_path", os.environ.get("TRADEYAR_AUTH_DB_PATH", self.auth_db_path)))
+        self.secret_key = str(self._overrides.get("secret_key", os.environ.get("TRADEYAR_SECRET_KEY", self.secret_key)))
+        try:
+            self.session_ttl_sec = int(self._overrides.get("session_ttl_sec", os.environ.get("TRADEYAR_SESSION_TTL_SEC", self.session_ttl_sec)))
+            self.pro_plan_price = float(self._overrides.get("pro_plan_price", os.environ.get("TRADEYAR_PRO_PLAN_PRICE", self.pro_plan_price)))
+            self.premium_plan_price = float(self._overrides.get("premium_plan_price", os.environ.get("TRADEYAR_PREMIUM_PLAN_PRICE", self.premium_plan_price)))
+        except ValueError as e:
+            raise ValidationException(f"Configuration Error: Numerical parameters for plans must be numeric: {str(e)}")
+
         # Scan for forbidden live trading indicators
         forbidden_keywords = ["buy_signal", "sell_signal", "place_order", "execute_trade", "open_position", "send_transaction"]
         for key, val in self._overrides.items():
@@ -66,7 +84,12 @@ class BaseSettings:
             "max_retries": self.max_retries,
             "log_level": self.log_level,
             "storage_root": self.storage_root,
-            "db_token": self.db_token
+            "db_token": self.db_token,
+            "auth_db_path": self.auth_db_path,
+            "secret_key": self.secret_key,
+            "session_ttl_sec": self.session_ttl_sec,
+            "pro_plan_price": self.pro_plan_price,
+            "premium_plan_price": self.premium_plan_price
         }
 
 
