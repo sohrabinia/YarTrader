@@ -213,7 +213,7 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         mock_mt5.last_error.return_value = (-1, "Symbol not found")
 
         inst = MarketInstrument("EURUSD", "FX")
-        req = MarketDataRequest(inst, "M15", self.now, self.now)
+        req = MarketDataRequest(inst, "M15", self.now - timedelta(hours=1), self.now)
         resp = self.provider.fetch_market_data(req)
         self.assertFalse(resp.is_success)
         self.assertIn("Symbol not found", resp.error_message)
@@ -308,3 +308,104 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
             # Setup will restore, but let's be safe here
             mt5_module.MT5_AVAILABLE = True
             mt5_module.mt5 = mock_mt5
+
+    # 5. Regression Tests for Timezone and Range Validation
+    def test_regression_naive_datetime_input(self) -> None:
+        """Verify naive datetimes get converted to UTC correctly."""
+        from datetime import timezone
+        start_naive = datetime(2026, 1, 1, 10, 0, 0)
+        end_naive = datetime(2026, 1, 1, 12, 0, 0)
+
+        # Hook mock to inspect parameters
+        calls = []
+        def inspect_copy_rates_range(symbol, tf, date_from, date_to):
+            calls.append((date_from, date_to))
+            return mock_copy_rates_range(symbol, tf, date_from, date_to)
+        mock_mt5.copy_rates_range.side_effect = inspect_copy_rates_range
+
+        req = ExternalDataRequest("XAUUSD", "H1", start_naive, end_naive)
+        resp = self.provider.fetch_data(req)
+
+        self.assertTrue(resp.is_success)
+        self.assertEqual(len(calls), 1)
+        p_start, p_end = calls[0]
+        self.assertEqual(p_start.tzinfo, timezone.utc)
+        self.assertEqual(p_end.tzinfo, timezone.utc)
+
+    def test_regression_timezone_aware_datetime_input(self) -> None:
+        """Verify timezone-aware datetimes preserve their timezone info."""
+        from datetime import timezone, timedelta
+        tz_east = timezone(timedelta(hours=3))
+        start_aware = datetime(2026, 1, 1, 10, 0, 0, tzinfo=tz_east)
+        end_aware = datetime(2026, 1, 1, 12, 0, 0, tzinfo=tz_east)
+
+        calls = []
+        def inspect_copy_rates_range(symbol, tf, date_from, date_to):
+            calls.append((date_from, date_to))
+            return mock_copy_rates_range(symbol, tf, date_from, date_to)
+        mock_mt5.copy_rates_range.side_effect = inspect_copy_rates_range
+
+        req = ExternalDataRequest("XAUUSD", "H1", start_aware, end_aware)
+        resp = self.provider.fetch_data(req)
+
+        self.assertTrue(resp.is_success)
+        self.assertEqual(len(calls), 1)
+        p_start, p_end = calls[0]
+        self.assertEqual(p_start.tzinfo, tz_east)
+        self.assertEqual(p_end.tzinfo, tz_east)
+
+    def test_regression_iso_string_datetime_input(self) -> None:
+        """Verify ISO datetime strings (naive and aware) are parsed correctly and UTC-normalized if naive."""
+        from datetime import timezone
+        start_str = "2026-01-01T10:00:00"
+        end_str = "2026-01-01T15:00:00+04:00"
+
+        calls = []
+        def inspect_copy_rates_range(symbol, tf, date_from, date_to):
+            calls.append((date_from, date_to))
+            return mock_copy_rates_range(symbol, tf, date_from, date_to)
+        mock_mt5.copy_rates_range.side_effect = inspect_copy_rates_range
+
+        req = ExternalDataRequest("XAUUSD", "H1", start_str, end_str)
+        resp = self.provider.fetch_data(req)
+
+        self.assertTrue(resp.is_success)
+        self.assertEqual(len(calls), 1)
+        p_start, p_end = calls[0]
+        self.assertEqual(p_start.tzinfo, timezone.utc)
+        self.assertEqual(p_end.tzinfo, datetime.fromisoformat(end_str).tzinfo)
+
+    def test_regression_invalid_reversed_date_range(self) -> None:
+        """Verify invalid reversed date ranges are rejected early without calling MT5."""
+        start_dt = datetime(2026, 1, 1, 12, 0, 0)
+        end_dt = datetime(2026, 1, 1, 10, 0, 0) # end before start
+
+        called = False
+        def inspect_copy_rates_range(symbol, tf, date_from, date_to):
+            nonlocal called
+            called = True
+            return []
+        mock_mt5.copy_rates_range.side_effect = inspect_copy_rates_range
+
+        req = ExternalDataRequest("XAUUSD", "H1", start_dt, end_dt)
+        resp = self.provider.fetch_data(req)
+
+        self.assertFalse(resp.is_success)
+        self.assertFalse(called)
+        self.assertIn("Invalid date range", resp.error_message)
+
+    def test_regression_successful_copy_rates_range_retrieval_path(self) -> None:
+        """Verify successful retrieval path executes cleanly and maps correctly."""
+        start_dt = datetime(2026, 1, 1, 10, 0, 0)
+        end_dt = datetime(2026, 1, 1, 12, 0, 0)
+
+        req = MarketDataRequest(
+            instrument=MarketInstrument("XAUUSD", "Metals"),
+            timeframe="H1",
+            start_time=start_dt,
+            end_time=end_dt
+        )
+        resp = self.provider.fetch_market_data(req)
+        self.assertTrue(resp.is_success)
+        self.assertGreater(len(resp.candles), 0)
+        self.assertEqual(resp.candles[0].open, 1800.0)
