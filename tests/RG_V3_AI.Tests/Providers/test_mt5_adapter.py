@@ -207,9 +207,11 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         self.assertIn("Connection lost to MT5 terminal", resp.error_message)
 
     def test_failure_3_fetch_market_data_unsuccessful_fetch_propagates_failure(self) -> None:
-        # Simulate copy_rates_range returning None
+        # Simulate copy_rates_range and fallback copy_rates_from_pos both returning None
         mock_mt5.copy_rates_range.side_effect = None
         mock_mt5.copy_rates_range.return_value = None
+        mock_mt5.copy_rates_from_pos.side_effect = None
+        mock_mt5.copy_rates_from_pos.return_value = None
         mock_mt5.last_error.return_value = (-1, "Symbol not found")
 
         inst = MarketInstrument("EURUSD", "FX")
@@ -409,3 +411,72 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         self.assertTrue(resp.is_success)
         self.assertGreater(len(resp.candles), 0)
         self.assertEqual(resp.candles[0].open, 1800.0)
+
+    def test_regression_future_range_rejection(self) -> None:
+        """Verify ranges stretching into the future are rejected before calling MT5."""
+        from datetime import timezone
+        start_dt = datetime.now(timezone.utc) + timedelta(hours=5)
+        end_dt = datetime.now(timezone.utc) + timedelta(hours=6)
+
+        called = False
+        def inspect_copy_rates_range(symbol, tf, date_from, date_to):
+            nonlocal called
+            called = True
+            return []
+        mock_mt5.copy_rates_range.side_effect = inspect_copy_rates_range
+
+        req = ExternalDataRequest("XAUUSD", "H1", start_dt, end_dt)
+        resp = self.provider.fetch_data(req)
+
+        self.assertFalse(resp.is_success)
+        self.assertFalse(called)
+        self.assertIn("Rejected future date range", resp.error_message)
+
+    def test_regression_copy_rates_from_pos_fallback(self) -> None:
+        """Verify fallback to copy_rates_from_pos when copy_rates_range fails."""
+        start_dt = datetime(2026, 1, 1, 10, 0, 0)
+        end_dt = datetime(2026, 1, 1, 12, 0, 0)
+
+        # Simulate copy_rates_range failure
+        mock_mt5.copy_rates_range.side_effect = None
+        mock_mt5.copy_rates_range.return_value = None
+        mock_mt5.last_error.return_value = (-1, "Terminal call failed")
+
+        called_fallback = False
+        def inspect_copy_rates_from_pos(symbol, tf, start, count):
+            nonlocal called_fallback
+            called_fallback = True
+            # Return a simple mock rates list directly to isolate the test cleanly
+            return [{
+                "time": 1600000000,
+                "open": 1800.0,
+                "high": 1810.0,
+                "low": 1790.0,
+                "close": 1805.0,
+                "tick_volume": 100
+            }]
+        mock_mt5.copy_rates_from_pos.side_effect = inspect_copy_rates_from_pos
+
+        req = ExternalDataRequest("XAUUSD", "H1", start_dt, end_dt)
+        resp = self.provider.fetch_data(req)
+
+        self.assertTrue(resp.is_success)
+        self.assertTrue(called_fallback)
+        self.assertGreater(len(resp.raw_data), 0)
+
+    def test_regression_both_none_failure(self) -> None:
+        """Verify failure returned when both range and pos return None."""
+        start_dt = datetime(2026, 1, 1, 10, 0, 0)
+        end_dt = datetime(2026, 1, 1, 12, 0, 0)
+
+        mock_mt5.copy_rates_range.side_effect = None
+        mock_mt5.copy_rates_range.return_value = None
+        mock_mt5.copy_rates_from_pos.side_effect = None
+        mock_mt5.copy_rates_from_pos.return_value = None
+        mock_mt5.last_error.return_value = (-1, "Double failure")
+
+        req = ExternalDataRequest("XAUUSD", "H1", start_dt, end_dt)
+        resp = self.provider.fetch_data(req)
+
+        self.assertFalse(resp.is_success)
+        self.assertIn("MT5 copy_rates_range and copy_rates_from_pos both returned None", resp.error_message)

@@ -55,7 +55,29 @@ except ImportError:
             curr += timedelta(minutes=15)
         return rates
 
+    def mock_copy_rates_from_pos(symbol, timeframe, start_pos, count):
+        from datetime import datetime, timedelta
+        base_price = 1.1000 if "JPY" not in symbol else 145.0
+        if "XAU" in symbol:
+            base_price = 2300.0
+        increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
+
+        rates = []
+        curr = datetime.now() - timedelta(minutes=15 * (start_pos + count))
+        for i in range(count):
+            rates.append({
+                "time": int(curr.timestamp()),
+                "open": base_price + i * increment,
+                "high": base_price + (i + 2) * increment,
+                "low": base_price + (i - 1) * increment,
+                "close": base_price + (i + 1) * increment,
+                "tick_volume": 150.0 + i * 10
+            })
+            curr += timedelta(minutes=15)
+        return rates
+
     mock_mt5.copy_rates_range.side_effect = mock_copy_rates_range
+    mock_mt5.copy_rates_from_pos.side_effect = mock_copy_rates_from_pos
     sys.modules["MetaTrader5"] = mock_mt5
     mt5 = mock_mt5
     MT5_AVAILABLE = True
@@ -277,7 +299,13 @@ class MT5DataProvider(IDataProvider):
             start_dt = normalize_datetime(request.start_time)
             end_dt = normalize_datetime(request.end_time)
 
-            # Validate date range
+            # 1. Diagnostic logging
+            logger.info(
+                f"MT5 Request Diagnostics: symbol={request.symbol}, timeframe={request.timeframe} (constant={mt5_tf}), "
+                f"start_dt={start_dt} (tz={start_dt.tzinfo}), end_dt={end_dt} (tz={end_dt.tzinfo})"
+            )
+
+            # 2. Date Range Validation: ensure start < end
             if start_dt >= end_dt:
                 logger.error(f"Invalid date range requested: start_time ({start_dt}) is not before end_time ({end_dt})")
                 return ExternalDataResponse(
@@ -288,7 +316,42 @@ class MT5DataProvider(IDataProvider):
                     error_message=f"Invalid date range: start_time ({start_dt}) must be before end_time ({end_dt})"
                 )
 
+            # 2b. Future Range Rejection (with 1 hour cushion to prevent clock drift issues)
+            now_utc = datetime.now(timezone.utc)
+            future_limit = now_utc + timedelta(hours=1)
+            if start_dt > future_limit or end_dt > future_limit:
+                logger.error(f"Rejected future date range request: start_dt={start_dt}, end_dt={end_dt}, limit={future_limit}")
+                return ExternalDataResponse(
+                    request_id=request.request_id or "id",
+                    provider_id=self._metadata.provider_id,
+                    raw_data=[],
+                    is_success=False,
+                    error_message=f"Rejected future date range. Limit is {future_limit}"
+                )
+
+            # 3. Call copy_rates_range
             rates = mt5.copy_rates_range(request.symbol, mt5_tf, start_dt, end_dt)
+
+            # 3b. Fallback Behavior: if copy_rates_range fails or is None, try copy_rates_from_pos
+            if rates is None:
+                err_code, err_msg = mt5.last_error()
+                logger.warning(
+                    f"copy_rates_range returned None (code {err_code}: {err_msg}). "
+                    f"Initiating copy_rates_from_pos fallback..."
+                )
+
+                # Estimate equivalent candle count
+                tf_seconds = {
+                    "M1": 60, "M5": 300, "M15": 900, "M30": 1800,
+                    "H1": 3600, "H4": 14400, "D1": 86400
+                }
+                sec_per_candle = tf_seconds.get(request.timeframe, 3600)
+                duration_sec = (end_dt - start_dt).total_seconds()
+                candle_count = max(1, int(duration_sec / sec_per_candle) + 1)
+
+                logger.info(f"Fallback estimated candle count: {candle_count}")
+                rates = mt5.copy_rates_from_pos(request.symbol, mt5_tf, 0, candle_count)
+
             if rates is None:
                 err_code, err_msg = mt5.last_error()
                 return ExternalDataResponse(
@@ -296,7 +359,7 @@ class MT5DataProvider(IDataProvider):
                     provider_id=self._metadata.provider_id,
                     raw_data=[],
                     is_success=False,
-                    error_message=f"MT5 copy_rates_range returned None. Error: {err_msg} (code {err_code})"
+                    error_message=f"MT5 copy_rates_range and copy_rates_from_pos both returned None. Error: {err_msg} (code {err_code})"
                 )
 
             raw_rates = []
