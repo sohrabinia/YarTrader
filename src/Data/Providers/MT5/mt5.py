@@ -56,6 +56,61 @@ except ImportError:
         return rates
 
     mock_mt5.copy_rates_range.side_effect = mock_copy_rates_range
+
+    def mock_copy_rates_from(symbol, timeframe, date_to, count):
+        err_code, _ = mock_mt5.last_error()
+        if err_code != 0:
+            return None
+        from datetime import timedelta
+        base_price = 1.1000 if "JPY" not in symbol else 145.0
+        if "XAU" in symbol:
+            base_price = 2300.0
+        increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
+
+        rates = []
+        curr = date_to - timedelta(minutes=15 * count)
+        for i in range(count):
+            if curr > date_to:
+                break
+            rates.append({
+                "time": int(curr.timestamp()),
+                "open": base_price + i * increment,
+                "high": base_price + (i + 2) * increment,
+                "low": base_price + (i - 1) * increment,
+                "close": base_price + (i + 1) * increment,
+                "tick_volume": 150.0 + i * 10
+            })
+            curr += timedelta(minutes=15)
+        return rates
+
+    mock_mt5.copy_rates_from.side_effect = mock_copy_rates_from
+
+    def mock_copy_rates_from_pos(symbol, timeframe, start, count):
+        err_code, _ = mock_mt5.last_error()
+        if err_code != 0:
+            return None
+        from datetime import datetime, timedelta
+        base_price = 1.1000 if "JPY" not in symbol else 145.0
+        if "XAU" in symbol:
+            base_price = 2300.0
+        increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
+
+        rates = []
+        curr = datetime.now() - timedelta(minutes=15 * count)
+        for i in range(count):
+            rates.append({
+                "time": int(curr.timestamp()),
+                "open": base_price + i * increment,
+                "high": base_price + (i + 2) * increment,
+                "low": base_price + (i - 1) * increment,
+                "close": base_price + (i + 1) * increment,
+                "tick_volume": 150.0 + i * 10
+            })
+            curr += timedelta(minutes=15)
+        return rates
+
+    mock_mt5.copy_rates_from_pos.side_effect = mock_copy_rates_from_pos
+
     sys.modules["MetaTrader5"] = mock_mt5
     mt5 = mock_mt5
     MT5_AVAILABLE = True
@@ -311,22 +366,67 @@ class MT5DataProvider(IDataProvider):
             rates = mt5.copy_rates_range(request.symbol, mt5_tf, start_dt, end_dt)
             if rates is None:
                 err_code, err_msg = mt5.last_error()
-                detailed_error = (
-                    f"MT5 copy_rates_range failed.\n"
+
+                # Estimate calculated bars
+                tf_minutes_map = {
+                    "M1": 1, "M5": 5, "M15": 15, "M30": 30,
+                    "H1": 60, "H4": 240, "D1": 1440
+                }
+                tf_mins = tf_minutes_map.get(request.timeframe, 60)
+                duration_secs = (end_dt - start_dt).total_seconds()
+                calculated_bars = int(max(1, duration_secs // (tf_mins * 60) + 2))
+
+                logger.warning(
+                    f"MT5 range request failed. Attempting fallback retrieval.\n"
                     f"Symbol={request.symbol}\n"
-                    f"Timeframe={request.timeframe}\n"
+                    f"TF={request.timeframe}\n"
                     f"Start={start_dt}\n"
                     f"End={end_dt}\n"
+                    f"Requested duration={duration_secs}s (estimated {calculated_bars} bars)\n"
                     f"Error=({err_code}, {err_msg})"
                 )
-                logger.error(detailed_error)
-                return ExternalDataResponse(
-                    request_id=request.request_id or "id",
-                    provider_id=self._metadata.provider_id,
-                    raw_data=[],
-                    is_success=False,
-                    error_message=detailed_error
-                )
+
+                # Fallback Step 1: Try copy_rates_from
+                rates = mt5.copy_rates_from(request.symbol, mt5_tf, end_dt, calculated_bars)
+
+                # Fallback Step 2: Try copy_rates_from_pos
+                if rates is None or len(rates) == 0:
+                    rates = mt5.copy_rates_from_pos(request.symbol, mt5_tf, 0, calculated_bars)
+
+                if rates is None:
+                    detailed_error = (
+                        f"MT5 copy_rates_range failed and fallback also returned None.\n"
+                        f"Symbol={request.symbol}\n"
+                        f"Timeframe={request.timeframe}\n"
+                        f"Start={start_dt}\n"
+                        f"End={end_dt}\n"
+                        f"Error=({err_code}, {err_msg})"
+                    )
+                    logger.error(detailed_error)
+                    return ExternalDataResponse(
+                        request_id=request.request_id or "id",
+                        provider_id=self._metadata.provider_id,
+                        raw_data=[],
+                        is_success=False,
+                        error_message=detailed_error
+                    )
+
+                # Filter retrieved fallback rates within bounds to guarantee zero future leakage
+                start_ts = int(start_dt.timestamp())
+                end_ts = int(end_dt.timestamp())
+                filtered_rates = []
+                for rate in rates:
+                    if isinstance(rate, dict):
+                        time_val = rate.get("time")
+                    else:
+                        try:
+                            time_val = rate["time"]
+                        except (TypeError, IndexError, ValueError, KeyError):
+                            time_val = getattr(rate, "time", None)
+
+                    if time_val is not None and start_ts <= int(time_val) <= end_ts:
+                        filtered_rates.append(rate)
+                rates = filtered_rates
 
             raw_rates = []
             for rate in rates:
