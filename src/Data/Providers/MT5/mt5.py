@@ -262,12 +262,31 @@ class MT5DataProvider(IDataProvider):
 
         mt5_tf = self._map_timeframe(request.timeframe)
         try:
-            start_dt = request.start_time
-            end_dt = request.end_time
-            if isinstance(start_dt, str):
-                start_dt = datetime.fromisoformat(start_dt)
-            if isinstance(end_dt, str):
-                end_dt = datetime.fromisoformat(end_dt)
+            from datetime import timezone
+            import logging
+            logger = logging.getLogger("MT5DataProvider")
+
+            def normalize_datetime(dt) -> datetime:
+                if isinstance(dt, str):
+                    dt = datetime.fromisoformat(dt)
+                if isinstance(dt, datetime):
+                    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                return dt
+
+            start_dt = normalize_datetime(request.start_time)
+            end_dt = normalize_datetime(request.end_time)
+
+            # Validate date range
+            if start_dt >= end_dt:
+                logger.error(f"Invalid date range requested: start_time ({start_dt}) is not before end_time ({end_dt})")
+                return ExternalDataResponse(
+                    request_id=request.request_id or "id",
+                    provider_id=self._metadata.provider_id,
+                    raw_data=[],
+                    is_success=False,
+                    error_message=f"Invalid date range: start_time ({start_dt}) must be before end_time ({end_dt})"
+                )
 
             rates = mt5.copy_rates_range(request.symbol, mt5_tf, start_dt, end_dt)
             if rates is None:
