@@ -19,6 +19,16 @@ mock_mt5.symbols_get.return_value = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
 mock_mt5.account_info.return_value = None  # to preserve original custom server name tests
 mock_mt5.last_error.return_value = (0, "Success")
 
+def mock_symbol_info(symbol):
+    if symbol in ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]:
+        from unittest.mock import MagicMock
+        sym_obj = MagicMock()
+        sym_obj.name = symbol
+        return sym_obj
+    return None
+
+mock_mt5.symbol_info.side_effect = mock_symbol_info
+
 mock_mt5.TIMEFRAME_M1 = 1
 mock_mt5.TIMEFRAME_M5 = 5
 mock_mt5.TIMEFRAME_M15 = 15
@@ -489,3 +499,20 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         self.assertTrue(resp.is_success)
         self.assertTrue(called_from)
         self.assertGreater(len(resp.candles), 0)
+
+    def test_regression_unsupported_symbol_fallback(self) -> None:
+        """Verify that requesting an unavailable symbol gracefully falls back to deterministic data generation."""
+        start_dt = datetime(2026, 1, 1, 10, 0, 0)
+        end_dt = datetime(2026, 1, 1, 12, 0, 0)
+
+        # AAPL is not in supported list so symbol_info will return None
+        req = MarketDataRequest(
+            instrument=MarketInstrument("AAPL", "Stocks"),
+            timeframe="H1",
+            start_time=start_dt,
+            end_time=end_dt
+        )
+        resp = self.provider.fetch_market_data(req)
+        self.assertTrue(resp.is_success)
+        self.assertGreater(len(resp.candles), 0)
+        self.assertEqual(resp.candles[0].open, 150.0) # check AAPL base price
