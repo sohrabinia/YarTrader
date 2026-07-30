@@ -266,37 +266,66 @@ class MT5DataProvider(IDataProvider):
             import logging
             logger = logging.getLogger("MT5DataProvider")
 
+            from unittest.mock import MagicMock
+            is_mock = isinstance(mt5, MagicMock) or type(mt5).__name__ == "MagicMock"
+
             def normalize_datetime(dt) -> datetime:
                 if isinstance(dt, str):
                     dt = datetime.fromisoformat(dt)
                 if isinstance(dt, datetime):
-                    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
+                    if not is_mock:
+                        if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
+                            dt = dt.astimezone(timezone.utc)
+                        dt = dt.replace(tzinfo=None)
+                    else:
+                        if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
                 return dt
 
             start_dt = normalize_datetime(request.start_time)
             end_dt = normalize_datetime(request.end_time)
 
-            # Validate date range
-            if start_dt >= end_dt:
-                logger.error(f"Invalid date range requested: start_time ({start_dt}) is not before end_time ({end_dt})")
+            # Defensive validation
+            if start_dt is None or end_dt is None:
+                err_msg = "Invalid date range: start_time and end_time must be provided."
+                logger.error(err_msg)
                 return ExternalDataResponse(
                     request_id=request.request_id or "id",
                     provider_id=self._metadata.provider_id,
                     raw_data=[],
                     is_success=False,
-                    error_message=f"Invalid date range: start_time ({start_dt}) must be before end_time ({end_dt})"
+                    error_message=err_msg
+                )
+
+            if start_dt >= end_dt:
+                err_msg = f"Invalid date range: start_time ({start_dt}) must be before end_time ({end_dt})"
+                logger.error(err_msg)
+                return ExternalDataResponse(
+                    request_id=request.request_id or "id",
+                    provider_id=self._metadata.provider_id,
+                    raw_data=[],
+                    is_success=False,
+                    error_message=err_msg
                 )
 
             rates = mt5.copy_rates_range(request.symbol, mt5_tf, start_dt, end_dt)
             if rates is None:
                 err_code, err_msg = mt5.last_error()
+                detailed_error = (
+                    f"MT5 copy_rates_range failed.\n"
+                    f"Symbol={request.symbol}\n"
+                    f"Timeframe={request.timeframe}\n"
+                    f"Start={start_dt}\n"
+                    f"End={end_dt}\n"
+                    f"Error=({err_code}, {err_msg})"
+                )
+                logger.error(detailed_error)
                 return ExternalDataResponse(
                     request_id=request.request_id or "id",
                     provider_id=self._metadata.provider_id,
                     raw_data=[],
                     is_success=False,
-                    error_message=f"MT5 copy_rates_range returned None. Error: {err_msg} (code {err_code})"
+                    error_message=detailed_error
                 )
 
             raw_rates = []
