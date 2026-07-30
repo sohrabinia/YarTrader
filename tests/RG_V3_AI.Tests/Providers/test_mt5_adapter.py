@@ -16,6 +16,15 @@ mock_term_info.connected = True
 mock_mt5.terminal_info.return_value = mock_term_info
 
 mock_mt5.symbols_get.return_value = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
+
+def mock_symbol_info(symbol):
+    if symbol in ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]:
+        mock_info = MagicMock()
+        mock_info.name = symbol
+        return mock_info
+    return None
+mock_mt5.symbol_info.side_effect = mock_symbol_info
+
 mock_mt5.account_info.return_value = None  # to preserve original custom server name tests
 mock_mt5.last_error.return_value = (0, "Success")
 
@@ -489,3 +498,82 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         self.assertTrue(resp.is_success)
         self.assertTrue(called_from)
         self.assertGreater(len(resp.candles), 0)
+
+    def test_unknown_symbol_returns_fallback_data(self) -> None:
+        """Verify requesting an unknown symbol like AAPL does not crash and returns fallback data."""
+        start_dt = datetime(2026, 1, 1, 10, 0, 0)
+        end_dt = datetime(2026, 1, 1, 12, 0, 0)
+
+        req = MarketDataRequest(
+            instrument=MarketInstrument("AAPL", "FX"),
+            timeframe="H1",
+            start_time=start_dt,
+            end_time=end_dt
+        )
+        resp = self.provider.fetch_market_data(req)
+        self.assertTrue(resp.is_success)
+        self.assertGreater(len(resp.candles), 0)
+
+    def test_supported_symbol_uses_mt5_path(self) -> None:
+        """Verify supported symbols go through the MT5 path (and do not trigger the fallback generator)."""
+        start_dt = datetime(2026, 1, 1, 10, 0, 0)
+        end_dt = datetime(2026, 1, 1, 12, 0, 0)
+
+        # We hook into mock_copy_rates_range to see if it gets called
+        called = False
+        def mock_range(symbol, timeframe, date_from, date_to):
+            nonlocal called
+            called = True
+            return mock_copy_rates_range(symbol, timeframe, date_from, date_to)
+        mock_mt5.copy_rates_range.side_effect = mock_range
+
+        req = MarketDataRequest(
+            instrument=MarketInstrument("EURUSD", "FX"),
+            timeframe="H1",
+            start_time=start_dt,
+            end_time=end_dt
+        )
+        resp = self.provider.fetch_market_data(req)
+        self.assertTrue(resp.is_success)
+        self.assertTrue(called)
+
+    def test_fallback_respects_time_range(self) -> None:
+        """Verify the fallback rates strictly respect the requested start and end times."""
+        start_dt = datetime(2026, 1, 1, 10, 0, 0)
+        end_dt = datetime(2026, 1, 1, 12, 0, 0)
+
+        req = MarketDataRequest(
+            instrument=MarketInstrument("MSFT", "FX"),
+            timeframe="H1",
+            start_time=start_dt,
+            end_time=end_dt
+        )
+        resp = self.provider.fetch_market_data(req)
+        self.assertTrue(resp.is_success)
+        self.assertGreater(len(resp.candles), 0)
+
+        for candle in resp.candles:
+            self.assertGreaterEqual(candle.timestamp, start_dt)
+            self.assertLessEqual(candle.timestamp, end_dt)
+
+    def test_fallback_has_positive_candles(self) -> None:
+        """Verify that all candles in the fallback data have strictly positive OHLCV metrics."""
+        start_dt = datetime(2026, 1, 1, 10, 0, 0)
+        end_dt = datetime(2026, 1, 1, 15, 0, 0)
+
+        req = MarketDataRequest(
+            instrument=MarketInstrument("AAPL", "FX"),
+            timeframe="H1",
+            start_time=start_dt,
+            end_time=end_dt
+        )
+        resp = self.provider.fetch_market_data(req)
+        self.assertTrue(resp.is_success)
+        self.assertGreater(len(resp.candles), 0)
+
+        for candle in resp.candles:
+            self.assertGreater(candle.open, 0.0)
+            self.assertGreater(candle.high, 0.0)
+            self.assertGreater(candle.low, 0.0)
+            self.assertGreater(candle.close, 0.0)
+            self.assertGreaterEqual(candle.volume, 0.0)

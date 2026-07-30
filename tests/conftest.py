@@ -13,6 +13,15 @@ except ImportError:
     mock_mt5.terminal_info.return_value = mock_term_info
 
     mock_mt5.symbols_get.return_value = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
+
+    def mock_symbol_info(symbol):
+        if symbol in ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]:
+            mock_info = MagicMock()
+            mock_info.name = symbol
+            return mock_info
+        return None
+    mock_mt5.symbol_info.side_effect = mock_symbol_info
+
     mock_mt5.account_info.return_value = None
     mock_mt5.last_error.return_value = (0, "Success")
 
