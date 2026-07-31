@@ -26,9 +26,40 @@ class MarketMemorySystem:
         self.experiences: Dict[str, ExperienceMemory] = {}
         self.patterns: Dict[str, PatternMemory] = {}
         self.concepts: Dict[str, ConceptMemory] = {}
+        self.last_learning_update: str = datetime.now().isoformat()
 
         # Load existing data on initialization
         self.load_all()
+
+    def get_learning_statistics(self) -> Dict[str, Any]:
+        """
+        Calculates dynamic learning statistics and counters from memory layers.
+        """
+        with self._lock:
+            exps = list(self.experiences.values())
+            pats = list(self.patterns.values())
+            con_count = len(self.concepts)
+
+        successful_patterns = 0
+        failed_patterns = 0
+
+        for pat in pats:
+            total = pat.occurrences_count
+            if total > 0:
+                success_ratio = pat.continuation_count / total
+                if success_ratio >= 0.60:
+                    successful_patterns += 1
+                elif success_ratio <= 0.40:
+                    failed_patterns += 1
+
+        return {
+            "total_experiences": len(exps),
+            "patterns_created": len(pats),
+            "concepts_learned": con_count,
+            "successful_patterns": successful_patterns,
+            "failed_patterns": failed_patterns,
+            "last_learning_update": self.last_learning_update
+        }
 
     def add_event(self, event: MarketEvent) -> None:
         """Stores an observed raw market event in Event Memory."""
@@ -46,19 +77,159 @@ class MarketMemorySystem:
         """Stores an experience record in Experience Memory."""
         with self._lock:
             self.experiences[exp.experience_id] = exp
+            self.last_learning_update = datetime.now().isoformat()
             self._save_layer("experiences")
 
     def add_pattern(self, pattern: PatternMemory) -> None:
         """Stores or updates a pattern in Pattern Memory."""
         with self._lock:
             self.patterns[pattern.pattern_id] = pattern
+            self.last_learning_update = datetime.now().isoformat()
             self._save_layer("patterns")
 
     def add_concept(self, concept: ConceptMemory) -> None:
         """Stores or updates a consolidated concept in Concept Memory."""
         with self._lock:
             self.concepts[concept.concept_id] = concept
+            self.last_learning_update = datetime.now().isoformat()
             self._save_layer("concepts")
+
+    def validate_experience(self, exp_id: str) -> bool:
+        """
+        Validates a raw experience, marking it as a Validated Experience.
+        Returns True if successfully validated and updated.
+        """
+        with self._lock:
+            if exp_id not in self.experiences:
+                return False
+            exp = self.experiences[exp_id]
+            # Mark as validated in meta
+            if "meta" not in exp.__dict__ or exp.meta is None:
+                exp.meta = {}
+            exp.meta["is_validated"] = True
+            self._save_layer("experiences")
+            return True
+
+    def calculate_experience_weight(
+        self,
+        exp_id: str,
+        current_time: datetime,
+        reference_signature: Optional[List[float]] = None
+    ) -> float:
+        """
+        Calculates the experience weight based on forgetting/confidence decay.
+        Weight = Age Factor + Success Factor + Similarity Factor
+        """
+        with self._lock:
+            if exp_id not in self.experiences:
+                return 0.0
+            exp = self.experiences[exp_id]
+
+        # 1. Age Factor (decays over time)
+        diff_seconds = max(0.0, (current_time - exp.timestamp).total_seconds())
+        # Decay half-life of 7 days (604800 seconds)
+        age_factor = 1.0 / (1.0 + (diff_seconds / 604800.0))
+
+        # 2. Success Factor
+        if exp.outcome_result == "SUCCESS":
+            success_factor = 1.0
+        elif exp.outcome_result == "FAILURE":
+            success_factor = 0.5
+        else:
+            success_factor = 0.8
+
+        # 3. Similarity Factor
+        similarity_factor = 0.5
+        if reference_signature and exp.situation_signature:
+            sig1 = exp.situation_signature
+            sig2 = reference_signature
+            if len(sig1) == len(sig2):
+                dot_product = sum(a * b for a, b in zip(sig1, sig2))
+                norm_a = sum(a * a for a in sig1) ** 0.5
+                norm_b = sum(b * b for b in sig2) ** 0.5
+                if norm_a > 0 and norm_b > 0:
+                    similarity_factor = dot_product / (norm_a * norm_b)
+                    # Bound between 0.0 and 1.0
+                    similarity_factor = max(0.0, min(1.0, similarity_factor))
+
+        return age_factor + success_factor + similarity_factor
+
+    def promote_experiences_to_patterns(self) -> List[PatternMemory]:
+        """
+        Promotes validated experiences to Pattern Memory.
+        Groups similar experiences and creates/updates Pattern Memory.
+        """
+        promoted_patterns: List[PatternMemory] = []
+        with self._lock:
+            validated_exps = [
+                exp for exp in self.experiences.values()
+                if exp.meta.get("is_validated") is True or exp.outcome_result in ["SUCCESS", "FAILURE"]
+            ]
+
+        for exp in validated_exps:
+            sig = exp.situation_signature
+            if not sig:
+                continue
+
+            # Look for matching pattern in current patterns
+            matched_pattern = None
+            best_similarity = 0.0
+
+            with self._lock:
+                patterns_list = list(self.patterns.values())
+
+            for pat in patterns_list:
+                pat_sig = pat.sequence_signature
+                if len(pat_sig) == len(sig):
+                    dot_product = sum(a * b for a, b in zip(pat_sig, sig))
+                    norm_a = sum(a * a for a in pat_sig) ** 0.5
+                    norm_b = sum(b * b for b in sig) ** 0.5
+                    sim = (dot_product / (norm_a * norm_b)) if (norm_a > 0 and norm_b > 0) else 0.0
+                    if sim > best_similarity:
+                        best_similarity = sim
+                        matched_pattern = pat
+
+            is_success = exp.outcome_result == "SUCCESS"
+
+            if matched_pattern and best_similarity >= 0.85:
+                # Update pattern
+                with self._lock:
+                    matched_pattern.occurrences_count += 1
+                    if is_success:
+                        matched_pattern.continuation_count += 1
+                    else:
+                        matched_pattern.reversal_count += 1
+                    # Append outcome detail
+                    matched_pattern.outcomes.append({
+                        "experience_id": exp.experience_id,
+                        "timestamp": exp.timestamp.isoformat(),
+                        "outcome": exp.outcome_result
+                    })
+                    self._save_layer("patterns")
+                    promoted_patterns.append(matched_pattern)
+            else:
+                # Create a new pattern
+                import uuid
+                pid = f"pat-{uuid.uuid4().hex[:8]}"
+                new_pat = PatternMemory(
+                    pattern_id=pid,
+                    sequence_signature=sig,
+                    occurrences_count=1,
+                    continuation_count=1 if is_success else 0,
+                    reversal_count=0 if is_success else 1,
+                    outcomes=[{
+                        "experience_id": exp.experience_id,
+                        "timestamp": exp.timestamp.isoformat(),
+                        "outcome": exp.outcome_result
+                    }],
+                    created_at=datetime.now()
+                )
+                with self._lock:
+                    self.patterns[pid] = new_pat
+                    self._save_layer("patterns")
+                    promoted_patterns.append(new_pat)
+
+        return promoted_patterns
 
     def consolidate_patterns_to_concepts(
         self,
