@@ -1,7 +1,7 @@
-# RG_V3 Autonomous Financial Intelligence Platform
+# TRADEYAR Autonomous Financial Intelligence Platform
 ## Market Intelligence Feature Extraction Foundation (Phase 14)
 
-This document specifies the technical design, pipeline integration, validation, and safety constraints of the **Market Intelligence Feature Extraction Layer** of the RG_V3_AI platform.
+This document specifies the technical design, pipeline integration, validation, and safety constraints of the **Market Intelligence Feature Extraction Layer** of the TRADEYAR_AI platform.
 
 ---
 

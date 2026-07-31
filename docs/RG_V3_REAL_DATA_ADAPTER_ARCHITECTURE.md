@@ -1,4 +1,4 @@
-# RG_V3 Real Market Data Intelligence Adapter Layer Architecture
+# TRADEYAR Real Market Data Intelligence Adapter Layer Architecture
 
 This document describes the architectural design, connection monitoring, and secure read-only operations of the **Real Market Data Intelligence Adapter Layer (Phase 24)**.
 

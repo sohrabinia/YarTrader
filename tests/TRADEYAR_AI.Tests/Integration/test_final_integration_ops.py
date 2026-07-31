@@ -19,7 +19,7 @@ from src.Application.Shadow.engine import ShadowModeEngine
 
 class TestFinalIntegrationAndIntelligenceOperations(unittest.TestCase):
     """
-    Final Integration & Operations Test Suite for RG_V3_AI.
+    Final Integration & Operations Test Suite for TRADEYAR_AI.
     Aggregates Backtesting, Demo Scenarios, Production configs, health diagnostics,
     and Shadow Mode execution into a single, unified Operational Run.
     """
@@ -69,7 +69,7 @@ class TestFinalIntegrationAndIntelligenceOperations(unittest.TestCase):
         self.assertEqual(demo_res.final_decision_state, "Approved")
 
         demo_report = self.demo_generator.generate_report(demo_res)
-        self.assertIn("RG_V3_AI AUTONOMOUS FINANCIAL INTELLIGENCE PLATFORM DEMO", demo_report.rendered_summary)
+        self.assertIn("TRADEYAR_AI AUTONOMOUS FINANCIAL INTELLIGENCE PLATFORM DEMO", demo_report.rendered_summary)
 
         # --- Stage C: Live Shadow Mode Session Ingestion ---
         shadow_session = self.shadow_engine.start_session("GBPUSD", "H1")

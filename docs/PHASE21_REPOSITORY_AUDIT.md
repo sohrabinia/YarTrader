@@ -97,7 +97,7 @@ The system uses isolated, thread-safe, memory-based repository patterns:
 ### A. Test Projects & Structures
 The codebase has a highly structured, comprehensive test configuration located under `tests/`:
 * **Unit and Service Tests**: Standard tests checking domain behavior (e.g., `tests/test_research_intelligence.py`, `tests/test_feature_extraction.py`, `tests/test_strategy_evaluation.py`).
-* **Advanced Multi-Agent & Orchestration Tests**: Located in `tests/RG_V3_AI.Tests/` validating agent memory, performance trackers, supervisor ordering, and collaboration scenarios.
+* **Advanced Multi-Agent & Orchestration Tests**: Located in `tests/TRADEYAR_AI.Tests/` validating agent memory, performance trackers, supervisor ordering, and collaboration scenarios.
 * **Integration and Production Readiness**: Validates clean architecture boundaries and configuration mappings.
 
 ### B. Testing Style & Patterns

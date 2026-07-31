@@ -1,4 +1,4 @@
-# RG_V3 Master Architecture & Security Audit
+# TRADEYAR Master Architecture & Security Audit
 
 This document compiles the design decisions, interface structures, and results of the **Phase 25 Production Readiness & Architecture Audit**.
 

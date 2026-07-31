@@ -1,4 +1,4 @@
-# RG_V3 Risk Framework
+# TRADEYAR Risk Framework
 
 The Risk Intelligence Framework assessed proposed portfolio allocations against predefined profiles and exposure models to guarantee total system safety.
 

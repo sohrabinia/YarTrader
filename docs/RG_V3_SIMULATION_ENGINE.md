@@ -1,6 +1,6 @@
-# RG_V3 Scenario Simulation Engine
+# TRADEYAR Scenario Simulation Engine
 
-This document outlines the architecture, scenario lifecycle, pipeline integration, safety guard model, and extension points of the **RG_V3 Autonomous Scenario Simulation Engine**.
+This document outlines the architecture, scenario lifecycle, pipeline integration, safety guard model, and extension points of the **TRADEYAR Autonomous Scenario Simulation Engine**.
 
 ---
 

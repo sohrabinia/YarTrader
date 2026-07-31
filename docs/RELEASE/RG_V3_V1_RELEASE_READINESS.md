@@ -1,7 +1,7 @@
-# RG_V3_AI Autonomous Financial Intelligence Platform — Release Readiness
+# TRADEYAR_AI Autonomous Financial Intelligence Platform — Release Readiness
 
 ## 1. Complete Architecture Overview
-The `RG_V3_AI` platform represents a production-grade, highly-decoupled, and passive Autonomous Financial Intelligence Platform. Built using python 3.12, it follows a strict Clean Architecture pattern organizing files into isolated layers:
+The `TRADEYAR_AI` platform represents a production-grade, highly-decoupled, and passive Autonomous Financial Intelligence Platform. Built using python 3.12, it follows a strict Clean Architecture pattern organizing files into isolated layers:
 
 ```
 src/Core/          - Fundamental entity definitions
@@ -44,7 +44,7 @@ The platform enforces a permanent **Non-Trading Seal**:
 ---
 
 ## 5. Operational Readiness Assessment
-The RG_V3_AI platform is declared **100% PRODUCTION READY** for simulation, backtesting, and live shadow intelligence tracking under non-trading, read-only operational bounds.
+The TRADEYAR_AI platform is declared **100% PRODUCTION READY** for simulation, backtesting, and live shadow intelligence tracking under non-trading, read-only operational bounds.
 - All configurations are validation-guarded with safe defaults.
 - Structured logging supports cloud container aggregation.
 - System diagnostics route health alerts correctly.

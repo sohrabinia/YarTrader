@@ -1,6 +1,6 @@
-# RG_V3 Optimization Report
+# TRADEYAR Optimization Report
 
-This document reports the safe optimizations applied during the **Performance Profiling & Memory Review** phases of the RG_V3 Platform.
+This document reports the safe optimizations applied during the **Performance Profiling & Memory Review** phases of the TRADEYAR Platform.
 
 ---
 

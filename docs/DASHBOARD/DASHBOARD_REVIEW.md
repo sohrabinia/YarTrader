@@ -1,4 +1,4 @@
-# RG_V3_AI Dashboard & Services Review
+# TRADEYAR_AI Dashboard & Services Review
 
 ## 1. Aggregators & Metrics Consistency
 The **Dashboard Subsystem** acts as the central administrative overview panel, coordinating performance diagnostics, active workloads, and provider metrics without any trading hooks:

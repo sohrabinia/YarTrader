@@ -41,7 +41,7 @@ The TradeYar AI codebase follows a highly modular, decoupled, and passive Clean 
 │   ├── Risk/                # Operational risk policies and safety halt buffers
 │   └── Strategy/            # Strategy life-cycle managers and logical analyzers
 ├── tests/                   # Unified automated test suite
-│   ├── RG_V3_AI.Tests/      # Structural multi-agent and cognitive learning tests
+│   ├── TRADEYAR_AI.Tests/      # Structural multi-agent and cognitive learning tests
 │   └── conftest.py          # Pytest setup and mock configurations
 ├── validation/              # Acceptance scores, report card artifacts
 │   ├── production_acceptance_report.json
@@ -103,9 +103,9 @@ A pytest session was executed successfully over the workspace:
 * **Impact:** Harder to mathematically guarantee that refactored or newly added lines are covered by tests without manual analysis.
 * **Recommended Action:** In the next hardening phase, add `pytest-cov` to the development requirements and configure a minimum coverage constraint (e.g., 90%) inside `.github/workflows/ci.yml`.
 
-### Finding REP-RSK-02 (Medium) — Dual Test Tree (Root Tests vs. RG_V3_AI.Tests)
+### Finding REP-RSK-02 (Medium) — Dual Test Tree (Root Tests vs. TRADEYAR_AI.Tests)
 * **Classification:** Medium
-* **Description:** Tests are split into two directories under the root `tests/` folder: older legacy tests in the root `tests/` directory (e.g., `test_core.py`, `test_data_intelligence.py`) and new structural tests inside `tests/RG_V3_AI.Tests/` (e.g., `/Agents`, `/Collaboration`, `/Brain`).
+* **Description:** Tests are split into two directories under the root `tests/` folder: older legacy tests in the root `tests/` directory (e.g., `test_core.py`, `test_data_intelligence.py`) and new structural tests inside `tests/TRADEYAR_AI.Tests/` (e.g., `/Agents`, `/Collaboration`, `/Brain`).
 * **Evidence:** Directory listing of `/tests`.
 * **Impact:** This split creates minor architecture drift in testing patterns. It could lead to confusion for incoming developers regarding where to add new unit or integration tests.
 * **Recommended Action:** Consolidated testing tree under a single unified directory layout (such as `tests/unit/` and `tests/integration/`) in the next refactoring phase.

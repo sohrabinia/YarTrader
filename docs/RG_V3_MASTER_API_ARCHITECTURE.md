@@ -1,4 +1,4 @@
-# RG_V3 Master API Architecture
+# TRADEYAR Master API Architecture
 
 This document outlines the REST API structure, versioned endpoints, DTO contracts, validation middleware, and auth abstractions of **Phase 26 API & Service Architecture**.
 

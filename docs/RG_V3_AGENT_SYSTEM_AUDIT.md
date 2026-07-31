@@ -1,6 +1,6 @@
-# RG_V3 Agent System Audit
+# TRADEYAR Agent System Audit
 
-This document presents the detailed findings of the **Agent System Deep Review (Part 3)** of the RG_V3 Platform.
+This document presents the detailed findings of the **Agent System Deep Review (Part 3)** of the TRADEYAR Platform.
 
 ---
 

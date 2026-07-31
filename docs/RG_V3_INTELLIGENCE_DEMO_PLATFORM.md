@@ -1,7 +1,7 @@
-# RG_V3 Intelligence Demo Scenario Platform — Architecture & Specifications
+# TRADEYAR Intelligence Demo Scenario Platform — Architecture & Specifications
 
 ## Overview
-The **Intelligence Demo Scenario Platform** (Phase 34) provides a reusable, trace-complete, and non-trading demonstration environment. It allows developer and auditor simulation of the entire end-to-end `RG_V3_AI` pipeline, tracing the processing flow across all architectural layers.
+The **Intelligence Demo Scenario Platform** (Phase 34) provides a reusable, trace-complete, and non-trading demonstration environment. It allows developer and auditor simulation of the entire end-to-end `TRADEYAR_AI` pipeline, tracing the processing flow across all architectural layers.
 
 Crucially, the Demo Scenario Platform strictly adheres to the **APES-FIN** Clean Architecture standard and is bound to **Simulation-Only Mode**, guaranteeing absolute zero execution leakage or active broker/order management hooks.
 

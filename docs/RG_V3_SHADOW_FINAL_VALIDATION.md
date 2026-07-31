@@ -1,4 +1,4 @@
-# RG_V3_AI Shadow Mode Platform Completion Audit
+# TRADEYAR_AI Shadow Mode Platform Completion Audit
 
 ## 1. Subsystem Architecture
 The **Shadow Mode Live Intelligence Platform** (Phase 36) executes continuous read-only validation of the advanced multi-factor pipeline over streaming live rates.
@@ -16,7 +16,7 @@ The **Shadow Mode Live Intelligence Platform** (Phase 36) executes continuous re
 ---
 
 ## 2. Test Verification Summary
-All shadow mode tests under `tests/RG_V3_AI.Tests/Shadow/test_shadow_mode.py` have been executed with 100% success.
+All shadow mode tests under `tests/TRADEYAR_AI.Tests/Shadow/test_shadow_mode.py` have been executed with 100% success.
 - **Session Lifecycles**: Confirmed start, status query, and graceful stops.
 - **Live Ingestion**: Connects read-only MetaTrader5 rates data mapping.
 - **Indicators Evaluator**: Calculates average latency and SD-based decision consistency.

@@ -1,6 +1,6 @@
-# RG_V3 Agent Intelligence Model
+# TRADEYAR Agent Intelligence Model
 
-This document outlines the theoretical and operational intelligence models governing agents within the **RG_V3 Collaborative Intelligence Layer**.
+This document outlines the theoretical and operational intelligence models governing agents within the **TRADEYAR Collaborative Intelligence Layer**.
 
 ---
 

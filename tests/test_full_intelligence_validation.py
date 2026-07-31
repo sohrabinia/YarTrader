@@ -183,11 +183,11 @@ class TestFullIntelligenceValidation(unittest.TestCase):
         )
 
         self.assertIsNotNone(full_report_text)
-        self.assertIn("RG_V3_FINAL_INTELLIGENCE_VALIDATION_REPORT", full_report_text)
+        self.assertIn("TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT", full_report_text)
         self.assertIn("SYSTEM ARCHITECTURE & HEALTH STATUS", full_report_text)
         self.assertIn("APES-FIN SPECIFICATION COMPLIANCE CHECK", full_report_text)
         self.assertIn("SPEED & QUALITY BENCHMARK METRICS", full_report_text)
 
         # Write output report file to verify
-        with open("RG_V3_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt", "w", encoding="utf-8") as f:
+        with open("TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt", "w", encoding="utf-8") as f:
             f.write(full_report_text)

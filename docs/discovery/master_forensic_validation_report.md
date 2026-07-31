@@ -2,7 +2,7 @@
 
 ## Section 1 — Executive Validation Summary
 
-*   **Repository Analyzed:** TradeYar AI (Internal codebase designation: `RG_V3_AI`)
+*   **Repository Analyzed:** TradeYar AI (Internal codebase designation: `TRADEYAR_AI`)
 *   **Branch:** `accept-validation-dashboard`
 *   **Commit Hash:** `accept-validation-dashboard` (Active local head checkout)
 *   **Validation Date:** 2026-07-17

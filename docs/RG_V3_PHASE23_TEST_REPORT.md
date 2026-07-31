@@ -1,6 +1,6 @@
-# RG_V3 Phase 23 — Comprehensive Test Report
+# TRADEYAR Phase 23 — Comprehensive Test Report
 
-This document reports the testing execution results, metrics, security audits, and APES-FIN compliance scores of the **Phase 23 Real Data Intelligence Connector Foundation** within the RG_V3 Platform.
+This document reports the testing execution results, metrics, security audits, and APES-FIN compliance scores of the **Phase 23 Real Data Intelligence Connector Foundation** within the TRADEYAR Platform.
 
 ---
 

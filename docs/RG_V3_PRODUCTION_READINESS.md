@@ -1,7 +1,7 @@
-# RG_V3 Production Readiness & Deployment Foundation Specification
+# TRADEYAR Production Readiness & Deployment Foundation Specification
 
 ## Overview
-This specification details the operational readiness, logging & observability schemas, health diagnostics, configuration patterns, and security audits developed for the **RG_V3_AI Autonomous Financial Intelligence Platform** (Phase 35).
+This specification details the operational readiness, logging & observability schemas, health diagnostics, configuration patterns, and security audits developed for the **TRADEYAR_AI Autonomous Financial Intelligence Platform** (Phase 35).
 
 ---
 
@@ -27,7 +27,7 @@ To support modern container-orchestrated platforms (like Kubernetes, AWS ECS, or
 ```json
 {
   "timestamp": "2026-03-01T12:00:00.123456",
-  "service": "RG_V3_AI",
+  "service": "TRADEYAR_AI",
   "level": "INFO",
   "event": "PipelineExecutionCompleted",
   "metadata": {

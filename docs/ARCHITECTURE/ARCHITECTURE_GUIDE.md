@@ -1,4 +1,4 @@
-# RG_V3_AI Architecture Guide
+# TRADEYAR_AI Architecture Guide
 
 ## 1. Clean Architecture Design
 The platform implements a highly disciplined Clean Architecture model where data flows in a strict unidirectional path:

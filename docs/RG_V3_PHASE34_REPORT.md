@@ -1,7 +1,7 @@
-# RG_V3 Phase 34 Completion Report — Intelligence Demo Scenario Platform
+# TRADEYAR Phase 34 Completion Report — Intelligence Demo Scenario Platform
 
 ## 1. Executive Summary
-Phase 34 delivers a complete, reusable **End-to-End Intelligence Demo Scenario Platform** for the `RG_V3_AI` Autonomous Financial Intelligence Platform. The demo layer allows full pipeline orchestration, tracing multi-layer outputs from raw historical market data down to explainable trace reports.
+Phase 34 delivers a complete, reusable **End-to-End Intelligence Demo Scenario Platform** for the `TRADEYAR_AI` Autonomous Financial Intelligence Platform. The demo layer allows full pipeline orchestration, tracing multi-layer outputs from raw historical market data down to explainable trace reports.
 
 No trading execution or broker capabilities were introduced. The system remains strictly descriptive and analytical.
 
@@ -16,9 +16,9 @@ No trading execution or broker capabilities were introduced. The system remains 
 4. `src/Application/Demo/runner.py`: Implements `DemoScenarioRunner` coordinating the 8-stage pipeline trace and timing (in ms).
 5. `src/Application/Demo/generator.py`: Implements `DemoReportGenerator` translating traces into formatted, audit-ready markdown summaries.
 6. `src/Application/Demo/__init__.py`: Exports the entire public demo module API.
-7. `tests/RG_V3_AI.Tests/Demo/test_demo_scenario_platform.py`: Comprehensive suite covering unit, integration, and end-to-end tests.
-8. `docs/RG_V3_INTELLIGENCE_DEMO_PLATFORM.md`: Deep specification document outlining the architecture and scenario models.
-9. `docs/RG_V3_PHASE34_REPORT.md`: This completion report.
+7. `tests/TRADEYAR_AI.Tests/Demo/test_demo_scenario_platform.py`: Comprehensive suite covering unit, integration, and end-to-end tests.
+8. `docs/TRADEYAR_INTELLIGENCE_DEMO_PLATFORM.md`: Deep specification document outlining the architecture and scenario models.
+9. `docs/TRADEYAR_PHASE34_REPORT.md`: This completion report.
 
 ### Files Modified
 1. `src/Application/Dashboard/services.py`: Expanded `DashboardAggregatorService` with `generate_demo_dashboard_metrics` to expose demo status, last duration, quality scores, and agent performance averages.

@@ -1,7 +1,7 @@
-# RG_V3_AI Final Architecture Review
+# TRADEYAR_AI Final Architecture Review
 
 ## 1. Clean Architecture Compliance
-The **RG_V3_AI Platform** strictly adheres to the APES-FIN Clean Architecture guidelines. System modules are cleanly divided into decoupled layers to isolate core business rules from infrastructure:
+The **TRADEYAR_AI Platform** strictly adheres to the APES-FIN Clean Architecture guidelines. System modules are cleanly divided into decoupled layers to isolate core business rules from infrastructure:
 * **Entities & Domain Models (src/Core/ & src/Decision/Models/)**: Core models are immutable, validated, and isolated from external networks.
 * **Business Logic & Use Cases (src/Research/ & src/Strategy/)**: Translates indicators and scores strategy candidates.
 * **Interface Adapters (src/Data/Adapters/)**: Abstracts raw files or MT5 streams.

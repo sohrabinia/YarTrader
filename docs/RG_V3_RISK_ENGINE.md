@@ -1,6 +1,6 @@
-# RG_V3 Risk Intelligence Layer Foundation
+# TRADEYAR Risk Intelligence Layer Foundation
 
-The Risk Intelligence Layer is the absolute safety guardian of the RG_V3 Autonomous Financial Intelligence Platform. In strict adherence to Clean Architecture, this layer assesses proposed portfolio allocations against predefined risk tolerances and enforces mathematical boundaries without executing trades.
+The Risk Intelligence Layer is the absolute safety guardian of the TRADEYAR Autonomous Financial Intelligence Platform. In strict adherence to Clean Architecture, this layer assesses proposed portfolio allocations against predefined risk tolerances and enforces mathematical boundaries without executing trades.
 
 ---
 

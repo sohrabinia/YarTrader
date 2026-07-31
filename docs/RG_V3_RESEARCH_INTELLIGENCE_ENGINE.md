@@ -1,4 +1,4 @@
-# RG_V3 Autonomous Financial Intelligence Platform
+# TRADEYAR Autonomous Financial Intelligence Platform
 ## Research Intelligence Engine Evolution (Phase 15)
 
 This document specifies the technical design, lifecycle events, pattern detection logic, and safety restrictions of the **Evolved Research Intelligence Engine**.

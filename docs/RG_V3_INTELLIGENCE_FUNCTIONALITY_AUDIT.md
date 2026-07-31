@@ -1,6 +1,6 @@
-# RG_V3 Intelligence Functionality Audit
+# TRADEYAR Intelligence Functionality Audit
 
-This document presents the detailed findings of the **Intelligence Functionality Validation (Part 2)** of the RG_V3 Platform.
+This document presents the detailed findings of the **Intelligence Functionality Validation (Part 2)** of the TRADEYAR Platform.
 
 ---
 

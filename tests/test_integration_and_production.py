@@ -60,7 +60,7 @@ class TestIntegrationAndProduction(unittest.TestCase):
         self.assertEqual(loader.get("ENV_MODE"), "Production")
         self.assertEqual(loader.get("NON_EXISTENT", "default"), "default")
 
-        logger = get_clean_logger("RG_V3_TEST")
+        logger = get_clean_logger("TRADEYAR_TEST")
         self.assertIsNotNone(logger)
 
     def test_clean_architecture_dependency_direction(self):

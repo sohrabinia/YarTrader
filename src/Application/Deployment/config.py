@@ -5,7 +5,7 @@ from src.Application.Deployment.deployment import SecretsVault
 
 
 class ProductionConfig:
-    """Production-ready structured configuration settings for RG_V3_AI."""
+    """Production-ready structured configuration settings for TRADEYAR_AI."""
 
     def __init__(self, settings_dict: Optional[Dict[str, Any]] = None) -> None:
         self._settings = settings_dict or {}

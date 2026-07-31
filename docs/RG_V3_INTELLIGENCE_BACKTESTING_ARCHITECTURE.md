@@ -1,6 +1,6 @@
-# RG_V3 Intelligence Backtesting Framework
+# TRADEYAR Intelligence Backtesting Framework
 
-This document describes the architectural design and unmodifiable evaluation flow of the **Non-Trading Historical Backtesting Framework (Phase 33)** of the RG_V3 Platform.
+This document describes the architectural design and unmodifiable evaluation flow of the **Non-Trading Historical Backtesting Framework (Phase 33)** of the TRADEYAR Platform.
 
 ---
 

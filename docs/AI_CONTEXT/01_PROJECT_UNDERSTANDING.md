@@ -1,7 +1,7 @@
 # 01. Project Understanding
 
 ## 1. Project Vision & Mission
-The **RG_V3 Autonomous Financial Intelligence Platform** (RG_V3_AI) is designed as a passive, non-trading system to orchestrate and model high-fidelity financial intelligence, macroeconomic research, and risk bounds analysis.
+The **TRADEYAR Autonomous Financial Intelligence Platform** (TRADEYAR_AI) is designed as a passive, non-trading system to orchestrate and model high-fidelity financial intelligence, macroeconomic research, and risk bounds analysis.
 
 Its mission is to provide an off-grid, sandboxed environment for testing multi-agent collaborative reasoning, semantic knowledge relations indexing, and parameter optimizations.
 

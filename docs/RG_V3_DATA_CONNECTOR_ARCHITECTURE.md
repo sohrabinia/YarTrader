@@ -1,6 +1,6 @@
-# RG_V3 Data Connector Architecture
+# TRADEYAR Data Connector Architecture
 
-This document describes the architectural design and unidirectional data flow of the **External Data Intelligence Connector (Phase 23)** of the RG_V3 Platform.
+This document describes the architectural design and unidirectional data flow of the **External Data Intelligence Connector (Phase 23)** of the TRADEYAR Platform.
 
 ---
 

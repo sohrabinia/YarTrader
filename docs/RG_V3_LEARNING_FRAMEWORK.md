@@ -1,4 +1,4 @@
-# RG_V3 Learning Framework
+# TRADEYAR Learning Framework
 
 The Learning and Evolution Framework provides passive feedback logs, performance tracks, and classical mathematical parameter optimization suggestion loops.
 

@@ -1,6 +1,6 @@
-# RG_V3 Decision Intelligence Layer Foundation
+# TRADEYAR Decision Intelligence Layer Foundation
 
-The Decision Intelligence Layer is the logical orchestrator of the RG_V3 Autonomous Financial Intelligence Platform. It aggregates strategy rankings and risk audits to finalize standardized target portfolio allocations without generating buy/sell trading signals.
+The Decision Intelligence Layer is the logical orchestrator of the TRADEYAR Autonomous Financial Intelligence Platform. It aggregates strategy rankings and risk audits to finalize standardized target portfolio allocations without generating buy/sell trading signals.
 
 ---
 
@@ -26,7 +26,7 @@ The engine maps all contexts to four valid, non-trading states:
 
 ## 3. Separation from Trading Automation
 
-Unlike traditional trading bots that generate reactive "BUY/SELL" signals, the RG_V3 Decision Engine is a **passive planner**:
+Unlike traditional trading bots that generate reactive "BUY/SELL" signals, the TRADEYAR Decision Engine is a **passive planner**:
 * It produces a structural `DecisionResult` documenting target asset weights and logical reasoning.
 * It does not calculate trigger prices, track real-time position sizes, or execute orders on active exchange connections.
 

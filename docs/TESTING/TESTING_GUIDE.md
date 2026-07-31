@@ -1,4 +1,4 @@
-# RG_V3_AI Testing Guide
+# TRADEYAR_AI Testing Guide
 
 ## 1. Running Automated Tests
 Run the entire platform test suite (1268+ tests) discoverable via pytest:

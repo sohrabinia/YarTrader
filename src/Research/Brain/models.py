@@ -2,6 +2,41 @@ from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+@dataclass(frozen=True)
+class SimulatedDecision:
+    """An immutable, frozen representation of a simulated trading hypothesis decision."""
+    timestamp: datetime
+    symbol: str
+    price: float
+    decision_action: str  # BUY, SELL, WAIT
+    context: Dict[str, Any] = field(default_factory=dict)
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    reason: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "timestamp": self.timestamp.isoformat(),
+            "symbol": self.symbol,
+            "price": self.price,
+            "decision_action": self.decision_action,
+            "context": self.context,
+            "evidence": self.evidence,
+            "reason": self.reason
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SimulatedDecision":
+        return cls(
+            timestamp=datetime.fromisoformat(data["timestamp"]),
+            symbol=data["symbol"],
+            price=float(data["price"]),
+            decision_action=data["decision_action"],
+            context=data.get("context", {}),
+            evidence=data.get("evidence", {}),
+            reason=data.get("reason", "")
+        )
+
+
 @dataclass
 class MarketObservation:
     """Represents a raw data observation of the market."""

@@ -1,4 +1,4 @@
-# RG_V3_AI Intelligence Subsystem Review
+# TRADEYAR_AI Intelligence Subsystem Review
 
 ## 1. Subsystem Responsibilities & Separation
 The intelligence capabilities of the platform are partitioned into isolated functional layers, ensuring that no active trade execution triggers exist:

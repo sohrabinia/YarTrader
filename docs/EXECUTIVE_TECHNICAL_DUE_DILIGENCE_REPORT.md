@@ -131,7 +131,7 @@ We executed the query interface against the five standard diagnostic questions:
 * **Total Automated Tests:** 1323 (all passing).
 * **Mock Verification vs. Real Behavior Check:**
   - *Code-existence/mock-only tests:* ~25% of legacy tests (mostly verifying class properties or basic dictionary structures).
-  - *Real behavior/functional tests:* **~75% of tests (exceptional quality).** New tests inside `tests/RG_V3_AI.Tests/` execute complete multi-agent communication traces, collaborative dynamic selection protocols, blind replay future leakage challenges, wrong hypothesis rejections, and self-criticism queries.
+  - *Real behavior/functional tests:* **~75% of tests (exceptional quality).** New tests inside `tests/TRADEYAR_AI.Tests/` execute complete multi-agent communication traces, collaborative dynamic selection protocols, blind replay future leakage challenges, wrong hypothesis rejections, and self-criticism queries.
 
 ### Documentation vs. Code Alignment
 * **State of Docs:** Clean and highly synchronized. The `docs/` tree has been fully reorganized into specialized subfolders, preserving a clean root workspace. Master architectural guides are fully aligned with implementation modules.

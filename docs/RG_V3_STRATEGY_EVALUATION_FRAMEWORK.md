@@ -1,4 +1,4 @@
-# RG_V3 Strategy Intelligence Evaluation Framework (Phase 16)
+# TRADEYAR Strategy Intelligence Evaluation Framework (Phase 16)
 
 This documentation outlines the architecture, scoring models, and integration of the Strategy Intelligence Evaluation Framework.
 

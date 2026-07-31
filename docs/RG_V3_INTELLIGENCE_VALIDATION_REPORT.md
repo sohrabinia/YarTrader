@@ -1,6 +1,6 @@
-# RG_V3 Intelligence Validation Report
+# TRADEYAR Intelligence Validation Report
 
-This report presents the validation outcomes, anomalies logs, and functional checks of the **RG_V3 Autonomous Intelligence Platform**.
+This report presents the validation outcomes, anomalies logs, and functional checks of the **TRADEYAR Autonomous Intelligence Platform**.
 
 ---
 

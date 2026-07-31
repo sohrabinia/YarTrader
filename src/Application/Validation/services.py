@@ -310,8 +310,8 @@ class ComplianceChecker:
 
         # 2. Documentation Rules
         required_docs = [
-            "docs/RG_V3_DECISION_INTELLIGENCE.md",
-            "docs/RG_V3_LEARNING_OPTIMIZATION.md"
+            "docs/TRADEYAR_DECISION_INTELLIGENCE.md",
+            "docs/TRADEYAR_LEARNING_OPTIMIZATION.md"
         ]
 
         for doc in required_docs:
@@ -343,7 +343,7 @@ class ValidationReportBuilder:
     ) -> str:
         report = []
         report.append("================================================================================")
-        report.append("          RG_V3_FINAL_INTELLIGENCE_VALIDATION_REPORT — Version 1.0")
+        report.append("          TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT — Version 1.0")
         report.append("================================================================================")
         report.append(f"Generated At: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         report.append("")

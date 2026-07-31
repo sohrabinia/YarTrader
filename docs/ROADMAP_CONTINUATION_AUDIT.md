@@ -12,7 +12,7 @@ The repository has successfully finalized Phase 21 and is currently in a frozen 
   - `ResearchRuntime` polling manager resides under `src/Application/Runtime/research_runtime.py`.
   - Continuous research loop execution successfully logs events to `runtime_logs/research_runtime_evidence.log` and `runtime_logs/live_research_evidence.log`.
 * **Testing Integrity**:
-  - Direct integration and mapping test suite exists at `tests/RG_V3_AI.Tests/Runtime/test_research_runtime.py`.
+  - Direct integration and mapping test suite exists at `tests/TRADEYAR_AI.Tests/Runtime/test_research_runtime.py`.
   - Fully verified and passing with **1299/1299 tests** green across the entire platform.
 
 ---

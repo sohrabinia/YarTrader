@@ -1,6 +1,6 @@
-# RG_V3 Research Intelligence Layer Foundation
+# TRADEYAR Research Intelligence Layer Foundation
 
-The Research Intelligence Layer is responsible for transforming raw, normalized market data into structured research observations, statistics, and qualitative market insights across the RG_V3 Autonomous Financial Intelligence Platform. This layer operates completely under passive analytical principles.
+The Research Intelligence Layer is responsible for transforming raw, normalized market data into structured research observations, statistics, and qualitative market insights across the TRADEYAR Autonomous Financial Intelligence Platform. This layer operates completely under passive analytical principles.
 
 ---
 
@@ -33,9 +33,9 @@ By placing the Research Layer immediately after Data Ingestion, we ensure all do
 
 ## 3. Difference Between Research Engine and Trading Bot
 
-The RG_V3 Research Engine is strictly **NOT** a trading bot:
+The TRADEYAR Research Engine is strictly **NOT** a trading bot:
 
-| Characteristic | RG_V3 Research Engine | Traditional Trading Bot |
+| Characteristic | TRADEYAR Research Engine | Traditional Trading Bot |
 | :--- | :--- | :--- |
 | **Primary Goal** | Structured Market Description | Actionable Trade Generation |
 | **Output Type** | Observations, Insights, Reports, and Indicators | BUY / SELL execution triggers and Orders |

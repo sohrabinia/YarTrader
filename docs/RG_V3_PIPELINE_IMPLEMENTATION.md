@@ -1,6 +1,6 @@
-# RG_V3 Intelligence Pipeline Implementation Foundation
+# TRADEYAR Intelligence Pipeline Implementation Foundation
 
-This document details the architecture, execution flow, dependency injection (DI) structure, and extension points of the first working autonomous intelligence pipeline for the **RG_V3 Autonomous Financial Intelligence Platform**.
+This document details the architecture, execution flow, dependency injection (DI) structure, and extension points of the first working autonomous intelligence pipeline for the **TRADEYAR Autonomous Financial Intelligence Platform**.
 
 ---
 

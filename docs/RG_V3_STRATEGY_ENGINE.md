@@ -1,6 +1,6 @@
-# RG_V3 Strategy Intelligence Layer Foundation
+# TRADEYAR Strategy Intelligence Layer Foundation
 
-The Strategy Intelligence Layer is responsible for defining, registering, and evaluating strategy concepts across the RG_V3 Autonomous Financial Intelligence Platform. In strict adherence to Clean Architecture, this layer focuses entirely on metadata definitions, descriptive concept validation, and safety matrices.
+The Strategy Intelligence Layer is responsible for defining, registering, and evaluating strategy concepts across the TRADEYAR Autonomous Financial Intelligence Platform. In strict adherence to Clean Architecture, this layer focuses entirely on metadata definitions, descriptive concept validation, and safety matrices.
 
 ---
 

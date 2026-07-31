@@ -1,4 +1,4 @@
-# RG_V3 External Data Model
+# TRADEYAR External Data Model
 
 This document outlines the standard data models and contract schemas governing external data ingestion in **Phase 23 Real Data Intelligence Connector Foundation**.
 

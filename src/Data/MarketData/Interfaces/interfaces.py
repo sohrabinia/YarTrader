@@ -12,10 +12,10 @@ class IMarketDataProvider(ABC):
 
 
 class IMarketDataNormalizer(ABC):
-    """Interface defining contracts to translate third-party data payloads into RG_V3 models."""
+    """Interface defining contracts to translate third-party data payloads into TRADEYAR models."""
     @abstractmethod
     def normalize_external_data(self, external_data: Any, asset_id: str) -> List[MarketDataPoint]:
-        """Translates dynamic external inputs into standardized RG_V3 MarketDataPoint objects."""
+        """Translates dynamic external inputs into standardized TRADEYAR MarketDataPoint objects."""
         pass
 
 
