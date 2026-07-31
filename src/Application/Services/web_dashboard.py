@@ -1027,6 +1027,14 @@ def get_production_health():
     # Determine Intelligence status
     intelligence_status = "Ready" if _mock_replay_session["active"] else "Offline"
 
+    # Determine Shadow Trading Status linked to ShadowTradingEngine
+    try:
+        from src.ShadowTrading.Engine.ShadowTradingEngine import ShadowTradingEngine
+        shadow_engine = ShadowTradingEngine.get_instance()
+        shadow_status = "Active" if shadow_engine is not None else "Offline"
+    except Exception:
+        shadow_status = "Offline"
+
     return {
         "status": "Healthy",
         "service": "TradeYar-AI",
@@ -1034,6 +1042,7 @@ def get_production_health():
         "mt5": mt5_status,
         "intelligence": intelligence_status,
         "worker": worker_status,
+        "shadow_trading": shadow_status,
         "timestamp": datetime.now().isoformat()
     }
 

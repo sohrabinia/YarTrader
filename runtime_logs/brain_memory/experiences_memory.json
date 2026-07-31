@@ -65,11 +65,11 @@
             "is_structural_failure": true
         }
     },
-    "exp-348057c1": {
-        "experience_id": "exp-348057c1",
+    "exp-56585687": {
+        "experience_id": "exp-56585687",
         "symbol": "XAUUSD",
         "timeframe": "H1",
-        "timestamp": "2026-07-31T12:34:14.709987",
+        "timestamp": "2026-07-31T13:22:29.538134",
         "situation_signature": [
             2000.0,
             1995.0,
@@ -81,7 +81,7 @@
         "max_favorable_excursion": 0.0,
         "max_adverse_excursion": -1500.0,
         "meta": {
-            "position_id": "vpos-348057c1",
+            "position_id": "vpos-56585687",
             "confidence": 72.0,
             "is_lucky_win": false,
             "is_structural_failure": true

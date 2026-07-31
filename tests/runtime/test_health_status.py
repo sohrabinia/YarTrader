@@ -21,6 +21,7 @@ class TestHealthStatus(unittest.TestCase):
         self.assertEqual(health["mt5"], "Connected")
         self.assertEqual(health["worker"], "Running")
         self.assertEqual(health["intelligence"], "Ready")
+        self.assertEqual(health["shadow_trading"], "Active")
         self.assertIn("timestamp", health)
 
     def test_health_disconnected_status(self):
