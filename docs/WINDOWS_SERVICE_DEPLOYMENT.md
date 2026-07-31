@@ -81,10 +81,27 @@ All production event streams are outputted as structured **JSON format logs** an
   `logs/audit/audit.log`
 - **Intelligence Decisions & Hypotheses Logs**:
   `logs/intelligence/intelligence.log`
+- **Native SCM Host Service Logs**:
+  `logs/service/service.log`
+- **Centralized Runtime State Change Logs**:
+  `logs/runtime/runtime_state.log`
 
 ---
 
-## 7. Troubleshooting & Verification
+## 7. Runtime Status Diagnostics & Recovery
+
+TradeYar AI employs a **RuntimeStateManager** that synchronizes state changes dynamically. Background workers report the following statuses:
+
+- `STARTING`: The background worker is preparing and spawning execution threads.
+- `RUNNING`: The background worker loop is executing successfully.
+- `IDLE`: SCM or Shadow Engine is healthy, but there are no active positions/signals to update.
+- `RECOVERING`: An exception occurred, and the worker is cooling down before retrying.
+- `FAILED`: A worker has failed 3 consecutive times, indicating a persistent platform error.
+- `STOPPED`: The worker has been shut down gracefully.
+
+---
+
+## 8. Troubleshooting & Verification
 
 To verify that the service is running and healthy:
 
@@ -98,7 +115,7 @@ To verify that the service is running and healthy:
 
 ---
 
-## 8. Server Restart Test
+## 9. Server Restart Test
 
 To confirm that the TradeYar-AI service starts automatically after a server reboot:
 1. Ensure the service startup type is set to **Automatic**:
