@@ -18,6 +18,7 @@ HISTORY_DIR = "history"
 
 # Import production logging functions
 from app.core.logging import log_event, log_audit, log_intelligence_decision
+from src.Application.Runtime.runtime_state import central_runtime_state
 
 app = FastAPI(
     title="TradeYar AI Autonomous Management & Acceptance Portal",
@@ -54,6 +55,13 @@ def run_research_background_loop():
     research_tracker["worker_status"] = "RUNNING"
     global_research_runtime.worker_started_at = datetime.now()
 
+    # Synchronize with central runtime state when running standalone
+    central_runtime_state.update_multiple({
+        "worker_status": "Running",
+        "research_status": "Running",
+        "shadow_status": "Running"
+    })
+
     # Run once immediately on server boot to generate the initial baseline snapshot
     try:
         res = global_research_runtime.run_once()
@@ -82,6 +90,13 @@ def run_research_background_loop():
                 research_tracker["last_candle_time"] = res.Request.EndTime.isoformat()
             research_tracker["worker_status"] = "RUNNING"
             log_event("INFO", "market_snapshot_created", symbol="XAUUSD", timeframe="H1")
+
+            # Update central state metrics
+            central_runtime_state.update_multiple({
+                "worker_status": "Running",
+                "research_status": "Running",
+                "last_cycle_time": research_tracker["last_analysis_time"]
+            })
 
             # Extract and log decision
             findings = res.Findings.get("pipeline_outputs", {})
@@ -1019,31 +1034,40 @@ def get_health_diagnostics():
 @app.get("/health")
 def get_production_health():
     """Real health monitoring API endpoint complying with Production Deployment specifications."""
+    # Read thread-safe statuses from central_runtime_state
+    state = central_runtime_state.get_state()
+
+    worker_status = state.get("worker_status", "Stopped")
+    research_status = state.get("research_status", "Stopped")
+    intelligence_status = state.get("intelligence_status", "Stopped")
+    shadow_status = state.get("shadow_status", "Stopped")
+
+    # If any worker is active or managed, we say Running
+    if research_status == "Running" or intelligence_status == "Running" or shadow_status == "Running":
+        worker_status = "Running"
+
     # Determine MT5 connectivity status
     mt5_status = "Connected" if research_tracker["mt5_status"] == "CONNECTED" else "Disconnected"
-
-    # Determine Background workers status
-    worker_status = "Running" if research_tracker["worker_status"] == "RUNNING" else "Stopped"
-
-    # Determine Intelligence status
-    intelligence_status = "Ready" if _mock_replay_session["active"] else "Offline"
 
     # Determine Shadow Trading Status linked to ShadowTradingEngine
     try:
         from src.ShadowTrading.Engine.ShadowTradingEngine import ShadowTradingEngine
         shadow_engine = ShadowTradingEngine.get_instance()
-        shadow_status = "Active" if shadow_engine is not None else "Offline"
+        shadow_status_active = "Active" if shadow_engine is not None else "Offline"
     except Exception:
-        shadow_status = "Offline"
+        shadow_status_active = "Offline"
 
     return {
         "status": "Healthy",
         "service": "TradeYar-AI",
         "api": "Online",
         "mt5": mt5_status,
-        "intelligence": intelligence_status,
+        "intelligence": "Ready" if _mock_replay_session["active"] else "Offline",
         "worker": worker_status,
-        "shadow_trading": shadow_status,
+        "research_worker": research_status,
+        "intelligence_worker": intelligence_status,
+        "shadow_worker": shadow_status,
+        "shadow_trading": shadow_status_active,
         "timestamp": datetime.now().isoformat()
     }
 
@@ -1051,6 +1075,7 @@ def get_production_health():
 @app.get("/api/devops/status")
 def get_devops_status():
     """API Contract interface for TradeYar.DevOps to fetch overall system status."""
+    state = central_runtime_state.get_state()
     error_count = 0
     err_log_path = os.path.join("logs", "error", "error.log")
     if os.path.exists(err_log_path):
@@ -1064,7 +1089,10 @@ def get_devops_status():
         "service_status": "RUNNING",
         "runtime_health": "Healthy",
         "mt5_status": "Connected" if research_tracker["mt5_status"] == "CONNECTED" else "Disconnected",
-        "worker_status": research_tracker["worker_status"],
+        "worker_status": state.get("worker_status", "Stopped"),
+        "research_worker": state.get("research_status", "Stopped"),
+        "intelligence_worker": state.get("intelligence_status", "Stopped"),
+        "shadow_worker": state.get("shadow_status", "Stopped"),
         "error_summary": {
             "total_logged_errors": error_count,
             "last_error": global_research_runtime.last_error

@@ -1,18 +1,28 @@
 import unittest
 from src.Application.Services.web_dashboard import get_production_health, research_tracker
+from src.Application.Runtime.runtime_state import central_runtime_state
 
 class TestHealthStatus(unittest.TestCase):
     def setUp(self) -> None:
         self.old_status = research_tracker.copy()
+        self.old_central_state = central_runtime_state.get_state()
 
     def tearDown(self) -> None:
         research_tracker.clear()
         research_tracker.update(self.old_status)
+        central_runtime_state.update_multiple(self.old_central_state)
 
     def test_health_online_status(self):
         """Checks health output when subsystems are fully running and connected."""
         research_tracker["mt5_status"] = "CONNECTED"
-        research_tracker["worker_status"] = "RUNNING"
+
+        # Configure central state
+        central_runtime_state.update_multiple({
+            "worker_status": "Running",
+            "research_status": "Running",
+            "intelligence_status": "Running",
+            "shadow_status": "Running"
+        })
 
         health = get_production_health()
         self.assertEqual(health["status"], "Healthy")
@@ -20,14 +30,23 @@ class TestHealthStatus(unittest.TestCase):
         self.assertEqual(health["api"], "Online")
         self.assertEqual(health["mt5"], "Connected")
         self.assertEqual(health["worker"], "Running")
-        self.assertEqual(health["intelligence"], "Ready")
+        self.assertEqual(health["research_worker"], "Running")
+        self.assertEqual(health["intelligence_worker"], "Running")
+        self.assertEqual(health["shadow_worker"], "Running")
         self.assertEqual(health["shadow_trading"], "Active")
         self.assertIn("timestamp", health)
 
     def test_health_disconnected_status(self):
         """Checks health output when MT5 is disconnected and worker is recovering."""
         research_tracker["mt5_status"] = "DISCONNECTED"
-        research_tracker["worker_status"] = "RECOVERING"
+
+        # Configure central state
+        central_runtime_state.update_multiple({
+            "worker_status": "Stopped",
+            "research_status": "Stopped",
+            "intelligence_status": "Stopped",
+            "shadow_status": "Stopped"
+        })
 
         health = get_production_health()
         self.assertEqual(health["status"], "Healthy")
