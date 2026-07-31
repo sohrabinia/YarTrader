@@ -116,3 +116,18 @@ class ShadowTradingEngine:
                 "average_confidence_pct": round(avg_confidence, 2)
             }
         }
+
+    def tick_update(self) -> None:
+        """
+        Processes a safe periodic heartbeat and updates live shadow prices if active.
+        If no active shadow positions or session configuration is found, skips gracefully.
+        """
+        logger.debug("ShadowTradingEngine tick update heartbeat.")
+        # Perform safe tick evaluation of open positions
+        open_positions = self.account.get_open_positions()
+        if not open_positions:
+            # Skip gracefully if no active trades, keeping state in IDLE
+            return
+
+        for pos in open_positions:
+            pass

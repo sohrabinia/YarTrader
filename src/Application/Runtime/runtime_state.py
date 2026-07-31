@@ -1,9 +1,13 @@
+import os
 import threading
 from typing import Dict, Any, Optional
 from datetime import datetime
 
+# Ensure logs/runtime directory exists
+os.makedirs(os.path.join("logs", "runtime"), exist_ok=True)
+
 class RuntimeStateManager:
-    """Thread-safe centralized manager for storing and querying active runtime statuses."""
+    """Thread-safe centralized manager for storing and querying active runtime statuses with transition logging."""
     _instance = None
     _lock = threading.Lock()
 
@@ -27,15 +31,43 @@ class RuntimeStateManager:
             "last_cycle_time": None
         }
 
+    def _log_state_transition(self, key: str, old_val: Any, new_val: Any) -> None:
+        """Logs any worker state transition to logs/runtime/runtime_state.log."""
+        # Map state keys to friendly worker names as requested
+        key_mapping = {
+            "worker_status": "ServiceHost",
+            "research_status": "ResearchWorker",
+            "intelligence_status": "IntelligenceWorker",
+            "shadow_status": "ShadowWorker"
+        }
+        worker_name = key_mapping.get(key, key)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_entry = f"{timestamp} | {worker_name} | {old_val} -> {new_val}\n"
+        try:
+            with open(os.path.join("logs", "runtime", "runtime_state.log"), "a", encoding="utf-8") as f:
+                f.write(log_entry)
+        except Exception:
+            pass
+
     def update_state(self, key: str, value: Any) -> None:
-        """Updates a state key safely under lock."""
+        """Updates a state key safely under lock and logs transitions."""
         with self.state_lock:
-            self.state[key] = value
+            old_val = self.state.get(key)
+            if old_val != value:
+                self.state[key] = value
+                # Only log transitions for status keys
+                if key in ["worker_status", "research_status", "intelligence_status", "shadow_status"]:
+                    self._log_state_transition(key, old_val, value)
 
     def update_multiple(self, updates: Dict[str, Any]) -> None:
-        """Applies multiple state updates safely under lock."""
+        """Applies multiple state updates safely under lock and logs transitions."""
         with self.state_lock:
-            self.state.update(updates)
+            for key, value in updates.items():
+                old_val = self.state.get(key)
+                if old_val != value:
+                    self.state[key] = value
+                    if key in ["worker_status", "research_status", "intelligence_status", "shadow_status"]:
+                        self._log_state_transition(key, old_val, value)
 
     def get_state(self) -> Dict[str, Any]:
         """Returns a snapshot copy of the central runtime state under lock."""
