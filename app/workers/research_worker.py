@@ -3,6 +3,7 @@ import threading
 from datetime import datetime
 from typing import Optional
 from src.Application.Runtime.research_runtime import ResearchRuntime
+from src.Application.Runtime.runtime_state import central_runtime_state
 
 class ResearchWorker:
     """Manages the background research worker polling loop."""
@@ -17,6 +18,7 @@ class ResearchWorker:
         self.last_candle_time: Optional[datetime] = None
         self.status = "IDLE"
         self.error_count = 0
+        central_runtime_state.update_state("research_status", "Stopped")
 
     def start(self) -> None:
         """Starts the background worker thread."""
@@ -24,6 +26,7 @@ class ResearchWorker:
             return
         self.is_running = True
         self.status = "RUNNING"
+        central_runtime_state.update_state("research_status", "Running")
         self.thread = threading.Thread(target=self._run_loop, daemon=True, name="ResearchWorker")
         self.thread.start()
 
@@ -31,6 +34,7 @@ class ResearchWorker:
         """Stops the background worker gracefully."""
         self.is_running = False
         self.status = "STOPPED"
+        central_runtime_state.update_state("research_status", "Stopped")
         if self.thread:
             self.thread.join(timeout=2.0)
 
@@ -47,11 +51,16 @@ class ResearchWorker:
                         self.last_candle_time = res.Request.EndTime
                     self.status = "RUNNING"
                     self.error_count = 0
+                    central_runtime_state.update_multiple({
+                        "research_status": "Running",
+                        "last_cycle_time": self.last_analysis_time.isoformat()
+                    })
                 except Exception as e:
                     if not self.is_running:
                         break
                     self.error_count += 1
                     self.status = "RECOVERING"
+                    central_runtime_state.update_state("research_status", "Recovering")
                     time.sleep(min(self.interval_sec, 5.0))
 
                 sleep_elapsed = 0.0
@@ -60,3 +69,4 @@ class ResearchWorker:
                     sleep_elapsed += 0.1
         finally:
             self.status = "STOPPED"
+            central_runtime_state.update_state("research_status", "Stopped")

@@ -33,6 +33,7 @@ from app.core.config import ProductionConfig
 from app.workers.research_worker import ResearchWorker
 from app.workers.intelligence_worker import IntelligenceWorker
 from app.workers.shadow_worker import ShadowWorker
+from src.Application.Runtime.runtime_state import central_runtime_state
 
 # Import existing FastAPI app
 from src.Application.Services.web_dashboard import app as fastapi_app
@@ -70,6 +71,7 @@ class TradeYarAIServiceHost:
         self.is_running = True
 
         log_service_message("Service Started")
+        central_runtime_state.update_state("worker_status", "Running")
 
         # 1. Start background workers based on configuration
         try:
@@ -113,6 +115,7 @@ class TradeYarAIServiceHost:
         self.is_running = False
 
         log_service_message("Shutdown Requested")
+        central_runtime_state.update_state("worker_status", "Stopped")
 
         # 1. Stop workers
         try:

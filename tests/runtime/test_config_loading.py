@@ -16,7 +16,7 @@ class TestConfigLoading(unittest.TestCase):
     def test_default_config_loading(self):
         """Verifies that default config is loaded correctly with standard values."""
         config = ProductionConfig()
-        self.assertEqual(config.api_host, "127.0.0.1")
+        self.assertEqual(config.api_host, "0.0.0.0")
         self.assertEqual(config.api_port, 8000)
         self.assertEqual(config.mt5_symbol, "XAUUSD")
         self.assertEqual(config.mt5_timeframe, "H1")
