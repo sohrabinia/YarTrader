@@ -1,10 +1,13 @@
 # Install TradeYar-AI Windows Service Script
-# This script installs and registers TradeYar-AI as a Windows Service running 24/7 on Windows Server.
+# This script installs and registers TradeYar-AI as a Windows Service running 24/7 on Windows Server using the local virtual environment Python.
 
 $ServiceName = "TradeYar-AI"
 $ServiceDisplayName = "TradeYar AI Production Runtime Service"
 $ServiceDescription = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
-$PythonPath = "C:\Program Files\Python312\python.exe"
+
+# 1. Resolve local virtual environment Python
+$VenvPython = "$PSScriptRoot\..\.venv\Scripts\python.exe"
+$GlobalPython = "C:\Program Files\Python312\python.exe"
 $ScriptPath = "$PSScriptRoot\..\app\workers\service.py"
 $WorkDir = "$PSScriptRoot\.."
 
@@ -12,28 +15,35 @@ Write-Host "==========================================================" -Foregro
 Write-Host "Installing TradeYar-AI Windows Service..." -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-# 1. Check Administrator Privileges
+# Check Administrator Privileges
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
     Write-Error "Error: This script must be run as an Administrator!"
     Exit 1
 }
 
-# 2. Check Python installation
-if (-not (Test-Path $PythonPath)) {
-    # Attempt to locate python via PATH
-    $PythonPath = (Get-Command python.exe -ErrorAction SilentlyContinue).Source
+# Resolve target Python path
+if (Test-Path $VenvPython) {
+    $PythonPath = Resolve-Path $VenvPython
+    Write-Host "Detected Local Virtual Environment Python!" -ForegroundColor Green
+} else {
+    Write-Host "Warning: Virtual environment Python at .venv\Scripts\python.exe not found." -ForegroundColor Yellow
+    # Fallback to global Python or PATH python
+    $PythonPath = $GlobalPython
+    if (-not (Test-Path $PythonPath)) {
+        $PythonPath = (Get-Command python.exe -ErrorAction SilentlyContinue).Source
+    }
     if (-not $PythonPath) {
         Write-Error "Error: python.exe was not found. Please install Python 3.12 or specify PythonPath."
         Exit 1
     }
 }
 
-Write-Host "Using Python path: $PythonPath" -ForegroundColor Yellow
-Write-Host "Using Script path: $ScriptPath" -ForegroundColor Yellow
+Write-Host "Using Python executable: $PythonPath" -ForegroundColor Yellow
+Write-Host "Using Service Script path: $ScriptPath" -ForegroundColor Yellow
 Write-Host "Working Directory: $WorkDir" -ForegroundColor Yellow
 
-# 3. Check if service already exists
+# Check if service already exists
 $existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($existingService) {
     Write-Host "Service '$ServiceName' already exists. Re-installing..." -ForegroundColor Yellow
@@ -42,9 +52,10 @@ if ($existingService) {
     Start-Sleep -Seconds 2
 }
 
-# 4. Try installing using sc.exe (Native Windows Service Controller)
-$BinPath = """$PythonPath"" ""$ScriptPath"" start"
-Write-Host "Registering service via sc.exe..." -ForegroundColor Yellow
+# Register service using sc.exe (Native Windows Service Controller)
+# SCM runs Python with service script path argument
+$BinPath = """$PythonPath"" ""$ScriptPath"""
+Write-Host "Registering service natively via sc.exe..." -ForegroundColor Yellow
 
 sc.exe create $ServiceName binPath= $BinPath start= auto DisplayName= "$ServiceDisplayName" | Out-Null
 
@@ -63,8 +74,13 @@ if ($LASTEXITCODE -ne 0) {
         Exit 1
     }
 } else {
+    # Set service description natively
     sc.exe description $ServiceName "$ServiceDescription" | Out-Null
-    sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/120000/restart/300000 | Out-Null
+
+    # Configure recovery options: Automatic restart on failure (First failure: restart, Second: restart, Third: restart)
+    # actions= restart/60000/restart/60000/restart/60000 means restart after 60,000 milliseconds for 1st, 2nd, and 3rd/subsequent failures.
+    sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
+
     Write-Host "Successfully registered TradeYar-AI Windows Service natively!" -ForegroundColor Green
 }
 

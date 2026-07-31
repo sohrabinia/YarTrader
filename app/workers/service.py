@@ -4,17 +4,40 @@ import time
 import signal
 import threading
 import uvicorn
+from datetime import datetime
 from typing import Any, Dict, Optional
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+# Set working directory to project root relative to this file
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+os.chdir(project_root)
+sys.path.insert(0, project_root)
+
+# Signal to web_dashboard to bypass duplicate background worker loops
+os.environ["TRADEYAR_SERVICE_RUN"] = "True"
+
+# Ensure logs/service directory exists
+os.makedirs(os.path.join("logs", "service"), exist_ok=True)
+
+def log_service_message(message: str) -> None:
+    """Logs dedicated service messages directly to logs/service/service.log."""
+    timestamp = datetime.now().isoformat()
+    log_entry = f"[{timestamp}] [SERVICE] {message}\n"
+    try:
+        with open(os.path.join("logs", "service", "service.log"), "a", encoding="utf-8") as f:
+            f.write(log_entry)
+    except Exception:
+        pass
+    print(message)
 
 from app.core.config import ProductionConfig
 from app.workers.research_worker import ResearchWorker
 from app.workers.intelligence_worker import IntelligenceWorker
 from app.workers.shadow_worker import ShadowWorker
 
+# Import existing FastAPI app
 from src.Application.Services.web_dashboard import app as fastapi_app
 
+# Dual Mode: Check if we are running as a Windows Service
 try:
     import win32serviceutil
     import win32service
@@ -32,6 +55,7 @@ class TradeYarAIServiceHost:
         self.uvicorn_server: Optional[uvicorn.Server] = None
         self.uvicorn_thread: Optional[threading.Thread] = None
 
+        # Instantiate workers
         self.research_worker = ResearchWorker(
             symbol=self.config.mt5_symbol,
             timeframe=self.config.mt5_timeframe
@@ -45,34 +69,42 @@ class TradeYarAIServiceHost:
             return
         self.is_running = True
 
-        print("Starting TradeYar AI Production Service...")
+        log_service_message("Service Started")
 
-        if self.config.workers_research:
-            print("Starting Research Worker...")
-            self.research_worker.start()
+        # 1. Start background workers based on configuration
+        try:
+            if self.config.workers_research:
+                log_service_message("Workers Started — Research Worker")
+                self.research_worker.start()
 
-        if self.config.workers_intelligence:
-            print("Starting Intelligence Worker...")
-            self.intelligence_worker.start()
+            if self.config.workers_intelligence:
+                log_service_message("Workers Started — Intelligence Worker")
+                self.intelligence_worker.start()
 
-        print("Starting Shadow Trading Worker...")
-        self.shadow_worker.start()
+            log_service_message("Workers Started — Shadow Trading Worker")
+            self.shadow_worker.start()
+        except Exception as e:
+            log_service_message(f"Exception during worker startup: {str(e)}")
 
-        uvicorn_config = uvicorn.Config(
-            app=fastapi_app,
-            host=self.config.api_host,
-            port=self.config.api_port,
-            log_level=self.config.logging_level.lower(),
-            loop="asyncio"
-        )
-        self.uvicorn_server = uvicorn.Server(uvicorn_config)
-        self.uvicorn_thread = threading.Thread(
-            target=self.uvicorn_server.run,
-            daemon=True,
-            name="FastAPIServer"
-        )
-        self.uvicorn_thread.start()
-        print(f"FastAPI Server active at http://{self.config.api_host}:{self.config.api_port}")
+        # 2. Start Uvicorn FastAPI Server on background thread
+        try:
+            uvicorn_config = uvicorn.Config(
+                app=fastapi_app,
+                host=self.config.api_host,
+                port=self.config.api_port,
+                log_level=self.config.logging_level.lower(),
+                loop="asyncio"
+            )
+            self.uvicorn_server = uvicorn.Server(uvicorn_config)
+            self.uvicorn_thread = threading.Thread(
+                target=self.uvicorn_server.run,
+                daemon=True,
+                name="FastAPIServer"
+            )
+            self.uvicorn_thread.start()
+            log_service_message(f"FastAPI Started at http://{self.config.api_host}:{self.config.api_port}")
+        except Exception as e:
+            log_service_message(f"Exception during FastAPI startup: {str(e)}")
 
     def stop(self) -> None:
         """Stops all background processes and API server gracefully."""
@@ -80,23 +112,31 @@ class TradeYarAIServiceHost:
             return
         self.is_running = False
 
-        print("Shutting down TradeYar AI Production Service...")
+        log_service_message("Shutdown Requested")
 
-        self.research_worker.stop()
-        self.intelligence_worker.stop()
-        self.shadow_worker.stop()
+        # 1. Stop workers
+        try:
+            self.research_worker.stop()
+            self.intelligence_worker.stop()
+            self.shadow_worker.stop()
+        except Exception as e:
+            log_service_message(f"Exception during worker shutdown: {str(e)}")
 
-        if self.uvicorn_server:
-            self.uvicorn_server.should_exit = True
-            if self.uvicorn_thread:
-                self.uvicorn_thread.join(timeout=5.0)
+        # 2. Stop Uvicorn FastAPI server
+        try:
+            if self.uvicorn_server:
+                self.uvicorn_server.should_exit = True
+                if self.uvicorn_thread:
+                    self.uvicorn_thread.join(timeout=5.0)
+        except Exception as e:
+            log_service_message(f"Exception during FastAPI shutdown: {str(e)}")
 
-        print("Shutdown complete.")
+        log_service_message("Service Stopped")
 
 
 if WINDOWS_SERVICE_SUPPORTED:
     class TradeYarAIWindowsService(win32serviceutil.ServiceFramework):
-        """Windows Service implementation for TradeYar AI."""
+        """Native Windows Service Lifecycle handler for TradeYar-AI."""
         _svc_name_ = "TradeYar-AI"
         _svc_display_name_ = "TradeYar AI Production Runtime Service"
         _svc_description_ = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
@@ -107,17 +147,25 @@ if WINDOWS_SERVICE_SUPPORTED:
             self.host = TradeYarAIServiceHost()
 
         def SvcStop(self):
+            # Report stop pending to SCM
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
             self.host.stop()
             win32event.SetEvent(self.hWaitStop)
 
         def SvcDoRun(self):
+            # Log started state natively to Windows Event Viewer and files
+            servicemanager.Initialize()
+            servicemanager.PrepareToHostSingle(self)
             servicemanager.LogMsg(
                 servicemanager.EVENTLOG_INFORMATION_TYPE,
                 servicemanager.PYS_SERVICE_STARTED,
                 (self._svc_name_, '')
             )
+
+            # Start service host
             self.host.start()
+
+            # Wait for SCM stop notification
             win32event.WaitForSingleObject(self.hWaitStop, win32event.INFINITE)
 else:
     class TradeYarAIWindowsService:
@@ -129,7 +177,7 @@ def run_standalone():
     host = TradeYarAIServiceHost()
 
     def handle_signal(signum, frame):
-        print(f"Received signal {signum}. Shutting down...")
+        log_service_message(f"Received signal {signum}. Shutting down...")
         host.stop()
         sys.exit(0)
 
@@ -143,11 +191,18 @@ def run_standalone():
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] in ["install", "remove", "start", "stop"]:
+    if len(sys.argv) > 1 and sys.argv[1] in ["install", "remove", "start", "stop", "debug"]:
         if WINDOWS_SERVICE_SUPPORTED:
             win32serviceutil.HandleCommandLine(TradeYarAIWindowsService)
         else:
-            print("Windows Service packages are not installed on this system. Running standalone instead...")
+            log_service_message("Windows Service packages are not installed on this system. Running standalone instead...")
             run_standalone()
     else:
-        run_standalone()
+        # Check if run by the Windows Service Control Manager (SCM)
+        if WINDOWS_SERVICE_SUPPORTED:
+            # Handle native SCM run dispatching
+            servicemanager.Initialize()
+            servicemanager.PrepareToHostSingle(TradeYarAIWindowsService)
+            servicemanager.StartServiceCtrlDispatcher()
+        else:
+            run_standalone()
