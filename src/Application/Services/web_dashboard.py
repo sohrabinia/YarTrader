@@ -104,8 +104,9 @@ def ensure_worker_started():
             research_thread = threading.Thread(target=run_research_background_loop, daemon=True)
             research_thread.start()
 
-# Call initially to start background daemon on boot
-ensure_worker_started()
+# Call initially to start background daemon on boot if not managed by external Service Host
+if os.environ.get("TRADEYAR_SERVICE_RUN") != "True":
+    ensure_worker_started()
 
 
 # Active live state tracker of the acceptance validation platform
