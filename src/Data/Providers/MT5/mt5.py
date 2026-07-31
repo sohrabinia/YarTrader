@@ -335,14 +335,18 @@ class MT5DataProvider(IDataProvider):
 
             def normalize_datetime(dt) -> datetime:
                 if isinstance(dt, str):
+                    if dt.endswith("Z"):
+                        dt = dt[:-1] + "+00:00"
                     dt = datetime.fromisoformat(dt)
+                if isinstance(dt, (int, float)):
+                    dt = datetime.fromtimestamp(dt, tz=timezone.utc)
                 if isinstance(dt, datetime):
                     if not is_mock:
-                        if dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) is not None:
+                        if dt.tzinfo is not None and dt.utcoffset() is not None:
                             dt = dt.astimezone(timezone.utc)
                         dt = dt.replace(tzinfo=None)
                     else:
-                        if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+                        if dt.tzinfo is None or dt.utcoffset() is None:
                             dt = dt.replace(tzinfo=timezone.utc)
                 return dt
 
@@ -442,6 +446,16 @@ class MT5DataProvider(IDataProvider):
             if rates is None:
                 err_code, err_msg = mt5.last_error()
 
+                # Improve error logging as requested
+                logger.error(
+                    f"MT5 copy_rates_range failed.\n"
+                    f"Symbol={request.symbol}\n"
+                    f"Timeframe={request.timeframe}\n"
+                    f"Start={start_dt}\n"
+                    f"End={end_dt}\n"
+                    f"Error=({err_code}, {err_msg})"
+                )
+
                 # Estimate calculated bars
                 tf_minutes_map = {
                     "M1": 1, "M5": 5, "M15": 15, "M30": 30,
@@ -450,16 +464,6 @@ class MT5DataProvider(IDataProvider):
                 tf_mins = tf_minutes_map.get(request.timeframe, 60)
                 duration_secs = (end_dt - start_dt).total_seconds()
                 calculated_bars = int(max(1, duration_secs // (tf_mins * 60) + 2))
-
-                logger.warning(
-                    f"MT5 range request failed. Attempting fallback retrieval.\n"
-                    f"Symbol={request.symbol}\n"
-                    f"TF={request.timeframe}\n"
-                    f"Start={start_dt}\n"
-                    f"End={end_dt}\n"
-                    f"Requested duration={duration_secs}s (estimated {calculated_bars} bars)\n"
-                    f"Error=({err_code}, {err_msg})"
-                )
 
                 # Fallback Step 1: Try copy_rates_from
                 rates = mt5.copy_rates_from(request.symbol, mt5_tf, end_dt, calculated_bars)
