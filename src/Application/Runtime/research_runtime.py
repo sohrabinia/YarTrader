@@ -104,6 +104,45 @@ class ResearchRuntime:
             self._log_evidence(f"Features Generated: {str(features_generated).lower()}")
             self._log_evidence("Research Completed: true")
 
+            # Update Shadow Trading Engine with latest market price and decision
+            try:
+                from src.ShadowTrading.Engine.ShadowTradingEngine import ShadowTradingEngine
+                shadow_engine = ShadowTradingEngine.get_instance()
+
+                latest_price = data_response.DataPoints[-1].Close
+
+                # Update open position prices first (recalculates floating PnL and handles SL/TP hits)
+                shadow_engine.update_market_price(self._symbol, latest_price, timeframe=self._timeframe)
+
+                po = result.Findings.get("pipeline_outputs", {})
+                smart = po.get("smart_interpretation", {})
+                bias = smart.get("bias", "Neutral")
+                confidence = smart.get("confidence", 50)
+                reasoning_list = smart.get("reasoning", [])
+                reason_text = " ".join(reasoning_list) if isinstance(reasoning_list, list) else str(reasoning_list)
+
+                decision_action = "WAIT"
+                if bias == "Bullish":
+                    decision_action = "BUY"
+                elif bias == "Bearish":
+                    decision_action = "SELL"
+
+                evidence_payload = {
+                    "signature": [latest_price],
+                    "raw_findings": result.Findings
+                }
+
+                shadow_engine.handle_decision(
+                    decision_action=decision_action,
+                    current_price=latest_price,
+                    confidence=confidence,
+                    reason=reason_text,
+                    evidence=evidence_payload,
+                    symbol=self._symbol
+                )
+            except Exception as se:
+                self._log_evidence(f"Shadow Trading update skipped or errored: {str(se)}")
+
             # 7. Store Result
             self._history.append(result)
             self._store_snapshot(result)
