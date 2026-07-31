@@ -1,6 +1,6 @@
-# RG_V3_AI Phase 21 Architecture Audit
+# TRADEYAR_AI Phase 21 Architecture Audit
 
-This document presents a comprehensive architectural audit of the **Phase 21 Multi-Agent Intelligence Layer** in the RG_V3_AI Autonomous Financial Intelligence Platform.
+This document presents a comprehensive architectural audit of the **Phase 21 Multi-Agent Intelligence Layer** in the TRADEYAR_AI Autonomous Financial Intelligence Platform.
 
 ---
 

@@ -60,7 +60,7 @@ If a disk block error or crash causes a memory file (such as `concepts_memory.js
    ```
 5. **Execute Integrity Validation:** Execute the test suite to verify file parser compliance:
    ```bash
-   pytest tests/RG_V3_AI.Tests/Brain/
+   pytest tests/TRADEYAR_AI.Tests/Brain/
    ```
 6. **Re-Launch Service:** Start up the server and monitor logs to verify successful boot.
 

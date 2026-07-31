@@ -1,4 +1,4 @@
-# RG_V3 Intelligence Pipeline
+# TRADEYAR Intelligence Pipeline
 
 The Application Intelligence Pipeline coordinates the execution flow across Data Ingestion, Research Analysis, Strategy Evaluation, Risk Auditing, and Decision Reasoning components.
 

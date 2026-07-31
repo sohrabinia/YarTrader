@@ -1,6 +1,6 @@
-# RG_V3 Design Compliance Report
+# TRADEYAR Design Compliance Report
 
-This document reports design conformity of the **RG_V3 Autonomous Financial Intelligence Platform** relative to its original project vision and structural boundaries.
+This document reports design conformity of the **TRADEYAR Autonomous Financial Intelligence Platform** relative to its original project vision and structural boundaries.
 
 ---
 

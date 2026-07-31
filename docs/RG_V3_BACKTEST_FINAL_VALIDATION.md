@@ -1,4 +1,4 @@
-# RG_V3_AI Backtesting Completion Audit
+# TRADEYAR_AI Backtesting Completion Audit
 
 ## 1. Subsystem Architecture
 The **Historical Backtesting Platform** (Phase 33) provides an iterative, non-trading evaluation engine to trace decision consistency and research accuracy over historical chronological slices.
@@ -20,7 +20,7 @@ Final Backtest Report generation
 ---
 
 ## 2. Test Verification Summary
-All backtest framework units under `tests/RG_V3_AI.Tests/Backtesting/test_backtest_framework.py` have been reviewed and successfully executed. The backtesting engine handles:
+All backtest framework units under `tests/TRADEYAR_AI.Tests/Backtesting/test_backtest_framework.py` have been reviewed and successfully executed. The backtesting engine handles:
 - **Historical Data Ingest**: Reads files and registers symbols cleanly.
 - **Scenario Iterations**: Segments dates into interval slices.
 - **Metrics Calculation**: Evaluates average decision confidence and decision consistency (variance of scores).

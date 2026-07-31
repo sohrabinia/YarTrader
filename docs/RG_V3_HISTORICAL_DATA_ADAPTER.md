@@ -1,4 +1,4 @@
-# RG_V3 Autonomous Financial Intelligence Platform
+# TRADEYAR Autonomous Financial Intelligence Platform
 ## Historical Data Intelligence Adapter Foundation (Phase 13)
 
 This document provides a technical specification of the production-ready Historical Data Intelligence Adapter Layer designed in adherence with the **APES-FIN clean financial architecture standard**.

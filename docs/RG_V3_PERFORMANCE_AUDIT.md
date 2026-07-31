@@ -1,6 +1,6 @@
-# RG_V3 Performance Audit
+# TRADEYAR Performance Audit
 
-This document presents the detailed findings of the **Performance Profiling (Part 4)** of the RG_V3 Platform.
+This document presents the detailed findings of the **Performance Profiling (Part 4)** of the TRADEYAR Platform.
 
 ---
 

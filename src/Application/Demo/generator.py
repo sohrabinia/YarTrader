@@ -14,7 +14,7 @@ class DemoReportGenerator(IDemoReportGenerator):
         # Build clean string layout
         lines = []
         lines.append("==========================================================================================")
-        lines.append(f"               RG_V3_AI AUTONOMOUS FINANCIAL INTELLIGENCE PLATFORM DEMO")
+        lines.append(f"               TRADEYAR_AI AUTONOMOUS FINANCIAL INTELLIGENCE PLATFORM DEMO")
         lines.append("==========================================================================================")
         lines.append(f"Report ID:        {report_id}")
         lines.append(f"Generated At:     {timestamp.isoformat()}")

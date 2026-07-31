@@ -1,6 +1,6 @@
-# RG_V3 Backtest Final Readiness
+# TRADEYAR Backtest Final Readiness
 
-This document presents the final verdict on the readiness of the **RG_V3 Platform** for Historical Backtesting.
+This document presents the final verdict on the readiness of the **TRADEYAR Platform** for Historical Backtesting.
 
 ---
 

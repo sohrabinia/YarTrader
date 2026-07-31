@@ -1,6 +1,6 @@
-# RG_V3 Production Architecture Foundation
+# TRADEYAR Production Architecture Foundation
 
-The Production Architecture Layer establishes standard, robust production-grade infrastructure, logging conventions, unified error handling, and generic model validation utilities across the RG_V3 Autonomous Financial Intelligence Platform.
+The Production Architecture Layer establishes standard, robust production-grade infrastructure, logging conventions, unified error handling, and generic model validation utilities across the TRADEYAR Autonomous Financial Intelligence Platform.
 
 ---
 

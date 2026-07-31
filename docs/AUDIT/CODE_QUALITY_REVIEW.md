@@ -1,4 +1,4 @@
-# RG_V3_AI Code Quality Review
+# TRADEYAR_AI Code Quality Review
 
 ## 1. Code Cleanliness Audit
 The entire repository was inspected for redundant structures, duplicate blocks, or dead pathways:

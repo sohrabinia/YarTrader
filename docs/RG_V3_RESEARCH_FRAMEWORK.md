@@ -1,4 +1,4 @@
-# RG_V3 Research Framework
+# TRADEYAR Research Framework
 
 The Research Intelligence Framework converts raw normalized time-series data into structured historical observations and qualitative market insights.
 

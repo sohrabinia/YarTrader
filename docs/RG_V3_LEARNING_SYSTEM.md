@@ -1,6 +1,6 @@
-# RG_V3 Learning and Evolution Foundation
+# TRADEYAR Learning and Evolution Foundation
 
-The Learning and Evolution Layer provides continuous feedback loops, rating evaluations, and mathematical parameter tuning across the RG_V3 Autonomous Financial Intelligence Platform without relying on heavy machine learning or neural network frameworks.
+The Learning and Evolution Layer provides continuous feedback loops, rating evaluations, and mathematical parameter tuning across the TRADEYAR Autonomous Financial Intelligence Platform without relying on heavy machine learning or neural network frameworks.
 
 ---
 

@@ -1,6 +1,6 @@
-# RG_V3_AI — AI Context Library Verification Report
+# TRADEYAR_AI — AI Context Library Verification Report
 
-This report confirms that the **AI Context Library** for the **RG_V3 Autonomous Financial Intelligence Platform** is complete, internally consistent, and accurately reflects the current implementation.
+This report confirms that the **AI Context Library** for the **TRADEYAR Autonomous Financial Intelligence Platform** is complete, internally consistent, and accurately reflects the current implementation.
 
 ---
 

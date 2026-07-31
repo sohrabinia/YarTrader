@@ -1,4 +1,4 @@
-# RG_V3 Market Data Model
+# TRADEYAR Market Data Model
 
 This document outlines the standard contracts and parameters governing advanced market data adapter classes in **Phase 24 Real Market Data Intelligence Adapter Layer**.
 

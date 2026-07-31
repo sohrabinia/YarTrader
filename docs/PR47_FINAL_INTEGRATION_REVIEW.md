@@ -62,7 +62,7 @@ python validate_release.py
 ```
 And:
 ```bash
-python -m pytest tests/RG_V3_AI.Tests/Brain/test_architecture_integrity.py
+python -m pytest tests/TRADEYAR_AI.Tests/Brain/test_architecture_integrity.py
 ```
 
 ### Results Scorecard

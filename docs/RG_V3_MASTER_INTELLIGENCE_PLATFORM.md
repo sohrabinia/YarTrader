@@ -1,4 +1,4 @@
-# RG_V3 Master Intelligence Platform
+# TRADEYAR Master Intelligence Platform
 
 This document describes the knowledge graph, explainable reporting, monitoring, and production deployment features of **Phases 27, 28, 29, and 30**.
 

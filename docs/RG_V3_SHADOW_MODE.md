@@ -1,9 +1,9 @@
-# RG_V3 Shadow Mode / Live Intelligence Platform (Read-Only) Specification
+# TRADEYAR Shadow Mode / Live Intelligence Platform (Read-Only) Specification
 
 ## Overview
-This specification details the design, architecture, metrics evaluation, and security validations for the **RG_V3_AI Shadow Mode Platform** (Phase 36).
+This specification details the design, architecture, metrics evaluation, and security validations for the **TRADEYAR_AI Shadow Mode Platform** (Phase 36).
 
-Shadow Mode enables continuous, read-only validation of the complete RG_V3_AI multi-agent intelligence pipeline using real-time rates without any live broker or execution risk.
+Shadow Mode enables continuous, read-only validation of the complete TRADEYAR_AI multi-agent intelligence pipeline using real-time rates without any live broker or execution risk.
 
 ---
 

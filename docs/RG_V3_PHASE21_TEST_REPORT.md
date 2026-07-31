@@ -1,4 +1,4 @@
-# RG_V3_AI Phase 21 Test Report
+# TRADEYAR_AI Phase 21 Test Report
 
 This report summarizes the automated testing results, verification metrics, security audits, and APES-FIN compliance checks executed on the **Phase 21 Multi-Agent Intelligence Layer**.
 

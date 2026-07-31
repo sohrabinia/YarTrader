@@ -1,6 +1,6 @@
-# RG_V3 Backtest Readiness Report
+# TRADEYAR Backtest Readiness Report
 
-This report evaluates the readiness of the **RG_V3 Autonomous Financial Intelligence Platform** for Historical Backtesting.
+This report evaluates the readiness of the **TRADEYAR Autonomous Financial Intelligence Platform** for Historical Backtesting.
 
 ---
 

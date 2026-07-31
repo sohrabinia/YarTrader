@@ -1,6 +1,6 @@
-# RG_V3 Phase 22 — Advanced Agent Collaboration Layer
+# TRADEYAR Phase 22 — Advanced Agent Collaboration Layer
 
-This document details the architectural design and operations of the **Collaborative Intelligence Framework (Phase 22)** in the RG_V3 Autonomous Financial Intelligence Platform.
+This document details the architectural design and operations of the **Collaborative Intelligence Framework (Phase 22)** in the TRADEYAR Autonomous Financial Intelligence Platform.
 
 ---
 

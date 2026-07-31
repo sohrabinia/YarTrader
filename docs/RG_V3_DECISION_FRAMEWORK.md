@@ -1,4 +1,4 @@
-# RG_V3 Decision Framework
+# TRADEYAR Decision Framework
 
 The Decision Intelligence Framework integrates strategy rankings, research outputs, and risk assessments to produce formalized allocation decision results.
 

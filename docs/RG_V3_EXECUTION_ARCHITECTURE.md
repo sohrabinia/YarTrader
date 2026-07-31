@@ -1,4 +1,4 @@
-# RG_V3 Execution Architecture Foundation
+# TRADEYAR Execution Architecture Foundation
 
 The Execution Architecture Layer defines standard, clean abstraction contracts for routing and managing simulated order states without executing live transactions or establishing real broker connections.
 

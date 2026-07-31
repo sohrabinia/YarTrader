@@ -6,7 +6,7 @@ from src.Data.MarketData.Models.models import MarketDataPoint
 class MarketDataNormalizer(IMarketDataNormalizer):
     """
     Standardizes external third-party market data formats (e.g., dict payloads from MetaTrader or REST APIs)
-    into standard RG_V3 MarketDataPoint objects.
+    into standard TRADEYAR MarketDataPoint objects.
     """
     def normalize_external_data(self, external_data: Any, asset_id: str) -> List[MarketDataPoint]:
         normalized_points: List[MarketDataPoint] = []

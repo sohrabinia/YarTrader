@@ -1,6 +1,6 @@
-# RG_V3_AI Intelligence Core v1.0 — Final Audit & Release Report
+# TRADEYAR_AI Intelligence Core v1.0 — Final Audit & Release Report
 
-This document compiles the **Final Release Audit** for the RG_V3 Autonomous Financial Intelligence Platform, covering the maturity and compliance status of Phase 11 through Phase 20 under the APES-FIN architecture.
+This document compiles the **Final Release Audit** for the TRADEYAR Autonomous Financial Intelligence Platform, covering the maturity and compliance status of Phase 11 through Phase 20 under the APES-FIN architecture.
 
 ---
 
@@ -23,7 +23,7 @@ This document compiles the **Final Release Audit** for the RG_V3 Autonomous Fina
 
 ## 2. Architecture Maturity Assessment
 
-The RG_V3 platform successfully conforms to the **APES-FIN Architectural Standards**:
+The TRADEYAR platform successfully conforms to the **APES-FIN Architectural Standards**:
 - **Unidirectional Dependency**: All data flow is strictly unidirectional, flowing downward from the raw Data Layer to Strategy, Risk, Decision, and finally Learning. No layer references downstream components.
 - **Dependency Inversion**: Modules communicate through interfaces, decoupling implementations.
 - **Layer Separation**: Clear boundaries exist between layers. No presentation details leak into core data intelligence models.

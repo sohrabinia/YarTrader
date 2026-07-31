@@ -1,6 +1,6 @@
 # APES-FIN Full Intelligence Validation Platform (Phase 20)
 
-This document provides a comprehensive technical guide and architectural breakdown of the **Full Intelligence Validation Platform** within the RG_V3 Autonomous Financial Intelligence Platform.
+This document provides a comprehensive technical guide and architectural breakdown of the **Full Intelligence Validation Platform** within the TRADEYAR Autonomous Financial Intelligence Platform.
 
 ---
 

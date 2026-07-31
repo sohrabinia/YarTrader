@@ -1,6 +1,6 @@
 # APES-FIN Learning & Optimization Intelligence Foundation (Phase 19)
 
-This document provides a comprehensive technical guide and architectural breakdown of the **Learning & Optimization Intelligence Foundation** within the RG_V3 Autonomous Financial Intelligence Platform.
+This document provides a comprehensive technical guide and architectural breakdown of the **Learning & Optimization Intelligence Foundation** within the TRADEYAR Autonomous Financial Intelligence Platform.
 
 ---
 

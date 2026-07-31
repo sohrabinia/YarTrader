@@ -1,6 +1,6 @@
-# RG_V3 Future AI Integration Roadmap
+# TRADEYAR Future AI Integration Roadmap
 
-This document outlines the strategic path for integrating machine learning, deep learning, and Large Language Model (LLM) agents into the completed RG_V3 Autonomous Financial Intelligence Platform.
+This document outlines the strategic path for integrating machine learning, deep learning, and Large Language Model (LLM) agents into the completed TRADEYAR Autonomous Financial Intelligence Platform.
 
 ---
 

@@ -1,12 +1,12 @@
-# RG_V3 Engineering Architecture Audit
+# TRADEYAR Engineering Architecture Audit
 
-This document presents the detailed findings of the **Full Code Architecture Audit (Part 1)** of the RG_V3 Autonomous Financial Intelligence Platform.
+This document presents the detailed findings of the **Full Code Architecture Audit (Part 1)** of the TRADEYAR Autonomous Financial Intelligence Platform.
 
 ---
 
 ## 1. Source Structure & Module Relationships
 
-The RG_V3_AI platform is structured under a clean modular architecture under `src/`:
+The TRADEYAR_AI platform is structured under a clean modular architecture under `src/`:
 
 ```
 src/

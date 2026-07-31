@@ -1,6 +1,6 @@
-# RG_V3 Demo Readiness Report
+# TRADEYAR Demo Readiness Report
 
-This report evaluates the readiness of the **RG_V3 Autonomous Financial Intelligence Platform** for Paper Trading or Demo Mode.
+This report evaluates the readiness of the **TRADEYAR Autonomous Financial Intelligence Platform** for Paper Trading or Demo Mode.
 
 ---
 

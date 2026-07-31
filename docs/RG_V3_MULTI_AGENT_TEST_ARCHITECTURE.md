@@ -1,4 +1,4 @@
-# RG_V3_AI Multi-Agent Intelligence Test Architecture
+# TRADEYAR_AI Multi-Agent Intelligence Test Architecture
 
 This document describes the automated test architecture, contract rules, isolation mechanisms, and compliance validation rules implemented for **Phase 21: Multi-Agent Intelligence Architecture**.
 
@@ -37,10 +37,10 @@ ResearchAgent        StrategyAnalystAgent      RiskAgent
 
 ## 2. Test Project Structure
 
-Automated tests are isolated within the `tests/RG_V3_AI.Tests/` suite, mapped as follows:
+Automated tests are isolated within the `tests/TRADEYAR_AI.Tests/` suite, mapped as follows:
 
 ```
-tests/RG_V3_AI.Tests/
+tests/TRADEYAR_AI.Tests/
 ├── Agents/
 │   ├── test_contract_and_isolation.py  # Contract validation and agent-level keyword scanners
 │   └── test_performance.py             # AgentPerformanceTracker scoring and drift checks

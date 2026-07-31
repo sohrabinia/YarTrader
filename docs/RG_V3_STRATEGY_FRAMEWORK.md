@@ -1,4 +1,4 @@
-# RG_V3 Strategy Framework
+# TRADEYAR Strategy Framework
 
 The Strategy Intelligence Framework manages strategy concept definitions, registration workflows, and qualitative suitability evaluations.
 

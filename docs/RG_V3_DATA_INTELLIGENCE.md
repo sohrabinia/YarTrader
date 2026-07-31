@@ -1,6 +1,6 @@
-# RG_V3 Data Intelligence Layer Foundation
+# TRADEYAR Data Intelligence Layer Foundation
 
-The Data Intelligence Layer is responsible for the ingest, validation, normalization, and abstraction of financial market data across the RG_V3 Autonomous Financial Intelligence Platform. In strict adherence to the Clean Architecture principles, this layer provides a decoupling between external data feeds and downstream research, strategy, and risk logic.
+The Data Intelligence Layer is responsible for the ingest, validation, normalization, and abstraction of financial market data across the TRADEYAR Autonomous Financial Intelligence Platform. In strict adherence to the Clean Architecture principles, this layer provides a decoupling between external data feeds and downstream research, strategy, and risk logic.
 
 ---
 

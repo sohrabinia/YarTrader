@@ -10,7 +10,7 @@ This document compiles the formal audit of conflicts resolved and the final git 
 
 The remaining conflicts were related entirely to validation artifacts and runtime reports. They have been resolved perfectly under strict Git hygiene:
 
-- `RG_V3_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt`: Successfully integrated with the latest test counts and metrics.
+- `TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt`: Successfully integrated with the latest test counts and metrics.
 - `validation/production_acceptance_report.html`: Correctly regenerated and kept under tracking as a reproducible summary.
 - `validation/production_acceptance_report.json`: Correctly regenerated and kept under tracking.
 - `validation/production_acceptance_report.md`: Correctly regenerated and kept under tracking.

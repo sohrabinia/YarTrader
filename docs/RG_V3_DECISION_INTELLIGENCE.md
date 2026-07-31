@@ -1,6 +1,6 @@
 # APES-FIN Advanced Decision Intelligence Layer (Phase 18)
 
-This document provides a comprehensive technical guide and architectural breakdown of the **Advanced Decision Intelligence Layer** within the RG_V3 Autonomous Financial Intelligence Platform.
+This document provides a comprehensive technical guide and architectural breakdown of the **Advanced Decision Intelligence Layer** within the TRADEYAR Autonomous Financial Intelligence Platform.
 
 ---
 

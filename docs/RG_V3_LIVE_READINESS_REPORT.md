@@ -1,6 +1,6 @@
-# RG_V3 Live Readiness Report
+# TRADEYAR Live Readiness Report
 
-This report evaluates the readiness of the **RG_V3 Autonomous Financial Intelligence Platform** for secure production deployment.
+This report evaluates the readiness of the **TRADEYAR Autonomous Financial Intelligence Platform** for secure production deployment.
 
 ---
 
