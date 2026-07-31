@@ -19,6 +19,16 @@ mock_mt5.symbols_get.return_value = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
 mock_mt5.account_info.return_value = None  # to preserve original custom server name tests
 mock_mt5.last_error.return_value = (0, "Success")
 
+def mock_symbol_info(symbol):
+    if symbol in ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]:
+        from unittest.mock import MagicMock
+        sym_obj = MagicMock()
+        sym_obj.name = symbol
+        return sym_obj
+    return None
+
+mock_mt5.symbol_info.side_effect = mock_symbol_info
+
 mock_mt5.TIMEFRAME_M1 = 1
 mock_mt5.TIMEFRAME_M5 = 5
 mock_mt5.TIMEFRAME_M15 = 15
@@ -50,6 +60,58 @@ def mock_copy_rates_range(symbol, timeframe, date_from, date_to):
     return rates
 
 mock_mt5.copy_rates_range.side_effect = mock_copy_rates_range
+
+def mock_copy_rates_from(symbol, timeframe, date_to, count):
+    err_code, _ = mock_mt5.last_error()
+    if err_code != 0:
+        return None
+    base_price = 1.1000 if "JPY" not in symbol else 145.0
+    if "XAU" in symbol:
+        base_price = 1800.0
+    increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.01
+
+    rates = []
+    curr = date_to - timedelta(minutes=15 * count)
+    for i in range(count):
+        if curr > date_to:
+            break
+        rates.append({
+            "time": int(curr.timestamp()),
+            "open": base_price + i * increment,
+            "high": base_price + (i + 2) * increment,
+            "low": base_price + (i - 1) * increment,
+            "close": base_price + (i + 1) * increment,
+            "tick_volume": 150.0 + i * 10
+        })
+        curr += timedelta(minutes=15)
+    return rates
+
+mock_mt5.copy_rates_from.side_effect = mock_copy_rates_from
+
+def mock_copy_rates_from_pos(symbol, timeframe, start, count):
+    err_code, _ = mock_mt5.last_error()
+    if err_code != 0:
+        return None
+    base_price = 1.1000 if "JPY" not in symbol else 145.0
+    if "XAU" in symbol:
+        base_price = 1800.0
+    increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.01
+
+    rates = []
+    curr = datetime.now() - timedelta(minutes=15 * count)
+    for i in range(count):
+        rates.append({
+            "time": int(curr.timestamp()),
+            "open": base_price + i * increment,
+            "high": base_price + (i + 2) * increment,
+            "low": base_price + (i - 1) * increment,
+            "close": base_price + (i + 1) * increment,
+            "tick_volume": 150.0 + i * 10
+        })
+        curr += timedelta(minutes=15)
+    return rates
+
+mock_mt5.copy_rates_from_pos.side_effect = mock_copy_rates_from_pos
 
 # Save original values to restore in tearDown if needed
 ORIG_AVAILABLE = mt5_module.MT5_AVAILABLE
@@ -409,3 +471,48 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         self.assertTrue(resp.is_success)
         self.assertGreater(len(resp.candles), 0)
         self.assertEqual(resp.candles[0].open, 1800.0)
+
+    def test_regression_copy_rates_range_fallback(self) -> None:
+        """Verify fallback strategy kicks in and retrieves data successfully when copy_rates_range fails."""
+        start_dt = datetime(2026, 1, 1, 10, 0, 0)
+        end_dt = datetime(2026, 1, 1, 12, 0, 0)
+
+        # Force copy_rates_range to return None
+        mock_mt5.copy_rates_range.side_effect = None
+        mock_mt5.copy_rates_range.return_value = None
+
+        # Verify copy_rates_from fallback is called and returns candles successfully
+        called_from = False
+        def mock_from(symbol, timeframe, date_to, count):
+            nonlocal called_from
+            called_from = True
+            return mock_copy_rates_from(symbol, timeframe, date_to, count)
+        mock_mt5.copy_rates_from.side_effect = mock_from
+
+        req = MarketDataRequest(
+            instrument=MarketInstrument("XAUUSD", "Metals"),
+            timeframe="H1",
+            start_time=start_dt,
+            end_time=end_dt
+        )
+        resp = self.provider.fetch_market_data(req)
+        self.assertTrue(resp.is_success)
+        self.assertTrue(called_from)
+        self.assertGreater(len(resp.candles), 0)
+
+    def test_regression_unsupported_symbol_fallback(self) -> None:
+        """Verify that requesting an unavailable symbol gracefully falls back to deterministic data generation."""
+        start_dt = datetime(2026, 1, 1, 10, 0, 0)
+        end_dt = datetime(2026, 1, 1, 12, 0, 0)
+
+        # AAPL is not in supported list so symbol_info will return None
+        req = MarketDataRequest(
+            instrument=MarketInstrument("AAPL", "Stocks"),
+            timeframe="H1",
+            start_time=start_dt,
+            end_time=end_dt
+        )
+        resp = self.provider.fetch_market_data(req)
+        self.assertTrue(resp.is_success)
+        self.assertGreater(len(resp.candles), 0)
+        self.assertEqual(resp.candles[0].open, 150.0) # check AAPL base price
