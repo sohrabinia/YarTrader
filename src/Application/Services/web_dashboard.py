@@ -1097,6 +1097,15 @@ def get_validation_history():
     return history
 
 
+@app.get("/api/shadow/metrics")
+def get_shadow_trading_metrics():
+    """Exposes real-time Virtual Account and Performance metrics for the Shadow Trading Engine."""
+    from src.ShadowTrading.Engine.ShadowTradingEngine import ShadowTradingEngine
+    engine = ShadowTradingEngine.get_instance()
+    metrics = engine.get_metrics()
+    return metrics
+
+
 @app.get("/v1/dashboard/overview")
 def get_dashboard_overview():
     """Aggregated diagnostics overview endpoint."""
