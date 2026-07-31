@@ -1,7 +1,7 @@
 ================================================================================
           RG_V3_FINAL_INTELLIGENCE_VALIDATION_REPORT — Version 1.0
 ================================================================================
-Generated At: 2026-07-30 08:09:41
+Generated At: 2026-07-31 02:47:50
 
 1. SYSTEM ARCHITECTURE & HEALTH STATUS
 --------------------------------------------------------------------------------
@@ -15,20 +15,17 @@ Global Status: HEALTHY
 2. SCENARIO EXECUTION LOGS
 --------------------------------------------------------------------------------
 Scenario Name: Normal-Audit
-Status:        PASSED
+Status:        FAILED
 Metrics:
- - overall_quality: 0.793
- - confidence: 0.71
- - observed_state: Approved
 
 3. SPEED & QUALITY BENCHMARK METRICS
 --------------------------------------------------------------------------------
-Total Pipeline execution time: 0.0018 seconds
+Total Pipeline execution time: 0.1858 seconds
 Response delays per component scenario:
- - Normal: 0.0008 seconds
- - HighVolatility: 0.0008 seconds
- - Conflicting: 0.0001 seconds
-Scenario Completion Rate:      100.0%
+ - Normal: 0.0748 seconds
+ - HighVolatility: 0.1098 seconds
+ - Conflicting: 0.0011 seconds
+Scenario Completion Rate:      33.3%
 Output Consistency Score:      98.0%
 
 4. APES-FIN SPECIFICATION COMPLIANCE CHECK

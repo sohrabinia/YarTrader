@@ -1,7 +1,11 @@
 # TradeYar AI — Release Verification Acceptance Report
 
 ## Overall Status: Production Ready ✅
+<<<<<<< HEAD
 - **Timestamp:** 2026-07-30 08:06:59
+=======
+- **Timestamp:** 2026-07-30 08:05:52
+>>>>>>> origin/integration-pr43-pr45-10477374927233561161
 - **Ready Score:** 100.0%
 - **Rationals:** All core subsystems validated cleanly, 100% test coverage passed successfully with absolute compliance.
 
@@ -12,7 +16,11 @@
 | :--- | :--- | :--- |
 | Python Environment | PASSED | Target is Python >= 3.10 |
 | Virtual Environment Isolation | WARNING | Running globally |
+<<<<<<< HEAD
 | Storage Availability | PASSED | Available Disk Space: 94937.9 MB |
+=======
+| Storage Availability | PASSED | Available Disk Space: 94881.4 MB |
+>>>>>>> origin/integration-pr43-pr45-10477374927233561161
 | Package Dependencies | PASSED | All dependencies verified |
 | MetaTrader 5 Link | SIMULATED_FALLBACK | Synthetic Fallback Mode Active (Non-Windows platform) |
 
@@ -23,7 +31,11 @@
 - **Passed Count:** 1328
 - **Failed Count:** 0
 - **Skipped:** 0
+<<<<<<< HEAD
 - **Duration:** 161.88 seconds
+=======
+- **Duration:** 167.41 seconds
+>>>>>>> origin/integration-pr43-pr45-10477374927233561161
 
 
 ---
@@ -36,7 +48,11 @@
 | APES-FIN Passive Compliance Scan | PASSED | Conformity to 100% passive non-trading guidelines verified |
 | REST API Schema Routing | PASSED | Validated endpoints schemas, authorizations and serialization scopes |
 | Research Pipeline Feature Extraction | PASSED | Indicator calculators pipeline compiled successfully with 0 features. |
+<<<<<<< HEAD
 | Platform Processing Latency | PASSED | Internal execution startup latency: 0.082 ms |
+=======
+| Platform Processing Latency | PASSED | Internal execution startup latency: 0.077 ms |
+>>>>>>> origin/integration-pr43-pr45-10477374927233561161
 
 ---
 
