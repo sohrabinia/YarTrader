@@ -109,7 +109,8 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         resp = self.client.get(f"/api/admin/reports?symbol=XAUUSD&token={admin_token}")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        self.assertEqual(data["count"], 2)
+        # Since v8.0 instantiates 5 default contexts + 1 custom 1024 context = 6 contexts
+        self.assertEqual(data["count"], 6)
 
         reports = data["reports"]
         rep_micro = next((r for r in reports if r["timeframe"] == 1), None)

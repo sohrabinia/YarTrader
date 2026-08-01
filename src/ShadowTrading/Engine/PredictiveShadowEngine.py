@@ -1,10 +1,12 @@
 import os
 import json
 import uuid
+import queue
 import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from src.ShadowTrading.Engine.SymbolTimeContext import SymbolTimeContext
+from src.ShadowTrading.Engine.SymbolRuntimeManager import SymbolRuntimeManager
 
 logger = logging.getLogger("PredictiveShadowEngine")
 
@@ -175,9 +177,9 @@ class ShadowTrade:
 
 class PredictiveShadowEngine:
     """
-    Overhauled main orchestrator for TradeYar AI v3.3.
-    Manages multi-asset and multi-resolution isolated contexts.
-    Enforces standard limit of max 30 concurrent symbols.
+    Overhauled main orchestrator for TradeYar AI v8.0.
+    Delegates hierarchical multi-asset context processing to the parent SymbolRuntimeManager.
+    Enforces maximum limits dynamically.
     """
     _instance: Optional["PredictiveShadowEngine"] = None
 
@@ -191,6 +193,9 @@ class PredictiveShadowEngine:
         self.max_symbols_limit = 30
         self._load_limits_config()
 
+        # Instantiate global SymbolRuntimeManager
+        self.runtime_manager = SymbolRuntimeManager(max_active_symbols=self.max_symbols_limit)
+
         # Database File Paths (Consolidated memory indices)
         self.trades_file = "runtime_logs/shadow_trades.json"
         self.bases_file = "runtime_logs/base_memory.json"
@@ -201,10 +206,7 @@ class PredictiveShadowEngine:
 
         os.makedirs("runtime_logs", exist_ok=True)
 
-        # Isolated Context Map: context_id (e.g. BTCUSD_256) -> SymbolTimeContext
-        self.contexts: Dict[str, SymbolTimeContext] = {}
-
-        # Core lists for serialization / global fallback queries
+        # Core lists for serialization
         self.trades: List[ShadowTrade] = self._load_trades()
         self.bases: List[Dict[str, Any]] = self._load_generic(self.bases_file)
         self.nodes: List[Dict[str, Any]] = self._load_generic(self.nodes_file)
@@ -226,18 +228,34 @@ class PredictiveShadowEngine:
             except Exception:
                 self.max_symbols_limit = 30
 
+    @property
+    def contexts(self) -> Dict[str, SymbolTimeContext]:
+        """Exposes flat dictionary view of all registered contexts for compatibility."""
+        flat_map = {}
+        for sym, frames in self.runtime_manager.symbol_brains.items():
+            for tf, ctx in frames.items():
+                flat_map[f"{sym}_{tf}"] = ctx
+        return flat_map
+
+    @contexts.setter
+    def contexts(self, val: Dict[str, SymbolTimeContext]) -> None:
+        """Allows resetting contexts list directly for test setup compatibility."""
+        self.runtime_manager.symbol_brains = {}
+        self.runtime_manager.processing_queues = {}
+
     def _get_or_create_context_bypassing_limits(self, symbol: str, timeframe: int) -> SymbolTimeContext:
-        """Retrieves or creates context without SRE limits verification (used on startup hydration)."""
+        """Retrieves or creates context bypassing limits (used on startup hydration)."""
         symbol_upper = symbol.upper()
         tf_int = int(timeframe)
-        context_id = f"{symbol_upper}_{tf_int}"
 
-        if context_id in self.contexts:
-            return self.contexts[context_id]
+        if symbol_upper not in self.runtime_manager.symbol_brains:
+            self.runtime_manager.symbol_brains[symbol_upper] = {}
+            self.runtime_manager.processing_queues[symbol_upper] = queue.Queue(maxsize=1000)
 
-        ctx = SymbolTimeContext(symbol_upper, tf_int)
-        self.contexts[context_id] = ctx
-        return ctx
+        brains = self.runtime_manager.symbol_brains[symbol_upper]
+        if tf_int not in brains:
+            brains[tf_int] = SymbolTimeContext(symbol_upper, tf_int)
+        return brains[tf_int]
 
     def _hydrate_contexts(self) -> None:
         """Hydrates isolated contexts from loaded persistent data, bypassing limits checks."""
@@ -271,25 +289,15 @@ class PredictiveShadowEngine:
             ctx.learning.append(learn)
 
     def get_or_create_context(self, symbol: str, timeframe: int) -> SymbolTimeContext:
-        """
-        Retrieves or instantiates an isolated SymbolTimeContext.
-        Enforces maximum active symbols operational limits during active runs.
-        """
+        """Retrieves or instantiates an isolated context in SymbolRuntimeManager."""
         symbol_upper = symbol.upper()
         tf_int = int(timeframe)
-        context_id = f"{symbol_upper}_{tf_int}"
 
-        if context_id in self.contexts:
-            return self.contexts[context_id]
-
-        # Limit Check: Count unique active symbols across registered contexts
-        active_symbols = set(ctx.symbol for ctx in self.contexts.values())
-        if len(active_symbols) >= self.max_symbols_limit and symbol_upper not in active_symbols:
-            raise ValueError(f"Hard SRE limit reached: Maximum {self.max_symbols_limit} active symbols allowed concurrent execution.")
-
-        ctx = SymbolTimeContext(symbol_upper, tf_int)
-        self.contexts[context_id] = ctx
-        return ctx
+        # Hydrate hierarchy if not exists
+        hierarchy = self.runtime_manager.get_or_create_symbol_hierarchy(symbol_upper)
+        if tf_int not in hierarchy:
+            hierarchy[tf_int] = SymbolTimeContext(symbol_upper, tf_int)
+        return hierarchy[tf_int]
 
     def create_predictive_order(
         self,
@@ -305,10 +313,7 @@ class PredictiveShadowEngine:
         node_id: Optional[str] = None,
         pattern: str = "Base Expansion Continuation"
     ) -> ShadowTrade:
-        """
-        Registers a predictive shadow order in its isolated SymbolTimeContext.
-        """
-        # Resolve Context & check limits
+        """Registers a predictive shadow order in its isolated SymbolTimeContext."""
         ctx = self.get_or_create_context(symbol, custom_time_structure)
 
         trade = ShadowTrade(
@@ -329,34 +334,29 @@ class PredictiveShadowEngine:
         self.trades.append(trade)
         self._save_trades()
 
-        # Build sanitized user signal from the newly created ShadowTrade
         self.generate_user_signal(trade)
         return trade
 
     def update_market_ticks(self, symbol: str, current_price: float) -> List[ShadowTrade]:
-        """
-        Updates floating state, SL/TP triggers across contexts of a specific symbol.
-        """
+        """Updates floating states across contexts of a symbol."""
         closed_trades = []
         symbol_upper = symbol.upper()
 
-        # Iterate all contexts of this symbol
-        matching_contexts = [ctx for ctx in self.contexts.values() if ctx.symbol == symbol_upper]
-        for ctx in matching_contexts:
-            # Append current tick
-            ctx.tick_buffer.append({"price": current_price, "timestamp": datetime.now().isoformat()})
-            if len(ctx.tick_buffer) > 5000:
-                ctx.tick_buffer.pop(0)
+        if symbol_upper in self.runtime_manager.symbol_brains:
+            brains = self.runtime_manager.symbol_brains[symbol_upper]
+            for ctx in brains.values():
+                ctx.tick_buffer.append({"price": current_price, "timestamp": datetime.now().isoformat()})
+                if len(ctx.tick_buffer) > 5000:
+                    ctx.tick_buffer.pop(0)
 
-            # Update trades in context
-            for trade in ctx.trades:
-                if trade.status in ["CREATED", "RUNNING"]:
-                    trade.update_price_tick(current_price)
-                    if trade.status in ["TARGET_HIT", "STOP_HIT", "TIMEOUT", "INVALIDATED"]:
-                        closed_trades.append(trade)
-                        self._record_pattern_outcome_context(ctx, trade)
-                        self._update_learning_history_context(ctx, trade)
-                        self._sync_user_signal(trade)
+                for trade in ctx.trades:
+                    if trade.status in ["CREATED", "RUNNING"]:
+                        trade.update_price_tick(current_price)
+                        if trade.status in ["TARGET_HIT", "STOP_HIT", "TIMEOUT", "INVALIDATED"]:
+                            closed_trades.append(trade)
+                            self._record_pattern_outcome_context(ctx, trade)
+                            self._update_learning_history_context(ctx, trade)
+                            self._sync_user_signal(trade)
 
         if closed_trades:
             self._save_trades()
