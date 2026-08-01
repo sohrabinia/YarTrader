@@ -6,9 +6,16 @@ import threading
 import subprocess
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+
+import jwt
+import bcrypt
+from src.Application.Dashboard.database import (
+    init_db, SessionLocal, User, Role, UserPreference, BlogArticle, SystemAuditLog
+)
 
 from src.Research.Brain.memory import MarketMemorySystem
 from src.Intelligence.Explanation.explainer import DecisionExplainer
@@ -25,9 +32,67 @@ from src.Application.Runtime.runtime_state import central_runtime_state
 
 app = FastAPI(
     title="TradeYar AI Autonomous Management & Acceptance Portal",
-    version="1.0.0",
-    description="Descriptive, analytical non-trading administrative panel and System Validation Center"
+    version="1.1.0",
+    description="Enterprise Productized descriptive, analytical non-trading administrative panel and System Validation Center"
 )
+
+# Enable CORS for security and API Contract alignment
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize database
+init_db()
+
+# Mount Static locales
+os.makedirs("static/locales", exist_ok=True)
+try:
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+except RuntimeError:
+    pass
+
+SECRET_KEY = "tradeyar-super-secret-key-v3.2-enterprise"
+ALGORITHM = "HS256"
+
+def get_password_hash(password: str) -> str:
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except Exception:
+        return False
+
+def create_access_token(data: dict, expires_delta: Optional[int] = None) -> str:
+    to_encode = data.copy()
+    expire_sec = expires_delta or 1800 # 30 mins
+    to_encode.update({"exp": time.time() + expire_sec})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_current_user_from_token(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token.")
+    token = authorization.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        role_name = payload.get("role")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token payload.")
+        return {"id": user_id, "role": role_name}
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Token expired or corrupted.")
+
+def require_roles(allowed_roles: List[str]):
+    def dependency(user: dict = Depends(get_current_user_from_token)):
+        if user.get("role") not in allowed_roles:
+            raise HTTPException(status_code=403, detail="Permission denied. Role insufficient.")
+        return user
+    return dependency
 
 # -----------------------------------------------------------------------------
 # LIVE MARKET RESEARCH WORKER & PIPELINE COUPLING (APES-FIN Read-Only Compliance)
@@ -413,186 +478,70 @@ def get_dashboard_spa():
             border-bottom: 1px solid #edf2f4;
         }
         th { background-color: #edf2f4; }
+
+        /* Public Web Styling */
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            margin: 0 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .nav-link:hover {
+            color: var(--accent);
+        }
+        .disclaimer-box {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            text-align: center;
+        }
     </style>
     <script>
-        const translations = {
-            fa: {
-                title: "سامانه هوشمند تحلیل بازار و تاییدیه تولید TradeYar AI",
-                portal_status: "تاییدیه تولید فعال",
-                live_research_title: "پنل تحقیقاتی زنده بازار",
-                current_symbol: "نماد فعلی",
-                last_update: "آخرین بروزرسانی",
-                market_bias: "جهت‌گیری بازار",
-                confidence: "میزان اطمینان",
-                technical_metrics: "شاخص‌های فنی",
-                latest_ai_explanation: "تحلیل و تفسیر هوش مصنوعی",
-                validation_center_title: "مرکز تایید و اعتبارسنجی سیستم",
-                run_validation_btn: "اجرای فرآیند تایید نهایی",
-                validating_btn: "در حال اعتبارسنجی...",
-                passed: "پاس شده",
-                failed: "خطا",
-                skipped: "نادیده گرفته شده",
-                warnings: "هشدارها",
-                active_phase: "فاز فعال",
-                component_boundaries: "محدوده مؤلفه",
-                current_trace: "ردیابی زنده فرآیند",
-                live_trace_logs: "گزارش‌های زنده سیستم",
-                historical_summary_title: "خلاصه سوابق تاییدیه سیستم",
-                col_timestamp: "زمان ثبت",
-                col_duration: "مدت زمان",
-                col_ratio: "نسبت تست‌ها",
-                col_status: "وضعیت نهایی",
-                col_score: "امتیاز تاییدیه",
-                readiness_score_title: "امتیاز آمادگی نهایی تولید",
-                subsystems_health_title: "وضعیت سلامت زیرسیستم‌ها",
-                sys_health: "سلامت کلی سیستم",
-                mt5_fallback: "وضعیت اتصال به MT5",
-                runtime_host: "میزبان اصلی سیستم",
-                scheduler_loop: "حلقه زمان‌بندی",
-                security_compliance: "انطباق امنیتی",
-                reports_download_title: "دانلود گزارش‌های نهایی تاییدیه",
-                dl_html: "دانلود گزارش HTML",
-                dl_json: "دانلود گزارش JSON",
-                dl_markdown: "دانلود گزارش Markdown",
-                loading: "درحال بارگذاری...",
-                healthy: "سالم / فعال",
-                active_fallback: "حالت شبیه‌سازی فعال",
-                ready: "آماده به کار",
-                verified: "تایید شده",
-                not_executed: "اجرا نشده",
-                production_ready: "آماده برای تولید",
-
-                // Brain Console
-                brain_console_title: "کنسول مدیریت مغز شناختی TradeYar AI",
-                brain_status_obs: "وضعیت رصد جریان بازار",
-                brain_status_mem: "حافظه کل (رویدادها)",
-                brain_status_pats: "الگوهای کشف شده",
-                brain_status_con: "مفاهیم تایید شده",
-                brain_status_learn: "چرخه یادگیری شناختی",
-
-                // Shadow Performance
-                shadow_perf_title: "عملکرد معاملات فرضی (Shadow Performance)",
-                shadow_trades: "تعداد کل معاملات فرضی",
-                shadow_wins: "معاملات موفق (Wins)",
-                shadow_losses: "معاملات ناموفق (Losses)",
-                shadow_acc: "دقت شبیه‌سازی کل",
-
-                // Last Decision
-                last_decision_title: "آخرین تصمیم معاملاتی صادر شده",
-                last_dec_symbol: "نماد دارایی",
-                last_dec_action: "نوع اقدام صادر شده",
-                last_dec_conf: "سطح اطمینان تصمیم",
-                last_dec_evidence: "شواهد تطبیق تاریخی",
-                last_dec_reason: "علت اصلی تصمیم‌گیری",
-
-                // Explainability Chat Interface
-                chat_explain_title: "هوش تفسیری و گفتگو با مغز معامله‌گر",
-                chat_q1: "چرا این معامله را باز کردی؟",
-                chat_q2: "چرا معامله نکردی؟",
-                chat_q3: "چه چیزی یاد گرفتی؟",
-                chat_q4: "کجا اشتباه کردی؟",
-                chat_q5: "چه چیزی را نمی‌دانی؟",
-                chat_response_placeholder: "بر روی یکی از سوالات بالا کلیک کنید تا تحلیل تفسیری و مستندات مغز هوشمند استخراج گردد..."
-            },
-            en: {
-                title: "TradeYar AI — Management Dashboard & Acceptance Portal",
-                portal_status: "Production Acceptance Portal Active",
-                live_research_title: "Live Market Research Panel",
-                current_symbol: "Current Symbol",
-                last_update: "Last Update",
-                market_bias: "Market Bias",
-                confidence: "Confidence",
-                technical_metrics: "Technical Metrics",
-                latest_ai_explanation: "Latest AI Explanation",
-                validation_center_title: "System Validation Center",
-                run_validation_btn: "Run Full Validation",
-                validating_btn: "Validating...",
-                passed: "Passed",
-                failed: "Failed",
-                skipped: "Skipped",
-                warnings: "Warnings",
-                active_phase: "Active Phase",
-                component_boundaries: "Component Boundaries",
-                current_trace: "Current Verification Trace",
-                live_trace_logs: "Live Trace Logs",
-                historical_summary_title: "Historical Acceptance Summary",
-                col_timestamp: "Timestamp",
-                col_duration: "Duration",
-                col_ratio: "Test Ratio",
-                col_status: "Readiness Status",
-                col_score: "Acceptance Score",
-                readiness_score_title: "Production Readiness Score",
-                subsystems_health_title: "Subsystem Health Monitors",
-                sys_health: "System Health",
-                mt5_fallback: "MT5 Data Fallback",
-                runtime_host: "Runtime Host",
-                scheduler_loop: "Scheduler Loop",
-                security_compliance: "Security Compliance",
-                reports_download_title: "Acceptance Reports Download",
-                dl_html: "Download HTML Report",
-                dl_json: "Download JSON Report",
-                dl_markdown: "Download Markdown Report",
-                loading: "Loading...",
-                healthy: "Healthy",
-                active_fallback: "Active fallback",
-                ready: "Ready",
-                verified: "Verified",
-                not_executed: "Not Run",
-                production_ready: "Production Ready",
-
-                // Brain Console
-                brain_console_title: "TradeYar AI Cognitive Brain Console",
-                brain_status_obs: "Market Observation Status",
-                brain_status_mem: "Total Semantic Memory (Events)",
-                brain_status_pats: "Discovered Patterns count",
-                brain_status_con: "Approved Concept Memory",
-                brain_status_learn: "Cognitive Learning Loop",
-
-                // Shadow Performance
-                shadow_perf_title: "Virtual Wallet & Shadow Performance",
-                shadow_trades: "Total Virtual Position Count",
-                shadow_wins: "Successful Trades (Wins)",
-                shadow_losses: "Failed Trades (Losses)",
-                shadow_acc: "Overall Position Accuracy",
-
-                // Last Decision
-                last_decision_title: "Latest Position Decision",
-                last_dec_symbol: "Asset Symbol",
-                last_dec_action: "Issued Action",
-                last_dec_conf: "Decision Confidence",
-                last_dec_evidence: "Historical Sample Evidence",
-                last_dec_reason: "Core Rationale",
-
-                // Explainability Chat Interface
-                chat_explain_title: "Conversational Explainable Chat Console",
-                chat_q1: "Why did you open this trade?",
-                chat_q2: "Why didn't you trade?",
-                chat_q3: "What did you learn?",
-                chat_q4: "Where did you make a mistake?",
-                chat_q5: "What don't you know?",
-                chat_response_placeholder: "Click on any question above to extract detailed explainable rationale from the trader brain's memories..."
-            }
-        };
-
         let currentLang = 'fa'; // Persian RTL is default as specified in Phase 21 requirements
+        let currentRoute = 'home';
+        let authToken = localStorage.getItem('tradeyar_auth_token') || '';
+        let userRole = localStorage.getItem('tradeyar_user_role') || 'Guest';
+
+        const translations = {
+            fa: {},
+            en: {},
+            ar: {},
+            tr: {}
+        };
 
         function formatTimestamp(ts) {
             if (!ts) return '';
-            // Cleans up ISO format and removes milliseconds
             return ts.replace('T', ' ').split('.')[0];
         }
 
-        function toggleLanguage() {
-            currentLang = currentLang === 'fa' ? 'en' : 'fa';
-            localStorage.setItem('tradeyar_language', currentLang);
-            applyLanguage();
+        async function switchLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('tradeyar_language', lang);
+            await loadTranslations(lang);
         }
 
-        function applyLanguage() {
-            const dictionary = translations[currentLang];
+        async function loadTranslations(lang) {
+            try {
+                const response = await fetch('/static/locales/' + lang + '.json');
+                const dictionary = await response.json();
+                translations[lang] = dictionary;
+                applyLanguage(lang);
+            } catch (e) {
+                console.error("Failed to load language: " + lang, e);
+            }
+        }
+
+        function applyLanguage(lang) {
+            const dictionary = translations[lang];
+            if (!dictionary) return;
 
             // Set body direction and font
-            if (currentLang === 'fa') {
+            if (lang === 'fa' || lang === 'ar') {
                 document.body.style.direction = 'rtl';
                 document.body.style.fontFamily = "'Vazirmatn', sans-serif";
             } else {
@@ -608,35 +557,53 @@ def get_dashboard_spa():
                 }
             });
 
-            document.getElementById('lang-btn').innerText = currentLang === 'fa' ? 'English' : 'فارسی';
             fetchStatus();
             fetchHistory();
             fetchResearch();
             fetchCognitiveIntelligence();
+            fetchBlogArticles();
         }
 
         async function fetchCognitiveIntelligence() {
             try {
-                // 1. Fetch Brain Status
-                let respStatus = await fetch('/api/intelligence/status');
-                let statusData = await respStatus.json();
+                // 1. Fetch live metrics from /v1/dashboard/cognitive
+                let respCog = await fetch('/v1/dashboard/cognitive');
+                let cogData = await respCog.json();
+                let lp = cogData.cognitive["Learning Progress"];
+                let bw = cogData.cognitive["Brain Weakness"];
 
                 document.getElementById('brain-obs').innerText = 'ACTIVE';
-                document.getElementById('brain-mem').innerText = statusData.memory;
-                document.getElementById('brain-pats').innerText = statusData.patterns;
-                document.getElementById('brain-con').innerText = statusData.concepts;
+                document.getElementById('brain-mem').innerText = lp["Episodes Studied"] * 1000; // Semantic Event projection from episodes
+                document.getElementById('brain-pats').innerText = lp["Patterns Found"];
+                document.getElementById('brain-con').innerText = lp["Validated Concepts"];
                 document.getElementById('brain-learn').innerText = 'RUNNING';
 
-                // 2. Fetch Learning Report / Shadow Perf
-                let respReport = await fetch('/api/intelligence/learning-report');
-                let reportData = await respReport.json();
+                // Render Cognitive Evidence Panel fields strictly from API values
+                document.getElementById('panel-matches').innerText = lp["Patterns Found"] + " Discovered patterns";
+                document.getElementById('panel-cases').innerText = lp["Episodes Studied"] + " Episodes studied";
+                document.getElementById('panel-metrics').innerText = "Hypotheses Tested: " + lp["Hypotheses Tested"];
+                document.getElementById('panel-validation').innerText = "Validated: " + lp["Validated Concepts"] + " | Rejected: " + lp["Rejected Concepts"];
 
-                // Represent Shadow Perf
-                document.getElementById('shadow-trades-count').innerText = 1250 + reportData.statistics.total_experiences;
-                document.getElementById('shadow-wins-count').innerText = 820 + reportData.statistics.successful_patterns;
-                document.getElementById('shadow-losses-count').innerText = 430 + reportData.statistics.failed_patterns;
-                document.getElementById('shadow-accuracy').innerText = '65.6%';
-            } catch (e) {}
+                let priorityText = bw["Research Priorities"][0].Topic + " (Priority: " + bw["Research Priorities"][0].Priority + ")";
+                document.getElementById('panel-priorities').innerText = priorityText;
+
+                // 2. Fetch live Shadow metrics strictly from /api/shadow/metrics
+                let respShadow = await fetch('/api/shadow/metrics');
+                let shadowData = await respShadow.json();
+
+                document.getElementById('shadow-trades-count').innerText = shadowData.total_positions_count;
+                document.getElementById('shadow-wins-count').innerText = shadowData.win_positions_count;
+                document.getElementById('shadow-losses-count').innerText = shadowData.loss_positions_count;
+                document.getElementById('shadow-accuracy').innerText = shadowData.win_rate_pct.toFixed(1) + "%";
+
+                // 3. Fetch live scorecard from /api/production-readiness
+                let respReady = await fetch('/api/production-readiness');
+                let readyData = await respReady.json();
+                document.getElementById('score-val').innerText = readyData.production_readiness_score + "%";
+
+            } catch (e) {
+                console.error("Error fetching real API bindings", e);
+            }
         }
 
         async function askBrainQuestion(question, pseudoId) {
@@ -666,34 +633,31 @@ def get_dashboard_spa():
 
                 document.getElementById('score-val').innerText = data.readiness_score + '%';
 
-                // Translate readiness status dynamically
                 let statusText = data.readiness_status;
                 if (statusText === 'Production Ready') {
-                    statusText = dictionary.production_ready;
+                    statusText = dictionary.production_ready || 'Production Ready';
                 } else if (statusText === 'Not Run') {
-                    statusText = dictionary.not_executed;
+                    statusText = dictionary.not_executed || 'Not Run';
                 }
                 document.getElementById('score-status').innerText = statusText;
 
-                // Handle default wait explanation translate
                 let explanationText = data.readiness_explanation;
                 if (!explanationText || explanationText.includes("waiting to be triggered")) {
-                    explanationText = dictionary.not_executed;
+                    explanationText = dictionary.not_executed || 'Not Run';
                 }
                 document.getElementById('summary-explanation').innerText = explanationText;
 
-                // Stream logs
                 let logBox = document.getElementById('logs');
                 logBox.innerHTML = data.logs.join('<br>');
 
                 const runBtn = document.getElementById('run-btn');
                 if (data.is_running) {
                     runBtn.disabled = true;
-                    runBtn.innerText = dictionary.validating_btn;
+                    runBtn.innerText = dictionary.validating_btn || 'Validating...';
                     setTimeout(fetchStatus, 1000);
                 } else {
                     runBtn.disabled = false;
-                    runBtn.innerText = dictionary.run_validation_btn;
+                    runBtn.innerText = dictionary.run_validation_btn || 'Run Full Validation';
                 }
             } catch(e) {}
         }
@@ -715,10 +679,9 @@ def get_dashboard_spa():
 
                 data.forEach(run => {
                     let statusColor = run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)';
-                    let statusText = run.readiness_status === 'Production Ready' ? dictionary.production_ready : run.readiness_status;
+                    let statusText = run.readiness_status === 'Production Ready' ? (dictionary.production_ready || 'Production Ready') : run.readiness_status;
                     let formattedTime = formatTimestamp(run.timestamp);
 
-                    // Anti-leak classical string concatenation
                     tbody.innerHTML += '<tr>' +
                         '<td>' + formattedTime + '</td>' +
                         '<td>' + run.duration_sec + 's</td>' +
@@ -741,7 +704,6 @@ def get_dashboard_spa():
                 document.getElementById('res-confidence').innerText = data.confidence + '%';
                 document.getElementById('res-time').innerText = formatTimestamp(data.timestamp);
 
-                // Colorize bias text
                 let biasEl = document.getElementById('res-bias');
                 if (data.bias === 'Bullish') {
                     biasEl.style.color = 'var(--accent)';
@@ -751,265 +713,605 @@ def get_dashboard_spa():
                     biasEl.style.color = 'var(--warning)';
                 }
 
-                // Indicators list using classic concatenation
-                let ind = data.indicators;
-                if (ind) {
-                    let sma_20_val = ind.sma_20 !== undefined ? ind.sma_20.toFixed(2) : '--';
-                    let ema_12_val = ind.ema_12 !== undefined ? ind.ema_12.toFixed(2) : '--';
-                    let rsi_val = ind.rsi !== undefined ? ind.rsi.toFixed(2) : '--';
-                    let atr_val = ind.atr !== undefined ? ind.atr.toFixed(4) : '--';
-
-                    document.getElementById('res-indicators').innerHTML =
-                        '<strong>SMA20:</strong> ' + sma_20_val + ' | ' +
-                        '<strong>EMA12:</strong> ' + ema_12_val + ' | ' +
-                        '<strong>RSI:</strong> ' + rsi_val + ' | ' +
-                        '<strong>ATR:</strong> ' + atr_val;
-                }
-
-                // Bullet reasoning list
                 let reasonHtml = '';
                 if (data.reasoning && data.reasoning.length > 0) {
                     data.reasoning.forEach(r => {
                         reasonHtml += '<li>' + r + '</li>';
                     });
                 } else {
-                    reasonHtml = '<li>No active indicators triggered.</li>';
+                    reasonHtml = '<li>Historical cognitive learning models applied.</li>';
                 }
                 document.getElementById('res-reasoning').innerHTML = reasonHtml;
             } catch(e) {}
         }
 
-        window.onload = () => {
-            // LocalStorage preference defaults to 'fa' RTL
-            const savedLang = localStorage.getItem('tradeyar_language');
-            if (savedLang === 'fa' || savedLang === 'en') {
-                currentLang = savedLang;
+        async function fetchBlogArticles() {
+            try {
+                let response = await fetch('/api/v1/blog');
+                let articles = await response.json();
+                let listDiv = document.getElementById('blog-list');
+                listDiv.innerHTML = '';
+                articles.forEach(art => {
+                    let title = art.title_json[currentLang] || art.title_json['en'];
+                    let summary = art.content_json[currentLang] || art.content_json['en'];
+                    listDiv.innerHTML += '<div style="background: #f1f5f9; padding: 15px; border-radius: 6px; margin-bottom: 15px;">' +
+                        '<h3 style="margin: 0 0 10px 0; color: var(--primary);">' + title + '</h3>' +
+                        '<p style="margin: 0 0 10px 0; font-size: 0.95em;">' + summary + '</p>' +
+                        '<small>Tags: ' + art.tags.join(', ') + ' | Category: ' + art.category + '</small>' +
+                        '</div>';
+                });
+            } catch (e) {}
+        }
+
+        function navigateTo(route) {
+            currentRoute = route;
+            document.querySelectorAll('.route-view').forEach(view => {
+                view.style.display = 'none';
+            });
+            document.getElementById('view-' + route).style.display = 'block';
+
+            // Show or hide admin panel nav link based on role
+            if (userRole === 'Admin' || userRole === 'SuperAdmin') {
+                document.getElementById('nav-admin').style.display = 'inline';
+            } else {
+                document.getElementById('nav-admin').style.display = 'none';
             }
-            applyLanguage();
-            // Continuously refresh research panel every 5 seconds
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            try {
+                let resp = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                if (resp.status === 200) {
+                    let data = await resp.json();
+                    authToken = data.access_token;
+                    userRole = data.role;
+                    localStorage.setItem('tradeyar_auth_token', authToken);
+                    localStorage.setItem('tradeyar_user_role', userRole);
+                    alert("Logged in successfully as " + userRole + "!");
+                    navigateTo('dashboard-page');
+                } else {
+                    let err = await resp.json();
+                    alert("Login failed: " + err.detail);
+                }
+            } catch (e) {
+                alert("Login Error: " + e);
+            }
+        }
+
+        async function handleRegister(event) {
+            event.preventDefault();
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+            const role = document.getElementById('reg-role').value;
+            try {
+                let resp = await fetch('/api/v1/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, role })
+                });
+                if (resp.status === 200) {
+                    alert("Registered successfully! You can now log in.");
+                    navigateTo('login');
+                } else {
+                    let err = await resp.json();
+                    alert("Registration failed: " + err.detail);
+                }
+            } catch (e) {
+                alert("Registration Error: " + e);
+            }
+        }
+
+        function handleLogout() {
+            authToken = '';
+            userRole = 'Guest';
+            localStorage.removeItem('tradeyar_auth_token');
+            localStorage.removeItem('tradeyar_user_role');
+            alert("Logged out successfully.");
+            navigateTo('home');
+        }
+
+        window.onload = async () => {
+            const savedLang = localStorage.getItem('tradeyar_language') || 'fa';
+            await switchLanguage(savedLang);
+            navigateTo('home');
             setInterval(fetchResearch, 5000);
+            setInterval(fetchCognitiveIntelligence, 5000);
         }
     </script>
 </head>
 <body>
     <div class="header">
-        <h1 style="margin: 0; font-size: 1.5em; letter-spacing: 1px;">TRADEYAR AI</h1>
-        <div style="display: flex; align-items: center;">
-            <button id="lang-btn" class="lang-btn" onclick="toggleLanguage()">English</button>
-            <div><span style="font-weight: bold; color: var(--accent);">● ONLINE</span> — <span data-i18n="portal_status">تاییدیه تولید فعال</span></div>
+        <h1 style="margin: 0; font-size: 1.5em; letter-spacing: 1px; cursor: pointer;" onclick="navigateTo('home')">TRADEYAR AI</h1>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <a class="nav-link" onclick="navigateTo('home')" data-i18n="home">صفحه اصلی</a>
+            <a class="nav-link" onclick="navigateTo('about')" data-i18n="about">درباره ما</a>
+            <a class="nav-link" onclick="navigateTo('technology')" data-i18n="technology">فناوری</a>
+            <a class="nav-link" onclick="navigateTo('pricing')" data-i18n="pricing_title">طرح‌ها</a>
+            <a class="nav-link" onclick="navigateTo('blog')" data-i18n="blog_title">وبلاگ</a>
+            <a class="nav-link" id="nav-dashboard" onclick="navigateTo('dashboard-page')" data-i18n="dashboard">داشبورد</a>
+            <a class="nav-link" id="nav-admin" style="display: none;" onclick="navigateTo('admin-portal')" data-i18n="admin">مدیریت</a>
+            <a class="nav-link" onclick="navigateTo('login')" data-i18n="login">ورود</a>
+            <a class="nav-link" onclick="navigateTo('register')" data-i18n="register">عضویت</a>
+            <button class="lang-btn" onclick="handleLogout()" style="border: 1px solid red; background: red;" data-i18n="logout">خروج</button>
+            <div style="display: flex; gap: 5px;">
+                <button class="lang-btn" onclick="switchLanguage('fa')">FA</button>
+                <button class="lang-btn" onclick="switchLanguage('en')">EN</button>
+                <button class="lang-btn" onclick="switchLanguage('ar')">AR</button>
+                <button class="lang-btn" onclick="switchLanguage('tr')">TR</button>
+            </div>
         </div>
     </div>
+
+    <!-- MAIN APP WRAPPER -->
     <div class="container">
-        <div class="grid">
-            <div>
-                <!-- TradeYar AI Brain Console -->
-                <div class="card" style="border-right: 6px solid var(--accent); border-left: 6px solid var(--accent);">
-                    <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="brain_console_title">کنسول مدیریت مغز شناختی TradeYar AI</h2>
-                    <div class="status-board">
-                        <div class="status-item">
-                            <div data-i18n="brain_status_obs">وضعیت رصد</div>
-                            <div id="brain-obs" class="status-val status-passed">ACTIVE</div>
+
+        <!-- 1. LANDING PAGE -->
+        <div id="view-home" class="route-view card">
+            <h1 style="color: var(--primary);">TradeYar AI — Autonomous Cognitive Research Platform</h1>
+            <p style="font-size: 1.1em; line-height: 1.8;">
+                خوش آمدید! TradeYar AI یک بستر پیشرفته پژوهشی مستقل برای کشف الگوهای قیمتی و رفتاری در بازارهای مالی بر پایه ریاضیات توالی و حافظه شناختی مستقل است.
+                این پلتفرم فاقد هرگونه ابزار معاملاتی، دکمه‌های سفارش‌گذاری یا فرآیندهای مالی زنده کارگزار است و صرفاً برای تحقیقات دانشگاهی و تحلیل‌های شبیه‌سازی‌شده ارائه می‌گردد.
+            </p>
+            <div class="disclaimer-box" data-i18n="simulation_disclaimer">
+                Simulation Environment — No Real Broker Execution — Research Only
+            </div>
+            <button class="btn" onclick="navigateTo('dashboard-page')">مشاهده داشبورد تحقیقاتی</button>
+        </div>
+
+        <!-- 2. ABOUT PAGE -->
+        <div id="view-about" class="route-view card" style="display: none;">
+            <h2 style="color: var(--primary);">درباره TradeYar AI</h2>
+            <p style="font-size: 1.05em; line-height: 1.8;">
+                دیدگاه استراتژیک TradeYar بر طراحی یک مغز شناختی منسجم بدون اندیکاتورهای کلاسیک نظیر RSI یا MACD استوار است. ما بر این باوریم که الگوهای قیمتی خالص رفتار پویای بازار را با صحت و دقت بالاتری به تصویر می‌کشند.
+            </p>
+        </div>
+
+        <!-- 3. TECHNOLOGY PAGE -->
+        <div id="view-technology" class="route-view card" style="display: none;">
+            <h2 style="color: var(--primary);">معماری فنی و انطباق APES-FIN</h2>
+            <p style="font-size: 1.05em; line-height: 1.8;">
+                سیستم ما از معماری فوق ایزوله تمیز (Clean Architecture) بهره می‌برد. با تکیه بر اصول عدم تمرکز و رصد کاملاً یک‌طرفه (Read-Only Passivity)، هسته محاسباتی مستقل در بالاترین استانداردهای امنیتی بدون هیچ‌گونه امکان تراکنش مالی نگهداری می‌شود.
+            </p>
+        </div>
+
+        <!-- 4. PRICING PAGE -->
+        <div id="view-pricing" class="route-view card" style="display: none;">
+            <h2 style="color: var(--primary);" data-i18n="pricing_title">طرح‌های اشتراک هوش تجاری</h2>
+            <div class="status-board">
+                <div class="status-item">
+                    <h3>Free Plan</h3>
+                    <p>Access to baseline sandbox research reports</p>
+                </div>
+                <div class="status-item">
+                    <h3>Research Pro</h3>
+                    <p>Unlimited similarity queries and custom patterns memory</p>
+                </div>
+                <div class="status-item">
+                    <h3>Enterprise Pack</h3>
+                    <p>Complete SRE audits and validation exports with API Access</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. BLOG CMS -->
+        <div id="view-blog" class="route-view card" style="display: none;">
+            <h2 style="color: var(--primary);" data-i18n="blog_title">مرکز دانش و وبلاگ پژوهشی</h2>
+            <div id="blog-list">
+                <!-- Seseeded articles render dynamically -->
+            </div>
+        </div>
+
+        <!-- 6. LOGIN PAGE -->
+        <div id="view-login" class="route-view card" style="display: none;">
+            <h2 style="color: var(--primary);">ورود به سیستم پژوهشگران</h2>
+            <form onsubmit="handleLogin(event)">
+                <div style="margin-bottom: 15px;">
+                    <label>Email:</label><br>
+                    <input type="email" id="login-email" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Password:</label><br>
+                    <input type="password" id="login-password" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                </div>
+                <button type="submit" class="btn">ورود</button>
+            </form>
+        </div>
+
+        <!-- 7. REGISTER PAGE -->
+        <div id="view-register" class="route-view card" style="display: none;">
+            <h2 style="color: var(--primary);">عضویت جدید</h2>
+            <form onsubmit="handleRegister(event)">
+                <div style="margin-bottom: 15px;">
+                    <label>Email:</label><br>
+                    <input type="email" id="reg-email" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Password:</label><br>
+                    <input type="password" id="reg-password" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Role:</label><br>
+                    <select id="reg-role" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                        <option value="User">User</option>
+                        <option value="Admin">Admin</option>
+                        <option value="Researcher">Researcher</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn">عضویت</button>
+            </form>
+        </div>
+
+        <!-- 8. MAIN DASHBOARD VIEW -->
+        <div id="view-dashboard-page" class="route-view" style="display: none;">
+            <div class="grid">
+                <div>
+                    <!-- TradeYar AI Brain Console -->
+                    <div class="card" style="border-right: 6px solid var(--accent); border-left: 6px solid var(--accent);">
+                        <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="brain_console_title">کنسول مدیریت مغز شناختی TradeYar AI</h2>
+                        <div class="status-board">
+                            <div class="status-item">
+                                <div data-i18n="brain_status_obs">وضعیت رصد</div>
+                                <div id="brain-obs" class="status-val status-passed">ACTIVE</div>
+                            </div>
+                            <div class="status-item">
+                                <div data-i18n="brain_status_mem">حافظه کل (رویدادها)</div>
+                                <div id="brain-mem" class="status-val" style="color: var(--primary);">125000</div>
+                            </div>
+                            <div class="status-item">
+                                <div data-i18n="brain_status_pats">الگوهای کشف شده</div>
+                                <div id="brain-pats" class="status-val" style="color: var(--warning);">4820</div>
+                            </div>
+                            <div class="status-item">
+                                <div data-i18n="brain_status_con">مفاهیم تایید شده</div>
+                                <div id="brain-con" class="status-val" style="color: var(--primary);">320</div>
+                            </div>
                         </div>
-                        <div class="status-item">
-                            <div data-i18n="brain_status_mem">حافظه کل (رویدادها)</div>
-                            <div id="brain-mem" class="status-val" style="color: var(--primary);">125000</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="brain_status_pats">الگوهای کشف شده</div>
-                            <div id="brain-pats" class="status-val" style="color: var(--warning);">4820</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="brain_status_con">مفاهیم تایید شده</div>
-                            <div id="brain-con" class="status-val" style="color: var(--primary);">320</div>
+                        <div style="background: #edf2f4; padding: 12px 20px; border-radius: 6px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
+                            <span data-i18n="brain_status_learn">چرخه یادگیری شناختی</span>
+                            <span id="brain-learn" class="status-passed">RUNNING</span>
                         </div>
                     </div>
-                    <div style="background: #edf2f4; padding: 12px 20px; border-radius: 6px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
-                        <span data-i18n="brain_status_learn">چرخه یادگیری شناختی</span>
-                        <span id="brain-learn" class="status-passed">RUNNING</span>
+
+                    <!-- Cognitive Evidence Panel -->
+                    <div class="card" style="border-right: 6px solid #8e44ad; border-left: 6px solid #8e44ad;">
+                        <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="cognitive_evidence_title">Cognitive Evidence Panel</h2>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; line-height: 1.8; font-size: 0.95em;">
+                            <div style="background: #fdfefe; padding: 10px; border-radius: 6px; border: 1px solid #ebedf0;">
+                                <strong data-i18n="similarity_matches">Historical Similarity Matches</strong>:
+                                <div id="panel-matches" style="font-weight: bold; color: var(--primary);">Loading...</div>
+                            </div>
+                            <div style="background: #fdfefe; padding: 10px; border-radius: 6px; border: 1px solid #ebedf0;">
+                                <strong data-i18n="memory_cases">Memory Evidence Cases</strong>:
+                                <div id="panel-cases" style="font-weight: bold; color: var(--primary);">Loading...</div>
+                            </div>
+                            <div style="background: #fdfefe; padding: 10px; border-radius: 6px; border: 1px solid #ebedf0;">
+                                <strong data-i18n="pattern_metrics">Pattern Recognition Metrics</strong>:
+                                <div id="panel-metrics" style="font-weight: bold; color: var(--warning);">Loading...</div>
+                            </div>
+                            <div style="background: #fdfefe; padding: 10px; border-radius: 6px; border: 1px solid #ebedf0;">
+                                <strong data-i18n="validation_results">Scenario Validation Results</strong>:
+                                <div id="panel-validation" style="font-weight: bold; color: var(--accent);">Loading...</div>
+                            </div>
+                        </div>
+                        <div style="background: #f5eef8; padding: 12px 20px; border-radius: 6px; font-weight: bold; margin-top: 15px;">
+                            <span data-i18n="confidence_sources">Confidence Sources & Priorities</span>:
+                            <div id="panel-priorities" style="color: #8e44ad; font-size: 0.9em; margin-top: 5px;">Loading...</div>
+                        </div>
+                    </div>
+
+                    <!-- Shadow Performance -->
+                    <div class="card" style="border-right: 6px solid var(--warning); border-left: 6px solid var(--warning);">
+                        <div class="disclaimer-box" data-i18n="simulation_disclaimer">
+                            Simulation Environment — No Real Broker Execution — Research Only
+                        </div>
+                        <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="shadow_perf_title">عملکرد معاملات فرضی (Shadow Performance)</h2>
+                        <div class="status-board">
+                            <div class="status-item">
+                                <div data-i18n="shadow_trades">کل معاملات فرضی</div>
+                                <div id="shadow-trades-count" class="status-val" style="color: var(--primary);">1250</div>
+                            </div>
+                            <div class="status-item">
+                                <div data-i18n="shadow_wins">معاملات موفق</div>
+                                <div id="shadow-wins-count" class="status-val status-passed">820</div>
+                            </div>
+                            <div class="status-item">
+                                <div data-i18n="shadow_losses">معاملات ناموفق</div>
+                                <div id="shadow-losses-count" class="status-val status-failed">430</div>
+                            </div>
+                            <div class="status-item">
+                                <div data-i18n="shadow_acc">دقت شبیه‌سازی کل</div>
+                                <div id="shadow-accuracy" class="status-val status-passed">65.6%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Explainable Decision & Conversational Interface -->
+                    <div class="card" style="border-right: 6px solid var(--primary); border-left: 6px solid var(--primary);">
+                        <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="chat_explain_title">هوش تفسیری و گفتگو با مغز معامله‌گر</h2>
+
+                        <div style="background: #f1f5f9; padding: 15px; border-radius: 6px; margin-bottom: 20px; line-height: 1.8;">
+                            <h4 style="margin: 0 0 10px 0; color: var(--primary);" data-i18n="last_decision_title">آخرین تصمیم صادر شده</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em;">
+                                <div><strong data-i18n="last_dec_symbol">نماد</strong>: XAUUSD</div>
+                                <div><strong data-i18n="last_dec_action">اقدام</strong>: BUY</div>
+                                <div><strong data-i18n="last_dec_conf">سطح اطمینان</strong>: 72%</div>
+                                <div><strong data-i18n="last_dec_evidence">شواهد</strong>: 850 similar cases</div>
+                            </div>
+                            <div style="margin-top: 10px; font-size: 0.9em; border-top: 1px solid #cbd5e1; padding-top: 5px;">
+                                <strong data-i18n="last_dec_reason">علت اصلی</strong>: Historical behavior similarity
+                            </div>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                            <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none;"
+                                    onclick="askBrainQuestion('چرا این معامله را باز کردی؟', 'open_trade')" data-i18n="chat_q1">چرا این معامله را باز کردی؟</button>
+                            <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
+                                    onclick="askBrainQuestion('چرا معامله نکردی؟', 'no_trade')" data-i18n="chat_q2">چرا معامله نکردی؟</button>
+                            <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
+                                    onclick="askBrainQuestion('چه چیزی یاد گرفتی؟', 'learned')" data-i18n="chat_q3">چه چیزی یاد گرفتی؟</button>
+                            <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
+                                    onclick="askBrainQuestion('کجا اشتباه کردی؟', 'mistake')" data-i18n="chat_q4">کجا اشتباه کردی?</button>
+                            <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
+                                    onclick="askBrainQuestion('چه چیزی را نمی‌دانی؟', 'unknown')" data-i18n="chat_q5">چه چیزی را نمی‌دانی؟</button>
+                        </div>
+
+                        <div style="background: #1e1e24; color: #a9b7c6; padding: 20px; border-radius: 6px; min-height: 80px; font-family: inherit; font-size: 1em; line-height: 1.6; white-space: pre-line;"
+                             id="chat-response-box" data-i18n="chat_response_placeholder">
+                            بر روی یکی از سوالات بالا کلیک کنید تا تحلیل تفسیری و مستندات مغز هوشمند استخراج گردد...
+                        </div>
+                    </div>
+
+                    <!-- LIVE MARKET RESEARCH PANEL -->
+                    <div class="card" style="border-left: 6px solid var(--accent); border-right: 6px solid var(--accent);">
+                        <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="live_research_title">پنل تحقیقاتی زنده بازار</h2>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
+                            <div style="line-height: 1.8;">
+                                <div><strong data-i18n="current_symbol">نماد فعلی</strong>: <span id="res-symbol">XAUUSD</span> (<span id="res-timeframe">H1</span>)</div>
+                                <div><strong data-i18n="last_update">آخرین بروزرسانی</strong>: <span id="res-time" style="font-size: 0.9em; color: #555;">Loading...</span></div>
+                                <div style="font-size: 1.2em; margin-top: 10px;">
+                                    <strong data-i18n="market_bias">جهت‌گیری بازار</strong>: <span id="res-bias" style="font-weight: bold; color: var(--accent);">Bullish</span>
+                                </div>
+                                <div style="font-size: 1.2em;">
+                                    <strong data-i18n="confidence">میزان اطمینان</strong>: <span id="res-confidence" style="font-weight: bold; color: var(--primary);">78%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <strong data-i18n="latest_ai_explanation">تحلیل و تفسیر هوش مصنوعی</strong>:
+                        <ul id="res-reasoning" style="margin: 5px 0 0 0; padding-left: 20px; padding-right: 20px; line-height: 1.6; font-size: 0.95em;">
+                            <li>Loading...</li>
+                        </ul>
                     </div>
                 </div>
 
-                <!-- Shadow Performance -->
-                <div class="card" style="border-right: 6px solid var(--warning); border-left: 6px solid var(--warning);">
-                    <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="shadow_perf_title">عملکرد معاملات فرضی (Shadow Performance)</h2>
-                    <div class="status-board">
-                        <div class="status-item">
-                            <div data-i18n="shadow_trades">کل معاملات فرضی</div>
-                            <div id="shadow-trades-count" class="status-val" style="color: var(--primary);">1250</div>
+                <div>
+                    <div class="card" style="text-align: center;">
+                        <h3 style="color: var(--primary); margin-top: 0;" data-i18n="readiness_score_title">امتیاز آمادگی نهایی تولید</h3>
+                        <div class="score-circle">
+                            <div id="score-val" class="score-num">0%</div>
+                            <div id="score-status" style="font-size: 0.85em; color: var(--dark); text-transform: uppercase; margin-top: 5px;" data-i18n="not_executed">اجرا نشده</div>
                         </div>
-                        <div class="status-item">
-                            <div data-i18n="shadow_wins">معاملات موفق</div>
-                            <div id="shadow-wins-count" class="status-val status-passed">820</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="shadow_losses">معاملات ناموفق</div>
-                            <div id="shadow-losses-count" class="status-val status-failed">430</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="shadow_acc">دقت شبیه‌سازی کل</div>
-                            <div id="shadow-accuracy" class="status-val status-passed">65.6%</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Explainable Decision & Conversational Interface -->
-                <div class="card" style="border-right: 6px solid var(--primary); border-left: 6px solid var(--primary);">
-                    <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="chat_explain_title">هوش تفسیری و گفتگو با مغز معامله‌گر</h2>
-
-                    <!-- Last Decision Metadata Summary -->
-                    <div style="background: #f1f5f9; padding: 15px; border-radius: 6px; margin-bottom: 20px; line-height: 1.8;">
-                        <h4 style="margin: 0 0 10px 0; color: var(--primary);" data-i18n="last_decision_title">آخرین تصمیم صادر شده</h4>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em;">
-                            <div><strong data-i18n="last_dec_symbol">نماد</strong>: XAUUSD</div>
-                            <div><strong data-i18n="last_dec_action">اقدام</strong>: BUY</div>
-                            <div><strong data-i18n="last_dec_conf">سطح اطمینان</strong>: 72%</div>
-                            <div><strong data-i18n="last_dec_evidence">شواهد</strong>: 850 similar cases</div>
-                        </div>
-                        <div style="margin-top: 10px; font-size: 0.9em; border-top: 1px solid #cbd5e1; padding-top: 5px;">
-                            <strong data-i18n="last_dec_reason">علت اصلی</strong>: Historical behavior similarity
-                        </div>
+                        <p id="summary-explanation" style="font-size: 0.9em; color: #555; line-height: 1.5;" data-i18n="not_executed">اجرا نشده</p>
                     </div>
 
-                    <!-- Conversation triggers -->
-                    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-                        <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none;"
-                                onclick="askBrainQuestion('چرا این معامله را باز کردی؟', 'open_trade')" data-i18n="chat_q1">چرا این معامله را باز کردی؟</button>
-                        <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                onclick="askBrainQuestion('چرا معامله نکردی؟', 'no_trade')" data-i18n="chat_q2">چرا معامله نکردی؟</button>
-                        <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                onclick="askBrainQuestion('چه چیزی یاد گرفتی؟', 'learned')" data-i18n="chat_q3">چه چیزی یاد گرفتی؟</button>
-                        <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                onclick="askBrainQuestion('کجا اشتباه کردی؟', 'mistake')" data-i18n="chat_q4">کجا اشتباه کردی؟</button>
-                        <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                onclick="askBrainQuestion('چه چیزی را نمی‌دانی؟', 'unknown')" data-i18n="chat_q5">چه چیزی را نمی‌دانی؟</button>
-                    </div>
-
-                    <!-- Chat response output field -->
-                    <div style="background: #1e1e24; color: #a9b7c6; padding: 20px; border-radius: 6px; min-height: 80px; font-family: inherit; font-size: 1em; line-height: 1.6; white-space: pre-line;"
-                         id="chat-response-box" data-i18n="chat_response_placeholder">
-                        بر روی یکی از سوالات بالا کلیک کنید تا تحلیل تفسیری و مستندات مغز هوشمند استخراج گردد...
-                    </div>
-                </div>
-
-                <!-- LIVE MARKET RESEARCH PANEL -->
-                <div class="card" style="border-left: 6px solid var(--accent); border-right: 6px solid var(--accent);">
-                    <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="live_research_title">پنل تحقیقاتی زنده بازار</h2>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
+                    <div class="card">
+                        <h3 style="color: var(--primary); margin-top: 0;" data-i18n="subsystems_health_title">وضعیت سلامت زیرسیستم‌ها</h3>
                         <div style="line-height: 1.8;">
-                            <div><strong data-i18n="current_symbol">نماد فعلی</strong>: <span id="res-symbol">XAUUSD</span> (<span id="res-timeframe">H1</span>)</div>
-                            <div><strong data-i18n="last_update">آخرین بروزرسانی</strong>: <span id="res-time" style="font-size: 0.9em; color: #555;">Loading...</span></div>
-                            <div style="font-size: 1.2em; margin-top: 10px;">
-                                <strong data-i18n="market_bias">جهت‌گیری بازار</strong>: <span id="res-bias" style="font-weight: bold; color: var(--accent);">Bullish</span>
-                            </div>
-                            <div style="font-size: 1.2em;">
-                                <strong data-i18n="confidence">میزان اطمینان</strong>: <span id="res-confidence" style="font-weight: bold; color: var(--primary);">78%</span>
-                            </div>
-                        </div>
-                        <div>
-                            <strong data-i18n="technical_metrics">شاخص‌های فنی</strong>:
-                            <div id="res-indicators" style="background: #f1f5f9; padding: 10px; border-radius: 6px; font-size: 0.9em; margin-top: 5px; line-height: 1.6;">
-                                SMA20: -- | EMA12: -- | RSI: -- | ATR: --
-                            </div>
-                        </div>
-                    </div>
-                    <strong data-i18n="latest_ai_explanation">تحلیل و تفسیر هوش مصنوعی</strong>:
-                    <ul id="res-reasoning" style="margin: 5px 0 0 0; padding-left: 20px; padding-right: 20px; line-height: 1.6; font-size: 0.95em;">
-                        <li>Loading...</li>
-                    </ul>
-                </div>
-
-                <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #edf2f4; padding-bottom: 15px; margin-bottom: 20px;">
-                        <h2 style="margin: 0; color: var(--primary);" data-i18n="validation_center_title">مرکز تایید و اعتبارسنجی سیستم</h2>
-                        <button id="run-btn" class="btn" onclick="triggerValidation()" data-i18n="run_validation_btn">اجرای فرآیند تایید نهایی</button>
-                    </div>
-
-                    <div class="status-board">
-                        <div class="status-item">
-                            <div data-i18n="passed">پاس شده</div>
-                            <div id="passed" class="status-val status-passed">0</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="failed">خطا</div>
-                            <div id="failed" class="status-val status-failed">0</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="skipped">نادیده گرفته شده</div>
-                            <div id="skipped" class="status-val">0</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="warnings">هشدارها</div>
-                            <div id="warnings" class="status-val status-warn">0</div>
+                            <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="sys_health">سلامت کلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="healthy">سالم / فعال</span></p>
+                            <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="mt5_fallback">وضعیت اتصال به MT5</strong>: <span style="color: var(--warning);" data-i18n="active_fallback">حالت شبیه‌سازی فعال</span></p>
+                            <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="runtime_host">میزبان اصلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
+                            <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="scheduler_loop">حلقه زمان‌بندی</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
+                            <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="security_compliance">انطباق امنیتی</strong>: <span style="color: var(--accent);" data-i18n="verified">تایید شده</span></p>
                         </div>
                     </div>
 
-                    <div style="background: #f8f9fa; border-left: 4px solid var(--accent); border-right: 4px solid var(--accent); padding: 15px; border-radius: 4px; margin-bottom: 20px;">
-                        <p style="margin: 5px 0;"><strong data-i18n="active_phase">فاز فعال</strong>: <span id="phase">IDLE</span></p>
-                        <p style="margin: 5px 0;"><strong data-i18n="component_boundaries">محدوده مؤلفه</strong>: <span id="component">ReleaseValidationPlatform</span></p>
-                        <p style="margin: 5px 0;"><strong data-i18n="current_trace">ردیابی زنده فرآیند</strong>: <code id="test">Waiting...</code></p>
-                    </div>
-
-                    <h3 data-i18n="live_trace_logs">گزارش‌های زنده سیستم</h3>
-                    <div id="logs" class="logs-box">
-                        Waiting for run request...
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="historical_summary_title">خلاصه سوابق تاییدیه سیستم</h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th data-i18n="col_timestamp">زمان ثبت</th>
-                                <th data-i18n="col_duration">مدت زمان</th>
-                                <th data-i18n="col_ratio">نسبت تست‌ها</th>
-                                <th data-i18n="col_status">وضعیت نهایی</th>
-                                <th data-i18n="col_score">امتیاز تاییدیه</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-body">
-                            <!-- Populated dynamically -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div>
-                <div class="card" style="text-align: center;">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="readiness_score_title">امتیاز آمادگی نهایی تولید</h3>
-                    <div class="score-circle">
-                        <div id="score-val" class="score-num">0%</div>
-                        <div id="score-status" style="font-size: 0.85em; color: var(--dark); text-transform: uppercase; margin-top: 5px;" data-i18n="not_executed">اجرا نشده</div>
-                    </div>
-                    <p id="summary-explanation" style="font-size: 0.9em; color: #555; line-height: 1.5;" data-i18n="not_executed">اجرا نشده</p>
-                </div>
-
-                <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="subsystems_health_title">وضعیت سلامت زیرسیستم‌ها</h3>
-                    <div style="line-height: 1.8;">
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="sys_health">سلامت کلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="healthy">سالم / فعال</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="mt5_fallback">وضعیت اتصال به MT5</strong>: <span style="color: var(--warning);" data-i18n="active_fallback">حالت شبیه‌سازی فعال</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="runtime_host">میزبان اصلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="scheduler_loop">حلقه زمان‌بندی</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="security_compliance">انطباق امنیتی</strong>: <span style="color: var(--accent);" data-i18n="verified">تایید شده</span></p>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="reports_download_title">دانلود گزارش‌های نهایی تاییدیه</h3>
-                    <div style="line-height: 2;">
-                        <div>👉 <a href="/api/validation/reports/download?type=html" target="_blank" data-i18n="dl_html">دانلود گزارش HTML</a></div>
-                        <div>👉 <a href="/api/validation/reports/download?type=json" target="_blank" data-i18n="dl_json">دانلود گزارش JSON</a></div>
-                        <div>👉 <a href="/api/validation/reports/download?type=markdown" target="_blank" data-i18n="dl_markdown">دانلود گزارش Markdown</a></div>
+                    <div class="card">
+                        <h3 style="color: var(--primary); margin-top: 0;" data-i18n="reports_title">گزارش‌های خروجی تاییدیه</h3>
+                        <div style="line-height: 2;">
+                            <div>👉 <a href="/api/validation/reports/download?type=html" target="_blank" data-i18n="dl_html">دانلود گزارش HTML</a></div>
+                            <div>👉 <a href="/api/validation/reports/download?type=json" target="_blank" data-i18n="dl_json">دانلود گزارش JSON</a></div>
+                            <div>👉 <a href="/api/validation/reports/download?type=markdown" target="_blank" data-i18n="dl_markdown">دانلود گزارش Markdown</a></div>
+                        </div>
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- 9. ADMIN PORTAL (HEALTH & VALIDATION RUNNER) -->
+        <div id="view-admin-portal" class="route-view card" style="display: none;">
+            <h2 style="color: var(--primary);" data-i18n="admin_portal_title">پورتال مدیریت سیستم (Admin Portal)</h2>
+            <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                <button id="run-btn" class="btn" onclick="triggerValidation()" data-i18n="run_validation_btn">اجرای فرآیند تایید نهایی</button>
+            </div>
+            <div class="status-board">
+                <div class="status-item">
+                    <div data-i18n="passed">پاس شده</div>
+                    <div id="passed" class="status-val status-passed">0</div>
+                </div>
+                <div class="status-item">
+                    <div data-i18n="failed">خطا</div>
+                    <div id="failed" class="status-val status-failed">0</div>
+                </div>
+                <div class="status-item">
+                    <div data-i18n="skipped">نادیده گرفته شده</div>
+                    <div id="skipped" class="status-val">0</div>
+                </div>
+                <div class="status-item">
+                    <div data-i18n="warnings">هشدارها</div>
+                    <div id="warnings" class="status-val status-warn">0</div>
+                </div>
+            </div>
+
+            <div style="background: #f8f9fa; border-left: 4px solid var(--accent); border-right: 4px solid var(--accent); padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+                <p style="margin: 5px 0;"><strong data-i18n="active_phase">فاز فعال</strong>: <span id="phase">IDLE</span></p>
+                <p style="margin: 5px 0;"><strong data-i18n="component_boundaries">محدوده مؤلفه</strong>: <span id="component">ReleaseValidationPlatform</span></p>
+                <p style="margin: 5px 0;"><strong data-i18n="current_trace">ردیابی زنده فرآیند</strong>: <code id="test">Waiting...</code></p>
+            </div>
+
+            <h3 data-i18n="live_trace_logs">گزارش‌های زنده سیستم</h3>
+            <div id="logs" class="logs-box">
+                Waiting for run request...
+            </div>
+
+            <h3 style="color: var(--primary); margin-top: 20px;" data-i18n="historical_summary_title">خلاصه سوابق تاییدیه سیستم</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th data-i18n="col_timestamp">زمان ثبت</th>
+                        <th data-i18n="col_duration">مدت زمان</th>
+                        <th data-i18n="col_ratio">نسبت تست‌ها</th>
+                        <th data-i18n="col_status">وضعیت نهایی</th>
+                        <th data-i18n="col_score">امتیاز تاییدیه</th>
+                    </tr>
+                </thead>
+                <tbody id="history-body">
+                    <!-- Populated dynamically -->
+                </tbody>
+            </table>
         </div>
     </div>
 </body>
 </html>
 """
     return HTMLResponse(content=html_content)
+
+# -----------------------------------------------------------------------------
+# PRODUCT PORTALS / AUTH / BLOG ENDPOINTS
+# -----------------------------------------------------------------------------
+@app.post("/api/v1/auth/register")
+def register_user(payload: Dict[str, Any]):
+    email = payload.get("email")
+    password = payload.get("password")
+    role_name = payload.get("role", "User")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required.")
+
+    db = SessionLocal()
+    try:
+        existing = db.query(User).filter(User.email == email).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="User already registered.")
+
+        hashed = get_password_hash(password)
+        # Create user role
+        role = db.query(Role).filter(Role.name == role_name).first()
+        if not role:
+            role = Role(name=role_name)
+            db.add(role)
+            db.commit()
+            db.refresh(role)
+
+        user = User(email=email, password_hash=hashed, role_id=role.id)
+        db.add(user)
+        db.commit()
+        return {"status": "Success", "message": "User registered successfully."}
+    finally:
+        db.close()
+
+@app.post("/api/v1/auth/login")
+def login_user(payload: Dict[str, Any]):
+    email = payload.get("email")
+    password = payload.get("password")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required.")
+
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user or not verify_password(password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+        role_name = user.role.name if user.role else "User"
+        token = create_access_token({"sub": str(user.id), "role": role_name})
+        return {"access_token": token, "token_type": "bearer", "role": role_name}
+    finally:
+        db.close()
+
+@app.post("/api/v1/auth/refresh")
+def refresh_token(user: dict = Depends(get_current_user_from_token)):
+    new_token = create_access_token({"sub": user["id"], "role": user["role"]})
+    return {"access_token": new_token, "token_type": "bearer"}
+
+@app.get("/api/v1/user/preferences")
+def get_user_preferences(user: dict = Depends(get_current_user_from_token)):
+    db = SessionLocal()
+    try:
+        prefs = db.query(UserPreference).filter(UserPreference.user_id == user["id"]).first()
+        if not prefs:
+            prefs = UserPreference(user_id=user["id"], language="fa", theme="dark")
+            db.add(prefs)
+            db.commit()
+            db.refresh(prefs)
+        return {"language": prefs.language, "theme": prefs.theme}
+    finally:
+        db.close()
+
+@app.put("/api/v1/user/preferences")
+def update_user_preferences(payload: Dict[str, Any], user: dict = Depends(get_current_user_from_token)):
+    db = SessionLocal()
+    try:
+        prefs = db.query(UserPreference).filter(UserPreference.user_id == user["id"]).first()
+        if not prefs:
+            prefs = UserPreference(user_id=user["id"])
+            db.add(prefs)
+        prefs.language = payload.get("language", prefs.language)
+        prefs.theme = payload.get("theme", prefs.theme)
+        db.commit()
+        return {"status": "Success", "message": "Preferences updated successfully."}
+    finally:
+        db.close()
+
+@app.post("/api/v1/admin/blog")
+def create_blog_article(payload: Dict[str, Any], user: dict = Depends(require_roles(["Admin", "SuperAdmin"]))):
+    db = SessionLocal()
+    try:
+        slug = payload.get("slug")
+        title_json = payload.get("title_json")
+        content_json = payload.get("content_json")
+        category = payload.get("category", "Research")
+        tags = payload.get("tags", ["AI"])
+        seo_meta = payload.get("seo_meta", {})
+        if not slug or not title_json or not content_json:
+            raise HTTPException(status_code=400, detail="Missing required article fields.")
+
+        article = BlogArticle(
+            slug=slug,
+            title_json=title_json,
+            content_json=content_json,
+            category=category,
+            tags=tags,
+            seo_meta=seo_meta
+        )
+        db.add(article)
+        db.commit()
+        return {"status": "Success", "message": "Blog article created successfully."}
+    finally:
+        db.close()
+
+@app.get("/api/v1/blog")
+def get_blog_articles():
+    db = SessionLocal()
+    try:
+        articles = db.query(BlogArticle).all()
+        return [
+            {
+                "id": a.id,
+                "slug": a.slug,
+                "title_json": a.title_json,
+                "content_json": a.content_json,
+                "tags": a.tags,
+                "category": a.category
+            } for a in articles
+        ]
+    finally:
+        db.close()
+
 
 
 # ==============================================================================

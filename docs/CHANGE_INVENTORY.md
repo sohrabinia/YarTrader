@@ -1,34 +1,35 @@
-# Production Change Inventory — Version 3 (v3)
-## TradeYar AI — Release Engineering Change Record
+# CHANGE INVENTORY
+# TradeYar AI v3.2 — Enterprise Productization Phase
 
-Every modification, file creation, or removal made during the Version 3 transition is cataloged in this inventory to guarantee absolute repository hygiene and traceability.
-
----
-
-## 1. Inventory Summary
-
-| File Path | Operation | Risk Level | Reason for Change | Validation Performed |
-|---|---|---|---|---|
-| `docs/PRODUCTION_HARDENING_AUDIT.md` | **CREATED** | `NONE` (Doc) | Gate 1 Pre-Implementation Audit Deliverable | Human Review & Workspace Mapping |
-| `src/Research/Brain/memory.py` | **MODIFIED** | `MEDIUM` | Added Snapshot, Restore, Latest Tag, Transactional validation, and Disaster Recovery mechanisms | Unit Tests & Historical Replay validation (`pytest`) |
-| `src/Application/Services/web_dashboard.py` | **MODIFIED** | `LOW` | Added `/health/live`, `/health/ready`, and `/api/v1/health` diagnostics | Health diagnostics unit tests |
-| `server_watchdog.py` | **CREATED** | `MEDIUM` | Self-healing daemon for memory check, 5 restarts threshold, and alert cooldown | Code compilation (`compileall`) |
-| `scripts/deploy_service.ps1` | **CREATED** | `LOW` | NSSM registration, Delayed Auto-Start, and 10MB Log Rotation | Script file content inspection |
-| `tests/TRADEYAR_AI.Tests/Brain/test_architecture_integrity.py` | **MODIFIED** | `NONE` (Test) | New test case for snapshotting & disaster recovery | Automated `pytest` run (Passes 100%) |
-| `tests/runtime/test_health_endpoint.py` | **MODIFIED** | `NONE` (Test) | Test cases for `/health/live`, `/health/ready`, and `/api/v1/health` | Automated `pytest` run (Passes 100%) |
-| `tests/runtime/test_health_status.py` | **MODIFIED** | `NONE` (Test) | Updated tests to mock background thread interference | Automated `pytest` run (Passes 100%) |
-| `CHANGELOG_V3.md` | **CREATED** | `NONE` (Doc) | Release changelog for Version 3 | Human review |
-| `docs/V2_TO_V3_MIGRATION_REPORT.md` | **CREATED** | `NONE` (Doc) | Migration & data continuity report | Human review |
+This catalog keeps track of all file modifications and creations introduced during **Phase 3.2 — Enterprise Productization**.
 
 ---
 
-## 2. Detailed Risks & Mitigation Assessments
+## 1. Created Files & Artifacts
 
-### A. Memory Snapshot & Recovery (`memory.py`)
-* **Risk:** Potential file collision or permission blocks on Windows Server when performing file copies.
-* **Mitigation:** Uses robust exception logging and transactional atomic swap pattern (`os.replace`) which is guaranteed thread-safe and safe under Windows environments.
-* **Recovery:** In case of failure, fails safe to raising a critical warning rather than wiping memory.
+| File Path | Description |
+|---|---|
+| `docs/PRODUCTIZATION_CURRENT_STATE_AUDIT.md` | Initial structural audit verifying frontend, backend endpoints, and timeframe boundaries. |
+| `docs/PRODUCT_COMPLETION_REPORT.md` | Complete product phase signoff report. |
+| `docs/USER_MANUAL.md` | User manual describing public website pages, RTL/LTR layouts, and dashboard panels. |
+| `docs/ADMIN_MANUAL.md` | SRE/DevOps manual covering PostgreSQL Alembic migrations and troubleshooting. |
+| `docs/API_GUIDE.md` | Developer documentation detailing REST API endpoint JSON payloads and authentication. |
+| `docs/DEPLOYMENT_GUIDE.md` | System deployment details for staging, production, and Windows background services. |
+| `docs/TIMEFRAME_INDEPENDENCE_AUDIT.md` | Specific architectural audit certifying the independence of internal cognitive timeframe scales. |
+| `static/locales/fa.json` | Persian language translation file with RTL layout support (Default). |
+| `static/locales/en.json` | English language translation file. |
+| `static/locales/ar.json` | Arabic language translation file with RTL layout support. |
+| `static/locales/tr.json` | Turkish language translation file. |
+| `tests/TRADEYAR_AI.Tests/Services/test_v32_productization.py` | New backend integration tests verifying authorization, Blog CMS, migrations, and translation files. |
 
-### B. Health Diagnostics (`web_dashboard.py`)
-* **Risk:** Concurrent threads or intensive locks during file checking.
-* **Mitigation:** Performs read-only json parsing without holding any system locks.
+---
+
+## 2. Modified Files
+
+| File Path | Modification Summary |
+|---|---|
+| `src/Application/Services/web_dashboard.py` | Overhauled dashboard SPA page with translations loader, RTL layout support, fully removed technical indicators, integrated Cognitive Evidence Panel, JWT-based Authentication, and Markdown Blog CMS models. Connected live metrics bindings directly to API endpoints (`/v1/dashboard/cognitive`, `/api/shadow/metrics`, etc.) avoiding arithmetic offsets. |
+| `src/Application/Dashboard/database.py` | Added SQLAlchemy schemas for Users, Roles, User Preferences, Blog Articles, and System Audit Logs. Provided direct compatibility with SQLite database mock files and production-grade PostgreSQL engines. |
+| `alembic.ini` | Configured base alembic setup for database migration workflows. |
+| `alembic/env.py` | Connected Alembic migration metadata target strictly to product-only metadata structures. |
+| `alembic/script.py.mako` | Custom migration templates supporting transaction-safe execution flows. |
