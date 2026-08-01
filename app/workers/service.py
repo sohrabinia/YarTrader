@@ -19,7 +19,7 @@ os.environ["TRADEYAR_SERVICE_RUN"] = "True"
 os.makedirs(os.path.join("logs", "service"), exist_ok=True)
 
 def log_service_message(message: str) -> None:
-    """Logs dedicated service messages directly to logs/service/service.log."""
+    """Logs dedicated service messages directly to logs/service/service.log and main application.log."""
     timestamp = datetime.now().isoformat()
     log_entry = f"[{timestamp}] [SERVICE] {message}\n"
     try:
@@ -28,6 +28,16 @@ def log_service_message(message: str) -> None:
     except Exception:
         pass
     print(message)
+
+    # Mirroring to application.log
+    try:
+        from app.core.logging import log_event
+        level = "INFO"
+        if "crash" in message.lower() or "exception" in message.lower() or "error" in message.lower() or "fail" in message.lower():
+            level = "ERROR"
+        log_event(level, f"Service Host: {message}", source="service_host")
+    except Exception:
+        pass
 
 from app.core.config import ProductionConfig
 from app.workers.research_worker import ResearchWorker
@@ -156,20 +166,32 @@ if WINDOWS_SERVICE_SUPPORTED:
             win32event.SetEvent(self.hWaitStop)
 
         def SvcDoRun(self):
-            # Log started state natively to Windows Event Viewer and files
-            servicemanager.Initialize()
-            servicemanager.PrepareToHostSingle(self)
-            servicemanager.LogMsg(
-                servicemanager.EVENTLOG_INFORMATION_TYPE,
-                servicemanager.PYS_SERVICE_STARTED,
-                (self._svc_name_, '')
-            )
+            try:
+                # Log started state natively to Windows Event Viewer and files
+                servicemanager.Initialize()
+                servicemanager.PrepareToHostSingle(self)
+                servicemanager.LogMsg(
+                    servicemanager.EVENTLOG_INFORMATION_TYPE,
+                    servicemanager.PYS_SERVICE_STARTED,
+                    (self._svc_name_, '')
+                )
 
-            # Start service host
-            self.host.start()
+                log_service_message("Service starting up via Windows Service Control Manager (SCM)")
+                # Start service host
+                self.host.start()
 
-            # Wait for SCM stop notification
-            win32event.WaitForSingleObject(self.hWaitStop, win32event.INFINITE)
+                # Wait for SCM stop notification
+                win32event.WaitForSingleObject(self.hWaitStop, win32event.INFINITE)
+            except Exception as e:
+                crash_msg = f"Windows Service Crash/Failure: {str(e)}"
+                log_service_message(crash_msg)
+                try:
+                    import traceback
+                    log_service_message(traceback.format_exc())
+                    servicemanager.LogErrorMsg(f"{self._svc_name_} - {crash_msg}")
+                except Exception:
+                    pass
+                raise
 else:
     class TradeYarAIWindowsService:
         pass
@@ -187,10 +209,21 @@ def run_standalone():
     signal.signal(signal.SIGINT, handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
-    host.start()
+    try:
+        log_service_message("Starting standalone console runner...")
+        host.start()
 
-    while host.is_running:
-        time.sleep(1.0)
+        while host.is_running:
+            time.sleep(1.0)
+    except Exception as e:
+        crash_msg = f"Standalone Service Crash/Failure: {str(e)}"
+        log_service_message(crash_msg)
+        try:
+            import traceback
+            log_service_message(traceback.format_exc())
+        except Exception:
+            pass
+        raise
 
 
 if __name__ == "__main__":

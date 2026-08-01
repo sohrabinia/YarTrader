@@ -68,3 +68,8 @@ runtime_logs/research_snapshots/*.json
 test_runtime_logs/
 history/*.json
 uvicorn.log
+
+# SRE Secrets Management & Git Isolation
+.env.production
+*.key
+*.pem
