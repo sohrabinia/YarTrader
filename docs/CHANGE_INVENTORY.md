@@ -17,6 +17,8 @@ Every modification, file creation, or removal made during the Version 3 transiti
 | `tests/TRADEYAR_AI.Tests/Brain/test_architecture_integrity.py` | **MODIFIED** | `NONE` (Test) | New test case for snapshotting & disaster recovery | Automated `pytest` run (Passes 100%) |
 | `tests/runtime/test_health_endpoint.py` | **MODIFIED** | `NONE` (Test) | Test cases for `/health/live`, `/health/ready`, and `/api/v1/health` | Automated `pytest` run (Passes 100%) |
 | `tests/runtime/test_health_status.py` | **MODIFIED** | `NONE` (Test) | Updated tests to mock background thread interference | Automated `pytest` run (Passes 100%) |
+| `src/Research/Brain/quality_control.py` | **MODIFIED** | `LOW` | Added `StatisticalValidationEngine` class for Phase 5 compliance | Automated unit tests |
+| `docs/LIVE_TRADING_READINESS_CRITERIA.md` | **CREATED** | `NONE` (Doc) | Created live-trading readiness criteria document for Phase 6 compliance | Human review |
 | `CHANGELOG_V3.md` | **CREATED** | `NONE` (Doc) | Release changelog for Version 3 | Human review |
 | `docs/V2_TO_V3_MIGRATION_REPORT.md` | **CREATED** | `NONE` (Doc) | Migration & data continuity report | Human review |
 

@@ -251,3 +251,59 @@ def test_memory_snapshot_and_emergency_recovery():
     memory_system.load_all()
     # Confirm loaded 1 event successfully recovered from snapshot!
     assert len(memory_system.get_events()) == 1
+
+
+def test_statistical_validation_engine():
+    """Verify Phase 5 statistical validation rules, including sample size, walk-forward, and overfitting."""
+    from src.Research.Brain.quality_control import StatisticalValidationEngine
+
+    engine = StatisticalValidationEngine(min_sample_size=5, tolerance_pct=15.0)
+
+    # 1. Minimum Sample Size Rules
+    pat_insufficient = PatternMemory(
+        pattern_id="pat-1", sequence_signature=[1.0, -1.0], occurrences_count=3,
+        continuation_count=2, reversal_count=1, outcomes=[], created_at=datetime.now()
+    )
+    assert engine.validate_pattern_sample_size(pat_insufficient) == "INSUFFICIENT_SAMPLE"
+
+    pat_sufficient = PatternMemory(
+        pattern_id="pat-2", sequence_signature=[1.0, -1.0], occurrences_count=8,
+        continuation_count=5, reversal_count=3, outcomes=[], created_at=datetime.now()
+    )
+    assert engine.validate_pattern_sample_size(pat_sufficient) == "SUFFICIENT_SAMPLE"
+
+    # 2. Walk-forward Chronological Out-of-sample validation
+    hist_outcomes = [{"is_continuation": True}, {"is_continuation": True}, {"is_continuation": False}] # 2/3 = 66.6%
+    oos_outcomes_passed = [{"is_continuation": True}, {"is_continuation": True}] # 100% (divergence = 33.3% > 15% -> UNRELIABLE)
+    oos_outcomes_failed = [{"is_continuation": False}, {"is_continuation": False}] # 0% (divergence = 66.6% > 15% -> UNRELIABLE)
+
+    # Test passed with low divergence
+    oos_passed_close = [{"is_continuation": True}, {"is_continuation": False}] # 50% (divergence = 16.6% > 15% -> UNRELIABLE)
+    oos_passed_ideal = [{"is_continuation": True}, {"is_continuation": True}, {"is_continuation": False}] # 66.6% (divergence = 0.0% -> PASSED)
+
+    res_passed = engine.perform_walk_forward_validation(hist_outcomes, oos_passed_ideal)
+    assert res_passed["status"] == "PASSED"
+    assert res_passed["divergence_pct"] == 0.0
+
+    res_failed = engine.perform_walk_forward_validation(hist_outcomes, oos_outcomes_failed)
+    assert res_failed["status"] == "UNRELIABLE_CONFIDENCE"
+    assert res_failed["divergence_pct"] > 15.0
+
+    # 3. Single-symbol Overfitting / Sensitivity check on XAUUSD
+    # Overfit pattern with zero variance
+    pat_overfit_static = PatternMemory(
+        pattern_id="pat-static", sequence_signature=[1.0, 1.0, 1.0], occurrences_count=5,
+        continuation_count=4, reversal_count=1, outcomes=[], created_at=datetime.now()
+    )
+    res_static = engine.check_overfitting_sensitivity(pat_overfit_static)
+    assert res_static["is_overfit"] is True
+    assert "Zero variance/Static signature" in res_static["reasons"]
+
+    # Overfit pattern with high unidirectional outcomes on tiny sample size
+    pat_overfit_unidir = PatternMemory(
+        pattern_id="pat-unidir", sequence_signature=[1.0, -0.5, 0.2], occurrences_count=4,
+        continuation_count=4, reversal_count=0, outcomes=[], created_at=datetime.now()
+    )
+    res_unidir = engine.check_overfitting_sensitivity(pat_overfit_unidir)
+    assert res_unidir["is_overfit"] is True
+    assert "Unidirectional outcomes on small sample" in res_unidir["reasons"]
