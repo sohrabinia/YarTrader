@@ -240,5 +240,71 @@
             "is_lucky_win": false,
             "is_structural_failure": true
         }
+    },
+    "exp-a788a8aa": {
+        "experience_id": "exp-a788a8aa",
+        "symbol": "XAUUSD",
+        "timeframe": "H1",
+        "timestamp": "2026-08-01T15:22:30.141443",
+        "situation_signature": [
+            2000.0,
+            1995.0,
+            2010.0
+        ],
+        "decision_action": "BUY",
+        "outcome_result": "FAILURE",
+        "lesson_feedback": "Decision on XAUUSD to BUY at 2000.0 evaluated as Structural Error (Failure analyzed). MAM: -1500.00, MFM: 0.00.",
+        "max_favorable_excursion": 0.0,
+        "max_adverse_excursion": -1500.0,
+        "meta": {
+            "position_id": "vpos-a788a8aa",
+            "confidence": 72.0,
+            "is_lucky_win": false,
+            "is_structural_failure": true
+        }
+    },
+    "exp-a4576548": {
+        "experience_id": "exp-a4576548",
+        "symbol": "XAUUSD",
+        "timeframe": "H1",
+        "timestamp": "2026-08-01T15:25:10.335570",
+        "situation_signature": [
+            2000.0,
+            1995.0,
+            2010.0
+        ],
+        "decision_action": "BUY",
+        "outcome_result": "FAILURE",
+        "lesson_feedback": "Decision on XAUUSD to BUY at 2000.0 evaluated as Structural Error (Failure analyzed). MAM: -1500.00, MFM: 0.00.",
+        "max_favorable_excursion": 0.0,
+        "max_adverse_excursion": -1500.0,
+        "meta": {
+            "position_id": "vpos-a4576548",
+            "confidence": 72.0,
+            "is_lucky_win": false,
+            "is_structural_failure": true
+        }
+    },
+    "exp-d1e0da7a": {
+        "experience_id": "exp-d1e0da7a",
+        "symbol": "XAUUSD",
+        "timeframe": "H1",
+        "timestamp": "2026-08-01T15:36:58.644994",
+        "situation_signature": [
+            2000.0,
+            1995.0,
+            2010.0
+        ],
+        "decision_action": "BUY",
+        "outcome_result": "FAILURE",
+        "lesson_feedback": "Decision on XAUUSD to BUY at 2000.0 evaluated as Structural Error (Failure analyzed). MAM: -1500.00, MFM: 0.00.",
+        "max_favorable_excursion": 0.0,
+        "max_adverse_excursion": -1500.0,
+        "meta": {
+            "position_id": "vpos-d1e0da7a",
+            "confidence": 72.0,
+            "is_lucky_win": false,
+            "is_structural_failure": true
+        }
     }
 }
