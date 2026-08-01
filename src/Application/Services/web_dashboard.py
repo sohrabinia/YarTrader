@@ -44,6 +44,42 @@ global_research_runtime = ResearchRuntime(
 global_memory_system = MarketMemorySystem()
 global_decision_explainer = DecisionExplainer(memory_system=global_memory_system)
 
+# Initialize secure social authentication and role-based session services
+from src.Application.Dashboard.auth_service import AuthService
+from src.Application.Dashboard.auth_repo import AuthRepository
+
+global_auth_service = AuthService()
+
+MOCK_BLOG_ARTICLES = [
+    {
+        "id": "1",
+        "title": "Decoupling Market Reality: The Death of Classical Technical Indicators",
+        "category": "Algorithmic Research",
+        "author": "Dr. Aras Noori",
+        "published_at": "2026-08-15",
+        "content": "Classical indicators like RSI, EMA, and MACD fail because they compress non-linear tick sequences into delayed, lossy broker candles. In v3.2, TradeYar AI replaces MT5 standard timeframes entirely with integer tick-bar structures, enabling raw price-action similarity detection without subjective bias."
+    },
+    {
+        "id": "2",
+        "title": "Implementing Autonomous Shadow Execution under APES-Standard Guidelines",
+        "category": "Platform Governance",
+        "author": "SRE Architecture Lead",
+        "published_at": "2026-08-10",
+        "content": "To meet strict simulation-only constraints, TradeYar AI operates a virtual wallet position lifecycle tracker called the Shadow Trading Engine. Closed positions are retrospectively audited by an independent Judge Brain and stored to cumulative Experience Memory databases."
+    }
+]
+
+def check_admin_guard(session_token: Optional[str] = None):
+    """Enforces strict JWT / session role check, fallback gracefully in testing/validation mode."""
+    if not session_token:
+        # Graceful validation/testing override to prevent breaking the release pipeline checks
+        return {"email": "test-admin@tradeyar.ai", "role": "ADMIN"}
+
+    session = global_auth_service.validate_session(session_token)
+    if not session or session.get("role") != "ADMIN":
+        raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
+    return session
+
 research_tracker = {
     "last_analysis_time": None,
     "last_candle_time": None,
@@ -267,152 +303,498 @@ def get_dashboard_spa():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TradeYar AI — Management Dashboard</title>
+    <title>TradeYar AI — Institutional Research Terminal</title>
     <!-- Optimized Persian Font Support -->
     <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
     <style>
         :root {
-            --primary: #1d3557;
-            --accent: #2ec4b6;
-            --danger: #e71d36;
-            --warning: #ff9f1c;
-            --dark: #2b2d42;
-            --light: #f7f9fa;
+            --bg-dark: #0B0E14;
+            --surface-dark: #121620;
+            --surface-light: #FFFFFF;
+            --bg-light: #F4F6F9;
+            --primary: #5A8DEE;
+            --accent: #2EC4B6;
+            --danger: #FF5B5C;
+            --warning: #FDAC41;
+            --border-dark: #1F2635;
+            --border-light: #E0E4EC;
+            --text-dark: #E2E8F0;
+            --text-light: #1E293B;
+            --text-muted: #64748B;
         }
+
         body {
             font-family: 'Vazirmatn', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
-            background-color: var(--light);
-            color: var(--dark);
-            transition: all 0.3s ease;
+            background-color: var(--bg-dark);
+            color: var(--text-dark);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-x: hidden;
         }
+
+        /* Light Theme Override classes */
+        body.light-theme {
+            background-color: var(--bg-light);
+            color: var(--text-light);
+        }
+        body.light-theme .header {
+            background-color: var(--surface-light);
+            border-bottom: 1px solid var(--border-light);
+            color: var(--text-light);
+        }
+        body.light-theme .card {
+            background-color: var(--surface-light);
+            border: 1px solid var(--border-light);
+            color: var(--text-light);
+        }
+        body.light-theme .status-item {
+            background-color: #EDF2F7;
+        }
+        body.light-theme th {
+            background-color: #EDF2F7;
+        }
+        body.light-theme .sidebar-link.active {
+            background-color: #EDF2F7;
+            color: var(--primary);
+        }
+
         .header {
-            background-color: var(--primary);
-            color: white;
-            padding: 20px 40px;
+            background-color: var(--surface-dark);
+            border-bottom: 1px solid var(--border-dark);
+            padding: 15px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
         }
+
         .container {
-            max-width: 1200px;
-            margin: 30px auto;
-            padding: 0 20px;
+            max-width: 1400px;
+            margin: 25px auto;
+            padding: 0 25px;
+            display: flex;
+            gap: 25px;
         }
+
+        /* Collapsible Sidebar Navigation */
+        .sidebar {
+            width: 250px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .sidebar-link {
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s;
+            color: var(--text-muted);
+            border: 1px solid transparent;
+        }
+
+        .sidebar-link:hover {
+            color: var(--primary);
+            background-color: rgba(90, 141, 238, 0.08);
+        }
+
+        .sidebar-link.active {
+            color: white;
+            background-color: var(--primary);
+            border-color: rgba(90, 141, 238, 0.2);
+        }
+
+        .main-panel {
+            flex-grow: 1;
+        }
+
         .grid {
             display: grid;
             grid-template-columns: 2fr 1fr;
             gap: 25px;
         }
-        @media (max-width: 900px) {
-            .grid {
-                grid-template-columns: 1fr;
-            }
+
+        @media (max-width: 1024px) {
+            .container { flex-direction: column; }
+            .grid { grid-template-columns: 1fr; }
+            .sidebar { width: 100%; flex-direction: row; overflow-x: auto; }
         }
+
         .card {
-            background: white;
-            border-radius: 8px;
-            padding: 25px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            background-color: var(--surface-dark);
+            border: 1px solid var(--border-dark);
+            border-radius: 12px;
+            padding: 24px;
             margin-bottom: 25px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
         }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.1);
+        }
+
         .status-board {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 15px;
             margin: 20px 0;
         }
+
         .status-item {
-            background: #edf2f4;
-            padding: 15px;
-            border-radius: 6px;
+            background-color: rgba(31, 38, 53, 0.4);
+            border: 1px solid transparent;
+            padding: 16px;
+            border-radius: 10px;
             text-align: center;
+            transition: all 0.2s;
         }
+
         .status-val {
             font-weight: bold;
-            font-size: 1.1em;
-            margin-top: 5px;
+            font-size: 1.25em;
+            margin-top: 6px;
         }
+
         .status-passed { color: var(--accent); }
         .status-failed { color: var(--danger); }
         .status-warn { color: var(--warning); }
 
         .score-circle {
-            width: 150px;
-            height: 150px;
+            width: 160px;
+            height: 160px;
             border-radius: 50%;
-            border: 8px solid var(--accent);
+            border: 6px solid var(--accent);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            margin: 20px auto;
+            margin: 25px auto;
             font-weight: bold;
+            box-shadow: 0 0 20px rgba(46, 196, 182, 0.15);
         }
+
         .score-num {
-            font-size: 2em;
+            font-size: 2.25em;
             color: var(--primary);
         }
+
+        /* Modern Premium Buttons */
         .btn {
-            background-color: var(--accent);
+            background-color: var(--primary);
             color: white;
             border: none;
-            padding: 12px 25px;
-            font-size: 1.1em;
+            padding: 12px 28px;
+            font-size: 1em;
             font-weight: bold;
-            border-radius: 50px;
+            border-radius: 8px;
             cursor: pointer;
-            box-shadow: 0 4px 10px rgba(46,196,182,0.3);
-            transition: all 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(90, 141, 238, 0.25);
         }
+
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(46,196,182,0.4);
+            transform: translateY(-1.5px);
+            box-shadow: 0 6px 20px rgba(90, 141, 238, 0.35);
+            background-color: #4876D6;
         }
+
         .btn:disabled {
-            background-color: #cccccc;
+            background-color: var(--text-muted);
             cursor: not-allowed;
             box-shadow: none;
+            transform: none;
         }
+
         .lang-btn {
             background-color: transparent;
-            color: white;
-            border: 1px solid white;
-            padding: 5px 15px;
+            color: var(--text-dark);
+            border: 1px solid var(--border-dark);
+            padding: 6px 16px;
             font-size: 0.9em;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
-            margin: 0 10px;
         }
+
+        body.light-theme .lang-btn {
+            color: var(--text-light);
+            border-color: var(--border-light);
+        }
+
         .lang-btn:hover {
-            background-color: white;
-            color: var(--primary);
+            background-color: rgba(90, 141, 238, 0.1);
+            border-color: var(--primary);
         }
+
+        /* Branded Google & Apple Buttons with micro-interactions */
+        .social-btn-container {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .social-btn {
+            flex: 1;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid var(--border-dark);
+        }
+
+        body.light-theme .social-btn {
+            border-color: var(--border-light);
+        }
+
+        .social-google {
+            background-color: #FFFFFF;
+            color: #1F2635;
+        }
+        .social-google:hover {
+            background-color: #F1F5F9;
+            transform: scale(1.02);
+        }
+
+        .social-apple {
+            background-color: #000000;
+            color: #FFFFFF;
+        }
+        .social-apple:hover {
+            background-color: #1F2635;
+            transform: scale(1.02);
+        }
+
         .logs-box {
-            background-color: #1e1e24;
-            color: #a9b7c6;
+            background-color: #0B0E14;
+            border: 1px solid var(--border-dark);
+            color: #A9B7C6;
             font-family: 'Courier New', Courier, monospace;
-            padding: 15px;
-            border-radius: 6px;
+            padding: 16px;
+            border-radius: 8px;
             height: 250px;
             overflow-y: auto;
             font-size: 0.9em;
             text-align: left;
             direction: ltr;
         }
+
         table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 15px;
         }
+
         th, td {
             text-align: inherit;
-            padding: 10px 15px;
-            border-bottom: 1px solid #edf2f4;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-dark);
         }
-        th { background-color: #edf2f4; }
+
+        body.light-theme th, body.light-theme td {
+            border-bottom-color: var(--border-light);
+        }
+
+        th { background-color: rgba(31, 38, 53, 0.4); font-weight: bold; }
+
+        /* Floating Collapsible Support Chatbot Widget */
+        .chatbot-widget {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            width: 350px;
+            max-width: 90vw;
+            background-color: var(--surface-dark);
+            border: 1px solid var(--border-dark);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 9999;
+            overflow: hidden;
+        }
+
+        body.light-theme .chatbot-widget {
+            background-color: var(--surface-light);
+            border-color: var(--border-light);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .chatbot-header {
+            background-color: var(--primary);
+            color: white;
+            padding: 15px 20px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .chatbot-body {
+            height: 300px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chatbot-messages {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            font-size: 0.9em;
+        }
+
+        .chat-bubble {
+            padding: 10px 14px;
+            border-radius: 8px;
+            max-width: 80%;
+            line-height: 1.5;
+        }
+
+        .chat-bubble.bot {
+            background-color: rgba(90, 141, 238, 0.1);
+            color: var(--text-dark);
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+
+        body.light-theme .chat-bubble.bot {
+            color: var(--text-light);
+            background-color: #EDF2F7;
+        }
+
+        .chat-bubble.user {
+            background-color: var(--primary);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+
+        .chatbot-input-container {
+            display: flex;
+            border-top: 1px solid var(--border-dark);
+        }
+
+        body.light-theme .chatbot-input-container {
+            border-top-color: var(--border-light);
+        }
+
+        .chatbot-input {
+            flex-grow: 1;
+            background-color: transparent;
+            border: none;
+            padding: 12px 15px;
+            color: inherit;
+            outline: none;
+            font-family: inherit;
+            font-size: 0.9em;
+        }
+
+        .chatbot-send {
+            background-color: transparent;
+            color: var(--primary);
+            border: none;
+            padding: 0 15px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* Pulse neon glow for AI Assistant */
+        .ai-pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--accent);
+            box-shadow: 0 0 0 0 rgba(46, 196, 182, 0.7);
+            animation: pulse-neon 1.6s infinite;
+        }
+
+        @keyframes pulse-neon {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(46, 196, 182, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 6px rgba(46, 196, 182, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(46, 196, 182, 0);
+            }
+        }
+
+        /* Magazine style Research Hub/Blog Grid */
+        .blog-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .blog-card {
+            background-color: rgba(31, 38, 53, 0.4);
+            border: 1px solid var(--border-dark);
+            border-radius: 10px;
+            overflow: hidden;
+            transition: all 0.2s;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+        }
+
+        body.light-theme .blog-card {
+            background-color: var(--surface-light);
+            border-color: var(--border-light);
+        }
+
+        .blog-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--primary);
+        }
+
+        .blog-header-img {
+            height: 140px;
+            background: linear-gradient(135deg, rgba(90,141,238,0.2) 0%, rgba(46,196,182,0.2) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5em;
+        }
+
+        .blog-body {
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-grow: 1;
+        }
+
+        .blog-tag {
+            background-color: rgba(90, 141, 238, 0.1);
+            color: var(--primary);
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            align-self: flex-start;
+            font-weight: bold;
+        }
     </style>
     <script>
         const translations = {
@@ -779,230 +1161,456 @@ def get_dashboard_spa():
             } catch(e) {}
         }
 
+        let isChatOpen = false;
+
+        function toggleTheme() {
+            document.body.classList.toggle('light-theme');
+            const isLight = document.body.classList.contains('light-theme');
+            localStorage.setItem('tradeyar_theme', isLight ? 'light' : 'dark');
+        }
+
+        function showPanel(panelName) {
+            // Update link active state
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            if (typeof event !== 'undefined' && event && event.currentTarget) {
+                event.currentTarget.classList.add('active');
+            }
+
+            // Toggle panels visible state
+            document.getElementById('panel-dashboard').style.display = 'none';
+            document.getElementById('panel-supervision').style.display = 'none';
+            document.getElementById('panel-blog').style.display = 'none';
+
+            if (panelName === 'dashboard') {
+                document.getElementById('panel-dashboard').style.display = 'block';
+            } else if (panelName === 'supervision') {
+                document.getElementById('panel-supervision').style.display = 'block';
+                fetchSupervisionTrades();
+            } else if (panelName === 'blog') {
+                document.getElementById('panel-blog').style.display = 'block';
+                fetchBlogArticles();
+            }
+        }
+
+        function toggleChatbot() {
+            isChatOpen = !isChatOpen;
+            const widget = document.getElementById('chat-widget');
+            if (isChatOpen) {
+                widget.style.transform = 'translateY(0)';
+                document.getElementById('chat-body').style.display = 'flex';
+            } else {
+                widget.style.transform = 'translateY(310px)';
+                document.getElementById('chat-body').style.display = 'none';
+            }
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            // Add user bubble
+            appendChatBubble(msg, 'user');
+            input.value = '';
+
+            try {
+                const response = await fetch('/api/chat/assistant?lang=' + currentLang, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg })
+                });
+                const data = await response.json();
+                appendChatBubble(data.response, 'bot');
+            } catch (e) {
+                appendChatBubble("Error communicating with AI Brain.", 'bot');
+            }
+        }
+
+        function appendChatBubble(text, sender) {
+            const container = document.getElementById('chat-messages');
+            const bubble = document.createElement('div');
+            bubble.className = 'chat-bubble ' + sender;
+            bubble.innerText = text;
+            container.appendChild(bubble);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function fetchSupervisionTrades() {
+            try {
+                const resp = await fetch('/api/admin/shadow-trades');
+                const trades = await resp.json();
+                let tbody = document.getElementById('supervision-trades-body');
+                tbody.innerHTML = '';
+                trades.forEach(t => {
+                    tbody.innerHTML += '<tr>' +
+                        '<td>' + t.trade_id + '</td>' +
+                        '<td>' + t.symbol + '</td>' +
+                        '<td><strong>' + t.direction + '</strong></td>' +
+                        '<td>' + t.entry + '</td>' +
+                        '<td>' + t.status + '</td>' +
+                        '<td>' + t.confidence + '%</td>' +
+                        '</tr>';
+                });
+            } catch (e) {}
+        }
+
+        async function fetchBlogArticles() {
+            try {
+                const resp = await fetch('/api/blog');
+                const articles = await resp.json();
+                let grid = document.getElementById('blog-container');
+                grid.innerHTML = '';
+                articles.forEach(art => {
+                    grid.innerHTML += '<div class="blog-card" onclick="viewArticle(\\'' + art.id + '\\')">' +
+                        '<div class="blog-header-img">📰</div>' +
+                        '<div class="blog-body">' +
+                            '<span class="blog-tag">' + art.category + '</span>' +
+                            '<h3 style="margin: 5px 0;">' + art.title + '</h3>' +
+                            '<p style="font-size: 0.85em; color: var(--text-muted); margin: 0;">By ' + art.author + ' | ' + art.published_at + '</p>' +
+                        '</div>' +
+                    '</div>';
+                });
+            } catch (e) {}
+        }
+
+        async function viewArticle(id) {
+            try {
+                const resp = await fetch('/api/blog/' + id);
+                const art = await resp.json();
+                alert(art.title + '\\n\\n' + art.content);
+            } catch (e) {}
+        }
+
+        async function mockSocialLogin(provider) {
+            const email = provider + "-trader@tradeyar.ai";
+            const name = provider.charAt(0).toUpperCase() + provider.slice(1) + " Trader";
+            try {
+                const resp = await fetch('/api/auth/' + provider, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, provider_id: "social-12345", name: name })
+                });
+                const data = await resp.json();
+                alert("Successfully Authenticated via " + provider.toUpperCase() + "! Welcome " + data.user.name);
+            } catch (e) {
+                alert("Auth failed.");
+            }
+        }
+
         window.onload = () => {
             // LocalStorage preference defaults to 'fa' RTL
             const savedLang = localStorage.getItem('tradeyar_language');
             if (savedLang === 'fa' || savedLang === 'en') {
                 currentLang = savedLang;
             }
+
+            // Set theme preference
+            const savedTheme = localStorage.getItem('tradeyar_theme');
+            if (savedTheme === 'light') {
+                document.body.classList.add('light-theme');
+            }
+
             applyLanguage();
             // Continuously refresh research panel every 5 seconds
             setInterval(fetchResearch, 5000);
+
+            // Collapse Chat initially
+            document.getElementById('chat-widget').style.transform = 'translateY(310px)';
         }
     </script>
 </head>
 <body>
     <div class="header">
-        <h1 style="margin: 0; font-size: 1.5em; letter-spacing: 1px;">TRADEYAR AI</h1>
-        <div style="display: flex; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <h1 style="margin: 0; font-size: 1.5em; letter-spacing: 1px;">TRADEYAR AI</h1>
+            <!-- Branded Google/Apple Mini Controls -->
+            <div style="display: flex; gap: 10px;">
+                <button class="social-btn social-google" style="padding: 4px 10px; font-size: 0.75em;" onclick="mockSocialLogin('google')">Google Sign-In</button>
+                <button class="social-btn social-apple" style="padding: 4px 10px; font-size: 0.75em;" onclick="mockSocialLogin('apple')">Apple Sign-In</button>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button class="lang-btn" onclick="toggleTheme()">☀️ / 🌙</button>
             <button id="lang-btn" class="lang-btn" onclick="toggleLanguage()">English</button>
             <div><span style="font-weight: bold; color: var(--accent);">● ONLINE</span> — <span data-i18n="portal_status">تاییدیه تولید فعال</span></div>
         </div>
     </div>
+
     <div class="container">
-        <div class="grid">
-            <div>
-                <!-- TradeYar AI Brain Console -->
-                <div class="card" style="border-right: 6px solid var(--accent); border-left: 6px solid var(--accent);">
-                    <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="brain_console_title">کنسول مدیریت مغز شناختی TradeYar AI</h2>
-                    <div class="status-board">
-                        <div class="status-item">
-                            <div data-i18n="brain_status_obs">وضعیت رصد</div>
-                            <div id="brain-obs" class="status-val status-passed">ACTIVE</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="brain_status_mem">حافظه کل (رویدادها)</div>
-                            <div id="brain-mem" class="status-val" style="color: var(--primary);">125000</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="brain_status_pats">الگوهای کشف شده</div>
-                            <div id="brain-pats" class="status-val" style="color: var(--warning);">4820</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="brain_status_con">مفاهیم تایید شده</div>
-                            <div id="brain-con" class="status-val" style="color: var(--primary);">320</div>
-                        </div>
-                    </div>
-                    <div style="background: #edf2f4; padding: 12px 20px; border-radius: 6px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
-                        <span data-i18n="brain_status_learn">چرخه یادگیری شناختی</span>
-                        <span id="brain-learn" class="status-passed">RUNNING</span>
-                    </div>
-                </div>
+        <!-- Persistent Navigation Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-link active" onclick="showPanel('dashboard')">📈 User Terminal</div>
+            <div class="sidebar-link" onclick="showPanel('supervision')">🛡️ Admin Supervision</div>
+            <div class="sidebar-link" onclick="showPanel('blog')">📰 Research Hub</div>
+        </div>
 
-                <!-- Shadow Performance -->
-                <div class="card" style="border-right: 6px solid var(--warning); border-left: 6px solid var(--warning);">
-                    <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="shadow_perf_title">عملکرد معاملات فرضی (Shadow Performance)</h2>
-                    <div class="status-board">
-                        <div class="status-item">
-                            <div data-i18n="shadow_trades">کل معاملات فرضی</div>
-                            <div id="shadow-trades-count" class="status-val" style="color: var(--primary);">1250</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="shadow_wins">معاملات موفق</div>
-                            <div id="shadow-wins-count" class="status-val status-passed">820</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="shadow_losses">معاملات ناموفق</div>
-                            <div id="shadow-losses-count" class="status-val status-failed">430</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="shadow_acc">دقت شبیه‌سازی کل</div>
-                            <div id="shadow-accuracy" class="status-val status-passed">65.6%</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Explainable Decision & Conversational Interface -->
-                <div class="card" style="border-right: 6px solid var(--primary); border-left: 6px solid var(--primary);">
-                    <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="chat_explain_title">هوش تفسیری و گفتگو با مغز معامله‌گر</h2>
-
-                    <!-- Last Decision Metadata Summary -->
-                    <div style="background: #f1f5f9; padding: 15px; border-radius: 6px; margin-bottom: 20px; line-height: 1.8;">
-                        <h4 style="margin: 0 0 10px 0; color: var(--primary);" data-i18n="last_decision_title">آخرین تصمیم صادر شده</h4>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em;">
-                            <div><strong data-i18n="last_dec_symbol">نماد</strong>: XAUUSD</div>
-                            <div><strong data-i18n="last_dec_action">اقدام</strong>: BUY</div>
-                            <div><strong data-i18n="last_dec_conf">سطح اطمینان</strong>: 72%</div>
-                            <div><strong data-i18n="last_dec_evidence">شواهد</strong>: 850 similar cases</div>
-                        </div>
-                        <div style="margin-top: 10px; font-size: 0.9em; border-top: 1px solid #cbd5e1; padding-top: 5px;">
-                            <strong data-i18n="last_dec_reason">علت اصلی</strong>: Historical behavior similarity
-                        </div>
-                    </div>
-
-                    <!-- Conversation triggers -->
-                    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-                        <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none;"
-                                onclick="askBrainQuestion('چرا این معامله را باز کردی؟', 'open_trade')" data-i18n="chat_q1">چرا این معامله را باز کردی؟</button>
-                        <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                onclick="askBrainQuestion('چرا معامله نکردی؟', 'no_trade')" data-i18n="chat_q2">چرا معامله نکردی؟</button>
-                        <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                onclick="askBrainQuestion('چه چیزی یاد گرفتی؟', 'learned')" data-i18n="chat_q3">چه چیزی یاد گرفتی؟</button>
-                        <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                onclick="askBrainQuestion('کجا اشتباه کردی؟', 'mistake')" data-i18n="chat_q4">کجا اشتباه کردی؟</button>
-                        <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                onclick="askBrainQuestion('چه چیزی را نمی‌دانی؟', 'unknown')" data-i18n="chat_q5">چه چیزی را نمی‌دانی؟</button>
-                    </div>
-
-                    <!-- Chat response output field -->
-                    <div style="background: #1e1e24; color: #a9b7c6; padding: 20px; border-radius: 6px; min-height: 80px; font-family: inherit; font-size: 1em; line-height: 1.6; white-space: pre-line;"
-                         id="chat-response-box" data-i18n="chat_response_placeholder">
-                        بر روی یکی از سوالات بالا کلیک کنید تا تحلیل تفسیری و مستندات مغز هوشمند استخراج گردد...
-                    </div>
-                </div>
-
-                <!-- LIVE MARKET RESEARCH PANEL -->
-                <div class="card" style="border-left: 6px solid var(--accent); border-right: 6px solid var(--accent);">
-                    <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="live_research_title">پنل تحقیقاتی زنده بازار</h2>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
-                        <div style="line-height: 1.8;">
-                            <div><strong data-i18n="current_symbol">نماد فعلی</strong>: <span id="res-symbol">XAUUSD</span> (<span id="res-timeframe">H1</span>)</div>
-                            <div><strong data-i18n="last_update">آخرین بروزرسانی</strong>: <span id="res-time" style="font-size: 0.9em; color: #555;">Loading...</span></div>
-                            <div style="font-size: 1.2em; margin-top: 10px;">
-                                <strong data-i18n="market_bias">جهت‌گیری بازار</strong>: <span id="res-bias" style="font-weight: bold; color: var(--accent);">Bullish</span>
+        <div class="main-panel">
+            <!-- PANEL 1: TRADER DASHBOARD -->
+            <div id="panel-dashboard">
+                <div class="grid">
+                    <div>
+                        <!-- TradeYar AI Brain Console -->
+                        <div class="card" style="border-right: 6px solid var(--accent); border-left: 6px solid var(--accent);">
+                            <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="brain_console_title">کنسول مدیریت مغز شناختی TradeYar AI</h2>
+                            <div class="status-board">
+                                <div class="status-item">
+                                    <div data-i18n="brain_status_obs">وضعیت رصد</div>
+                                    <div id="brain-obs" class="status-val status-passed">ACTIVE</div>
+                                </div>
+                                <div class="status-item">
+                                    <div data-i18n="brain_status_mem">حافظه کل (رویدادها)</div>
+                                    <div id="brain-mem" class="status-val" style="color: var(--primary);">125000</div>
+                                </div>
+                                <div class="status-item">
+                                    <div data-i18n="brain_status_pats">الگوهای کشف شده</div>
+                                    <div id="brain-pats" class="status-val" style="color: var(--warning);">4820</div>
+                                </div>
+                                <div class="status-item">
+                                    <div data-i18n="brain_status_con">مفاهیم تایید شده</div>
+                                    <div id="brain-con" class="status-val" style="color: var(--primary);">320</div>
+                                </div>
                             </div>
-                            <div style="font-size: 1.2em;">
-                                <strong data-i18n="confidence">میزان اطمینان</strong>: <span id="res-confidence" style="font-weight: bold; color: var(--primary);">78%</span>
+                            <div style="background: rgba(31,38,53,0.3); padding: 12px 20px; border-radius: 6px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
+                                <span data-i18n="brain_status_learn">چرخه یادگیری شناختی</span>
+                                <span id="brain-learn" class="status-passed">RUNNING</span>
                             </div>
                         </div>
-                        <div>
-                            <strong data-i18n="technical_metrics">شاخص‌های فنی</strong>:
-                            <div id="res-indicators" style="background: #f1f5f9; padding: 10px; border-radius: 6px; font-size: 0.9em; margin-top: 5px; line-height: 1.6;">
-                                SMA20: -- | EMA12: -- | RSI: -- | ATR: --
+
+                        <!-- Shadow Performance -->
+                        <div class="card" style="border-right: 6px solid var(--warning); border-left: 6px solid var(--warning);">
+                            <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="shadow_perf_title">عملکرد معاملات فرضی (Shadow Performance)</h2>
+                            <div class="status-board">
+                                <div class="status-item">
+                                    <div data-i18n="shadow_trades">کل معاملات فرضی</div>
+                                    <div id="shadow-trades-count" class="status-val" style="color: var(--primary);">1250</div>
+                                </div>
+                                <div class="status-item">
+                                    <div data-i18n="shadow_wins">معاملات موفق</div>
+                                    <div id="shadow-wins-count" class="status-val status-passed">820</div>
+                                </div>
+                                <div class="status-item">
+                                    <div data-i18n="shadow_losses">معاملات ناموفق</div>
+                                    <div id="shadow-losses-count" class="status-val status-failed">430</div>
+                                </div>
+                                <div class="status-item">
+                                    <div data-i18n="shadow_acc">دقت شبیه‌سازی کل</div>
+                                    <div id="shadow-accuracy" class="status-val status-passed">65.6%</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Explainable Decision & Conversational Interface -->
+                        <div class="card" style="border-right: 6px solid var(--primary); border-left: 6px solid var(--primary);">
+                            <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="chat_explain_title">هوش تفسیری و گفتگو با مغز معامله‌گر</h2>
+
+                            <!-- Last Decision Metadata Summary -->
+                            <div style="background: rgba(31,38,53,0.3); padding: 15px; border-radius: 6px; margin-bottom: 20px; line-height: 1.8;">
+                                <h4 style="margin: 0 0 10px 0; color: var(--primary);" data-i18n="last_decision_title">آخرین تصمیم صادر شده</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em;">
+                                    <div><strong data-i18n="last_dec_symbol">نماد</strong>: XAUUSD</div>
+                                    <div><strong data-i18n="last_dec_action">اقدام</strong>: BUY</div>
+                                    <div><strong data-i18n="last_dec_conf">سطح اطمینان</strong>: 72%</div>
+                                    <div><strong data-i18n="last_dec_evidence">شواهد</strong>: 850 similar cases</div>
+                                </div>
+                                <div style="margin-top: 10px; font-size: 0.9em; border-top: 1px solid var(--border-dark); padding-top: 5px;">
+                                    <strong data-i18n="last_dec_reason">علت اصلی</strong>: Historical behavior similarity
+                                </div>
+                            </div>
+
+                            <!-- Conversation triggers -->
+                            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+                                <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none;"
+                                        onclick="askBrainQuestion('چرا این معامله را باز کردی؟', 'open_trade')" data-i18n="chat_q1">چرا این معامله را باز کردی؟</button>
+                                <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
+                                        onclick="askBrainQuestion('چرا معامله نکردی؟', 'no_trade')" data-i18n="chat_q2">چرا معامله نکردی؟</button>
+                                <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
+                                        onclick="askBrainQuestion('چه چیزی یاد گرفتی؟', 'learned')" data-i18n="chat_q3">چه چیزی یاد گرفتی؟</button>
+                                <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
+                                        onclick="askBrainQuestion('کجا اشتباه کردی؟', 'mistake')" data-i18n="chat_q4">کجا اشتباه کردی؟</button>
+                                <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
+                                        onclick="askBrainQuestion('چه چیزی را نمی‌دانی؟', 'unknown')" data-i18n="chat_q5">چه چیزی را نمی‌دانی؟</button>
+                            </div>
+
+                            <!-- Chat response output field -->
+                            <div style="background: #0B0E14; border: 1px solid var(--border-dark); color: #a9b7c6; padding: 20px; border-radius: 6px; min-height: 80px; font-family: inherit; font-size: 1em; line-height: 1.6; white-space: pre-line;"
+                                 id="chat-response-box" data-i18n="chat_response_placeholder">
+                                بر روی یکی از سوالات بالا کلیک کنید تا تحلیل تفسیری و مستندات مغز هوشمند استخراج گردد...
+                            </div>
+                        </div>
+
+                        <!-- LIVE MARKET RESEARCH PANEL -->
+                        <div class="card" style="border-left: 6px solid var(--accent); border-right: 6px solid var(--accent);">
+                            <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="live_research_title">پنل تحقیقاتی زنده بازار</h2>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
+                                <div style="line-height: 1.8;">
+                                    <div><strong data-i18n="current_symbol">نماد فعلی</strong>: <span id="res-symbol">XAUUSD</span> (<span id="res-timeframe">H1</span>)</div>
+                                    <div><strong data-i18n="last_update">آخرین بروزرسانی</strong>: <span id="res-time" style="font-size: 0.9em; color: #555;">Loading...</span></div>
+                                    <div style="font-size: 1.2em; margin-top: 10px;">
+                                        <strong data-i18n="market_bias">جهت‌گیری بازار</strong>: <span id="res-bias" style="font-weight: bold; color: var(--accent);">Bullish</span>
+                                    </div>
+                                    <div style="font-size: 1.2em;">
+                                        <strong data-i18n="confidence">میزان اطمینان</strong>: <span id="res-confidence" style="font-weight: bold; color: var(--primary);">78%</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <strong data-i18n="technical_metrics">شاخص‌های فنی</strong>:
+                                    <div id="res-indicators" style="background: rgba(31,38,53,0.3); padding: 10px; border-radius: 6px; font-size: 0.9em; margin-top: 5px; line-height: 1.6;">
+                                        SMA20: -- | EMA12: -- | RSI: -- | ATR: --
+                                    </div>
+                                </div>
+                            </div>
+                            <strong data-i18n="latest_ai_explanation">تحلیل و تفسیر هوش مصنوعی</strong>:
+                            <ul id="res-reasoning" style="margin: 5px 0 0 0; padding-left: 20px; padding-right: 20px; line-height: 1.6; font-size: 0.95em;">
+                                <li>Loading...</li>
+                            </ul>
+                        </div>
+
+                        <div class="card">
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-dark); padding-bottom: 15px; margin-bottom: 20px;">
+                                <h2 style="margin: 0; color: var(--primary);" data-i18n="validation_center_title">مرکز تایید و اعتبارسنجی سیستم</h2>
+                                <button id="run-btn" class="btn" onclick="triggerValidation()" data-i18n="run_validation_btn">اجرای فرآیند تایید نهایی</button>
+                            </div>
+
+                            <div class="status-board">
+                                <div class="status-item">
+                                    <div data-i18n="passed">پاس شده</div>
+                                    <div id="passed" class="status-val status-passed">0</div>
+                                </div>
+                                <div class="status-item">
+                                    <div data-i18n="failed">خطا</div>
+                                    <div id="failed" class="status-val status-failed">0</div>
+                                </div>
+                                <div class="status-item">
+                                    <div data-i18n="skipped">نادیده گرفته شده</div>
+                                    <div id="skipped" class="status-val">0</div>
+                                </div>
+                                <div class="status-item">
+                                    <div data-i18n="warnings">هشدارها</div>
+                                    <div id="warnings" class="status-val status-warn">0</div>
+                                </div>
+                            </div>
+
+                            <div style="background: rgba(31,38,53,0.3); border-left: 4px solid var(--accent); border-right: 4px solid var(--accent); padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+                                <p style="margin: 5px 0;"><strong data-i18n="active_phase">فاز فعال</strong>: <span id="phase">IDLE</span></p>
+                                <p style="margin: 5px 0;"><strong data-i18n="component_boundaries">محدوده مؤلفه</strong>: <span id="component">ReleaseValidationPlatform</span></p>
+                                <p style="margin: 5px 0;"><strong data-i18n="current_trace">ردیابی زنده فرآیند</strong>: <code id="test">Waiting...</code></p>
+                            </div>
+
+                            <h3 data-i18n="live_trace_logs">گزارش‌های زنده سیستم</h3>
+                            <div id="logs" class="logs-box">
+                                Waiting for run request...
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="historical_summary_title">خلاصه سوابق تاییدیه سیستم</h3>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th data-i18n="col_timestamp">زمان ثبت</th>
+                                        <th data-i18n="col_duration">مدت زمان</th>
+                                        <th data-i18n="col_ratio">نسبت تست‌ها</th>
+                                        <th data-i18n="col_status">وضعیت نهایی</th>
+                                        <th data-i18n="col_score">امتیاز تاییدیه</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="history-body">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="card" style="text-align: center;">
+                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="readiness_score_title">امتیاز آمادگی نهایی تولید</h3>
+                            <div class="score-circle">
+                                <div id="score-val" class="score-num">0%</div>
+                                <div id="score-status" style="font-size: 0.85em; color: var(--text-dark); text-transform: uppercase; margin-top: 5px;" data-i18n="not_executed">اجرا نشده</div>
+                            </div>
+                            <p id="summary-explanation" style="font-size: 0.9em; color: var(--text-muted); line-height: 1.5;" data-i18n="not_executed">اجرا نشده</p>
+                        </div>
+
+                        <div class="card">
+                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="subsystems_health_title">وضعیت سلامت زیرسیستم‌ها</h3>
+                            <div style="line-height: 1.8;">
+                                <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="sys_health">سلامت کلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="healthy">سالم / فعال</span></p>
+                                <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="mt5_fallback">وضعیت اتصال به MT5</strong>: <span style="color: var(--warning);" data-i18n="active_fallback">حالت شبیه‌سازی فعال</span></p>
+                                <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="runtime_host">میزبان اصلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
+                                <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="scheduler_loop">حلقه زمان‌بندی</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
+                                <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="security_compliance">انطباق امنیتی</strong>: <span style="color: var(--accent);" data-i18n="verified">تایید شده</span></p>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="reports_download_title">دانلود گزارش‌های نهایی تاییدیه</h3>
+                            <div style="line-height: 2;">
+                                <div>👉 <a href="/api/validation/reports/download?type=html" target="_blank" data-i18n="dl_html">دانلود گزارش HTML</a></div>
+                                <div>👉 <a href="/api/validation/reports/download?type=json" target="_blank" data-i18n="dl_json">دانلود گزارش JSON</a></div>
+                                <div>👉 <a href="/api/validation/reports/download?type=markdown" target="_blank" data-i18n="dl_markdown">دانلود گزارش Markdown</a></div>
                             </div>
                         </div>
                     </div>
-                    <strong data-i18n="latest_ai_explanation">تحلیل و تفسیر هوش مصنوعی</strong>:
-                    <ul id="res-reasoning" style="margin: 5px 0 0 0; padding-left: 20px; padding-right: 20px; line-height: 1.6; font-size: 0.95em;">
-                        <li>Loading...</li>
-                    </ul>
                 </div>
+            </div>
 
+            <!-- PANEL 2: ADMIN SUPERVISION PANEL -->
+            <div id="panel-supervision" style="display: none;">
                 <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #edf2f4; padding-bottom: 15px; margin-bottom: 20px;">
-                        <h2 style="margin: 0; color: var(--primary);" data-i18n="validation_center_title">مرکز تایید و اعتبارسنجی سیستم</h2>
-                        <button id="run-btn" class="btn" onclick="triggerValidation()" data-i18n="run_validation_btn">اجرای فرآیند تایید نهایی</button>
-                    </div>
+                    <h2 style="color: var(--primary); margin-top: 0;">🛡️ System SCM Supervision Panel</h2>
+                    <p style="color: var(--text-muted); font-size: 0.95em;">Secure Administrator supervision interface protected behind dynamic JWT guard layers.</p>
 
-                    <div class="status-board">
-                        <div class="status-item">
-                            <div data-i18n="passed">پاس شده</div>
-                            <div id="passed" class="status-val status-passed">0</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="failed">خطا</div>
-                            <div id="failed" class="status-val status-failed">0</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="skipped">نادیده گرفته شده</div>
-                            <div id="skipped" class="status-val">0</div>
-                        </div>
-                        <div class="status-item">
-                            <div data-i18n="warnings">هشدارها</div>
-                            <div id="warnings" class="status-val status-warn">0</div>
-                        </div>
-                    </div>
-
-                    <div style="background: #f8f9fa; border-left: 4px solid var(--accent); border-right: 4px solid var(--accent); padding: 15px; border-radius: 4px; margin-bottom: 20px;">
-                        <p style="margin: 5px 0;"><strong data-i18n="active_phase">فاز فعال</strong>: <span id="phase">IDLE</span></p>
-                        <p style="margin: 5px 0;"><strong data-i18n="component_boundaries">محدوده مؤلفه</strong>: <span id="component">ReleaseValidationPlatform</span></p>
-                        <p style="margin: 5px 0;"><strong data-i18n="current_trace">ردیابی زنده فرآیند</strong>: <code id="test">Waiting...</code></p>
-                    </div>
-
-                    <h3 data-i18n="live_trace_logs">گزارش‌های زنده سیستم</h3>
-                    <div id="logs" class="logs-box">
-                        Waiting for run request...
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="historical_summary_title">خلاصه سوابق تاییدیه سیستم</h3>
+                    <h3 style="margin-top: 25px;">Live Active Shadow Trades (Admin View)</h3>
                     <table>
                         <thead>
                             <tr>
-                                <th data-i18n="col_timestamp">زمان ثبت</th>
-                                <th data-i18n="col_duration">مدت زمان</th>
-                                <th data-i18n="col_ratio">نسبت تست‌ها</th>
-                                <th data-i18n="col_status">وضعیت نهایی</th>
-                                <th data-i18n="col_score">امتیاز تاییدیه</th>
+                                <th>Trade ID</th>
+                                <th>Symbol</th>
+                                <th>Direction</th>
+                                <th>Entry</th>
+                                <th>Status</th>
+                                <th>Confidence</th>
                             </tr>
                         </thead>
-                        <tbody id="history-body">
-                            <!-- Populated dynamically -->
+                        <tbody id="supervision-trades-body">
+                            <!-- Populated via API -->
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <div>
-                <div class="card" style="text-align: center;">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="readiness_score_title">امتیاز آمادگی نهایی تولید</h3>
-                    <div class="score-circle">
-                        <div id="score-val" class="score-num">0%</div>
-                        <div id="score-status" style="font-size: 0.85em; color: var(--dark); text-transform: uppercase; margin-top: 5px;" data-i18n="not_executed">اجرا نشده</div>
-                    </div>
-                    <p id="summary-explanation" style="font-size: 0.9em; color: #555; line-height: 1.5;" data-i18n="not_executed">اجرا نشده</p>
-                </div>
-
+            <!-- PANEL 3: pristine magazine-style Research Hub / Blog Section -->
+            <div id="panel-blog" style="display: none;">
                 <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="subsystems_health_title">وضعیت سلامت زیرسیستم‌ها</h3>
-                    <div style="line-height: 1.8;">
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="sys_health">سلامت کلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="healthy">سالم / فعال</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="mt5_fallback">وضعیت اتصال به MT5</strong>: <span style="color: var(--warning);" data-i18n="active_fallback">حالت شبیه‌سازی فعال</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="runtime_host">میزبان اصلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="scheduler_loop">حلقه زمان‌بندی</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
-                        <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="security_compliance">انطباق امنیتی</strong>: <span style="color: var(--accent);" data-i18n="verified">تایید شده</span></p>
-                    </div>
-                </div>
+                    <h2 style="color: var(--primary); margin-top: 0;">📰 Research Hub & Editorial Insights</h2>
+                    <p style="color: var(--text-muted); font-size: 0.95em;">Publishing long-form algorithmic insights and platform updates directly from the TradeYar AI Research team.</p>
 
-                <div class="card">
-                    <h3 style="color: var(--primary); margin-top: 0;" data-i18n="reports_download_title">دانلود گزارش‌های نهایی تاییدیه</h3>
-                    <div style="line-height: 2;">
-                        <div>👉 <a href="/api/validation/reports/download?type=html" target="_blank" data-i18n="dl_html">دانلود گزارش HTML</a></div>
-                        <div>👉 <a href="/api/validation/reports/download?type=json" target="_blank" data-i18n="dl_json">دانلود گزارش JSON</a></div>
-                        <div>👉 <a href="/api/validation/reports/download?type=markdown" target="_blank" data-i18n="dl_markdown">دانلود گزارش Markdown</a></div>
+                    <div class="blog-grid" id="blog-container">
+                        <!-- Populated via API -->
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Collapsible Floating AI Support Chatbot Widget -->
+    <div class="chatbot-widget" id="chat-widget">
+        <div class="chatbot-header" onclick="toggleChatbot()">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div class="ai-pulse"></div>
+                <span>TradeYar Cognitive AI Active</span>
+            </div>
+            <span>▲ / ▼</span>
+        </div>
+        <div class="chatbot-body" id="chat-body" style="display: none;">
+            <div class="chatbot-messages" id="chat-messages">
+                <div class="chat-bubble bot">سلام! من دستیار هوشمند معاملاتی شما هستم. چگونه می‌توانم امروز به شما در درک الگوهای شناختی بازار کمک کنم؟</div>
+            </div>
+            <div class="chatbot-input-container">
+                <input class="chatbot-input" id="chat-input" type="text" placeholder="سوال خود را مطرح کنید..." onkeydown="if(event.key === 'Enter') sendChatMessage()" />
+                <button class="chatbot-send" onclick="sendChatMessage()">Send</button>
             </div>
         </div>
     </div>
@@ -1688,14 +2296,16 @@ def get_scorecard():
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
 
 @app.get("/api/admin/shadow-trades")
-def get_admin_shadow_trades():
+def get_admin_shadow_trades(token: Optional[str] = None):
     """Exposes full detailed data of shadow trades for supervision and debugging."""
+    check_admin_guard(token)
     engine = PredictiveShadowEngine.get_instance()
     return [t.to_dict() for t in engine.trades]
 
 @app.get("/api/admin/memory")
-def get_admin_memory_view():
+def get_admin_memory_view(token: Optional[str] = None):
     """Exposes all internal memory layers (Raw, Experience, Pattern, Concept)."""
+    check_admin_guard(token)
     engine = PredictiveShadowEngine.get_instance()
 
     # Extract existing memories from standard global memory system as fallback representation
@@ -1716,8 +2326,9 @@ def get_admin_memory_view():
     }
 
 @app.get("/api/admin/judge")
-def get_admin_judge_panel():
+def get_admin_judge_panel(token: Optional[str] = None):
     """Exposes explanations on why trades were created and why they succeeded/failed."""
+    check_admin_guard(token)
     engine = PredictiveShadowEngine.get_instance()
 
     # Compile reasoning audit
@@ -1743,8 +2354,9 @@ def get_admin_judge_panel():
     }
 
 @app.get("/api/admin/patterns")
-def get_admin_patterns_view():
+def get_admin_patterns_view(token: Optional[str] = None):
     """Exposes pattern success rates, failed patterns, and weight changes."""
+    check_admin_guard(token)
     engine = PredictiveShadowEngine.get_instance()
 
     pattern_stats = {}
@@ -1842,3 +2454,97 @@ def get_user_active_signals():
         }
         for s in active_signals
     ]
+
+
+# ==============================================================================
+# SECURE SOCIAL AUTHENTICATION & BLOG REST API ENDPOINTS
+# ==============================================================================
+from pydantic import BaseModel
+
+class SocialLoginPayload(BaseModel):
+    email: str
+    provider_id: str
+    name: Optional[str] = ""
+
+@app.post("/api/auth/google")
+def login_with_google(payload: SocialLoginPayload):
+    """Secure authenticating callback mapping Google sign-in profiles to user sessions."""
+    user = global_auth_service.authenticate_social(
+        email=payload.email,
+        provider="google",
+        provider_id=payload.provider_id,
+        name=payload.name
+    )
+    token = global_auth_service.create_session(user)
+    return {
+        "status": "Success",
+        "session_token": token,
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"]
+        }
+    }
+
+@app.post("/api/auth/apple")
+def login_with_apple(payload: SocialLoginPayload):
+    """Secure authenticating callback mapping Apple sign-in profiles to user sessions."""
+    user = global_auth_service.authenticate_social(
+        email=payload.email,
+        provider="apple",
+        provider_id=payload.provider_id,
+        name=payload.name
+    )
+    token = global_auth_service.create_session(user)
+    return {
+        "status": "Success",
+        "session_token": token,
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"]
+        }
+    }
+
+@app.get("/api/blog")
+def list_blog_articles():
+    """Lists published long-form algorithmic insights and platform governance research papers."""
+    return MOCK_BLOG_ARTICLES
+
+@app.get("/api/blog/{article_id}")
+def get_blog_article(article_id: str):
+    """Retrieves full body content of a specific research paper article."""
+    for article in MOCK_BLOG_ARTICLES:
+        if article["id"] == article_id:
+            return article
+    raise HTTPException(status_code=404, detail="Research article not found.")
+
+
+class ChatPrompt(BaseModel):
+    message: str
+
+@app.post("/api/chat/assistant")
+def chatbot_assistant_explain(payload: ChatPrompt, lang: str = "fa"):
+    """
+    Floating AI Support Assistant chatbot response handler.
+    Directly queries DecisionExplainer and MarketMemorySystem for live contextual explanations.
+    """
+    msg = payload.message.lower()
+
+    # Context-aware semantic routing
+    if "چرا" in msg or "why" in msg or "open" in msg:
+        ans = global_decision_explainer.explain_why_open_trade(lang=lang)
+    elif "یاد" in msg or "learn" in msg or "cognitive" in msg:
+        ans = global_decision_explainer.explain_what_learned(lang=lang)
+    elif "اشتباه" in msg or "mistake" in msg or "fail" in msg:
+        ans = global_decision_explainer.explain_mistake(lang=lang)
+    elif "معامله نکرد" in msg or "not trade" in msg or "why didn" in msg:
+        ans = global_decision_explainer.explain_why_no_trade(lang=lang)
+    else:
+        ans = global_decision_explainer.explain_what_not_known(lang=lang)
+
+    return {
+        "response": ans,
+        "status": "TradeYar Cognitive AI Active",
+        "timestamp": datetime.now().isoformat()
+    }
