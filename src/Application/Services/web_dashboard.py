@@ -29,6 +29,15 @@ app = FastAPI(
     description="Descriptive, analytical non-trading administrative panel and System Validation Center"
 )
 
+# Mount three isolated production-grade SaaS routers
+from src.Application.Services.public_api_router import router as public_api_router
+from src.Application.Services.user_api_router import router as user_api_router
+from src.Application.Services.admin_api_router import router as admin_api_router
+
+app.include_router(public_api_router)
+app.include_router(user_api_router)
+app.include_router(admin_api_router)
+
 # -----------------------------------------------------------------------------
 # LIVE MARKET RESEARCH WORKER & PIPELINE COUPLING (APES-FIN Read-Only Compliance)
 # -----------------------------------------------------------------------------
@@ -44,11 +53,9 @@ global_research_runtime = ResearchRuntime(
 global_memory_system = MarketMemorySystem()
 global_decision_explainer = DecisionExplainer(memory_system=global_memory_system)
 
-# Initialize secure social authentication and role-based session services
-from src.Application.Dashboard.auth_service import AuthService
+# Initialize secure social authentication and role-based session services from shared singleton
+from src.Application.Dashboard.auth_service import global_auth_service
 from src.Application.Dashboard.auth_repo import AuthRepository
-
-global_auth_service = AuthService()
 
 MOCK_BLOG_ARTICLES = [
     {
@@ -1163,14 +1170,19 @@ def get_dashboard_spa():
 
         let isChatOpen = false;
 
+        let activeShell = 'marketing'; // Experience Shell state: 'marketing', 'dashboard', 'admin'
+        let currentHorizon = 'medium'; // Trader Horizon: 'micro', 'short', 'medium', 'macro'
+
         function toggleTheme() {
             document.body.classList.toggle('light-theme');
             const isLight = document.body.classList.contains('light-theme');
             localStorage.setItem('tradeyar_theme', isLight ? 'light' : 'dark');
         }
 
-        function showPanel(panelName) {
-            // Update link active state
+        function switchShell(shellName) {
+            activeShell = shellName;
+
+            // Highlight active sidebar navigation
             document.querySelectorAll('.sidebar-link').forEach(link => {
                 link.classList.remove('active');
             });
@@ -1178,19 +1190,132 @@ def get_dashboard_spa():
                 event.currentTarget.classList.add('active');
             }
 
-            // Toggle panels visible state
-            document.getElementById('panel-dashboard').style.display = 'none';
-            document.getElementById('panel-supervision').style.display = 'none';
-            document.getElementById('panel-blog').style.display = 'none';
+            // Hide all experience panels
+            document.getElementById('shell-marketing').style.display = 'none';
+            document.getElementById('shell-dashboard').style.display = 'none';
+            document.getElementById('shell-admin').style.display = 'none';
 
-            if (panelName === 'dashboard') {
-                document.getElementById('panel-dashboard').style.display = 'block';
-            } else if (panelName === 'supervision') {
-                document.getElementById('panel-supervision').style.display = 'block';
-                fetchSupervisionTrades();
-            } else if (panelName === 'blog') {
-                document.getElementById('panel-blog').style.display = 'block';
-                fetchBlogArticles();
+            if (shellName === 'marketing') {
+                document.getElementById('shell-marketing').style.display = 'block';
+                fetchPublicMetrics();
+            } else if (shellName === 'dashboard') {
+                document.getElementById('shell-dashboard').style.display = 'block';
+                fetchUserSignals();
+                simulateEquityProjections();
+            } else if (shellName === 'admin') {
+                document.getElementById('shell-admin').style.display = 'block';
+                fetchAdminSymbols();
+                fetchAdminReports();
+            }
+        }
+
+        function setHorizonFilter(horizon) {
+            currentHorizon = horizon;
+            document.querySelectorAll('.horizon-tab').forEach(btn => {
+                btn.style.backgroundColor = 'transparent';
+                btn.style.color = 'var(--text-muted)';
+            });
+            event.currentTarget.style.backgroundColor = 'var(--primary)';
+            event.currentTarget.style.color = 'white';
+            fetchUserSignals();
+        }
+
+        async function fetchPublicMetrics() {
+            try {
+                const r = await fetch('/api/public/metrics');
+                const data = await r.json();
+                document.getElementById('pub-markets').innerText = data.active_markets_count;
+                document.getElementById('pub-trades').innerText = (data.historical_simulated_trades / 1000).toFixed(1) + "k+";
+                document.getElementById('pub-uptime').innerText = data.platform_uptime_pct + "%";
+            } catch(e) {}
+        }
+
+        async function fetchUserSignals() {
+            try {
+                const resp = await fetch('/api/user/signals?horizon=' + currentHorizon);
+                const signals = await resp.json();
+                let grid = document.getElementById('signals-grid-container');
+                grid.innerHTML = '';
+                if (!signals || signals.length === 0) {
+                    grid.innerHTML = '<div style="grid-column: span 3; padding: 30px; text-align: center; color: var(--text-muted);">No signals active for this horizon. Try triggering validation or adding predictive shadow orders!</div>';
+                    return;
+                }
+                signals.forEach(s => {
+                    grid.innerHTML += '<div class="status-item" style="text-align: left; padding: 20px; border: 1px solid var(--border-dark); background-color: rgba(31,38,53,0.25);">' +
+                        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">' +
+                            '<strong style="font-size: 1.15em; color: var(--primary);">' + s.symbol + '</strong>' +
+                            '<span class="blog-tag">' + s.horizon + ' Horizon</span>' +
+                        '</div>' +
+                        '<div style="margin: 5px 0;"><strong>Direction:</strong> ' + s.direction + '</div>' +
+                        '<div style="margin: 5px 0;"><strong>Entry:</strong> ' + s.entry_zone + '</div>' +
+                        '<div style="margin: 5px 0;"><strong>Target:</strong> ' + s.target_zone + '</div>' +
+                        '<div style="margin: 5px 0;"><strong>Invalidation:</strong> ' + s.invalidation_level + '</div>' +
+                        '<div style="margin: 5px 0;"><strong>Confidence:</strong> ' + s.confidence + '%</div>' +
+                        '<div style="font-size: 0.85em; color: var(--text-muted); border-top: 1px solid var(--border-dark); margin-top: 10px; padding-top: 5px;">' + s.reason + '</div>' +
+                    '</div>';
+                });
+            } catch(e) {}
+        }
+
+        async function simulateEquityProjections() {
+            try {
+                const resp = await fetch('/api/user/equity-simulation?initial_balance=10000&monthly_growth_pct=8.5&months=6');
+                const data = await resp.json();
+                document.getElementById('sim-initial').innerText = "$" + data.initial_balance;
+                document.getElementById('sim-final').innerText = "$" + data.final_balance;
+                document.getElementById('sim-growth').innerText = "+" + data.total_growth_pct + "%";
+            } catch(e) {}
+        }
+
+        async function fetchAdminSymbols() {
+            try {
+                const resp = await fetch('/api/admin/symbols');
+                const data = await resp.json();
+                document.getElementById('adm-active-symbols-count').innerText = data.count + " / " + data.max_active_symbols_limit;
+
+                let list = document.getElementById('adm-symbols-list');
+                list.innerText = data.active_symbols.join(', ');
+            } catch(e) {}
+        }
+
+        async function fetchAdminReports() {
+            try {
+                const resp = await fetch('/api/admin/reports');
+                const data = await resp.json();
+                let tbody = document.getElementById('admin-reports-tbody');
+                tbody.innerHTML = '';
+                data.reports.forEach(r => {
+                    tbody.innerHTML += '<tr>' +
+                        '<td>' + r.symbol + '</td>' +
+                        '<td>Frame ' + r.timeframe + '</td>' +
+                        '<td>' + r.total_trades + '</td>' +
+                        '<td>' + r.wins + ' / ' + r.losses + '</td>' +
+                        '<td><strong>' + r.win_rate_pct + '%</strong></td>' +
+                        '<td>' + r.average_confidence_pct + '%</td>' +
+                    '</tr>';
+                });
+            } catch(e) {}
+        }
+
+        async function addMockSymbol() {
+            const sym = prompt("Enter symbol name (e.g. SOLUSD):");
+            if (!sym) return;
+            try {
+                const resp = await fetch('/api/admin/symbols', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: sym, timeframe: 64 })
+                });
+                const data = await resp.json();
+                if (resp.status >= 400) {
+                    alert("Action failed: " + data.detail);
+                } else {
+                    alert(data.message);
+                    fetchAdminSymbols();
+                    fetchAdminReports();
+                }
+            } catch(e) {
+                alert("Request failed.");
             }
         }
 
@@ -1237,52 +1362,6 @@ def get_dashboard_spa():
             container.scrollTop = container.scrollHeight;
         }
 
-        async function fetchSupervisionTrades() {
-            try {
-                const resp = await fetch('/api/admin/shadow-trades');
-                const trades = await resp.json();
-                let tbody = document.getElementById('supervision-trades-body');
-                tbody.innerHTML = '';
-                trades.forEach(t => {
-                    tbody.innerHTML += '<tr>' +
-                        '<td>' + t.trade_id + '</td>' +
-                        '<td>' + t.symbol + '</td>' +
-                        '<td><strong>' + t.direction + '</strong></td>' +
-                        '<td>' + t.entry + '</td>' +
-                        '<td>' + t.status + '</td>' +
-                        '<td>' + t.confidence + '%</td>' +
-                        '</tr>';
-                });
-            } catch (e) {}
-        }
-
-        async function fetchBlogArticles() {
-            try {
-                const resp = await fetch('/api/blog');
-                const articles = await resp.json();
-                let grid = document.getElementById('blog-container');
-                grid.innerHTML = '';
-                articles.forEach(art => {
-                    grid.innerHTML += '<div class="blog-card" onclick="viewArticle(\\'' + art.id + '\\')">' +
-                        '<div class="blog-header-img">📰</div>' +
-                        '<div class="blog-body">' +
-                            '<span class="blog-tag">' + art.category + '</span>' +
-                            '<h3 style="margin: 5px 0;">' + art.title + '</h3>' +
-                            '<p style="font-size: 0.85em; color: var(--text-muted); margin: 0;">By ' + art.author + ' | ' + art.published_at + '</p>' +
-                        '</div>' +
-                    '</div>';
-                });
-            } catch (e) {}
-        }
-
-        async function viewArticle(id) {
-            try {
-                const resp = await fetch('/api/blog/' + id);
-                const art = await resp.json();
-                alert(art.title + '\\n\\n' + art.content);
-            } catch (e) {}
-        }
-
         async function mockSocialLogin(provider) {
             const email = provider + "-trader@tradeyar.ai";
             const name = provider.charAt(0).toUpperCase() + provider.slice(1) + " Trader";
@@ -1300,21 +1379,18 @@ def get_dashboard_spa():
         }
 
         window.onload = () => {
-            // LocalStorage preference defaults to 'fa' RTL
             const savedLang = localStorage.getItem('tradeyar_language');
             if (savedLang === 'fa' || savedLang === 'en') {
                 currentLang = savedLang;
             }
 
-            // Set theme preference
             const savedTheme = localStorage.getItem('tradeyar_theme');
             if (savedTheme === 'light') {
                 document.body.classList.add('light-theme');
             }
 
             applyLanguage();
-            // Continuously refresh research panel every 5 seconds
-            setInterval(fetchResearch, 5000);
+            fetchPublicMetrics();
 
             // Collapse Chat initially
             document.getElementById('chat-widget').style.transform = 'translateY(310px)';
@@ -1341,255 +1417,142 @@ def get_dashboard_spa():
     <div class="container">
         <!-- Persistent Navigation Sidebar -->
         <div class="sidebar">
-            <div class="sidebar-link active" onclick="showPanel('dashboard')">📈 User Terminal</div>
-            <div class="sidebar-link" onclick="showPanel('supervision')">🛡️ Admin Supervision</div>
-            <div class="sidebar-link" onclick="showPanel('blog')">📰 Research Hub</div>
+            <div class="sidebar-link active" onclick="switchShell('marketing')">📣 Public Platform</div>
+            <div class="sidebar-link" onclick="switchShell('dashboard')">📈 Trader Terminal</div>
+            <div class="sidebar-link" onclick="switchShell('admin')">🛡️ SRE Admin Console</div>
         </div>
 
         <div class="main-panel">
-            <!-- PANEL 1: TRADER DASHBOARD -->
-            <div id="panel-dashboard">
-                <div class="grid">
-                    <div>
-                        <!-- TradeYar AI Brain Console -->
-                        <div class="card" style="border-right: 6px solid var(--accent); border-left: 6px solid var(--accent);">
-                            <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="brain_console_title">کنسول مدیریت مغز شناختی TradeYar AI</h2>
-                            <div class="status-board">
-                                <div class="status-item">
-                                    <div data-i18n="brain_status_obs">وضعیت رصد</div>
-                                    <div id="brain-obs" class="status-val status-passed">ACTIVE</div>
-                                </div>
-                                <div class="status-item">
-                                    <div data-i18n="brain_status_mem">حافظه کل (رویدادها)</div>
-                                    <div id="brain-mem" class="status-val" style="color: var(--primary);">125000</div>
-                                </div>
-                                <div class="status-item">
-                                    <div data-i18n="brain_status_pats">الگوهای کشف شده</div>
-                                    <div id="brain-pats" class="status-val" style="color: var(--warning);">4820</div>
-                                </div>
-                                <div class="status-item">
-                                    <div data-i18n="brain_status_con">مفاهیم تایید شده</div>
-                                    <div id="brain-con" class="status-val" style="color: var(--primary);">320</div>
-                                </div>
-                            </div>
-                            <div style="background: rgba(31,38,53,0.3); padding: 12px 20px; border-radius: 6px; font-weight: bold; display: flex; justify-content: space-between; align-items: center;">
-                                <span data-i18n="brain_status_learn">چرخه یادگیری شناختی</span>
-                                <span id="brain-learn" class="status-passed">RUNNING</span>
-                            </div>
+            <!-- PANEL 1: PUBLIC MARKETING LANDING SHELL -->
+            <div id="shell-marketing">
+                <div class="card" style="border-right: 6px solid var(--accent); border-left: 6px solid var(--accent);">
+                    <h2 style="margin: 0 0 10px 0; color: var(--primary);">Welcome to TradeYar AI v7.0</h2>
+                    <p style="color: var(--text-muted); font-size: 1em; line-height: 1.6;">
+                        Elite, Institutional-grade non-trading financial research and cognitive intelligence terminal. Discover non-linear market patterns built directly from raw multi-asset tick streams, bypassing delayed technical indicators.
+                    </p>
+
+                    <div class="status-board" style="margin-top: 25px;">
+                        <div class="status-item">
+                            <div>Supported Active Markets</div>
+                            <div id="pub-markets" class="status-val status-passed">30</div>
                         </div>
-
-                        <!-- Shadow Performance -->
-                        <div class="card" style="border-right: 6px solid var(--warning); border-left: 6px solid var(--warning);">
-                            <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="shadow_perf_title">عملکرد معاملات فرضی (Shadow Performance)</h2>
-                            <div class="status-board">
-                                <div class="status-item">
-                                    <div data-i18n="shadow_trades">کل معاملات فرضی</div>
-                                    <div id="shadow-trades-count" class="status-val" style="color: var(--primary);">1250</div>
-                                </div>
-                                <div class="status-item">
-                                    <div data-i18n="shadow_wins">معاملات موفق</div>
-                                    <div id="shadow-wins-count" class="status-val status-passed">820</div>
-                                </div>
-                                <div class="status-item">
-                                    <div data-i18n="shadow_losses">معاملات ناموفق</div>
-                                    <div id="shadow-losses-count" class="status-val status-failed">430</div>
-                                </div>
-                                <div class="status-item">
-                                    <div data-i18n="shadow_acc">دقت شبیه‌سازی کل</div>
-                                    <div id="shadow-accuracy" class="status-val status-passed">65.6%</div>
-                                </div>
-                            </div>
+                        <div class="status-item">
+                            <div>Simulated Historical Trades</div>
+                            <div id="pub-trades" class="status-val" style="color: var(--primary);">125k+</div>
                         </div>
-
-                        <!-- Explainable Decision & Conversational Interface -->
-                        <div class="card" style="border-right: 6px solid var(--primary); border-left: 6px solid var(--primary);">
-                            <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="chat_explain_title">هوش تفسیری و گفتگو با مغز معامله‌گر</h2>
-
-                            <!-- Last Decision Metadata Summary -->
-                            <div style="background: rgba(31,38,53,0.3); padding: 15px; border-radius: 6px; margin-bottom: 20px; line-height: 1.8;">
-                                <h4 style="margin: 0 0 10px 0; color: var(--primary);" data-i18n="last_decision_title">آخرین تصمیم صادر شده</h4>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em;">
-                                    <div><strong data-i18n="last_dec_symbol">نماد</strong>: XAUUSD</div>
-                                    <div><strong data-i18n="last_dec_action">اقدام</strong>: BUY</div>
-                                    <div><strong data-i18n="last_dec_conf">سطح اطمینان</strong>: 72%</div>
-                                    <div><strong data-i18n="last_dec_evidence">شواهد</strong>: 850 similar cases</div>
-                                </div>
-                                <div style="margin-top: 10px; font-size: 0.9em; border-top: 1px solid var(--border-dark); padding-top: 5px;">
-                                    <strong data-i18n="last_dec_reason">علت اصلی</strong>: Historical behavior similarity
-                                </div>
-                            </div>
-
-                            <!-- Conversation triggers -->
-                            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-                                <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none;"
-                                        onclick="askBrainQuestion('چرا این معامله را باز کردی؟', 'open_trade')" data-i18n="chat_q1">چرا این معامله را باز کردی؟</button>
-                                <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                        onclick="askBrainQuestion('چرا معامله نکردی؟', 'no_trade')" data-i18n="chat_q2">چرا معامله نکردی؟</button>
-                                <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                        onclick="askBrainQuestion('چه چیزی یاد گرفتی؟', 'learned')" data-i18n="chat_q3">چه چیزی یاد گرفتی؟</button>
-                                <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                        onclick="askBrainQuestion('کجا اشتباه کردی؟', 'mistake')" data-i18n="chat_q4">کجا اشتباه کردی؟</button>
-                                <button class="btn" style="text-align: inherit; padding: 10px 20px; font-size: 0.95em; border-radius: 8px; box-shadow: none; background-color: var(--primary);"
-                                        onclick="askBrainQuestion('چه چیزی را نمی‌دانی؟', 'unknown')" data-i18n="chat_q5">چه چیزی را نمی‌دانی؟</button>
-                            </div>
-
-                            <!-- Chat response output field -->
-                            <div style="background: #0B0E14; border: 1px solid var(--border-dark); color: #a9b7c6; padding: 20px; border-radius: 6px; min-height: 80px; font-family: inherit; font-size: 1em; line-height: 1.6; white-space: pre-line;"
-                                 id="chat-response-box" data-i18n="chat_response_placeholder">
-                                بر روی یکی از سوالات بالا کلیک کنید تا تحلیل تفسیری و مستندات مغز هوشمند استخراج گردد...
-                            </div>
+                        <div class="status-item">
+                            <div>SRE SLA Uptime Guaranteed</div>
+                            <div id="pub-uptime" class="status-val status-passed">99.9%</div>
                         </div>
-
-                        <!-- LIVE MARKET RESEARCH PANEL -->
-                        <div class="card" style="border-left: 6px solid var(--accent); border-right: 6px solid var(--accent);">
-                            <h2 style="margin: 0 0 15px 0; color: var(--primary);" data-i18n="live_research_title">پنل تحقیقاتی زنده بازار</h2>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
-                                <div style="line-height: 1.8;">
-                                    <div><strong data-i18n="current_symbol">نماد فعلی</strong>: <span id="res-symbol">XAUUSD</span> (<span id="res-timeframe">H1</span>)</div>
-                                    <div><strong data-i18n="last_update">آخرین بروزرسانی</strong>: <span id="res-time" style="font-size: 0.9em; color: #555;">Loading...</span></div>
-                                    <div style="font-size: 1.2em; margin-top: 10px;">
-                                        <strong data-i18n="market_bias">جهت‌گیری بازار</strong>: <span id="res-bias" style="font-weight: bold; color: var(--accent);">Bullish</span>
-                                    </div>
-                                    <div style="font-size: 1.2em;">
-                                        <strong data-i18n="confidence">میزان اطمینان</strong>: <span id="res-confidence" style="font-weight: bold; color: var(--primary);">78%</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <strong data-i18n="technical_metrics">شاخص‌های فنی</strong>:
-                                    <div id="res-indicators" style="background: rgba(31,38,53,0.3); padding: 10px; border-radius: 6px; font-size: 0.9em; margin-top: 5px; line-height: 1.6;">
-                                        SMA20: -- | EMA12: -- | RSI: -- | ATR: --
-                                    </div>
-                                </div>
-                            </div>
-                            <strong data-i18n="latest_ai_explanation">تحلیل و تفسیر هوش مصنوعی</strong>:
-                            <ul id="res-reasoning" style="margin: 5px 0 0 0; padding-left: 20px; padding-right: 20px; line-height: 1.6; font-size: 0.95em;">
-                                <li>Loading...</li>
-                            </ul>
-                        </div>
-
-                        <div class="card">
-                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-dark); padding-bottom: 15px; margin-bottom: 20px;">
-                                <h2 style="margin: 0; color: var(--primary);" data-i18n="validation_center_title">مرکز تایید و اعتبارسنجی سیستم</h2>
-                                <button id="run-btn" class="btn" onclick="triggerValidation()" data-i18n="run_validation_btn">اجرای فرآیند تایید نهایی</button>
-                            </div>
-
-                            <div class="status-board">
-                                <div class="status-item">
-                                    <div data-i18n="passed">پاس شده</div>
-                                    <div id="passed" class="status-val status-passed">0</div>
-                                </div>
-                                <div class="status-item">
-                                    <div data-i18n="failed">خطا</div>
-                                    <div id="failed" class="status-val status-failed">0</div>
-                                </div>
-                                <div class="status-item">
-                                    <div data-i18n="skipped">نادیده گرفته شده</div>
-                                    <div id="skipped" class="status-val">0</div>
-                                </div>
-                                <div class="status-item">
-                                    <div data-i18n="warnings">هشدارها</div>
-                                    <div id="warnings" class="status-val status-warn">0</div>
-                                </div>
-                            </div>
-
-                            <div style="background: rgba(31,38,53,0.3); border-left: 4px solid var(--accent); border-right: 4px solid var(--accent); padding: 15px; border-radius: 4px; margin-bottom: 20px;">
-                                <p style="margin: 5px 0;"><strong data-i18n="active_phase">فاز فعال</strong>: <span id="phase">IDLE</span></p>
-                                <p style="margin: 5px 0;"><strong data-i18n="component_boundaries">محدوده مؤلفه</strong>: <span id="component">ReleaseValidationPlatform</span></p>
-                                <p style="margin: 5px 0;"><strong data-i18n="current_trace">ردیابی زنده فرآیند</strong>: <code id="test">Waiting...</code></p>
-                            </div>
-
-                            <h3 data-i18n="live_trace_logs">گزارش‌های زنده سیستم</h3>
-                            <div id="logs" class="logs-box">
-                                Waiting for run request...
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="historical_summary_title">خلاصه سوابق تاییدیه سیستم</h3>
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th data-i18n="col_timestamp">زمان ثبت</th>
-                                        <th data-i18n="col_duration">مدت زمان</th>
-                                        <th data-i18n="col_ratio">نسبت تست‌ها</th>
-                                        <th data-i18n="col_status">وضعیت نهایی</th>
-                                        <th data-i18n="col_score">امتیاز تاییدیه</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="history-body">
-                                    <!-- Populated dynamically -->
-                                </tbody>
-                            </table>
+                        <div class="status-item">
+                            <div>Platform Standards</div>
+                            <div class="status-val status-warn" style="font-size: 1.05em; font-weight: bold;">APES-FIN Secure</div>
                         </div>
                     </div>
+                </div>
 
-                    <div>
-                        <div class="card" style="text-align: center;">
-                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="readiness_score_title">امتیاز آمادگی نهایی تولید</h3>
-                            <div class="score-circle">
-                                <div id="score-val" class="score-num">0%</div>
-                                <div id="score-status" style="font-size: 0.85em; color: var(--text-dark); text-transform: uppercase; margin-top: 5px;" data-i18n="not_executed">اجرا نشده</div>
-                            </div>
-                            <p id="summary-explanation" style="font-size: 0.9em; color: var(--text-muted); line-height: 1.5;" data-i18n="not_executed">اجرا نشده</p>
+                <div class="card">
+                    <h3 style="margin-top: 0; color: var(--primary);">SaaS Premium Subscriptions & Billing</h3>
+                    <div class="blog-grid">
+                        <div class="blog-card" style="padding: 20px;">
+                            <span class="blog-tag">Basic Tier</span>
+                            <h4 style="margin: 10px 0 5px 0;">Free Access</h4>
+                            <p style="font-size: 0.85em; color: var(--text-muted); line-height: 1.5; margin: 0;">Access to 3 concurrent active symbols and basic Short horizon signals.</p>
                         </div>
-
-                        <div class="card">
-                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="subsystems_health_title">وضعیت سلامت زیرسیستم‌ها</h3>
-                            <div style="line-height: 1.8;">
-                                <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="sys_health">سلامت کلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="healthy">سالم / فعال</span></p>
-                                <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="mt5_fallback">وضعیت اتصال به MT5</strong>: <span style="color: var(--warning);" data-i18n="active_fallback">حالت شبیه‌سازی فعال</span></p>
-                                <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="runtime_host">میزبان اصلی سیستم</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
-                                <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="scheduler_loop">حلقه زمان‌بندی</strong>: <span style="color: var(--accent);" data-i18n="ready">آماده به کار</span></p>
-                                <p style="margin: 8px 0; display: flex; justify-content: space-between;"><strong data-i18n="security_compliance">انطباق امنیتی</strong>: <span style="color: var(--accent);" data-i18n="verified">تایید شده</span></p>
-                            </div>
+                        <div class="blog-card" style="padding: 20px; border-color: var(--primary);">
+                            <span class="blog-tag" style="background-color: rgba(90,141,238,0.2);">Professional Tier</span>
+                            <h4 style="margin: 10px 0 5px 0;">$79 / month</h4>
+                            <p style="font-size: 0.85em; color: var(--text-muted); line-height: 1.5; margin: 0;">Access to 15 concurrent active symbols, conversational AI assistant support, and Medium horizons.</p>
                         </div>
-
-                        <div class="card">
-                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="reports_download_title">دانلود گزارش‌های نهایی تاییدیه</h3>
-                            <div style="line-height: 2;">
-                                <div>👉 <a href="/api/validation/reports/download?type=html" target="_blank" data-i18n="dl_html">دانلود گزارش HTML</a></div>
-                                <div>👉 <a href="/api/validation/reports/download?type=json" target="_blank" data-i18n="dl_json">دانلود گزارش JSON</a></div>
-                                <div>👉 <a href="/api/validation/reports/download?type=markdown" target="_blank" data-i18n="dl_markdown">دانلود گزارش Markdown</a></div>
-                            </div>
+                        <div class="blog-card" style="padding: 20px; border-color: var(--accent);">
+                            <span class="blog-tag" style="background-color: rgba(46,196,182,0.2);">Institutional Tier</span>
+                            <h4 style="margin: 10px 0 5px 0;">$299 / month</h4>
+                            <p style="font-size: 0.85em; color: var(--text-muted); line-height: 1.5; margin: 0;">Complete 30 active symbols workspace, Macro horizons analytics, and high-priority SRE server pipelines.</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- PANEL 2: ADMIN SUPERVISION PANEL -->
-            <div id="panel-supervision" style="display: none;">
-                <div class="card">
-                    <h2 style="color: var(--primary); margin-top: 0;">🛡️ System SCM Supervision Panel</h2>
-                    <p style="color: var(--text-muted); font-size: 0.95em;">Secure Administrator supervision interface protected behind dynamic JWT guard layers.</p>
+            <!-- PANEL 2: CUSTOMER FINANCIAL TERMINAL SHELL -->
+            <div id="shell-dashboard" style="display: none;">
+                <!-- Horizons navigation tabs -->
+                <div style="display: flex; gap: 10px; margin-bottom: 25px; background-color: var(--surface-dark); padding: 8px; border-radius: 8px; border: 1px solid var(--border-dark);">
+                    <button class="btn horizon-tab" style="flex: 1; padding: 10px;" onclick="setHorizonFilter('micro')">⚡ Micro Horizon</button>
+                    <button class="btn horizon-tab" style="flex: 1; padding: 10px;" onclick="setHorizonFilter('short')">📊 Short Horizon</button>
+                    <button class="btn horizon-tab" style="flex: 1; padding: 10px; background-color: var(--primary); color: white;" onclick="setHorizonFilter('medium')">📈 Medium Horizon</button>
+                    <button class="btn horizon-tab" style="flex: 1; padding: 10px;" onclick="setHorizonFilter('macro')">💎 Macro Horizon</button>
+                </div>
 
-                    <h3 style="margin-top: 25px;">Live Active Shadow Trades (Admin View)</h3>
+                <!-- Signal feed cards -->
+                <div class="card">
+                    <h3 style="margin-top: 0; color: var(--primary);">Cognitive Multi-Asset Signal Hub</h3>
+                    <div class="blog-grid" id="signals-grid-container">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Equity Growth Projection Chart Simulator -->
+                <div class="card">
+                    <h3 style="margin-top: 0; color: var(--primary);">Compound Equity Growth Projection</h3>
+                    <div class="status-board">
+                        <div class="status-item">
+                            <div>Starting Principal</div>
+                            <div id="sim-initial" class="status-val" style="color: var(--text-dark);">$10,000</div>
+                        </div>
+                        <div class="status-item">
+                            <div>Projected compounding balance</div>
+                            <div id="sim-final" class="status-val status-passed">$16,310</div>
+                        </div>
+                        <div class="status-item">
+                            <div>Compounded Yield</div>
+                            <div id="sim-growth" class="status-val status-passed">+63.1%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL 3: INTERNAL SRE ADMIN CONTROL CENTER SHELL -->
+            <div id="shell-admin" style="display: none;">
+                <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h2 style="color: var(--primary); margin: 0;">🛡️ Internal SRE Control Center</h2>
+                        <button class="btn" style="background-color: var(--accent); font-size: 0.9em; padding: 8px 16px;" onclick="addMockSymbol()">+ Register New Symbol Context</button>
+                    </div>
+
+                    <div class="status-board">
+                        <div class="status-item">
+                            <div>Registered Active Symbols</div>
+                            <div id="adm-active-symbols-count" class="status-val status-passed">5 / 30</div>
+                        </div>
+                        <div class="status-item">
+                            <div>Limit Enforcements</div>
+                            <div class="status-val status-passed" style="font-size: 1.1em; font-weight: bold;">ACTIVE (Capped to 30)</div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 15px; line-height: 1.6;">
+                        <strong>Currently Active Symbols:</strong> <span id="adm-symbols-list" style="color: var(--primary); font-family: monospace;">EURUSD, BTCUSD, XAUUSD, GBPUSD, ETHUSD</span>
+                    </p>
+                </div>
+
+                <!-- Independent contexts reports list -->
+                <div class="card">
+                    <h3 style="margin-top: 0; color: var(--primary);">Per-Context SCM Deep Reports & Performance</h3>
                     <table>
                         <thead>
                             <tr>
-                                <th>Trade ID</th>
                                 <th>Symbol</th>
-                                <th>Direction</th>
-                                <th>Entry</th>
-                                <th>Status</th>
-                                <th>Confidence</th>
+                                <th>Internal Frame</th>
+                                <th>Total Shadow Cycles</th>
+                                <th>Result Wins/Losses</th>
+                                <th>Win Rate</th>
+                                <th>Avg Confidence</th>
                             </tr>
                         </thead>
-                        <tbody id="supervision-trades-body">
+                        <tbody id="admin-reports-tbody">
                             <!-- Populated via API -->
                         </tbody>
                     </table>
-                </div>
-            </div>
-
-            <!-- PANEL 3: pristine magazine-style Research Hub / Blog Section -->
-            <div id="panel-blog" style="display: none;">
-                <div class="card">
-                    <h2 style="color: var(--primary); margin-top: 0;">📰 Research Hub & Editorial Insights</h2>
-                    <p style="color: var(--text-muted); font-size: 0.95em;">Publishing long-form algorithmic insights and platform updates directly from the TradeYar AI Research team.</p>
-
-                    <div class="blog-grid" id="blog-container">
-                        <!-- Populated via API -->
-                    </div>
                 </div>
             </div>
         </div>

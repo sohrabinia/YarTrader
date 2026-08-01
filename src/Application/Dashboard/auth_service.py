@@ -68,3 +68,6 @@ class AuthService:
     def logout(self, token: str) -> None:
         if token in self.active_sessions:
             del self.active_sessions[token]
+
+# Secure Shared Global Singleton to prevent circular imports or state leaks
+global_auth_service = AuthService()
