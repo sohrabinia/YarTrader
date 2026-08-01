@@ -9,6 +9,11 @@ Every modification, file creation, or removal made during the Version 3 transiti
 
 | File Path | Operation | Risk Level | Reason for Change | Validation Performed |
 |---|---|---|---|---|
+| `.env.production` | **CREATED** | `LOW` | Production-ready environment variable template | Human and tool syntax review |
+| `scripts/deploy_production.ps1` | **CREATED** | `LOW` | Idempotent script for artifact, python, and environment checks | Validation run in PowerShell and file content check |
+| `scripts/setup_iis_reverse_proxy.ps1` | **CREATED** | `LOW` | Idempotent script for IIS app pool, site, URL Rewrite web.config generation | Validation run and file verification |
+| `scripts/health_check.ps1` | **MODIFIED** | `LOW` | Enhanced to check both local backend and external proxy URL endpoints | Direct endpoint health query tests |
+| `docs/PRODUCTION_DEPLOYMENT_GUIDE.md` | **CREATED** | `NONE` (Doc) | Official step-by-step production server & IIS deployment manual | Doc layout and formatting check |
 | `docs/PRODUCTION_HARDENING_AUDIT.md` | **CREATED** | `NONE` (Doc) | Gate 1 Pre-Implementation Audit Deliverable | Human Review & Workspace Mapping |
 | `src/Research/Brain/memory.py` | **MODIFIED** | `MEDIUM` | Added Snapshot, Restore, Latest Tag, Transactional validation, and Disaster Recovery mechanisms | Unit Tests & Historical Replay validation (`pytest`) |
 | `src/Application/Services/web_dashboard.py` | **MODIFIED** | `LOW` | Added `/health/live`, `/health/ready`, and `/api/v1/health` diagnostics | Health diagnostics unit tests |
