@@ -1,6 +1,98 @@
 from typing import List, Dict, Any, Tuple
 from src.Research.Brain.models import PatternMemory
 
+class StatisticalValidationEngine:
+    """
+    Performs rigid Phase 5 statistical validation of MarketBehaviorMemory.
+    Provides out-of-sample checks, overfitting penalties, and integrity acceptance tests.
+    """
+    def __init__(self, min_sample_size: int = 5, tolerance_pct: float = 15.0) -> None:
+        self.min_sample_size = min_sample_size
+        self.tolerance_pct = tolerance_pct
+
+    def validate_pattern_sample_size(self, pattern: PatternMemory) -> str:
+        """Enforces minimum sample size rules. Returns 'INSUFFICIENT_SAMPLE' if below threshold."""
+        if pattern.occurrences_count < self.min_sample_size:
+            return "INSUFFICIENT_SAMPLE"
+        return "SUFFICIENT_SAMPLE"
+
+    def perform_walk_forward_validation(
+        self,
+        historical_outcomes: List[Dict[str, Any]],
+        out_of_sample_outcomes: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Conducts walk-forward chronological out-of-sample validation to prevent double-dipping.
+        Compares continuation ratios and checks for performance divergence.
+        """
+        if not historical_outcomes:
+            return {"status": "INSUFFICIENT_DATA", "divergence": 0.0}
+
+        # Calculate historical continuation ratio
+        hist_cont = sum(1 for o in historical_outcomes if o.get("is_continuation", True) or o.get("outcome") == "SUCCESS")
+        hist_ratio = hist_cont / len(historical_outcomes)
+
+        if not out_of_sample_outcomes:
+            return {
+                "status": "NO_OUT_OF_SAMPLE_DATA",
+                "historical_ratio": hist_ratio,
+                "divergence": 0.0
+            }
+
+        # Calculate out-of-sample continuation ratio
+        oos_cont = sum(1 for o in out_of_sample_outcomes if o.get("is_continuation", True) or o.get("outcome") == "SUCCESS")
+        oos_ratio = oos_cont / len(out_of_sample_outcomes)
+
+        # Compute divergence
+        divergence = abs(hist_ratio - oos_ratio) * 100.0
+
+        status = "PASSED"
+        if divergence > self.tolerance_pct:
+            status = "UNRELIABLE_CONFIDENCE"
+
+        return {
+            "status": status,
+            "historical_ratio": round(hist_ratio, 4),
+            "out_of_sample_ratio": round(oos_ratio, 4),
+            "divergence_pct": round(divergence, 2)
+        }
+
+    def check_overfitting_sensitivity(self, pattern: PatternMemory) -> Dict[str, Any]:
+        """
+        Evaluates XAUUSD single-symbol overfitting.
+        Flags narrow patterns with zero variance or overly unidirectional outcomes on tiny samples.
+        """
+        signature = pattern.sequence_signature
+        if len(signature) < 2:
+            return {"is_overfit": True, "reason": "Insufficient signature length"}
+
+        # Check signature variance
+        mean = sum(signature) / len(signature)
+        variance = sum((x - mean) ** 2 for x in signature) / len(signature)
+
+        is_overfit = False
+        reasons = []
+
+        if variance < 1e-4:
+            is_overfit = True
+            reasons.append("Zero variance/Static signature")
+
+        # Unidirectional outcomes on small samples
+        total = pattern.occurrences_count
+        if total < 10:
+            max_flow = max(pattern.continuation_count, pattern.reversal_count)
+            ratio = max_flow / total if total > 0 else 0.0
+            if ratio > 0.95:
+                is_overfit = True
+                reasons.append("Unidirectional outcomes on small sample")
+
+        return {
+            "is_overfit": is_overfit,
+            "reasons": reasons,
+            "variance": round(variance, 6)
+        }
+
+
 class QualityControlBrain:
     """
     Independent evaluator to grade reasoning quality.
