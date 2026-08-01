@@ -16,7 +16,10 @@ sys.path.insert(0, project_root)
 os.environ["TRADEYAR_SERVICE_RUN"] = "True"
 
 # Ensure logs/service directory exists
-os.makedirs(os.path.join("logs", "service"), exist_ok=True)
+try:
+    os.makedirs(os.path.join("logs", "service"), exist_ok=True)
+except Exception:
+    pass
 
 def log_service_message(message: str) -> None:
     """Logs dedicated service messages directly to logs/service/service.log and main application.log."""
