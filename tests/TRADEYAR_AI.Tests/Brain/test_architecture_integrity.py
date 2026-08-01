@@ -203,3 +203,51 @@ def test_knowledge_query_interface_strict_read_only_isolation():
         assert not attr_name.startswith("save_")
         assert not attr_name.startswith("delete_")
         assert not attr_name.startswith("update_")
+
+
+def test_memory_snapshot_and_emergency_recovery():
+    """Verify memory snapshotting, restore snapshot, latest tag detection, and emergency recovery."""
+    memory_system = MarketMemorySystem(storage_dir=TEST_STORAGE_DIR)
+
+    # Seed initial test data
+    evt = MarketEvent(
+        symbol="XAUUSD", timeframe="H1", start_time=datetime(2026, 1, 1, 12, 0), end_time=datetime(2026, 1, 1, 13, 0),
+        price_change=15.0, duration_candles=1, previous_sequence_len=0, reaction_type="reversal", reaction_magnitude=-5.0
+    )
+    memory_system.add_event(evt)
+    assert len(memory_system.get_events()) == 1
+
+    # 1. Create a Snapshot
+    tag = "v2-backup-test"
+    snapshot_meta = memory_system.create_snapshot(tag)
+    assert snapshot_meta["backup_tag"] == tag
+    assert "events" in snapshot_meta["files"]
+
+    # 2. Check latest snapshot detection
+    latest_tag = memory_system.get_latest_snapshot_tag()
+    assert latest_tag == tag
+
+    # 3. Add more events, then restore and confirm rollback
+    evt2 = MarketEvent(
+        symbol="XAUUSD", timeframe="H1", start_time=datetime(2026, 1, 1, 14, 0), end_time=datetime(2026, 1, 1, 15, 0),
+        price_change=25.0, duration_candles=1, previous_sequence_len=1, reaction_type="reversal", reaction_magnitude=-2.0
+    )
+    memory_system.add_event(evt2)
+    assert len(memory_system.get_events()) == 2
+
+    # Restore snapshot
+    restored = memory_system.restore_snapshot(tag)
+    assert restored is True
+    # Confirm rolled back to 1 event
+    assert len(memory_system.get_events()) == 1
+
+    # 4. Trigger Automatic Emergency Recovery
+    # Corrupt the events JSON file
+    events_file = memory_system._get_path("events")
+    with open(events_file, "w", encoding="utf-8") as f:
+        f.write("{invalid_json: true, ...}")  # Corrupted data!
+
+    # Calling load_all should detect corruption and recover from the latest snapshot
+    memory_system.load_all()
+    # Confirm loaded 1 event successfully recovered from snapshot!
+    assert len(memory_system.get_events()) == 1
