@@ -4,6 +4,7 @@ import uuid
 import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+from src.ShadowTrading.Engine.SymbolTimeContext import SymbolTimeContext
 
 logger = logging.getLogger("PredictiveShadowEngine")
 
@@ -28,7 +29,7 @@ class ShadowTrade:
         volume: float = 1.0
     ) -> None:
         self.trade_id = trade_id or f"strade-{uuid.uuid4().hex[:6]}"
-        self.symbol = symbol
+        self.symbol = symbol.upper()
         self.direction = direction.upper()  # LONG or SHORT
         self.entry = float(entry)
         self.stop = float(stop)
@@ -58,11 +59,9 @@ class ShadowTrade:
         """
         Processes a raw tick update and transitions the position lifecycle.
         """
-        # 1. Trigger pending order if price hits entry
         if self.status == "CREATED":
             triggered = False
             if self.direction == "LONG":
-                # Entry trigger condition: price touches or crosses entry from below
                 if current_price >= self.entry:
                     triggered = True
             else: # SHORT
@@ -74,9 +73,7 @@ class ShadowTrade:
                 self.activation_time = datetime.now()
                 logger.info(f"Predictive shadow order triggered: {self.trade_id} @ {self.entry}")
 
-        # 2. If running, evaluate floating profit, MAE, MFE, and TP/SL breaches
         if self.status == "RUNNING":
-            # standard PnL multiplier representation
             multiplier = 100.0 if "XAU" in self.symbol else 10000.0
 
             if self.direction == "LONG":
@@ -86,15 +83,12 @@ class ShadowTrade:
 
             self.floating_pnl = round(pnl, 2)
 
-            # Update MAE (minimum P/L seen, so max negative displacement)
             if self.floating_pnl < self.mae:
                 self.mae = self.floating_pnl
-
-            # Update MFE (maximum P/L seen, so max positive displacement)
             if self.floating_pnl > self.mfe:
                 self.mfe = self.floating_pnl
 
-            # Check Stop Loss / Take Profit
+            # Check SL/TP
             if self.direction == "LONG":
                 if current_price >= self.target:
                     self.status = "TARGET_HIT"
@@ -181,8 +175,9 @@ class ShadowTrade:
 
 class PredictiveShadowEngine:
     """
-    Main orchestrator for managing predictive virtual order placement, lifecycles,
-    and history database persistence (never deleting data).
+    Overhauled main orchestrator for TradeYar AI v3.3.
+    Manages multi-asset and multi-resolution isolated contexts.
+    Enforces standard limit of max 30 concurrent symbols.
     """
     _instance: Optional["PredictiveShadowEngine"] = None
 
@@ -193,6 +188,10 @@ class PredictiveShadowEngine:
         return cls._instance
 
     def __init__(self) -> None:
+        self.max_symbols_limit = 30
+        self._load_limits_config()
+
+        # Database File Paths (Consolidated memory indices)
         self.trades_file = "runtime_logs/shadow_trades.json"
         self.bases_file = "runtime_logs/base_memory.json"
         self.nodes_file = "runtime_logs/node_memory.json"
@@ -200,16 +199,97 @@ class PredictiveShadowEngine:
         self.learning_file = "runtime_logs/learning_history.json"
         self.signals_file = "runtime_logs/signal_history.json"
 
-        # Ensure directories exist
         os.makedirs("runtime_logs", exist_ok=True)
 
-        # Load existing datasets or initialize empty ones
+        # Isolated Context Map: context_id (e.g. BTCUSD_256) -> SymbolTimeContext
+        self.contexts: Dict[str, SymbolTimeContext] = {}
+
+        # Core lists for serialization / global fallback queries
         self.trades: List[ShadowTrade] = self._load_trades()
         self.bases: List[Dict[str, Any]] = self._load_generic(self.bases_file)
         self.nodes: List[Dict[str, Any]] = self._load_generic(self.nodes_file)
         self.patterns: List[Dict[str, Any]] = self._load_generic(self.patterns_file)
         self.learning: List[Dict[str, Any]] = self._load_generic(self.learning_file)
         self.signals: List[Dict[str, Any]] = self._load_generic(self.signals_file)
+
+        # Initialize existing records into corresponding contexts
+        self._hydrate_contexts()
+
+    def _load_limits_config(self) -> None:
+        yaml_path = "config/system_limits.yaml"
+        if os.path.exists(yaml_path):
+            try:
+                import yaml
+                with open(yaml_path, "r", encoding="utf-8") as f:
+                    limits = yaml.safe_load(f)
+                    self.max_symbols_limit = limits.get("system_limits", {}).get("max_active_symbols", 30)
+            except Exception:
+                self.max_symbols_limit = 30
+
+    def _get_or_create_context_bypassing_limits(self, symbol: str, timeframe: int) -> SymbolTimeContext:
+        """Retrieves or creates context without SRE limits verification (used on startup hydration)."""
+        symbol_upper = symbol.upper()
+        tf_int = int(timeframe)
+        context_id = f"{symbol_upper}_{tf_int}"
+
+        if context_id in self.contexts:
+            return self.contexts[context_id]
+
+        ctx = SymbolTimeContext(symbol_upper, tf_int)
+        self.contexts[context_id] = ctx
+        return ctx
+
+    def _hydrate_contexts(self) -> None:
+        """Hydrates isolated contexts from loaded persistent data, bypassing limits checks."""
+        # 1. Hydrate Trades
+        for trade in self.trades:
+            ctx = self._get_or_create_context_bypassing_limits(trade.symbol, trade.custom_time_structure)
+            ctx.trades.append(trade)
+
+        # 2. Hydrate Bases
+        for base in self.bases:
+            ctx = self._get_or_create_context_bypassing_limits(base["symbol"], base.get("timeframe", 64))
+            ctx.bases.append(base)
+
+        # 3. Hydrate Nodes
+        for node in self.nodes:
+            ctx = self._get_or_create_context_bypassing_limits(node.get("symbol", "XAUUSD"), node.get("timeframe", 64))
+            ctx.nodes.append(node)
+
+        # 4. Hydrate Patterns
+        for pat in self.patterns:
+            symbol = pat.get("symbol", "XAUUSD")
+            tf = pat.get("timeframe", 64)
+            ctx = self._get_or_create_context_bypassing_limits(symbol, tf)
+            ctx.patterns.append(pat)
+
+        # 5. Hydrate Learning histories
+        for learn in self.learning:
+            symbol = learn.get("symbol", "XAUUSD")
+            tf = learn.get("timeframe", 64)
+            ctx = self._get_or_create_context_bypassing_limits(symbol, tf)
+            ctx.learning.append(learn)
+
+    def get_or_create_context(self, symbol: str, timeframe: int) -> SymbolTimeContext:
+        """
+        Retrieves or instantiates an isolated SymbolTimeContext.
+        Enforces maximum active symbols operational limits during active runs.
+        """
+        symbol_upper = symbol.upper()
+        tf_int = int(timeframe)
+        context_id = f"{symbol_upper}_{tf_int}"
+
+        if context_id in self.contexts:
+            return self.contexts[context_id]
+
+        # Limit Check: Count unique active symbols across registered contexts
+        active_symbols = set(ctx.symbol for ctx in self.contexts.values())
+        if len(active_symbols) >= self.max_symbols_limit and symbol_upper not in active_symbols:
+            raise ValueError(f"Hard SRE limit reached: Maximum {self.max_symbols_limit} active symbols allowed concurrent execution.")
+
+        ctx = SymbolTimeContext(symbol_upper, tf_int)
+        self.contexts[context_id] = ctx
+        return ctx
 
     def create_predictive_order(
         self,
@@ -226,8 +306,11 @@ class PredictiveShadowEngine:
         pattern: str = "Base Expansion Continuation"
     ) -> ShadowTrade:
         """
-        Registers a predictive shadow order before price actually triggers it.
+        Registers a predictive shadow order in its isolated SymbolTimeContext.
         """
+        # Resolve Context & check limits
+        ctx = self.get_or_create_context(symbol, custom_time_structure)
+
         trade = ShadowTrade(
             symbol=symbol,
             direction=direction,
@@ -241,38 +324,45 @@ class PredictiveShadowEngine:
             node_id=node_id,
             pattern=pattern
         )
+
+        ctx.trades.append(trade)
         self.trades.append(trade)
         self._save_trades()
 
-        # Whenever a shadow trade is created, map it to a clean user signal
+        # Build sanitized user signal from the newly created ShadowTrade
         self.generate_user_signal(trade)
         return trade
 
     def update_market_ticks(self, symbol: str, current_price: float) -> List[ShadowTrade]:
         """
-        Updates floating P/L, handles SL/TP breaches, and runs post-trade memory learning triggers.
+        Updates floating state, SL/TP triggers across contexts of a specific symbol.
         """
         closed_trades = []
-        for trade in self.trades:
-            if trade.symbol == symbol and trade.status in ["CREATED", "RUNNING"]:
-                old_status = trade.status
-                trade.update_price_tick(current_price)
-                if trade.status in ["TARGET_HIT", "STOP_HIT", "TIMEOUT", "INVALIDATED"]:
-                    closed_trades.append(trade)
-                    # Trigger memory learning and outcome recording
-                    self._record_pattern_outcome(trade)
-                    self._update_learning_history(trade)
-                    # Synchronize clean user signals
-                    self._sync_user_signal(trade)
+        symbol_upper = symbol.upper()
+
+        # Iterate all contexts of this symbol
+        matching_contexts = [ctx for ctx in self.contexts.values() if ctx.symbol == symbol_upper]
+        for ctx in matching_contexts:
+            # Append current tick
+            ctx.tick_buffer.append({"price": current_price, "timestamp": datetime.now().isoformat()})
+            if len(ctx.tick_buffer) > 5000:
+                ctx.tick_buffer.pop(0)
+
+            # Update trades in context
+            for trade in ctx.trades:
+                if trade.status in ["CREATED", "RUNNING"]:
+                    trade.update_price_tick(current_price)
+                    if trade.status in ["TARGET_HIT", "STOP_HIT", "TIMEOUT", "INVALIDATED"]:
+                        closed_trades.append(trade)
+                        self._record_pattern_outcome_context(ctx, trade)
+                        self._update_learning_history_context(ctx, trade)
+                        self._sync_user_signal(trade)
 
         if closed_trades:
             self._save_trades()
         return closed_trades
 
     def generate_user_signal(self, trade: ShadowTrade) -> Dict[str, Any]:
-        """
-        Converts a ShadowTrade into a clean user signal (hiding internal calculations).
-        """
         sig = {
             "signal_id": f"sig-{trade.trade_id[7:] if trade.trade_id.startswith('strade-') else trade.trade_id}",
             "shadow_trade_id": trade.trade_id,
@@ -291,51 +381,61 @@ class PredictiveShadowEngine:
         return sig
 
     def get_clean_signals(self) -> List[Dict[str, Any]]:
-        """Returns clean user signals only."""
         return self.signals
 
-    def add_base(self, base: Dict[str, Any]) -> None:
+    def add_base(self, symbol: str, timeframe: int, base: Dict[str, Any]) -> None:
+        ctx = self.get_or_create_context(symbol, timeframe)
+        base["symbol"] = symbol
+        base["timeframe"] = timeframe
+        ctx.bases.append(base)
         self.bases.append(base)
         self._save_generic(self.bases_file, self.bases)
 
-    def add_node(self, node: Dict[str, Any]) -> None:
+    def add_node(self, symbol: str, timeframe: int, node: Dict[str, Any]) -> None:
+        ctx = self.get_or_create_context(symbol, timeframe)
+        node["symbol"] = symbol
+        node["timeframe"] = timeframe
+        ctx.nodes.append(node)
         self.nodes.append(node)
         self._save_generic(self.nodes_file, self.nodes)
 
     def _sync_user_signal(self, trade: ShadowTrade) -> None:
-        """Updates user signal status on shadow close."""
         for sig in self.signals:
             if sig.get("shadow_trade_id") == trade.trade_id:
                 sig["status"] = trade.status
         self._save_generic(self.signals_file, self.signals)
 
-    def _record_pattern_outcome(self, trade: ShadowTrade) -> None:
-        """Updates pattern statistics on disk."""
+    def _record_pattern_outcome_context(self, ctx: SymbolTimeContext, trade: ShadowTrade) -> None:
         outcome = {
             "trade_id": trade.trade_id,
+            "symbol": trade.symbol,
+            "timeframe": trade.custom_time_structure,
             "pattern": trade.pattern,
             "result": trade.status,
             "mae": trade.mae,
             "mfe": trade.mfe,
             "timestamp": datetime.now().isoformat()
         }
+        ctx.patterns.append(outcome)
         self.patterns.append(outcome)
         self._save_generic(self.patterns_file, self.patterns)
 
-    def _update_learning_history(self, trade: ShadowTrade) -> None:
-        """Logs a cognitive update reflecting how the judge/brain is updated from this trade."""
+    def _update_learning_history_context(self, ctx: SymbolTimeContext, trade: ShadowTrade) -> None:
         record = {
             "update_id": f"learn-{uuid.uuid4().hex[:6]}",
             "trade_id": trade.trade_id,
+            "symbol": trade.symbol,
+            "timeframe": trade.custom_time_structure,
             "pattern": trade.pattern,
             "success": trade.status == "TARGET_HIT",
             "confidence_shift": -0.05 if trade.status == "STOP_HIT" else 0.05,
             "timestamp": datetime.now().isoformat()
         }
+        ctx.learning.append(record)
         self.learning.append(record)
         self._save_generic(self.learning_file, self.learning)
 
-    # File storage helpers
+    # Persistence Load & Saves
     def _load_trades(self) -> List[ShadowTrade]:
         if not os.path.exists(self.trades_file):
             return []
