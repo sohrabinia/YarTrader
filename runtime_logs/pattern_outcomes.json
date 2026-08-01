@@ -1,10 +1,10 @@
 [
     {
-        "trade_id": "strade-e57acd",
+        "trade_id": "strade-a8d62d",
         "pattern": "Base Expansion Continuation",
         "result": "TARGET_HIT",
         "mae": 0.0,
         "mfe": 2200.0,
-        "timestamp": "2026-08-01T15:36:58.616572"
+        "timestamp": "2026-08-01T16:14:28.211955"
     }
 ]

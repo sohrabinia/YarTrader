@@ -1,7 +1,7 @@
 [
     {
-        "signal_id": "sig-5a818f",
-        "shadow_trade_id": "strade-5a818f",
+        "signal_id": "sig-3180e5",
+        "shadow_trade_id": "strade-3180e5",
         "symbol": "XAUUSD",
         "direction": "LONG",
         "entry_zone": 2354.0,
@@ -10,32 +10,6 @@
         "confidence": 78.0,
         "reason": "Market Structure Expansion",
         "status": "ACTIVE",
-        "timestamp": "2026-08-01T15:36:58.629031"
-    },
-    {
-        "signal_id": "sig-c0532c",
-        "shadow_trade_id": "strade-c0532c",
-        "symbol": "XAUUSD",
-        "direction": "LONG",
-        "entry_zone": 2354.0,
-        "invalidation_level": 2342.0,
-        "target_zone": 2368.0,
-        "confidence": 78.0,
-        "reason": "Market Structure Expansion",
-        "status": "ACTIVE",
-        "timestamp": "2026-08-01T15:40:45.802419"
-    },
-    {
-        "signal_id": "sig-41c020",
-        "shadow_trade_id": "strade-41c020",
-        "symbol": "XAUUSD",
-        "direction": "SHORT",
-        "entry_zone": 2350.0,
-        "invalidation_level": 2362.0,
-        "target_zone": 2338.0,
-        "confidence": 82.0,
-        "reason": "Velocity Spike Reaction",
-        "status": "ACTIVE",
-        "timestamp": "2026-08-01T15:40:45.803250"
+        "timestamp": "2026-08-01T16:14:28.226041"
     }
 ]
