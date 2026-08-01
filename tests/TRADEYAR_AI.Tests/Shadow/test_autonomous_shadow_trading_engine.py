@@ -113,7 +113,7 @@ class TestAutonomousShadowTradingEngine(unittest.TestCase):
         self.assertGreater(len(self.engine.learning), 0)
 
         # Check learning record contents
-        learn_rec = self.engine.learning[0]
+        learn_rec = self.engine.learning[-1]
         self.assertEqual(learn_rec["trade_id"], trade.trade_id)
         self.assertFalse(learn_rec["success"])
         self.assertEqual(learn_rec["confidence_shift"], -0.05)

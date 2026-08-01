@@ -1,15 +1,15 @@
 [
     {
-        "signal_id": "sig-3180e5",
-        "shadow_trade_id": "strade-3180e5",
-        "symbol": "XAUUSD",
+        "signal_id": "sig-b5f36c",
+        "shadow_trade_id": "strade-b5f36c",
+        "symbol": "BTCUSD",
         "direction": "LONG",
-        "entry_zone": 2354.0,
-        "invalidation_level": 2342.0,
-        "target_zone": 2368.0,
-        "confidence": 78.0,
+        "entry_zone": 60000.0,
+        "invalidation_level": 59000.0,
+        "target_zone": 65000.0,
+        "confidence": 80.0,
         "reason": "Market Structure Expansion",
         "status": "ACTIVE",
-        "timestamp": "2026-08-01T16:14:28.226041"
+        "timestamp": "2026-08-01T18:00:22.181102"
     }
 ]
