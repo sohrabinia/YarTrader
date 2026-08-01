@@ -51,3 +51,37 @@ class TestHealthEndpoint(unittest.TestCase):
         self.assertIn("api_response_ms", data)
         self.assertIn("memory_used_mb", data)
         self.assertIn("thread_count", data)
+
+    def test_health_live_endpoint(self):
+        """Verifies calling /health/live returns process liveness status."""
+        response = self.client.get("/health/live")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "OK"})
+
+    def test_health_ready_endpoint_connected(self):
+        """Verifies calling /health/ready returns READY when MT5 is connected."""
+        research_tracker["mt5_status"] = "CONNECTED"
+        response = self.client.get("/health/ready")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "READY"})
+
+    def test_health_ready_endpoint_disconnected(self):
+        """Verifies calling /health/ready returns NOT_READY when MT5 is disconnected."""
+        research_tracker["mt5_status"] = "DISCONNECTED"
+        response = self.client.get("/health/ready")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "NOT_READY")
+        self.assertIn("reasons", data)
+
+    def test_api_v1_health_endpoint(self):
+        """Verifies calling /api/v1/health returns detailed diagnostics."""
+        research_tracker["mt5_status"] = "CONNECTED"
+        response = self.client.get("/api/v1/health")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "Healthy")
+        self.assertIn("timestamp", data)
+        self.assertIn("subsystems", data)
+        self.assertIn("memory", data)
+        self.assertIn("dependency_health", data)

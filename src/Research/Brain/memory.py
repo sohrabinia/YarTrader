@@ -319,11 +319,98 @@ class MarketMemorySystem:
 
     # --- Persistence Helpers ---
 
+    def create_snapshot(self, backup_tag: str) -> Dict[str, Any]:
+        """
+        Creates a validated backup snapshot of all active memory layers.
+        Saves files to a dedicated snapshots folder with metadata and SHA-256 checksums.
+        """
+        import shutil
+        import hashlib
+        snapshot_dir = os.path.join(self._storage_dir, "snapshots", backup_tag)
+        os.makedirs(snapshot_dir, exist_ok=True)
+
+        metadata = {
+            "backup_tag": backup_tag,
+            "timestamp": datetime.now().isoformat(),
+            "files": {}
+        }
+
+        layers = ["events", "experiences", "patterns", "concepts"]
+        for layer in layers:
+            src_path = self._get_path(layer)
+            if os.path.exists(src_path):
+                dest_path = os.path.join(snapshot_dir, f"{layer}_memory.json")
+                shutil.copy2(src_path, dest_path)
+
+                # Calculate checksum
+                with open(dest_path, "rb") as f:
+                    file_hash = hashlib.sha256(f.read()).hexdigest()
+                metadata["files"][layer] = {
+                    "filename": f"{layer}_memory.json",
+                    "sha256": file_hash,
+                    "size_bytes": os.path.getsize(dest_path)
+                }
+
+        metadata_path = os.path.join(snapshot_dir, "snapshot_metadata.json")
+        with open(metadata_path, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=4)
+
+        return metadata
+
+    def restore_snapshot(self, backup_tag: str) -> bool:
+        """
+        Restores the memory layers from a validated backup snapshot.
+        """
+        import shutil
+        snapshot_dir = os.path.join(self._storage_dir, "snapshots", backup_tag)
+        if not os.path.exists(snapshot_dir):
+            return False
+
+        layers = ["events", "experiences", "patterns", "concepts"]
+        for layer in layers:
+            src_path = os.path.join(snapshot_dir, f"{layer}_memory.json")
+            if os.path.exists(src_path):
+                dest_path = self._get_path(layer)
+                shutil.copy2(src_path, dest_path)
+
+        # Force reload in-memory structures
+        self.load_all()
+        return True
+
+    def get_latest_snapshot_tag(self) -> Optional[str]:
+        """
+        Scans the snapshots folder and returns the tag of the latest snapshot based on directory creation/timestamp.
+        """
+        snapshots_dir = os.path.join(self._storage_dir, "snapshots")
+        if not os.path.exists(snapshots_dir):
+            return None
+        try:
+            entries = os.listdir(snapshots_dir)
+            if not entries:
+                return None
+            # Find metadata files to sort by timestamp
+            candidates = []
+            for entry in entries:
+                meta_path = os.path.join(snapshots_dir, entry, "snapshot_metadata.json")
+                if os.path.exists(meta_path):
+                    try:
+                        with open(meta_path, "r", encoding="utf-8") as f:
+                            meta = json.load(f)
+                            candidates.append((entry, meta.get("timestamp", "")))
+                    except Exception:
+                        pass
+            if candidates:
+                candidates.sort(key=lambda x: x[1], reverse=True)
+                return candidates[0][0]
+        except Exception:
+            pass
+        return None
+
     def _get_path(self, layer: str) -> str:
         return os.path.join(self._storage_dir, f"{layer}_memory.json")
 
     def _save_layer(self, layer: str) -> None:
-        """Serializes and saves a memory layer atomically using the temp-swap pattern."""
+        """Serializes and saves a memory layer atomically using the temp-swap pattern with JSON-validation check."""
         filepath = self._get_path(layer)
         temp_filepath = filepath + ".tmp"
 
@@ -342,6 +429,10 @@ class MarketMemorySystem:
             with open(temp_filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4)
 
+            # Verification of written JSON validity to prevent half-written/empty corruption
+            with open(temp_filepath, "r", encoding="utf-8") as f:
+                json.load(f)
+
             # Atomic swap
             os.replace(temp_filepath, filepath)
         except Exception:
@@ -352,7 +443,13 @@ class MarketMemorySystem:
                     pass
 
     def load_all(self) -> None:
-        """Loads all four memory layers from disk."""
+        """
+        Loads all four memory layers from disk with robust error-recovery.
+        In case of reading errors or corrupt files, it triggers automatic snapshot recovery.
+        """
+        import logging
+        logger = logging.getLogger("tradeyar_memory")
+
         with self._lock:
             # 1. Load Events
             events_path = self._get_path("events")
@@ -361,8 +458,9 @@ class MarketMemorySystem:
                     with open(events_path, "r", encoding="utf-8") as f:
                         raw = json.load(f)
                         self.events = [MarketEvent.from_dict(d) for d in raw]
-                except Exception:
-                    self.events = []
+                except Exception as e:
+                    logger.error(f"Corruption detected in events_memory.json: {e}")
+                    self._attempt_emergency_recovery("events", e)
 
             # 2. Load Experiences
             exp_path = self._get_path("experiences")
@@ -371,8 +469,9 @@ class MarketMemorySystem:
                     with open(exp_path, "r", encoding="utf-8") as f:
                         raw = json.load(f)
                         self.experiences = {eid: ExperienceMemory.from_dict(d) for eid, d in raw.items()}
-                except Exception:
-                    self.experiences = {}
+                except Exception as e:
+                    logger.error(f"Corruption detected in experiences_memory.json: {e}")
+                    self._attempt_emergency_recovery("experiences", e)
 
             # 3. Load Patterns
             patterns_path = self._get_path("patterns")
@@ -381,8 +480,9 @@ class MarketMemorySystem:
                     with open(patterns_path, "r", encoding="utf-8") as f:
                         raw = json.load(f)
                         self.patterns = {pid: PatternMemory.from_dict(d) for pid, d in raw.items()}
-                except Exception:
-                    self.patterns = {}
+                except Exception as e:
+                    logger.error(f"Corruption detected in patterns_memory.json: {e}")
+                    self._attempt_emergency_recovery("patterns", e)
 
             # 4. Load Concepts
             concepts_path = self._get_path("concepts")
@@ -391,5 +491,51 @@ class MarketMemorySystem:
                     with open(concepts_path, "r", encoding="utf-8") as f:
                         raw = json.load(f)
                         self.concepts = {cid: ConceptMemory.from_dict(d) for cid, d in raw.items()}
-                except Exception:
-                    self.concepts = {}
+                except Exception as e:
+                    logger.error(f"Corruption detected in concepts_memory.json: {e}")
+                    self._attempt_emergency_recovery("concepts", e)
+
+    def _attempt_emergency_recovery(self, failed_layer: str, exception: Exception) -> None:
+        """
+        Disaster recovery policy: tries to restore from the latest valid snapshot.
+        Wiping or starting from scratch is strictly forbidden.
+        """
+        import logging
+        logger = logging.getLogger("tradeyar_memory")
+        logger.critical(f"[CRITICAL_MEMORY_PROTECTION] Failed to load {failed_layer} memory: {exception}")
+
+        latest_tag = self.get_latest_snapshot_tag()
+        if latest_tag:
+            logger.info(f"Attempting emergency recovery from latest valid snapshot: {latest_tag}")
+            try:
+                # To prevent infinite recursion, we temporally backup the corrupt file,
+                # restore the latest snapshot, and load.
+                corrupt_file = self._get_path(failed_layer)
+                backup_corrupt = corrupt_file + ".corrupt"
+                if os.path.exists(corrupt_file):
+                    os.replace(corrupt_file, backup_corrupt)
+
+                snapshot_dir = os.path.join(self._storage_dir, "snapshots", latest_tag)
+                src_path = os.path.join(snapshot_dir, f"{failed_layer}_memory.json")
+                if os.path.exists(src_path):
+                    import shutil
+                    shutil.copy2(src_path, corrupt_file)
+
+                    # Reload the failed layer
+                    with open(corrupt_file, "r", encoding="utf-8") as f:
+                        raw = json.load(f)
+                        if failed_layer == "events":
+                            self.events = [MarketEvent.from_dict(d) for d in raw]
+                        elif failed_layer == "experiences":
+                            self.experiences = {eid: ExperienceMemory.from_dict(d) for eid, d in raw.items()}
+                        elif failed_layer == "patterns":
+                            self.patterns = {pid: PatternMemory.from_dict(d) for pid, d in raw.items()}
+                        elif failed_layer == "concepts":
+                            self.concepts = {cid: ConceptMemory.from_dict(d) for cid, d in raw.items()}
+                    logger.info(f"Successfully recovered {failed_layer} memory from snapshot {latest_tag}")
+                    return
+            except Exception as rec_err:
+                logger.critical(f"Emergency recovery failed to restore {failed_layer}: {rec_err}")
+
+        # If no snapshot exists or restore failed, raise the error to alert SRE/DevOps
+        raise RuntimeError(f"Memory layer {failed_layer} is corrupt, and emergency recovery was unable to restore any valid state.") from exception

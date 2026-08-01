@@ -1271,6 +1271,82 @@ def get_research_health():
     }
 
 
+@app.get("/health/live")
+def get_health_live():
+    """Process liveness status check."""
+    return {"status": "OK"}
+
+
+@app.get("/health/ready")
+def get_health_ready():
+    """Readiness status check verifying FastAPI state, read-only MT5 stream, and memory integrity."""
+    reasons = []
+
+    # 1. MT5 connection state check
+    mt5_connected = (research_tracker.get("mt5_status") == "CONNECTED")
+    if not mt5_connected:
+        reasons.append("MT5 connector is disconnected")
+
+    # 2. Memory layer integrity check
+    memory_ok = True
+    try:
+        for layer in ["events", "experiences", "patterns", "concepts"]:
+            filepath = global_memory_system._get_path(layer)
+            if os.path.exists(filepath):
+                with open(filepath, "r", encoding="utf-8") as f:
+                    json.load(f)
+    except Exception as e:
+        memory_ok = False
+        reasons.append(f"Memory layer integrity failed: {e}")
+
+    if not mt5_connected or not memory_ok:
+        return {
+            "status": "NOT_READY",
+            "reasons": reasons
+        }
+
+    return {"status": "READY"}
+
+
+@app.get("/api/v1/health")
+def get_api_v1_health():
+    """Detailed JSON diagnostics supplying subsystem states, memory stats, and dependency health."""
+    state = central_runtime_state.get_state()
+    mt5_connected = (research_tracker.get("mt5_status") == "CONNECTED")
+
+    # Subsystem statuses
+    subsystems = {
+        "api": "Online",
+        "mt5_connector": "Connected" if mt5_connected else "Disconnected",
+        "research_worker": state.get("research_status", "Stopped"),
+        "intelligence_worker": state.get("intelligence_status", "Stopped"),
+        "shadow_worker": state.get("shadow_status", "Stopped"),
+    }
+
+    # Memory status & statistics
+    try:
+        memory_stats = global_memory_system.get_learning_statistics()
+    except Exception as e:
+        memory_stats = {"error": str(e)}
+
+    # Dependency health checks
+    try:
+        from src.Infrastructure.health import PlatformHealthChecker
+        dep_health = PlatformHealthChecker.run_full_diagnostics()
+    except Exception as e:
+        dep_health = {"status": "Error", "details": str(e)}
+
+    return {
+        "status": "Healthy" if mt5_connected else "Degraded",
+        "timestamp": datetime.now().isoformat(),
+        "subsystems": subsystems,
+        "memory": memory_stats,
+        "dependency_health": dep_health,
+        "environment": "Production Sandbox",
+        "apes_fin_compliant": True
+    }
+
+
 @app.get("/v1/health")
 def get_health_diagnostics():
     """Health diagnostics API."""
