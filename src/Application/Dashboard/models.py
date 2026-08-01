@@ -64,3 +64,14 @@ class DashboardReportPayload:
     decisions: List[DecisionDashboardMetrics] = field(default_factory=list)
     providers: List[ProviderDashboardMetrics] = field(default_factory=list)
     additional_analytics: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class BlogArticle:
+    article_id: str
+    title: str
+    content: str
+    summary: str
+    author: str
+    published_at: datetime
+    tags: List[str] = field(default_factory=list)
