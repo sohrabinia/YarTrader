@@ -100,7 +100,8 @@ class TestMultiAssetMultiResolutionCognitive(unittest.TestCase):
         resp = self.client.get("/api/admin/reports?symbol=XAUUSD")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        self.assertEqual(data["count"], 2)
+        # Since v8.0 instantiates the 5 default timeframe contexts (1, 4, 16, 64, 256) per active symbol
+        self.assertEqual(data["count"], 5)
 
         reports = data["reports"]
         # Find frame 4 report

@@ -119,3 +119,14 @@ def get_user_horizon_reports(market: Optional[str] = None):
         })
 
     return horizon_reports
+
+# 4. Multi-Timeframe Decision Fusion Signal
+@router.get("/fusion/{symbol}")
+def get_symbol_decision_fusion(symbol: str):
+    """Synthesizes active multi-timeframe horizon alignment signals solely from internal frames."""
+    engine = PredictiveShadowEngine.get_instance()
+    try:
+        fusion = engine.runtime_manager.synthesize_symbol_decision_fusion(symbol)
+        return fusion
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
