@@ -41,6 +41,75 @@ if (-not (Test-Path $PhysicalPath)) {
     Write-Host "  [OK] Physical directory exists: $PhysicalPath" -ForegroundColor Green
 }
 
+$503Path = Join-Path $PhysicalPath "503.html"
+$503Content = @"
+<!DOCTYPE html>
+<html lang="fa">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سامانه موقتاً در دسترس نیست | TradeYar AI</title>
+    <style>
+        body {
+            font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif;
+            text-align: center;
+            padding: 100px 20px;
+            background-color: #f7f9fa;
+            color: #2b2d42;
+            direction: rtl;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border-top: 6px solid #e71d36;
+        }
+        h1 {
+            color: #1d3557;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: 1.1em;
+            line-height: 1.8;
+            color: #4a5759;
+        }
+        .english {
+            direction: ltr;
+            margin-top: 30px;
+            border-top: 1px dashed #edf2f4;
+            padding-top: 20px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>سامانه موقتاً در دسترس نیست (خطای ۵۰۳)</h1>
+        <p>کاربر گرامی، موتور اجرای پس‌زمینه TradeYar AI در حال حاضر آفلاین است، در حال راه‌اندازی مجدد است، یا عملیات نگهداری SRE بر روی آن در حال انجام است.</p>
+        <p>لطفاً چند لحظه دیگر مجدداً تلاش نمایید. از شکیبایی شما سپاسگزاریم.</p>
+
+        <div class="english">
+            <h2 style="color: #1d3557; font-size: 1.4em;">Service Temporarily Unavailable (503 Error)</h2>
+            <p>The downstream TradeYar AI background execution service is currently offline, restarting, or undergoing active SRE maintenance.</p>
+            <p>Please try again in a few moments. Thank you for your patience.</p>
+        </div>
+    </div>
+</body>
+</html>
+"@
+
+try {
+    [System.IO.File]::WriteAllText($503Path, $503Content)
+    Write-Host "  [OK] Generated custom 503 error page at: $503Path" -ForegroundColor Green
+} catch {
+    Write-Error "Failed to write 503.html file!"
+    Exit 1
+}
+
 $WebConfigPath = Join-Path $PhysicalPath "web.config"
 
 # Complete production-ready web.config template
@@ -52,6 +121,7 @@ $WebConfigContent = @"
     1. URL Rewrite rules from Public HTTPS to Local FastAPI (Port 8000).
     2. Enterprise Security Headers (HSTS, clickjacking protection, mime-sniffing block).
     3. Static Content compression and Cache-Control rules.
+    4. HTTP 502/503 Graceful custom error page routing.
 -->
 <configuration>
   <system.webServer>
@@ -109,6 +179,14 @@ $WebConfigContent = @"
         <requestLimits maxAllowedContentLength="52428800" />
       </requestFiltering>
     </security>
+
+    <!-- 5. Custom 503 HTTP Service Unavailable Error Mapping -->
+    <httpErrors errorMode="Custom" existingResponse="Replace">
+      <remove statusCode="502" subStatusCode="-1" />
+      <error statusCode="502" subStatusCode="-1" prefixLanguageFilePath="" path="503.html" responseMode="File" />
+      <remove statusCode="503" subStatusCode="-1" />
+      <error statusCode="503" subStatusCode="-1" prefixLanguageFilePath="" path="503.html" responseMode="File" />
+    </httpErrors>
 
   </system.webServer>
 </configuration>

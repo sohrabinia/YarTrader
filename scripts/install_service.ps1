@@ -77,9 +77,11 @@ if ($LASTEXITCODE -ne 0) {
     # Set service description natively
     sc.exe description $ServiceName "$ServiceDescription" | Out-Null
 
-    # Configure recovery options: Automatic restart on failure (First failure: restart, Second: restart, Third: restart)
-    # actions= restart/60000/restart/60000/restart/60000 means restart after 60,000 milliseconds for 1st, 2nd, and 3rd/subsequent failures.
-    sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
+    # Configure recovery options: Automatic restart on failure
+    # 1st Failure: Restart Service (5s delay -> 5000ms)
+    # 2nd Failure: Restart Service (10s delay -> 10000ms)
+    # Subsequent Failures: Restart Service (30s delay -> 30000ms)
+    sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
 
     Write-Host "Successfully registered TradeYar-AI Windows Service natively!" -ForegroundColor Green
 }

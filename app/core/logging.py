@@ -10,6 +10,7 @@ os.makedirs(os.path.join(LOGS_ROOT, "application"), exist_ok=True)
 os.makedirs(os.path.join(LOGS_ROOT, "error"), exist_ok=True)
 os.makedirs(os.path.join(LOGS_ROOT, "audit"), exist_ok=True)
 os.makedirs(os.path.join(LOGS_ROOT, "intelligence"), exist_ok=True)
+os.makedirs(os.path.join(LOGS_ROOT, "security"), exist_ok=True)
 
 
 class JSONFormatter(logging.Formatter):
@@ -110,6 +111,24 @@ intel_handler.setFormatter(JSONFormatter())
 intelligence_logger.addHandler(intel_handler)
 
 
+# 5. Special Logger for Security Events
+security_logger = logging.getLogger("TradeYar-AI.Security")
+security_logger.setLevel(logging.INFO)
+security_logger.propagate = False
+if security_logger.handlers:
+    security_logger.handlers.clear()
+
+security_handler = TimedRotatingFileHandler(
+    filename=os.path.join(LOGS_ROOT, "security", "security.log"),
+    when="midnight",
+    interval=1,
+    backupCount=30,
+    encoding="utf-8"
+)
+security_handler.setFormatter(JSONFormatter())
+security_logger.addHandler(security_handler)
+
+
 def log_event(level: str, event: str, **kwargs: Any) -> None:
     lvl = getattr(logging, level.upper(), logging.INFO)
     logger.log(lvl, event, extra=kwargs)
@@ -119,3 +138,6 @@ def log_audit(event: str, **kwargs: Any) -> None:
 
 def log_intelligence_decision(event: str, **kwargs: Any) -> None:
     intelligence_logger.info(event, extra=kwargs)
+
+def log_security(event: str, **kwargs: Any) -> None:
+    security_logger.info(event, extra=kwargs)

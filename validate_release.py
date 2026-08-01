@@ -73,7 +73,7 @@ class ReleaseValidationPlatform:
             self.python_exec = pipx_pytest_python
 
         # Self-heal missing directories immediately on init
-        for d in [LOGS_DIR, REPORTS_DIR, VALIDATION_DIR, HISTORY_DIR]:
+        for d in [LOGS_DIR, REPORTS_DIR, VALIDATION_DIR, HISTORY_DIR, os.path.join(LOGS_DIR, "security")]:
             if not os.path.exists(d):
                 os.makedirs(d, exist_ok=True)
 
@@ -438,7 +438,11 @@ class ReleaseValidationPlatform:
             "CHANGELOG.md",
             "RELEASE_NOTES.md",
             "docs/DEPLOYMENT/DEPLOYMENT_GUIDE.md",
-            "docs/DEPLOYMENT/TRADEYAR_STORAGE_ISOLATION.md"
+            "docs/DEPLOYMENT/TRADEYAR_STORAGE_ISOLATION.md",
+            "docs/FINAL_GO_LIVE_ACCEPTANCE_REPORT.md",
+            "scripts/backup_production.ps1",
+            "scripts/restore_drill.ps1",
+            ".env.production.example"
         ]
 
         # Self-heal missing templates
