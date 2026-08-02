@@ -24,13 +24,15 @@ class ResearchWorker:
         self.error_count = 0
         central_runtime_state.update_state("research_status", "Stopped")
 
-    def _get_or_create_runtime(self, symbol: str, tf: str) -> ResearchRuntime:
+    def _get_or_create_runtime(self, symbol: str, tf: str, asset_class: str = "Forex", provider: str = "MT5") -> ResearchRuntime:
         key = (symbol.upper(), tf.upper())
         if key not in self.runtimes:
             self.runtimes[key] = ResearchRuntime(
                 symbol=symbol.upper(),
                 timeframe=tf.upper(),
-                evidence_dir="runtime_logs"
+                evidence_dir="runtime_logs",
+                provider_name=provider,
+                asset_class=asset_class
             )
         return self.runtimes[key]
 
@@ -39,7 +41,7 @@ class ResearchWorker:
             from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
             return SymbolRegistry.get_instance().get_active_matrix()
         except Exception:
-            return [(self.default_symbol, self.timeframe)]
+            return [(self.default_symbol, self.timeframe, "Commodities", "MT5")]
 
     def start(self) -> None:
         """Starts the background worker thread."""
@@ -65,8 +67,8 @@ class ResearchWorker:
             from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
             registry = SymbolRegistry.get_instance()
             active_matrix = registry.get_active_matrix()
-            unique_symbols = sorted(list(set(s for s, t in active_matrix)))
-            configured_tfs = sorted(list(set(t for s, t in active_matrix)))
+            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
+            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
 
             print("================================================")
             print("TradeYar AI Multi-Symbol / Multi-TF Runtime")
@@ -83,14 +85,14 @@ class ResearchWorker:
             while self.is_running:
                 active_matrix = self._get_active_matrix()
 
-                for symbol, tf in active_matrix:
+                for symbol, tf, asset_class, provider in active_matrix:
                     if not self.is_running:
                         break
 
                     try:
                         print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
 
-                        runtime = self._get_or_create_runtime(symbol, tf)
+                        runtime = self._get_or_create_runtime(symbol, tf, asset_class, provider)
 
                         # Active read-only connection check
                         conn_health = runtime.provider.delegate.get_connection_health()

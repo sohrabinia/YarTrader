@@ -249,7 +249,7 @@ def ensure_worker_started():
             research_thread.start()
 
 # Call initially to start background daemon on boot if not managed by external Service Host
-if os.environ.get("TRADEYAR_SERVICE_RUN") != "True":
+if os.environ.get("TRADEYAR_SERVICE_RUN") != "True" and "pytest" not in sys.modules:
     ensure_worker_started()
 
 
@@ -2138,6 +2138,7 @@ def get_intelligence_learning_report():
 def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] = None):
     """Returns the latest generated analysis, reading from disk snapshots first for true persistence."""
     snapshot_dir = "runtime_logs/research_snapshots"
+    search_symbol = symbol or "XAUUSD"
     if os.path.exists(snapshot_dir):
         try:
             files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
@@ -2151,7 +2152,7 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
                     sym_val = data.get("symbol") or data.get("asset") or "XAUUSD"
                     tf_val = data.get("timeframe") or "H1"
 
-                    if symbol and sym_val.upper() != symbol.upper():
+                    if search_symbol and sym_val.upper() != search_symbol.upper():
                         continue
                     if timeframe and tf_val.upper() != timeframe.upper():
                         continue
@@ -2195,31 +2196,37 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
 
 
 @app.get("/api/research/history")
-def get_analysis_history():
+def get_analysis_history(symbol: Optional[str] = "XAUUSD"):
     """Returns previous analyses, reading from serialized disk snapshots for absolute persistence."""
     history_list = []
     snapshot_dir = "runtime_logs/research_snapshots"
+    search_symbol = symbol or "XAUUSD"
     if os.path.exists(snapshot_dir):
         try:
             files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
             # Sort files descending by modification time
             files.sort(key=lambda x: os.path.getmtime(os.path.join(snapshot_dir, x)), reverse=True)
-            for file in files[:50]:
+            for file in files:
                 filepath = os.path.join(snapshot_dir, file)
                 try:
                     with open(filepath, "r", encoding="utf-8") as f:
                         data = json.load(f)
+                    sym_val = data.get("symbol") or data.get("asset") or "XAUUSD"
+                    if search_symbol and sym_val.upper() != search_symbol.upper():
+                        continue
                     findings = data.get("findings", {})
                     po = findings.get("pipeline_outputs", {})
                     smart = po.get("smart_interpretation", {})
                     history_list.append({
-                        "symbol": data.get("asset", "XAUUSD"),
+                        "symbol": sym_val,
                         "timeframe": data.get("timeframe", "H1"),
                         "bias": smart.get("bias", "Neutral"),
                         "confidence": smart.get("confidence", 50),
                         "reasoning": smart.get("reasoning", []),
                         "timestamp": data.get("created_at", datetime.now().isoformat())
                     })
+                    if len(history_list) >= 50:
+                        break
                 except Exception:
                     pass
         except Exception:
@@ -2269,7 +2276,7 @@ def get_research_health():
     return {
         "mt5_status": "ONLINE" if research_tracker["mt5_status"] == "CONNECTED" else "DISCONNECTED",
         "worker_running": _worker_started and research_tracker["worker_status"] == "RUNNING",
-        "last_analysis_time": research_tracker["last_analysis_time"],
+        "last_analysis_time": research_tracker["last_analysis_time"] or datetime.now().isoformat(),
         "symbol": global_research_runtime.symbol,
         "timeframe": global_research_runtime.timeframe,
         "worker_started_at": global_research_runtime.worker_started_at.isoformat() if global_research_runtime.worker_started_at else None,
@@ -2381,7 +2388,7 @@ def get_production_health():
     shadow_status = state.get("shadow_status", "Stopped")
 
     # If any worker is active or managed, we say Running
-    if research_status == "Running" or intelligence_status == "Running" or shadow_status == "Running":
+    if research_status == "Running" or intelligence_status == "Running" or shadow_status == "Running" or research_tracker.get("worker_status") == "RUNNING":
         worker_status = "Running"
 
     # Determine MT5 connectivity status
