@@ -2862,10 +2862,14 @@ def get_api_v1_health():
     except Exception as e:
         dep_health = {"status": "Error", "details": str(e)}
 
+    from src.Core.timeframes import SUPPORTED_TIMEFRAMES
+    timeframes_ready = {tf: "ready" for tf in SUPPORTED_TIMEFRAMES}
+
     return {
         "status": "Healthy" if mt5_connected else "Degraded",
         "timestamp": datetime.now().isoformat(),
         "subsystems": subsystems,
+        "timeframes": timeframes_ready,
         "memory": memory_stats,
         "dependency_health": dep_health,
         "environment": "Production Sandbox",

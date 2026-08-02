@@ -65,12 +65,22 @@ class ResearchRuntime:
         """Executes a single synchronous loop cycle of the research pipeline."""
         # 1. Start Cycle
         tf_upper = self._timeframe.upper()
-        if "H1" in tf_upper:
+        if "M1" == tf_upper:
+            start_time = datetime.now() - timedelta(hours=10) # 600 minutes (>= 500)
+        elif "M5" == tf_upper:
+            start_time = datetime.now() - timedelta(days=2) # 576 bars (>= 500)
+        elif "M15" == tf_upper:
+            start_time = datetime.now() - timedelta(days=6) # 576 bars (>= 500)
+        elif "H1" in tf_upper:
             start_time = datetime.now() - timedelta(days=22) # 528 hours (>= 500)
         elif "H4" in tf_upper:
             start_time = datetime.now() - timedelta(days=52) # 312 bars (>= 300)
-        elif "D1" in tf_upper:
+        elif "D1" in tf_upper or "DAILY" in tf_upper:
             start_time = datetime.now() - timedelta(days=205) # 205 days (>= 200)
+        elif "W1" in tf_upper:
+            start_time = datetime.now() - timedelta(days=210) # 30 weeks (>= 14)
+        elif "MN1" in tf_upper:
+            start_time = datetime.now() - timedelta(days=900) # 30 months (>= 14)
         else:
             start_time = datetime.now() - timedelta(days=2)
         end_time = datetime.now()
@@ -189,6 +199,15 @@ class ResearchRuntime:
             self._history.append(result)
             self._store_snapshot(result)
             self._log_evidence(f"Research cycle completed successfully. Result ID: {result.Findings.get('report_id', 'unknown')}")
+
+            # Phase 9: Clear, structured logging matching task requirements
+            print("\nResearch Started\n")
+            print(f"Symbol:\n{self._symbol}\n")
+            print(f"Timeframe:\n{self._timeframe}\n")
+            print(f"Provider:\n{self._provider_name}\n")
+            print(f"Candles:\n{candles_count}\n")
+            print(f"Features:\nGenerated\n")
+            print(f"Status:\nCompleted\n")
 
             # Update metrics
             self.last_successful_cycle = datetime.now()

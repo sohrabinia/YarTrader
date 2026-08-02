@@ -252,7 +252,7 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         client = TestClient(app)
 
         # A. Current endpoint
-        resp_curr = client.get("/api/research/current")
+        resp_curr = client.get("/api/research/current?timeframe=H1")
         self.assertEqual(resp_curr.status_code, 200)
         curr_data = resp_curr.json()
         self.assertEqual(curr_data["symbol"], "XAUUSD")
