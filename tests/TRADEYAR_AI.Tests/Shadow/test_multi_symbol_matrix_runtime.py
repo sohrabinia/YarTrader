@@ -61,15 +61,16 @@ class TestMultiSymbolMatrixRuntime(unittest.TestCase):
         self.registry.register_symbol("EURUSD", ["H1"])
 
         active_matrix = self.registry.get_active_matrix()
-        self.assertEqual(len(active_matrix), 3)
-        self.assertIn(("XAUUSD", "H1"), active_matrix)
-        self.assertIn(("XAUUSD", "H4"), active_matrix)
-        self.assertIn(("EURUSD", "H1"), active_matrix)
+        active_pairs = [(sym, tf) for sym, tf, ac, p in active_matrix]
+        self.assertEqual(len(active_pairs), 3)
+        self.assertIn(("XAUUSD", "H1"), active_pairs)
+        self.assertIn(("XAUUSD", "H4"), active_pairs)
+        self.assertIn(("EURUSD", "H1"), active_pairs)
 
         # Execute research loop simulation
         runtimes = {}
-        for symbol, tf in active_matrix:
-            runtime = ResearchRuntime(symbol=symbol, timeframe=tf, evidence_dir="runtime_logs")
+        for symbol, tf, ac, p in active_matrix:
+            runtime = ResearchRuntime(symbol=symbol, timeframe=tf, evidence_dir="runtime_logs", provider_name=p, asset_class=ac)
             res = runtime.run_once()
 
             # Verify file exists
@@ -87,10 +88,11 @@ class TestMultiSymbolMatrixRuntime(unittest.TestCase):
         self.registry.set_symbol_active("EURUSD", False)
 
         active_matrix = self.registry.get_active_matrix()
-        self.assertEqual(len(active_matrix), 2)
-        self.assertIn(("XAUUSD", "H1"), active_matrix)
-        self.assertIn(("XAUUSD", "H4"), active_matrix)
-        self.assertNotIn(("EURUSD", "H1"), active_matrix)
+        active_pairs = [(sym, tf) for sym, tf, ac, p in active_matrix]
+        self.assertEqual(len(active_pairs), 2)
+        self.assertIn(("XAUUSD", "H1"), active_pairs)
+        self.assertIn(("XAUUSD", "H4"), active_pairs)
+        self.assertNotIn(("EURUSD", "H1"), active_pairs)
 
     def test_3_shadow_isolation(self) -> None:
         """Test 3: Open XAUUSD H1 SELL position. Verify XAUUSD H1 duplicate skips, while XAUUSD H4 succeeds."""
@@ -134,7 +136,8 @@ class TestMultiSymbolMatrixRuntime(unittest.TestCase):
         # Re-instantiate a clean Registry, mimicking startup
         new_registry = SymbolRegistry()
         active_matrix = new_registry.get_active_matrix()
+        active_pairs = [(sym, tf) for sym, tf, ac, p in active_matrix]
 
-        self.assertEqual(len(active_matrix), 3)
-        self.assertIn(("XAUUSD", "H1"), active_matrix)
-        self.assertIn(("GBPUSD", "H1"), active_matrix)
+        self.assertEqual(len(active_pairs), 3)
+        self.assertIn(("XAUUSD", "H1"), active_pairs)
+        self.assertIn(("GBPUSD", "H1"), active_pairs)

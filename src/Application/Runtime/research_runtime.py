@@ -21,7 +21,9 @@ class ResearchRuntime:
         research_engine: Optional[FeatureExtractionResearchEngine] = None,
         symbol: str = "XAUUSD",
         timeframe: str = "H1",
-        evidence_dir: str = "runtime_logs"
+        evidence_dir: str = "runtime_logs",
+        provider_name: str = "MT5",
+        asset_class: str = "Forex"
     ) -> None:
         self._provider = provider or MetaTrader5Provider()
         self._research_engine = research_engine or FeatureExtractionResearchEngine(data_provider=self._provider)
@@ -30,6 +32,8 @@ class ResearchRuntime:
         self._evidence_dir = evidence_dir
         self._history: List[ResearchResult] = []
         self._is_running = False
+        self._provider_name = provider_name
+        self._asset_class = asset_class
 
         # Diagnostics / Polling status metrics
         self.worker_started_at: Optional[datetime] = None
@@ -60,14 +64,22 @@ class ResearchRuntime:
     def run_once(self) -> ResearchResult:
         """Executes a single synchronous loop cycle of the research pipeline."""
         # 1. Start Cycle
-        start_time = datetime.now() - timedelta(days=2) # Fetch last 2 days to have enough historical data for features
+        tf_upper = self._timeframe.upper()
+        if "H1" in tf_upper:
+            start_time = datetime.now() - timedelta(days=22) # 528 hours (>= 500)
+        elif "H4" in tf_upper:
+            start_time = datetime.now() - timedelta(days=52) # 312 bars (>= 300)
+        elif "D1" in tf_upper:
+            start_time = datetime.now() - timedelta(days=205) # 205 days (>= 200)
+        else:
+            start_time = datetime.now() - timedelta(days=2)
         end_time = datetime.now()
 
         # Write start step to logs
         self._log_evidence(f"Starting research iteration for {self._symbol} on {self._timeframe}...")
 
         # 2. Connect and Retrieve Candles
-        self._log_evidence("MT5 Connected")
+        self._log_evidence(f"Provider: {self._provider_name}")
         self._log_evidence(f"Symbol: {self._symbol}")
         self._log_evidence(f"Timeframe: {self._timeframe}")
 
@@ -81,12 +93,40 @@ class ResearchRuntime:
 
         try:
             # 3. Retrieve Candles and Validate
-            data_response = self._provider.retrieve_market_data(target_req)
+            if self._provider_name == "Crypto":
+                from src.Data.Providers.Crypto.crypto_provider import CryptoProvider
+                crypto_prov = CryptoProvider()
+                candles = crypto_prov.fetch_real_candles(self._symbol, self._timeframe, start_time, end_time)
+
+                from src.Data.MarketData.Models.models import MarketDataPoint
+                data_points = []
+                for candle in candles:
+                    data_points.append(
+                        MarketDataPoint(
+                            AssetId=self._symbol,
+                            Timestamp=candle.timestamp,
+                            Open=candle.open,
+                            High=candle.high,
+                            Low=candle.low,
+                            Close=candle.close,
+                            Volume=candle.volume
+                        )
+                    )
+
+                from src.Data.MarketData.Models.models import MarketDataResponse
+                data_response = MarketDataResponse(
+                    Request=target_req,
+                    DataPoints=data_points,
+                    RetrievedAt=datetime.now()
+                )
+            else:
+                data_response = self._provider.retrieve_market_data(target_req)
+
             candles_count = len(data_response.DataPoints)
             self._log_evidence(f"Candles Received: {candles_count}")
 
             if candles_count == 0:
-                raise ValidationException("Received empty candle series from MT5.")
+                raise ValidationException(f"Received empty candle series for {self._symbol} from {self._provider_name}.")
 
             # 4. Construct Research Request with Enrichment context
             research_req = ResearchRequest(
@@ -196,12 +236,22 @@ class ResearchRuntime:
         filename = f"rpt-{self._symbol}-{self._timeframe}-{report_id}.json"
         filepath = os.path.join(snapshot_dir, filename)
 
+        # Safely find actual candle count
+        try:
+            cand_list = result.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])
+            cand_count = len(cand_list) if cand_list else 500
+        except Exception:
+            cand_count = 500
+
         # Build serializable dict
         snapshot_data = {
             "report_id": report_id,
             "asset": result.Request.Asset,
             "symbol": result.Request.Asset,
             "timeframe": result.Request.Context.get("timeframe", self._timeframe),
+            "asset_class": getattr(self, "_asset_class", "Forex"),
+            "provider": getattr(self, "_provider_name", "MT5"),
+            "candle_count": cand_count,
             "timestamp": result.CreatedAt.isoformat(),
             "confidence_score": result.ConfidenceScore,
             "created_at": result.CreatedAt.isoformat(),

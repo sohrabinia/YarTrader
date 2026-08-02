@@ -636,5 +636,153 @@
             "is_lucky_win": false,
             "is_structural_failure": true
         }
+    },
+    "exp-a8801def": {
+        "experience_id": "exp-a8801def",
+        "symbol": "XAUUSD",
+        "timeframe": "H1",
+        "timestamp": "2026-08-02T09:22:04.880092",
+        "situation_signature": [
+            2000.0,
+            1995.0,
+            2010.0
+        ],
+        "decision_action": "BUY",
+        "outcome_result": "FAILURE",
+        "lesson_feedback": "Decision on XAUUSD to BUY at 2000.0 evaluated as Structural Error (Failure analyzed). MAM: -1500.00, MFM: 0.00.",
+        "max_favorable_excursion": 0.0,
+        "max_adverse_excursion": -1500.0,
+        "meta": {
+            "position_id": "vpos-a8801def",
+            "confidence": 72.0,
+            "is_lucky_win": false,
+            "is_structural_failure": true
+        }
+    },
+    "exp-2bb34882": {
+        "experience_id": "exp-2bb34882",
+        "symbol": "AAVEUSD",
+        "timeframe": "H1",
+        "timestamp": "2026-08-02T09:23:10.122426",
+        "situation_signature": [
+            196.5
+        ],
+        "decision_action": "BUY",
+        "outcome_result": "SUCCESS",
+        "lesson_feedback": "Decision on AAVEUSD to BUY at 196.5 evaluated as Earned Success. MAM: 0.00, MFM: 1680000.00.",
+        "max_favorable_excursion": 1680000.0,
+        "max_adverse_excursion": 0.0,
+        "meta": {
+            "position_id": "vpos-2bb34882",
+            "confidence": 62.0,
+            "is_lucky_win": false,
+            "is_structural_failure": false
+        }
+    },
+    "exp-f375b737": {
+        "experience_id": "exp-f375b737",
+        "symbol": "XAUUSD",
+        "timeframe": "H1",
+        "timestamp": "2026-08-02T09:23:10.289516",
+        "situation_signature": [
+            2000.0,
+            1995.0,
+            2010.0
+        ],
+        "decision_action": "BUY",
+        "outcome_result": "FAILURE",
+        "lesson_feedback": "Decision on XAUUSD to BUY at 2000.0 evaluated as Structural Error (Failure analyzed). MAM: -1500.00, MFM: 0.00.",
+        "max_favorable_excursion": 0.0,
+        "max_adverse_excursion": -1500.0,
+        "meta": {
+            "position_id": "vpos-f375b737",
+            "confidence": 72.0,
+            "is_lucky_win": false,
+            "is_structural_failure": true
+        }
+    },
+    "exp-ee6d47b5": {
+        "experience_id": "exp-ee6d47b5",
+        "symbol": "AAVEUSD",
+        "timeframe": "H1",
+        "timestamp": "2026-08-02T09:35:11.056848",
+        "situation_signature": [
+            196.5
+        ],
+        "decision_action": "BUY",
+        "outcome_result": "SUCCESS",
+        "lesson_feedback": "Decision on AAVEUSD to BUY at 196.5 evaluated as Earned Success. MAM: 0.00, MFM: 1680000.00.",
+        "max_favorable_excursion": 1680000.0,
+        "max_adverse_excursion": 0.0,
+        "meta": {
+            "position_id": "vpos-ee6d47b5",
+            "confidence": 62.0,
+            "is_lucky_win": false,
+            "is_structural_failure": false
+        }
+    },
+    "exp-4abef12c": {
+        "experience_id": "exp-4abef12c",
+        "symbol": "XAUUSD",
+        "timeframe": "H1",
+        "timestamp": "2026-08-02T09:35:11.273006",
+        "situation_signature": [
+            2000.0,
+            1995.0,
+            2010.0
+        ],
+        "decision_action": "BUY",
+        "outcome_result": "FAILURE",
+        "lesson_feedback": "Decision on XAUUSD to BUY at 2000.0 evaluated as Structural Error (Failure analyzed). MAM: -1500.00, MFM: 0.00.",
+        "max_favorable_excursion": 0.0,
+        "max_adverse_excursion": -1500.0,
+        "meta": {
+            "position_id": "vpos-4abef12c",
+            "confidence": 72.0,
+            "is_lucky_win": false,
+            "is_structural_failure": true
+        }
+    },
+    "exp-9a3549b7": {
+        "experience_id": "exp-9a3549b7",
+        "symbol": "AAVEUSD",
+        "timeframe": "H1",
+        "timestamp": "2026-08-02T09:37:49.988492",
+        "situation_signature": [
+            196.5
+        ],
+        "decision_action": "BUY",
+        "outcome_result": "SUCCESS",
+        "lesson_feedback": "Decision on AAVEUSD to BUY at 196.5 evaluated as Earned Success. MAM: 0.00, MFM: 1680000.00.",
+        "max_favorable_excursion": 1680000.0,
+        "max_adverse_excursion": 0.0,
+        "meta": {
+            "position_id": "vpos-9a3549b7",
+            "confidence": 62.0,
+            "is_lucky_win": false,
+            "is_structural_failure": false
+        }
+    },
+    "exp-14917114": {
+        "experience_id": "exp-14917114",
+        "symbol": "XAUUSD",
+        "timeframe": "H1",
+        "timestamp": "2026-08-02T09:37:50.006740",
+        "situation_signature": [
+            2000.0,
+            1995.0,
+            2010.0
+        ],
+        "decision_action": "BUY",
+        "outcome_result": "FAILURE",
+        "lesson_feedback": "Decision on XAUUSD to BUY at 2000.0 evaluated as Structural Error (Failure analyzed). MAM: -1500.00, MFM: 0.00.",
+        "max_favorable_excursion": 0.0,
+        "max_adverse_excursion": -1500.0,
+        "meta": {
+            "position_id": "vpos-14917114",
+            "confidence": 72.0,
+            "is_lucky_win": false,
+            "is_structural_failure": true
+        }
     }
 }

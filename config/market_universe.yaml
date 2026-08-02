@@ -1,0 +1,59 @@
+# TradeYar AI Production Market Universe Registry (50 Symbols)
+market_universe:
+  Forex:
+    EURUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    GBPUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    USDJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    USDCHF: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    USDCAD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    AUDUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    NZDUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    EURJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    GBPJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    AUDJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+
+  Commodities:
+    XAUUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    XAGUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    USOIL:  { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    UKOIL:  { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    NATGAS: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+
+  Indices:
+    NAS100: { provider: "MT5", enabled: true, timeframes: ["M5", "M15", "H1", "H4", "D1"] }
+    US30:   { provider: "MT5", enabled: true, timeframes: ["M5", "M15", "H1", "H4", "D1"] }
+    SPX500: { provider: "MT5", enabled: true, timeframes: ["M5", "M15", "H1", "H4", "D1"] }
+    GER40:  { provider: "MT5", enabled: true, timeframes: ["M5", "M15", "H1", "H4", "D1"] }
+    JP225:  { provider: "MT5", enabled: true, timeframes: ["M5", "M15", "H1", "H4", "D1"] }
+
+  Crypto:
+    BTCUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    ETHUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    BNBUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    SOLUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    XRPUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    ADAUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    DOGEUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    TRXUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    AVAXUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    DOTUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    LINKUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    LTCUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    BCHUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    UNIUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    ATOMUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    NEARUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    APTUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    FILUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    ETCUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    ARBUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    OPUSD:   { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    INJUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    SUIUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    TIAUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    AAVEUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    MATICUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    MKRUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    ICPUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    ALGOUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    VETUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
