@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ChatAssistantRequest",
+  "type": "object",
+  "properties": {
+    "question": { "type": "string" },
+    "language": { "type": "string", "enum": ["en", "fa", "tr", "ar"] }
+  },
+  "required": ["question", "language"]
+}

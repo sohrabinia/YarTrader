@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ChatAssistantResponse",
+  "type": "object",
+  "properties": {
+    "response": { "type": "string" },
+    "tokens_used": { "type": "integer" },
+    "daily_remaining": { "type": "integer" }
+  },
+  "required": ["response", "tokens_used", "daily_remaining"]
+}
