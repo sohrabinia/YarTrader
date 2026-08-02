@@ -33,6 +33,13 @@ class TestMultiTimeframeSupport(unittest.TestCase):
             self.assertIn(tf, timeframes)
             self.assertEqual(timeframes[tf], "ready")
 
+        # 3. Assert all background workers are Running (Test 5)
+        self.assertIn("subsystems", data)
+        subsystems = data["subsystems"]
+        self.assertEqual(subsystems["research_worker"], "Running")
+        self.assertEqual(subsystems["intelligence_worker"], "Running")
+        self.assertEqual(subsystems["shadow_worker"], "Running")
+
     def test_alignment_sorting_weights(self) -> None:
         engine = MultiTimeframeAlignmentEngine()
         # Verify custom and standard weights sorting
