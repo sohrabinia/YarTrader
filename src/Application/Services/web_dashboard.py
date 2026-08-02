@@ -920,19 +920,26 @@ def get_dashboard_spa():
 
         // Load i18n
         async function loadLocales(lang) {
+            if (!lang) lang = 'fa';
             currentLang = lang;
             localStorage.setItem('tradeyar_language', lang);
             try {
                 const resp = await fetch(`/locales/${lang}.json`);
-                locales = await resp.json();
+                if (!resp.ok) {
+                    throw new Error(`Failed to fetch locale: ${resp.status}`);
+                }
+                const data = await resp.json();
 
-                // Sync the language dropdown select element value
+                // Deep copy to locales to guarantee atomic reactivity
+                locales = Object.assign({}, data);
+
+                // Sync the language dropdown select element value immediately
                 const selectEl = document.getElementById('lang-select');
                 if (selectEl) {
                     selectEl.value = lang;
                 }
 
-                // Actually translate the page DOM elements
+                // Actually translate the page DOM elements with absolute synchronization
                 translatePage();
 
                 // Safe non-recursive refresh on language change
@@ -947,19 +954,32 @@ def get_dashboard_spa():
         }
 
         function translatePage() {
-            // Update page titles and directions
-            document.title = locales['app_title'] || "TradeYar AI";
-            document.body.dir = (currentLang === 'fa' || currentLang === 'ar') ? 'rtl' : 'ltr';
-            document.body.style.fontFamily = (currentLang === 'fa' || currentLang === 'ar') ? "'Vazirmatn', sans-serif" : "'Segoe UI', Roboto, sans-serif";
+            if (!locales || Object.keys(locales).length === 0) {
+                console.warn("Locales dictionary not loaded yet.");
+                return;
+            }
 
-            // Translate elements
-            document.querySelectorAll('[data-i18n]').forEach(el => {
+            // Explicitly resolve direction and layout properties to prevent inversion
+            const isRTL = (currentLang === 'fa' || currentLang === 'ar');
+            document.body.dir = isRTL ? 'rtl' : 'ltr';
+            document.body.style.fontFamily = isRTL ? "'Vazirmatn', sans-serif" : "'Segoe UI', Roboto, sans-serif";
+            document.title = locales['app_title'] || "TradeYar AI";
+
+            // Translate elements query binding
+            const elements = document.querySelectorAll('[data-i18n]');
+            elements.forEach(el => {
                 const key = el.getAttribute('data-i18n');
-                if (locales[key]) {
+                if (!key) return;
+
+                const translatedText = locales[key];
+                if (translatedText !== undefined && translatedText !== null) {
                     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                        el.placeholder = locales[key];
+                        el.placeholder = translatedText;
+                    } else if (el.tagName === 'BUTTON') {
+                        el.innerText = translatedText;
                     } else {
-                        el.innerText = locales[key];
+                        // Use textContent or innerText safely
+                        el.innerText = translatedText;
                     }
                 }
             });
@@ -975,6 +995,10 @@ def get_dashboard_spa():
             document.body.classList.toggle('light-theme');
             const isLight = document.body.classList.contains('light-theme');
             localStorage.setItem('tradeyar_theme', isLight ? 'light' : 'dark');
+        }
+
+        function mockSocialLogin(provider) {
+            showNotification(currentLang === 'fa' ? `ورود با ${provider} در محیط آزمایشی شبیه‌سازی شد.` : `Social login with ${provider} simulated in sandbox mode.`, "success");
         }
 
         function showNotification(msg, type = "success") {
@@ -1467,8 +1491,10 @@ def get_dashboard_spa():
                 document.body.classList.add('light-theme');
             }
 
-            loadLocales(savedLang);
-            handleRoute();
+            // Load locales dynamically and resolve route strictly after dictionary binding completes
+            loadLocales(savedLang).then(() => {
+                handleRoute();
+            });
 
             // Collapse Chat initially
             document.getElementById('chat-widget').style.transform = 'translateY(360px)';
