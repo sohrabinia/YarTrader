@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AuthLoginResponse",
+  "type": "object",
+  "properties": {
+    "access_token": { "type": "string" },
+    "token_type": { "type": "string" },
+    "user": {
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["ADMIN", "USER", "PRO", "PREMIUM", "SRE_OPERATOR"] },
+        "daily_ai_limit": { "type": "integer" }
+      },
+      "required": ["email", "role", "daily_ai_limit"]
+    }
+  },
+  "required": ["access_token", "token_type", "user"]
+}
