@@ -30,6 +30,8 @@ app = FastAPI(
 )
 
 # Mount three isolated production-grade SaaS routers
+app.mount("/locales", StaticFiles(directory="locales"), name="locales")
+
 from src.Application.Services.public_api_router import router as public_api_router
 from src.Application.Services.user_api_router import router as user_api_router
 from src.Application.Services.admin_api_router import router as admin_api_router
@@ -315,18 +317,19 @@ def get_dashboard_spa():
     <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
     <style>
         :root {
-            --bg-dark: #0B0E14;
-            --surface-dark: #121620;
+            --bg-dark: #07090E;
+            --surface-dark: #0D111A;
             --surface-light: #FFFFFF;
-            --bg-light: #F4F6F9;
-            --primary: #5A8DEE;
-            --accent: #2EC4B6;
-            --danger: #FF5B5C;
-            --warning: #FDAC41;
-            --border-dark: #1F2635;
-            --border-light: #E0E4EC;
-            --text-dark: #E2E8F0;
-            --text-light: #1E293B;
+            --bg-light: #F8FAFC;
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --accent: #10B981;
+            --danger: #EF4444;
+            --warning: #F59E0B;
+            --border-dark: #1E293B;
+            --border-light: #E2E8F0;
+            --text-dark: #F1F5F9;
+            --text-light: #0F172A;
             --text-muted: #64748B;
         }
 
@@ -335,7 +338,7 @@ def get_dashboard_spa():
             margin: 0;
             background-color: var(--bg-dark);
             color: var(--text-dark);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background-color 0.3s, color 0.3s;
             overflow-x: hidden;
         }
 
@@ -355,14 +358,33 @@ def get_dashboard_spa():
             color: var(--text-light);
         }
         body.light-theme .status-item {
-            background-color: #EDF2F7;
+            background-color: #F1F5F9;
+            border-color: #E2E8F0;
         }
         body.light-theme th {
-            background-color: #EDF2F7;
+            background-color: #E2E8F0;
+        }
+        body.light-theme td {
+            border-bottom-color: #E2E8F0;
+        }
+        body.light-theme .sidebar-link {
+            color: #475569;
+        }
+        body.light-theme .sidebar-link:hover {
+            color: var(--primary);
+            background-color: rgba(79, 70, 229, 0.08);
         }
         body.light-theme .sidebar-link.active {
-            background-color: #EDF2F7;
-            color: var(--primary);
+            background-color: var(--primary);
+            color: white;
+        }
+        body.light-theme .input-field {
+            background-color: #FFFFFF;
+            border-color: #CBD5E1;
+            color: var(--text-light);
+        }
+        body.light-theme .input-field:focus {
+            border-color: var(--primary);
         }
 
         .header {
@@ -376,7 +398,7 @@ def get_dashboard_spa():
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1440px;
             margin: 25px auto;
             padding: 0 25px;
             display: flex;
@@ -385,7 +407,7 @@ def get_dashboard_spa():
 
         /* Collapsible Sidebar Navigation */
         .sidebar {
-            width: 250px;
+            width: 260px;
             flex-shrink: 0;
             display: flex;
             flex-direction: column;
@@ -403,33 +425,28 @@ def get_dashboard_spa():
             transition: all 0.2s;
             color: var(--text-muted);
             border: 1px solid transparent;
+            text-decoration: none;
         }
 
         .sidebar-link:hover {
-            color: var(--primary);
-            background-color: rgba(90, 141, 238, 0.08);
+            color: var(--text-dark);
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+
+        body.light-theme .sidebar-link:hover {
+            color: var(--text-light);
+            background-color: rgba(0, 0, 0, 0.05);
         }
 
         .sidebar-link.active {
             color: white;
             background-color: var(--primary);
-            border-color: rgba(90, 141, 238, 0.2);
+            border-color: rgba(79, 70, 229, 0.2);
         }
 
         .main-panel {
             flex-grow: 1;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 25px;
-        }
-
-        @media (max-width: 1024px) {
-            .container { flex-direction: column; }
-            .grid { grid-template-columns: 1fr; }
-            .sidebar { width: 100%; flex-direction: row; overflow-x: auto; }
+            min-width: 0;
         }
 
         .card {
@@ -442,21 +459,16 @@ def get_dashboard_spa():
             transition: transform 0.2s, box-shadow 0.2s;
         }
 
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 40px rgba(0,0,0,0.1);
-        }
-
         .status-board {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 15px;
             margin: 20px 0;
         }
 
         .status-item {
-            background-color: rgba(31, 38, 53, 0.4);
-            border: 1px solid transparent;
+            background-color: rgba(30, 41, 59, 0.4);
+            border: 1px solid var(--border-dark);
             padding: 16px;
             border-radius: 10px;
             text-align: center;
@@ -465,8 +477,9 @@ def get_dashboard_spa():
 
         .status-val {
             font-weight: bold;
-            font-size: 1.25em;
+            font-size: 1.4em;
             margin-top: 6px;
+            font-family: monospace;
         }
 
         .status-passed { color: var(--accent); }
@@ -484,12 +497,13 @@ def get_dashboard_spa():
             align-items: center;
             margin: 25px auto;
             font-weight: bold;
-            box-shadow: 0 0 20px rgba(46, 196, 182, 0.15);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
         }
 
         .score-num {
             font-size: 2.25em;
-            color: var(--primary);
+            color: var(--accent);
+            font-family: monospace;
         }
 
         /* Modern Premium Buttons */
@@ -503,13 +517,17 @@ def get_dashboard_spa():
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 15px rgba(90, 141, 238, 0.25);
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.25);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
 
         .btn:hover {
-            transform: translateY(-1.5px);
-            box-shadow: 0 6px 20px rgba(90, 141, 238, 0.35);
-            background-color: #4876D6;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35);
+            background-color: var(--primary-hover);
         }
 
         .btn:disabled {
@@ -517,6 +535,25 @@ def get_dashboard_spa():
             cursor: not-allowed;
             box-shadow: none;
             transform: none;
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: var(--text-dark);
+            border: 1px solid var(--border-dark);
+            box-shadow: none;
+        }
+        body.light-theme .btn-secondary {
+            color: var(--text-light);
+            border-color: var(--border-light);
+        }
+        .btn-secondary:hover {
+            background-color: rgba(255,255,255,0.05);
+            transform: none;
+            box-shadow: none;
+        }
+        body.light-theme .btn-secondary:hover {
+            background-color: rgba(0,0,0,0.05);
         }
 
         .lang-btn {
@@ -536,11 +573,10 @@ def get_dashboard_spa():
         }
 
         .lang-btn:hover {
-            background-color: rgba(90, 141, 238, 0.1);
+            background-color: rgba(79, 70, 229, 0.1);
             border-color: var(--primary);
         }
 
-        /* Branded Google & Apple Buttons with micro-interactions */
         .social-btn-container {
             display: flex;
             gap: 15px;
@@ -568,7 +604,7 @@ def get_dashboard_spa():
 
         .social-google {
             background-color: #FFFFFF;
-            color: #1F2635;
+            color: #0F172A;
         }
         .social-google:hover {
             background-color: #F1F5F9;
@@ -580,14 +616,14 @@ def get_dashboard_spa():
             color: #FFFFFF;
         }
         .social-apple:hover {
-            background-color: #1F2635;
+            background-color: #1E293B;
             transform: scale(1.02);
         }
 
         .logs-box {
-            background-color: #0B0E14;
+            background-color: #020408;
             border: 1px solid var(--border-dark);
-            color: #A9B7C6;
+            color: #38BDF8;
             font-family: 'Courier New', Courier, monospace;
             padding: 16px;
             border-radius: 8px;
@@ -610,26 +646,22 @@ def get_dashboard_spa():
             border-bottom: 1px solid var(--border-dark);
         }
 
-        body.light-theme th, body.light-theme td {
-            border-bottom-color: var(--border-light);
-        }
-
-        th { background-color: rgba(31, 38, 53, 0.4); font-weight: bold; }
+        th { background-color: rgba(30, 41, 59, 0.4); font-weight: bold; }
 
         /* Floating Collapsible Support Chatbot Widget */
         .chatbot-widget {
             position: fixed;
             bottom: 25px;
             right: 25px;
-            width: 350px;
+            width: 380px;
             max-width: 90vw;
             background-color: var(--surface-dark);
             border: 1px solid var(--border-dark);
             border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
             display: flex;
             flex-direction: column;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 9999;
             overflow: hidden;
         }
@@ -652,7 +684,7 @@ def get_dashboard_spa():
         }
 
         .chatbot-body {
-            height: 300px;
+            height: 350px;
             display: flex;
             flex-direction: column;
         }
@@ -675,7 +707,7 @@ def get_dashboard_spa():
         }
 
         .chat-bubble.bot {
-            background-color: rgba(90, 141, 238, 0.1);
+            background-color: rgba(79, 70, 229, 0.1);
             color: var(--text-dark);
             align-self: flex-start;
             border-bottom-left-radius: 2px;
@@ -683,7 +715,7 @@ def get_dashboard_spa():
 
         body.light-theme .chat-bubble.bot {
             color: var(--text-light);
-            background-color: #EDF2F7;
+            background-color: #F1F5F9;
         }
 
         .chat-bubble.user {
@@ -706,7 +738,7 @@ def get_dashboard_spa():
             flex-grow: 1;
             background-color: transparent;
             border: none;
-            padding: 12px 15px;
+            padding: 14px 15px;
             color: inherit;
             outline: none;
             font-family: inherit;
@@ -717,9 +749,10 @@ def get_dashboard_spa():
             background-color: transparent;
             color: var(--primary);
             border: none;
-            padding: 0 15px;
+            padding: 0 20px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 0.95em;
         }
 
         /* Pulse neon glow for AI Assistant */
@@ -728,47 +761,86 @@ def get_dashboard_spa():
             height: 8px;
             border-radius: 50%;
             background-color: var(--accent);
-            box-shadow: 0 0 0 0 rgba(46, 196, 182, 0.7);
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
             animation: pulse-neon 1.6s infinite;
         }
 
         @keyframes pulse-neon {
             0% {
                 transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(46, 196, 182, 0.7);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
             }
             70% {
                 transform: scale(1);
-                box-shadow: 0 0 0 6px rgba(46, 196, 182, 0);
+                box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
             }
             100% {
                 transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(46, 196, 182, 0);
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
             }
         }
 
-        /* Magazine style Research Hub/Blog Grid */
+        /* Form styling */
+        .form-group {
+            margin-bottom: 18px;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        .input-field {
+            width: 100%;
+            background-color: rgba(30, 41, 59, 0.5);
+            border: 1px solid var(--border-dark);
+            border-radius: 8px;
+            padding: 12px 14px;
+            color: white;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: inherit;
+        }
+        .input-field:focus {
+            border-color: var(--primary);
+        }
+
+        /* Notification Toast styles */
+        #notification-bar {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: bold;
+            z-index: 100000;
+            display: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        .toast-success { background-color: var(--accent); color: white; }
+        .toast-warning { background-color: var(--warning); color: white; }
+        .toast-error { background-color: var(--danger); color: white; }
+
+        /* Blog Section */
         .blog-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 20px;
             margin-top: 20px;
         }
 
         .blog-card {
-            background-color: rgba(31, 38, 53, 0.4);
+            background-color: rgba(30, 41, 59, 0.3);
             border: 1px solid var(--border-dark);
-            border-radius: 10px;
+            border-radius: 12px;
             overflow: hidden;
             transition: all 0.2s;
             cursor: pointer;
             display: flex;
             flex-direction: column;
-        }
-
-        body.light-theme .blog-card {
-            background-color: var(--surface-light);
-            border-color: var(--border-light);
         }
 
         .blog-card:hover {
@@ -778,7 +850,7 @@ def get_dashboard_spa():
 
         .blog-header-img {
             height: 140px;
-            background: linear-gradient(135deg, rgba(90,141,238,0.2) 0%, rgba(46,196,182,0.2) 100%);
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -786,7 +858,7 @@ def get_dashboard_spa():
         }
 
         .blog-body {
-            padding: 18px;
+            padding: 20px;
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -794,255 +866,505 @@ def get_dashboard_spa():
         }
 
         .blog-tag {
-            background-color: rgba(90, 141, 238, 0.1);
+            background-color: rgba(79, 70, 229, 0.1);
             color: var(--primary);
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 0.75em;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.8em;
             align-self: flex-start;
             font-weight: bold;
         }
+
+        /* Sub tabs */
+        .sub-nav-tabs {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            border-bottom: 1px solid var(--border-dark);
+            padding-bottom: 10px;
+        }
+        body.light-theme .sub-nav-tabs {
+            border-bottom-color: var(--border-light);
+        }
+        .sub-tab {
+            color: var(--text-muted);
+            font-weight: bold;
+            cursor: pointer;
+            padding-bottom: 8px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .sub-tab:hover, .sub-tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .select-field {
+            background-color: rgba(30, 41, 59, 0.5);
+            border: 1px solid var(--border-dark);
+            color: white;
+            padding: 10px 14px;
+            border-radius: 8px;
+            outline: none;
+            font-family: inherit;
+        }
+        body.light-theme .select-field {
+            background-color: white;
+            border-color: #CBD5E1;
+            color: var(--text-light);
+        }
     </style>
     <script>
-        const translations = {
-            fa: {
-                title: "سامانه هوشمند تحلیل بازار و تاییدیه تولید TradeYar AI",
-                portal_status: "تاییدیه تولید فعال",
-                live_research_title: "پنل تحقیقاتی زنده بازار",
-                current_symbol: "نماد فعلی",
-                last_update: "آخرین بروزرسانی",
-                market_bias: "جهت‌گیری بازار",
-                confidence: "میزان اطمینان",
-                technical_metrics: "شاخص‌های فنی",
-                latest_ai_explanation: "تحلیل و تفسیر هوش مصنوعی",
-                validation_center_title: "مرکز تایید و اعتبارسنجی سیستم",
-                run_validation_btn: "اجرای فرآیند تایید نهایی",
-                validating_btn: "در حال اعتبارسنجی...",
-                passed: "پاس شده",
-                failed: "خطا",
-                skipped: "نادیده گرفته شده",
-                warnings: "هشدارها",
-                active_phase: "فاز فعال",
-                component_boundaries: "محدوده مؤلفه",
-                current_trace: "ردیابی زنده فرآیند",
-                live_trace_logs: "گزارش‌های زنده سیستم",
-                historical_summary_title: "خلاصه سوابق تاییدیه سیستم",
-                col_timestamp: "زمان ثبت",
-                col_duration: "مدت زمان",
-                col_ratio: "نسبت تست‌ها",
-                col_status: "وضعیت نهایی",
-                col_score: "امتیاز تاییدیه",
-                readiness_score_title: "امتیاز آمادگی نهایی تولید",
-                subsystems_health_title: "وضعیت سلامت زیرسیستم‌ها",
-                sys_health: "سلامت کلی سیستم",
-                mt5_fallback: "وضعیت اتصال به MT5",
-                runtime_host: "میزبان اصلی سیستم",
-                scheduler_loop: "حلقه زمان‌بندی",
-                security_compliance: "انطباق امنیتی",
-                reports_download_title: "دانلود گزارش‌های نهایی تاییدیه",
-                dl_html: "دانلود گزارش HTML",
-                dl_json: "دانلود گزارش JSON",
-                dl_markdown: "دانلود گزارش Markdown",
-                loading: "درحال بارگذاری...",
-                healthy: "سالم / فعال",
-                active_fallback: "حالت شبیه‌سازی فعال",
-                ready: "آماده به کار",
-                verified: "تایید شده",
-                not_executed: "اجرا نشده",
-                production_ready: "آماده برای تولید",
+        let locales = {};
+        let currentLang = 'fa';
 
-                // Brain Console
-                brain_console_title: "کنسول مدیریت مغز شناختی TradeYar AI",
-                brain_status_obs: "وضعیت رصد جریان بازار",
-                brain_status_mem: "حافظه کل (رویدادها)",
-                brain_status_pats: "الگوهای کشف شده",
-                brain_status_con: "مفاهیم تایید شده",
-                brain_status_learn: "چرخه یادگیری شناختی",
+        // Load i18n
+        async function loadLocales(lang) {
+            currentLang = lang;
+            localStorage.setItem('tradeyar_language', lang);
+            try {
+                const resp = await fetch(`/locales/${lang}.json`);
+                locales = await resp.json();
+                // translated dynamically
 
-                // Shadow Performance
-                shadow_perf_title: "عملکرد معاملات فرضی (Shadow Performance)",
-                shadow_trades: "تعداد کل معاملات فرضی",
-                shadow_wins: "معاملات موفق (Wins)",
-                shadow_losses: "معاملات ناموفق (Losses)",
-                shadow_acc: "دقت شبیه‌سازی کل",
-
-                // Last Decision
-                last_decision_title: "آخرین تصمیم معاملاتی صادر شده",
-                last_dec_symbol: "نماد دارایی",
-                last_dec_action: "نوع اقدام صادر شده",
-                last_dec_conf: "سطح اطمینان تصمیم",
-                last_dec_evidence: "شواهد تطبیق تاریخی",
-                last_dec_reason: "علت اصلی تصمیم‌گیری",
-
-                // Explainability Chat Interface
-                chat_explain_title: "هوش تفسیری و گفتگو با مغز معامله‌گر",
-                chat_q1: "چرا این معامله را باز کردی؟",
-                chat_q2: "چرا معامله نکردی؟",
-                chat_q3: "چه چیزی یاد گرفتی؟",
-                chat_q4: "کجا اشتباه کردی؟",
-                chat_q5: "چه چیزی را نمی‌دانی؟",
-                chat_response_placeholder: "بر روی یکی از سوالات بالا کلیک کنید تا تحلیل تفسیری و مستندات مغز هوشمند استخراج گردد..."
-            },
-            en: {
-                title: "TradeYar AI — Management Dashboard & Acceptance Portal",
-                portal_status: "Production Acceptance Portal Active",
-                live_research_title: "Live Market Research Panel",
-                current_symbol: "Current Symbol",
-                last_update: "Last Update",
-                market_bias: "Market Bias",
-                confidence: "Confidence",
-                technical_metrics: "Technical Metrics",
-                latest_ai_explanation: "Latest AI Explanation",
-                validation_center_title: "System Validation Center",
-                run_validation_btn: "Run Full Validation",
-                validating_btn: "Validating...",
-                passed: "Passed",
-                failed: "Failed",
-                skipped: "Skipped",
-                warnings: "Warnings",
-                active_phase: "Active Phase",
-                component_boundaries: "Component Boundaries",
-                current_trace: "Current Verification Trace",
-                live_trace_logs: "Live Trace Logs",
-                historical_summary_title: "Historical Acceptance Summary",
-                col_timestamp: "Timestamp",
-                col_duration: "Duration",
-                col_ratio: "Test Ratio",
-                col_status: "Readiness Status",
-                col_score: "Acceptance Score",
-                readiness_score_title: "Production Readiness Score",
-                subsystems_health_title: "Subsystem Health Monitors",
-                sys_health: "System Health",
-                mt5_fallback: "MT5 Data Fallback",
-                runtime_host: "Runtime Host",
-                scheduler_loop: "Scheduler Loop",
-                security_compliance: "Security Compliance",
-                reports_download_title: "Acceptance Reports Download",
-                dl_html: "Download HTML Report",
-                dl_json: "Download JSON Report",
-                dl_markdown: "Download Markdown Report",
-                loading: "Loading...",
-                healthy: "Healthy",
-                active_fallback: "Active fallback",
-                ready: "Ready",
-                verified: "Verified",
-                not_executed: "Not Run",
-                production_ready: "Production Ready",
-
-                // Brain Console
-                brain_console_title: "TradeYar AI Cognitive Brain Console",
-                brain_status_obs: "Market Observation Status",
-                brain_status_mem: "Total Semantic Memory (Events)",
-                brain_status_pats: "Discovered Patterns count",
-                brain_status_con: "Approved Concept Memory",
-                brain_status_learn: "Cognitive Learning Loop",
-
-                // Shadow Performance
-                shadow_perf_title: "Virtual Wallet & Shadow Performance",
-                shadow_trades: "Total Virtual Position Count",
-                shadow_wins: "Successful Trades (Wins)",
-                shadow_losses: "Failed Trades (Losses)",
-                shadow_acc: "Overall Position Accuracy",
-
-                // Last Decision
-                last_decision_title: "Latest Position Decision",
-                last_dec_symbol: "Asset Symbol",
-                last_dec_action: "Issued Action",
-                last_dec_conf: "Decision Confidence",
-                last_dec_evidence: "Historical Sample Evidence",
-                last_dec_reason: "Core Rationale",
-
-                // Explainability Chat Interface
-                chat_explain_title: "Conversational Explainable Chat Console",
-                chat_q1: "Why did you open this trade?",
-                chat_q2: "Why didn't you trade?",
-                chat_q3: "What did you learn?",
-                chat_q4: "Where did you make a mistake?",
-                chat_q5: "What don't you know?",
-                chat_response_placeholder: "Click on any question above to extract detailed explainable rationale from the trader brain's memories..."
+                // Safe non-recursive refresh on language change
+                fetchPublicMetrics();
+                fetchUserSignals();
+                fetchAdminSymbols();
+                fetchAdminReports();
+                fetchStatus();
+            } catch (e) {
+                console.error("Failed to load locales: ", e);
             }
-        };
-
-        let currentLang = 'fa'; // Persian RTL is default as specified in Phase 21 requirements
-
-        function formatTimestamp(ts) {
-            if (!ts) return '';
-            // Cleans up ISO format and removes milliseconds
-            return ts.replace('T', ' ').split('.')[0];
         }
 
-        function toggleLanguage() {
-            currentLang = currentLang === 'fa' ? 'en' : 'fa';
-            localStorage.setItem('tradeyar_language', currentLang);
-            applyLanguage();
-        }
+        function translatePage() {
+            // Update page titles and directions
+            document.title = locales['app_title'] || "TradeYar AI";
+            document.body.dir = (currentLang === 'fa' || currentLang === 'ar') ? 'rtl' : 'ltr';
+            document.body.style.fontFamily = (currentLang === 'fa' || currentLang === 'ar') ? "'Vazirmatn', sans-serif" : "'Segoe UI', Roboto, sans-serif";
 
-        function applyLanguage() {
-            const dictionary = translations[currentLang];
-
-            // Set body direction and font
-            if (currentLang === 'fa') {
-                document.body.style.direction = 'rtl';
-                document.body.style.fontFamily = "'Vazirmatn', sans-serif";
-            } else {
-                document.body.style.direction = 'ltr';
-                document.body.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
-            }
-
-            // Map elements with i18n keys
+            // Translate elements
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
-                if (dictionary[key]) {
-                    el.innerText = dictionary[key];
+                if (locales[key]) {
+                    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                        el.placeholder = locales[key];
+                    } else {
+                        el.innerText = locales[key];
+                    }
                 }
             });
 
-            document.getElementById('lang-btn').innerText = currentLang === 'fa' ? 'English' : 'فارسی';
-            fetchStatus();
-            fetchHistory();
-            fetchResearch();
-            fetchCognitiveIntelligence();
-        }
-
-        async function fetchCognitiveIntelligence() {
-            try {
-                // 1. Fetch Brain Status
-                let respStatus = await fetch('/api/intelligence/status');
-                let statusData = await respStatus.json();
-
-                document.getElementById('brain-obs').innerText = 'ACTIVE';
-                document.getElementById('brain-mem').innerText = statusData.memory;
-                document.getElementById('brain-pats').innerText = statusData.patterns;
-                document.getElementById('brain-con').innerText = statusData.concepts;
-                document.getElementById('brain-learn').innerText = 'RUNNING';
-
-                // 2. Fetch Learning Report / Shadow Perf
-                let respReport = await fetch('/api/intelligence/learning-report');
-                let reportData = await respReport.json();
-
-                // Represent Shadow Perf
-                document.getElementById('shadow-trades-count').innerText = 1250 + reportData.statistics.total_experiences;
-                document.getElementById('shadow-wins-count').innerText = 820 + reportData.statistics.successful_patterns;
-                document.getElementById('shadow-losses-count').innerText = 430 + reportData.statistics.failed_patterns;
-                document.getElementById('shadow-accuracy').innerText = '65.6%';
-            } catch (e) {}
-        }
-
-        async function askBrainQuestion(question, pseudoId) {
-            try {
-                const resp = await fetch('/api/intelligence/explain/' + pseudoId + '?question=' + encodeURIComponent(question) + '&lang=' + currentLang);
-                const data = await resp.json();
-                document.getElementById('chat-response-box').innerText = data.explanation;
-            } catch (e) {
-                document.getElementById('chat-response-box').innerText = "Error fetching response.";
+            // Update language toggle button text
+            const toggleBtn = document.getElementById('lang-toggle-btn');
+            if (toggleBtn) {
+                toggleBtn.innerText = locales['language_toggle'] || 'English';
             }
         }
 
+        function toggleTheme() {
+            document.body.classList.toggle('light-theme');
+            const isLight = document.body.classList.contains('light-theme');
+            localStorage.setItem('tradeyar_theme', isLight ? 'light' : 'dark');
+        }
+
+        function showNotification(msg, type = "success") {
+            const bar = document.getElementById('notification-bar');
+            bar.innerText = msg;
+            bar.className = 'toast-' + type;
+            bar.style.display = 'block';
+            setTimeout(() => {
+                bar.style.display = 'none';
+            }, 4000);
+        }
+
+        // Routing Engine
+        function handleRoute() {
+            const hash = window.location.hash || '#/';
+
+            // Hide all shells
+            const shells = [
+                'shell-marketing', 'shell-features', 'shell-pricing', 'shell-blog',
+                'shell-terminal', 'shell-admin', 'shell-login', 'shell-register',
+                'shell-forgot', 'shell-unauthorized'
+            ];
+            shells.forEach(s => {
+                const el = document.getElementById(s);
+                if (el) el.style.display = 'none';
+            });
+
+            // Remove active classes
+            document.querySelectorAll('.sidebar-link').forEach(link => link.classList.remove('active'));
+
+            const token = localStorage.getItem('tradeyar_token');
+            const role = localStorage.getItem('tradeyar_role');
+            const name = localStorage.getItem('tradeyar_name');
+
+            // Authenticating and SRE checks
+            updateAuthSidebar(token, name);
+
+            if (hash === '#/' || hash === '') {
+                document.getElementById('shell-marketing').style.display = 'block';
+                document.getElementById('link-public').classList.add('active');
+            } else if (hash === '#/features') {
+                document.getElementById('shell-features').style.display = 'block';
+                document.getElementById('link-features').classList.add('active');
+            } else if (hash === '#/pricing') {
+                document.getElementById('shell-pricing').style.display = 'block';
+                document.getElementById('link-pricing').classList.add('active');
+            } else if (hash === '#/blog') {
+                document.getElementById('shell-blog').style.display = 'block';
+                document.getElementById('link-blog').classList.add('active');
+                fetchBlogArticles();
+            } else if (hash === '#/dashboard') {
+                if (!token) {
+                    window.location.hash = '#/login';
+                    showNotification(currentLang === 'fa' ? 'لطفا ابتدا وارد حساب خود شوید.' : 'Please sign in to access the Trader Terminal.', 'warning');
+                    return;
+                }
+                document.getElementById('shell-terminal').style.display = 'block';
+                document.getElementById('link-terminal').classList.add('active');
+                fetchUserSignals();
+                simulateEquityProjections();
+            } else if (hash === '#/admin') {
+                if (!token) {
+                    window.location.hash = '#/login';
+                    showNotification(currentLang === 'fa' ? 'لطفا با حساب کاربری ادمین وارد سیستم شوید.' : 'Please sign in with administrator credentials.', 'warning');
+                    return;
+                }
+                if (role !== 'ADMIN') {
+                    document.getElementById('shell-unauthorized').style.display = 'block';
+                    return;
+                }
+                document.getElementById('shell-admin').style.display = 'block';
+                document.getElementById('link-admin').classList.add('active');
+                fetchAdminSymbols();
+                fetchAdminReports();
+                fetchStatus();
+            } else if (hash === '#/login') {
+                if (token) {
+                    window.location.hash = '#/dashboard';
+                } else {
+                    document.getElementById('shell-login').style.display = 'block';
+                    document.getElementById('link-login').classList.add('active');
+                }
+            } else if (hash === '#/register') {
+                if (token) {
+                    window.location.hash = '#/dashboard';
+                } else {
+                    document.getElementById('shell-register').style.display = 'block';
+                    document.getElementById('link-register').classList.add('active');
+                }
+            } else if (hash === '#/forgot-password') {
+                document.getElementById('shell-forgot').style.display = 'block';
+            }
+        }
+
+        function updateAuthSidebar(token, name) {
+            const loginLink = document.getElementById('link-login');
+            const registerLink = document.getElementById('link-register');
+            const logoutLink = document.getElementById('link-logout');
+            const termLink = document.getElementById('link-terminal');
+            const adminLink = document.getElementById('link-admin');
+            const userBadge = document.getElementById('user-profile-badge');
+
+            if (token) {
+                if (loginLink) loginLink.style.display = 'none';
+                if (registerLink) registerLink.style.display = 'none';
+                if (logoutLink) logoutLink.style.display = 'flex';
+                if (termLink) termLink.style.display = 'flex';
+
+                const role = localStorage.getItem('tradeyar_role');
+                if (role === 'ADMIN') {
+                    if (adminLink) adminLink.style.display = 'flex';
+                } else {
+                    if (adminLink) adminLink.style.display = 'none';
+                }
+
+                if (userBadge) {
+                    userBadge.style.display = 'block';
+                    userBadge.innerText = name ? name : "Elite Trader";
+                }
+            } else {
+                if (loginLink) loginLink.style.display = 'flex';
+                if (registerLink) registerLink.style.display = 'flex';
+                if (logoutLink) logoutLink.style.display = 'none';
+                if (termLink) termLink.style.display = 'none';
+                if (adminLink) adminLink.style.display = 'none';
+                if (userBadge) userBadge.style.display = 'none';
+            }
+        }
+
+        // Auth Operations
+        async function submitLogin() {
+            const email = document.getElementById('login-email').value.trim();
+            const pass = document.getElementById('login-pass').value.trim();
+            if (!email || !pass) {
+                showNotification(currentLang === 'fa' ? 'تمام فیلدها را کامل کنید.' : 'Please enter both email and password.', 'warning');
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, password: pass })
+                });
+                const data = await resp.json();
+                if (resp.status >= 400) {
+                    showNotification(data.detail || "Authentication failed.", "error");
+                } else {
+                    localStorage.setItem('tradeyar_token', data.session_token);
+                    localStorage.setItem('tradeyar_role', data.user.role);
+                    localStorage.setItem('tradeyar_name', data.user.name);
+                    localStorage.setItem('tradeyar_email', data.user.email);
+                    showNotification((currentLang === 'fa' ? 'خوش آمدید، ' : 'Welcome, ') + data.user.name);
+                    window.location.hash = '#/dashboard';
+                    handleRoute();
+                }
+            } catch (e) {
+                showNotification("Network error. Could not authenticate.", "error");
+            }
+        }
+
+        async function submitRegister() {
+            const name = document.getElementById('register-name').value.trim();
+            const email = document.getElementById('register-email').value.trim();
+            const pass = document.getElementById('register-pass').value.trim();
+            if (!email || !pass) {
+                showNotification(currentLang === 'fa' ? 'تمام فیلدها را کامل کنید.' : 'Please enter both email and password.', 'warning');
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, password: pass, name: name })
+                });
+                const data = await resp.json();
+                if (resp.status >= 400) {
+                    showNotification(data.detail || "Registration failed.", "error");
+                } else {
+                    showNotification(currentLang === 'fa' ? 'ثبت‌نام با موفقیت انجام شد. لطفا وارد شوید.' : "Registration successful! Please login.");
+                    window.location.hash = '#/login';
+                }
+            } catch (e) {
+                showNotification("Network error. Could not register account.", "error");
+            }
+        }
+
+        async function submitForgot() {
+            const email = document.getElementById('forgot-email').value.trim();
+            if (!email) {
+                showNotification(currentLang === 'fa' ? 'لطفا آدرس ایمیل را وارد کنید.' : 'Please enter your email.', 'warning');
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/auth/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                const data = await resp.json();
+                showNotification(data.message || "Simulated password reset sent.");
+                document.getElementById('forgot-email').value = '';
+            } catch (e) {
+                showNotification("Network error.", "error");
+            }
+        }
+
+        async function submitLogout() {
+            const token = localStorage.getItem('tradeyar_token');
+            if (token) {
+                try {
+                    await fetch('/api/auth/logout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: token })
+                    });
+                } catch(e) {}
+            }
+            localStorage.clear();
+            showNotification(currentLang === 'fa' ? 'با موفقیت خارج شدید.' : 'Signed out successfully.');
+            window.location.hash = '#/';
+            handleRoute();
+        }
+
+        // SRE Symbols & Dynamic Limit Enforcements
+        async function fetchAdminSymbols() {
+            const token = localStorage.getItem('tradeyar_token');
+            try {
+                const resp = await fetch('/api/admin/symbols?token=' + encodeURIComponent(token));
+                const data = await resp.json();
+                document.getElementById('adm-active-symbols-count').innerText = data.count + " / " + data.max_active_symbols_limit;
+                document.getElementById('adm-symbols-list').innerText = data.active_symbols.join(', ');
+            } catch(e) {}
+        }
+
+        async function registerNewActiveSymbol() {
+            const sym = prompt(locales['enter_symbol_prompt'] || "Enter new symbol (e.g. SOLUSD):");
+            if (!sym) return;
+
+            const token = localStorage.getItem('tradeyar_token');
+            const tf = parseInt(document.getElementById('register-tf-dropdown').value);
+
+            try {
+                const resp = await fetch('/api/admin/symbols?token=' + encodeURIComponent(token), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: sym, timeframe: tf })
+                });
+                const data = await resp.json();
+                if (resp.status >= 400) {
+                    showNotification(data.detail || "Failed to register symbol context.", "error");
+                } else {
+                    showNotification(data.message || "Symbol registered context successfully!");
+                    fetchAdminSymbols();
+                    fetchAdminReports();
+                }
+            } catch (e) {
+                showNotification("Network error.", "error");
+            }
+        }
+
+        // Fetch user signals with filters (horizons)
+        let activeHorizon = 'medium';
+        function setHorizonFilter(horizon) {
+            activeHorizon = horizon;
+            document.querySelectorAll('.horizon-tab').forEach(btn => {
+                btn.style.backgroundColor = 'transparent';
+                btn.style.color = 'var(--text-muted)';
+            });
+            event.currentTarget.style.backgroundColor = 'var(--primary)';
+            event.currentTarget.style.color = 'white';
+            fetchUserSignals();
+        }
+
+        async function fetchUserSignals() {
+            const assetFilter = document.getElementById('signals-asset-select').value;
+            let query = '/api/user/signals?horizon=' + activeHorizon;
+            if (assetFilter && assetFilter !== 'all') {
+                query += '&market=' + assetFilter;
+            }
+
+            try {
+                const resp = await fetch(query);
+                const signals = await resp.json();
+                let grid = document.getElementById('signals-grid-container');
+                grid.innerHTML = '';
+                if (!signals || signals.length === 0) {
+                    grid.innerHTML = '<div style="grid-column: span 3; padding: 30px; text-align: center; color: var(--text-muted);" data-i18n="no_signals">No signals active for this horizon. Try triggering validation or adding predictive shadow orders!</div>';
+                    const noSigEl = grid.querySelector('[data-i18n="no_signals"]');
+                    if (noSigEl && locales['no_signals']) noSigEl.innerText = locales['no_signals'];
+                    return;
+                }
+
+                signals.forEach(s => {
+                    grid.innerHTML += `
+                        <div class="status-item" style="text-align: inherit; padding: 22px; border: 1px solid var(--border-dark); background-color: rgba(30, 41, 59, 0.2);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                <strong style="font-size: 1.2em; color: var(--accent);">${s.symbol}</strong>
+                                <span class="blog-tag">${s.horizon}</span>
+                            </div>
+                            <div style="margin: 6px 0;"><strong data-i18n="direction_label">Direction:</strong> ${s.direction}</div>
+                            <div style="margin: 6px 0;"><strong data-i18n="entry_label">Entry Zone:</strong> ${s.entry_zone}</div>
+                            <div style="margin: 6px 0;"><strong data-i18n="target_label">Target Zone:</strong> ${s.target_zone}</div>
+                            <div style="margin: 6px 0;"><strong data-i18n="invalidation_label">Invalidation:</strong> ${s.invalidation_level}</div>
+                            <div style="margin: 6px 0;"><strong data-i18n="confidence_label">Confidence:</strong> ${s.confidence}%</div>
+                            <div style="font-size: 0.85em; color: var(--text-muted); border-top: 1px solid var(--border-dark); margin-top: 12px; padding-top: 8px;">
+                                <strong data-i18n="reason_label">Reason:</strong> ${s.reason}
+                            </div>
+                        </div>
+                    `;
+                });
+                // translated dynamically
+            } catch(e) {}
+        }
+
+        // Equity simulations
+        async function runCompoundingSimulation() {
+            const balance = document.getElementById('sim-balance-input').value;
+            const yieldVal = document.getElementById('sim-yield-input').value;
+            const months = document.getElementById('sim-months-input').value;
+
+            try {
+                const resp = await fetch(`/api/user/equity-simulation?initial_balance=${balance}&monthly_growth_pct=${yieldVal}&months=${months}`);
+                const data = await resp.json();
+                document.getElementById('sim-initial').innerText = "$" + Number(data.initial_balance).toLocaleString();
+                document.getElementById('sim-final').innerText = "$" + Number(data.final_balance).toLocaleString();
+                document.getElementById('sim-growth').innerText = "+" + data.total_growth_pct + "%";
+            } catch(e) {}
+        }
+
+        async function simulateEquityProjections() {
+            runCompoundingSimulation();
+        }
+
+        // Public SaaS Metrics
+        async function fetchPublicMetrics() {
+            try {
+                const r = await fetch('/api/public/metrics');
+                const data = await r.json();
+                document.getElementById('pub-markets').innerText = data.active_markets_count;
+                document.getElementById('pub-trades').innerText = (data.historical_simulated_trades / 1000).toFixed(1) + "k+";
+                document.getElementById('pub-uptime').innerText = data.platform_uptime_pct + "%";
+            } catch(e) {}
+        }
+
+        // SRE reports
+        async function fetchAdminReports() {
+            const token = localStorage.getItem('tradeyar_token');
+            try {
+                const resp = await fetch('/api/admin/reports?token=' + encodeURIComponent(token));
+                const data = await resp.json();
+                let tbody = document.getElementById('admin-reports-tbody');
+                tbody.innerHTML = '';
+                data.reports.forEach(r => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${r.symbol}</td>
+                            <td>Frame ${r.timeframe}</td>
+                            <td>${r.total_trades}</td>
+                            <td>${r.wins} / ${r.losses}</td>
+                            <td><strong>${r.win_rate_pct}%</strong></td>
+                            <td>${r.average_confidence_pct}%</td>
+                        </tr>
+                    `;
+                });
+            } catch(e) {}
+        }
+
+        // Blog
+        async function fetchBlogArticles() {
+            try {
+                const r = await fetch('/api/blog');
+                const data = await r.json();
+                let grid = document.getElementById('blog-grid-container');
+                grid.innerHTML = '';
+                data.forEach(a => {
+                    grid.innerHTML += `
+                        <div class="blog-card">
+                            <div class="blog-header-img">📰</div>
+                            <div class="blog-body">
+                                <span class="blog-tag">${a.category}</span>
+                                <h4 style="margin: 10px 0 5px 0; color: var(--primary);">${a.title}</h4>
+                                <div style="font-size: 0.8em; color: var(--text-muted); margin-bottom: 10px;">${a.author} — ${a.published_at}</div>
+                                <p style="font-size: 0.85em; color: var(--text-muted); line-height: 1.5; margin: 0;">${a.content}</p>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch(e) {}
+        }
+
+        // SRE validation trace logs
         async function fetchStatus() {
             try {
                 let response = await fetch('/api/validation/status');
                 let data = await response.json();
-                const dictionary = translations[currentLang];
 
                 document.getElementById('phase').innerText = data.current_phase;
                 document.getElementById('component').innerText = data.current_component;
@@ -1055,34 +1377,23 @@ def get_dashboard_spa():
 
                 document.getElementById('score-val').innerText = data.readiness_score + '%';
 
-                // Translate readiness status dynamically
                 let statusText = data.readiness_status;
-                if (statusText === 'Production Ready') {
-                    statusText = dictionary.production_ready;
-                } else if (statusText === 'Not Run') {
-                    statusText = dictionary.not_executed;
+                if (statusText === 'Production Ready' && locales['production_ready']) {
+                    statusText = locales['production_ready'];
                 }
                 document.getElementById('score-status').innerText = statusText;
 
-                // Handle default wait explanation translate
-                let explanationText = data.readiness_explanation;
-                if (!explanationText || explanationText.includes("waiting to be triggered")) {
-                    explanationText = dictionary.not_executed;
-                }
-                document.getElementById('summary-explanation').innerText = explanationText;
-
-                // Stream logs
                 let logBox = document.getElementById('logs');
                 logBox.innerHTML = data.logs.join('<br>');
 
                 const runBtn = document.getElementById('run-btn');
                 if (data.is_running) {
                     runBtn.disabled = true;
-                    runBtn.innerText = dictionary.validating_btn;
+                    runBtn.innerText = locales['validating_btn'] || "Running Tests...";
                     setTimeout(fetchStatus, 1000);
                 } else {
                     runBtn.disabled = false;
-                    runBtn.innerText = dictionary.run_validation_btn;
+                    runBtn.innerText = locales['run_validation_btn'] || "Run Validation";
                 }
             } catch(e) {}
         }
@@ -1093,241 +1404,18 @@ def get_dashboard_spa():
             setTimeout(fetchStatus, 500);
         }
 
-        async function fetchHistory() {
-            try {
-                let response = await fetch('/api/validation/history');
-                let data = await response.json();
-                let tbody = document.getElementById('history-body');
-                tbody.innerHTML = '';
-
-                const dictionary = translations[currentLang];
-
-                data.forEach(run => {
-                    let statusColor = run.readiness_status === 'Production Ready' ? 'var(--accent)' : 'var(--danger)';
-                    let statusText = run.readiness_status === 'Production Ready' ? dictionary.production_ready : run.readiness_status;
-                    let formattedTime = formatTimestamp(run.timestamp);
-
-                    // Anti-leak classical string concatenation
-                    tbody.innerHTML += '<tr>' +
-                        '<td>' + formattedTime + '</td>' +
-                        '<td>' + run.duration_sec + 's</td>' +
-                        '<td>' + run.passed + '/' + run.total + '</td>' +
-                        '<td><strong style="color: ' + statusColor + '">' + statusText + '</strong></td>' +
-                        '<td><strong>' + run.readiness_score + '%</strong></td>' +
-                        '</tr>';
-                });
-            } catch(e) {}
-        }
-
-        async function fetchResearch() {
-            try {
-                let response = await fetch('/api/research/current');
-                let data = await response.json();
-
-                document.getElementById('res-symbol').innerText = data.symbol;
-                document.getElementById('res-timeframe').innerText = data.timeframe;
-                document.getElementById('res-bias').innerText = data.bias;
-                document.getElementById('res-confidence').innerText = data.confidence + '%';
-                document.getElementById('res-time').innerText = formatTimestamp(data.timestamp);
-
-                // Colorize bias text
-                let biasEl = document.getElementById('res-bias');
-                if (data.bias === 'Bullish') {
-                    biasEl.style.color = 'var(--accent)';
-                } else if (data.bias === 'Bearish') {
-                    biasEl.style.color = 'var(--danger)';
-                } else {
-                    biasEl.style.color = 'var(--warning)';
-                }
-
-                // Indicators list using classic concatenation
-                let ind = data.indicators;
-                if (ind) {
-                    let sma_20_val = ind.sma_20 !== undefined ? ind.sma_20.toFixed(2) : '--';
-                    let ema_12_val = ind.ema_12 !== undefined ? ind.ema_12.toFixed(2) : '--';
-                    let rsi_val = ind.rsi !== undefined ? ind.rsi.toFixed(2) : '--';
-                    let atr_val = ind.atr !== undefined ? ind.atr.toFixed(4) : '--';
-
-                    document.getElementById('res-indicators').innerHTML =
-                        '<strong>SMA20:</strong> ' + sma_20_val + ' | ' +
-                        '<strong>EMA12:</strong> ' + ema_12_val + ' | ' +
-                        '<strong>RSI:</strong> ' + rsi_val + ' | ' +
-                        '<strong>ATR:</strong> ' + atr_val;
-                }
-
-                // Bullet reasoning list
-                let reasonHtml = '';
-                if (data.reasoning && data.reasoning.length > 0) {
-                    data.reasoning.forEach(r => {
-                        reasonHtml += '<li>' + r + '</li>';
-                    });
-                } else {
-                    reasonHtml = '<li>No active indicators triggered.</li>';
-                }
-                document.getElementById('res-reasoning').innerHTML = reasonHtml;
-            } catch(e) {}
-        }
-
+        // Collapsible Chat chatbot
         let isChatOpen = false;
-
-        let activeShell = 'marketing'; // Experience Shell state: 'marketing', 'dashboard', 'admin'
-        let currentHorizon = 'medium'; // Trader Horizon: 'micro', 'short', 'medium', 'macro'
-
-        function toggleTheme() {
-            document.body.classList.toggle('light-theme');
-            const isLight = document.body.classList.contains('light-theme');
-            localStorage.setItem('tradeyar_theme', isLight ? 'light' : 'dark');
-        }
-
-        function switchShell(shellName) {
-            activeShell = shellName;
-
-            // Highlight active sidebar navigation
-            document.querySelectorAll('.sidebar-link').forEach(link => {
-                link.classList.remove('active');
-            });
-            if (typeof event !== 'undefined' && event && event.currentTarget) {
-                event.currentTarget.classList.add('active');
-            }
-
-            // Hide all experience panels
-            document.getElementById('shell-marketing').style.display = 'none';
-            document.getElementById('shell-dashboard').style.display = 'none';
-            document.getElementById('shell-admin').style.display = 'none';
-
-            if (shellName === 'marketing') {
-                document.getElementById('shell-marketing').style.display = 'block';
-                fetchPublicMetrics();
-            } else if (shellName === 'dashboard') {
-                document.getElementById('shell-dashboard').style.display = 'block';
-                fetchUserSignals();
-                simulateEquityProjections();
-            } else if (shellName === 'admin') {
-                document.getElementById('shell-admin').style.display = 'block';
-                fetchAdminSymbols();
-                fetchAdminReports();
-            }
-        }
-
-        function setHorizonFilter(horizon) {
-            currentHorizon = horizon;
-            document.querySelectorAll('.horizon-tab').forEach(btn => {
-                btn.style.backgroundColor = 'transparent';
-                btn.style.color = 'var(--text-muted)';
-            });
-            event.currentTarget.style.backgroundColor = 'var(--primary)';
-            event.currentTarget.style.color = 'white';
-            fetchUserSignals();
-        }
-
-        async function fetchPublicMetrics() {
-            try {
-                const r = await fetch('/api/public/metrics');
-                const data = await r.json();
-                document.getElementById('pub-markets').innerText = data.active_markets_count;
-                document.getElementById('pub-trades').innerText = (data.historical_simulated_trades / 1000).toFixed(1) + "k+";
-                document.getElementById('pub-uptime').innerText = data.platform_uptime_pct + "%";
-            } catch(e) {}
-        }
-
-        async function fetchUserSignals() {
-            try {
-                const resp = await fetch('/api/user/signals?horizon=' + currentHorizon);
-                const signals = await resp.json();
-                let grid = document.getElementById('signals-grid-container');
-                grid.innerHTML = '';
-                if (!signals || signals.length === 0) {
-                    grid.innerHTML = '<div style="grid-column: span 3; padding: 30px; text-align: center; color: var(--text-muted);">No signals active for this horizon. Try triggering validation or adding predictive shadow orders!</div>';
-                    return;
-                }
-                signals.forEach(s => {
-                    grid.innerHTML += '<div class="status-item" style="text-align: left; padding: 20px; border: 1px solid var(--border-dark); background-color: rgba(31,38,53,0.25);">' +
-                        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">' +
-                            '<strong style="font-size: 1.15em; color: var(--primary);">' + s.symbol + '</strong>' +
-                            '<span class="blog-tag">' + s.horizon + ' Horizon</span>' +
-                        '</div>' +
-                        '<div style="margin: 5px 0;"><strong>Direction:</strong> ' + s.direction + '</div>' +
-                        '<div style="margin: 5px 0;"><strong>Entry:</strong> ' + s.entry_zone + '</div>' +
-                        '<div style="margin: 5px 0;"><strong>Target:</strong> ' + s.target_zone + '</div>' +
-                        '<div style="margin: 5px 0;"><strong>Invalidation:</strong> ' + s.invalidation_level + '</div>' +
-                        '<div style="margin: 5px 0;"><strong>Confidence:</strong> ' + s.confidence + '%</div>' +
-                        '<div style="font-size: 0.85em; color: var(--text-muted); border-top: 1px solid var(--border-dark); margin-top: 10px; padding-top: 5px;">' + s.reason + '</div>' +
-                    '</div>';
-                });
-            } catch(e) {}
-        }
-
-        async function simulateEquityProjections() {
-            try {
-                const resp = await fetch('/api/user/equity-simulation?initial_balance=10000&monthly_growth_pct=8.5&months=6');
-                const data = await resp.json();
-                document.getElementById('sim-initial').innerText = "$" + data.initial_balance;
-                document.getElementById('sim-final').innerText = "$" + data.final_balance;
-                document.getElementById('sim-growth').innerText = "+" + data.total_growth_pct + "%";
-            } catch(e) {}
-        }
-
-        async function fetchAdminSymbols() {
-            try {
-                const resp = await fetch('/api/admin/symbols');
-                const data = await resp.json();
-                document.getElementById('adm-active-symbols-count').innerText = data.count + " / " + data.max_active_symbols_limit;
-
-                let list = document.getElementById('adm-symbols-list');
-                list.innerText = data.active_symbols.join(', ');
-            } catch(e) {}
-        }
-
-        async function fetchAdminReports() {
-            try {
-                const resp = await fetch('/api/admin/reports');
-                const data = await resp.json();
-                let tbody = document.getElementById('admin-reports-tbody');
-                tbody.innerHTML = '';
-                data.reports.forEach(r => {
-                    tbody.innerHTML += '<tr>' +
-                        '<td>' + r.symbol + '</td>' +
-                        '<td>Frame ' + r.timeframe + '</td>' +
-                        '<td>' + r.total_trades + '</td>' +
-                        '<td>' + r.wins + ' / ' + r.losses + '</td>' +
-                        '<td><strong>' + r.win_rate_pct + '%</strong></td>' +
-                        '<td>' + r.average_confidence_pct + '%</td>' +
-                    '</tr>';
-                });
-            } catch(e) {}
-        }
-
-        async function addMockSymbol() {
-            const sym = prompt("Enter symbol name (e.g. SOLUSD):");
-            if (!sym) return;
-            try {
-                const resp = await fetch('/api/admin/symbols', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ symbol: sym, timeframe: 64 })
-                });
-                const data = await resp.json();
-                if (resp.status >= 400) {
-                    alert("Action failed: " + data.detail);
-                } else {
-                    alert(data.message);
-                    fetchAdminSymbols();
-                    fetchAdminReports();
-                }
-            } catch(e) {
-                alert("Request failed.");
-            }
-        }
-
         function toggleChatbot() {
             isChatOpen = !isChatOpen;
             const widget = document.getElementById('chat-widget');
+            const body = document.getElementById('chat-body');
             if (isChatOpen) {
                 widget.style.transform = 'translateY(0)';
-                document.getElementById('chat-body').style.display = 'flex';
+                body.style.display = 'flex';
             } else {
-                widget.style.transform = 'translateY(310px)';
-                document.getElementById('chat-body').style.display = 'none';
+                widget.style.transform = 'translateY(360px)';
+                body.style.display = 'none';
             }
         }
 
@@ -1336,7 +1424,6 @@ def get_dashboard_spa():
             const msg = input.value.trim();
             if (!msg) return;
 
-            // Add user bubble
             appendChatBubble(msg, 'user');
             input.value = '';
 
@@ -1349,7 +1436,7 @@ def get_dashboard_spa():
                 const data = await response.json();
                 appendChatBubble(data.response, 'bot');
             } catch (e) {
-                appendChatBubble("Error communicating with AI Brain.", 'bot');
+                appendChatBubble("Error communicating with TradeYar Cognitive AI.", 'bot');
             }
         }
 
@@ -1362,130 +1449,183 @@ def get_dashboard_spa():
             container.scrollTop = container.scrollHeight;
         }
 
-        async function mockSocialLogin(provider) {
-            const email = provider + "-trader@tradeyar.ai";
-            const name = provider.charAt(0).toUpperCase() + provider.slice(1) + " Trader";
-            try {
-                const resp = await fetch('/api/auth/' + provider, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email, provider_id: "social-12345", name: name })
-                });
-                const data = await resp.json();
-                alert("Successfully Authenticated via " + provider.toUpperCase() + "! Welcome " + data.user.name);
-            } catch (e) {
-                alert("Auth failed.");
-            }
-        }
+        window.addEventListener('hashchange', handleRoute);
 
         window.onload = () => {
-            const savedLang = localStorage.getItem('tradeyar_language');
-            if (savedLang === 'fa' || savedLang === 'en') {
-                currentLang = savedLang;
-            }
+            const savedLang = localStorage.getItem('tradeyar_language') || 'fa';
+            const savedTheme = localStorage.getItem('tradeyar_theme') || 'dark';
 
-            const savedTheme = localStorage.getItem('tradeyar_theme');
             if (savedTheme === 'light') {
                 document.body.classList.add('light-theme');
             }
 
-            applyLanguage();
-            fetchPublicMetrics();
+            loadLocales(savedLang);
+            handleRoute();
 
             // Collapse Chat initially
-            document.getElementById('chat-widget').style.transform = 'translateY(310px)';
+            document.getElementById('chat-widget').style.transform = 'translateY(360px)';
         }
     </script>
 </head>
 <body>
+    <div id="notification-bar"></div>
+
     <div class="header">
         <div style="display: flex; align-items: center; gap: 20px;">
-            <h1 style="margin: 0; font-size: 1.5em; letter-spacing: 1px;">TRADEYAR AI</h1>
-            <!-- Branded Google/Apple Mini Controls -->
+            <h1 style="margin: 0; font-size: 1.5em; letter-spacing: 1.5px; font-weight: 900; color: var(--primary);">TRADEYAR AI</h1>
             <div style="display: flex; gap: 10px;">
-                <button class="social-btn social-google" style="padding: 4px 10px; font-size: 0.75em;" onclick="mockSocialLogin('google')">Google Sign-In</button>
-                <button class="social-btn social-apple" style="padding: 4px 10px; font-size: 0.75em;" onclick="mockSocialLogin('apple')">Apple Sign-In</button>
+                <button class="social-btn social-google" style="padding: 4px 12px; font-size: 0.75em;" onclick="mockSocialLogin('google')">Google</button>
+                <button class="social-btn social-apple" style="padding: 4px 12px; font-size: 0.75em;" onclick="mockSocialLogin('apple')">Apple</button>
             </div>
         </div>
         <div style="display: flex; align-items: center; gap: 15px;">
             <button class="lang-btn" onclick="toggleTheme()">☀️ / 🌙</button>
-            <button id="lang-btn" class="lang-btn" onclick="toggleLanguage()">English</button>
-            <div><span style="font-weight: bold; color: var(--accent);">● ONLINE</span> — <span data-i18n="portal_status">تاییدیه تولید فعال</span></div>
+
+            <select class="select-field" id="lang-select" style="padding: 4px 12px; font-size: 0.85em;" onchange="loadLocales(this.value)">
+                <option value="fa">فارسی (FA)</option>
+                <option value="en" selected>English (EN)</option>
+                <option value="ar">العربية (AR)</option>
+                <option value="tr">Türkçe (TR)</option>
+            </select>
+            <button id="lang-toggle-btn" class="lang-btn" style="display:none;"></button>
+
+            <div><span style="font-weight: bold; color: var(--accent);" data-i18n="online">● ONLINE</span> — <span data-i18n="portal_status">Production Acceptance Portal Active</span></div>
         </div>
     </div>
 
     <div class="container">
         <!-- Persistent Navigation Sidebar -->
         <div class="sidebar">
-            <div class="sidebar-link active" onclick="switchShell('marketing')">📣 Public Platform</div>
-            <div class="sidebar-link" onclick="switchShell('dashboard')">📈 Trader Terminal</div>
-            <div class="sidebar-link" onclick="switchShell('admin')">🛡️ SRE Admin Console</div>
+            <a href="#/" class="sidebar-link active" id="link-public" data-i18n="nav_public">📣 Public Website</a>
+            <a href="#/features" class="sidebar-link" id="link-features" data-i18n="nav_features">✨ Platform Features</a>
+            <a href="#/pricing" class="sidebar-link" id="link-pricing" data-i18n="nav_pricing">💎 Pricing Plans</a>
+            <a href="#/blog" class="sidebar-link" id="link-blog" data-i18n="nav_blog">📰 Research Blog</a>
+            <a href="#/dashboard" class="sidebar-link" id="link-terminal" style="display: none;" data-i18n="nav_terminal">📈 Trader Terminal</a>
+            <a href="#/admin" class="sidebar-link" id="link-admin" style="display: none;" data-i18n="nav_admin">🛡️ SRE Admin Console</a>
+
+            <div style="margin-top: auto; border-top: 1px solid var(--border-dark); padding-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+                <div id="user-profile-badge" style="display: none; padding: 10px; background-color: rgba(79, 70, 229, 0.1); border-radius: 6px; font-weight: bold; text-align: center; color: var(--primary);"></div>
+                <a href="#/login" class="sidebar-link" id="link-login" data-i18n="nav_login">🔑 Sign In</a>
+                <a href="#/register" class="sidebar-link" id="link-register" data-i18n="nav_register">📝 Register</a>
+                <a href="javascript:void(0)" class="sidebar-link" id="link-logout" style="display: none;" onclick="submitLogout()" data-i18n="nav_logout">🚪 Sign Out</a>
+            </div>
         </div>
 
         <div class="main-panel">
             <!-- PANEL 1: PUBLIC MARKETING LANDING SHELL -->
             <div id="shell-marketing">
                 <div class="card" style="border-right: 6px solid var(--accent); border-left: 6px solid var(--accent);">
-                    <h2 style="margin: 0 0 10px 0; color: var(--primary);">Welcome to TradeYar AI v7.0</h2>
-                    <p style="color: var(--text-muted); font-size: 1em; line-height: 1.6;">
+                    <h2 style="margin: 0 0 10px 0; color: var(--primary);" data-i18n="welcome_title">Welcome to TradeYar AI v7.0</h2>
+                    <p style="font-size: 1.05em; line-height: 1.7;" data-i18n="welcome_desc">
                         Elite, Institutional-grade non-trading financial research and cognitive intelligence terminal. Discover non-linear market patterns built directly from raw multi-asset tick streams, bypassing delayed technical indicators.
                     </p>
 
                     <div class="status-board" style="margin-top: 25px;">
                         <div class="status-item">
-                            <div>Supported Active Markets</div>
+                            <div data-i18n="pub_markets_title">Supported Active Markets</div>
                             <div id="pub-markets" class="status-val status-passed">30</div>
                         </div>
                         <div class="status-item">
-                            <div>Simulated Historical Trades</div>
+                            <div data-i18n="pub_trades_title">Simulated Historical Trades</div>
                             <div id="pub-trades" class="status-val" style="color: var(--primary);">125k+</div>
                         </div>
                         <div class="status-item">
-                            <div>SRE SLA Uptime Guaranteed</div>
+                            <div data-i18n="pub_uptime_title">SRE SLA Uptime Guaranteed</div>
                             <div id="pub-uptime" class="status-val status-passed">99.9%</div>
                         </div>
                         <div class="status-item">
-                            <div>Platform Standards</div>
-                            <div class="status-val status-warn" style="font-size: 1.05em; font-weight: bold;">APES-FIN Secure</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h3 style="margin-top: 0; color: var(--primary);">SaaS Premium Subscriptions & Billing</h3>
-                    <div class="blog-grid">
-                        <div class="blog-card" style="padding: 20px;">
-                            <span class="blog-tag">Basic Tier</span>
-                            <h4 style="margin: 10px 0 5px 0;">Free Access</h4>
-                            <p style="font-size: 0.85em; color: var(--text-muted); line-height: 1.5; margin: 0;">Access to 3 concurrent active symbols and basic Short horizon signals.</p>
-                        </div>
-                        <div class="blog-card" style="padding: 20px; border-color: var(--primary);">
-                            <span class="blog-tag" style="background-color: rgba(90,141,238,0.2);">Professional Tier</span>
-                            <h4 style="margin: 10px 0 5px 0;">$79 / month</h4>
-                            <p style="font-size: 0.85em; color: var(--text-muted); line-height: 1.5; margin: 0;">Access to 15 concurrent active symbols, conversational AI assistant support, and Medium horizons.</p>
-                        </div>
-                        <div class="blog-card" style="padding: 20px; border-color: var(--accent);">
-                            <span class="blog-tag" style="background-color: rgba(46,196,182,0.2);">Institutional Tier</span>
-                            <h4 style="margin: 10px 0 5px 0;">$299 / month</h4>
-                            <p style="font-size: 0.85em; color: var(--text-muted); line-height: 1.5; margin: 0;">Complete 30 active symbols workspace, Macro horizons analytics, and high-priority SRE server pipelines.</p>
+                            <div data-i18n="pub_standards_title">Platform Standards</div>
+                            <div class="status-val status-warn" style="font-size: 1.1em; font-weight: bold;" data-i18n="pes_compliant">APES-FIN Secure</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- PANEL 2: CUSTOMER FINANCIAL TERMINAL SHELL -->
-            <div id="shell-dashboard" style="display: none;">
-                <!-- Horizons navigation tabs -->
-                <div style="display: flex; gap: 10px; margin-bottom: 25px; background-color: var(--surface-dark); padding: 8px; border-radius: 8px; border: 1px solid var(--border-dark);">
-                    <button class="btn horizon-tab" style="flex: 1; padding: 10px;" onclick="setHorizonFilter('micro')">⚡ Micro Horizon</button>
-                    <button class="btn horizon-tab" style="flex: 1; padding: 10px;" onclick="setHorizonFilter('short')">📊 Short Horizon</button>
-                    <button class="btn horizon-tab" style="flex: 1; padding: 10px; background-color: var(--primary); color: white;" onclick="setHorizonFilter('medium')">📈 Medium Horizon</button>
-                    <button class="btn horizon-tab" style="flex: 1; padding: 10px;" onclick="setHorizonFilter('macro')">💎 Macro Horizon</button>
-                </div>
-
-                <!-- Signal feed cards -->
+            <!-- PANEL 1B: FEATURES -->
+            <div id="shell-features" style="display: none;">
                 <div class="card">
-                    <h3 style="margin-top: 0; color: var(--primary);">Cognitive Multi-Asset Signal Hub</h3>
+                    <h2 style="margin-top: 0; color: var(--primary);" data-i18n="features_title">TradeYar Cognitive Features</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 25px;" data-i18n="features_desc">Discover our multi-layered cognitive intelligence architecture built on clean scientific price-action principles.</p>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;">
+                        <div class="status-item" style="text-align: inherit; padding: 20px;">
+                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="feature_1_title">No Technical Indicators</h3>
+                            <p style="font-size: 0.9em; line-height: 1.6; color: var(--text-muted);" data-i18n="feature_1_desc">Complete elimination of subjective lagging indicators (RSI, EMA, MACD). Our system evaluates pure non-linear tick structure transformations.</p>
+                        </div>
+                        <div class="status-item" style="text-align: inherit; padding: 20px;">
+                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="feature_2_title">Multi-Horizon Alignment</h3>
+                            <p style="font-size: 0.9em; line-height: 1.6; color: var(--text-muted);" data-i18n="feature_2_desc">Chronological multi-timeframe decision fusion logic synthesizes clear signals spanning Micro, Short, Medium, and Macro horizons.</p>
+                        </div>
+                        <div class="status-item" style="text-align: inherit; padding: 20px;">
+                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="feature_3_title">Virtual Position Tracker</h3>
+                            <p style="font-size: 0.9em; line-height: 1.6; color: var(--text-muted);" data-i18n="feature_3_desc">The non-trading Shadow Trading Engine automatically monitors SL/TP triggers on virtual capital, audited by an independent Judge Brain.</p>
+                        </div>
+                        <div class="status-item" style="text-align: inherit; padding: 20px;">
+                            <h3 style="color: var(--primary); margin-top: 0;" data-i18n="feature_4_title">Active Learning Loop</h3>
+                            <p style="font-size: 0.9em; line-height: 1.6; color: var(--text-muted);" data-i18n="feature_4_desc">Four-layered memory system (Raw, Experience, Pattern, Concept) continuously promoted and hardened with transactional protection.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL 1C: PRICING -->
+            <div id="shell-pricing" style="display: none;">
+                <div class="card">
+                    <h2 style="margin-top: 0; color: var(--primary);" data-i18n="pricing_title">SaaS Premium Subscriptions & Billing</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 25px;" data-i18n="pricing_desc">Choose the tier that matches your institutional intelligence needs.</p>
+
+                    <div class="blog-grid">
+                        <div class="blog-card" style="padding: 24px;">
+                            <span class="blog-tag" data-i18n="pricing_basic_name">Basic Researcher</span>
+                            <h3 style="margin: 15px 0 10px 0; font-family: monospace; font-size: 1.8em;" data-i18n="pricing_basic_price">Free Access</h3>
+                            <p style="font-size: 0.9em; color: var(--text-muted); line-height: 1.6; margin: 0;" data-i18n="pricing_basic_desc">Access to 3 concurrent active symbols and basic Short horizon signals.</p>
+                        </div>
+                        <div class="blog-card" style="padding: 24px; border-color: var(--primary);">
+                            <span class="blog-tag" style="background-color: rgba(79, 70, 229, 0.2);" data-i18n="pricing_pro_name">Professional Tier</span>
+                            <h3 style="margin: 15px 0 10px 0; font-family: monospace; font-size: 1.8em;" data-i18n="pricing_pro_price">$79 / month</h3>
+                            <p style="font-size: 0.9em; color: var(--text-muted); line-height: 1.6; margin: 0;" data-i18n="pricing_pro_desc">Access to 15 concurrent active symbols, conversational AI assistant support, and Medium horizons.</p>
+                        </div>
+                        <div class="blog-card" style="padding: 24px; border-color: var(--accent);">
+                            <span class="blog-tag" style="background-color: rgba(16, 185, 129, 0.2);" data-i18n="pricing_inst_name">Institutional Tier</span>
+                            <h3 style="margin: 15px 0 10px 0; font-family: monospace; font-size: 1.8em;" data-i18n="pricing_inst_price">$299 / month</h3>
+                            <p style="font-size: 0.9em; color: var(--text-muted); line-height: 1.6; margin: 0;" data-i18n="pricing_inst_desc">Complete 30 active symbols workspace, Macro horizons analytics, and high-priority SRE server pipelines.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL 1D: RESEARCH BLOG -->
+            <div id="shell-blog" style="display: none;">
+                <div class="card">
+                    <h2 style="margin-top: 0; color: var(--primary);" data-i18n="nav_blog">Research Blog</h2>
+                    <div class="blog-grid" id="blog-grid-container">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL 2: CUSTOMER FINANCIAL TERMINAL SHELL -->
+            <div id="shell-terminal" style="display: none;">
+                <div class="card">
+                    <h2 style="margin-top: 0; color: var(--primary);" data-i18n="terminal_title">Cognitive Multi-Asset Signal Hub</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 20px;" data-i18n="terminal_desc">Interactive read-only dashboard reflecting live signals compiled from virtual shadow trades.</p>
+
+                    <!-- Horizons navigation tabs and Asset Filter -->
+                    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 25px; background-color: rgba(30, 41, 59, 0.3); padding: 12px; border-radius: 12px; border: 1px solid var(--border-dark); align-items: center;">
+                        <button class="btn horizon-tab" style="flex: 1; padding: 10px;" onclick="setHorizonFilter('micro')" data-i18n="horizon_micro">⚡ Micro Horizon</button>
+                        <button class="btn horizon-tab" style="flex: 1; padding: 10px;" onclick="setHorizonFilter('short')" data-i18n="horizon_short">📊 Short Horizon</button>
+                        <button class="btn horizon-tab" style="flex: 1; padding: 10px; background-color: var(--primary); color: white;" onclick="setHorizonFilter('medium')" data-i18n="horizon_medium">📈 Medium Horizon</button>
+                        <button class="btn horizon-tab" style="flex: 1; padding: 10px;" onclick="setHorizonFilter('macro')" data-i18n="horizon_macro">💎 Macro Horizon</button>
+
+                        <select class="select-field" id="signals-asset-select" onchange="fetchUserSignals()" style="min-width: 150px;">
+                            <option value="all">🌐 All Assets</option>
+                            <option value="gold">🏆 XAUUSD (Gold)</option>
+                            <option value="bitcoin">₿ BTCUSD (Bitcoin)</option>
+                            <option value="euro">💶 EURUSD (Euro)</option>
+                        </select>
+                    </div>
+
+                    <!-- Signal feed cards -->
                     <div class="blog-grid" id="signals-grid-container">
                         <!-- Populated dynamically -->
                     </div>
@@ -1493,18 +1633,37 @@ def get_dashboard_spa():
 
                 <!-- Equity Growth Projection Chart Simulator -->
                 <div class="card">
-                    <h3 style="margin-top: 0; color: var(--primary);">Compound Equity Growth Projection</h3>
+                    <h3 style="margin-top: 0; color: var(--primary);" data-i18n="compounding_title">Compound Equity Growth Projection</h3>
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                        <div class="form-group">
+                            <label class="form-label" data-i18n="compounding_initial">Starting Principal</label>
+                            <input class="input-field" type="number" id="sim-balance-input" value="10000" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Monthly Growth %</label>
+                            <input class="input-field" type="number" id="sim-yield-input" value="8.5" step="0.1" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Months Duration</label>
+                            <input class="input-field" type="number" id="sim-months-input" value="6" />
+                        </div>
+                        <div style="display: flex; align-items: flex-end; padding-bottom: 18px;">
+                            <button class="btn" style="width: 100%;" onclick="runCompoundingSimulation()" data-i18n="simulate_btn">Simulate</button>
+                        </div>
+                    </div>
+
                     <div class="status-board">
                         <div class="status-item">
-                            <div>Starting Principal</div>
+                            <div data-i18n="compounding_initial">Starting Principal</div>
                             <div id="sim-initial" class="status-val" style="color: var(--text-dark);">$10,000</div>
                         </div>
                         <div class="status-item">
-                            <div>Projected compounding balance</div>
+                            <div data-i18n="compounding_projected">Projected Compounding Balance</div>
                             <div id="sim-final" class="status-val status-passed">$16,310</div>
                         </div>
                         <div class="status-item">
-                            <div>Compounded Yield</div>
+                            <div data-i18n="compounding_yield">Compounded Yield</div>
                             <div id="sim-growth" class="status-val status-passed">+63.1%</div>
                         </div>
                     </div>
@@ -1514,45 +1673,174 @@ def get_dashboard_spa():
             <!-- PANEL 3: INTERNAL SRE ADMIN CONTROL CENTER SHELL -->
             <div id="shell-admin" style="display: none;">
                 <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                        <h2 style="color: var(--primary); margin: 0;">🛡️ Internal SRE Control Center</h2>
-                        <button class="btn" style="background-color: var(--accent); font-size: 0.9em; padding: 8px 16px;" onclick="addMockSymbol()">+ Register New Symbol Context</button>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 15px;">
+                        <h2 style="color: var(--primary); margin: 0;" data-i18n="admin_title">🛡️ Internal SRE Control Center</h2>
+
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <select class="select-field" id="register-tf-dropdown">
+                                <option value="1">1 Tick Frame (Micro)</option>
+                                <option value="4">4 Tick Frame (Short)</option>
+                                <option value="16">16 Tick Frame (Medium)</option>
+                                <option value="64" selected>64 Tick Frame (Medium-High)</option>
+                                <option value="256">256 Tick Frame (Macro)</option>
+                                <option value="1024">1024 Tick Frame (Super Macro)</option>
+                            </select>
+                            <button class="btn" style="background-color: var(--accent); font-size: 0.9em; padding: 10px 18px;" onclick="registerNewActiveSymbol()" data-i18n="admin_add_symbol">+ Register New Symbol</button>
+                        </div>
                     </div>
 
                     <div class="status-board">
                         <div class="status-item">
-                            <div>Registered Active Symbols</div>
+                            <div data-i18n="admin_active_symbols">Registered Active Symbols</div>
                             <div id="adm-active-symbols-count" class="status-val status-passed">5 / 30</div>
                         </div>
                         <div class="status-item">
-                            <div>Limit Enforcements</div>
-                            <div class="status-val status-passed" style="font-size: 1.1em; font-weight: bold;">ACTIVE (Capped to 30)</div>
+                            <div data-i18n="admin_limits">Limit Enforcements</div>
+                            <div class="status-val status-passed" style="font-size: 1.1em; font-weight: bold;" data-i18n="admin_limit_enforced">ACTIVE (Capped to 30)</div>
                         </div>
                     </div>
 
                     <p style="margin-top: 15px; line-height: 1.6;">
-                        <strong>Currently Active Symbols:</strong> <span id="adm-symbols-list" style="color: var(--primary); font-family: monospace;">EURUSD, BTCUSD, XAUUSD, GBPUSD, ETHUSD</span>
+                        <strong data-i18n="admin_symbols_list">Currently Active Symbols:</strong> <span id="adm-symbols-list" style="color: var(--primary); font-family: monospace;">EURUSD, BTCUSD, XAUUSD, GBPUSD, ETHUSD</span>
                     </p>
+                </div>
+
+                <!-- SRE Validation Hub -->
+                <div class="card">
+                    <h2 style="margin-top:0;" data-i18n="validation_center_title">System Validation & SRE Testing Hub</h2>
+                    <div class="status-board">
+                        <div class="status-item">
+                            <div data-i18n="passed_label">Passed</div>
+                            <div class="status-val status-passed" id="passed">0</div>
+                        </div>
+                        <div class="status-item">
+                            <div data-i18n="failed_label">Failed</div>
+                            <div class="status-val status-failed" id="failed">0</div>
+                        </div>
+                        <div class="status-item">
+                            <div data-i18n="skipped_label">Skipped</div>
+                            <div class="status-val" id="skipped" style="color: var(--text-muted);">0</div>
+                        </div>
+                        <div class="status-item">
+                            <div data-i18n="warnings_label">Warnings</div>
+                            <div class="status-val status-warn" id="warnings">0</div>
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-top: 20px;">
+                        <div>
+                            <button id="run-btn" class="btn" style="width: 100%; margin-bottom: 15px;" onclick="triggerValidation()" data-i18n="run_validation_btn">Run Full Validation Suite</button>
+
+                            <div style="margin-bottom: 8px;"><strong><span data-i18n="active_phase_label">Active Phase</span>:</strong> <span id="phase" class="status-warn">IDLE</span></div>
+                            <div style="margin-bottom: 8px;"><strong><span data-i18n="component_boundaries_label">Component</span>:</strong> <span id="component" style="color: var(--primary);">N/A</span></div>
+                            <div style="margin-bottom: 15px;"><strong><span data-i18n="current_trace_label">Active Trace</span>:</strong> <span id="test" style="color: var(--text-muted);">N/A</span></div>
+
+                            <div class="form-label" data-i18n="live_trace_logs_label">Live Trace Logs</div>
+                            <div class="logs-box" id="logs"></div>
+                        </div>
+
+                        <div style="text-align: center;">
+                            <div class="score-circle">
+                                <span data-i18n="readiness_score_title" style="font-size: 0.75em; text-align: center; color: var(--text-muted);">Platform Readiness Score</span>
+                                <span class="score-num" id="score-val">0.0%</span>
+                                <span id="score-status" style="font-size: 0.8em; margin-top: 4px; color: var(--accent);">Not Run</span>
+                            </div>
+                            <p id="summary-explanation" style="font-size: 0.9em; line-height: 1.5; color: var(--text-muted);"></p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Independent contexts reports list -->
                 <div class="card">
-                    <h3 style="margin-top: 0; color: var(--primary);">Per-Context SCM Deep Reports & Performance</h3>
+                    <h3 style="margin-top: 0; color: var(--primary);" data-i18n="admin_report_title">Per-Context SCM Deep Reports & Performance</h3>
                     <table>
                         <thead>
                             <tr>
-                                <th>Symbol</th>
-                                <th>Internal Frame</th>
-                                <th>Total Shadow Cycles</th>
-                                <th>Result Wins/Losses</th>
-                                <th>Win Rate</th>
-                                <th>Avg Confidence</th>
+                                <th data-i18n="col_symbol">Symbol</th>
+                                <th data-i18n="col_timeframe">Internal Frame</th>
+                                <th data-i18n="col_shadow_cycles">Total Shadow Cycles</th>
+                                <th data-i18n="col_wins_losses">Result Wins/Losses</th>
+                                <th data-i18n="col_win_rate">Win Rate</th>
+                                <th data-i18n="col_avg_confidence">Avg Confidence</th>
                             </tr>
                         </thead>
                         <tbody id="admin-reports-tbody">
                             <!-- Populated via API -->
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- AUTH VIEWS -->
+            <div id="shell-login" style="display: none;">
+                <div class="card" style="max-width: 450px; margin: 40px auto; border-top: 5px solid var(--primary);">
+                    <h2 style="margin-top:0; color: var(--primary); text-align: center;" data-i18n="login_title">Sign In to Your Account</h2>
+                    <div class="form-group">
+                        <label class="form-label" data-i18n="email_label">Email Address</label>
+                        <input class="input-field" type="email" id="login-email" placeholder="Enter your email address" data-i18n="email_placeholder" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <label class="form-label" data-i18n="password_label">Password</label>
+                        <input class="input-field" type="password" id="login-pass" placeholder="Enter your password" data-i18n="password_placeholder" />
+                    </div>
+                    <div style="text-align: end; margin-bottom: 20px;">
+                        <a href="#/forgot-password" style="color: var(--primary); font-size: 0.85em; text-decoration: none;" data-i18n="forgot_link">Forgot password?</a>
+                    </div>
+                    <button class="btn" style="width: 100%;" onclick="submitLogin()" data-i18n="login_btn">Sign In</button>
+
+                    <div style="text-align: center; margin-top: 20px; font-size: 0.9em;">
+                        <a href="#/register" style="color: var(--text-muted); text-decoration: none;" data-i18n="no_account">Don't have an account? Register</a>
+                    </div>
+                </div>
+            </div>
+
+            <div id="shell-register" style="display: none;">
+                <div class="card" style="max-width: 450px; margin: 40px auto; border-top: 5px solid var(--primary);">
+                    <h2 style="margin-top:0; color: var(--primary); text-align: center;" data-i18n="register_title">Create Your SaaS Account</h2>
+                    <div class="form-group">
+                        <label class="form-label" data-i18n="name_label">Full Name</label>
+                        <input class="input-field" type="text" id="register-name" placeholder="Enter your full name" data-i18n="name_placeholder" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" data-i18n="email_label">Email Address</label>
+                        <input class="input-field" type="email" id="register-email" placeholder="Enter your email address" data-i18n="email_placeholder" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 25px;">
+                        <label class="form-label" data-i18n="password_label">Password</label>
+                        <input class="input-field" type="password" id="register-pass" placeholder="Enter your password" data-i18n="password_placeholder" />
+                    </div>
+                    <button class="btn" style="width: 100%;" onclick="submitRegister()" data-i18n="register_btn">Register</button>
+
+                    <div style="text-align: center; margin-top: 20px; font-size: 0.9em;">
+                        <a href="#/login" style="color: var(--text-muted); text-decoration: none;" data-i18n="has_account">Already have an account? Sign In</a>
+                    </div>
+                </div>
+            </div>
+
+            <div id="shell-forgot" style="display: none;">
+                <div class="card" style="max-width: 450px; margin: 40px auto; border-top: 5px solid var(--primary);">
+                    <h2 style="margin-top:0; color: var(--primary); text-align: center;" data-i18n="forgot_title">Reset Your Password</h2>
+                    <div class="form-group" style="margin-bottom: 25px;">
+                        <label class="form-label" data-i18n="email_label">Email Address</label>
+                        <input class="input-field" type="email" id="forgot-email" placeholder="Enter your email address" data-i18n="email_placeholder" />
+                    </div>
+                    <button class="btn" style="width: 100%;" onclick="submitForgot()" data-i18n="forgot_btn">Send Reset Link</button>
+
+                    <div style="text-align: center; margin-top: 20px; font-size: 0.9em;">
+                        <a href="#/login" style="color: var(--text-muted); text-decoration: none;" data-i18n="has_account">Already have an account? Sign In</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- UNATHORIZED SHELL VIEW -->
+            <div id="shell-unauthorized" style="display: none;">
+                <div class="card" style="max-width: 600px; margin: 50px auto; text-align: center; border: 1px solid var(--danger); background-color: rgba(239, 68, 68, 0.05);">
+                    <div style="font-size: 3.5em; color: var(--danger); margin-bottom: 15px;">⚠️</div>
+                    <h2 style="color: var(--danger); margin-top: 0;" data-i18n="unauthorized_title">Access Restricted</h2>
+                    <p style="line-height: 1.7; margin-bottom: 25px;" data-i18n="unauthorized_desc">
+                        You must sign in with appropriate administrative privileges (e.g. admin@tradeyar.ai) to access this secure SRE zone.
+                    </p>
+                    <a href="#/login" class="btn" data-i18n="nav_login">🔑 Sign In</a>
                 </div>
             </div>
         </div>
@@ -1563,17 +1851,17 @@ def get_dashboard_spa():
         <div class="chatbot-header" onclick="toggleChatbot()">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="ai-pulse"></div>
-                <span>TradeYar Cognitive AI Active</span>
+                <span data-i18n="assistant_title">TradeYar Cognitive AI Active</span>
             </div>
             <span>▲ / ▼</span>
         </div>
         <div class="chatbot-body" id="chat-body" style="display: none;">
             <div class="chatbot-messages" id="chat-messages">
-                <div class="chat-bubble bot">سلام! من دستیار هوشمند معاملاتی شما هستم. چگونه می‌توانم امروز به شما در درک الگوهای شناختی بازار کمک کنم؟</div>
+                <div class="chat-bubble bot" data-i18n="assistant_greet">سلام! من دستیار هوشمند غیرمعاملاتی شما هستم. می‌توانید درباره الگوهای تاریخی، علل تصمیم‌گیری، اشتباهات یا دستاوردهای شناختی مغز معامله‌گر از من بپرسید.</div>
             </div>
             <div class="chatbot-input-container">
-                <input class="chatbot-input" id="chat-input" type="text" placeholder="سوال خود را مطرح کنید..." onkeydown="if(event.key === 'Enter') sendChatMessage()" />
-                <button class="chatbot-send" onclick="sendChatMessage()">Send</button>
+                <input class="chatbot-input" id="chat-input" type="text" placeholder="سوال خود را مطرح کنید..." data-i18n="assistant_placeholder" onkeydown="if(event.key === 'Enter') sendChatMessage()" />
+                <button class="chatbot-send" onclick="sendChatMessage()" data-i18n="assistant_send">Send</button>
             </div>
         </div>
     </div>
@@ -1581,10 +1869,6 @@ def get_dashboard_spa():
 </html>
 """
     return HTMLResponse(content=html_content)
-
-
-# ==============================================================================
-# 2. REST API CONTRACTS AND SERVICE ENDPOINTS
 # ==============================================================================
 
 # Global variable to hold temporary training session replay data
@@ -2575,6 +2859,78 @@ def get_user_reports(market: Optional[str] = None, horizon: Optional[str] = None
 # SECURE SOCIAL AUTHENTICATION & BLOG REST API ENDPOINTS
 # ==============================================================================
 from pydantic import BaseModel
+
+class RegisterPayload(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = ""
+
+class LoginPayload(BaseModel):
+    email: str
+    password: str
+
+class ForgotPasswordPayload(BaseModel):
+    email: str
+
+class LogoutPayload(BaseModel):
+    token: str
+
+@app.post("/api/auth/register")
+def register_user(payload: RegisterPayload):
+    """SaaS client registration using PBKDF2-SHA256."""
+    repo = global_auth_service.repo
+    email_clean = payload.email.lower()
+    if repo.get_user_by_email(email_clean):
+        raise HTTPException(status_code=400, detail="Account with this email already exists.")
+
+    password_hash = global_auth_service.hash_password(payload.password)
+    user = repo.create_user(email=email_clean, password_hash=password_hash, role="USER", name=payload.name)
+    return {
+        "status": "Success",
+        "message": "User registered successfully.",
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"]
+        }
+    }
+
+@app.post("/api/auth/login")
+def login_user(payload: LoginPayload):
+    """Secure credentials login returning an active session token."""
+    user = global_auth_service.authenticate_credentials(payload.email, payload.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    token = global_auth_service.create_session(user)
+    return {
+        "status": "Success",
+        "session_token": token,
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"]
+        }
+    }
+
+@app.post("/api/auth/forgot-password")
+def forgot_password_recovery(payload: ForgotPasswordPayload):
+    """Simulates sending standard SaaS reset link securely."""
+    repo = global_auth_service.repo
+    user = repo.get_user_by_email(payload.email)
+    if not user:
+        return {"status": "Success", "message": "If this email is registered, a password recovery link has been sent."}
+    return {
+        "status": "Success",
+        "message": "Password recovery email has been sent successfully."
+    }
+
+@app.post("/api/auth/logout")
+def logout_user(payload: LogoutPayload):
+    """Securely invalidates active session token."""
+    global_auth_service.logout(payload.token)
+    return {"status": "Success", "message": "Logged out successfully."}
+
 
 class SocialLoginPayload(BaseModel):
     email: str
