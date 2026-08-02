@@ -36,7 +36,27 @@ High-fidelity elements optimized for analytical monitoring.
 
 ---
 
-### 3. SRE Admin Console Components (`/admin/*`)
+### 3. Demo Trading Dashboard Components (`/dashboard/demo`)
+Specific elements optimized for simulated execution validation under learning risk environments.
+
+- **`DemoAccountOverview`**
+  - **Description:** Multi-unit header rendering key account performance metrics.
+  - **Fields:**
+    - Initial Balance: initialized at exactly **1194 USD**
+    - Current Equity (simulated in real-time)
+    - Margin Used, Free Margin
+    - Daily Risk Used % (Learning risk limit **10%** vs Production risk limit **2%**)
+    - Risk Alert status (Green = OK, Flashing Orange = warning when nearing daily limits)
+- **`DemoPositionsTable`**
+  - **Description:** Grid showing active positions established on the MT5 Demo Broker.
+  - **Columns:** Symbol, Timeframe, Direction (BUY/SELL), Volume, Entry Price, Current Price, SL/TP, Current P&L (pulsating), Risk %, Actions (manual exit trigger).
+- **`DemoTradeHistory`**
+  - **Description:** List of closed simulated demo trades.
+  - **Details:** Includes the parsed bilingually-detailed **AI Decision Explanation** (explaining the detected pattern, strategy name, timeframe, entry confidence, risk score, and decision chain) alongside the structured **Learning Feedback** lesson learned.
+
+---
+
+### 4. SRE Admin Console Components (`/admin/*`)
 Highly utilitarian, status-aware diagnostic cards.
 
 - **`SreTelemetryCard`**
@@ -46,7 +66,7 @@ Highly utilitarian, status-aware diagnostic cards.
     - `Degraded / High Latency` (Static yellow border)
     - `Critical / Offline` (Flashing red shadow)
 - **`WorkerLifecycleTracker`**
-  - **Description:** Panel listing active background service workers (`ResearchWorker`, `IntelligenceWorker`, `ShadowWorker`). Shows uptime, last tick timestamp, and current state (STARTING, RUNNING, IDLE, RECOVERING, FAILED, STOPPED).
+  - **Description:** Panel listing active background service workers (`ResearchWorker`, `IntelligenceWorker`, `ShadowWorker`, and `DemoTradingWorker`). Shows uptime, last tick timestamp, and current state (STARTING, RUNNING, IDLE, RECOVERING, FAILED, STOPPED).
   - **Actions:** Safe service manual start/stop hook button.
 - **`EmergencyStopButton`**
   - **Description:** High-contrast, glowing button that triggers immediate virtual risk shutdown via `POST /api/risk/emergency_stop`.
