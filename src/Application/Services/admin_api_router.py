@@ -24,27 +24,51 @@ def enforce_admin_token(token: Optional[str] = None):
 def get_admin_symbols(token: Optional[str] = None):
     """Lists currently registered active symbols and validates maximum limits ceiling."""
     enforce_admin_token(token)
-    engine = PredictiveShadowEngine.get_instance()
-    active_symbols = sorted(list(set(ctx.symbol for ctx in engine.contexts.values())))
+    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+    registry_inst = SymbolRegistry.get_instance()
+    registry = registry_inst.get_all_registered()
+    active_symbols = sorted([sym for sym, info in registry.items() if info.get("active", True)])
+
     return {
         "active_symbols": active_symbols,
         "count": len(active_symbols),
-        "max_active_symbols_limit": engine.max_symbols_limit,
-        "system_ceiling_enforced": True
+        "max_limit": registry_inst.max_symbols,
+        "max_active_symbols_limit": registry_inst.max_symbols,
+        "system_ceiling_enforced": True,
+        "registered_symbols": [
+            {
+                "symbol": symbol,
+                "active": info.get("active", True),
+                "timeframes": info.get("timeframes", ["H1"]),
+                "configuration_state": "ACTIVE" if info.get("active", True) else "DISABLED"
+            }
+            for symbol, info in sorted(registry.items())
+        ]
     }
 
 # 2. Add New Active Symbol Context (Validates 30 limit)
 class SymbolRegistration(BaseModel):
     symbol: str
-    timeframe: int
+    timeframe: Optional[int] = 64
+    timeframes: Optional[List[str]] = None
 
 @router.post("/symbols")
 def register_new_active_symbol_context(payload: SymbolRegistration, token: Optional[str] = None):
     """SRE administrative action to dynamically spin up a new SymbolTimeContext."""
     enforce_admin_token(token)
+    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+    registry_inst = SymbolRegistry.get_instance()
     engine = PredictiveShadowEngine.get_instance()
     try:
-        ctx = engine.get_or_create_context(payload.symbol, payload.timeframe)
+        symbol_upper = payload.symbol.upper()
+        # Fallback to H1/H4 if timeframes not provided
+        tfs = payload.timeframes or ["H1"]
+        registry_inst.register_symbol(symbol_upper, tfs)
+
+        # Also register in the PredictiveShadowEngine cognitive contexts to keep isolation
+        tf_int = payload.timeframe if payload.timeframe is not None else 64
+        ctx = engine.get_or_create_context(symbol_upper, tf_int)
+
         return {
             "status": "Success",
             "message": f"Successfully created isolated cognitive context: {ctx.context_id}",

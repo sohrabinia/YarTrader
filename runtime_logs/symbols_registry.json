@@ -1,0 +1,39 @@
+{
+    "XAUUSD": {
+        "active": true,
+        "timeframes": [
+            "H1",
+            "H4"
+        ]
+    },
+    "EURUSD": {
+        "active": true,
+        "timeframes": [
+            "H1"
+        ]
+    },
+    "GBPUSD": {
+        "active": true,
+        "timeframes": [
+            "H1"
+        ]
+    },
+    "BTCUSD": {
+        "active": true,
+        "timeframes": [
+            "H1"
+        ]
+    },
+    "ETHUSD": {
+        "active": true,
+        "timeframes": [
+            "H1"
+        ]
+    },
+    "SYM31": {
+        "active": true,
+        "timeframes": [
+            "H1"
+        ]
+    }
+}

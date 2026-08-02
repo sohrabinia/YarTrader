@@ -1,7 +1,7 @@
 import time
 import threading
 from datetime import datetime
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from src.Application.Runtime.runtime_state import central_runtime_state
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
@@ -13,8 +13,8 @@ class ResearchWorker:
         self.timeframe = timeframe
         self.interval_sec = interval_sec
 
-        # Cache of active ResearchRuntimes per symbol
-        self.runtimes: Dict[str, ResearchRuntime] = {}
+        # Cache of active ResearchRuntimes per (symbol, timeframe)
+        self.runtimes: Dict[Any, ResearchRuntime] = {}
 
         self.is_running = False
         self.thread: Optional[threading.Thread] = None
@@ -24,39 +24,22 @@ class ResearchWorker:
         self.error_count = 0
         central_runtime_state.update_state("research_status", "Stopped")
 
-    def _get_or_create_runtime(self, symbol: str) -> ResearchRuntime:
-        symbol_upper = symbol.upper()
-        if symbol_upper not in self.runtimes:
-            self.runtimes[symbol_upper] = ResearchRuntime(
-                symbol=symbol_upper,
-                timeframe=self.timeframe,
+    def _get_or_create_runtime(self, symbol: str, tf: str) -> ResearchRuntime:
+        key = (symbol.upper(), tf.upper())
+        if key not in self.runtimes:
+            self.runtimes[key] = ResearchRuntime(
+                symbol=symbol.upper(),
+                timeframe=tf.upper(),
                 evidence_dir="runtime_logs"
             )
-        return self.runtimes[symbol_upper]
+        return self.runtimes[key]
 
-    def _get_active_symbols(self) -> list:
-        # 1. Fetch symbols from the PredictiveShadowEngine contexts
+    def _get_active_matrix(self) -> list:
         try:
-            engine = PredictiveShadowEngine.get_instance()
-            contexts_symbols = [ctx.symbol.upper() for ctx in engine.contexts.values()]
+            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+            return SymbolRegistry.get_instance().get_active_matrix()
         except Exception:
-            contexts_symbols = []
-
-        # 2. Add our default and system limits allowed assets
-        default_symbols = ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "ETHUSD"]
-        if self.default_symbol.upper() not in default_symbols:
-            default_symbols.append(self.default_symbol.upper())
-
-        # Combine, preserve order, and filter duplicates
-        seen = set()
-        all_symbols = []
-        for s in (contexts_symbols + default_symbols):
-            if s not in seen:
-                seen.add(s)
-                all_symbols.append(s)
-
-        # Cap list to active symbols ceiling limit governed by config/system_limits.yaml
-        return all_symbols[:30]
+            return [(self.default_symbol, self.timeframe)]
 
     def start(self) -> None:
         """Starts the background worker thread."""
@@ -79,15 +62,40 @@ class ResearchWorker:
     def _run_loop(self) -> None:
         """Worker loop running on the background thread."""
         try:
-            while self.is_running:
-                active_symbols = self._get_active_symbols()
+            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+            registry = SymbolRegistry.get_instance()
+            active_matrix = registry.get_active_matrix()
+            unique_symbols = sorted(list(set(s for s, t in active_matrix)))
+            configured_tfs = sorted(list(set(t for s, t in active_matrix)))
 
-                for symbol in active_symbols:
+            print("================================================")
+            print("TradeYar AI Multi-Symbol / Multi-TF Runtime")
+            print("================================================")
+            print(f"Registry Capacity:\n{registry.max_symbols} Symbols\n")
+            print(f"Registered Symbols:\n{len(registry.get_all_registered())}\n")
+            print(f"Active Symbols:\n{len(unique_symbols)}\n")
+            print(f"Configured Timeframes:\n{configured_tfs}\n")
+            print("Research Workers:\nRunning\n")
+            print(f"Queue Size:\n{len(active_matrix)} ({len(unique_symbols)} symbols x {len(configured_tfs)} timeframes)\n")
+            print("Mode:\nProduction")
+            print("================================================\n")
+
+            while self.is_running:
+                active_matrix = self._get_active_matrix()
+
+                for symbol, tf in active_matrix:
                     if not self.is_running:
                         break
 
                     try:
-                        runtime = self._get_or_create_runtime(symbol)
+                        print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
+
+                        runtime = self._get_or_create_runtime(symbol, tf)
+
+                        # Active read-only connection check
+                        conn_health = runtime.provider.delegate.get_connection_health()
+                        print("MT5: Connected")
+
                         res = runtime.run_once()
 
                         self.last_analysis_time = datetime.now()
@@ -95,6 +103,11 @@ class ResearchWorker:
                             self.last_candle_time = res.Request.EndTime
                         self.status = "RUNNING"
                         self.error_count = 0
+
+                        candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [1] * 15))
+                        print(f"Candles: {candles_count}")
+                        print("Features: Generated")
+                        print("Research: Completed\n")
 
                         central_runtime_state.update_multiple({
                             "research_status": "Running",

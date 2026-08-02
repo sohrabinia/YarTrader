@@ -46,7 +46,8 @@ class ShadowTradingEngine:
         symbol: str = "XAUUSD",
         volume: float = 1.0,
         stop_loss: Optional[float] = None,
-        take_profit: Optional[float] = None
+        take_profit: Optional[float] = None,
+        timeframe: str = "H1"
     ) -> Optional[VirtualPosition]:
         """
         Consumes a decision intelligence event.
@@ -56,10 +57,15 @@ class ShadowTradingEngine:
             logger.info(f"Ignored shadow decision: {decision_action} state received (WAIT).")
             return None
 
-        # To prevent over-exposure, we can check if we already have an active position of the same direction
-        active = [p for p in self.account.get_open_positions() if p.symbol == symbol and p.direction == decision_action.upper()]
+        # To prevent over-exposure, we check if we already have an active position of the same direction, symbol, and timeframe
+        active = [
+            p for p in self.account.get_open_positions()
+            if p.symbol.upper() == symbol.upper()
+            and p.timeframe.upper() == timeframe.upper()
+            and p.direction.upper() == decision_action.upper()
+        ]
         if active:
-            logger.warning(f"Shadow position of direction {decision_action} already open on {symbol}. Skipping duplication.")
+            logger.warning(f"Shadow position of direction {decision_action} already open on {symbol} on {timeframe}. Skipping duplication.")
             return None
 
         # Open Virtual Position
@@ -72,7 +78,8 @@ class ShadowTradingEngine:
             take_profit=take_profit,
             reason=reason,
             confidence=confidence,
-            evidence=evidence
+            evidence=evidence,
+            timeframe=timeframe
         )
         return pos
 
