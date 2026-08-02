@@ -1,22 +1,22 @@
 [
     {
-        "trade_id": "strade-2d59a9",
+        "trade_id": "strade-4f1fe8",
         "symbol": "XAUUSD",
         "timeframe": 1,
         "pattern": "Base Expansion Continuation",
         "result": "TARGET_HIT",
         "mae": 0.0,
         "mfe": 2500.0,
-        "timestamp": "2026-08-02T13:31:26.676130"
+        "timestamp": "2026-08-02T14:05:27.662807"
     },
     {
-        "trade_id": "strade-e85bf2",
+        "trade_id": "strade-e9d3ae",
         "symbol": "XAUUSD",
         "timeframe": 1024,
         "pattern": "Base Expansion Continuation",
         "result": "STOP_HIT",
         "mae": -1500.0,
         "mfe": 100.0,
-        "timestamp": "2026-08-02T13:31:26.677717"
+        "timestamp": "2026-08-02T14:05:27.664269"
     }
 ]

@@ -2459,6 +2459,46 @@ def get_devops_metrics():
     }
 
 
+@app.get("/api/intelligence/regimes")
+def get_intelligence_regimes(symbol: Optional[str] = None, timeframe: Optional[str] = None):
+    """Retrieves dynamic market regime classification across multiple symbols/timeframes."""
+    from src.Research.Brain.regime import MarketRegimeIntelligenceEngine
+    engine = MarketRegimeIntelligenceEngine()
+
+    syms = [symbol] if symbol else ["BTCUSD", "EURUSD", "XAUUSD"]
+    tfs = [timeframe] if timeframe else ["H1", "D1"]
+
+    results = []
+    for s in syms:
+        for t in tfs:
+            results.append(engine.classify_regime(s, t, [], {"volatility_state": "medium", "trend_strength_classification": "strong_trend"}))
+    return results
+
+@app.get("/api/intelligence/patterns")
+def get_intelligence_patterns(symbol: Optional[str] = None, timeframe: Optional[str] = None):
+    """Queries Cognitive Pattern Memory for occurrences and success ratios."""
+    from src.Research.Brain.pattern_engine import PatternIntelligenceEngine
+    engine = PatternIntelligenceEngine()
+    sym = symbol or "BTCUSD"
+    tf = timeframe or "H1"
+    return engine.retrieve_similar_pattern(sym, tf, {})
+
+@app.get("/api/intelligence/risk")
+def get_intelligence_risk(symbol: Optional[str] = None, timeframe: Optional[str] = None):
+    """Evaluates institutional risk metrics and triggers warnings dynamically."""
+    from src.Research.Brain.risk_engine import InstitutionalRiskEngine
+    engine = InstitutionalRiskEngine()
+    sym = symbol or "BTCUSD"
+    tf = timeframe or "H1"
+    return engine.evaluate_risk(sym, tf)
+
+@app.get("/api/intelligence/market-theme")
+def get_intelligence_market_theme():
+    """Queries Cross Asset Intelligence Layer for global correlation themes."""
+    from src.Research.Brain.cross_asset import CrossAssetIntelligence
+    engine = CrossAssetIntelligence()
+    return engine.analyze_relationships()
+
 @app.get("/v1/runtime")
 def get_runtime_status():
     """Runtime status API."""

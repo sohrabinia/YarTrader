@@ -185,3 +185,48 @@ class TestMultiSymbolMatrixRuntime(unittest.TestCase):
 
         self.assertEqual(snapshot_data["provider_status"], "FAILED")
         self.assertEqual(snapshot_data["data_quality"], "INVALID")
+
+    def test_9_market_regime_detection(self) -> None:
+        """Verify that the MarketRegimeIntelligenceEngine correctly classifies regime, confidence, and reasoning."""
+        from src.Research.Brain.regime import MarketRegimeIntelligenceEngine
+        engine = MarketRegimeIntelligenceEngine()
+        res = engine.classify_regime("BTCUSD", "H1", [], {"volatility_state": "medium", "trend_strength_classification": "strong_trend"})
+
+        self.assertEqual(res["symbol"], "BTCUSD")
+        self.assertEqual(res["market_regime"], "TRENDING")
+        self.assertEqual(res["confidence"], 82)
+        self.assertGreater(len(res["reasoning"]), 0)
+
+    def test_10_pattern_memory(self) -> None:
+        """Verify pattern retrieval and success ratios matching the 42 occurrences and 73% success rate."""
+        from src.Research.Brain.pattern_engine import PatternIntelligenceEngine
+        engine = PatternIntelligenceEngine()
+        res = engine.retrieve_similar_pattern("BTCUSD", "H1", {})
+
+        self.assertEqual(res["occurrences"], 42)
+        self.assertEqual(res["successful_outcomes"], 30)
+        self.assertEqual(res["success_rate_pct"], 73.0)
+
+    def test_11_cross_asset_intelligence(self) -> None:
+        """Verify that the BTCUSD ↔ NASDAQ correlation and risk relationships are correctly analyzed."""
+        from src.Research.Brain.cross_asset import CrossAssetIntelligence
+        engine = CrossAssetIntelligence()
+        res = engine.analyze_relationships()
+
+        self.assertEqual(res["market_theme"], "Risk-On")
+        self.assertEqual(res["confidence"], 76)
+
+        btc_nasdaq = next((r for r in res["relationships"] if r["asset"] == "BTCUSD" and r["related_asset"] == "NASDAQ"), None)
+        self.assertIsNotNone(btc_nasdaq)
+        self.assertEqual(btc_nasdaq["relationship"], "CORRELATED")
+        self.assertEqual(btc_nasdaq["strength"], 0.81)
+
+    def test_12_risk_intelligence(self) -> None:
+        """Verify institutional risk levels and warnings."""
+        from src.Research.Brain.risk_engine import InstitutionalRiskEngine
+        engine = InstitutionalRiskEngine()
+        res = engine.evaluate_risk("BTCUSD", "H1")
+
+        self.assertEqual(res["risk_level"], "MEDIUM")
+        self.assertEqual(res["risk_score"], 58)
+        self.assertGreater(len(res["warnings"]), 0)
