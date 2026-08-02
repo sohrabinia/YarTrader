@@ -1,0 +1,20 @@
+{
+  "fontFamily": {
+    "sans": "Inter, system-ui, -apple-system, sans-serif",
+    "mono": "Fira Code, JetBrains Mono, monospace"
+  },
+  "fontSize": {
+    "caption": "12px",
+    "body": "14px",
+    "bodyLarge": "16px",
+    "headingSmall": "18px",
+    "headingMedium": "24px",
+    "headingLarge": "32px"
+  },
+  "fontWeight": {
+    "regular": 400,
+    "medium": 500,
+    "semibold": 600,
+    "bold": 700
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "glow": {
+    "green": "0 0 12px rgba(0, 230, 118, 0.4)",
+    "blue": "0 0 12px rgba(0, 176, 255, 0.4)",
+    "orange": "0 0 12px rgba(255, 145, 0, 0.4)",
+    "red": "0 0 12px rgba(255, 23, 68, 0.4)",
+    "yellow": "0 0 12px rgba(255, 234, 0, 0.4)"
+  },
+  "elevation": {
+    "card": "0 4px 20px rgba(0, 0, 0, 0.5)",
+    "popover": "0 10px 30px rgba(0, 0, 0, 0.7)"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "theme": "dark",
+  "palette": {
+    "background": {
+      "primary": "#0D0E12",
+      "secondary": "#151821",
+      "tertiary": "#1E2230"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#9AA1B9",
+      "disabled": "#565D73"
+    },
+    "accent": {
+      "neonGreen": "#00E676",
+      "neonBlue": "#00B0FF",
+      "neonOrange": "#FF9100",
+      "neonRed": "#FF1744",
+      "neonYellow": "#FFEA00"
+    },
+    "states": {
+      "online": "#00E676",
+      "offline": "#757575",
+      "warning": "#FFEA00",
+      "riskHigh": "#FF1744",
+      "thinking": "#00B0FF",
+      "executionBlocked": "#FF9100"
+    }
+  }
+}
