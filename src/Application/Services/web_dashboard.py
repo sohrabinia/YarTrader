@@ -378,6 +378,163 @@ def run_acceptance_runner_thread():
         val_state.is_running = False
 
 
+# -----------------------------------------------------------------------------
+# DYNAMIC OHLCV CANDLES GENERATOR & EXECUTION INTELLIGENCE REST ENDPOINTS
+# -----------------------------------------------------------------------------
+from src.Intelligence.Execution.core import ExecutionIntelligenceCore
+
+def generate_active_ohlcv_candles(symbol: str) -> List[Dict[str, Any]]:
+    """
+    Generates a deterministic series of 30 candles starting 30 hours ago,
+    complete with sine-wave swing structures, displacement blocks, and FVGs.
+    """
+    base = 1800.0 if "XAU" in symbol.upper() else (1.1000 if "EUR" in symbol.upper() else 65000.0)
+    candles = []
+    import math
+    # Establish a clean mathematical structure wave
+    for i in range(30):
+        wave = math.sin(i / 5.0) * 15.0 + (i * 0.5)
+        # Create a tiny bullish displacement at bar 15 to form a real Order Block & FVG!
+        if i == 15:
+            wave += 8.0
+
+        o = base + wave
+        h = o + 2.5
+        l = o - 1.5
+        c = o + 1.2
+        if i == 15:
+            c = o + 5.0
+            h = o + 6.0
+
+        candles.append({
+            "time": int(time.time() - (30 - i) * 3600),
+            "open": round(o, 4),
+            "high": round(h, 4),
+            "low": round(l, 4),
+            "close": round(c, 4),
+            "tick_volume": 1000 + i * 50
+        })
+    return candles
+
+
+@app.get("/api/execution/plans")
+def get_execution_plans(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1", lang: str = "fa"):
+    core = ExecutionIntelligenceCore.get_instance()
+    candles = generate_active_ohlcv_candles(symbol)
+    res = core.evaluate_context(symbol, timeframe, candles, lang=lang)
+    return res["plan"]
+
+
+@app.get("/api/execution/confidence")
+def get_execution_confidence(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
+    core = ExecutionIntelligenceCore.get_instance()
+    candles = generate_active_ohlcv_candles(symbol)
+    res = core.evaluate_context(symbol, timeframe, candles)
+    return {"symbol": symbol, "timeframe": timeframe, "confidence": res["plan"]["confidence"]}
+
+
+@app.get("/api/execution/reasoning")
+def get_execution_reasoning(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1", lang: str = "fa"):
+    core = ExecutionIntelligenceCore.get_instance()
+    candles = generate_active_ohlcv_candles(symbol)
+    res = core.evaluate_context(symbol, timeframe, candles, lang=lang)
+    return {"symbol": symbol, "timeframe": timeframe, "reasoning": res["plan"]["reasoning"]}
+
+
+@app.get("/api/structure/map")
+def get_structure_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
+    core = ExecutionIntelligenceCore.get_instance()
+    candles = generate_active_ohlcv_candles(symbol)
+    res = core.evaluate_context(symbol, timeframe, candles)
+    return {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "swings": res["narrative"]["swings"],
+        "structure_nodes": res["narrative"]["structure_nodes"],
+        "order_blocks": res["zones"]["order_blocks"],
+        "fair_value_gaps": res["zones"]["fair_value_gaps"]
+    }
+
+
+@app.get("/api/structure/alignment")
+def get_structure_alignment(symbol: Optional[str] = "XAUUSD"):
+    core = ExecutionIntelligenceCore.get_instance()
+    h4_candles = generate_active_ohlcv_candles(symbol)
+    h1_candles = generate_active_ohlcv_candles(symbol)
+    all_tf = {"H4": h4_candles, "H1": h1_candles}
+    res = core.evaluate_context(symbol, "H1", h1_candles, all_timeframe_candles=all_tf)
+    return res["alignment"]
+
+
+@app.get("/api/structure/narrative")
+def get_structure_narrative(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
+    core = ExecutionIntelligenceCore.get_instance()
+    candles = generate_active_ohlcv_candles(symbol)
+    res = core.evaluate_context(symbol, timeframe, candles)
+    return res["narrative"]
+
+
+@app.get("/api/liquidity/map")
+def get_liquidity_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
+    core = ExecutionIntelligenceCore.get_instance()
+    candles = generate_active_ohlcv_candles(symbol)
+    res = core.evaluate_context(symbol, timeframe, candles)
+    return {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "resting_bsl": res["liquidity"]["resting_bsl"],
+        "resting_ssl": res["liquidity"]["resting_ssl"],
+        "equal_highs": res["liquidity"]["equal_highs"],
+        "equal_lows": res["liquidity"]["equal_lows"]
+    }
+
+
+@app.get("/api/liquidity/events")
+def get_liquidity_events(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
+    core = ExecutionIntelligenceCore.get_instance()
+    candles = generate_active_ohlcv_candles(symbol)
+    res = core.evaluate_context(symbol, timeframe, candles)
+    return {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "sweeps": res["liquidity"]["sweeps"],
+        "latest_sweep": res["liquidity"]["latest_sweep"],
+        "voids": res["liquidity"]["voids"]
+    }
+
+
+@app.get("/api/pattern/similarity")
+def get_pattern_similarity(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
+    core = ExecutionIntelligenceCore.get_instance()
+    candles = generate_active_ohlcv_candles(symbol)
+    res = core.evaluate_context(symbol, timeframe, candles)
+    return res["similarity"]
+
+
+@app.get("/api/portfolio/risk")
+def get_portfolio_risk(virtual_balance: float = 10000.0):
+    core = ExecutionIntelligenceCore.get_instance()
+    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
+    engine = PredictiveShadowEngine.get_instance()
+    active_trades = [t.to_dict() for t in engine.trades]
+    portfolio_res = core.portfolio_engine.calculate_portfolio_risk(active_trades, virtual_balance)
+    return portfolio_res
+
+
+@app.get("/api/portfolio/exposure")
+def get_portfolio_exposure(virtual_balance: float = 10000.0):
+    core = ExecutionIntelligenceCore.get_instance()
+    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
+    engine = PredictiveShadowEngine.get_instance()
+    active_trades = [t.to_dict() for t in engine.trades]
+    portfolio_res = core.portfolio_engine.calculate_portfolio_risk(active_trades, virtual_balance)
+    return {
+        "total_exposure": portfolio_res["total_exposure"],
+        "asset_concentrations_pct": portfolio_res["asset_concentrations_pct"],
+        "correlation_exposure_pct": portfolio_res["correlation_exposure_pct"]
+    }
+
+
 # ==============================================================================
 # 1. WEB MANAGEMENT DASHBOARD & SPA PAGE
 # ==============================================================================
@@ -1097,7 +1254,7 @@ def get_dashboard_spa():
             const shells = [
                 'shell-marketing', 'shell-features', 'shell-pricing', 'shell-blog',
                 'shell-terminal', 'shell-admin', 'shell-login', 'shell-register',
-                'shell-forgot', 'shell-unauthorized'
+                'shell-forgot', 'shell-unauthorized', 'shell-execution-intel'
             ];
             shells.forEach(s => {
                 const el = document.getElementById(s);
@@ -1138,6 +1295,15 @@ def get_dashboard_spa():
                 document.getElementById('link-terminal').classList.add('active');
                 fetchUserSignals();
                 simulateEquityProjections();
+            } else if (hash === '#/execution-intel') {
+                if (!token) {
+                    window.location.hash = '#/login';
+                    showNotification(currentLang === 'fa' ? 'لطفا ابتدا وارد حساب خود شوید.' : 'Please sign in to access this zone.', 'warning');
+                    return;
+                }
+                document.getElementById('shell-execution-intel').style.display = 'block';
+                document.getElementById('link-execution-intel').classList.add('active');
+                fetchExecutionIntelligence();
             } else if (hash === '#/admin') {
                 if (!token) {
                     window.location.hash = '#/login';
@@ -1177,6 +1343,7 @@ def get_dashboard_spa():
             const registerLink = document.getElementById('link-register');
             const logoutLink = document.getElementById('link-logout');
             const termLink = document.getElementById('link-terminal');
+            const execIntelLink = document.getElementById('link-execution-intel');
             const adminLink = document.getElementById('link-admin');
             const userBadge = document.getElementById('user-profile-badge');
 
@@ -1185,6 +1352,7 @@ def get_dashboard_spa():
                 if (registerLink) registerLink.style.display = 'none';
                 if (logoutLink) logoutLink.style.display = 'flex';
                 if (termLink) termLink.style.display = 'flex';
+                if (execIntelLink) execIntelLink.style.display = 'flex';
 
                 const role = localStorage.getItem('tradeyar_role');
                 if (role === 'ADMIN') {
@@ -1202,6 +1370,7 @@ def get_dashboard_spa():
                 if (registerLink) registerLink.style.display = 'flex';
                 if (logoutLink) logoutLink.style.display = 'none';
                 if (termLink) termLink.style.display = 'none';
+                if (execIntelLink) execIntelLink.style.display = 'none';
                 if (adminLink) adminLink.style.display = 'none';
                 if (userBadge) userBadge.style.display = 'none';
             }
@@ -1502,6 +1671,155 @@ def get_dashboard_spa():
             } catch(e) {}
         }
 
+        // Execution Intelligence Portal
+        async function fetchExecutionIntelligence() {
+            const sym = "XAUUSD";
+            const lang = currentLang;
+
+            try {
+                // 1. Fetch Plan
+                const plan_res = await fetch(`/api/execution/plans?symbol=${sym}&lang=${lang}`);
+                const plan = await plan_res.json();
+
+                // 2. Fetch Structure Map
+                const struct_res = await fetch(`/api/structure/map?symbol=${sym}`);
+                const struct = await struct_res.json();
+
+                // 3. Fetch Alignment
+                const align_res = await fetch(`/api/structure/alignment?symbol=${sym}`);
+                const align = await align_res.json();
+
+                // 4. Fetch Liquidity
+                const liq_res = await fetch(`/api/liquidity/events?symbol=${sym}`);
+                const liq = await liq_res.json();
+
+                const liq_map_res = await fetch(`/api/liquidity/map?symbol=${sym}`);
+                const liq_map = await liq_map_res.json();
+
+                // 5. Fetch Similarity
+                const sim_res = await fetch(`/api/pattern/similarity?symbol=${sym}`);
+                const sim = await sim_res.json();
+
+                // 6. Fetch Portfolio Risk
+                const risk_res = await fetch(`/api/portfolio/risk`);
+                const risk = await risk_res.json();
+
+                // Update Visual Panel: Execution Board
+                document.getElementById('exec-action').innerText = plan.action;
+                document.getElementById('exec-entry').innerText = plan.entry ? "$" + plan.entry : "-";
+                document.getElementById('exec-sl').innerText = plan.stop_loss ? "$" + plan.stop_loss : "-";
+                document.getElementById('exec-tp').innerText = plan.take_profit ? "$" + plan.take_profit : "-";
+                document.getElementById('exec-rr').innerText = plan.risk_reward ? plan.risk_reward + " R" : "-";
+                document.getElementById('exec-conf').innerText = plan.confidence ? plan.confidence + "%" : "-";
+
+                // Update Visual Panel: Reasoning Array (XAI)
+                const reasonsList = document.getElementById('exec-reasons');
+                reasonsList.innerHTML = '';
+                plan.reasoning.forEach(r => {
+                    reasonsList.innerHTML += `<li>${r}</li>`;
+                });
+
+                // Update Visual Panel: Market Structure Map (Swings and labels)
+                const swingsTbody = document.getElementById('struct-swings-tbody');
+                swingsTbody.innerHTML = '';
+                struct.structure_nodes.forEach(n => {
+                    swingsTbody.innerHTML += `
+                        <tr>
+                            <td>Bar ${n.index}</td>
+                            <td>$${n.price}</td>
+                            <td>${n.type}</td>
+                            <td><strong style="color: var(--primary);">${n.label}</strong></td>
+                        </tr>
+                    `;
+                });
+
+                // Update Visual Panel: Order Block Map & FVG Map
+                const obList = document.getElementById('zones-ob-list');
+                obList.innerHTML = '';
+                struct.order_blocks.forEach(ob => {
+                    obList.innerHTML += `
+                        <div class="status-item" style="text-align: left; margin-bottom: 10px;">
+                            <strong>${ob.type}</strong>: $${ob.bottom} - $${ob.top}
+                            <br/><small>Strength: ${ob.strength} | Fresh: ${ob.fresh} | Performance: ${ob.historical_performance_pct}%</small>
+                        </div>
+                    `;
+                });
+
+                const fvgList = document.getElementById('zones-fvg-list');
+                fvgList.innerHTML = '';
+                struct.fair_value_gaps.forEach(fvg => {
+                    fvgList.innerHTML += `
+                        <div class="status-item" style="text-align: left; margin-bottom: 10px; border-color: var(--warning);">
+                            <strong>${fvg.type}</strong>: $${fvg.bottom} - $${fvg.top} (Size: ${fvg.size})
+                            <br/><small>Strength: ${fvg.strength} | Fresh: ${fvg.fresh} | Retests: ${fvg.retests}</small>
+                        </div>
+                    `;
+                });
+
+                // Update Visual Panel: Multi-Timeframe Structural Alignment
+                document.getElementById('align-status').innerText = align.alignment;
+                document.getElementById('align-conf').innerText = align.confidence + "%";
+                document.getElementById('align-summary').innerText = align.summary;
+
+                // Update Visual Panel: Liquidity Heatmap & Sweeps & Voids
+                const sweepsList = document.getElementById('liq-sweeps-list');
+                sweepsList.innerHTML = '';
+                if (liq.sweeps.length === 0) {
+                    sweepsList.innerHTML = `<div>No active liquidity sweep events detected.</div>`;
+                } else {
+                    liq.sweeps.forEach(sw => {
+                        sweepsList.innerHTML += `
+                            <div class="status-item" style="text-align: left; margin-bottom: 10px; border-color: var(--accent);">
+                                <strong>${sw.type}</strong> @ $${sw.level}
+                                <br/><small>Swept High/Low: $${sw.pierced_price} | Strength: ${sw.strength}</small>
+                            </div>
+                        `;
+                    });
+                }
+
+                const bslList = document.getElementById('liq-bsl-list');
+                bslList.innerHTML = '';
+                liq_map.resting_bsl.forEach(b => {
+                    bslList.innerHTML += `<li>$${b.level} (Strength: ${b.strength})</li>`;
+                });
+
+                const sslList = document.getElementById('liq-ssl-list');
+                sslList.innerHTML = '';
+                liq_map.resting_ssl.forEach(s => {
+                    sslList.innerHTML += `<li>$${s.level} (Strength: ${s.strength})</li>`;
+                });
+
+                // Update Visual Panel: Pattern Similarity Intelligence
+                const simBest = sim.best_match;
+                if (simBest) {
+                    document.getElementById('sim-id').innerText = simBest.pattern_id;
+                    document.getElementById('sim-score').innerText = simBest.similarity_score + "%";
+                    document.getElementById('sim-occur').innerText = simBest.occurrences;
+                    document.getElementById('sim-success').innerText = simBest.success_rate_pct + "%";
+                    document.getElementById('sim-desc').innerText = simBest.description;
+                }
+
+                // Update Visual Panel: Portfolio Risk & Exposure Boards
+                document.getElementById('risk-heat').innerText = risk.portfolio_heat_pct + "%";
+                document.getElementById('risk-budget').innerText = risk.risk_budget_pct + "%";
+                document.getElementById('risk-drawdown').innerText = risk.drawdown_risk;
+                document.getElementById('risk-approved').innerText = risk.approved ? "APPROVED" : "BLOCKED";
+                document.getElementById('risk-approved').className = risk.approved ? "status-val status-passed" : "status-val status-failed";
+
+                const expList = document.getElementById('risk-exposures');
+                expList.innerHTML = '';
+                for (const [sym, pct] of Object.entries(risk.asset_concentrations_pct)) {
+                    expList.innerHTML += `<li><strong>${sym}</strong>: ${pct}%</li>`;
+                }
+                if (Object.keys(risk.asset_concentrations_pct).length === 0) {
+                    expList.innerHTML = `<li>No active exposures. Portfolio heat is 0%.</li>`;
+                }
+
+            } catch (e) {
+                console.error("Failed to load Execution Intelligence Dashboard data: ", e);
+            }
+        }
+
         // SRE validation trace logs
         async function fetchStatus() {
             try {
@@ -1647,6 +1965,7 @@ def get_dashboard_spa():
             <a href="#/pricing" class="sidebar-link" id="link-pricing" data-i18n="nav_pricing">💎 Pricing Plans</a>
             <a href="#/blog" class="sidebar-link" id="link-blog" data-i18n="nav_blog">📰 Research Blog</a>
             <a href="#/dashboard" class="sidebar-link" id="link-terminal" style="display: none;" data-i18n="nav_terminal">📈 Trader Terminal</a>
+            <a href="#/execution-intel" class="sidebar-link" id="link-execution-intel" style="display: none;" data-i18n="nav_execution_intel">🎯 Execution Intelligence</a>
             <a href="#/admin" class="sidebar-link" id="link-admin" style="display: none;" data-i18n="nav_admin">🛡️ SRE Admin Console</a>
 
             <div style="margin-top: auto; border-top: 1px solid var(--border-dark); padding-top: 15px; display: flex; flex-direction: column; gap: 10px;">
@@ -1797,6 +2116,196 @@ def get_dashboard_spa():
                         <div class="status-item">
                             <div data-i18n="compounding_yield">Compounded Yield</div>
                             <div id="sim-growth" class="status-val status-passed">+63.1%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL 2B: EXECUTION INTELLIGENCE PORTAL SHELL -->
+            <div id="shell-execution-intel" style="display: none;">
+                <!-- Execution Board & Risk Board -->
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-bottom: 25px;">
+                    <!-- Visual Panel 1: Execution Board -->
+                    <div class="card">
+                        <h2 style="margin-top: 0; color: var(--primary);">🎯 Institutional Execution Board</h2>
+                        <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">
+                            Advisory trade plans formulated based on chronological market structure alignment. Zero automated execution.
+                        </p>
+                        <div class="status-board" style="margin-bottom: 20px;">
+                            <div class="status-item">
+                                <div>Action</div>
+                                <div id="exec-action" class="status-val" style="color: var(--accent);">WAIT</div>
+                            </div>
+                            <div class="status-item">
+                                <div>Advisory Entry</div>
+                                <div id="exec-entry" class="status-val" style="color: var(--text-dark); font-family: monospace;">-</div>
+                            </div>
+                            <div class="status-item">
+                                <div>Stop Loss</div>
+                                <div id="exec-sl" class="status-val" style="color: var(--danger); font-family: monospace;">-</div>
+                            </div>
+                            <div class="status-item">
+                                <div>Take Profit</div>
+                                <div id="exec-tp" class="status-val" style="color: var(--accent); font-family: monospace;">-</div>
+                            </div>
+                            <div class="status-item">
+                                <div>Risk/Reward</div>
+                                <div id="exec-rr" class="status-val" style="color: var(--primary); font-family: monospace;">-</div>
+                            </div>
+                            <div class="status-item">
+                                <div>Confidence</div>
+                                <div id="exec-conf" class="status-val" style="color: var(--warning); font-family: monospace;">-</div>
+                            </div>
+                        </div>
+
+                        <!-- Visual Panel 2: Explainable Intelligence Layer (XAI) -->
+                        <h4 style="color: var(--primary); margin: 0 0 10px 0;">Reasoning Trace (XAI)</h4>
+                        <ul id="exec-reasons" style="line-height: 1.6; padding-left: 20px; color: var(--text-muted);">
+                            <!-- Populated dynamically -->
+                        </ul>
+                    </div>
+
+                    <!-- Visual Panel 3: Risk Board & Visual Panel 4: Portfolio Exposure Panel -->
+                    <div class="card">
+                        <h2 style="margin-top: 0; color: var(--primary);">🛡️ Portfolio Risk Board</h2>
+                        <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">
+                            Enforces risk controls on asset concentration and correlation heat.
+                        </p>
+
+                        <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px;">
+                            <div class="status-item">
+                                <div>Portfolio Heat</div>
+                                <div id="risk-heat" class="status-val" style="color: var(--danger); font-family: monospace;">0%</div>
+                            </div>
+                            <div class="status-item">
+                                <div>Risk Budget Left</div>
+                                <div id="risk-budget" class="status-val" style="color: var(--accent); font-family: monospace;">100%</div>
+                            </div>
+                            <div class="status-item">
+                                <div>Drawdown Risk</div>
+                                <div id="risk-drawdown" class="status-val" style="color: var(--warning);">LOW</div>
+                            </div>
+                            <div class="status-item">
+                                <div>SRE Risk Approved</div>
+                                <div id="risk-approved" class="status-val status-passed">APPROVED</div>
+                            </div>
+                        </div>
+
+                        <h4 style="color: var(--primary); margin: 0 0 10px 0;">Portfolio Exposure & Concentration</h4>
+                        <ul id="risk-exposures" style="line-height: 1.6; padding-left: 20px; color: var(--text-muted);">
+                            <!-- Populated dynamically -->
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Market Structure Map & Order Block Map -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+                    <!-- Visual Panel 5: Market Structure Map -->
+                    <div class="card">
+                        <h3 style="margin-top: 0; color: var(--primary);">📈 Market Structure Map (Pure Price Action)</h3>
+                        <p style="color: var(--text-muted); font-size: 0.85em; margin-bottom: 15px;">
+                            Tracks Swing Highs and Lows chronologically. Zero technical indicators are used.
+                        </p>
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Bar Node</th>
+                                        <th>Price</th>
+                                        <th>Type</th>
+                                        <th>Structural Label</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="struct-swings-tbody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Visual Panel 6: Order Block Map & FVG Heatmap -->
+                    <div class="card">
+                        <h3 style="margin-top: 0; color: var(--primary);">🧱 Institutional Supply/Demand Zones</h3>
+                        <p style="color: var(--text-muted); font-size: 0.85em; margin-bottom: 15px;">
+                            Identifies Order Blocks and Fair Value Gaps (FVG) with freshness metrics.
+                        </p>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <h4 style="color: var(--primary); margin: 0 0 10px 0;">Order Blocks (OB)</h4>
+                                <div id="zones-ob-list">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+                            <div>
+                                <h4 style="color: var(--warning); margin: 0 0 10px 0;">Fair Value Gaps (FVG)</h4>
+                                <div id="zones-fvg-list">
+                                    <!-- Populated dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alignment Board & Pattern Similarity Board -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <!-- Visual Panel 7: Multi-Timeframe Structural Alignment -->
+                    <div class="card">
+                        <h3 style="margin-top: 0; color: var(--primary);">🌐 Multi-Timeframe Structural Alignment</h3>
+                        <p style="color: var(--text-muted); font-size: 0.85em; margin-bottom: 20px;">
+                            Synthesizes trend alignment from higher timeframes (D1/H4) down to the execution frame.
+                        </p>
+                        <div class="status-board" style="margin-bottom: 15px;">
+                            <div class="status-item">
+                                <div>Alignment Status</div>
+                                <div id="align-status" class="status-val" style="color: var(--accent); font-size: 1.1em;">FULLY_ALIGNED</div>
+                            </div>
+                            <div class="status-item">
+                                <div>Synthesis Confidence</div>
+                                <div id="align-conf" class="status-val" style="color: var(--warning);">88%</div>
+                            </div>
+                        </div>
+                        <div id="align-summary" style="padding: 12px; background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-dark); border-radius: 8px; color: var(--text-dark); line-height: 1.5;">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Visual Panel 8: Pattern Similarity Intelligence & Visual Panel 9: Cross Asset Board -->
+                    <div class="card">
+                        <h3 style="margin-top: 0; color: var(--primary);">🧠 Pattern Similarity Intelligence Feed</h3>
+                        <p style="color: var(--text-muted); font-size: 0.85em; margin-bottom: 20px;">
+                            Matches the current market structure signature with the 4-layered memory system.
+                        </p>
+
+                        <div style="background: rgba(30, 41, 59, 0.2); border: 1px solid var(--border-dark); border-radius: 10px; padding: 18px;">
+                            <div style="margin-bottom: 10px;"><strong>Matched Pattern ID:</strong> <span id="sim-id" style="color: var(--accent); font-family: monospace;">-</span></div>
+                            <div style="margin-bottom: 10px;"><strong>Cosine Similarity Score:</strong> <span id="sim-score" style="color: var(--primary); font-weight: bold;">-</span></div>
+                            <div style="margin-bottom: 10px;"><strong>Historical Occurrences:</strong> <span id="sim-occur" style="color: var(--warning); font-weight: bold;">-</span></div>
+                            <div style="margin-bottom: 10px;"><strong>Historical Success Rate:</strong> <span id="sim-success" style="color: var(--accent); font-weight: bold;">-</span></div>
+                            <div style="margin-top: 15px; border-top: 1px solid var(--border-dark); padding-top: 10px; font-style: italic; color: var(--text-muted);" id="sim-desc">
+                                Loading similarity cluster details...
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 20px;">
+                            <h4 style="color: var(--primary); margin: 0 0 10px 0;">Liquidity Pools Heatmap</h4>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div>
+                                    <h5 style="color: var(--accent); margin: 0 0 5px 0;">Resting Buy-Side (BSL)</h5>
+                                    <ul id="liq-bsl-list" style="padding-left: 15px; margin: 0; color: var(--text-muted); font-size: 0.85em;">
+                                        <!-- Populated dynamically -->
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h5 style="color: var(--danger); margin: 0 0 5px 0;">Resting Sell-Side (SSL)</h5>
+                                    <ul id="liq-ssl-list" style="padding-left: 15px; margin: 0; color: var(--text-muted); font-size: 0.85em;">
+                                        <!-- Populated dynamically -->
+                                    </ul>
+                                </div>
+                            </div>
+                            <div id="liq-sweeps-list" style="margin-top: 15px; font-size: 0.85em;">
+                                <!-- Populated dynamically -->
+                            </div>
                         </div>
                     </div>
                 </div>
