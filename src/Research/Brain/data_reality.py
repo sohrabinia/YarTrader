@@ -11,7 +11,7 @@ class DataRealityLayer:
     def __init__(self, symbol: str) -> None:
         self.symbol = symbol
         self._raw_states: Dict[str, List[MarketObservation]] = {
-            "Tick": [], "M1": [], "M5": [], "M15": [], "H1": [], "H4": [], "Daily": []
+            "Tick": [], "M1": [], "M5": [], "M15": [], "H1": [], "H4": [], "Daily": [], "D1": []
         }
         self._timeframe_durations = {
             "Tick": timedelta(seconds=1),
@@ -20,7 +20,8 @@ class DataRealityLayer:
             "M15": timedelta(minutes=15),
             "H1": timedelta(hours=1),
             "H4": timedelta(hours=4),
-            "Daily": timedelta(days=1)
+            "Daily": timedelta(days=1),
+            "D1": timedelta(days=1)
         }
 
     def ingest_raw_candles(self, timeframe: str, candles: List[Dict[str, Any]]) -> List[MarketObservation]:

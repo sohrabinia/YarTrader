@@ -1,6 +1,6 @@
 [
     {
-        "trade_id": "strade-c44636",
+        "trade_id": "strade-cc6e69",
         "symbol": "BTCUSD",
         "direction": "LONG",
         "entry": 60000.0,
@@ -19,8 +19,8 @@
         "exit_reason": "",
         "result": "PENDING",
         "status": "CREATED",
-        "creation_time": "2026-08-02T09:37:49.962853",
-        "decision_time": "2026-08-02T09:37:49.962857",
+        "creation_time": "2026-08-02T12:48:58.316172",
+        "decision_time": "2026-08-02T12:48:58.316175",
         "activation_time": null,
         "close_time": null
     }

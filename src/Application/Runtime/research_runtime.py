@@ -199,7 +199,46 @@ class ResearchRuntime:
         except Exception as e:
             self.last_error = str(e)
             self._log_evidence(f"Research cycle encountered an error: {str(e)}")
+            try:
+                self._store_failed_snapshot(str(e))
+            except Exception as se:
+                self._log_evidence(f"Failed to store failed snapshot diagnostics: {se}")
             raise
+
+    def _store_failed_snapshot(self, error_message: str) -> None:
+        """Stores a diagnostic failed snapshot for provider failure auditing in production."""
+        snapshot_dir = os.path.join(self._evidence_dir, "research_snapshots")
+        os.makedirs(snapshot_dir, exist_ok=True)
+
+        report_id = f"failed_{int(time.time())}"
+        filename = f"rpt-{self._symbol}-{self._timeframe}-{report_id}.json"
+        filepath = os.path.join(snapshot_dir, filename)
+
+        snapshot_data = {
+            "report_id": report_id,
+            "asset": self._symbol,
+            "symbol": self._symbol,
+            "timeframe": self._timeframe,
+            "asset_class": getattr(self, "_asset_class", "Forex"),
+            "provider": getattr(self, "_provider_name", "MT5"),
+            "candle_count": 0,
+            "timestamp": datetime.now().isoformat(),
+            "provider_status": "FAILED",
+            "data_quality": "INVALID",
+            "error": error_message
+        }
+
+        temp_filepath = filepath + ".tmp"
+        try:
+            with open(temp_filepath, "w", encoding="utf-8") as f:
+                json.dump(snapshot_data, f, indent=4)
+            os.replace(temp_filepath, filepath)
+        except Exception:
+            if os.path.exists(temp_filepath):
+                try:
+                    os.remove(temp_filepath)
+                except OSError:
+                    pass
 
     def start_polling_loop(self, interval_seconds: float = 60.0, limit_cycles: Optional[int] = None) -> None:
         """

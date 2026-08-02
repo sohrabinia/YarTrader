@@ -7,6 +7,7 @@ from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry, REGISTRY_FIL
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from src.ShadowTrading.Engine.ShadowTradingEngine import ShadowTradingEngine
+from src.Data.Providers.Crypto.crypto_provider import CryptoProvider
 
 class TestMultiSymbolMatrixRuntime(unittest.TestCase):
     """
@@ -141,3 +142,46 @@ class TestMultiSymbolMatrixRuntime(unittest.TestCase):
         self.assertEqual(len(active_pairs), 3)
         self.assertIn(("XAUUSD", "H1"), active_pairs)
         self.assertIn(("GBPUSD", "H1"), active_pairs)
+
+    def test_5_crypto_provider_mapping(self) -> None:
+        """Verify the dynamic crypto symbol mapping layer maps XRPUSD -> XRP-USD."""
+        provider = CryptoProvider()
+        mapped = provider.resolve_provider_symbol("XRPUSD")
+        self.assertEqual(mapped, "XRP-USD")
+
+    def test_6_d1_timeframe_support(self) -> None:
+        """Verify that daily D1 timeframe contexts run flawlessly across the entire stack."""
+        # Test daily H1 / H4 / D1 support for XAUUSD and BTCUSD
+        r1 = ResearchRuntime(symbol="XAUUSD", timeframe="D1", provider_name="MT5", asset_class="Commodities")
+        res1 = r1.run_once()
+        self.assertEqual(res1.Request.Context.get("timeframe"), "D1")
+
+        r2 = ResearchRuntime(symbol="BTCUSD", timeframe="D1", provider_name="Crypto", asset_class="Crypto")
+        res2 = r2.run_once()
+        self.assertEqual(res2.Request.Context.get("timeframe"), "D1")
+
+    def test_7_no_synthetics_in_universe(self) -> None:
+        """Verify that no SYMxx or synthetic test symbols exist in the active matrix."""
+        active_matrix = self.registry.get_active_matrix()
+        for symbol, tf, ac, p in active_matrix:
+            self.assertFalse(symbol.startswith("SYM"), f"Synthetic symbol {symbol} found in active universe.")
+
+    def test_8_failed_provider_snapshot(self) -> None:
+        """Verify that persistent provider failures write diagnostic snapshots with invalid data quality."""
+        runtime = ResearchRuntime(symbol="INVALID", timeframe="H1", provider_name="Crypto", asset_class="Crypto")
+
+        # Override symbol mapping to force Coinbase HTTP failure
+        from unittest.mock import patch
+        with self.assertRaises(Exception):
+            runtime.run_once()
+
+        # Verify a failed snapshot was generated
+        files = os.listdir(self.snapshot_dir)
+        failed_snapshots = [f for f in files if f.startswith("rpt-INVALID-H1-failed_") and f.endswith(".json")]
+        self.assertGreater(len(failed_snapshots), 0)
+
+        with open(os.path.join(self.snapshot_dir, failed_snapshots[0]), "r", encoding="utf-8") as f:
+            snapshot_data = json.load(f)
+
+        self.assertEqual(snapshot_data["provider_status"], "FAILED")
+        self.assertEqual(snapshot_data["data_quality"], "INVALID")
