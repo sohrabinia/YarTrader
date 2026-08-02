@@ -230,3 +230,28 @@ class TestMultiSymbolMatrixRuntime(unittest.TestCase):
         self.assertEqual(res["risk_level"], "MEDIUM")
         self.assertEqual(res["risk_score"], 58)
         self.assertGreater(len(res["warnings"]), 0)
+
+    def test_13_intelligence_confidence(self) -> None:
+        """Verify multi-factor confidence calculations."""
+        from src.Research.Brain.confidence_engine import AdaptiveConfidenceEngine
+        engine = AdaptiveConfidenceEngine()
+        res = engine.calculate_final_confidence(base_confidence=70.0, pattern_score=82.0, regime_score=78.0, risk_score=75.0)
+
+        self.assertEqual(res["signal"], "BUY")
+        self.assertEqual(res["final_confidence"], 66)
+
+    def test_14_intelligence_dashboard_data(self) -> None:
+        """Verify dynamic dashboard board outputs."""
+        from fastapi.testclient import TestClient
+        from src.Application.Services.web_dashboard import app
+        client = TestClient(app)
+
+        resp = client.get("/api/intelligence/dashboard")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        self.assertEqual(data["runtime_status"], "ACTIVE")
+        self.assertEqual(data["active_timeframes"], 6)
+        self.assertGreater(data["research_contexts"], 0)
+        self.assertGreater(len(data["regime_board"]), 0)
+        self.assertEqual(data["global_risk"]["level"], "MEDIUM")
