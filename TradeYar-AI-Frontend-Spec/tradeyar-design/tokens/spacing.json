@@ -1,0 +1,15 @@
+{
+  "scale": {
+    "xs": "4px",
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "32px",
+    "xxl": "48px"
+  },
+  "layout": {
+    "sidebarWidth": "240px",
+    "headerHeight": "64px",
+    "containerPadding": "24px"
+  }
+}

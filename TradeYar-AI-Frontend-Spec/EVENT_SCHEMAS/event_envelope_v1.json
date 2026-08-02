@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TradeYarRealtimeEvent",
+  "type": "object",
+  "properties": {
+    "eventName": {
+      "type": "string",
+      "description": "Unique name of the emitted event."
+    },
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of the event schema."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC timestamp of the event generation."
+    },
+    "sourceEngine": {
+      "type": "string",
+      "enum": ["ResearchEngine", "StrategyEngine", "RiskEngine", "ExecutionEngine", "ShadowTradingEngine"],
+      "description": "The upstream system producing the event."
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID tracing the execution flow across subsystems."
+    },
+    "data": {
+      "type": "object",
+      "description": "The payload corresponding to the specific event state."
+    }
+  },
+  "required": ["eventName", "schemaVersion", "timestamp", "sourceEngine", "correlationId", "data"]
+}
