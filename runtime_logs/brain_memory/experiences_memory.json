@@ -850,5 +850,71 @@
             "is_lucky_win": false,
             "is_structural_failure": true
         }
+    },
+    "exp-eb44e7ac": {
+        "experience_id": "exp-eb44e7ac",
+        "symbol": "XAUUSD",
+        "timeframe": "D1",
+        "timestamp": "2026-08-02T13:31:24.170563",
+        "situation_signature": [
+            1.0,
+            -0.5,
+            0.2
+        ],
+        "decision_action": "SELL",
+        "outcome_result": "SUCCESS",
+        "lesson_feedback": "Decision on XAUUSD to SELL at 2350.0 evaluated as Earned Success. MAM: 0.00, MFM: 54990.00.",
+        "max_favorable_excursion": 54990.00000000001,
+        "max_adverse_excursion": 0.0,
+        "meta": {
+            "position_id": "vpos-eb44e7ac",
+            "confidence": 0.0,
+            "is_lucky_win": false,
+            "is_structural_failure": false
+        }
+    },
+    "exp-8ecb846a": {
+        "experience_id": "exp-8ecb846a",
+        "symbol": "XAUUSD",
+        "timeframe": "D1",
+        "timestamp": "2026-08-02T13:31:24.174438",
+        "situation_signature": [
+            1.0,
+            -0.5,
+            0.2
+        ],
+        "decision_action": "SELL",
+        "outcome_result": "SUCCESS",
+        "lesson_feedback": "Decision on XAUUSD to SELL at 2350.0 evaluated as Earned Success. MAM: 0.00, MFM: 54990.00.",
+        "max_favorable_excursion": 54990.00000000001,
+        "max_adverse_excursion": 0.0,
+        "meta": {
+            "position_id": "vpos-8ecb846a",
+            "confidence": 0.0,
+            "is_lucky_win": false,
+            "is_structural_failure": false
+        }
+    },
+    "exp-d719a392": {
+        "experience_id": "exp-d719a392",
+        "symbol": "XAUUSD",
+        "timeframe": "H1",
+        "timestamp": "2026-08-02T13:31:26.735880",
+        "situation_signature": [
+            2000.0,
+            1995.0,
+            2010.0
+        ],
+        "decision_action": "BUY",
+        "outcome_result": "FAILURE",
+        "lesson_feedback": "Decision on XAUUSD to BUY at 2000.0 evaluated as Structural Error (Failure analyzed). MAM: -1500.00, MFM: 0.00.",
+        "max_favorable_excursion": 0.0,
+        "max_adverse_excursion": -1500.0,
+        "meta": {
+            "position_id": "vpos-d719a392",
+            "confidence": 72.0,
+            "is_lucky_win": false,
+            "is_structural_failure": true
+        }
     }
 }

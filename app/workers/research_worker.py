@@ -69,32 +69,32 @@ class ResearchWorker:
             configured_tfs = sorted(list(set(t for s, t in active_matrix)))
 
             print("================================================")
-            print("TradeYar AI Multi-Symbol / Multi-TF Runtime")
+            print("TradeYar AI Production Research Runtime")
             print("================================================")
-            print(f"Registry Capacity:\n{registry.max_symbols} Symbols\n")
-            print(f"Registered Symbols:\n{len(registry.get_all_registered())}\n")
-            print(f"Active Symbols:\n{len(unique_symbols)}\n")
-            print(f"Configured Timeframes:\n{configured_tfs}\n")
-            print("Research Workers:\nRunning\n")
-            print(f"Queue Size:\n{len(active_matrix)} ({len(unique_symbols)} symbols x {len(configured_tfs)} timeframes)\n")
-            print("Mode:\nProduction")
+            print(f"Universe: {registry.max_symbols} Symbols")
+            print(f"Active Symbols: {len(unique_symbols)}")
+            print(f"Active Timeframes: {', '.join(configured_tfs)}")
+            print(f"Research Contexts: {len(active_matrix)}")
+            print("Workers: RUNNING")
+            print("Providers: MT5 + Crypto Exchange")
+            print("Mode: PRODUCTION")
             print("================================================\n")
 
             while self.is_running:
                 active_matrix = self._get_active_matrix()
 
-                for symbol, tf in active_matrix:
+                for symbol, tf, asset_class, provider in active_matrix:
                     if not self.is_running:
                         break
 
                     try:
-                        print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
-
-                        runtime = self._get_or_create_runtime(symbol, tf)
+                        runtime = self._get_or_create_runtime(symbol, tf, asset_class, provider)
 
                         # Active read-only connection check
-                        conn_health = runtime.provider.delegate.get_connection_health()
-                        print("MT5: Connected")
+                        if provider == "Crypto":
+                            research_tracker_mt5 = "CONNECTED"
+                        else:
+                            conn_health = runtime.provider.delegate.get_connection_health()
 
                         res = runtime.run_once()
 
@@ -104,10 +104,10 @@ class ResearchWorker:
                         self.status = "RUNNING"
                         self.error_count = 0
 
-                        candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [1] * 15))
-                        print(f"Candles: {candles_count}")
-                        print("Features: Generated")
-                        print("Research: Completed\n")
+                        central_runtime_state.update_multiple({
+                            "research_status": "Running",
+                            "last_cycle_time": self.last_analysis_time.isoformat()
+                        })
 
                         central_runtime_state.update_multiple({
                             "research_status": "Running",

@@ -1,0 +1,11 @@
+timeframes:
+  fast:
+    - M1
+    - M5
+  intraday:
+    - M15
+    - H1
+  swing:
+    - H4
+  macro:
+    - D1

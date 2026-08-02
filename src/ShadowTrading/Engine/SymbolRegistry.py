@@ -51,6 +51,18 @@ def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
     return {"market_universe": result}
 
 
+def parse_timeframe_policy_yaml(content: str) -> List[str]:
+    """Pure-Python YAML parser to extract timeframes from config/timeframe_policy.yaml."""
+    tfs = []
+    for line in content.splitlines():
+        strip_line = line.strip()
+        if strip_line.startswith("-"):
+            tf_val = strip_line.replace("-", "").strip().upper()
+            if tf_val and tf_val not in tfs:
+                tfs.append(tf_val)
+    return tfs or ["M1", "M5", "M15", "H1", "H4", "D1"]
+
+
 class SymbolRegistry:
     """
     Manages active symbols, their asset class classification, and assigned timeframes dynamically.
@@ -68,8 +80,20 @@ class SymbolRegistry:
     def __init__(self) -> None:
         self.max_symbols = 50
         self.registry: Dict[str, Dict[str, Any]] = {}
+        self.timeframes_policy = ["M1", "M5", "M15", "H1", "H4", "D1"]
         os.makedirs("runtime_logs", exist_ok=True)
+        self.load_timeframe_policy()
         self.load_registry()
+
+    def load_timeframe_policy(self) -> None:
+        policy_path = "config/timeframe_policy.yaml"
+        if os.path.exists(policy_path):
+            try:
+                with open(policy_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                self.timeframes_policy = parse_timeframe_policy_yaml(content)
+            except Exception:
+                pass
 
     def load_registry(self) -> None:
         # Check if saved registry config file exists
@@ -96,7 +120,7 @@ class SymbolRegistry:
                             "active": info.get("enabled", True),
                             "asset_class": asset_class,
                             "provider": info.get("provider", "MT5"),
-                            "timeframes": info.get("timeframes", ["H1", "H4"])
+                            "timeframes": self.timeframes_policy
                         }
                 self.save_registry()
                 return
@@ -105,11 +129,11 @@ class SymbolRegistry:
 
         # Default fallback registry configuration
         self.registry = {
-            "XAUUSD": {"active": True, "asset_class": "Commodities", "provider": "MT5", "timeframes": ["H1", "H4"]},
-            "EURUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["H1"]},
-            "GBPUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["H1"]},
-            "BTCUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["H1", "H4"]},
-            "ETHUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["H1", "H4"]}
+            "XAUUSD": {"active": True, "asset_class": "Commodities", "provider": "MT5", "timeframes": self.timeframes_policy},
+            "EURUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": self.timeframes_policy},
+            "GBPUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": self.timeframes_policy},
+            "BTCUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": self.timeframes_policy},
+            "ETHUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": self.timeframes_policy}
         }
         self.save_registry()
 
@@ -121,17 +145,8 @@ class SymbolRegistry:
         return self.registry
 
     def get_timeframe_policy(self, asset_class: str) -> List[str]:
-        """Resolves timeframe policies per asset class."""
-        ac_lower = asset_class.lower()
-        if "forex" in ac_lower:
-            return ["M15", "H1", "H4", "D1"]
-        elif "commodity" in ac_lower:
-            return ["M15", "H1", "H4", "D1"]
-        elif "indices" in ac_lower or "index" in ac_lower:
-            return ["M5", "M15", "H1", "H4", "D1"]
-        elif "crypto" in ac_lower:
-            return ["M15", "H1", "H4", "D1"]
-        return ["H1"]
+        """Resolves timeframe policies per asset class from config/timeframe_policy.yaml."""
+        return self.timeframes_policy
 
     def get_active_matrix(self) -> List[Tuple[str, str, str, str]]:
         """Resolves execution matrix tuples of (symbol, timeframe, asset_class, provider)"""
@@ -144,7 +159,7 @@ class SymbolRegistry:
                 active_count += 1
                 asset_class = info.get("asset_class", "Forex")
                 provider = info.get("provider", "MT5")
-                tfs = info.get("timeframes") or self.get_timeframe_policy(asset_class)
+                tfs = info.get("timeframes") or self.timeframes_policy
                 for tf in tfs:
                     matrix.append((symbol, tf, asset_class, provider))
         return matrix

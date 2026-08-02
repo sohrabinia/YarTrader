@@ -65,11 +65,17 @@ class ResearchRuntime:
         """Executes a single synchronous loop cycle of the research pipeline."""
         # 1. Start Cycle
         tf_upper = self._timeframe.upper()
-        if "H1" in tf_upper:
+        if tf_upper == "M1":
+            start_time = datetime.now() - timedelta(days=2) # 2880 mins (>= 1000)
+        elif tf_upper == "M5":
+            start_time = datetime.now() - timedelta(days=5) # 1440 bars (>= 1000)
+        elif tf_upper == "M15":
+            start_time = datetime.now() - timedelta(days=7) # 672 bars (>= 500)
+        elif tf_upper == "H1":
             start_time = datetime.now() - timedelta(days=22) # 528 hours (>= 500)
-        elif "H4" in tf_upper:
+        elif tf_upper == "H4":
             start_time = datetime.now() - timedelta(days=52) # 312 bars (>= 300)
-        elif "D1" in tf_upper:
+        elif tf_upper == "D1" or tf_upper == "DAILY":
             start_time = datetime.now() - timedelta(days=205) # 205 days (>= 200)
         else:
             start_time = datetime.now() - timedelta(days=2)
@@ -143,6 +149,9 @@ class ResearchRuntime:
             features_generated = "feature_set" in result.Findings
             self._log_evidence(f"Features Generated: {str(features_generated).lower()}")
             self._log_evidence("Research Completed: true")
+
+            # Log standard diagnostics pattern exactly as required
+            print(f"Research Started -> Symbol: {self._symbol} | Timeframe: {self._timeframe} | Provider: {self._provider_name} | Candles: {candles_count}+ | Features: Generated -> Research Completed")
 
             # Update Shadow Trading Engine with latest market price and decision
             try:
