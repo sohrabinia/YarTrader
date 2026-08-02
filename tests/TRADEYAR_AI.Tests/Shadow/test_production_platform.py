@@ -26,9 +26,9 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         resp = self.client.get("/api/public/pricing")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        self.assertEqual(len(data), 3)
-        self.assertEqual(data[2]["tier_id"], "institutional")
-        self.assertIn("30 Active Symbols", data[2]["features"])
+        self.assertEqual(len(data), 4)
+        self.assertEqual(data[3]["tier_id"], "institutional")
+        self.assertIn("50 Active Symbols", data[3]["features"])
 
         # Check compliance disclaimers
         resp2 = self.client.get("/api/public/metrics")

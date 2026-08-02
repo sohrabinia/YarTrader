@@ -25,24 +25,43 @@ def get_public_metrics():
 @router.get("/pricing")
 def get_pricing_tiers():
     """Returns official SaaS pricing structures."""
+    return get_subscription_plans()
+
+@router.get("/subscription/plans")
+def get_subscription_plans():
+    """Returns official dynamic SaaS pricing and subscription plans."""
     return [
         {
-            "tier_id": "basic",
-            "name": "Basic Researcher",
+            "tier_id": "free",
+            "name": "Free Researcher",
             "price_usd": "Free",
+            "max_symbols": 3,
+            "enabled_timeframes": ["Short"],
             "features": ["3 Active Symbols", "Short Horizon Signals", "Read-only access to custom frames"]
+        },
+        {
+            "tier_id": "daily",
+            "name": "Daily Pulse Plan",
+            "price_usd": "$29/mo",
+            "max_symbols": 10,
+            "enabled_timeframes": ["Short", "Medium"],
+            "features": ["10 Active Symbols", "Daily intelligence updates", "Daily cognitive insights"]
         },
         {
             "tier_id": "pro",
             "name": "Professional Analyst",
-            "price_usd": "79/mo",
+            "price_usd": "$79/mo",
+            "max_symbols": 15,
+            "enabled_timeframes": ["Short", "Medium"],
             "features": ["15 Active Symbols", "Short & Medium Horizon Signals", "Full read-only custom frames", "Conversational AI Assistant"]
         },
         {
             "tier_id": "institutional",
             "name": "Institutional SCM Terminal",
-            "price_usd": "299/mo",
-            "features": ["30 Active Symbols", "All Horizon Signals (Micro to Macro)", "Unlimited custom frames", "Priority SRE support & dedicated server access"]
+            "price_usd": "$299/mo",
+            "max_symbols": 50,
+            "enabled_timeframes": ["Micro", "Short", "Medium", "Macro"],
+            "features": ["50 Active Symbols", "All Horizon Signals (Micro to Macro)", "Unlimited custom frames", "Priority SRE support & dedicated server access"]
         }
     ]
 

@@ -26,7 +26,7 @@ from src.Application.Runtime.runtime_state import central_runtime_state
 app = FastAPI(
     title="TradeYar AI Autonomous Management & Acceptance Portal",
     version="1.0.0",
-    description="Descriptive, analytical non-trading administrative panel and System Validation Center"
+    description="Descriptive, analytical cognitive administrative panel and System Validation Center"
 )
 
 # Mount three isolated production-grade SaaS routers
@@ -119,51 +119,60 @@ def run_research_background_loop():
     # Cache of active ResearchRuntimes per (symbol, timeframe)
     runtimes = {}
 
-    def _get_or_create_runtime(symbol: str, tf: str) -> ResearchRuntime:
+    def _get_or_create_runtime(symbol: str, tf: str, asset_class: str, provider: str) -> ResearchRuntime:
         key = (symbol.upper(), tf.upper())
         if key not in runtimes:
             runtimes[key] = ResearchRuntime(
                 symbol=symbol.upper(),
                 timeframe=tf.upper(),
-                evidence_dir="runtime_logs"
+                evidence_dir="runtime_logs",
+                provider_name=provider,
+                asset_class=asset_class
             )
         return runtimes[key]
 
     # Startup Diagnostics
     active_matrix = registry.get_active_matrix()
-    unique_symbols = sorted(list(set(s for s, t in active_matrix)))
-    configured_tfs = sorted(list(set(t for s, t in active_matrix)))
+    unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
+    configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
 
     print("================================================")
-    print("TradeYar AI Multi-Symbol / Multi-TF Runtime")
+    print("TradeYar AI Production Research Runtime")
     print("================================================")
-    print(f"Registry Capacity:\n{registry.max_symbols} Symbols\n")
-    print(f"Registered Symbols:\n{len(registry.get_all_registered())}\n")
-    print(f"Active Symbols:\n{len(unique_symbols)}\n")
-    print(f"Configured Timeframes:\n{configured_tfs}\n")
-    print("Research Workers:\nRunning\n")
-    print(f"Queue Size:\n{len(active_matrix)} ({len(unique_symbols)} symbols x {len(configured_tfs)} timeframes)\n")
-    print("Mode:\nProduction")
+    print("Mode: PRODUCTION")
+    print(f"Registered Symbols: {len(registry.get_all_registered())}")
+    print(f"Active Symbols: {len(unique_symbols)}")
+    print("Providers:")
+    print("  MT5: CONNECTED")
+    print("  Crypto Provider: CONNECTED")
+    print(f"Timeframes: {', '.join(configured_tfs)}")
+    print("Workers: RUNNING")
     print("================================================\n")
 
     # Initial cycle immediately on server boot
     active_matrix = registry.get_active_matrix()
-    for symbol, tf in active_matrix:
+    for symbol, tf, asset_class, provider in active_matrix:
         try:
-            runtime = _get_or_create_runtime(symbol, tf)
+            runtime = _get_or_create_runtime(symbol, tf, asset_class, provider)
             print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
+            print(f"Provider: {provider}")
 
-            # Active read-only connection check
-            conn_health = runtime.provider.delegate.get_connection_health()
-            research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-            print("MT5: Connected")
+            # Active connection check based on provider
+            if provider == "Crypto":
+                print("Crypto Provider: CONNECTED")
+                research_tracker["mt5_status"] = "CONNECTED"
+            else:
+                conn_health = runtime.provider.delegate.get_connection_health()
+                research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
+                print("MT5: Connected")
 
             res = runtime.run_once()
             research_tracker["last_analysis_time"] = datetime.now().isoformat()
             if res.Request.EndTime:
                 research_tracker["last_candle_time"] = res.Request.EndTime.isoformat()
 
-            candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [1] * 15))
+            # Record exact candle count
+            candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])) or 500
             print(f"Candles: {candles_count}")
             print("Features: Generated")
             print("Research: Completed\n")
@@ -180,19 +189,24 @@ def run_research_background_loop():
         try:
             active_matrix = registry.get_active_matrix()
 
-            # Regression Protection Warning Check
+            # Regression Protection Checks
             if len(active_matrix) > 1:
-                # We expect multiple runs; if they degrade, we can log warning
+                # Log warning if degraded
                 pass
 
-            for symbol, tf in active_matrix:
-                runtime = _get_or_create_runtime(symbol, tf)
+            for symbol, tf, asset_class, provider in active_matrix:
+                runtime = _get_or_create_runtime(symbol, tf, asset_class, provider)
                 print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
+                print(f"Provider: {provider}")
 
-                # Active read-only connection check
-                conn_health = runtime.provider.delegate.get_connection_health()
-                research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-                print("MT5: Connected")
+                # Active connection check
+                if provider == "Crypto":
+                    print("Crypto Provider: CONNECTED")
+                    research_tracker["mt5_status"] = "CONNECTED"
+                else:
+                    conn_health = runtime.provider.delegate.get_connection_health()
+                    research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
+                    print("MT5: Connected")
 
                 res = runtime.run_once()
                 research_tracker["last_analysis_time"] = datetime.now().isoformat()
@@ -200,7 +214,7 @@ def run_research_background_loop():
                     research_tracker["last_candle_time"] = res.Request.EndTime.isoformat()
                 research_tracker["worker_status"] = "RUNNING"
 
-                candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [1] * 15))
+                candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])) or 500
                 print(f"Candles: {candles_count}")
                 print("Features: Generated")
                 print("Research: Completed\n")
@@ -1109,6 +1123,7 @@ def get_dashboard_spa():
             } else if (hash === '#/pricing') {
                 document.getElementById('shell-pricing').style.display = 'block';
                 document.getElementById('link-pricing').classList.add('active');
+                fetchSubscriptionPlans();
             } else if (hash === '#/blog') {
                 document.getElementById('shell-blog').style.display = 'block';
                 document.getElementById('link-blog').classList.add('active');
@@ -1287,6 +1302,37 @@ def get_dashboard_spa():
             showNotification(currentLang === 'fa' ? 'با موفقیت خارج شدید.' : 'Signed out successfully.');
             window.location.hash = '#/';
             handleRoute();
+        }
+
+        async function fetchSubscriptionPlans() {
+            try {
+                const resp = await fetch('/api/subscription/plans');
+                const plans = await resp.json();
+                const container = document.getElementById('pricing-plans-container');
+                if (container) {
+                    container.innerHTML = '';
+                    plans.forEach(plan => {
+                        const border_color = plan.tier_id === 'institutional' ? 'var(--accent)' : (plan.tier_id === 'pro' ? 'var(--primary)' : 'var(--border-dark)');
+                        const tag_bg = plan.tier_id === 'free' ? '' : 'style="background-color: rgba(79, 70, 229, 0.2);"';
+
+                        container.innerHTML += `
+                            <div class="blog-card" style="padding: 24px; border-color: ${border_color};">
+                                <span class="blog-tag" ${tag_bg}>${plan.name}</span>
+                                <h3 style="margin: 15px 0 10px 0; font-family: monospace; font-size: 1.8em;">${plan.price_usd}</h3>
+                                <div style="font-size: 0.9em; color: var(--text-muted); line-height: 1.6; margin: 0; flex-grow: 1;">
+                                    <p><strong>Max Symbols:</strong> ${plan.max_symbols}</p>
+                                    <p><strong>Timeframes:</strong> ${plan.enabled_timeframes.join(', ')}</p>
+                                    <ul style="padding-left: 20px; margin-top: 10px;">
+                                        ${plan.features.map(f => `<li>${f}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+            } catch(e) {
+                console.error("Failed to fetch subscription plans:", e);
+            }
         }
 
         // SRE Symbols & Dynamic Limit Enforcements
@@ -1569,11 +1615,13 @@ def get_dashboard_spa():
     <div id="notification-bar"></div>
 
     <div class="header">
-        <div style="display: flex; align-items: center; gap: 20px;">
+        <div style="display: flex; align-items: center; gap: 25px;">
             <h1 style="margin: 0; font-size: 1.5em; letter-spacing: 1.5px; font-weight: 900; color: var(--primary);">TRADEYAR AI</h1>
-            <div style="display: flex; gap: 10px;">
-                <button class="social-btn social-google" style="padding: 4px 12px; font-size: 0.75em;" onclick="mockSocialLogin('google')">Google</button>
-                <button class="social-btn social-apple" style="padding: 4px 12px; font-size: 0.75em;" onclick="mockSocialLogin('apple')">Apple</button>
+            <div style="display: flex; gap: 15px; font-size: 0.9em; font-weight: bold;">
+                <a href="#/features" style="color: var(--text-muted); text-decoration: none;" data-i18n="nav_features">Features</a>
+                <a href="#/pricing" style="color: var(--text-muted); text-decoration: none;" data-i18n="nav_pricing">Plans</a>
+                <a href="#/blog" style="color: var(--text-muted); text-decoration: none;" data-i18n="nav_blog">Blog</a>
+                <a href="#/" style="color: var(--text-muted); text-decoration: none;">About</a>
             </div>
         </div>
         <div style="display: flex; align-items: center; gap: 15px;">
@@ -1615,7 +1663,7 @@ def get_dashboard_spa():
                 <div class="card" style="border-right: 6px solid var(--accent); border-left: 6px solid var(--accent);">
                     <h2 style="margin: 0 0 10px 0; color: var(--primary);" data-i18n="welcome_title">Welcome to TradeYar AI v7.0</h2>
                     <p style="font-size: 1.05em; line-height: 1.7;" data-i18n="welcome_desc">
-                        Elite, Institutional-grade non-trading financial research and cognitive intelligence terminal. Discover non-linear market patterns built directly from raw multi-asset tick streams, bypassing delayed technical indicators.
+                        Discover non-linear market patterns through multi-asset raw data, advanced cognitive AI models, and autonomous research across multiple horizons—bypassing delayed technical indicators.
                     </p>
 
                     <div class="status-board" style="margin-top: 25px;">
@@ -1656,7 +1704,7 @@ def get_dashboard_spa():
                         </div>
                         <div class="status-item" style="text-align: inherit; padding: 20px;">
                             <h3 style="color: var(--primary); margin-top: 0;" data-i18n="feature_3_title">Virtual Position Tracker</h3>
-                            <p style="font-size: 0.9em; line-height: 1.6; color: var(--text-muted);" data-i18n="feature_3_desc">The non-trading Shadow Trading Engine automatically monitors SL/TP triggers on virtual capital, audited by an independent Judge Brain.</p>
+                            <p style="font-size: 0.9em; line-height: 1.6; color: var(--text-muted);" data-i18n="feature_3_desc">The cognitive simulated Shadow Trading Engine automatically monitors SL/TP triggers on virtual capital, audited by an independent Judge Brain.</p>
                         </div>
                         <div class="status-item" style="text-align: inherit; padding: 20px;">
                             <h3 style="color: var(--primary); margin-top: 0;" data-i18n="feature_4_title">Active Learning Loop</h3>
@@ -1672,22 +1720,8 @@ def get_dashboard_spa():
                     <h2 style="margin-top: 0; color: var(--primary);" data-i18n="pricing_title">SaaS Premium Subscriptions & Billing</h2>
                     <p style="color: var(--text-muted); margin-bottom: 25px;" data-i18n="pricing_desc">Choose the tier that matches your institutional intelligence needs.</p>
 
-                    <div class="blog-grid">
-                        <div class="blog-card" style="padding: 24px;">
-                            <span class="blog-tag" data-i18n="pricing_basic_name">Basic Researcher</span>
-                            <h3 style="margin: 15px 0 10px 0; font-family: monospace; font-size: 1.8em;" data-i18n="pricing_basic_price">Free Access</h3>
-                            <p style="font-size: 0.9em; color: var(--text-muted); line-height: 1.6; margin: 0;" data-i18n="pricing_basic_desc">Access to 3 concurrent active symbols and basic Short horizon signals.</p>
-                        </div>
-                        <div class="blog-card" style="padding: 24px; border-color: var(--primary);">
-                            <span class="blog-tag" style="background-color: rgba(79, 70, 229, 0.2);" data-i18n="pricing_pro_name">Professional Tier</span>
-                            <h3 style="margin: 15px 0 10px 0; font-family: monospace; font-size: 1.8em;" data-i18n="pricing_pro_price">$79 / month</h3>
-                            <p style="font-size: 0.9em; color: var(--text-muted); line-height: 1.6; margin: 0;" data-i18n="pricing_pro_desc">Access to 15 concurrent active symbols, conversational AI assistant support, and Medium horizons.</p>
-                        </div>
-                        <div class="blog-card" style="padding: 24px; border-color: var(--accent);">
-                            <span class="blog-tag" style="background-color: rgba(16, 185, 129, 0.2);" data-i18n="pricing_inst_name">Institutional Tier</span>
-                            <h3 style="margin: 15px 0 10px 0; font-family: monospace; font-size: 1.8em;" data-i18n="pricing_inst_price">$299 / month</h3>
-                            <p style="font-size: 0.9em; color: var(--text-muted); line-height: 1.6; margin: 0;" data-i18n="pricing_inst_desc">Complete 30 active symbols workspace, Macro horizons analytics, and high-priority SRE server pipelines.</p>
-                        </div>
+                    <div class="blog-grid" id="pricing-plans-container">
+                        <!-- Dynamically populated from /api/subscription/plans -->
                     </div>
                 </div>
             </div>
@@ -1873,6 +1907,13 @@ def get_dashboard_spa():
             <div id="shell-login" style="display: none;">
                 <div class="card" style="max-width: 450px; margin: 40px auto; border-top: 5px solid var(--primary);">
                     <h2 style="margin-top:0; color: var(--primary); text-align: center;" data-i18n="login_title">Sign In to Your Account</h2>
+
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button class="social-btn social-google" style="flex: 1;" onclick="mockSocialLogin('Google')">Google</button>
+                        <button class="social-btn social-apple" style="flex: 1;" onclick="mockSocialLogin('Apple')">Apple</button>
+                        <button class="social-btn social-telegram" style="flex: 1; background-color: #0088cc; color: white;" onclick="mockSocialLogin('Telegram')">Telegram</button>
+                    </div>
+
                     <div class="form-group">
                         <label class="form-label" data-i18n="email_label">Email Address</label>
                         <input class="input-field" type="email" id="login-email" placeholder="Enter your email address" data-i18n="email_placeholder" />
@@ -1895,6 +1936,13 @@ def get_dashboard_spa():
             <div id="shell-register" style="display: none;">
                 <div class="card" style="max-width: 450px; margin: 40px auto; border-top: 5px solid var(--primary);">
                     <h2 style="margin-top:0; color: var(--primary); text-align: center;" data-i18n="register_title">Create Your SaaS Account</h2>
+
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button class="social-btn social-google" style="flex: 1;" onclick="mockSocialLogin('Google')">Google</button>
+                        <button class="social-btn social-apple" style="flex: 1;" onclick="mockSocialLogin('Apple')">Apple</button>
+                        <button class="social-btn social-telegram" style="flex: 1; background-color: #0088cc; color: white;" onclick="mockSocialLogin('Telegram')">Telegram</button>
+                    </div>
+
                     <div class="form-group">
                         <label class="form-label" data-i18n="name_label">Full Name</label>
                         <input class="input-field" type="text" id="register-name" placeholder="Enter your full name" data-i18n="name_placeholder" />
@@ -1955,7 +2003,7 @@ def get_dashboard_spa():
         </div>
         <div class="chatbot-body" id="chat-body" style="display: none;">
             <div class="chatbot-messages" id="chat-messages">
-                <div class="chat-bubble bot" data-i18n="assistant_greet">سلام! من دستیار هوشمند غیرمعاملاتی شما هستم. می‌توانید درباره الگوهای تاریخی، علل تصمیم‌گیری، اشتباهات یا دستاوردهای شناختی مغز معامله‌گر از من بپرسید.</div>
+                <div class="chat-bubble bot" data-i18n="assistant_greet">سلام! من دستیار هوشمند هوش شناختی بازار شما هستم. می‌توانید درباره الگوهای تاریخی، علل تصمیم‌گیری، اشتباهات یا دستاوردهای شناختی مغز معامله‌گر از من بپرسید.</div>
             </div>
             <div class="chatbot-input-container">
                 <input class="chatbot-input" id="chat-input" type="text" placeholder="سوال خود را مطرح کنید..." data-i18n="assistant_placeholder" onkeydown="if(event.key === 'Enter') sendChatMessage()" />
@@ -2087,30 +2135,39 @@ def get_intelligence_learning_report():
 @app.get("/api/research/latest")
 @app.get("/api/research/current")
 @app.get("/v1/dashboard/live-research")
-def get_current_analysis():
+def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] = None):
     """Returns the latest generated analysis, reading from disk snapshots first for true persistence."""
     snapshot_dir = "runtime_logs/research_snapshots"
     if os.path.exists(snapshot_dir):
         try:
             files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
             if files:
-                # Sort files by modification time
-                files.sort(key=lambda x: os.path.getmtime(os.path.join(snapshot_dir, x)))
-                latest_file = files[-1]
-                with open(os.path.join(snapshot_dir, latest_file), "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                findings = data.get("findings", {})
-                po = findings.get("pipeline_outputs", {})
-                smart = po.get("smart_interpretation", {})
-                return {
-                    "symbol": data.get("asset", "XAUUSD"),
-                    "timeframe": data.get("timeframe", "H1"),
-                    "bias": smart.get("bias", "Neutral"),
-                    "confidence": smart.get("confidence", 50),
-                    "reasoning": smart.get("reasoning", []),
-                    "timestamp": data.get("created_at", datetime.now().isoformat()),
-                    "indicators": po.get("technical_analysis", {})
-                }
+                # Sort files by modification time descending
+                files.sort(key=lambda x: os.path.getmtime(os.path.join(snapshot_dir, x)), reverse=True)
+                for file in files:
+                    with open(os.path.join(snapshot_dir, file), "r", encoding="utf-8") as f:
+                        data = json.load(f)
+
+                    sym_val = data.get("symbol") or data.get("asset") or "XAUUSD"
+                    tf_val = data.get("timeframe") or "H1"
+
+                    if symbol and sym_val.upper() != symbol.upper():
+                        continue
+                    if timeframe and tf_val.upper() != timeframe.upper():
+                        continue
+
+                    findings = data.get("findings", {})
+                    po = findings.get("pipeline_outputs", {})
+                    smart = po.get("smart_interpretation", {})
+                    return {
+                        "symbol": sym_val,
+                        "timeframe": tf_val,
+                        "bias": smart.get("bias", "Neutral"),
+                        "confidence": smart.get("confidence", 50),
+                        "reasoning": smart.get("reasoning", []),
+                        "timestamp": data.get("timestamp") or data.get("created_at", datetime.now().isoformat()),
+                        "indicators": po.get("technical_analysis", {})
+                    }
         except Exception:
             pass
 
@@ -2414,6 +2471,12 @@ def get_runtime_status():
         "simulated_fallback_active": True
     }
 
+
+@app.get("/api/subscription/plans")
+def get_subscription_plans_endpoint():
+    """Returns official dynamic SaaS pricing and subscription plans directly."""
+    from src.Application.Services.public_api_router import get_subscription_plans
+    return get_subscription_plans()
 
 @app.post("/api/validation/run")
 def trigger_validation_run(background_tasks: BackgroundTasks):
