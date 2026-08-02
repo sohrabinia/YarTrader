@@ -925,7 +925,15 @@ def get_dashboard_spa():
             try {
                 const resp = await fetch(`/locales/${lang}.json`);
                 locales = await resp.json();
-                // translated dynamically
+
+                // Sync the language dropdown select element value
+                const selectEl = document.getElementById('lang-select');
+                if (selectEl) {
+                    selectEl.value = lang;
+                }
+
+                // Actually translate the page DOM elements
+                translatePage();
 
                 // Safe non-recursive refresh on language change
                 fetchPublicMetrics();
