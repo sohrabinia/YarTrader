@@ -2,7 +2,7 @@ import os
 import json
 import logging
 from logging.handlers import TimedRotatingFileHandler
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 LOGS_ROOT = "logs"
@@ -24,7 +24,7 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_data = {
-            "time": datetime.utcnow().isoformat() + "Z",
+            "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "level": record.levelname,
             "service": "TradeYar-AI",
             "event": record.getMessage()

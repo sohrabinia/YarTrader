@@ -25,6 +25,8 @@ class TestAutonomousShadowTradingEngine(unittest.TestCase):
         self.engine.nodes = []
         self.engine.patterns = []
         self.engine.learning = []
+        self.engine.runtime_manager.symbol_brains = {}
+        self.engine.runtime_manager.processing_queues = {}
 
     # Test 1: Tick data creates custom timeframes
     def test_tick_data_creates_custom_timeframes(self) -> None:
