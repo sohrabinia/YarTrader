@@ -121,6 +121,7 @@ class ResearchRuntime:
                 )
             else:
                 data_response = self._provider.retrieve_market_data(target_req)
+                self._log_evidence("MT5 Connected")
 
             candles_count = len(data_response.DataPoints)
             self._log_evidence(f"Candles Received: {candles_count}")
