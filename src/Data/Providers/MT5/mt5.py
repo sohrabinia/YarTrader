@@ -40,6 +40,8 @@ except ImportError:
     mock_mt5.TIMEFRAME_H1 = 16385
     mock_mt5.TIMEFRAME_H4 = 16388
     mock_mt5.TIMEFRAME_D1 = 16408
+    mock_mt5.TIMEFRAME_W1 = 32769
+    mock_mt5.TIMEFRAME_MN1 = 49153
 
     def mock_copy_rates_range(symbol, timeframe, date_from, date_to):
         from datetime import timedelta
@@ -209,13 +211,15 @@ class MT5DataProvider(IDataProvider):
         self._connected = connected
 
     def _map_timeframe(self, tf: str) -> int:
+        tf_upper = tf.upper()
         if not MT5_AVAILABLE or mt5 is None:
             # Fallback/dummy values matching MT5 constants for non-Windows testing
             dummy_map = {
                 "M1": 1, "M5": 5, "M15": 15, "M30": 30,
-                "H1": 16385, "H4": 16388, "D1": 16408
+                "H1": 16385, "H4": 16388, "D1": 16408, "DAILY": 16408,
+                "W1": 32769, "W": 32769, "MN1": 49153, "MN": 49153
             }
-            return dummy_map.get(tf, 16385)
+            return dummy_map.get(tf_upper, 16385)
 
         tf_map = {
             "M1": getattr(mt5, "TIMEFRAME_M1", 1),
@@ -225,8 +229,13 @@ class MT5DataProvider(IDataProvider):
             "H1": getattr(mt5, "TIMEFRAME_H1", 16385),
             "H4": getattr(mt5, "TIMEFRAME_H4", 16388),
             "D1": getattr(mt5, "TIMEFRAME_D1", 16408),
+            "DAILY": getattr(mt5, "TIMEFRAME_D1", 16408),
+            "W1": getattr(mt5, "TIMEFRAME_W1", 32769),
+            "W": getattr(mt5, "TIMEFRAME_W1", 32769),
+            "MN1": getattr(mt5, "TIMEFRAME_MN1", 49153),
+            "MN": getattr(mt5, "TIMEFRAME_MN1", 49153),
         }
-        return tf_map.get(tf, getattr(mt5, "TIMEFRAME_H1", 16385))
+        return tf_map.get(tf_upper, getattr(mt5, "TIMEFRAME_H1", 16385))
 
     def get_connection_health(self) -> MT5ConnectionHealth:
         if not self._connected:

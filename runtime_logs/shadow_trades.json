@@ -1,6 +1,6 @@
 [
     {
-        "trade_id": "strade-de9443",
+        "trade_id": "strade-c337da",
         "symbol": "BTCUSD",
         "direction": "LONG",
         "entry": 60000.0,
@@ -19,8 +19,8 @@
         "exit_reason": "",
         "result": "PENDING",
         "status": "CREATED",
-        "creation_time": "2026-08-02T15:44:28.566376",
-        "decision_time": "2026-08-02T15:44:28.566380",
+        "creation_time": "2026-08-02T18:35:06.468556",
+        "decision_time": "2026-08-02T18:35:06.468560",
         "activation_time": null,
         "close_time": null
     }

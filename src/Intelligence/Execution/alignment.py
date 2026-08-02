@@ -71,7 +71,9 @@ class MultiTimeframeAlignmentEngine:
     def _frame_sort_weight(self, tf_str: str) -> float:
         """Helper to sort timeframes from high to low."""
         weights = {
-            "D1": 1000.0, "D": 1000.0,
+            "MN1": 43200.0, "MN": 43200.0,
+            "W1": 10080.0, "W": 10080.0,
+            "D1": 1440.0, "D": 1440.0, "DAILY": 1440.0,
             "H4": 240.0,
             "H1": 60.0, "H": 60.0,
             "M30": 30.0,

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from src.Research.Brain.models import MarketObservation
+from src.Core.timeframes import SUPPORTED_TIMEFRAMES
 
 class DataRealityLayer:
     """
@@ -11,17 +12,20 @@ class DataRealityLayer:
     def __init__(self, symbol: str) -> None:
         self.symbol = symbol
         self._raw_states: Dict[str, List[MarketObservation]] = {
-            "Tick": [], "M1": [], "M5": [], "M15": [], "H1": [], "H4": [], "Daily": []
+            "Tick": []
         }
+        for tf in SUPPORTED_TIMEFRAMES:
+            self._raw_states[tf] = []
+            if tf == "D1":
+                self._raw_states["Daily"] = []
+
         self._timeframe_durations = {
-            "Tick": timedelta(seconds=1),
-            "M1": timedelta(minutes=1),
-            "M5": timedelta(minutes=5),
-            "M15": timedelta(minutes=15),
-            "H1": timedelta(hours=1),
-            "H4": timedelta(hours=4),
-            "Daily": timedelta(days=1)
+            "Tick": timedelta(seconds=1)
         }
+        for tf, info in SUPPORTED_TIMEFRAMES.items():
+            self._timeframe_durations[tf] = timedelta(minutes=info["minutes"])
+            if tf == "D1":
+                self._timeframe_durations["Daily"] = timedelta(days=1)
 
     def ingest_raw_candles(self, timeframe: str, candles: List[Dict[str, Any]]) -> List[MarketObservation]:
         """
