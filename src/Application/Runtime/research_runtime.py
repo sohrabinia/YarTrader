@@ -138,7 +138,8 @@ class ResearchRuntime:
                     confidence=confidence,
                     reason=reason_text,
                     evidence=evidence_payload,
-                    symbol=self._symbol
+                    symbol=self._symbol,
+                    timeframe=self._timeframe
                 )
             except Exception as se:
                 self._log_evidence(f"Shadow Trading update skipped or errored: {str(se)}")
@@ -192,17 +193,22 @@ class ResearchRuntime:
         os.makedirs(snapshot_dir, exist_ok=True)
 
         report_id = result.Findings.get("report_id", f"snapshot_{int(time.time())}")
-        filename = f"{report_id}.json"
+        filename = f"rpt-{self._symbol}-{self._timeframe}-{report_id}.json"
         filepath = os.path.join(snapshot_dir, filename)
 
         # Build serializable dict
         snapshot_data = {
             "report_id": report_id,
             "asset": result.Request.Asset,
-            "timeframe": result.Request.Context.get("timeframe", "H1"),
+            "symbol": result.Request.Asset,
+            "timeframe": result.Request.Context.get("timeframe", self._timeframe),
+            "timestamp": result.CreatedAt.isoformat(),
             "confidence_score": result.ConfidenceScore,
             "created_at": result.CreatedAt.isoformat(),
-            "findings": result.Findings
+            "findings": result.Findings,
+            "features": result.Findings.get("feature_set", {}),
+            "research_result": result.Findings,
+            "intelligence_result": result.Findings.get("pipeline_outputs", {}).get("smart_interpretation", {})
         }
 
         # Thread-safe write using temp file renaming pattern

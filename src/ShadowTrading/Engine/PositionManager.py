@@ -24,7 +24,8 @@ class PositionManager:
         take_profit: Optional[float] = None,
         reason: str = "",
         confidence: float = 0.0,
-        evidence: Optional[dict] = None
+        evidence: Optional[dict] = None,
+        timeframe: str = "H1"
     ) -> VirtualPosition:
         """Instantiates and registers a new virtual position."""
         pos = VirtualPosition(
@@ -36,10 +37,11 @@ class PositionManager:
             take_profit=take_profit,
             reason=reason,
             confidence=confidence,
-            evidence=evidence
+            evidence=evidence,
+            timeframe=timeframe
         )
         self.account.add_position(pos)
-        logger.info(f"Opened virtual position: {pos.position_id} {pos.direction} {pos.symbol} @ {pos.entry_price}")
+        logger.info(f"Opened virtual position: {pos.position_id} {pos.direction} {pos.symbol} on {pos.timeframe} @ {pos.entry_price}")
         return pos
 
     def update_prices_and_evaluate(self, symbol: str, current_price: float) -> List[VirtualPosition]:

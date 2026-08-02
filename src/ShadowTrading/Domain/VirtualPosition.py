@@ -20,10 +20,12 @@ class VirtualPosition:
         confidence: float = 0.0,
         evidence: Optional[Dict[str, Any]] = None,
         position_id: Optional[str] = None,
-        open_time: Optional[datetime] = None
+        open_time: Optional[datetime] = None,
+        timeframe: str = "H1"
     ) -> None:
         self.position_id = position_id or f"vpos-{uuid.uuid4().hex[:8]}"
         self.symbol = symbol
+        self.timeframe = timeframe.upper()
         self.direction = direction.upper()  # BUY or SELL
         self.entry_price = float(entry_price)
         self.current_price = float(entry_price)
@@ -114,6 +116,7 @@ class VirtualPosition:
         return {
             "position_id": self.position_id,
             "symbol": self.symbol,
+            "timeframe": self.timeframe,
             "direction": self.direction,
             "entry_price": self.entry_price,
             "current_price": self.current_price,
