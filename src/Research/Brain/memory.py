@@ -1,6 +1,7 @@
 import os
 import json
 import threading
+import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from src.Research.Brain.models import MarketEvent, PatternMemory, ExperienceMemory, ConceptMemory
@@ -110,6 +111,49 @@ class MarketMemorySystem:
             self._save_layer("experiences")
             return True
 
+    def promote_raw_events_to_experiences(self, symbol: str, timeframe: str) -> List[ExperienceMemory]:
+        """
+        LAYER 1 -> LAYER 2 PROMOTION
+        Processes raw MarketEvent entries from Event Memory and promotes them to ExperienceMemory.
+        """
+        promoted_exps: List[ExperienceMemory] = []
+        with self._lock:
+            unpromoted_events = [
+                e for e in self.events
+                if e.symbol == symbol and e.timeframe == timeframe and not e.meta.get("is_promoted_to_experience")
+            ]
+
+        for evt in unpromoted_events:
+            # Formulate a situation signature based on price change and duration
+            signature = [evt.price_change, float(evt.duration_candles), evt.reaction_magnitude]
+            exp_id = f"exp-{uuid.uuid4().hex[:8]}"
+
+            exp = ExperienceMemory(
+                experience_id=exp_id,
+                symbol=evt.symbol,
+                timeframe=evt.timeframe,
+                timestamp=evt.end_time,
+                situation_signature=signature,
+                decision_action="BUY" if evt.price_change > 0 else "SELL",
+                outcome_result="SUCCESS" if evt.reaction_type == "extension" else "FAILURE",
+                lesson_feedback=f"Promoted from raw event with reaction: {evt.reaction_type}",
+                max_favorable_excursion=abs(evt.price_change),
+                max_adverse_excursion=-abs(evt.reaction_magnitude),
+                meta={"raw_event_start": evt.start_time.isoformat()}
+            )
+
+            # Link/mark the raw event as promoted
+            evt.meta["is_promoted_to_experience"] = True
+            evt.meta["promoted_experience_id"] = exp_id
+
+            self.add_experience(exp)
+            promoted_exps.append(exp)
+
+        if promoted_exps:
+            with self._lock:
+                self._save_layer("events")
+        return promoted_exps
+
     def calculate_experience_weight(
         self,
         exp_id: str,
@@ -156,14 +200,17 @@ class MarketMemorySystem:
 
     def promote_experiences_to_patterns(self) -> List[PatternMemory]:
         """
-        Promotes validated experiences to Pattern Memory.
-        Groups similar experiences and creates/updates Pattern Memory.
+        LAYER 2 -> LAYER 3 PROMOTION
+        Promotes validated and high-quality experiences to Pattern Memory.
+        Filters out low-quality or lucky decisions, and factors in confidence decay.
         """
         promoted_patterns: List[PatternMemory] = []
         with self._lock:
+            # Filter validated or resolved experiences, and skip those flagged by Judge as Lucky Wins
             validated_exps = [
                 exp for exp in self.experiences.values()
-                if exp.meta.get("is_validated") is True or exp.outcome_result in ["SUCCESS", "FAILURE"]
+                if (exp.meta.get("is_validated") is True or exp.outcome_result in ["SUCCESS", "FAILURE"])
+                and not exp.meta.get("is_lucky_win", False)
             ]
 
         for exp in validated_exps:
@@ -191,6 +238,11 @@ class MarketMemorySystem:
 
             is_success = exp.outcome_result == "SUCCESS"
 
+            # Factor in confidence decay & Judge scores at promotion
+            decay_weight = self.calculate_experience_weight(exp.experience_id, datetime.now(), sig)
+            judge_score = exp.meta.get("judge_reasoning_score", 1.0)
+            adjusted_confidence = decay_weight * judge_score
+
             if matched_pattern and best_similarity >= 0.85:
                 # Update pattern
                 with self._lock:
@@ -199,17 +251,18 @@ class MarketMemorySystem:
                         matched_pattern.continuation_count += 1
                     else:
                         matched_pattern.reversal_count += 1
-                    # Append outcome detail
+                    # Append outcome detail linked with adjusted confidence and judge accuracy metrics
                     matched_pattern.outcomes.append({
                         "experience_id": exp.experience_id,
                         "timestamp": exp.timestamp.isoformat(),
-                        "outcome": exp.outcome_result
+                        "outcome": exp.outcome_result,
+                        "adjusted_confidence": round(adjusted_confidence, 4),
+                        "judge_vetted_accuracy": exp.meta.get("judge_accuracy", 1.0)
                     })
                     self._save_layer("patterns")
                     promoted_patterns.append(matched_pattern)
             else:
-                # Create a new pattern
-                import uuid
+                # Create a new pattern with occurrences count and linked metrics
                 pid = f"pat-{uuid.uuid4().hex[:8]}"
                 new_pat = PatternMemory(
                     pattern_id=pid,
@@ -220,7 +273,9 @@ class MarketMemorySystem:
                     outcomes=[{
                         "experience_id": exp.experience_id,
                         "timestamp": exp.timestamp.isoformat(),
-                        "outcome": exp.outcome_result
+                        "outcome": exp.outcome_result,
+                        "adjusted_confidence": round(adjusted_confidence, 4),
+                        "judge_vetted_accuracy": exp.meta.get("judge_accuracy", 1.0)
                     }],
                     created_at=datetime.now()
                 )
@@ -237,12 +292,12 @@ class MarketMemorySystem:
         min_validation_score: float = 0.75
     ) -> List[ConceptMemory]:
         """
+        LAYER 3 -> LAYER 4 PROMOTION
         Scans Pattern Memory and consolidates structures with sufficient occurrences and consistency
-        into Concept Memory records. Enforces Judge validation score thresholds.
+        into Concept Memory records. Enforces Judge validation score thresholds and Judge-vetted accuracy.
         """
         consolidated: List[ConceptMemory] = []
 
-        # Acquire lock to read patterns and write concepts
         with self._lock:
             for pid, pat in list(self.patterns.items()):
                 total = pat.occurrences_count
@@ -251,10 +306,13 @@ class MarketMemorySystem:
                     max_flow = max(pat.continuation_count, pat.reversal_count)
                     consistency = max_flow / total if total > 0 else 0.0
 
-                    if consistency >= min_validation_score:
-                        # Promoting pattern to concept
+                    # Calculate average Judge-vetted accuracy across outcomes
+                    vetted_accuracies = [out.get("judge_vetted_accuracy", 1.0) for out in pat.outcomes]
+                    avg_vetted_accuracy = sum(vetted_accuracies) / len(vetted_accuracies) if vetted_accuracies else 1.0
+
+                    # Standardize promotion: Enforce Judge-vetted accuracy must be high
+                    if consistency >= min_validation_score and avg_vetted_accuracy >= 0.60:
                         cid = f"con-{pid}"
-                        # Check if already approved concept exists
                         concept = self.concepts.get(cid)
                         if not concept:
                             concept = ConceptMemory(
@@ -262,13 +320,14 @@ class MarketMemorySystem:
                                 name=f"Consolidated Pattern {pid[:6]}",
                                 sequence_signature=pat.sequence_signature,
                                 sample_count=total,
-                                validation_score=round(consistency, 4),
+                                validation_score=round(consistency * avg_vetted_accuracy, 4),
                                 is_approved=True,
                                 created_at=datetime.now(),
                                 meta={
                                     "original_pattern_id": pid,
                                     "continuation_count": pat.continuation_count,
-                                    "reversal_count": pat.reversal_count
+                                    "reversal_count": pat.reversal_count,
+                                    "avg_vetted_accuracy": avg_vetted_accuracy
                                 }
                             )
                             self.concepts[cid] = concept
@@ -280,13 +339,14 @@ class MarketMemorySystem:
                                 name=concept.name,
                                 sequence_signature=pat.sequence_signature,
                                 sample_count=total,
-                                validation_score=round(consistency, 4),
+                                validation_score=round(consistency * avg_vetted_accuracy, 4),
                                 is_approved=True,
                                 created_at=concept.created_at,
                                 meta={
                                     "original_pattern_id": pid,
                                     "continuation_count": pat.continuation_count,
-                                    "reversal_count": pat.reversal_count
+                                    "reversal_count": pat.reversal_count,
+                                    "avg_vetted_accuracy": avg_vetted_accuracy
                                 }
                             )
 

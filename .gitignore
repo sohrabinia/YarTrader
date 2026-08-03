@@ -83,6 +83,11 @@ dmypy.json
 
 runtime_logs/
 
+<<<<<<< HEAD
+# Project logs, snapshots, and reports
+logs/
+*.log
+=======
 test_runtime_logs/
 
 test_timeframe_logs/
@@ -93,6 +98,7 @@ history/
 
 *.log
 
+>>>>>>> origin/main
 uvicorn.log
 
 
@@ -156,6 +162,12 @@ TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt
 
 *.pem
 
+<<<<<<< HEAD
+# Runtime and test execution isolation
+runtime_logs/
+test_timeframe_logs/
+TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt
+=======
 *.crt
 
 secrets/
@@ -209,3 +221,4 @@ models/cache/
 .cursor/
 
 .claude/
+>>>>>>> origin/main

@@ -12,6 +12,9 @@ class SimulatedDecision:
     context: Dict[str, Any] = field(default_factory=dict)
     evidence: Dict[str, Any] = field(default_factory=dict)
     reason: str = ""
+    confidence: float = 0.0
+    risk_assessment: Dict[str, Any] = field(default_factory=dict)
+    unknown_factors: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -21,7 +24,10 @@ class SimulatedDecision:
             "decision_action": self.decision_action,
             "context": self.context,
             "evidence": self.evidence,
-            "reason": self.reason
+            "reason": self.reason,
+            "confidence": self.confidence,
+            "risk_assessment": self.risk_assessment,
+            "unknown_factors": self.unknown_factors
         }
 
     @classmethod
@@ -33,7 +39,10 @@ class SimulatedDecision:
             decision_action=data["decision_action"],
             context=data.get("context", {}),
             evidence=data.get("evidence", {}),
-            reason=data.get("reason", "")
+            reason=data.get("reason", ""),
+            confidence=float(data.get("confidence", 0.0)),
+            risk_assessment=data.get("risk_assessment", {}),
+            unknown_factors=data.get("unknown_factors", [])
         )
 
 
