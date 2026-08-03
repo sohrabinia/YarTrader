@@ -1,7 +1,7 @@
 [
     {
-        "signal_id": "sig-ea6f8e",
-        "shadow_trade_id": "strade-ea6f8e",
+        "signal_id": "sig-e7b34c",
+        "shadow_trade_id": "strade-e7b34c",
         "symbol": "BTCUSD",
         "direction": "LONG",
         "entry_zone": 60000.0,
@@ -10,6 +10,6 @@
         "confidence": 80.0,
         "reason": "Market Structure Expansion",
         "status": "ACTIVE",
-        "timestamp": "2026-08-03T06:22:57.307829"
+        "timestamp": "2026-08-03T07:16:32.296304"
     }
 ]
