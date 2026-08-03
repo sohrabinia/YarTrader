@@ -1,28 +1,28 @@
 {
-    "report_id": "rpt-XAUUSD-395a549e",
+    "report_id": "rpt-XAUUSD-0d892d5e",
     "asset": "XAUUSD",
     "symbol": "XAUUSD",
-    "timeframe": "H4",
+    "timeframe": "M5",
     "asset_class": "Forex",
     "provider": "MT5",
     "candle_count": 500,
-    "timestamp": "2026-08-03T12:31:22.776203",
-    "confidence_score": 0.62,
-    "created_at": "2026-08-03T12:31:22.776203",
+    "timestamp": "2026-08-03T16:31:23.590537",
+    "confidence_score": 0.77,
+    "created_at": "2026-08-03T16:31:23.590537",
     "findings": {
         "asset_id": "XAUUSD",
-        "period_start": "2026-06-12T12:31:22.761529",
-        "period_end": "2026-08-03T12:31:22.761536",
-        "report_id": "rpt-XAUUSD-395a549e",
+        "period_start": "2026-08-01T16:31:23.577158",
+        "period_end": "2026-08-03T16:31:23.577163",
+        "report_id": "rpt-XAUUSD-0d892d5e",
         "observations_count": 1,
         "patterns_count": 1,
         "insights_count": 1,
         "observations": [
             {
-                "timestamp": "2026-06-12T14:46:22",
+                "timestamp": "2026-08-02T07:16:23",
                 "observations": {
                     "condition": "Range Compression State",
-                    "volatility_value": 1.3417127927002235e-09,
+                    "volatility_value": 5.140496492952126e-07,
                     "description": "Asset XAUUSD exhibits range compression with low volatility of 0.00%"
                 },
                 "source": "ObservationAnalyzer"
@@ -33,7 +33,7 @@
                 "name": "Mean Reversion Structural Pattern",
                 "description": "Sustained range compression with low volatility typically precedes standard mean reversion behavior.",
                 "confidence": 0.75,
-                "timestamp": "2026-08-03T12:31:22.776064",
+                "timestamp": "2026-08-03T16:31:23.590419",
                 "matched_features": [
                     "rolling_volatility",
                     "volatility_state"
@@ -45,49 +45,49 @@
                 "category": "MarketRegime",
                 "description": "Descriptive Insight: Sustained range compression with low volatility typically precedes standard mean reversion behavior.",
                 "confidence": 0.75,
-                "created_at": "2026-08-03T12:31:22.776075"
+                "created_at": "2026-08-03T16:31:23.590429"
             }
         ],
-        "generated_at": "2026-08-03T12:31:22.776091",
+        "generated_at": "2026-08-03T16:31:23.590445",
         "status": "completed",
         "feature_set": {
             "asset_id": "XAUUSD",
-            "start_time": "2026-06-12T12:31:22",
-            "end_time": "2026-06-12T14:46:22",
+            "start_time": "2026-08-01T16:31:23",
+            "end_time": "2026-08-02T07:16:23",
             "features_count": 11
         },
         "observation_summary": {
-            "price_change": 0.08999999999991815,
-            "percentage_return": 4.999972222371995e-05,
-            "price_range": 0.11999999999989086,
-            "rolling_volatility": 1.3417127927002235e-09,
-            "range_expansion": 1.0,
+            "price_change": 5.900000000000091,
+            "percentage_return": 0.0025651058649624327,
+            "price_range": 6.199999999999818,
+            "rolling_volatility": 5.140496492952126e-07,
+            "range_expansion": 0.9999999999990905,
             "volatility_state": "low",
             "directional_movement": 1.0,
             "trend_strength_classification": "neutral",
-            "mean": 1800.0549999999998,
-            "standard_deviation": 0.03027650354094738,
-            "skewness": 1.0138365756154505e-11
+            "mean": 2303.05,
+            "standard_deviation": 1.7464249196573034,
+            "skewness": -3.077678925495556e-13
         },
         "pipeline_outputs": {
             "technical_analysis": {
-                "sma_20": 1800.0549999999998,
-                "sma_50": 1800.0549999999998,
-                "ema_12": 1800.0549999999998,
-                "ema_26": 1800.0549999999998,
-                "macd": 0.0,
-                "macd_signal": 0.0,
-                "macd_histogram": 0.0,
-                "rsi": 50.0,
-                "atr": 0.029999999999972715,
-                "support": 1799.99,
-                "resistance": 1800.11,
-                "mean": 1800.0549999999998,
-                "std_dev": 0.02872281323266402,
-                "upper_band": 1800.1124456264652,
-                "lower_band": 1799.9975543735345,
-                "highest_high": 1800.11,
-                "lowest_low": 1799.99
+                "sma_20": 2305.05,
+                "sma_50": 2303.55,
+                "ema_12": 2305.4499999999994,
+                "ema_26": 2304.749999999998,
+                "macd": 0.7000000000011823,
+                "macd_signal": 0.6998060962032133,
+                "macd_histogram": 0.00019390379796901946,
+                "rsi": 100.0,
+                "atr": 0.3000000000000195,
+                "support": 2303.9,
+                "resistance": 2306.1,
+                "mean": 2303.05,
+                "std_dev": 1.7318102282486625,
+                "upper_band": 2306.5136204564974,
+                "lower_band": 2299.586379543503,
+                "highest_high": 2306.1,
+                "lowest_low": 2299.9
             },
             "trend_analysis": {
                 "direction": 1.0,
@@ -96,13 +96,13 @@
                 "is_trending": false
             },
             "volatility_analysis": {
-                "rolling_volatility": 1.3417127927002235e-09,
+                "rolling_volatility": 5.140496492952126e-07,
                 "volatility_state": "low",
-                "range_expansion": 1.0
+                "range_expansion": 0.9999999999990905
             },
             "momentum_analysis": {
-                "rate_of_change_pct": 0.004999972222371995,
-                "price_velocity": 0.008999999999991815,
+                "rate_of_change_pct": 0.25651058649624325,
+                "price_velocity": 0.09833333333333485,
                 "momentum_state": "Neutral"
             },
             "market_regime": {
@@ -110,29 +110,29 @@
                 "explanation": "Low volatility and range compression indicate standard mean-reverting behavior.",
                 "vol_state": "low",
                 "trend_strength": "neutral",
-                "range_expansion": 1.0
+                "range_expansion": 0.9999999999990905
             },
             "smart_interpretation": {
                 "bias": "Bullish",
-                "confidence": 62,
+                "confidence": 77,
                 "reasoning": [
                     "Price is trading above the SMA20 short-term trend line.",
-                    "RSI is in bearish territory (<50) with active selling pressure.",
-                    "MACD histogram remains below zero, confirming downward momentum.",
+                    "RSI is overbought (>70), suggesting potential short-term exhaustion.",
+                    "MACD histogram remains above zero, confirming upward momentum.",
                     "Trend direction classification indicates sustained bullish flow."
                 ]
             }
         },
         "newborn_brain_report": {
-            "report_id": "rpt-brain-1eb565fb",
+            "report_id": "rpt-brain-272aedcd",
             "symbol": "XAUUSD",
-            "timestamp": "2026-08-03T12:31:22.776036",
+            "timestamp": "2026-08-03T16:31:23.590399",
             "latest_observations": [
                 {
-                    "timestamp": "2026-06-12T14:46:22",
-                    "close": 1800.1,
-                    "high": 1800.11,
-                    "low": 1800.08
+                    "timestamp": "2026-08-02T07:16:23",
+                    "close": 2306.0,
+                    "high": 2306.1,
+                    "low": 2305.8
                 }
             ],
             "active_hypotheses": [
@@ -150,24 +150,24 @@
     },
     "features": {
         "asset_id": "XAUUSD",
-        "start_time": "2026-06-12T12:31:22",
-        "end_time": "2026-06-12T14:46:22",
+        "start_time": "2026-08-01T16:31:23",
+        "end_time": "2026-08-02T07:16:23",
         "features_count": 11
     },
     "research_result": {
         "asset_id": "XAUUSD",
-        "period_start": "2026-06-12T12:31:22.761529",
-        "period_end": "2026-08-03T12:31:22.761536",
-        "report_id": "rpt-XAUUSD-395a549e",
+        "period_start": "2026-08-01T16:31:23.577158",
+        "period_end": "2026-08-03T16:31:23.577163",
+        "report_id": "rpt-XAUUSD-0d892d5e",
         "observations_count": 1,
         "patterns_count": 1,
         "insights_count": 1,
         "observations": [
             {
-                "timestamp": "2026-06-12T14:46:22",
+                "timestamp": "2026-08-02T07:16:23",
                 "observations": {
                     "condition": "Range Compression State",
-                    "volatility_value": 1.3417127927002235e-09,
+                    "volatility_value": 5.140496492952126e-07,
                     "description": "Asset XAUUSD exhibits range compression with low volatility of 0.00%"
                 },
                 "source": "ObservationAnalyzer"
@@ -178,7 +178,7 @@
                 "name": "Mean Reversion Structural Pattern",
                 "description": "Sustained range compression with low volatility typically precedes standard mean reversion behavior.",
                 "confidence": 0.75,
-                "timestamp": "2026-08-03T12:31:22.776064",
+                "timestamp": "2026-08-03T16:31:23.590419",
                 "matched_features": [
                     "rolling_volatility",
                     "volatility_state"
@@ -190,49 +190,49 @@
                 "category": "MarketRegime",
                 "description": "Descriptive Insight: Sustained range compression with low volatility typically precedes standard mean reversion behavior.",
                 "confidence": 0.75,
-                "created_at": "2026-08-03T12:31:22.776075"
+                "created_at": "2026-08-03T16:31:23.590429"
             }
         ],
-        "generated_at": "2026-08-03T12:31:22.776091",
+        "generated_at": "2026-08-03T16:31:23.590445",
         "status": "completed",
         "feature_set": {
             "asset_id": "XAUUSD",
-            "start_time": "2026-06-12T12:31:22",
-            "end_time": "2026-06-12T14:46:22",
+            "start_time": "2026-08-01T16:31:23",
+            "end_time": "2026-08-02T07:16:23",
             "features_count": 11
         },
         "observation_summary": {
-            "price_change": 0.08999999999991815,
-            "percentage_return": 4.999972222371995e-05,
-            "price_range": 0.11999999999989086,
-            "rolling_volatility": 1.3417127927002235e-09,
-            "range_expansion": 1.0,
+            "price_change": 5.900000000000091,
+            "percentage_return": 0.0025651058649624327,
+            "price_range": 6.199999999999818,
+            "rolling_volatility": 5.140496492952126e-07,
+            "range_expansion": 0.9999999999990905,
             "volatility_state": "low",
             "directional_movement": 1.0,
             "trend_strength_classification": "neutral",
-            "mean": 1800.0549999999998,
-            "standard_deviation": 0.03027650354094738,
-            "skewness": 1.0138365756154505e-11
+            "mean": 2303.05,
+            "standard_deviation": 1.7464249196573034,
+            "skewness": -3.077678925495556e-13
         },
         "pipeline_outputs": {
             "technical_analysis": {
-                "sma_20": 1800.0549999999998,
-                "sma_50": 1800.0549999999998,
-                "ema_12": 1800.0549999999998,
-                "ema_26": 1800.0549999999998,
-                "macd": 0.0,
-                "macd_signal": 0.0,
-                "macd_histogram": 0.0,
-                "rsi": 50.0,
-                "atr": 0.029999999999972715,
-                "support": 1799.99,
-                "resistance": 1800.11,
-                "mean": 1800.0549999999998,
-                "std_dev": 0.02872281323266402,
-                "upper_band": 1800.1124456264652,
-                "lower_band": 1799.9975543735345,
-                "highest_high": 1800.11,
-                "lowest_low": 1799.99
+                "sma_20": 2305.05,
+                "sma_50": 2303.55,
+                "ema_12": 2305.4499999999994,
+                "ema_26": 2304.749999999998,
+                "macd": 0.7000000000011823,
+                "macd_signal": 0.6998060962032133,
+                "macd_histogram": 0.00019390379796901946,
+                "rsi": 100.0,
+                "atr": 0.3000000000000195,
+                "support": 2303.9,
+                "resistance": 2306.1,
+                "mean": 2303.05,
+                "std_dev": 1.7318102282486625,
+                "upper_band": 2306.5136204564974,
+                "lower_band": 2299.586379543503,
+                "highest_high": 2306.1,
+                "lowest_low": 2299.9
             },
             "trend_analysis": {
                 "direction": 1.0,
@@ -241,13 +241,13 @@
                 "is_trending": false
             },
             "volatility_analysis": {
-                "rolling_volatility": 1.3417127927002235e-09,
+                "rolling_volatility": 5.140496492952126e-07,
                 "volatility_state": "low",
-                "range_expansion": 1.0
+                "range_expansion": 0.9999999999990905
             },
             "momentum_analysis": {
-                "rate_of_change_pct": 0.004999972222371995,
-                "price_velocity": 0.008999999999991815,
+                "rate_of_change_pct": 0.25651058649624325,
+                "price_velocity": 0.09833333333333485,
                 "momentum_state": "Neutral"
             },
             "market_regime": {
@@ -255,29 +255,29 @@
                 "explanation": "Low volatility and range compression indicate standard mean-reverting behavior.",
                 "vol_state": "low",
                 "trend_strength": "neutral",
-                "range_expansion": 1.0
+                "range_expansion": 0.9999999999990905
             },
             "smart_interpretation": {
                 "bias": "Bullish",
-                "confidence": 62,
+                "confidence": 77,
                 "reasoning": [
                     "Price is trading above the SMA20 short-term trend line.",
-                    "RSI is in bearish territory (<50) with active selling pressure.",
-                    "MACD histogram remains below zero, confirming downward momentum.",
+                    "RSI is overbought (>70), suggesting potential short-term exhaustion.",
+                    "MACD histogram remains above zero, confirming upward momentum.",
                     "Trend direction classification indicates sustained bullish flow."
                 ]
             }
         },
         "newborn_brain_report": {
-            "report_id": "rpt-brain-1eb565fb",
+            "report_id": "rpt-brain-272aedcd",
             "symbol": "XAUUSD",
-            "timestamp": "2026-08-03T12:31:22.776036",
+            "timestamp": "2026-08-03T16:31:23.590399",
             "latest_observations": [
                 {
-                    "timestamp": "2026-06-12T14:46:22",
-                    "close": 1800.1,
-                    "high": 1800.11,
-                    "low": 1800.08
+                    "timestamp": "2026-08-02T07:16:23",
+                    "close": 2306.0,
+                    "high": 2306.1,
+                    "low": 2305.8
                 }
             ],
             "active_hypotheses": [
@@ -295,11 +295,11 @@
     },
     "intelligence_result": {
         "bias": "Bullish",
-        "confidence": 62,
+        "confidence": 77,
         "reasoning": [
             "Price is trading above the SMA20 short-term trend line.",
-            "RSI is in bearish territory (<50) with active selling pressure.",
-            "MACD histogram remains below zero, confirming downward momentum.",
+            "RSI is overbought (>70), suggesting potential short-term exhaustion.",
+            "MACD histogram remains above zero, confirming upward momentum.",
             "Trend direction classification indicates sustained bullish flow."
         ]
     }
