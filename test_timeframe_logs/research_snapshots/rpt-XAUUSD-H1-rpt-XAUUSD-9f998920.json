@@ -1,25 +1,25 @@
 {
-    "report_id": "rpt-XAUUSD-1ed60233",
+    "report_id": "rpt-XAUUSD-9f998920",
     "asset": "XAUUSD",
     "symbol": "XAUUSD",
-    "timeframe": "D1",
+    "timeframe": "H1",
     "asset_class": "Forex",
     "provider": "MT5",
     "candle_count": 500,
-    "timestamp": "2026-08-02T19:18:49.210771",
+    "timestamp": "2026-08-03T12:31:22.754865",
     "confidence_score": 0.62,
-    "created_at": "2026-08-02T19:18:49.210771",
+    "created_at": "2026-08-03T12:31:22.754865",
     "findings": {
         "asset_id": "XAUUSD",
-        "period_start": "2026-01-09T19:18:49.205054",
-        "period_end": "2026-08-02T19:18:49.205059",
-        "report_id": "rpt-XAUUSD-1ed60233",
+        "period_start": "2026-07-12T12:31:22.739489",
+        "period_end": "2026-08-03T12:31:22.743558",
+        "report_id": "rpt-XAUUSD-9f998920",
         "observations_count": 1,
         "patterns_count": 1,
         "insights_count": 1,
         "observations": [
             {
-                "timestamp": "2026-01-09T21:33:49",
+                "timestamp": "2026-07-12T14:46:22",
                 "observations": {
                     "condition": "Range Compression State",
                     "volatility_value": 1.3417127927002235e-09,
@@ -33,7 +33,7 @@
                 "name": "Mean Reversion Structural Pattern",
                 "description": "Sustained range compression with low volatility typically precedes standard mean reversion behavior.",
                 "confidence": 0.75,
-                "timestamp": "2026-08-02T19:18:49.210669",
+                "timestamp": "2026-08-03T12:31:22.754735",
                 "matched_features": [
                     "rolling_volatility",
                     "volatility_state"
@@ -45,15 +45,15 @@
                 "category": "MarketRegime",
                 "description": "Descriptive Insight: Sustained range compression with low volatility typically precedes standard mean reversion behavior.",
                 "confidence": 0.75,
-                "created_at": "2026-08-02T19:18:49.210676"
+                "created_at": "2026-08-03T12:31:22.754746"
             }
         ],
-        "generated_at": "2026-08-02T19:18:49.210690",
+        "generated_at": "2026-08-03T12:31:22.754762",
         "status": "completed",
         "feature_set": {
             "asset_id": "XAUUSD",
-            "start_time": "2026-01-09T19:18:49",
-            "end_time": "2026-01-09T21:33:49",
+            "start_time": "2026-07-12T12:31:22",
+            "end_time": "2026-07-12T14:46:22",
             "features_count": 11
         },
         "observation_summary": {
@@ -124,12 +124,12 @@
             }
         },
         "newborn_brain_report": {
-            "report_id": "rpt-brain-8f6d9a0f",
+            "report_id": "rpt-brain-08b9036c",
             "symbol": "XAUUSD",
-            "timestamp": "2026-08-02T19:18:49.210651",
+            "timestamp": "2026-08-03T12:31:22.754709",
             "latest_observations": [
                 {
-                    "timestamp": "2026-01-09T21:33:49",
+                    "timestamp": "2026-07-12T14:46:22",
                     "close": 1800.1,
                     "high": 1800.11,
                     "low": 1800.08
@@ -150,21 +150,21 @@
     },
     "features": {
         "asset_id": "XAUUSD",
-        "start_time": "2026-01-09T19:18:49",
-        "end_time": "2026-01-09T21:33:49",
+        "start_time": "2026-07-12T12:31:22",
+        "end_time": "2026-07-12T14:46:22",
         "features_count": 11
     },
     "research_result": {
         "asset_id": "XAUUSD",
-        "period_start": "2026-01-09T19:18:49.205054",
-        "period_end": "2026-08-02T19:18:49.205059",
-        "report_id": "rpt-XAUUSD-1ed60233",
+        "period_start": "2026-07-12T12:31:22.739489",
+        "period_end": "2026-08-03T12:31:22.743558",
+        "report_id": "rpt-XAUUSD-9f998920",
         "observations_count": 1,
         "patterns_count": 1,
         "insights_count": 1,
         "observations": [
             {
-                "timestamp": "2026-01-09T21:33:49",
+                "timestamp": "2026-07-12T14:46:22",
                 "observations": {
                     "condition": "Range Compression State",
                     "volatility_value": 1.3417127927002235e-09,
@@ -178,7 +178,7 @@
                 "name": "Mean Reversion Structural Pattern",
                 "description": "Sustained range compression with low volatility typically precedes standard mean reversion behavior.",
                 "confidence": 0.75,
-                "timestamp": "2026-08-02T19:18:49.210669",
+                "timestamp": "2026-08-03T12:31:22.754735",
                 "matched_features": [
                     "rolling_volatility",
                     "volatility_state"
@@ -190,15 +190,15 @@
                 "category": "MarketRegime",
                 "description": "Descriptive Insight: Sustained range compression with low volatility typically precedes standard mean reversion behavior.",
                 "confidence": 0.75,
-                "created_at": "2026-08-02T19:18:49.210676"
+                "created_at": "2026-08-03T12:31:22.754746"
             }
         ],
-        "generated_at": "2026-08-02T19:18:49.210690",
+        "generated_at": "2026-08-03T12:31:22.754762",
         "status": "completed",
         "feature_set": {
             "asset_id": "XAUUSD",
-            "start_time": "2026-01-09T19:18:49",
-            "end_time": "2026-01-09T21:33:49",
+            "start_time": "2026-07-12T12:31:22",
+            "end_time": "2026-07-12T14:46:22",
             "features_count": 11
         },
         "observation_summary": {
@@ -269,12 +269,12 @@
             }
         },
         "newborn_brain_report": {
-            "report_id": "rpt-brain-8f6d9a0f",
+            "report_id": "rpt-brain-08b9036c",
             "symbol": "XAUUSD",
-            "timestamp": "2026-08-02T19:18:49.210651",
+            "timestamp": "2026-08-03T12:31:22.754709",
             "latest_observations": [
                 {
-                    "timestamp": "2026-01-09T21:33:49",
+                    "timestamp": "2026-07-12T14:46:22",
                     "close": 1800.1,
                     "high": 1800.11,
                     "low": 1800.08
