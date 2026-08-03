@@ -1,13 +1,31 @@
-# Byte-compiled / optimized / DLL files
+# ==========================================
+# Python Cache / Compiled Files
+# ==========================================
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
 
 # C extensions
 *.so
 
-# Distribution / packaging
-.Python
+
+# ==========================================
+# Python Environments
+# ==========================================
+.env
+.env.*
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+
+# ==========================================
+# Build / Distribution
+# ==========================================
 build/
 develop-eggs/
 dist/
@@ -18,7 +36,6 @@ lib/
 lib64/
 parts/
 sdist/
-var/
 wheels/
 share/python-wheels/
 *.egg-info/
@@ -26,50 +43,169 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+
+# ==========================================
 # PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+# ==========================================
 *.manifest
 *.spec
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
 
-# Unit test / coverage reports
+# ==========================================
+# Test / Coverage
+# ==========================================
+.pytest_cache/
+.coverage
+coverage.xml
 htmlcov/
 .tox/
-.nosenv/
-.pytest_cache/
+.nox/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-.node-repl_history
-.yarn-integrity
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
 
-# IDE files
+
+# ==========================================
+# IDE / Editor
+# ==========================================
 .vscode/
 .idea/
 *.swp
 *.swo
+.node-repl-history
+.yarn-integrity
 
-# Project logs, snapshots, and reports
-logs/
-*.log
-runtime_logs/*.log
-runtime_logs/research_snapshots/*.json
+
+# ==========================================
+# Runtime Generated Data
+# NEVER COMMIT
+# ==========================================
+
+runtime_logs/
+
 test_runtime_logs/
-history/*.json
+
+test_timeframe_logs/
+
+logs/
+
+history/
+
+*.log
+
 uvicorn.log
 
-# SRE Secrets Management & Git Isolation
+
+# ==========================================
+# Research Generated Snapshots
+# ==========================================
+
+research_snapshots/
+
+snapshots/
+
+*.snapshot.json
+
+
+# ==========================================
+# AI Memory Runtime Data
+# ==========================================
+
+brain_memory/
+
+experiences_memory.json
+
+learning_history.json
+
+pattern_outcomes.json
+
+shadow_trades.json
+
+signal_history.json
+
+
+# ==========================================
+# Temporary Files
+# ==========================================
+
+tmp/
+
+temp/
+
+*.tmp
+
+*.bak
+
+
+# ==========================================
+# Reports Generated During Runtime
+# ==========================================
+
+TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt
+
+
+# ==========================================
+# Secrets / Security
+# ==========================================
+
 .env.production
+
+.env.local
+
 *.key
+
 *.pem
+
+*.crt
+
+secrets/
+
+credentials/
+
+
+# ==========================================
+# OS Files
+# ==========================================
+
+.DS_Store
+
+Thumbs.db
+
+
+# ==========================================
+# Model / AI Cache
+# ==========================================
+
+models/cache/
+
+*.bin
+
+*.pt
+
+*.pth
+
+*.onnx
+
+
+# ==========================================
+# Database Local Files
+# ==========================================
+
+*.sqlite
+
+*.sqlite3
+
+*.db
+
+
+# ==========================================
+# Local Agent Runtime
+# ==========================================
+
+.agent/
+
+.jules/
+
+.cursor/
+
+.claude/
