@@ -1,10 +1,21 @@
 import sys
 from unittest.mock import MagicMock
 
+import os
+
 # Setup global mock for MetaTrader5 if not available, so that all tests can run and import it cleanly
-try:
-    import MetaTrader5
-except ImportError:
+FORCE_MOCK_MT5 = "pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("TRADEYAR_ENV") == "test"
+
+if FORCE_MOCK_MT5:
+    MT5_AVAILABLE = False
+else:
+    try:
+        import MetaTrader5
+        MT5_AVAILABLE = True
+    except ImportError:
+        MT5_AVAILABLE = False
+
+if not MT5_AVAILABLE:
     mock_mt5 = MagicMock()
     mock_mt5.initialize.return_value = True
 
