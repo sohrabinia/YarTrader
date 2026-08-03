@@ -7,11 +7,11 @@ This report documents the end-to-end execution validation trace over real histor
 ```
   Tick Stream (Compression)
          ↓
-   Base Creation (Compression State) [ID: Base-5e8ea94c]
+   Base Creation (Compression State) [ID: Base-32da81d4]
          ↓
    State Machine Progression [State: Break]
          ↓
-   Node Path Tracing [Path ID: Path-3d4f57a6]
+   Node Path Tracing [Path ID: Path-0ba8d626]
          ↓
    Pattern Similarity Matching [Similarity: 100.00%]
          ↓
@@ -36,7 +36,7 @@ This report documents the end-to-end execution validation trace over real histor
 - **Decision reasoning**: `London breakout with 100.0% pattern similarity. Base compression range 0.20 breached.`
 - **Decision Confidence**: `88.5%`
 - **Decision Risk score**: `1.8`
-- **Experience ID**: `exp-XAUUSD-58eaa6f2`
+- **Experience ID**: `exp-XAUUSD-2c77b3d1`
 - **Deduplication Validation**: `PASSED` (Identical experiences successfully ignored to prevent learning weight inflation)
 - **Memory Governance Update**: `SUCCESS`
 

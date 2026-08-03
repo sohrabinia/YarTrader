@@ -63,9 +63,9 @@ venv.bak/
 # Project logs, snapshots, and reports
 logs/
 *.log
-runtime_logs/*.log
-runtime_logs/research_snapshots/*.json
+runtime_logs/
 test_runtime_logs/
+test_timeframe_logs/
 history/*.json
 uvicorn.log
 

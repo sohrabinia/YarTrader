@@ -7867,26 +7867,24 @@
             "is_structural_failure": true
         }
     },
-    "exp-c95120d3": {
-        "experience_id": "exp-c95120d3",
+    "exp-XAUUSD-2c77b3d1": {
+        "experience_id": "exp-XAUUSD-2c77b3d1",
         "symbol": "XAUUSD",
         "timeframe": "H1",
-        "timestamp": "2026-08-03T16:31:23.365626",
+        "timestamp": "2026-01-01T12:00:10",
         "situation_signature": [
-            2000.0,
-            1995.0,
-            2010.0
+            1.0,
+            0.5,
+            -0.5,
+            1.0
         ],
         "decision_action": "BUY",
-        "outcome_result": "FAILURE",
-        "lesson_feedback": "Decision on XAUUSD to BUY at 2000.0 evaluated as Structural Error (Failure analyzed). MAM: -1500.00, MFM: 0.00.",
-        "max_favorable_excursion": 0.0,
-        "max_adverse_excursion": -1500.0,
+        "outcome_result": "SUCCESS",
+        "lesson_feedback": "Breakout of Base with NEUTRAL volume behavior was highly successful.",
+        "max_favorable_excursion": 25.0,
+        "max_adverse_excursion": -2.0,
         "meta": {
-            "position_id": "vpos-c95120d3",
-            "confidence": 72.0,
-            "is_lucky_win": false,
-            "is_structural_failure": true
+            "base_fingerprint": "4c45c01d21e37ee53cd268f4cc28e154626080074fad4d95cd3cb89a43c427fc"
         }
     }
 }
