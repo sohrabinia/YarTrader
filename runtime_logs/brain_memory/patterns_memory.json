@@ -1,0 +1,22 @@
+{
+    "pat-seeded-base-breakout-compression": {
+        "pattern_id": "pat-seeded-base-breakout-compression",
+        "sequence_signature": [
+            1.0,
+            0.5,
+            -0.5,
+            1.0
+        ],
+        "occurrences_count": 1,
+        "continuation_count": 1,
+        "reversal_count": 0,
+        "outcomes": [
+            {
+                "experience_id": "seed-exp",
+                "timestamp": "2026-08-03T15:12:30.670964",
+                "outcome": "SUCCESS"
+            }
+        ],
+        "created_at": "2026-08-03T15:12:30.670972"
+    }
+}

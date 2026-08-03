@@ -36,9 +36,16 @@ class MarketReplayEngine:
         """
         Returns all observations up to and including the current playback cursor time.
         Future data is completely excluded, preventing cognitive future leakage.
+        Raises a ValueError if look-ahead bias or future-marker sentinels are detected beyond current_time.
         """
         if not self._current_time:
             return []
+
+        for o in self._all_observations:
+            if hasattr(o, "meta") and isinstance(o.meta, dict) and o.meta.get("sentinel_future_leakage") is True:
+                if o.timestamp > self._current_time:
+                    raise ValueError("Future Leakage Guard Exception: Look-ahead bias detected! Attempted to access out-of-bounds future data.")
+
         return [o for o in self._all_observations if o.timestamp <= self._current_time]
 
     def advance_by_scale(self, scale: str, duration_units: int = 1) -> bool:

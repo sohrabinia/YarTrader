@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 @dataclass(frozen=True)
 class SimulatedDecision:
-    """An immutable, frozen representation of a simulated trading hypothesis decision."""
+    """An immutable, frozen representation of a simulated trading hypothesis decision with auditable evidence schema."""
     timestamp: datetime
     symbol: str
     price: float
@@ -12,6 +12,16 @@ class SimulatedDecision:
     context: Dict[str, Any] = field(default_factory=dict)
     evidence: Dict[str, Any] = field(default_factory=dict)
     reason: str = ""
+
+    # Auditable schema fields
+    decision_id: Optional[str] = None
+    market_state: Dict[str, Any] = field(default_factory=dict)
+    pattern_used: Optional[str] = None
+    reasoning: Optional[str] = None
+    confidence: float = 0.0
+    risk_score: float = 0.0
+    unknown_factors: Optional[str] = None
+    outcome: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -21,7 +31,15 @@ class SimulatedDecision:
             "decision_action": self.decision_action,
             "context": self.context,
             "evidence": self.evidence,
-            "reason": self.reason
+            "reason": self.reason,
+            "decision_id": self.decision_id or f"Dec-{self.symbol}-{self.timestamp.strftime('%Y%m%d%H%M%S')}",
+            "market_state": self.market_state,
+            "pattern_used": self.pattern_used,
+            "reasoning": self.reasoning or self.reason,
+            "confidence": self.confidence,
+            "risk_score": self.risk_score,
+            "unknown_factors": self.unknown_factors,
+            "outcome": self.outcome or "PENDING"
         }
 
     @classmethod
@@ -33,8 +51,137 @@ class SimulatedDecision:
             decision_action=data["decision_action"],
             context=data.get("context", {}),
             evidence=data.get("evidence", {}),
-            reason=data.get("reason", "")
+            reason=data.get("reason", ""),
+            decision_id=data.get("decision_id"),
+            market_state=data.get("market_state", {}),
+            pattern_used=data.get("pattern_used"),
+            reasoning=data.get("reasoning"),
+            confidence=float(data.get("confidence", 0.0)),
+            risk_score=float(data.get("risk_score", 0.0)),
+            unknown_factors=data.get("unknown_factors"),
+            outcome=data.get("outcome")
         )
+
+
+class PersistentDecisionStore:
+    """
+    SQLite-backed permanent storage of auditable SimulatedDecisions inside git-ignored runtime directory.
+    """
+    def __init__(self, db_path: Optional[str] = None) -> None:
+        import os
+        self.db_path = db_path or os.path.join("runtime_logs", "decisions_audit.db")
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        self._init_db()
+
+    def _init_db(self) -> None:
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS decisions (
+                decision_id TEXT PRIMARY KEY,
+                symbol TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                price REAL NOT NULL,
+                decision_action TEXT NOT NULL,
+                pattern_used TEXT,
+                reasoning TEXT,
+                confidence REAL,
+                risk_score REAL,
+                unknown_factors TEXT,
+                outcome TEXT,
+                context_json TEXT,
+                evidence_json TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+    def save_decision(self, decision: SimulatedDecision) -> None:
+        import json
+        import sqlite3
+        d = decision.to_dict()
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO decisions (
+                decision_id, symbol, timestamp, price, decision_action,
+                pattern_used, reasoning, confidence, risk_score,
+                unknown_factors, outcome, context_json, evidence_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            d["decision_id"],
+            d["symbol"],
+            d["timestamp"],
+            d["price"],
+            d["decision_action"],
+            d["pattern_used"],
+            d["reasoning"],
+            d["confidence"],
+            d["risk_score"],
+            d["unknown_factors"],
+            d["outcome"],
+            json.dumps(d["market_state"] or d["context"]),
+            json.dumps(d["evidence"])
+        ))
+        conn.commit()
+        conn.close()
+
+    def get_decision(self, decision_id: str) -> Optional[SimulatedDecision]:
+        import json
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM decisions WHERE decision_id = ?", (decision_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return None
+
+        return SimulatedDecision(
+            decision_id=row[0],
+            symbol=row[1],
+            timestamp=datetime.fromisoformat(row[2]),
+            price=row[3],
+            decision_action=row[4],
+            pattern_used=row[5],
+            reasoning=row[6],
+            confidence=row[7],
+            risk_score=row[8],
+            unknown_factors=row[9],
+            outcome=row[10],
+            market_state=json.loads(row[11]),
+            evidence=json.loads(row[12])
+        )
+
+    def list_decisions(self) -> List[SimulatedDecision]:
+        import json
+        import sqlite3
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM decisions")
+        rows = cursor.fetchall()
+        conn.close()
+
+        decisions = []
+        for row in rows:
+            decisions.append(SimulatedDecision(
+                decision_id=row[0],
+                symbol=row[1],
+                timestamp=datetime.fromisoformat(row[2]),
+                price=row[3],
+                decision_action=row[4],
+                pattern_used=row[5],
+                reasoning=row[6],
+                confidence=row[7],
+                risk_score=row[8],
+                unknown_factors=row[9],
+                outcome=row[10],
+                market_state=json.loads(row[11]),
+                evidence=json.loads(row[12])
+            ))
+        return decisions
 
 
 @dataclass

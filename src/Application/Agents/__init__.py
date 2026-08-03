@@ -11,6 +11,7 @@ from src.Application.Agents.concrete_agents import (
     LearningAgent
 )
 from src.Application.Agents.supervisor import IntelligenceSupervisor
+from src.Application.Agents.orchestrator import AIAgentOrchestrator, SDDLOrchestrator
 
 # Phase 22 Collaboration imports
 from src.Application.Agents.collaboration import (
@@ -48,6 +49,8 @@ __all__ = [
     "ValidationAgent",
     "LearningAgent",
     "IntelligenceSupervisor",
+    "AIAgentOrchestrator",
+    "SDDLOrchestrator",
 
     # Phase 22 Collaboration exports
     "AgentCapability",

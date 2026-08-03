@@ -44,8 +44,10 @@ def test_experience_to_pattern_to_concept_pipeline(temp_memory_system):
 
     # Confirm pattern count and outcomes are stored
     pats_list = mem_sys.get_patterns()
-    assert len(pats_list) > 0
-    best_pat = pats_list[0]
+    assert len(pats_list) >= 1
+    # Find the promoted pattern with the target signature [0.5, 0.5, 0.5, 0.5]
+    best_pat = next((p for p in pats_list if p.sequence_signature == [0.5, 0.5, 0.5, 0.5]), None)
+    assert best_pat is not None
     assert best_pat.occurrences_count >= 5
     assert best_pat.continuation_count >= 5
 
@@ -54,3 +56,29 @@ def test_experience_to_pattern_to_concept_pipeline(temp_memory_system):
     assert len(concepts) > 0
     assert concepts[0].is_approved is True
     assert concepts[0].sample_count >= 5
+
+
+def test_seeded_pattern_registry_init(temp_memory_system):
+    """Verifies that standard pattern registry prepopulation is initialized and queried correctly."""
+    mem_sys = temp_memory_system
+
+    # Prepopulate for test environment verification
+    from src.Research.Brain.models import PatternMemory
+    seed_pat = PatternMemory(
+        pattern_id="pat-seeded-base-breakout-compression",
+        sequence_signature=[1.0, 0.5, -0.5, 1.0],
+        occurrences_count=1,
+        continuation_count=1,
+        reversal_count=0
+    )
+    mem_sys.add_pattern(seed_pat)
+
+    pats = mem_sys.get_patterns()
+    assert len(pats) >= 1
+
+    seeded_pat = next((p for p in pats if p.pattern_id == "pat-seeded-base-breakout-compression"), None)
+    assert seeded_pat is not None
+    assert seeded_pat.sequence_signature == [1.0, 0.5, -0.5, 1.0]
+    assert seeded_pat.occurrences_count == 1
+    assert seeded_pat.continuation_count == 1
+    assert seeded_pat.reversal_count == 0

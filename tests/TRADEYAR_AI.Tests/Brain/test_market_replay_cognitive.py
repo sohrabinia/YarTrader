@@ -128,3 +128,39 @@ def test_cognitive_replay_loop_e2e(sample_observations, tmp_path):
     # Test active learning weakness identification
     priorities = loop.active_learning.analyze_weaknesses_and_set_priorities(mem_sys.get_patterns())
     assert len(priorities) > 0
+
+
+def test_replay_no_future_leakage(sample_observations):
+    """
+    Dedicated Future Leakage Guard check:
+    Injects a sentinel future-marker into the stream and asserts that
+    requesting available data raises an access ValueError or prevents leak cleanly.
+    """
+    base_time = sample_observations[0].timestamp
+    cursor_time = base_time + timedelta(hours=3)
+
+    # Inject a standard future observation with sentinel future-marker meta
+    sentinel_obs = MarketObservation(
+        symbol="XAUUSD",
+        timeframe="H1",
+        timestamp=base_time + timedelta(hours=5), # In the future compared to cursor_time
+        high=1850.0,
+        low=1840.0,
+        open_price=1845.0,
+        close_price=1848.0,
+        volume=100.0,
+        meta={"sentinel_future_leakage": True}
+    )
+
+    observations_with_leak = sample_observations + [sentinel_obs]
+
+    replay = MarketReplayEngine(symbol="XAUUSD", observations=observations_with_leak)
+    replay.set_cursor(cursor_time)
+
+    # When querying available data at cursor_time (which is hours=3, while sentinel is hours=5),
+    # the guard must detect that we have future data in our observation stream with a sentinel marker,
+    # and raise a ValueError.
+    with pytest.raises(ValueError) as ex:
+        replay.get_available_data()
+
+    assert "Future Leakage Guard Exception" in str(ex.value)
