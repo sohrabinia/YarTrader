@@ -222,3 +222,10 @@ models/cache/
 
 .claude/
 >>>>>>> origin/main
+
+# ==========================================
+# Node.js / Frontend Packages & Builds
+# ==========================================
+node_modules/
+trader-terminal/node_modules/
+trader-terminal/dist/
