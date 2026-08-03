@@ -21,12 +21,17 @@ This document establishes the strict HTTP API contract between the client fronte
     "research_worker": "RUNNING",
     "intelligence_worker": "RUNNING",
     "shadow_worker": "RUNNING",
+    "demo_trading_worker": "RUNNING",
+    "demo_broker_connection": "CONNECTED",
     "memory_file_parsing": "OK"
   },
   "metrics": {
     "cpu_pct": 14.5,
     "ram_pct": 52.1,
-    "ping_latency_ms": 12
+    "ping_latency_ms": 12,
+    "demo_balance": 1194.00,
+    "daily_risk_used_pct": 3.2,
+    "live_trading": false
   }
 }
 ```
@@ -140,6 +145,144 @@ This document establishes the strict HTTP API contract between the client fronte
     "exit_reason": "TAKE_PROFIT"
   }
 ]
+```
+
+---
+
+## 🎮 Demo Trading Broker Integration Endpoints (`/api/v1/demo/*`)
+
+### 1. Demo Broker Account Status
+- **Endpoint:** `GET /api/v1/demo/account`
+- **Method:** `GET`
+- **Access Level:** `USER` (Standard), `PRO`, `PREMIUM`, `ADMIN`
+- **Response Schema:**
+```json
+{
+  "balance": 1194.00,
+  "equity": 1194.00,
+  "margin": 0.00,
+  "free_margin": 1194.00,
+  "currency": "USD",
+  "mode": "LEARNING_VALIDATION",
+  "limits": {
+    "learning_daily_limit_percent": 10.0,
+    "production_daily_limit_percent": 2.0,
+    "max_daily_loss_usd": 119.40,
+    "daily_risk_used_usd": 0.00,
+    "remaining_risk_usd": 119.40
+  },
+  "broker": {
+    "provider": "MT5_DEMO",
+    "live_connection": false
+  }
+}
+```
+
+### 2. Demo Open Positions List
+- **Endpoint:** `GET /api/v1/demo/positions`
+- **Method:** `GET`
+- **Access Level:** `USER`, `PRO`, `PREMIUM`, `ADMIN`
+- **Response Schema:**
+```json
+[
+  {
+    "position_id": "demo-pos-8201",
+    "symbol": "XAUUSD",
+    "timeframe": "H1",
+    "direction": "BUY",
+    "volume": 0.1,
+    "entry_price": 2315.50,
+    "current_price": 2318.20,
+    "stop_loss": 2305.00,
+    "take_profit": 2335.00,
+    "pnl": 27.00,
+    "risk_percent": 1.5,
+    "confidence": 82,
+    "timestamp": "2023-11-20T14:15:02Z",
+    "explanation": {
+      "pattern": "Base Expansion Continuation",
+      "strategy": "Structural Momentum Core",
+      "expected_reward_ratio": 2.0
+    }
+  }
+]
+```
+
+### 3. Demo Position History (Closed & Learning Feedbacks)
+- **Endpoint:** `GET /api/v1/demo/history`
+- **Method:** `GET`
+- **Access Level:** `USER`, `PRO`, `PREMIUM`, `ADMIN`
+- **Response Schema:**
+```json
+[
+  {
+    "trade_id": "demo-trade-7901",
+    "symbol": "XAUUSD",
+    "timeframe": "H1",
+    "pattern": "Base Expansion Continuation",
+    "strategy": "Structural Momentum Core",
+    "decision": "BUY",
+    "entry": 2310.50,
+    "exit": 2322.00,
+    "profit_loss": 115.00,
+    "confidence": 82,
+    "risk_used": 1.5,
+    "result": "SUCCESS",
+    "lesson_feedback": "Exceeded support structure confirmation. Validated concept pattern promotion.",
+    "timestamp": "2023-11-20T12:10:00Z"
+  }
+]
+```
+
+### 4. Create Demo Order
+- **Endpoint:** `POST /api/v1/demo/orders`
+- **Method:** `POST`
+- **Access Level:** `USER`, `PRO`, `PREMIUM`, `ADMIN`
+- **Payload Schema:**
+```json
+{
+  "symbol": "XAUUSD",
+  "timeframe": "H1",
+  "decision": "BUY",
+  "volume": 0.1,
+  "stop_loss": 2305.00,
+  "take_profit": 2335.00,
+  "pattern": "Base Expansion Continuation",
+  "strategy": "Structural Momentum Core",
+  "confidence": 82
+}
+```
+- **Response Schema (201 Created):**
+```json
+{
+  "order_id": "demo-ord-9042",
+  "status": "EXECUTED",
+  "position_id": "demo-pos-8201",
+  "entry_price": 2315.50,
+  "timestamp": "2023-11-20T14:15:02Z"
+}
+```
+- **Error States:**
+  - `400 Bad Request (RISK_LIMIT_EXCEEDED)`: The trade was rejected because maximum daily risk limit of 10% (119.40 USD) or open position ceiling has been exceeded.
+
+### 5. Demo Portfolio Performance Summary
+- **Endpoint:** `GET /api/v1/demo/performance`
+- **Method:** `GET`
+- **Access Level:** `USER`, `PRO`, `PREMIUM`, `ADMIN`
+- **Response Schema:**
+```json
+{
+  "total_experiences": 52,
+  "success_rate_pct": 74.5,
+  "profit_factor": 2.1,
+  "pattern_reliability": {
+    "Base Expansion Continuation": 85.2,
+    "Support Compression Reaction": 62.1
+  },
+  "strategy_scores": {
+    "Structural Momentum Core": 82.0
+  }
+}
 ```
 
 ---
