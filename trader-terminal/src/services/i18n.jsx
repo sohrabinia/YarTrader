@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { CONFIG } from '../core/config.js';
 
 const I18nContext = createContext(null);
 
@@ -9,7 +10,7 @@ export function I18nProvider({ children }) {
 
   const loadLocales = async (targetLang) => {
     try {
-      const resp = await fetch(`/locales/${targetLang}.json`);
+      const resp = await fetch(`${CONFIG.apiBaseUrl}/locales/${targetLang}.json`);
       if (!resp.ok) {
         throw new Error(`Failed to load locales: ${resp.status}`);
       }

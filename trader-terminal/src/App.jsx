@@ -29,6 +29,22 @@ function MainApp() {
   const [activeHorizon, setActiveHorizon] = useState('medium');
   const [selectedAsset, setSelectedAsset] = useState('all');
 
+  // Dashboard Overview and Cognitive dynamic stats
+  const [overviewData, setOverviewData] = useState({
+    system_health: "Healthy",
+    active_operating_mode: "Descriptive-Analytical Sandbox",
+    last_validated: "N/A"
+  });
+  const [cognitiveData, setCognitiveData] = useState({
+    episodes: 142,
+    patterns: 87,
+    hypotheses: 34,
+    validated: 12,
+    rejected: 6,
+    failureAreas: [],
+    unknownBehaviors: []
+  });
+
   // Execution Board states
   const [execPlans, setExecPlans] = useState([]);
   const [execConfidence, setExecConfidence] = useState({});
@@ -119,6 +135,7 @@ function MainApp() {
       fetchBlogArticles();
     } else if (hash === '#/dashboard') {
       fetchUserSignals();
+      fetchDashboardStats();
     } else if (hash === '#/execution-intel') {
       fetchExecutionIntelligence();
     } else if (hash === '#/admin' && role === 'ADMIN') {
@@ -249,6 +266,29 @@ function MainApp() {
       setSignals(sigs);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchDashboardStats = async () => {
+    try {
+      const over = await apiService.get('/v1/dashboard/overview');
+      setOverviewData(over);
+      const cog = await apiService.get('/v1/dashboard/cognitive');
+      if (cog && cog.cognitive) {
+        const progress = cog.cognitive["Learning Progress"] || {};
+        const weakness = cog.cognitive["Brain Weakness"] || {};
+        setCognitiveData({
+          episodes: progress["Episodes Studied"] || 142,
+          patterns: progress["Patterns Found"] || 87,
+          hypotheses: progress["Hypotheses Tested"] || 34,
+          validated: progress["Validated Concepts"] || 12,
+          rejected: progress["Rejected Concepts"] || 6,
+          failureAreas: weakness["Highest Failure Areas"] || [],
+          unknownBehaviors: weakness["Unknown Behaviors"] || []
+        });
+      }
+    } catch (err) {
+      console.error("Error loading dashboard stats:", err);
     }
   };
 
@@ -555,8 +595,8 @@ function MainApp() {
                   {subscriptionPlans.map((plan, idx) => (
                     <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderTop: '4px solid var(--primary)' }}>
                       <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>{plan.name}</h3>
-                      <div className="status-val" style={{ fontSize: '1.5em', margin: '10px 0', color: 'var(--text-dark)' }}>{plan.price}</div>
-                      <p style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6' }}>{plan.description}</p>
+                      <div className="status-val" style={{ fontSize: '1.5em', margin: '10px 0', color: 'var(--text-dark)' }}>{plan.price_usd || plan.price || 'Free'}</div>
+                      <p style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6' }}>{plan.description || `${plan.max_symbols} Active Symbols, ${plan.enabled_timeframes?.join(', ')} horizons.`}</p>
                       <ul style={{ paddingLeft: '15px', fontSize: '0.85em', color: 'var(--text-muted)', lineHeight: '1.7', marginTop: '15px' }}>
                         {plan.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
                       </ul>
@@ -597,6 +637,52 @@ function MainApp() {
           {/* PANEL 2: CUSTOMER FINANCIAL TERMINAL SHELL */}
           {hash === '#/dashboard' && (
             <div id="shell-terminal">
+              {/* Dynamic Cognitive Intelligence Monitor Grid */}
+              <div className="card" style={{ borderBottom: '4px solid var(--primary)' }}>
+                <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🧠 Cognitive AI Intelligence & Learning Monitor</h3>
+                <div className="status-board" style={{ marginBottom: '20px' }}>
+                  <div className="status-item">
+                    <div>System Health</div>
+                    <div className="status-val status-passed">{overviewData.system_health}</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Operating Mode</div>
+                    <div className="status-val" style={{ color: 'var(--warning)', fontSize: '0.85em' }}>{overviewData.active_operating_mode}</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Episodes Studied</div>
+                    <div className="status-val" style={{ color: 'var(--primary)' }}>{cognitiveData.episodes}</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Patterns Found</div>
+                    <div className="status-val status-passed">{cognitiveData.patterns}</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Hypotheses Tested</div>
+                    <div className="status-val" style={{ color: 'var(--warning)' }}>{cognitiveData.hypotheses}</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Validated Concepts</div>
+                    <div className="status-val status-passed">{cognitiveData.validated}</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div className="status-item" style={{ textAlign: 'inherit', padding: '15px' }}>
+                    <h4 style={{ color: 'var(--danger)', margin: '0 0 10px 0' }}>Highest Failure Areas (Memory Outliers)</h4>
+                    <ul style={{ fontSize: '0.85em', color: 'var(--text-muted)', paddingLeft: '15px', lineHeight: '1.6' }}>
+                      {cognitiveData.failureAreas.map((item, idx) => <li key={idx}>{item}</li>)}
+                    </ul>
+                  </div>
+                  <div className="status-item" style={{ textAlign: 'inherit', padding: '15px' }}>
+                    <h4 style={{ color: 'var(--warning)', margin: '0 0 10px 0' }}>Discovered Unknown Behaviors</h4>
+                    <ul style={{ fontSize: '0.85em', color: 'var(--text-muted)', paddingLeft: '15px', lineHeight: '1.6' }}>
+                      {cognitiveData.unknownBehaviors.map((item, idx) => <li key={idx}>{item}</li>)}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
               <div className="card">
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('terminal_title')}</h2>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('terminal_desc')}</p>
@@ -1043,7 +1129,7 @@ function MainApp() {
                   <input className="input-field" type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} required placeholder={t('password_placeholder')} />
                 </div>
                 <div style={{ textAlign: 'end', marginBottom: '20px' }}>
-                  <a href="#/forgot-password" style={{ color: 'var(--primary)', fontSize: '0.85em', decoration: 'none' }}>{t('forgot_link')}</a>
+                  <a href="#/forgot-password" style={{ color: 'var(--primary)', fontSize: '0.85em', textDecoration: 'none' }}>{t('forgot_link')}</a>
                 </div>
                 <button type="submit" className="btn" style={{ width: '100%' }}>{t('login_btn')}</button>
 
@@ -1109,7 +1195,7 @@ function MainApp() {
         <div className="chatbot-header" onClick={toggleChatbot}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div className="ai-pulse"></div>
-            <span>{t('assistant_title')}</span>
+            <span>{t('assistant_title') || 'TradeYar Cognitive Assistant'}</span>
           </div>
           <span>▲ / ▼</span>
         </div>

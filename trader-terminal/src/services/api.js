@@ -1,4 +1,12 @@
 // Standalone API Service for TradeYar AI Client
+import { CONFIG } from '../core/config.js';
+
+const getFullUrl = (endpoint) => {
+  if (endpoint.startsWith('/')) {
+    return `${CONFIG.apiBaseUrl}${endpoint}`;
+  }
+  return endpoint;
+};
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('tradeyar_token');
@@ -8,7 +16,8 @@ const getAuthHeaders = () => {
 export const apiService = {
   async get(endpoint) {
     const headers = getAuthHeaders();
-    const resp = await fetch(endpoint, { method: 'GET', headers });
+    const url = getFullUrl(endpoint);
+    const resp = await fetch(url, { method: 'GET', headers });
     if (!resp.ok) {
       throw new Error(`API Error: ${resp.status} - ${resp.statusText}`);
     }
@@ -20,7 +29,8 @@ export const apiService = {
       'Content-Type': 'application/json',
       ...getAuthHeaders()
     };
-    const resp = await fetch(endpoint, {
+    const url = getFullUrl(endpoint);
+    const resp = await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(data)
