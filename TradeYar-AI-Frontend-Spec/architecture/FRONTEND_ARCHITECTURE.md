@@ -252,7 +252,41 @@ All clients must partition state into structured stores to maximize speed, preve
 
 ---
 
-## 🗺️ PART 7 — Dependency Mapping & Technical Risks
+## 📅 PART 7 — PRIORITY EXECUTION PLAN
+
+This execution roadmap coordinates development velocity to construct frontend capabilities in a modular order:
+
+### 1. Priority Execution Task Pipeline
+*   **Task 1: Core Layout Shell Scaffold and i18n Loading (MVP-Grade)**
+    *   *Implementation:* Render sidebars, header blocks, and integrate the dynamic language switcher DOM translation scripts for English, Persian, Turkish, and Arabic.
+    *   *Confidence Metric:* Standard walk-through checklist passes on multiple viewports.
+*   **Task 2: Real-time Multi-Timeframe Ticker Grid (MVP-Grade)**
+    *   *Implementation:* Build the 8-column timeframe matrix grid and hook it into the `market_update` WebSocket stream. Render monospace tabular numbers.
+*   **Task 3: Demo Trading Dashboard and Risk Limit Meters (Phase 2)**
+    *   *Implementation:* Build the virtual position tracking logs, entry explainers, and daily risk counters based on `/api/v1/demo/*` endpoints.
+*   **Task 4: SRE Admin Panel & Active Service Toggles (SRE Console)**
+    *   *Implementation:* Construct active worker lifecycle status rings, vertical log timeline streams, and double-check Emergency stop buttons.
+
+### 2. Dependency Graph
+```
+[Base Layout Shells & Localization Dictionary]
+                     │
+                     ▼
+[WebSocket event stream & State Store Mappings]
+                     │
+                     ▼
+  ┌──────────────────┴──────────────────┐
+  ▼                                     ▼
+[Unified Ticker Matrix Grid]  [Demo Positions & Portfolio Tables]
+  │                                     │
+  └──────────────────┬──────────────────┘
+                     ▼
+[SRE Admin Telemetries & Emergency Stop Guards]
+```
+
+---
+
+## 🗺️ PART 8 — Dependency Mapping & Technical Risks
 
 ### Dependency Matrix:
 1.  **UI Core:** Next.js / Tailwind CSS / Vazirmatn Font.
