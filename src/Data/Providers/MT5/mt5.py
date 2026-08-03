@@ -7,11 +7,22 @@ from src.Data.External.models import DataSourceType, DataProviderMetadata, Exter
 from src.Data.Market.models import MarketInstrument, CandleRecord, MarketDataMetadata, MarketDataRequest, MarketDataResponse
 from src.Infrastructure.exceptions import ValidationException
 
-try:
-    import MetaTrader5 as mt5
-    MT5_AVAILABLE = True
-except ImportError:
-    import sys
+import os
+import sys
+
+# Force mock under pytest or unittest environments to ensure deterministic offline testing
+FORCE_MOCK_MT5 = "pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("TRADEYAR_ENV") == "test"
+
+if FORCE_MOCK_MT5:
+    MT5_AVAILABLE = False
+else:
+    try:
+        import MetaTrader5 as mt5
+        MT5_AVAILABLE = True
+    except ImportError:
+        MT5_AVAILABLE = False
+
+if not MT5_AVAILABLE:
     from unittest.mock import MagicMock
     mock_mt5 = MagicMock()
     mock_mt5.initialize.return_value = True
