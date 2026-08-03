@@ -32,6 +32,10 @@ app = FastAPI(
 # Mount three isolated production-grade SaaS routers
 app.mount("/locales", StaticFiles(directory="locales"), name="locales")
 
+# Mount compiled React/Vite assets
+os.makedirs("trader-terminal/dist/assets", exist_ok=True)
+app.mount("/assets", StaticFiles(directory="trader-terminal/dist/assets"), name="assets")
+
 from src.Application.Services.public_api_router import router as public_api_router
 from src.Application.Services.user_api_router import router as user_api_router
 from src.Application.Services.admin_api_router import router as admin_api_router
@@ -542,6 +546,9 @@ def get_portfolio_exposure(virtual_balance: float = 10000.0):
 @app.get("/dashboard", response_class=HTMLResponse)
 def get_dashboard_spa():
     """Serves the rich, production-grade System Validation Center SPA page with full bilingual RTL/LTR support."""
+    react_index = "trader-terminal/dist/index.html"
+    if os.path.exists(react_index):
+        return FileResponse(react_index)
     html_content = """<!DOCTYPE html>
 <html>
 <head>
