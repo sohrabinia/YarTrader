@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from src.ShadowTrading.Engine.SymbolTimeContext import SymbolTimeContext
 from src.ShadowTrading.Engine.SymbolRuntimeManager import SymbolRuntimeManager
+from src.ShadowTrading.Engine.BaseNodeDetector import BaseNodeDetector, BaseStructure, NodeStructure
 
 logger = logging.getLogger("PredictiveShadowEngine")
 
@@ -195,6 +196,7 @@ class PredictiveShadowEngine:
 
         # Instantiate global SymbolRuntimeManager
         self.runtime_manager = SymbolRuntimeManager(max_active_symbols=self.max_symbols_limit)
+        self.detector = BaseNodeDetector()
 
         # Database File Paths (Consolidated memory indices)
         self.trades_file = "runtime_logs/shadow_trades.json"
@@ -348,6 +350,22 @@ class PredictiveShadowEngine:
                 ctx.tick_buffer.append({"price": current_price, "timestamp": datetime.now().isoformat()})
                 if len(ctx.tick_buffer) > 5000:
                     ctx.tick_buffer.pop(0)
+
+                # Automatic Base/Node Detection at runtime
+                base_struct = self.detector.detect_base(symbol_upper, ctx.tick_buffer)
+                if base_struct:
+                    # Check if base high/low boundaries already exist
+                    exists = any(abs(b["high"] - base_struct.high) < 0.01 and abs(b["low"] - base_struct.low) < 0.01 for b in ctx.bases)
+                    if not exists:
+                        self.add_base(symbol_upper, ctx.timeframe, base_struct.to_dict())
+                        logger.info(f"Automatically detected Base for {symbol_upper} @ high={base_struct.high}, low={base_struct.low}")
+
+                node_struct = self.detector.detect_node(ctx.tick_buffer)
+                if node_struct:
+                    exists = any(abs(n["price_level"] - node_struct.price_level) < 0.01 for n in ctx.nodes)
+                    if not exists:
+                        self.add_node(symbol_upper, ctx.timeframe, node_struct.to_dict())
+                        logger.info(f"Automatically detected Node for {symbol_upper} @ price={node_struct.price_level}")
 
                 for trade in ctx.trades:
                     if trade.status in ["CREATED", "RUNNING"]:

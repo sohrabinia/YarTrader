@@ -32,6 +32,28 @@ def sample_observations():
         ))
     return obs_list
 
+def test_market_state_replay_transitions(sample_observations):
+    """Verifies transition stages of explicit Market State modeling."""
+    replay = MarketReplayEngine(symbol="XAUUSD", observations=sample_observations)
+
+    # Assert initial stage
+    assert replay.get_current_stage() == "BEFORE_BASE"
+
+    # Transition sequentially
+    assert replay.transition_to_next_stage() == "FORMATION"
+    assert replay.transition_to_next_stage() == "BREAK"
+    assert replay.transition_to_next_stage() == "REACTION"
+    assert replay.transition_to_next_stage() == "OUTCOME"
+    assert replay.transition_to_next_stage() == "BEFORE_BASE" # wraps around
+
+    # Set explicitly
+    replay.set_market_stage("BREAK")
+    assert replay.get_current_stage() == "BREAK"
+
+    # Invalid stage should raise ValueError
+    with pytest.raises(ValueError):
+        replay.set_market_stage("INVALID_STAGE")
+
 def test_replay_integrity_future_leakage_impossible(sample_observations):
     """Verifies that at cursor T, only data <= T is retrieved."""
     replay = MarketReplayEngine(symbol="XAUUSD", observations=sample_observations)

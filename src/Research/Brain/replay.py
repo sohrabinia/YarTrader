@@ -15,7 +15,16 @@ class MarketReplayEngine:
 
     Enforces strict Future Leakage Protection. At any replayed time 'T',
     only observations with timestamps <= T are returned/accessible.
+
+    Explicitly models structural Market State transitions:
+    - BEFORE_BASE
+    - FORMATION
+    - BREAK
+    - REACTION
+    - OUTCOME
     """
+    STAGES = ["BEFORE_BASE", "FORMATION", "BREAK", "REACTION", "OUTCOME"]
+
     def __init__(self, symbol: str, observations: List[MarketObservation]) -> None:
         self.symbol = symbol
         # Enforce sorted observations to avoid out-of-order leaks
@@ -23,6 +32,26 @@ class MarketReplayEngine:
         self._current_time: Optional[datetime] = None
         if self._all_observations:
             self._current_time = self._all_observations[0].timestamp
+
+        # Explicit Market State Stage track
+        self._current_stage_idx = 0
+
+    def get_current_stage(self) -> str:
+        """Gets current active market state stage."""
+        return self.STAGES[self._current_stage_idx]
+
+    def transition_to_next_stage(self) -> str:
+        """Transitions to the next sequential market state stage."""
+        self._current_stage_idx = (self._current_stage_idx + 1) % len(self.STAGES)
+        return self.get_current_stage()
+
+    def set_market_stage(self, stage: str) -> None:
+        """Sets the market stage to a specific value."""
+        stage_upper = stage.upper()
+        if stage_upper in self.STAGES:
+            self._current_stage_idx = self.STAGES.index(stage_upper)
+        else:
+            raise ValueError(f"Invalid market stage: {stage}. Must be one of {self.STAGES}")
 
     def set_cursor(self, target_time: datetime) -> None:
         """Sets the current playback cursor time."""

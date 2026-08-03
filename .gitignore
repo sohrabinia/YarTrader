@@ -63,13 +63,14 @@ venv.bak/
 # Project logs, snapshots, and reports
 logs/
 *.log
-runtime_logs/*.log
-runtime_logs/research_snapshots/*.json
-test_runtime_logs/
-history/*.json
 uvicorn.log
 
 # SRE Secrets Management & Git Isolation
 .env.production
 *.key
 *.pem
+
+# Runtime and test execution isolation
+runtime_logs/
+test_timeframe_logs/
+TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt
