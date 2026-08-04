@@ -1,0 +1,29 @@
+{
+    "engine_a_baseline": {
+        "total_trades": 520,
+        "win_rate_pct": 51.35,
+        "profit_factor": 2.35,
+        "average_rr": 2.23,
+        "expectancy_pct": 65.66,
+        "max_drawdown_pct": 5.78,
+        "false_signal_rate_pct": 42.1,
+        "confidence_calibration_score": 0.55
+    },
+    "engine_b_adaptive": {
+        "total_trades": 520,
+        "win_rate_pct": 57.31,
+        "profit_factor": 3.23,
+        "average_rr": 2.41,
+        "expectancy_pct": 95.35,
+        "max_drawdown_pct": 3.34,
+        "false_signal_rate_pct": 42.1,
+        "confidence_calibration_score": 0.55
+    },
+    "learning_delta": {
+        "win_rate_improvement_pct": 5.96,
+        "profit_factor_increase": 0.88,
+        "expectancy_increase_pct": 29.69,
+        "drawdown_reduction_pct": 2.44,
+        "false_signal_suppression_pct": 0.0
+    }
+}
