@@ -35,6 +35,13 @@ function MainApp() {
     active_operating_mode: "Descriptive-Analytical Sandbox",
     last_validated: "N/A"
   });
+  const [frontendStatus, setFrontendStatus] = useState({
+    frontend: "React",
+    build: "N/A",
+    assets: "N/A",
+    api: "N/A",
+    mode: "N/A"
+  });
   const [cognitiveData, setCognitiveData] = useState({
     episodes: 142,
     patterns: 87,
@@ -96,6 +103,18 @@ function MainApp() {
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  useEffect(() => {
+    const loadGeneralStats = async () => {
+      try {
+        const fStatus = await apiService.get('/api/system/frontend-status');
+        setFrontendStatus(fStatus);
+      } catch (e) {
+        console.warn("Could not reach frontend-status endpoint initially:", e);
+      }
+    };
+    loadGeneralStats();
   }, []);
 
   // Update body theme class
@@ -287,6 +306,12 @@ function MainApp() {
           unknownBehaviors: weakness["Unknown Behaviors"] || []
         });
       }
+      try {
+        const fStatus = await apiService.get('/api/system/frontend-status');
+        setFrontendStatus(fStatus);
+      } catch (fErr) {
+        console.warn("Failed to fetch frontend status, using fallback:", fErr);
+      }
     } catch (err) {
       console.error("Error loading dashboard stats:", err);
     }
@@ -468,7 +493,7 @@ function MainApp() {
             {t('online')}
           </span>
           <span id="portal-status-label" style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
-            {t('portal_status')}
+            {t('portal_status')} | 💻 {frontendStatus.frontend} ({frontendStatus.build})
           </span>
         </div>
 
