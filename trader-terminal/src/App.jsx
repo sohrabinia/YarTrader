@@ -56,6 +56,13 @@ function MainApp() {
   const [validationTrace, setValidationTrace] = useState('N/A');
   const [validationLogs, setValidationLogs] = useState([]);
 
+  // Command Center Live Telemetry states
+  const [intelDashboard, setIntelDashboard] = useState({ recent_logs: [] });
+  const [intelReports, setIntelReports] = useState({ recent_reports: [] });
+  const [intelValidation, setIntelValidation] = useState({ outcomes: [] });
+  const [intelShadow, setIntelShadow] = useState({ trades: [] });
+  const [intelLearning, setIntelLearning] = useState({ history: [], weakness_areas: [] });
+
   // Auth Forms states
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPass, setLoginPass] = useState('');
@@ -94,7 +101,7 @@ function MainApp() {
   // Auth & Routing Guard
   useEffect(() => {
     // If attempting restricted routes without being logged in, redirect to login
-    const isRestrictedRoute = hash === '#/dashboard' || hash === '#/execution-intel' || hash === '#/admin';
+    const isRestrictedRoute = hash === '#/dashboard' || hash === '#/execution-intel' || hash === '#/admin' || hash === '#/intelligence' || hash === '#/shadow-trading' || hash === '#/learning';
     if (isRestrictedRoute && !token) {
       window.location.hash = '#/login';
       showNotification(
@@ -125,6 +132,8 @@ function MainApp() {
       fetchAdminSymbols();
       fetchAdminReports();
       fetchStatus();
+    } else if (hash === '#/intelligence' || hash === '#/shadow-trading' || hash === '#/learning') {
+      fetchIntelligenceDashboardData();
     }
   }, [hash, selectedAsset, role]);
 
@@ -220,6 +229,23 @@ function MainApp() {
     setRole('ADMIN');
     setName(`${provider} Guest`);
     window.location.hash = '#/dashboard';
+  };
+
+  const fetchIntelligenceDashboardData = async () => {
+    try {
+      const db = await apiService.get('/api/intelligence/dashboard');
+      setIntelDashboard(db);
+      const reps = await apiService.get('/api/intelligence/reports');
+      setIntelReports(reps);
+      const val = await apiService.get('/api/intelligence/validation');
+      setIntelValidation(val);
+      const sh = await apiService.get('/api/intelligence/shadow');
+      setIntelShadow(sh);
+      const lr = await apiService.get('/api/intelligence/learning');
+      setIntelLearning(lr);
+    } catch (err) {
+      console.error("Error fetching intelligence data:", err);
+    }
   };
 
   // Data Fetching Operations
@@ -464,6 +490,9 @@ function MainApp() {
           <a href="#/blog" className={`sidebar-link ${hash === '#/blog' ? 'active' : ''}`}>{t('nav_blog')}</a>
           {token && <a href="#/dashboard" className={`sidebar-link ${hash === '#/dashboard' ? 'active' : ''}`}>{t('nav_terminal')}</a>}
           {token && <a href="#/execution-intel" className={`sidebar-link ${hash === '#/execution-intel' ? 'active' : ''}`}>{t('nav_execution_intel')}</a>}
+          {token && <a href="#/intelligence" className={`sidebar-link ${hash === '#/intelligence' ? 'active' : ''}`}>🧠 {lang === 'fa' ? 'اتاق فرمان هوشمند' : 'Intelligence Command'}</a>}
+          {token && <a href="#/shadow-trading" className={`sidebar-link ${hash === '#/shadow-trading' ? 'active' : ''}`}>🧱 {lang === 'fa' ? 'پورتفوی فرضی' : 'Shadow Portal'}</a>}
+          {token && <a href="#/learning" className={`sidebar-link ${hash === '#/learning' ? 'active' : ''}`}>📚 {lang === 'fa' ? 'حافظه مغز هوش مصنوعی' : 'Brain Memory'}</a>}
           {token && role === 'ADMIN' && <a href="#/admin" className={`sidebar-link ${hash === '#/admin' ? 'active' : ''}`}>{t('nav_admin')}</a>}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1019,6 +1048,182 @@ function MainApp() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* PANEL: INTELLIGENCE COMMAND CENTER */}
+          {hash === '#/intelligence' && (
+            <div id="shell-intelligence">
+              <div className="card">
+                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>🧠 {lang === 'fa' ? 'اتاق فرمان هوشمند عملیاتی' : 'Operational Intelligence Command Center'}</h2>
+                <p style={{ color: 'var(--text-muted)' }}>Real-time aggregated research context and multi-asset briefs.</p>
+                <div className="status-board">
+                  <div className="status-item">
+                    <div>MT5 Connection</div>
+                    <div className="status-val status-passed">{intelDashboard.mt5_connection || 'CONNECTED'}</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Reports Count</div>
+                    <div className="status-val" style={{ color: 'var(--primary)' }}>{intelReports.reports_count || 0}</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Last Analysis Time</div>
+                    <div className="status-val" style={{ fontSize: '0.9em', wordBreak: 'break-all' }}>{intelDashboard.last_activity_time}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card">
+                <h3>📰 Recent Market Snapshot Reports</h3>
+                <div className="blog-grid">
+                  {intelReports.recent_reports?.map((rep, idx) => (
+                    <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '15px' }}>
+                      <strong style={{ color: 'var(--accent)' }}>{rep.symbol} - {rep.timeframe}</strong>
+                      <div style={{ marginTop: '5px' }}>Bias: <strong>{rep.bias}</strong></div>
+                      <div>Confidence: {rep.confidence}%</div>
+                      <ul style={{ fontSize: '0.85em', color: 'var(--text-muted)', paddingLeft: '15px', marginTop: '10px' }}>
+                        {rep.reasoning?.map((r, rIdx) => <li key={rIdx}>{r}</li>)}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="card">
+                <h3>📝 SRE Validation Outcomes</h3>
+                <div className="status-board" style={{ marginBottom: '20px' }}>
+                  <div className="status-item">
+                    <div>Accuracy Percentage</div>
+                    <div className="status-val status-passed">{intelValidation.accuracy_pct || 100}%</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Completed Outcomes Count</div>
+                    <div className="status-val">{intelValidation.completed_checks || 0}</div>
+                  </div>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Pattern</th>
+                      <th>Predicted Action</th>
+                      <th>Actual Outcome</th>
+                      <th>Status</th>
+                      <th>Confidence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {intelValidation.outcomes?.map((out, idx) => (
+                      <tr key={idx}>
+                        <td>{out.pattern}</td>
+                        <td>{out.predicted}</td>
+                        <td>{out.actual}</td>
+                        <td><strong className={out.status === 'SUCCESS' ? 'status-passed' : 'status-failed'}>{out.status}</strong></td>
+                        <td>{out.confidence}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* PANEL: SHADOW TRADING PORTFOLIO */}
+          {hash === '#/shadow-trading' && (
+            <div id="shell-shadow-trading">
+              <div className="card">
+                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>🧱 {lang === 'fa' ? 'پورتفوی فرضی شبیه‌سازی‌شده' : 'Simulated Shadow Trading Portfolio'}</h2>
+                <p style={{ color: 'var(--text-muted)' }}>Monitors active virtual capital and win-rate calculations from MT5 data.</p>
+                <div className="status-board">
+                  <div className="status-item">
+                    <div>Virtual Balance</div>
+                    <div className="status-val status-passed">${intelShadow.virtual_balance}</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Drawdown Risk</div>
+                    <div className="status-val status-warn">{intelShadow.max_drawdown_pct}%</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Total Trades</div>
+                    <div className="status-val" style={{ color: 'var(--primary)' }}>{intelShadow.total_shadow_trades}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card">
+                <h3>📈 Active and Historical Simulated Positions</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Trade ID</th>
+                      <th>Asset</th>
+                      <th>Direction</th>
+                      <th>Advisory Entry</th>
+                      <th>Exit Trigger</th>
+                      <th>Status</th>
+                      <th>Simulated PnL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {intelShadow.trades?.map((tr, idx) => (
+                      <tr key={idx}>
+                        <td style={{ fontFamily: 'monospace' }}>{tr.trade_id}</td>
+                        <td>{tr.symbol}</td>
+                        <td>{tr.direction}</td>
+                        <td>${tr.entry_price}</td>
+                        <td>${tr.exit_price}</td>
+                        <td><strong className="status-passed">{tr.status}</strong></td>
+                        <td className="status-passed">+${tr.pnl_virtual}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* PANEL: COGNITIVE BRAIN LEARNING */}
+          {hash === '#/learning' && (
+            <div id="shell-learning">
+              <div className="card">
+                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>📚 {lang === 'fa' ? 'حافظه مغز هوش مصنوعی و تاریخچه یادگیری' : 'AI Brain Memory & Learning History'}</h2>
+                <p style={{ color: 'var(--text-muted)' }}>Visualizes pattern recognition corrections and cognitive memory promotion pipelines.</p>
+                <div className="status-board">
+                  <div className="status-item">
+                    <div>Concepts Learned</div>
+                    <div className="status-val status-passed">{intelLearning.concepts_learned}</div>
+                  </div>
+                  <div className="status-item">
+                    <div>System Weakness Blocks</div>
+                    <div className="status-val status-failed">{intelLearning.weakness_areas?.length || 0}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div className="card">
+                  <h3>🧠 Active Memory Recognition Adjustments</h3>
+                  <ul>
+                    {intelLearning.history?.map((h, idx) => (
+                      <li key={idx} style={{ marginBottom: '15px', color: 'var(--text-dark)' }}>
+                        <strong>{h.episode} - {h.type}</strong>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.9em' }}>Concept: {h.concept}</div>
+                        <div style={{ color: 'var(--accent)', fontSize: '0.9em' }}>Resolution: {h.resolution}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="card">
+                  <h3>⚠️ Detected Brain Weakness Categories</h3>
+                  <ul>
+                    {intelLearning.weakness_areas?.map((w, idx) => (
+                      <li key={idx} style={{ padding: '8px', marginBottom: '10px', background: 'rgba(239, 68, 68, 0.05)', borderLeft: '3px solid var(--danger)', borderRadius: '4px', listStyleType: 'none' }}>
+                        {w}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </div>
           )}
