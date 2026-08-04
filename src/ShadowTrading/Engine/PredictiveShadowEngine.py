@@ -29,7 +29,8 @@ class ShadowTrade:
         node_id: Optional[str] = None,
         pattern: str = "Base Expansion Continuation",
         trade_id: Optional[str] = None,
-        volume: float = 1.0
+        volume: float = 1.0,
+        evidence: Optional[Dict[str, Any]] = None
     ) -> None:
         self.trade_id = trade_id or f"strade-{uuid.uuid4().hex[:6]}"
         self.symbol = symbol.upper()
@@ -44,6 +45,7 @@ class ShadowTrade:
         self.node_id = node_id or "N-None"
         self.pattern = pattern
         self.volume = float(volume)
+        self.evidence = evidence or {}
 
         # Performance/Excursion metrics
         self.floating_pnl = 0.0
@@ -130,6 +132,7 @@ class ShadowTrade:
             "node_id": self.node_id,
             "pattern": self.pattern,
             "volume": self.volume,
+            "evidence": self.evidence,
             "floating_pnl": self.floating_pnl,
             "mae": self.mae,
             "mfe": self.mfe,
@@ -157,7 +160,8 @@ class ShadowTrade:
             node_id=d.get("node_id"),
             pattern=d.get("pattern", "Base Expansion Continuation"),
             trade_id=d["trade_id"],
-            volume=d.get("volume", 1.0)
+            volume=d.get("volume", 1.0),
+            evidence=d.get("evidence", {})
         )
         st.floating_pnl = d.get("floating_pnl", 0.0)
         st.mae = d.get("mae", 0.0)
@@ -313,7 +317,8 @@ class PredictiveShadowEngine:
         custom_time_structure: int = 64,
         base_id: Optional[str] = None,
         node_id: Optional[str] = None,
-        pattern: str = "Base Expansion Continuation"
+        pattern: str = "Base Expansion Continuation",
+        evidence: Optional[Dict[str, Any]] = None
     ) -> ShadowTrade:
         """Registers a predictive shadow order in its isolated SymbolTimeContext."""
         ctx = self.get_or_create_context(symbol, custom_time_structure)
@@ -329,7 +334,8 @@ class PredictiveShadowEngine:
             custom_time_structure=custom_time_structure,
             base_id=base_id,
             node_id=node_id,
-            pattern=pattern
+            pattern=pattern,
+            evidence=evidence
         )
 
         ctx.trades.append(trade)
@@ -424,19 +430,66 @@ class PredictiveShadowEngine:
         self._save_generic(self.signals_file, self.signals)
 
     def _record_pattern_outcome_context(self, ctx: SymbolTimeContext, trade: ShadowTrade) -> None:
+        hier_ctx = trade.evidence.get("hierarchical_context", {}) if isinstance(trade.evidence, dict) else {}
+        if not hier_ctx and isinstance(trade.evidence, dict) and "evidence" in trade.evidence:
+            # check inside nested evidence
+            hier_ctx = trade.evidence.get("evidence", {}).get("hierarchical_context", {})
+
+        macro_bias_d1 = hier_ctx.get("macro_bias", {}).get("D1", "Bullish")
+        macro_bias_h4 = hier_ctx.get("macro_bias", {}).get("H4", "Bullish")
+        m15_setup = hier_ctx.get("primary_decision", {}).get("setup", "Long Reversal")
+        m5_trigger = hier_ctx.get("primary_execution", {}).get("trigger", "Breakout Confirmation")
+
+        # Win/Loss
+        win_loss = "Win" if trade.status == "TARGET_HIT" else "Loss"
+
+        # Max R:R achieved (MFE vs Stop distance)
+        stop_dist = abs(trade.entry - trade.stop) if abs(trade.entry - trade.stop) > 0.0001 else 1.0
+        max_rr = round(trade.mfe / stop_dist, 2) if trade.mfe > 0 else 0.0
+
+        # Calculate historical win-rate for this specific combination
+        matching_patterns = [
+            p for p in self.patterns
+            if p.get("macro_bias_d1") == macro_bias_d1
+            and p.get("macro_bias_h4") == macro_bias_h4
+            and p.get("m15_setup") == m15_setup
+            and p.get("m5_trigger") == m5_trigger
+        ]
+        prev_wins = sum(1 for p in matching_patterns if p.get("win_loss") == "Win")
+        total_with_current = len(matching_patterns) + 1
+        current_win_val = 1 if win_loss == "Win" else 0
+        historical_win_rate = round((prev_wins + current_win_val) / total_with_current * 100.0, 2)
+
         outcome = {
             "trade_id": trade.trade_id,
             "symbol": trade.symbol,
             "timeframe": trade.custom_time_structure,
             "pattern": trade.pattern,
             "result": trade.status,
+            "win_loss": win_loss,
             "mae": trade.mae,
             "mfe": trade.mfe,
+            "max_rr_achieved": max_rr,
+            "macro_bias_d1": macro_bias_d1,
+            "macro_bias_h4": macro_bias_h4,
+            "m15_setup": m15_setup,
+            "m5_trigger": m5_trigger,
+            "historical_win_rate_pct": historical_win_rate,
             "timestamp": datetime.now().isoformat()
         }
         ctx.patterns.append(outcome)
         self.patterns.append(outcome)
         self._save_generic(self.patterns_file, self.patterns)
+
+        # Store multi-timeframe pattern snapshots into runtime_logs/brain_memory/
+        brain_memory_dir = "runtime_logs/brain_memory"
+        os.makedirs(brain_memory_dir, exist_ok=True)
+        snapshot_filepath = os.path.join(brain_memory_dir, f"pattern_{trade.trade_id}.json")
+        try:
+            with open(snapshot_filepath, "w", encoding="utf-8") as f:
+                json.dump(outcome, f, indent=4)
+        except Exception as e:
+            logger.error(f"Failed to write snapshot to brain_memory: {e}")
 
     def _update_learning_history_context(self, ctx: SymbolTimeContext, trade: ShadowTrade) -> None:
         record = {

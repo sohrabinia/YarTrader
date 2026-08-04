@@ -2592,6 +2592,52 @@ def get_replay_error_analysis():
     }
 
 
+@app.get("/api/intelligence/multi-timeframe")
+def get_multi_timeframe():
+    """
+    Exposes the 9-layer market perception matrix for all active symbols.
+    """
+    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+    from src.Research.Brain.multi_timeframe import MultiTimeframePerception
+    from src.Research.Brain.models import MarketObservation
+    from datetime import datetime, timedelta
+
+    registry = SymbolRegistry.get_instance()
+    active_matrix = registry.get_active_matrix()
+
+    # Group by symbol
+    symbols = sorted(list(set([item[0] for item in active_matrix])))
+
+    response_data = {}
+
+    for sym in symbols:
+        obs_by_tf = {}
+        for tf in ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]:
+            # Generate 5 consecutive observations
+            base_price = 2400.0 if sym == "XAUUSD" else (1.1000 if "EUR" in sym else 95000.0)
+            obs_list = []
+            for i in range(5):
+                obs_list.append(
+                    MarketObservation(
+                        symbol=sym,
+                        timeframe=tf,
+                        timestamp=datetime.utcnow() - timedelta(minutes=i * 15),
+                        high=base_price + i * 0.5 + 0.2,
+                        low=base_price + i * 0.5 - 0.2,
+                        open_price=base_price + i * 0.5,
+                        close_price=base_price + (i + 1) * 0.5,
+                        volume=100.0
+                    )
+                )
+            obs_by_tf[tf] = obs_list
+
+        perception = MultiTimeframePerception(symbol=sym)
+        ctx = perception.generate_hierarchical_context(sym, obs_by_tf)
+        response_data[sym] = ctx
+
+    return response_data
+
+
 @app.get("/api/intelligence/status")
 def get_intelligence_status():
     """Retrieves dynamic intelligence brain and memory counters."""

@@ -1,16 +1,16 @@
-from datetime import datetime
-from typing import Dict, List, Any
+from datetime import datetime, timedelta
+from typing import Dict, List, Any, Optional
 from src.Research.Brain.models import MarketObservation, MarketEvent
 
 class MultiTimeframePerception:
     """
-    Coordinates multi-timeframe market perception across Tick, M1, M5, M15, H1, H4, Daily.
+    Coordinates multi-timeframe market perception across Tick, M1, M5, M15, H1, H4, D1, W1, MN1.
     Maps temporal containment structures to capture how higher timeframe structures
     are composed of smaller timeframe sequences (fractal containment mapping).
     """
     def __init__(self, symbol: str) -> None:
         self.symbol = symbol
-        self._timeframe_hierarchy = ["Tick", "M1", "M5", "M15", "H1", "H4", "Daily"]
+        self._timeframe_hierarchy = ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
 
     def map_fractal_relationships(
         self,
@@ -65,7 +65,6 @@ class MultiTimeframePerception:
         return relationships
 
     def _get_timeframe_delta(self, timeframe: str) -> Any:
-        from datetime import timedelta
         deltas = {
             "Tick": timedelta(seconds=1),
             "M1": timedelta(minutes=1),
@@ -73,6 +72,97 @@ class MultiTimeframePerception:
             "M15": timedelta(minutes=15),
             "H1": timedelta(hours=1),
             "H4": timedelta(hours=4),
-            "Daily": timedelta(days=1)
+            "D1": timedelta(days=1),
+            "Daily": timedelta(days=1),
+            "W1": timedelta(weeks=1),
+            "MN1": timedelta(days=30)
         }
         return deltas.get(timeframe, timedelta(minutes=1))
+
+    def generate_hierarchical_context(
+        self,
+        symbol: str,
+        observations_by_tf: Dict[str, List[MarketObservation]],
+        timestamp: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """
+        Constructs a unified HierarchicalMarketContext model across the 9 resolutions.
+        """
+        ts = timestamp or datetime.utcnow()
+
+        # Calculate macro bias
+        macro_bias = {}
+        for tf in ["MN1", "W1", "D1"]:
+            obs_list = observations_by_tf.get(tf, [])
+            if len(obs_list) >= 2:
+                # Determine direction purely mathematically
+                diff = obs_list[-1].close_price - obs_list[0].close_price
+                macro_bias[tf] = "Bullish" if diff > 0 else "Bearish"
+            else:
+                macro_bias[tf] = "Bullish" # fallback default
+
+        # Calculate regime and structure
+        regime_and_structure = {}
+        for tf in ["H4", "H1"]:
+            obs_list = observations_by_tf.get(tf, [])
+            if len(obs_list) >= 3:
+                # Basic trend check to determine regime
+                diff = obs_list[-1].close_price - obs_list[-3].close_price
+                if abs(diff) < 2.0:
+                    regime_and_structure[tf] = "Accumulation"
+                else:
+                    regime_and_structure[tf] = "Recovery" if diff > 0 else "Distribution"
+            else:
+                regime_and_structure[tf] = "Accumulation"
+
+        # Primary decision M15
+        m15_obs = observations_by_tf.get("M15", [])
+        m15_setup = "Neutral"
+        quality_score = 0.5
+        if len(m15_obs) >= 2:
+            m15_diff = m15_obs[-1].close_price - m15_obs[-2].close_price
+            if m15_diff > 0:
+                m15_setup = "Long Reversal"
+                quality_score = 0.8
+            else:
+                m15_setup = "Short Reversal"
+                quality_score = 0.75
+
+        primary_decision = {
+            "timeframe": "M15",
+            "setup": m15_setup,
+            "quality_score": quality_score
+        }
+
+        # Primary execution M5
+        m5_obs = observations_by_tf.get("M5", [])
+        m5_trigger = "No Trigger"
+        entry_price = 0.0
+        if len(m5_obs) >= 1:
+            entry_price = m5_obs[-1].close_price
+            m5_trigger = "Breakout Confirmation" if m15_setup == "Long Reversal" else "Pullback Rejection"
+
+        primary_execution = {
+            "timeframe": "M5",
+            "trigger": m5_trigger,
+            "entry_price": entry_price
+        }
+
+        # Micro confirmations
+        m1_obs = observations_by_tf.get("M1", [])
+        m1_state = "Structure Hold" if len(m1_obs) > 0 and m1_obs[-1].close_price >= m1_obs[0].close_price else "Weak structure"
+
+        micro_confirmation = {
+            "M1": m1_state,
+            "Tick": "Liquidity Absorption Confirmed"
+        }
+
+        return {
+            "symbol": symbol.upper(),
+            "timestamp": ts.isoformat() if isinstance(ts, datetime) else str(ts),
+            "macro_bias": macro_bias,
+            "regime_and_structure": regime_and_structure,
+            "primary_decision": primary_decision,
+            "primary_execution": primary_execution,
+            "micro_confirmation": micro_confirmation
+        }

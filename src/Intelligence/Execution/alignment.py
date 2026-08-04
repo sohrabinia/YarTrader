@@ -51,7 +51,7 @@ class MultiTimeframeAlignmentEngine:
             alignment_status = "UNALIGNED"
             confidence = 50
 
-        # Build detailed alignment scorecards
+        # Build detailed alignment scorecard
         checks = {
             "trend_alignment": alignment_status,
             "regime_congruence": "HIGH" if len(set(states)) <= 2 else "MIXED",
@@ -66,6 +66,102 @@ class MultiTimeframeAlignmentEngine:
             "confidence": confidence,
             "checks": checks,
             "summary": f"Multi-timeframe structural alignment status: {alignment_status} with {confidence}% confidence."
+        }
+
+    def align_m15_m5_pipeline(
+        self,
+        symbol: str,
+        timeframe_narratives: Dict[str, Dict[str, Any]],
+        current_price: float
+    ) -> Dict[str, Any]:
+        """
+        Executes M15 Primary Decision Gate & M5 Execution Trigger pipeline.
+        - setup_detected: checks if M15 has setup (e.g., trend is bullish/bearish).
+        - trigger_confirmed: checks if M5 matches the M15 bias.
+        - htf_filter: H1/H4/D1/W1/MN1 act as direction filters & confidence multipliers.
+        """
+        m15_narr = timeframe_narratives.get("M15", {})
+        m5_narr = timeframe_narratives.get("M5", {})
+
+        m15_trend = m15_narr.get("trend", "NEUTRAL").upper()
+        if m15_trend not in ["BULLISH", "BEARISH"]:
+            return {
+                "decision_action": "WAIT",
+                "reason": "No M15 structure setup detected. Decision gate requires active M15 structure.",
+                "confidence": 0.0,
+                "setup_present": False,
+                "trigger_confirmed": False,
+                "confidence_multipliers": {}
+            }
+
+        m15_setup = "Long Reversal" if m15_trend == "BULLISH" else "Short Reversal"
+
+        m5_trend = m5_narr.get("trend", "NEUTRAL").upper()
+        m5_confirmed = (m15_trend == m5_trend)
+
+        if not m5_confirmed:
+            return {
+                "decision_action": "WAIT",
+                "reason": f"M15 setup present ({m15_setup}), but M5 trigger confirmation ({m5_trend}) does not match.",
+                "confidence": 30.0,
+                "setup_present": True,
+                "trigger_confirmed": False,
+                "confidence_multipliers": {}
+            }
+
+        htf_keys = ["H1", "H4", "D1", "W1", "MN1"]
+        congruence_count = 0
+        total_htf = 0
+        multipliers = {}
+
+        for htf in htf_keys:
+            if htf in timeframe_narratives:
+                total_htf += 1
+                htf_trend = timeframe_narratives[htf].get("trend", "NEUTRAL").upper()
+                if htf_trend == m15_trend:
+                    congruence_count += 1
+                    multipliers[htf] = 1.15
+                elif htf_trend == "NEUTRAL":
+                    multipliers[htf] = 1.00
+                else:
+                    multipliers[htf] = 0.70  # Degrade trade confidence under counter-trend conditions
+
+        base_confidence = 75.0
+        final_confidence = base_confidence
+
+        for htf, mult in multipliers.items():
+            final_confidence *= mult
+
+        final_confidence = min(100.0, max(10.0, final_confidence))
+
+        decision_action = "BUY" if m15_trend == "BULLISH" else "SELL"
+
+        pip_size = 0.10 if "XAU" in symbol.upper() else 0.0001
+        multiplier = 150 if "XAU" in symbol.upper() else 200
+
+        if decision_action == "BUY":
+            stop_loss = current_price - (multiplier * pip_size)
+            take_profit = current_price + (multiplier * 2 * pip_size)
+        else:
+            stop_loss = current_price + (multiplier * pip_size)
+            take_profit = current_price - (multiplier * 2 * pip_size)
+
+        reason = f"M15 Setup ({m15_setup}) with M5 Execution Trigger ({m5_trend}) confirmed."
+        if congruence_count < total_htf:
+            reason += f" Counter-trend macro timeframes degraded overall confidence to {round(final_confidence, 2)}%."
+
+        return {
+            "decision_action": decision_action,
+            "reason": reason,
+            "confidence": round(final_confidence, 2),
+            "setup_present": True,
+            "trigger_confirmed": True,
+            "stop_loss": round(stop_loss, 4),
+            "take_profit": round(take_profit, 4),
+            "macro_alignment": {
+                "congruence_pct": round((congruence_count / total_htf * 100.0) if total_htf > 0 else 100.0, 2),
+                "multipliers": multipliers
+            }
         }
 
     def _frame_sort_weight(self, tf_str: str) -> float:
