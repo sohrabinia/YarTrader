@@ -1,35 +1,62 @@
-# Publishing Pipeline Audit
+# Article Workflow Engine & Publishing Pipeline — Phase P1 Implementation
 
 ## 1. Implementation Status
-* **Status:** `PARTIAL`
+* **Status:** `IMPLEMENTED`
 
-## 2. Code Evidence
+## 2. Production Code Architecture
 * **File Paths:**
-  * `src/Application/Services/growth_api_router.py`
-  * `src/Growth/Agents/ContentAgents.py`
-  * `src/Growth/Agents/DistributionAgents.py`
-* **Main Classes/Functions:**
-  * `ContentIntelligenceAgent.approval_queue` (In-memory storage)
-  * `DistributionIntelligenceAgent.route_content`
-* **API Endpoints:**
-  * `POST /api/growth/content/generate` (Ingest & validation)
-  * `GET /api/growth/content/queue` (Read queue)
-  * `POST /api/growth/content/approve` (Approve & route)
-* **Functional Tests:**
-  * `tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py::test_fastapi_growth_endpoints`
+  * `src/Growth/ContentIntelligence/database.py` (SQL schemas)
+  * `src/Growth/ContentIntelligence/repository.py` (Draft updates, audits, and versions)
+  * `src/Application/Services/content_api_router.py` (Endpoints under `/api/content/articles/`)
 
-## 3. Detailed Audit Findings
+---
 
-### Verification of Lifecycle Workflows
-The pipeline successfully coordinates an in-memory queue that mimics a complete content review workflow:
-1. **Creation:** Text payload and channel destinations are submitted via `/api/growth/content/generate`.
-2. **Security Scan:** Evaluated by `SecurityReviewAgent` (detects standard code injection risks).
-3. **Compliance Gate (Trust Review):** Scanned by `TrustComplianceAgent` to prevent guarantees/advice leaks.
-4. **Queue Storage:** Valid items are formatted and placed in an in-memory list with status `"PENDING_APPROVAL"`.
-5. **Approval:** Triggered via POST `/api/growth/content/approve` which transitions the status to `"APPROVED"`.
-6. **Publishing (Routing):** Handled by `DistributionIntelligenceAgent` which returns a mock delivery status of `"SENT"`.
+## 3. Workflow States Lifecycle Sequence
 
-### Missing Infrastructure Elements
-* **Draft Storage Persistence:** All queue records are held in a Python list inside a global in-memory singleton. Server restarts wipe all items. No SQL/NoSQL storage is wired.
-* **Audit Logs:** Log outputs are sent to standard SRE console logs, but no persistent database audit table holds user action histories or published records.
-* **CMS Integration:** External APIs for platforms like WordPress, Ghost, Substack, Medium, or HubSpot are completely simulated.
+```
+[Research Data Ingestion]
+           │
+           ▼
+[ArticleGenerator Synthesis]
+           │
+           ▼ (Runs TrustReviewEngine compliance scanning)
+           ├─────────────────────────┐
+           ▼ (If Compliant)          ▼ (If Non-compliant)
+   [PENDING_REVIEW]             [REJECTED]
+           │
+           ├─► [Action: REQUEST_REVISION] ──► [NEEDS_REVISION]
+           │                                        │
+           │                            [Action: Save human edits] ◄─┘
+           │                                        │ (Increments version, e.g. v1.0 -> v1.1)
+           │                                        ▼
+           │                               [PENDING_REVIEW]
+           │
+           ├─► [Action: APPROVE] ──► [APPROVED] ──► [PUBLISH_READY]
+```
+
+* **`DRAFT` / `TRUST_PENDING`**: Original generation pipeline start.
+* **`PENDING_REVIEW`**: Compliant articles awaiting human audit.
+* **`REJECTED`**: Articles flagged by compliance rules.
+* **`NEEDS_REVISION`**: Administrators request structural updates.
+* **`APPROVED` / `PUBLISH_READY`**: Validated and cleared articles ready for distribution.
+
+---
+
+## 4. Multi-Versioning Schema
+When an article is modified via `PUT /api/content/articles/{id}/edit`, the repository automatically parses and increments the version sequence:
+- Initial state: `v1.0`
+- Manual edit 1: `v1.1`
+- Manual edit 2: `v1.2`
+This ensures all modifications are tracked cleanly without data corruption.
+
+---
+
+## 5. Audit Log Record Format
+All status transitions and comments are recorded inside the SQLite `ArticleAuditRecord` table:
+* `id`: Unique audit identifier.
+* `article_id`: Target article draft.
+* `previous_state`: Status prior to change.
+* `new_state`: Status after transition.
+* `actor_id`: Username or SRE system id of the transitioning actor.
+* `comment`: Revision notes or approval details.
+* `timestamp`: Precise date/time logs.

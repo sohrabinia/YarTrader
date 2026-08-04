@@ -21,7 +21,7 @@ class ContentDBManager:
 
     def up(self) -> None:
         """
-        Executes isolated database migrations, creating Content draft storage tables.
+        Executes isolated database migrations, creating Content draft and article storage tables.
         Guarantees that existing core intelligence tables are completely untouched.
         """
         logger.info("Executing isolated content intelligence database migration up()")
@@ -64,6 +64,41 @@ class ContentDBManager:
                 )
             """)
 
+            # 4. ContentArticle table for Phase P1
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ContentArticle (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    body TEXT NOT NULL,
+                    html TEXT NOT NULL,
+                    format TEXT NOT NULL,
+                    language TEXT NOT NULL,
+                    status TEXT NOT NULL, -- DRAFT, TRUST_PENDING, PENDING_REVIEW, APPROVED, REJECTED, NEEDS_REVISION, PUBLISH_READY
+                    version TEXT NOT NULL, -- e.g. "v1.0"
+                    category TEXT NOT NULL, -- MARKET_RESEARCH, EDUCATIONAL, SUMMARY
+                    symbols_str TEXT NOT NULL, -- Comma-separated symbols
+                    timeframes_str TEXT NOT NULL, -- Comma-separated timeframes
+                    sentiment TEXT NOT NULL,
+                    risk_level TEXT NOT NULL,
+                    source_intelligence_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+            """)
+
+            # 5. ArticleAuditRecord table for Phase P1 state-change audit logs
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ArticleAuditRecord (
+                    id TEXT PRIMARY KEY,
+                    article_id TEXT NOT NULL,
+                    previous_state TEXT NOT NULL,
+                    new_state TEXT NOT NULL,
+                    actor_id TEXT NOT NULL,
+                    comment TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    FOREIGN KEY (article_id) REFERENCES ContentArticle(id) ON DELETE CASCADE
+                )
+            """)
+
             conn.commit()
 
     def down(self) -> None:
@@ -73,6 +108,8 @@ class ContentDBManager:
         logger.info("Executing content database migration rollback down()")
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            cursor.execute("DROP TABLE IF EXISTS ArticleAuditRecord")
+            cursor.execute("DROP TABLE IF EXISTS ContentArticle")
             cursor.execute("DROP TABLE IF EXISTS ContentReview")
             cursor.execute("DROP TABLE IF EXISTS ContentSource")
             cursor.execute("DROP TABLE IF EXISTS ContentDraft")

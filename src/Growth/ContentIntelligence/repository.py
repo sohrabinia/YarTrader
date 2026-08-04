@@ -1,13 +1,14 @@
 import json
 import sqlite3
 import datetime
+import uuid
 from typing import Dict, Any, List, Optional
 from src.Growth.ContentIntelligence.database import ContentDBManager
 
 class ContentRepository:
     """
     CRUD repository for storing and retrieving Content drafts, lineage source tracings,
-    and Trust review audit logs.
+    Trust review audit logs, Articles (P1), and Article Audit records.
     """
 
     def __init__(self, db_manager: Optional[ContentDBManager] = None) -> None:
@@ -15,6 +16,9 @@ class ContentRepository:
         # Initialize schema automatically
         self.db_manager.up()
 
+    # ==========================================
+    # Phase P0 - Content Draft Operations
+    # ==========================================
     def create_draft(self, draft_id: str, title: str, body: str, format_type: str, language: str, status: str, source_id: str, symbols: List[str]) -> Dict[str, Any]:
         """
         Inserts a new content draft and links its source lineage metrics securely.
@@ -30,7 +34,6 @@ class ContentRepository:
             """, (draft_id, title, body, format_type, language, status, now_str))
 
             # Link source lineage references
-            # Standard sources: source_intelligence_id
             cursor.execute("""
                 INSERT INTO ContentSource (content_id, source_type, source_reference)
                 VALUES (?, 'INTEL_ID', ?)
@@ -160,3 +163,140 @@ class ContentRepository:
                 drafts.append(self.get_draft(r["id"]))
 
         return drafts
+
+    # ==========================================
+    # Phase P1 - Content Article & Audit Operations
+    # ==========================================
+    def create_article(self, article_id: str, title: str, body: str, html: str, format_type: str, language: str, status: str, version: str, category: str, symbols: List[str], timeframes: List[str], sentiment: str, risk_level: str, source_intelligence_id: str) -> Dict[str, Any]:
+        """
+        Creates and stores a new Content Article in Phase P1.
+        """
+        now_str = datetime.datetime.now(datetime.UTC).isoformat() + "Z"
+        symbols_str = ",".join(symbols)
+        timeframes_str = ",".join(timeframes)
+
+        with self.db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO ContentArticle (
+                    id, title, body, html, format, language, status, version, category,
+                    symbols_str, timeframes_str, sentiment, risk_level, source_intelligence_id, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                article_id, title, body, html, format_type, language, status, version, category,
+                symbols_str, timeframes_str, sentiment, risk_level, source_intelligence_id, now_str
+            ))
+            conn.commit()
+
+        return self.get_article(article_id)
+
+    def get_article(self, article_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves full nested details of an Article including audit logs and lineage matrix.
+        """
+        with self.db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM ContentArticle WHERE id = ?", (article_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            article = dict(row)
+            article["symbols"] = [s.strip() for s in article["symbols_str"].split(",") if s.strip()]
+            article["timeframes"] = [t.strip() for t in article["timeframes_str"].split(",") if t.strip()]
+
+            # Fetch audit records
+            cursor.execute("SELECT * FROM ArticleAuditRecord WHERE article_id = ? ORDER BY timestamp DESC", (article_id,))
+            article["audit_history"] = [dict(r) for r in cursor.fetchall()]
+
+            # Fetch related ContentReview if exists
+            cursor.execute("SELECT * FROM ContentReview WHERE content_id = ?", (article_id,))
+            review_row = cursor.fetchone()
+            if review_row:
+                article["review"] = {
+                    "status": review_row["status"],
+                    "violations": json.loads(review_row["violations"]),
+                    "disclosures": json.loads(review_row["disclosures"]),
+                    "reviewed_at": review_row["reviewed_at"]
+                }
+            else:
+                article["review"] = None
+
+            return article
+
+    def list_articles(self, status: Optional[str] = None, category: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Queries and lists stored Articles with optional category and status filters.
+        """
+        query = "SELECT id FROM ContentArticle"
+        params = []
+        conditions = []
+
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+
+        if category:
+            conditions.append("category = ?")
+            params.append(category.upper())
+
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        query += " ORDER BY created_at DESC"
+
+        articles = []
+        with self.db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            for r in rows:
+                articles.append(self.get_article(r["id"]))
+
+        return articles
+
+    def update_article(self, article_id: str, title: str, body: str, html: str, status: str, version: str) -> None:
+        """
+        Updates Article draft body/title content and sets its version level.
+        """
+        with self.db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE ContentArticle
+                SET title = ?, body = ?, html = ?, status = ?, version = ?
+                WHERE id = ?
+            """, (title, body, html, status, version, article_id))
+            conn.commit()
+
+    def record_audit(self, article_id: str, previous_state: str, new_state: str, actor_id: str, comment: str) -> Dict[str, Any]:
+        """
+        Logs a workflow status-change audit entry inside ArticleAuditRecord.
+        """
+        audit_id = f"aud-{uuid.uuid4().hex[:8]}"
+        now_str = datetime.datetime.now(datetime.UTC).isoformat() + "Z"
+
+        with self.db_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO ArticleAuditRecord (id, article_id, previous_state, new_state, actor_id, comment, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (audit_id, article_id, previous_state, new_state, actor_id, comment, now_str))
+
+            # Sync ContentArticle status automatically
+            cursor.execute("""
+                UPDATE ContentArticle
+                SET status = ?
+                WHERE id = ?
+            """, (new_state, article_id))
+
+            conn.commit()
+
+        return {
+            "id": audit_id,
+            "article_id": article_id,
+            "previous_state": previous_state,
+            "new_state": new_state,
+            "actor_id": actor_id,
+            "comment": comment,
+            "timestamp": now_str
+        }

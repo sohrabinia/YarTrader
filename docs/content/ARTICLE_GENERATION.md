@@ -1,38 +1,37 @@
-# Article Generator Audit
+# Article Generator — Phase P1 Production Implementation
 
 ## 1. Implementation Status
-* **Status:** `PARTIAL`
+* **Status:** `IMPLEMENTED`
 
-## 2. Code Evidence
+## 2. Production Code Architecture
 * **File Paths:**
-  * `src/Growth/Agents/MarketIntelligenceAgents.py`
-  * `src/Application/Services/web_dashboard.py` (MOCK_BLOG_ARTICLES)
-* **Main Classes/Functions:**
-  * `DailyIntelligenceAgent.generate_daily_brief(symbol, market_data)`
-  * `ResearchPublisherAgent.publish_report(symbol, report_type, data)`
-* **API Endpoints:**
-  * `GET /api/growth/daily-brief`
-  * `GET /api/growth/reports/publish`
-  * `GET /api/blog` (Returns static, hardcoded research mock papers)
-  * `GET /api/blog/{article_id}`
-* **Functional Tests:**
-  * `tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py::test_daily_and_published_intelligence_agents`
+  * `src/Content/Generators/ArticleGenerator.py` (Article drafting logic)
+  * `src/Application/Services/content_api_router.py` (FastAPI endpoints)
+* **Main Classes:**
+  * `ArticleGenerator`: Extends `ContentIntelligenceInterface` to generate English/Persian quantitative articles and educational explanations.
 
-## 3. Detailed Audit Findings
+## 3. Supported Article Categories
 
-### Generation Types
-* **Long-form article generation:** Only exists as hardcoded static content in `MOCK_BLOG_ARTICLES` in `web_dashboard.py` to satisfy frontend view requests. No true dynamic generation is present.
-* **Educational content & Market analysis generation:** `DailyIntelligenceAgent` and `ResearchPublisherAgent` create descriptive paragraphs by combining incoming dictionary keys with standard static templates.
+### A. Market Research (`MARKET_RESEARCH`)
+Generates comprehensive analysis covering:
+* **Market Context:** Description of swing levels.
+* **Technical Analysis:** Price action order blocks and FVGs.
+* **Fundamental Context:** Macroeconomic session trends.
+* **Regime Analysis:** Range/trend parameters.
+* **Risk Factors:** Invalidation points.
 
-### Templates & Prompts
-* No NLP/LLM prompts exist in code. Templates are standard Python formatted strings:
-  ```python
-  brief_text = (
-      f"Daily technical brief for {symbol_upper} at {now}. "
-      f"Market structure is identified as {structure} under {volatility} volatility. ..."
-  )
-  ```
+### B. Educational (`EDUCATIONAL`)
+Generates pattern explanation content covering:
+* **Concept Explanation:** Quantitative behavior of alignment structures.
+* **Pattern Behavior:** Breakout confirm patterns.
+* **Learning Insights:** Multi-timeframe trend filtering logic.
 
-### Storage & Draft Lifecycle
-* There is no persistence database table or model for storing articles (e.g., SQLite or PostgreSQL).
-* A formal "Draft" status lifecycle is absent for articles, although formatted content chunks are held in-memory under `status="PENDING_APPROVAL"` in the generic content queue.
+### C. Intelligence Summary (`SUMMARY`)
+Generates executive briefings covering:
+* **Observations:** High tick accumulation summaries.
+* **Risks:** Target setup failures.
+
+## 4. Lineage Traceability & Output
+Every article compiles:
+* English or Persian structured titles, subtitles, markdown body, and pre-formatted HTML blocks.
+* Full traceability fields: `source_intelligence_id`, `symbols`, `timeframes`, `sentiment`, and `risk_level` mapped securely.
