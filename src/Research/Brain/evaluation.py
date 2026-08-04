@@ -12,6 +12,36 @@ class OutcomeEvaluationEngine:
     def __init__(self, memory_system: MarketMemorySystem) -> None:
         self.memory_system = memory_system
 
+    def get_weight_allocation(self) -> Dict[str, float]:
+        """
+        Returns the weight allocation for each hierarchical layer.
+        """
+        return {
+            "M5_execution": 0.40,
+            "M15_decision": 0.40,
+            "H1_context": 0.10,
+            "H4_D1_macro": 0.10
+        }
+
+    def calculate_confidence_shift(self, sample_size: int, success: bool) -> float:
+        """
+        Calculates the confidence shift based on sample-size threshold rules and outcome success.
+        - N < 30: No Confidence Modification
+        - 30 <= N < 100: Low Adjustment Impact (0.02)
+        - 100 <= N < 500: Normal Adjustment Impact (0.05)
+        - N >= 500: Strong Confidence Weighting (0.10)
+        """
+        direction = 1.0 if success else -1.0
+
+        if sample_size < 30:
+            return 0.0
+        elif 30 <= sample_size < 100:
+            return direction * 0.02
+        elif 100 <= sample_size < 500:
+            return direction * 0.05
+        else:
+            return direction * 0.10
+
     def evaluate_completed_trade(self, trade: VirtualTrade, situation_signature: List[float]) -> ExperienceMemory:
         """Converts a closed VirtualTrade into a formal persistent ExperienceMemory."""
         if trade.status != "CLOSED":
