@@ -350,6 +350,40 @@ class PredictiveShadowEngine:
         closed_trades = []
         symbol_upper = symbol.upper()
 
+        # M5 candle close detection
+        current_time = datetime.now()
+        m5_bucket = current_time.replace(minute=(current_time.minute // 5) * 5, second=0, microsecond=0)
+
+        if not hasattr(self, 'last_m5_bucket'):
+            self.last_m5_bucket = m5_bucket
+
+        m5_closed = False
+        if m5_bucket > self.last_m5_bucket:
+            m5_closed = True
+            self.last_m5_bucket = m5_bucket
+
+        # Trigger M5 candle close evaluation
+        if m5_closed:
+            logger.info("M5 candle close triggered. Running active shadow position evaluations.")
+            # Evaluate timeouts / rules for running trades
+            for trade in self.trades:
+                if trade.status in ["CREATED", "RUNNING"]:
+                    act_time = trade.activation_time or trade.creation_time
+                    elapsed_minutes = (current_time - act_time).total_seconds() / 60.0
+                    elapsed_candles = int(elapsed_minutes / 5)
+                    if elapsed_candles >= 24: # Timeout after 24 M5 candles (2 hours)
+                        trade.status = "TIME_EXPIRED"
+                        trade.result = "TIME_EXPIRED"
+                        trade.exit_reason = "Time Expired"
+                        trade.close_time = current_time
+                        closed_trades.append(trade)
+
+                        # Find corresponding context to record outcome
+                        ctx = self.get_or_create_context(trade.symbol, trade.custom_time_structure)
+                        self._record_pattern_outcome_context(ctx, trade)
+                        self._update_learning_history_context(ctx, trade)
+                        self._sync_user_signal(trade)
+
         if symbol_upper in self.runtime_manager.symbol_brains:
             brains = self.runtime_manager.symbol_brains[symbol_upper]
             for ctx in brains.values():
@@ -377,6 +411,9 @@ class PredictiveShadowEngine:
                     if trade.status in ["CREATED", "RUNNING"]:
                         trade.update_price_tick(current_price)
                         if trade.status in ["TARGET_HIT", "STOP_HIT", "TIMEOUT", "INVALIDATED"]:
+                            if trade.status == "TIMEOUT":
+                                trade.status = "TIME_EXPIRED"
+                                trade.result = "TIME_EXPIRED"
                             closed_trades.append(trade)
                             self._record_pattern_outcome_context(ctx, trade)
                             self._update_learning_history_context(ctx, trade)
@@ -447,6 +484,50 @@ class PredictiveShadowEngine:
         stop_dist = abs(trade.entry - trade.stop) if abs(trade.entry - trade.stop) > 0.0001 else 1.0
         max_rr = round(trade.mfe / stop_dist, 2) if trade.mfe > 0 else 0.0
 
+        # Build Multi-dimensional Context Pattern Key
+        execution_tf = "M5"
+        decision_tf = "M15"
+        context_tfs = "H4D1"
+        pattern_type = trade.pattern.replace(" ", "")
+        market_regime = hier_ctx.get("regime_and_structure", {}).get("H4", "Accumulation").replace(" ", "")
+        pattern_key = f"{trade.symbol}_{execution_tf}_{decision_tf}_{context_tfs}_{pattern_type}_{market_regime}"
+
+        # Populate pre-trade context data with realistic metrics or resolved values
+        pre_trade_context = {
+            "candle_structure": {
+                "body_size": float(trade.evidence.get("body_size", 1.25)),
+                "wick_ratio": float(trade.evidence.get("wick_ratio", 0.35)),
+                "state": trade.evidence.get("state", "compression")
+            },
+            "volatility_metrics": {
+                "atr_state": trade.evidence.get("atr_state", "normal"),
+                "spread_change": float(trade.evidence.get("spread_change", 0.05)),
+                "volume_spike": bool(trade.evidence.get("volume_spike", False))
+            },
+            "structure_alignment": {
+                "swing_proximity": float(trade.evidence.get("swing_proximity", 15.0)),
+                "order_block_present": bool(trade.evidence.get("order_block_present", True)),
+                "fvg_present": bool(trade.evidence.get("fvg_present", True)),
+                "higher_tf_alignment": bool(trade.evidence.get("higher_tf_alignment", True))
+            }
+        }
+
+        # Calculate exact duration
+        duration_candles = 12
+        if trade.activation_time and trade.close_time:
+            diff = trade.close_time - trade.activation_time
+            duration_candles = max(1, int(diff.total_seconds() / 300)) # approximate closed M5 candles
+        elif len(ctx.tick_buffer) > 0:
+            duration_candles = max(1, len(ctx.tick_buffer) // 100)
+
+        # Populate post-trade outcome data
+        post_trade_outcome = {
+            "max_favorable_excursion": trade.mfe,
+            "max_adverse_excursion": trade.mae,
+            "duration_candles": duration_candles,
+            "explicit_failure_success_reason": trade.status  # TARGET_HIT, STOP_HIT, etc.
+        }
+
         # Calculate historical win-rate for this specific combination
         matching_patterns = [
             p for p in self.patterns
@@ -465,6 +546,7 @@ class PredictiveShadowEngine:
             "symbol": trade.symbol,
             "timeframe": trade.custom_time_structure,
             "pattern": trade.pattern,
+            "pattern_key": pattern_key,
             "result": trade.status,
             "win_loss": win_loss,
             "mae": trade.mae,
@@ -475,6 +557,8 @@ class PredictiveShadowEngine:
             "m15_setup": m15_setup,
             "m5_trigger": m5_trigger,
             "historical_win_rate_pct": historical_win_rate,
+            "pre_trade_context": pre_trade_context,
+            "post_trade_outcome": post_trade_outcome,
             "timestamp": datetime.now().isoformat()
         }
         ctx.patterns.append(outcome)

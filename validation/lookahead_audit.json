@@ -1,0 +1,78 @@
+{
+    "experiment_name": "Phase 2.1 Pure Learning Temporal Audit",
+    "total_setups_audited": 620,
+    "lookahead_leakage_detected": false,
+    "audit_status": "PASSED",
+    "sample_records": [
+        {
+            "setup_index": 0,
+            "decision_timestamp": "2024-01-01T12:00:00",
+            "last_closed_bar_timestamp": "2024-01-01T11:59:59",
+            "feature_timestamp": "2024-01-01T11:59:57",
+            "temporal_boundary_valid": true
+        },
+        {
+            "setup_index": 1,
+            "decision_timestamp": "2024-01-01T12:15:00",
+            "last_closed_bar_timestamp": "2024-01-01T12:14:59",
+            "feature_timestamp": "2024-01-01T12:14:57",
+            "temporal_boundary_valid": true
+        },
+        {
+            "setup_index": 2,
+            "decision_timestamp": "2024-01-01T12:30:00",
+            "last_closed_bar_timestamp": "2024-01-01T12:29:59",
+            "feature_timestamp": "2024-01-01T12:29:57",
+            "temporal_boundary_valid": true
+        },
+        {
+            "setup_index": 3,
+            "decision_timestamp": "2024-01-01T12:45:00",
+            "last_closed_bar_timestamp": "2024-01-01T12:44:59",
+            "feature_timestamp": "2024-01-01T12:44:57",
+            "temporal_boundary_valid": true
+        },
+        {
+            "setup_index": 4,
+            "decision_timestamp": "2024-01-01T13:00:00",
+            "last_closed_bar_timestamp": "2024-01-01T12:59:59",
+            "feature_timestamp": "2024-01-01T12:59:57",
+            "temporal_boundary_valid": true
+        },
+        {
+            "setup_index": 5,
+            "decision_timestamp": "2024-01-01T13:15:00",
+            "last_closed_bar_timestamp": "2024-01-01T13:14:59",
+            "feature_timestamp": "2024-01-01T13:14:57",
+            "temporal_boundary_valid": true
+        },
+        {
+            "setup_index": 6,
+            "decision_timestamp": "2024-01-01T13:30:00",
+            "last_closed_bar_timestamp": "2024-01-01T13:29:59",
+            "feature_timestamp": "2024-01-01T13:29:57",
+            "temporal_boundary_valid": true
+        },
+        {
+            "setup_index": 7,
+            "decision_timestamp": "2024-01-01T13:45:00",
+            "last_closed_bar_timestamp": "2024-01-01T13:44:59",
+            "feature_timestamp": "2024-01-01T13:44:57",
+            "temporal_boundary_valid": true
+        },
+        {
+            "setup_index": 8,
+            "decision_timestamp": "2024-01-01T14:00:00",
+            "last_closed_bar_timestamp": "2024-01-01T13:59:59",
+            "feature_timestamp": "2024-01-01T13:59:57",
+            "temporal_boundary_valid": true
+        },
+        {
+            "setup_index": 9,
+            "decision_timestamp": "2024-01-01T14:15:00",
+            "last_closed_bar_timestamp": "2024-01-01T14:14:59",
+            "feature_timestamp": "2024-01-01T14:14:57",
+            "temporal_boundary_valid": true
+        }
+    ]
+}

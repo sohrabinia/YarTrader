@@ -1,0 +1,14 @@
+{
+    "git_commit_hash": "eef535b5e1910788183e92a3d352164442340a4d",
+    "branch_name": "feat/phase2.1-pure-learning-validation",
+    "configuration_hash": "22449ee7912340f7bb1e7c9e3f282488",
+    "runtime_parameters": {
+        "execution_timeframe": "M5",
+        "decision_timeframe": "M15",
+        "context_timeframe": "H1/H4/D1",
+        "minimum_events_threshold": 10000,
+        "minimum_setups_threshold": 500
+    },
+    "initial_memory_state_hash": "af863d60339b4a99",
+    "timestamp": "2026-08-04T16:22:00.957554"
+}
