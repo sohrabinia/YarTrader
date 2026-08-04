@@ -121,17 +121,17 @@ class SymbolRegistry:
         return self.registry
 
     def get_timeframe_policy(self, asset_class: str) -> List[str]:
-        """Resolves timeframe policies per asset class."""
+        """Resolves timeframe policies per asset class. Registers M5 as execution and M1 as timing layer."""
         ac_lower = asset_class.lower()
         if "forex" in ac_lower:
-            return ["M15", "H1", "H4", "D1"]
+            return ["M1", "M5", "M15", "H1", "H4", "D1"]
         elif "commodity" in ac_lower:
-            return ["M15", "H1", "H4", "D1"]
+            return ["M1", "M5", "M15", "H1", "H4", "D1"]
         elif "indices" in ac_lower or "index" in ac_lower:
-            return ["M5", "M15", "H1", "H4", "D1"]
+            return ["M1", "M5", "M15", "H1", "H4", "D1"]
         elif "crypto" in ac_lower:
-            return ["M15", "H1", "H4", "D1"]
-        return ["H1"]
+            return ["M1", "M5", "M15", "H1", "H4", "D1"]
+        return ["M1", "M5", "H1"]
 
     def get_active_matrix(self) -> List[Tuple[str, str, str, str]]:
         """Resolves execution matrix tuples of (symbol, timeframe, asset_class, provider)"""
