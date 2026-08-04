@@ -5,12 +5,15 @@ from typing import List, Dict, Any, Optional
 class SymbolTimeContext:
     """
     Represents an isolated cognitive intelligence and shadow trading context
-    for a specific Symbol + Internal Timeframe (e.g. XAUUSD_64).
+    for a specific Symbol + Internal Timeframe (e.g. XAUUSD_64 or XAUUSD_M5).
     Guarantees complete memory isolation (no cross-contamination across contexts).
     """
-    def __init__(self, symbol: str, timeframe: int) -> None:
+    def __init__(self, symbol: str, timeframe: Any) -> None:
         self.symbol = symbol.upper()
-        self.timeframe = int(timeframe)
+        try:
+            self.timeframe = int(timeframe)
+        except (ValueError, TypeError):
+            self.timeframe = timeframe
         self.context_id = f"{self.symbol}_{self.timeframe}"
 
         # State Buffers

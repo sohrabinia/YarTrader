@@ -105,11 +105,11 @@ class SymbolRegistry:
 
         # Default fallback registry configuration
         self.registry = {
-            "XAUUSD": {"active": True, "asset_class": "Commodities", "provider": "MT5", "timeframes": ["H1", "H4"]},
-            "EURUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["H1"]},
-            "GBPUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["H1"]},
-            "BTCUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["H1", "H4"]},
-            "ETHUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["H1", "H4"]}
+            "XAUUSD": {"active": True, "asset_class": "Commodities", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
+            "EURUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
+            "GBPUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
+            "BTCUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
+            "ETHUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]}
         }
         self.save_registry()
 
@@ -121,17 +121,8 @@ class SymbolRegistry:
         return self.registry
 
     def get_timeframe_policy(self, asset_class: str) -> List[str]:
-        """Resolves timeframe policies per asset class. Registers M5 as execution and M1 as timing layer."""
-        ac_lower = asset_class.lower()
-        if "forex" in ac_lower:
-            return ["M1", "M5", "M15", "H1", "H4", "D1"]
-        elif "commodity" in ac_lower:
-            return ["M1", "M5", "M15", "H1", "H4", "D1"]
-        elif "indices" in ac_lower or "index" in ac_lower:
-            return ["M1", "M5", "M15", "H1", "H4", "D1"]
-        elif "crypto" in ac_lower:
-            return ["M1", "M5", "M15", "H1", "H4", "D1"]
-        return ["M1", "M5", "H1"]
+        """Resolves timeframe policies per asset class. Returns all 9 timeframes."""
+        return ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
 
     def get_active_matrix(self) -> List[Tuple[str, str, str, str]]:
         """Resolves execution matrix tuples of (symbol, timeframe, asset_class, provider)"""

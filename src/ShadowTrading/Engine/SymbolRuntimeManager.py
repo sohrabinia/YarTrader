@@ -22,13 +22,13 @@ class SymbolRuntimeManager:
         self.processing_queues: Dict[str, queue.Queue] = {}
         self._lock = threading.Lock()
 
-    def get_or_create_symbol_hierarchy(self, symbol: str, default_timeframes: Optional[List[int]] = None) -> Dict[int, SymbolTimeContext]:
+    def get_or_create_symbol_hierarchy(self, symbol: str, default_timeframes: Optional[List[Any]] = None) -> Dict[Any, SymbolTimeContext]:
         """
         Retrieves or instantiates a complete timeframe hierarchy for a symbol.
         Enforces maximum 30 active symbols limit.
         """
         symbol_upper = symbol.upper()
-        timeframes = default_timeframes or [1, 4, 16, 64, 256]
+        timeframes = default_timeframes or ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
 
         with self._lock:
             if symbol_upper in self.symbol_brains:

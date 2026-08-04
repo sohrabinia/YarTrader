@@ -1,0 +1,9 @@
+{
+    "simulations_count": 1000,
+    "median_projected_return_pct": 495.83,
+    "worst_5th_percentile_drawdown_pct": 6.12,
+    "probability_of_ruin_pct": 0.0,
+    "ruin_threshold_pct": 20.0,
+    "ruin_limit_exceeded": false,
+    "stability_score_pct": 100.0
+}
