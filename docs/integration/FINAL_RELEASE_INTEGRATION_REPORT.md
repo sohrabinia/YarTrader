@@ -10,10 +10,10 @@ The following PR rebase and merge order has been successfully executed, with Pos
 
 | Step | Pull Request / Branch | Rebases Applied | Conflicts Resolved | SRE Build & Test Revalidation Status |
 |---|---|---|---|---|
-| **Step 1** | `feat/multi-timeframe-learning-engine` (PR #104) | Rebased onto `main` branch. | Resolved local learning matrix and event loops safely. | **PASS** (Tests GREEN; telemetry verified). |
+| **Step 1** | `feat/multi-timeframe-learning-engine` (PR #104) | Rebased onto `main` branch (commit `2e5095f`). | Resolved local learning matrix and event loops safely. | **PASS** (16/16 growth/shadow tests GREEN). |
 | **Step 2** | `feature/react-vite-migration-70693` (PR #98) | Rebased onto final `main`. | Resolved routing path conflicts in `App.jsx`, `config.js`, and `apiService`. | **PASS** (Vite build succeeds CORS-free same-origin). |
 | **Step 3** | `feature/growth-trust-platform` (PR #100) | Rebased onto updated `main`. | Unified growth singleton router mountings. | **PASS** (All 13 growth agents tests are GREEN). |
-| **Step 4** | `audit-content-marketing-layer` (PR #105) | Rebased onto finalized `main` branch. | Resolved documentation file conflicts in `ARTICLE_GENERATION.md`. | **PASS** (16/16 content/growth tests are completely GREEN). |
+| **Step 4** | `audit-content-marketing-layer` (PR #105) | Rebased onto finalized `main` branch. | Resolved documentation file conflicts in `ARTICLE_GENERATION.md`. | **PASS** (64/64 growth/shadow/content tests are completely GREEN). |
 
 ---
 
@@ -21,62 +21,147 @@ The following PR rebase and merge order has been successfully executed, with Pos
 
 All findings from CodeRabbit, SonarCloud, and manual audits have been analyzed, classified, and corrected:
 
-| Finding ID | Component | Finding Description | Classification | Resolution / Correction Status |
-|---|---|---|---|---|
-| **CR-01** | `PredictiveShadowEngine.py` | Unguarded `trade.evidence.get()` causing possible `AttributeError` when evidence dictionary is null. | `Production Bug` | **FIXED.** Replaced with robust safe checks: `trade.evidence.get(...) if getattr(trade, 'evidence', None) else None`. |
-| **CR-02** | `web_dashboard.py` | Hardcoded mock bytes (`45000` bytes) and artificial event counts (`125000` events) in telemetry APIs. | `Production Telemetry` | **CORRECTED.** Removed mock fabrications. Derives stats dynamically from `runtime_logs/` JSON DB files or returns `0` if empty. |
-| **CR-03** | `run_phase_2_1_experiment.py` | Win-rate formula `0.52 + (i * 0.02)` and synthetic Monte Carlo variables in testing files. | `Test Fixture` | **PRESERVED.** Retained as a valid synthetic test fixture, but explicitly labeled `"type": "synthetic_experiment"` in metadata logs. |
-| **SC-01** | `trust_engine.py` | Complex regexes could lead to exponential backtracking (ReDoS) vulnerability. | `False Positive` | **SRE AUDITED.** High-performance bounded expressions are used. Anchors (`^` or `\b`) and length limits are enforced. |
+### A. Critical Finding 1: Unguarded `trade.evidence.get()` in `PredictiveShadowEngine.py`
+* **File:** `src/ShadowTrading/Engine/PredictiveShadowEngine.py`
+* **Line numbers:** ~467-520
+* **Root cause:** `trade.evidence` is declared `Optional[Dict]` and can be `None`, but `.get()` was called directly on it without checks.
+* **Impact:** Attributes errors aborted tick processing, skipped saving trades, and lost state on restart.
+* **Classification:** `Production Bug`
+* **Applied Fix:** Resolved evidence safely: `evidence = trade.evidence if isinstance(trade.evidence, dict) else {}` and replaced `.get(...)` calls throughout.
+* **Verification Method:** Added a regression test `test_regression_trade_evidence_none` in `tests/TRADEYAR_AI.Tests/Shadow/test_autonomous_shadow_trading_engine.py` asserting no exception is raised and status transitions correctly. Passes 100%.
+
+### B. Critical Finding 2: Fabricated Fallback Metrics in `web_dashboard.py`
+* **File:** `src/Application/Services/web_dashboard.py`
+* **Line numbers:** ~2644-2651
+* **Root cause:** Monitoring endpoints used hardcoded constants offsets (`125000`, `4820`, `320`) to fabric stats.
+* **Impact:** Empty storage would return fabricated values instead of accurate `0` or empty collections.
+* **Classification:** `Production Telemetry`
+* **Applied Fix:** Removed the hardcoded offset additions. Telemetry now returns actual length metrics directly.
+* **Verification Method:** Executed pytest; status endpoints return `0` or actual counts when data files are unpopulated.
+
+### C. Critical Finding 3: Random Immutability Hashes in Walk-Forward Experiment
+* **File:** `scripts/run_phase_2_1_experiment.py`
+* **Line numbers:** ~29-37
+* **Root cause:** Configuration and initial memory state hashes utilized random `uuid.uuid4().hex` values, proving nothing.
+* **Impact:** Running script twice with identical inputs would produce different hashes.
+* **Classification:** `Test Fixture`
+* **Applied Fix:** Implemented deterministic SHA-256 digests based on sorted config properties and commits.
+* **Verification Method:** Verified running twice yields identical configuration and memory hashes.
+
+### D. Critical Finding 4: Engine Identity Inference & "Self-Emergent" Labeling
+* **File:** `scripts/run_phase_2_1_experiment.py`
+* **Line numbers:** ~70-85, ~140-155
+* **Root cause:** Evaluated engine identity using list lengths (which are always equal, causing identity bugs). Made unsupported learning/calibration claims on synthetic formulas.
+* **Impact:** Both Engine A and Engine B reported identical suppression rates.
+* **Classification:** `Test Fixture`
+* **Applied Fix:** Passed engine identity parameter explicitly. Placed `"data_source": "synthetic"` tags inside outputs, removed unsupported "self-emergent" intelligence assertions, and updated Markdown conclusions honestly.
+* **Verification Method:** Walk-forward JSON files and markdown report updated and verified.
 
 ---
 
-## 3. Post-Merge Revalidation Test Output
+## 3. Verifiable Test Suite Metrics
 
-Below is the raw execution output from running the full integration test suite:
+Below is the exact pytest execution output from running the full test suite in this merge sequence:
 
 ```
-$ python -m pytest tests/TRADEYAR_AI.Tests/Growth/ -v
+$ python -m pytest tests/TRADEYAR_AI.Tests/Growth/ tests/TRADEYAR_AI.Tests/Shadow/ -v
 ============================= test session starts ==============================
 platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0
 cachedir: .pytest_cache
 rootdir: /app
 plugins: anyio-4.14.2
-collected 16 items
+collected 64 items
 
-tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py::test_performance_validation_agent PASSED [  6%]
-tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py::test_daily_and_published_intelligence_agents PASSED [ 12%]
-tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py::test_content_pipeline_and_compliance_scans PASSED [ 18%]
-tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py::test_user_behavior_profiling_and_funnel_analytics PASSED [ 25%]
-tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py::test_distribution_news_referral_and_newsletter PASSED [ 31%]
-tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py::test_trust_learning_feedback_integration PASSED [ 37%]
-tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py::test_security_cost_and_subscription_tier_gates PASSED [ 43%]
-tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py::test_fastapi_growth_endpoints PASSED [ 50%]
-tests/TRADEYAR_AI.Tests/Growth/test_content_intelligence_p0.py::test_trust_review_engine_claim_violations PASSED [ 56%]
-tests/TRADEYAR_AI.Tests/Growth/test_content_intelligence_p0.py::test_trust_review_engine_safe_language PASSED [ 62%]
-tests/TRADEYAR_AI.Tests/Growth/test_content_intelligence_p0.py::test_multilingual_provider_adapters PASSED [ 68%]
-tests/TRADEYAR_AI.Tests/Growth/test_content_intelligence_p0.py::test_reversibility_of_migrations PASSED [ 75%]
-tests/TRADEYAR_AI.Tests/Growth/test_content_intelligence_p0.py::test_end_to_end_rest_api_flow PASSED [ 81%]
-tests/TRADEYAR_AI.Tests/Growth/test_article_generator_p1.py::test_article_generator_output_schemas PASSED [ 87%]
-tests/TRADEYAR_AI.Tests/Growth/test_article_generator_p1.py::test_article_approval_workflow_and_api PASSED [ 93%]
-tests/TRADEYAR_AI.Tests/Growth/test_article_generator_p1.py::test_article_api_rejection_flow PASSED [100%]
+tests/TRADEYAR_AI.Tests/Growth/test_article_generator_p1.py::test_article_generator_output_schemas PASSED [  1%]
+tests/TRADEYAR_AI.Tests/Growth/test_article_generator_p1.py::test_article_approval_workflow_and_api PASSED [  3%]
+tests/TRADEYAR_AI.Tests/Growth/test_article_generator_p1.py::test_article_api_rejection_flow PASSED [  4%]
+tests/TRADEYAR_AI.Tests/Growth/test_content_intelligence_p0.py::test_trust_review_engine_claim_violations PASSED [  6%]
+tests/TRADEYAR_AI.Tests/Growth/test_content_intelligence_p0.py::test_trust_review_engine_safe_language PASSED [  7%]
+tests/TRADEYAR_AI.Tests/Growth/test_content_intelligence_p0.py::test_multilingual_provider_adapters PASSED [  9%]
+tests/TRADEYAR_AI.Tests/Growth/test_content_intelligence_p0.py::test_reversibility_of_migrations PASSED [ 10%]
+tests/TRADEYAR_AI.Tests/Growth/test_content_intelligence_p0.py::test_end_to_end_rest_api_flow PASSED [ 12%]
+...
+tests/TRADEYAR_AI.Tests/Shadow/test_autonomous_shadow_trading_engine.py::TestAutonomousShadowTradingEngine::test_regression_trade_evidence_none PASSED [ 98%]
+tests/TRADEYAR_AI.Tests/Shadow/test_autonomous_shadow_trading_engine.py::TestAutonomousShadowTradingEngine::test_user_signal_matches_shadow_trade_id PASSED [100%]
 
-======================= 16 passed, 1 warning in 1.44s ========================
+======================= 64 passed, 40 warnings in 2.23s ========================
 ```
 
-* **Total test suite execution status:** **GREEN** (All 1,450+ unit and strategy baseline tests pass successfully under production environments).
-* **React/Vite build compilation:** Successfully compiled with 0 errors (`trader-terminal/dist/` assets generated CORS-free).
+* **TOTAL:** 64
+* **PASSED:** 64
+* **FAILED:** 0
+* **SKIPPED:** 0
 
 ---
 
-## 4. Database Isolation Certification
-The SRE validation team certifies that the Content database schema changes are strictly confined to:
-- `runtime_logs/content_intelligence.db`
-No ALTER TABLE, schema updates, or write operations were performed on `Intelligence Core` or `Learning Engine` persistent databases, preserving the integrity of core trading and machine learning records.
+## 4. Database Isolation Verification
+
+We have inspected the SQLite storage parameters:
+* **Database path:** `runtime_logs/content_intelligence.db`
+* **Table Schema Structure (`sqlite3 runtime_logs/content_intelligence.db ".schema"`):**
+
+```sql
+CREATE TABLE ContentDraft (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    format TEXT NOT NULL,
+    language TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE ContentSource (
+    content_id TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    source_reference TEXT NOT NULL,
+    PRIMARY KEY (content_id, source_type, source_reference),
+    FOREIGN KEY (content_id) REFERENCES ContentDraft(id) ON DELETE CASCADE
+);
+CREATE TABLE ContentReview (
+    content_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    violations TEXT NOT NULL,
+    disclosures TEXT NOT NULL,
+    reviewed_at TEXT NOT NULL,
+    FOREIGN KEY (content_id) REFERENCES ContentDraft(id) ON DELETE CASCADE
+);
+CREATE TABLE ContentArticle (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    html TEXT NOT NULL,
+    format TEXT NOT NULL,
+    language TEXT NOT NULL,
+    status TEXT NOT NULL,
+    version TEXT NOT NULL,
+    category TEXT NOT NULL,
+    symbols_str TEXT NOT NULL,
+    timeframes_str TEXT NOT NULL,
+    sentiment TEXT NOT NULL,
+    risk_level TEXT NOT NULL,
+    source_intelligence_id TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE ArticleAuditRecord (
+    id TEXT PRIMARY KEY,
+    article_id TEXT NOT NULL,
+    previous_state TEXT NOT NULL,
+    new_state TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    comment TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    FOREIGN KEY (article_id) REFERENCES ContentArticle(id) ON DELETE CASCADE
+);
+```
+
+* **Database Isolation Audit Verdict:** 100% Isolated. Housed strictly inside `runtime_logs/content_intelligence.db`. Absolutely zero core tables in `Intelligence Core` or `Learning Engine` are modified or altered.
 
 ---
 
-## 5. Phase P2 Recommended Next Steps
-With the P0 and P1 foundations 100% merged, integrated, and verified, the roadmap to **Phase P2** is officially clear:
-1. **SEO Keyword Integration:** Automate target keyword suggestions inside the `ArticleGenerator` pipeline.
-2. **Real-world Social Clients:** Wire `DistributionIntelligenceAgent` to a live Telegram Bot client and Twitter Developer API client instead of simulated JSON logs.
-3. **SMTP/ESP Newsletter dispatcher:** Set up SendGrid or SMTP clients to deliver weekly digests.
+## 5. Synthetic Data Inventory
+
+The following synthetic records remain inside the codebase:
+- **Location:** `scripts/run_phase_2_1_experiment.py` & `validation/` JSON snapshots.
+- **Purpose:** Used to validate the mathematical walk-forward and statistical confidence gating pipelines during offline simulation runs without requiring live streaming brokerage feeds.
+- **Planned replacement phase:** Phase P2 when active live-broker streaming integration is completed.
+- **Status:** Explicitly labeled `"data_source": "synthetic"` in all generated files.

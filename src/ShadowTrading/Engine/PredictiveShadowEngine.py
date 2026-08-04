@@ -467,15 +467,18 @@ class PredictiveShadowEngine:
         self._save_generic(self.signals_file, self.signals)
 
     def _record_pattern_outcome_context(self, ctx: SymbolTimeContext, trade: ShadowTrade) -> None:
-        hier_ctx = trade.evidence.get("hierarchical_context", {}) if isinstance(trade.evidence, dict) else {}
-        if not hier_ctx and isinstance(trade.evidence, dict) and "evidence" in trade.evidence:
+        evidence = trade.evidence if isinstance(trade.evidence, dict) else {}
+        hier_ctx = evidence.get("hierarchical_context", {})
+        if not hier_ctx and "evidence" in evidence:
             # check inside nested evidence
-            hier_ctx = trade.evidence.get("evidence", {}).get("hierarchical_context", {})
+            hier_ctx = evidence.get("evidence", {}).get("hierarchical_context", {})
+        if not isinstance(hier_ctx, dict):
+            hier_ctx = {}
 
-        macro_bias_d1 = hier_ctx.get("macro_bias", {}).get("D1", "Bullish")
-        macro_bias_h4 = hier_ctx.get("macro_bias", {}).get("H4", "Bullish")
-        m15_setup = hier_ctx.get("primary_decision", {}).get("setup", "Long Reversal")
-        m5_trigger = hier_ctx.get("primary_execution", {}).get("trigger", "Breakout Confirmation")
+        macro_bias_d1 = hier_ctx.get("macro_bias", {}).get("D1", "Bullish") if isinstance(hier_ctx.get("macro_bias"), dict) else "Bullish"
+        macro_bias_h4 = hier_ctx.get("macro_bias", {}).get("H4", "Bullish") if isinstance(hier_ctx.get("macro_bias"), dict) else "Bullish"
+        m15_setup = hier_ctx.get("primary_decision", {}).get("setup", "Long Reversal") if isinstance(hier_ctx.get("primary_decision"), dict) else "Long Reversal"
+        m5_trigger = hier_ctx.get("primary_execution", {}).get("trigger", "Breakout Confirmation") if isinstance(hier_ctx.get("primary_execution"), dict) else "Breakout Confirmation"
 
         # Win/Loss
         win_loss = "Win" if trade.status == "TARGET_HIT" else "Loss"
@@ -489,26 +492,26 @@ class PredictiveShadowEngine:
         decision_tf = "M15"
         context_tfs = "H4D1"
         pattern_type = trade.pattern.replace(" ", "")
-        market_regime = hier_ctx.get("regime_and_structure", {}).get("H4", "Accumulation").replace(" ", "")
+        market_regime = hier_ctx.get("regime_and_structure", {}).get("H4", "Accumulation").replace(" ", "") if isinstance(hier_ctx.get("regime_and_structure"), dict) else "Accumulation"
         pattern_key = f"{trade.symbol}_{execution_tf}_{decision_tf}_{context_tfs}_{pattern_type}_{market_regime}"
 
         # Populate pre-trade context data with realistic metrics or resolved values
         pre_trade_context = {
             "candle_structure": {
-                "body_size": float(trade.evidence.get("body_size", 1.25)),
-                "wick_ratio": float(trade.evidence.get("wick_ratio", 0.35)),
-                "state": trade.evidence.get("state", "compression")
+                "body_size": float(evidence.get("body_size", 1.25)) if evidence.get("body_size") is not None else 1.25,
+                "wick_ratio": float(evidence.get("wick_ratio", 0.35)) if evidence.get("wick_ratio") is not None else 0.35,
+                "state": evidence.get("state", "compression")
             },
             "volatility_metrics": {
-                "atr_state": trade.evidence.get("atr_state", "normal"),
-                "spread_change": float(trade.evidence.get("spread_change", 0.05)),
-                "volume_spike": bool(trade.evidence.get("volume_spike", False))
+                "atr_state": evidence.get("atr_state", "normal"),
+                "spread_change": float(evidence.get("spread_change", 0.05)) if evidence.get("spread_change") is not None else 0.05,
+                "volume_spike": bool(evidence.get("volume_spike", False))
             },
             "structure_alignment": {
-                "swing_proximity": float(trade.evidence.get("swing_proximity", 15.0)),
-                "order_block_present": bool(trade.evidence.get("order_block_present", True)),
-                "fvg_present": bool(trade.evidence.get("fvg_present", True)),
-                "higher_tf_alignment": bool(trade.evidence.get("higher_tf_alignment", True))
+                "swing_proximity": float(evidence.get("swing_proximity", 15.0)) if evidence.get("swing_proximity") is not None else 15.0,
+                "order_block_present": bool(evidence.get("order_block_present", True)),
+                "fvg_present": bool(evidence.get("fvg_present", True)),
+                "higher_tf_alignment": bool(evidence.get("higher_tf_alignment", True))
             }
         }
 

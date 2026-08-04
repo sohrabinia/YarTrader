@@ -233,3 +233,30 @@ class TestAutonomousShadowTradingEngine(unittest.TestCase):
         for ts in engine.target_sizes:
             self.assertIsInstance(ts, int)
             self.assertNotIn(ts, [16385, 16386, 16387, 16388]) # Standard MT5 timeframe constant values
+
+    # Test 10: Regression test for trade.evidence = None guard check
+    def test_regression_trade_evidence_none(self) -> None:
+        # Create a trade with evidence explicitly set to None
+        trade = self.engine.create_predictive_order(
+            symbol="XAUUSD",
+            direction="LONG",
+            entry=2000.0,
+            stop=1990.0,
+            target=2010.0,
+            confidence=85.0,
+            reason="Regression Test None Evidence"
+        )
+        trade.evidence = None
+
+        # Trigger RUNNING state
+        self.engine.update_market_ticks("XAUUSD", 2001.0)
+
+        # Trigger STOP_HIT closing state, which invokes _record_pattern_outcome_context
+        try:
+            self.engine.update_market_ticks("XAUUSD", 1985.0)
+        except AttributeError as e:
+            self.fail(f"PredictiveShadowEngine regression occurred: trade.evidence=None raised AttributeError: {e}")
+
+        # Assert status transitioned correctly and is not crashed
+        self.assertEqual(trade.status, "STOP_HIT")
+        self.assertGreater(len(self.engine.patterns), 0)
