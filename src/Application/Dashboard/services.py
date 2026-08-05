@@ -198,13 +198,24 @@ class DashboardAggregatorService:
 
     def generate_cognitive_dashboard_metrics(self) -> Dict[str, Any]:
         """Exposes complete cognitive monitoring panels, learning progress, and brain weaknesses."""
+        try:
+            from src.Application.Services.web_dashboard import global_memory_system
+            stats = global_memory_system.get_learning_statistics()
+            episodes = len(global_memory_system.events)
+            patterns = stats.get("patterns_created", 0)
+            validated = stats.get("concepts_learned", 0)
+        except Exception:
+            episodes = 0
+            patterns = 0
+            validated = 0
+
         return {
             "Learning Progress": {
-                "Episodes Studied": 142,
-                "Patterns Found": 87,
-                "Hypotheses Tested": 34,
-                "Validated Concepts": 12,
-                "Rejected Concepts": 6,
+                "Episodes Studied": episodes,
+                "Patterns Found": patterns,
+                "Hypotheses Tested": 0,
+                "Validated Concepts": validated,
+                "Rejected Concepts": 0,
                 "Last Updated": datetime.now().isoformat()
             },
             "Brain Weakness": {

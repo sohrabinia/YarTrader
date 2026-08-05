@@ -93,6 +93,17 @@ class SymbolRuntimeManager:
                 if tf_norm not in self.symbol_brains[symbol_upper]:
                     self.symbol_brains[symbol_upper][tf_norm] = SymbolTimeContext(symbol_upper, tf_norm)
 
+            # Runtime assertion to guarantee duplicate normalized timeframe keys never exist
+            normalized_keys = []
+            for k in self.symbol_brains[symbol_upper].keys():
+                try:
+                    normalized_keys.append(TimeframeNormalizer.normalize(k))
+                except Exception:
+                    normalized_keys.append(k)
+            assert len(normalized_keys) == len(set(normalized_keys)), (
+                f"SRE Critical Violation: Duplicate normalized timeframe keys found in symbol_brains[{symbol_upper}]!"
+            )
+
             logger.info(
                 "Successfully spun up isolated timeframe hierarchy context for symbol: %s (%d contexts)",
                 symbol_upper, len(self.symbol_brains[symbol_upper])

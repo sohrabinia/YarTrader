@@ -122,6 +122,63 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         self.assertEqual(rep_micro["win_rate_pct"], 100.0)
         self.assertEqual(rep_macro["win_rate_pct"], 0.0)
 
+    def test_timeframe_normalization_coexistence(self) -> None:
+        """
+        Regression test for Phase 2:
+        Verifies:
+        - Duplicate prevention: '1', 1 map to the same canonical key (1).
+        - Mixed key normalization ensures only one context exists in symbol_brains.
+        """
+        self.engine.contexts = {} # Reset
+
+        ctx1 = self.engine.get_or_create_context("XAUUSD", 1)
+        ctx2 = self.engine.get_or_create_context("XAUUSD", "1")
+
+        # Verify that both retrieve the exact same SymbolTimeContext object
+        self.assertEqual(id(ctx1), id(ctx2))
+
+        # Since default testing hierarchy creates [1, 4, 16, 64, 256], and '1' and 1 normalize to same,
+        # symbol_brains contains exactly 5 contexts and no duplicate '1' string context.
+        symbol_brains = self.engine.runtime_manager.symbol_brains["XAUUSD"]
+        self.assertEqual(len(symbol_brains), 5)
+
+    def test_trade_without_evidence_lifecycle_survival(self) -> None:
+        """
+        Regression test for Phase 3 (Evidence=None lifecycle safety):
+        Verifies that:
+        - No exception is raised when evidence=None or invalid.
+        - Trade state/lifecycle changes correctly (CREATED -> RUNNING -> TARGET_HIT).
+        - Persistence and outcome recording executes successfully.
+        """
+        self.engine.contexts = {} # Reset
+        self.engine.trades = [] # Reset trades in memory
+
+        # 1. Create predictive order with evidence=None
+        trade = self.engine.create_predictive_order(
+            symbol="XAUUSD",
+            direction="LONG",
+            entry=2000.0,
+            stop=1990.0,
+            target=2020.0,
+            confidence=80.0,
+            custom_time_structure=1,
+            evidence=None
+        )
+
+        # 2. Trigger trade
+        self.engine.update_market_ticks("XAUUSD", 2005.0)
+        self.assertEqual(trade.status, "RUNNING")
+
+        # 3. Complete trade
+        self.engine.update_market_ticks("XAUUSD", 2025.0)
+        self.assertEqual(trade.status, "TARGET_HIT")
+
+        # 4. Verify persistence executes cleanly
+        self.assertEqual(len(self.engine.trades), 1)
+        saved_trades = self.engine._load_trades()
+        saved_ids = [st.trade_id for st in saved_trades]
+        self.assertIn(trade.trade_id, saved_ids)
+
     def test_timeframe_normalization_regression(self) -> None:
         """
         Regression tests for Phase 2:

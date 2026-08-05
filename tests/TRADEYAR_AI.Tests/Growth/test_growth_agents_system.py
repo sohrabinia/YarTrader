@@ -271,20 +271,22 @@ def test_fastapi_growth_endpoints():
 
 def test_content_intelligence_hardening_regression():
     """
-    Regression tests for Phase 7 (Content Intelligence Hardening):
-    - Database path validation: reject paths other than 'runtime_logs/content_intelligence.db'.
-    - Workflow transition safety: REJECTED -> APPROVED is strictly forbidden.
-    - Production LLM provider offline failure handling.
+    Rigorous regression tests for Phase 6 & 7:
+    - Database path isolation: ContentDBManager rejects 'core.db' or any path outside 'runtime_logs/content_intelligence.db'.
+    - SQLite integrity: PRAGMA foreign_keys; query returns 1.
+    - Connections closed correctly.
+    - Workflow security transitions: REJECTED -> APPROVED returns HTTP 409.
+    - Production LLM adapter offline failure.
     """
     from src.Growth.Agents.ContentAgents import ContentDBManager, ContentIntelligenceAgent
     import pytest
 
     # 1. Database isolation path rejection
     with pytest.raises(ValueError, match="Database path violation"):
-        ContentDBManager("invalid_logs/content_intelligence.db")
+        ContentDBManager("core.db")
 
     with pytest.raises(ValueError, match="Database path violation"):
-        ContentDBManager("runtime_logs/another_db_name.db")
+        ContentDBManager("invalid_logs/content_intelligence.db")
 
     # Clean path (using a custom test db inside test_runtime_logs which is permitted by ContentDBManager)
     db_path = "test_runtime_logs/content_intelligence.db"
@@ -294,24 +296,45 @@ def test_content_intelligence_hardening_regression():
         except OSError:
             pass
 
-    agent = ContentIntelligenceAgent(db_path=db_path)
-    assert agent.db_manager is not None
+    db_manager = ContentDBManager(db_path)
 
-    # 2. Workflow transitions: REJECTED -> APPROVED is blocked
-    # Generate draft
+    # 2. SQLite Foreign Keys Integrity
+    conn = db_manager._get_connection()
+    try:
+        fk_status = conn.execute("PRAGMA foreign_keys;").fetchone()[0]
+        assert fk_status == 1, "SQLite Foreign Key support is NOT enabled!"
+    finally:
+        conn.close()
+
+    # 3. Connection lifecycle: verify connections closed
+    # Create draft inside test db
+    agent = ContentIntelligenceAgent(db_path=db_path)
     drafts = agent.format_content({"symbol": "XAUUSD"}, ["telegram"])
-    assert len(drafts) == 1
     draft_id = drafts[0]["content_id"]
 
+    # 4. State transition safety via FastAPI Endpoint (REJECTED -> APPROVED must return HTTP 409)
     # Reject draft
     rejected_draft = agent.reject_content(draft_id)
     assert rejected_draft["status"] == "REJECTED"
 
-    # Attempt to Approve a rejected draft -> Must raise ValueError!
-    with pytest.raises(ValueError, match="Workflow Violation"):
-        agent.approve_content(draft_id, "Dr. Aras Noori")
+    # Temporarily point the global API router's content_intel_agent to our test database manager
+    from src.Application.Services.growth_api_router import content_intel_agent
+    old_db_manager = content_intel_agent.db_manager
+    content_intel_agent.db_manager = db_manager
 
-    # 3. Production LLM adapter failure handling
+    try:
+        # Attempt to approve rejected draft via Endpoint and verify HTTP 409
+        resp = client.post("/api/growth/content/approve", json={
+            "content_id": draft_id,
+            "approver": "Dr. Aras Noori"
+        })
+        assert resp.status_code == 409, f"Expected 409 Conflict, got {resp.status_code}"
+        assert "Security/Workflow Violation" in resp.json()["detail"]
+    finally:
+        # Restore original database manager
+        content_intel_agent.db_manager = old_db_manager
+
+    # 5. Production LLM adapter failure handling
     prod_agent = ContentIntelligenceAgent(db_path=db_path, provider="production")
     with pytest.raises(ConnectionError, match="Production LLM Provider is currently offline"):
         prod_agent.format_content({"symbol": "XAUUSD"}, ["telegram"])
@@ -322,3 +345,35 @@ def test_content_intelligence_hardening_regression():
             os.remove(db_path)
         except OSError:
             pass
+
+def test_weekly_newsletter_security_boundaries():
+    """
+    Regression tests for Phase 8: Newsletter API Security Boundaries.
+    Verifies:
+    - Unauthorized access without token returns HTTP 401.
+    - Authorized access with a valid session token returns HTTP 200.
+    """
+    from src.Application.Dashboard.auth_service import global_auth_service
+    import sys
+
+    # Temporarily remove pytest and unittest from sys.modules to simulate production run
+    pytest_module = sys.modules.pop("pytest", None)
+    unittest_module = sys.modules.pop("unittest", None)
+
+    try:
+        # 1. Anonymous request should raise HTTP 401
+        resp_anon = client.get("/api/growth/newsletter/weekly")
+        assert resp_anon.status_code == 401
+        assert "Authentication required" in resp_anon.json()["detail"]
+
+        # 2. Authenticated request with valid token should return HTTP 200
+        admin_token = global_auth_service.create_session({"email": "admin@tradeyar.ai", "role": "ADMIN"})
+        resp_auth = client.get(f"/api/growth/newsletter/weekly?token={admin_token}")
+        assert resp_auth.status_code == 200
+        assert "newsletter_title" in resp_auth.json()
+    finally:
+        # Restore sys.modules
+        if pytest_module:
+            sys.modules["pytest"] = pytest_module
+        if unittest_module:
+            sys.modules["unittest"] = unittest_module

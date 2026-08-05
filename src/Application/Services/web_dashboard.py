@@ -3280,14 +3280,15 @@ def get_dashboard_overview():
 @app.get("/v1/dashboard/cognitive")
 def get_dashboard_cognitive():
     """Exposes complete cognitive monitoring panels, learning progress, and brain weaknesses."""
+    stats = global_memory_system.get_learning_statistics()
     return {
         "cognitive": {
             "Learning Progress": {
-                "Episodes Studied": 142,
-                "Patterns Found": 87,
-                "Hypotheses Tested": 34,
-                "Validated Concepts": 12,
-                "Rejected Concepts": 6,
+                "Episodes Studied": len(global_memory_system.events),
+                "Patterns Found": stats.get("patterns_created", 0),
+                "Hypotheses Tested": 0,
+                "Validated Concepts": stats.get("concepts_learned", 0),
+                "Rejected Concepts": 0,
                 "Last Updated": datetime.now().isoformat()
             },
             "Brain Weakness": {

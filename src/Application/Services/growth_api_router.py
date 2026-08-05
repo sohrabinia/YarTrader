@@ -144,9 +144,13 @@ def generate_channel_content(payload: ContentPayload, role: str = Header("USER")
 
 @router.post("/content/approve")
 def approve_content_item(payload: ApprovePayload):
-    approved_item = content_intel_agent.approve_content(payload.content_id, payload.approver)
-    if not approved_item:
-        raise HTTPException(status_code=404, detail="Content item not found in queue.")
+    try:
+        approved_item = content_intel_agent.approve_content(payload.content_id, payload.approver)
+        if not approved_item:
+            raise HTTPException(status_code=404, detail="Content item not found in queue.")
+    except ValueError as e:
+        # Strict workflow security: reject invalid state transition with HTTP 409 Conflict
+        raise HTTPException(status_code=409, detail=str(e))
 
     # Auto-route content on approval
     routing = dist_agent.route_content(approved_item)
