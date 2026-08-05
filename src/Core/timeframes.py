@@ -1,5 +1,6 @@
 # Centralized Timeframe Registry - Single Source of Truth
 # All validation, mapping, and core intelligence layers use this registry.
+from typing import Any
 
 SUPPORTED_TIMEFRAMES = {
     "M1": {
@@ -67,3 +68,42 @@ SUPPORTED_TIMEFRAMES = {
         "minimum_lookback_days": 900
     }
 }
+
+
+class TimeframeNormalizer:
+    @staticmethod
+    def normalize(timeframe: Any) -> Any:
+        """
+        Normalizes a timeframe into a canonical internal representation.
+        Supports both traditional integer tick counts (must be > 0)
+        and new multi-timeframe string IDs ("Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1").
+        """
+        if timeframe is None:
+            raise ValueError("Timeframe cannot be None")
+
+        if isinstance(timeframe, bool):
+            raise ValueError("Booleans are not valid timeframes")
+
+        # If it's already an integer, check if it's positive
+        if isinstance(timeframe, int):
+            if timeframe > 0:
+                return timeframe
+            raise ValueError(f"Invalid integer timeframe (must be > 0): {timeframe}")
+
+        if isinstance(timeframe, str):
+            # Check if it represents an integer like "64" or "1024"
+            if timeframe.isdigit():
+                val = int(timeframe)
+                if val > 0:
+                    return val
+                raise ValueError(f"Invalid integer timeframe string (must be > 0): {timeframe}")
+
+            # Match standard strings (case-insensitive)
+            supported = ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
+            for s in supported:
+                if s.upper() == timeframe.upper():
+                    return s
+
+            raise ValueError(f"Invalid string timeframe: {timeframe}")
+
+        raise ValueError(f"Unsupported timeframe type: {type(timeframe)}")

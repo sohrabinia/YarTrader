@@ -40,7 +40,8 @@ class ShadowTrade:
         self.target = float(target)
         self.confidence = float(confidence)
         self.reason = reason
-        self.custom_time_structure = int(custom_time_structure)
+        from src.Core.timeframes import TimeframeNormalizer
+        self.custom_time_structure = TimeframeNormalizer.normalize(custom_time_structure)
         self.base_id = base_id or "B-None"
         self.node_id = node_id or "N-None"
         self.pattern = pattern
@@ -249,19 +250,20 @@ class PredictiveShadowEngine:
         self.runtime_manager.symbol_brains = {}
         self.runtime_manager.processing_queues = {}
 
-    def _get_or_create_context_bypassing_limits(self, symbol: str, timeframe: int) -> SymbolTimeContext:
+    def _get_or_create_context_bypassing_limits(self, symbol: str, timeframe: Any) -> SymbolTimeContext:
         """Retrieves or creates context bypassing limits (used on startup hydration)."""
+        from src.Core.timeframes import TimeframeNormalizer
         symbol_upper = symbol.upper()
-        tf_int = int(timeframe)
+        tf_canonical = TimeframeNormalizer.normalize(timeframe)
 
         if symbol_upper not in self.runtime_manager.symbol_brains:
             self.runtime_manager.symbol_brains[symbol_upper] = {}
             self.runtime_manager.processing_queues[symbol_upper] = queue.Queue(maxsize=1000)
 
         brains = self.runtime_manager.symbol_brains[symbol_upper]
-        if tf_int not in brains:
-            brains[tf_int] = SymbolTimeContext(symbol_upper, tf_int)
-        return brains[tf_int]
+        if tf_canonical not in brains:
+            brains[tf_canonical] = SymbolTimeContext(symbol_upper, tf_canonical)
+        return brains[tf_canonical]
 
     def _hydrate_contexts(self) -> None:
         """Hydrates isolated contexts from loaded persistent data, bypassing limits checks."""
@@ -294,16 +296,17 @@ class PredictiveShadowEngine:
             ctx = self._get_or_create_context_bypassing_limits(symbol, tf)
             ctx.learning.append(learn)
 
-    def get_or_create_context(self, symbol: str, timeframe: int) -> SymbolTimeContext:
+    def get_or_create_context(self, symbol: str, timeframe: Any) -> SymbolTimeContext:
         """Retrieves or instantiates an isolated context in SymbolRuntimeManager."""
+        from src.Core.timeframes import TimeframeNormalizer
         symbol_upper = symbol.upper()
-        tf_int = int(timeframe)
+        tf_canonical = TimeframeNormalizer.normalize(timeframe)
 
         # Hydrate hierarchy if not exists
         hierarchy = self.runtime_manager.get_or_create_symbol_hierarchy(symbol_upper)
-        if tf_int not in hierarchy:
-            hierarchy[tf_int] = SymbolTimeContext(symbol_upper, tf_int)
-        return hierarchy[tf_int]
+        if tf_canonical not in hierarchy:
+            hierarchy[tf_canonical] = SymbolTimeContext(symbol_upper, tf_canonical)
+        return hierarchy[tf_canonical]
 
     def create_predictive_order(
         self,
