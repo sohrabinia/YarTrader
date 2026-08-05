@@ -294,6 +294,15 @@ def test_content_intelligence_hardening_regression():
         except OSError:
             pass
 
+def test_approve_content_with_token_validation():
+    # Attempt to approve with an invalid token -> should raise 401
+    r = client.post("/api/growth/content/approve?token=invalid_token", json={
+        "content_id": "cnt-mock123",
+        "approver": "Dr. Aras Noori"
+    })
+    assert r.status_code == 401
+
+    db_path = "test_runtime_logs/content_intelligence.db"
     agent = ContentIntelligenceAgent(db_path=db_path)
     assert agent.db_manager is not None
 

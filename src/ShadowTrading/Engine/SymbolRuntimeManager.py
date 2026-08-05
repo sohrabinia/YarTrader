@@ -28,6 +28,11 @@ class SymbolRuntimeManager:
             self.symbol_brains = {}
             self.processing_queues = {}
 
+    def get_symbol_brains_snapshot(self) -> Dict[str, Dict[Any, SymbolTimeContext]]:
+        """Returns a thread-safe shallow copy of the symbol brains to protect internal state."""
+        with self._lock:
+            return {k: dict(v) for k, v in self.symbol_brains.items()}
+
     def get_or_create_context_bypassing_limits(self, symbol: str, timeframe: Any) -> SymbolTimeContext:
         """Retrieves or creates context bypassing active symbol limits (used on startup hydration)."""
         from src.Core.timeframes import TimeframeNormalizer
