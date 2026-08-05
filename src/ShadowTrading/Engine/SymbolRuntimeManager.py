@@ -20,7 +20,7 @@ class SymbolRuntimeManager:
 
         # Concurrent worker queues for backpressure safety
         self.processing_queues: Dict[str, queue.Queue] = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock() # Reentrant lock for nested context instantiation safety
 
     def reset_brains(self) -> None:
         """Resets all symbol contexts and queues safely."""
@@ -55,9 +55,9 @@ class SymbolRuntimeManager:
         symbol_upper = symbol.upper()
         tf_canonical = TimeframeNormalizer.normalize(timeframe)
 
-        # get_or_create_symbol_hierarchy enforces the active symbols limit
-        hierarchy = self.get_or_create_symbol_hierarchy(symbol_upper)
         with self._lock:
+            # get_or_create_symbol_hierarchy enforces the active symbols limit
+            hierarchy = self.get_or_create_symbol_hierarchy(symbol_upper)
             if tf_canonical not in hierarchy:
                 hierarchy[tf_canonical] = SymbolTimeContext(symbol_upper, tf_canonical)
             return hierarchy[tf_canonical]
@@ -91,10 +91,7 @@ class SymbolRuntimeManager:
 
             from src.Core.timeframes import TimeframeNormalizer
             for tf in timeframes:
-                try:
-                    tf_norm = TimeframeNormalizer.normalize(tf)
-                except Exception:
-                    tf_norm = tf
+                tf_norm = TimeframeNormalizer.normalize(tf)
                 if tf_norm not in self.symbol_brains[symbol_upper]:
                     self.symbol_brains[symbol_upper][tf_norm] = SymbolTimeContext(symbol_upper, tf_norm)
 
@@ -104,10 +101,11 @@ class SymbolRuntimeManager:
     def queue_tick_update(self, symbol: str, price: float) -> None:
         """Queues a raw market tick update thread-safely into the symbol's SRE task queue."""
         symbol_upper = symbol.upper()
-        if symbol_upper not in self.processing_queues:
-            self.get_or_create_symbol_hierarchy(symbol_upper)
+        with self._lock:
+            if symbol_upper not in self.processing_queues:
+                self.get_or_create_symbol_hierarchy(symbol_upper)
+            q = self.processing_queues[symbol_upper]
 
-        q = self.processing_queues[symbol_upper]
         try:
             # Non-blocking put to handle SRE backpressure elegantly
             q.put_nowait({"price": price, "timestamp": datetime.now()})
@@ -126,60 +124,61 @@ class SymbolRuntimeManager:
         Checks for trend alignments across Micro, Short, Medium, and Macro frames.
         """
         symbol_upper = symbol.upper()
-        if symbol_upper not in self.symbol_brains:
-            return {"symbol": symbol_upper, "action": "WAIT", "confidence": 0.0, "reason": "No active contexts"}
+        with self._lock:
+            if symbol_upper not in self.symbol_brains:
+                return {"symbol": symbol_upper, "action": "WAIT", "confidence": 0.0, "reason": "No active contexts"}
 
-        brains = self.symbol_brains[symbol_upper]
+            brains = self.symbol_brains[symbol_upper]
 
-        # Gather directions and outcomes from its own active frames
-        buy_weight = 0.0
-        sell_weight = 0.0
-        reasons = []
+            # Gather directions and outcomes from its own active frames
+            buy_weight = 0.0
+            sell_weight = 0.0
+            reasons = []
 
-        # Simple weighted model based on horizons
-        weights = {
-            1: 1.0,     # Micro
-            4: 1.5,     # Short
-            16: 2.0,    # Medium
-            64: 2.0,    # Medium-High
-            256: 3.0    # Macro
-        }
-
-        for tf, ctx in brains.items():
-            # Get latest trade direction
-            active_trades = [t for t in ctx.trades if t.status in ["CREATED", "RUNNING"]]
-            if active_trades:
-                latest = active_trades[-1]
-                weight = weights.get(tf, 1.0)
-                if latest.direction == "LONG":
-                    buy_weight += weight * (latest.confidence / 100.0)
-                    reasons.append(f"Frame {tf} Bullish ({latest.confidence}%)")
-                elif latest.direction == "SHORT":
-                    sell_weight += weight * (latest.confidence / 100.0)
-                    reasons.append(f"Frame {tf} Bearish ({latest.confidence}%)")
-
-        total_weight = buy_weight + sell_weight
-        if total_weight == 0.0:
-            return {
-                "symbol": symbol_upper,
-                "action": "WAIT",
-                "confidence": 50.0,
-                "reason": "All internal horizons reporting quiet range consolidations"
+            # Simple weighted model based on horizons
+            weights = {
+                1: 1.0,     # Micro
+                4: 1.5,     # Short
+                16: 2.0,    # Medium
+                64: 2.0,    # Medium-High
+                256: 3.0    # Macro
             }
 
-        # Calculate fused confidence
-        if buy_weight > sell_weight:
-            action = "LONG"
-            confidence = (buy_weight / total_weight) * 100.0
-            reason = "Horizons Alignment: " + " | ".join(reasons)
-        else:
-            action = "SHORT"
-            confidence = (sell_weight / total_weight) * 100.0
-            reason = "Horizons Alignment: " + " | ".join(reasons)
+            for tf, ctx in brains.items():
+                # Get latest trade direction
+                active_trades = [t for t in ctx.trades if t.status in ["CREATED", "RUNNING"]]
+                if active_trades:
+                    latest = active_trades[-1]
+                    weight = weights.get(tf, 1.0)
+                    if latest.direction == "LONG":
+                        buy_weight += weight * (latest.confidence / 100.0)
+                        reasons.append(f"Frame {tf} Bullish ({latest.confidence}%)")
+                    elif latest.direction == "SHORT":
+                        sell_weight += weight * (latest.confidence / 100.0)
+                        reasons.append(f"Frame {tf} Bearish ({latest.confidence}%)")
 
-        return {
-            "symbol": symbol_upper,
-            "action": action,
-            "confidence": round(confidence, 1),
-            "reason": reason
-        }
+            total_weight = buy_weight + sell_weight
+            if total_weight == 0.0:
+                return {
+                    "symbol": symbol_upper,
+                    "action": "WAIT",
+                    "confidence": 50.0,
+                    "reason": "All internal horizons reporting quiet range consolidations"
+                }
+
+            # Calculate fused confidence
+            if buy_weight > sell_weight:
+                action = "LONG"
+                confidence = (buy_weight / total_weight) * 100.0
+                reason = "Horizons Alignment: " + " | ".join(reasons)
+            else:
+                action = "SHORT"
+                confidence = (sell_weight / total_weight) * 100.0
+                reason = "Horizons Alignment: " + " | ".join(reasons)
+
+            return {
+                "symbol": symbol_upper,
+                "action": action,
+                "confidence": round(confidence, 1),
+                "reason": reason
+            }
