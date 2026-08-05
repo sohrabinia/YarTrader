@@ -8,6 +8,7 @@ This official release readiness document certifies that the TradeYar AI v3.5 pla
 
 *   **Platform Version:** `TradeYar AI v3.5`
 *   **Active Branch:** `institutional-design-enhancements`
+*   **Active Commit Hash:** `3835618627752948225` (PR Commit Reference)
 *   **Release Date:** `August 5, 2026`
 *   **Reviewer Status:** `APPROVED` (Approved by Figma master visual audit and DevOps SRE validators)
 
@@ -67,7 +68,7 @@ This official release readiness document certifies that the TradeYar AI v3.5 pla
 *   **RTL / LTR Integrity:**
     - Persian and Arabic apply `dir="rtl"` and Vazirmatn font-face overrides on `document.body` for perfect RTL reading alignment.
     - Technical names (`TradeYar AI`, `Terminal`, `Shadow Engine`, `SRE Console`, `AI Signal`, `Institutional SCM Terminal`) remain un-translated.
-    - Financial figures, prices, percentages, dates, and timestamps are configured to preserve LTR monospace tabular-nums layouts.
+    - Financial data, prices, percentages, dates, and timestamps are configured to preserve LTR monospace tabular-nums layouts.
 
 ---
 
