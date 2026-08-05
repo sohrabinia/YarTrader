@@ -5,8 +5,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.pyo
-
-# C extensions
 *.so
 
 
@@ -80,148 +78,94 @@ dmypy.json
 # Runtime Generated Data
 # NEVER COMMIT
 # ==========================================
-
 runtime_logs/
-
-<<<<<<< HEAD
-# Project logs, snapshots, and reports
-logs/
-*.log
-=======
 test_runtime_logs/
-
 test_timeframe_logs/
-
 logs/
-
 history/
-
 *.log
-
->>>>>>> origin/main
 uvicorn.log
 
 
 # ==========================================
 # Research Generated Snapshots
 # ==========================================
-
 research_snapshots/
-
 snapshots/
-
 *.snapshot.json
 
 
 # ==========================================
 # AI Memory Runtime Data
 # ==========================================
-
 brain_memory/
-
 experiences_memory.json
-
 learning_history.json
-
 pattern_outcomes.json
-
 shadow_trades.json
-
 signal_history.json
 
 
 # ==========================================
 # Temporary Files
 # ==========================================
-
 tmp/
-
 temp/
-
 *.tmp
-
 *.bak
 
 
 # ==========================================
 # Reports Generated During Runtime
 # ==========================================
-
 TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt
 
 
 # ==========================================
 # Secrets / Security
 # ==========================================
-
 .env.production
-
 .env.local
-
 *.key
-
 *.pem
-
-<<<<<<< HEAD
-# Runtime and test execution isolation
-runtime_logs/
-test_timeframe_logs/
-TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt
-=======
 *.crt
-
 secrets/
-
 credentials/
 
 
 # ==========================================
 # OS Files
 # ==========================================
-
 .DS_Store
-
 Thumbs.db
 
 
 # ==========================================
 # Model / AI Cache
 # ==========================================
-
 models/cache/
-
 *.bin
-
 *.pt
-
 *.pth
-
 *.onnx
 
 
 # ==========================================
 # Database Local Files
 # ==========================================
-
 *.sqlite
-
 *.sqlite3
-
 *.db
 
 
 # ==========================================
 # Local Agent Runtime
 # ==========================================
-
 .agent/
-
 .jules/
-
 .cursor/
-
 .claude/
->>>>>>> origin/main
+
 
 # ==========================================
 # Node.js / Frontend Packages & Builds

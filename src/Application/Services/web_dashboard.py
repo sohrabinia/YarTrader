@@ -546,6 +546,13 @@ def get_portfolio_exposure(virtual_balance: float = 10000.0):
 # ==============================================================================
 @app.get("/", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
+@app.get("/pricing", response_class=HTMLResponse)
+@app.get("/features", response_class=HTMLResponse)
+@app.get("/login", response_class=HTMLResponse)
+@app.get("/register", response_class=HTMLResponse)
+@app.get("/forgot-password", response_class=HTMLResponse)
+@app.get("/execution-intel", response_class=HTMLResponse)
+@app.get("/admin", response_class=HTMLResponse)
 def get_dashboard_spa():
     """Serves the rich, production-grade System Validation Center SPA page with full bilingual RTL/LTR support."""
     react_index = "trader-terminal/dist/index.html"
@@ -3385,6 +3392,21 @@ def get_scorecard():
             "layer_isolation": "PASSED",
             "apes_passive_governance": "PASSED"
         }
+    }
+
+
+@app.get("/api/system/frontend-status")
+def get_system_frontend_status():
+    """Exposes frontend build diagnostics status to the dashboard client."""
+    react_index = "trader-terminal/dist/index.html"
+    build_status = "available" if os.path.exists(react_index) else "unavailable"
+    assets_status = "available" if os.path.exists("trader-terminal/dist/assets") else "unavailable"
+    return {
+        "frontend": "React",
+        "build": build_status,
+        "assets": assets_status,
+        "api": "connected",
+        "mode": "production"
     }
 
 
