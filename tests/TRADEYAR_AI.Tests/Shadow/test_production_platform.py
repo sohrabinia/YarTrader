@@ -113,8 +113,8 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         self.assertEqual(data["count"], 6)
 
         reports = data["reports"]
-        rep_micro = next((r for r in reports if r["timeframe"] == 1), None)
-        rep_macro = next((r for r in reports if r["timeframe"] == 1024), None)
+        rep_micro = next((r for r in reports if r["timeframe"] == "1"), None)
+        rep_macro = next((r for r in reports if r["timeframe"] == "1024"), None)
 
         self.assertIsNotNone(rep_micro)
         self.assertIsNotNone(rep_macro)
