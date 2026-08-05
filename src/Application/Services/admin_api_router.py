@@ -129,7 +129,11 @@ def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[int] = N
         return (1, str(tf))
 
     contexts_to_report.sort(key=sort_key)
-    reports = [ctx.get_statistics() for ctx in contexts_to_report]
+    reports = []
+    for ctx in contexts_to_report:
+        stats = ctx.get_statistics()
+        stats["timeframe"] = str(stats["timeframe"])
+        reports.append(stats)
 
     return {
         "symbol": target_symbol,

@@ -113,14 +113,34 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         self.assertEqual(data["count"], 6)
 
         reports = data["reports"]
-        rep_micro = next((r for r in reports if r["timeframe"] == 1), None)
-        rep_macro = next((r for r in reports if r["timeframe"] == 1024), None)
+        rep_micro = next((r for r in reports if r["timeframe"] == "1"), None)
+        rep_macro = next((r for r in reports if r["timeframe"] == "1024"), None)
 
         self.assertIsNotNone(rep_micro)
         self.assertIsNotNone(rep_macro)
 
         self.assertEqual(rep_micro["win_rate_pct"], 100.0)
         self.assertEqual(rep_macro["win_rate_pct"], 0.0)
+
+    def test_reports_api_never_returns_numeric_timeframe(self) -> None:
+        """
+        Regression test confirming all timeframe fields in the API response are normalized strings.
+        No numeric timeframe values are allowed in API responses.
+        """
+        admin_token = global_auth_service.create_session({"email": "admin@tradeyar.ai", "role": "ADMIN"})
+
+        # Hydrate XAUUSD with integer timeframe 1024
+        self.engine.create_predictive_order("XAUUSD", "LONG", 2000.0, 1990.0, 2020.0, 80.0, custom_time_structure=1024)
+
+        resp = self.client.get(f"/api/admin/reports?symbol=XAUUSD&token={admin_token}")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        # Verify that EVERY timeframe returned in the reports is a string
+        for rep in data["reports"]:
+            self.assertIsInstance(rep["timeframe"], str)
+            # Make sure it's not numeric / integer type in the raw response
+            self.assertNotIsInstance(rep["timeframe"], int)
 
     def test_timeframe_normalization_coexistence(self) -> None:
         """

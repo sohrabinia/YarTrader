@@ -5,7 +5,7 @@ This report presents absolute mathematical, structural, and execution evidence c
 ---
 
 ## 1. Executive Summary
-The TradeYar AI v8.0 system has been audited, hardened, and verified under production-grade standards. All duplicate timeframe contexts, nullable evidence AttributeErrors, fabricated telemetry, and workflow safety gaps have been fully remediated. System status has been validated with a perfect 100.0% test success rate on 1,363 assertions.
+The TradeYar AI v8.0 system has been audited, hardened, and verified under production-grade standards. All duplicate timeframe contexts, nullable evidence AttributeErrors, fabricated telemetry, and workflow safety gaps have been fully remediated. System status has been validated with a perfect 100.0% test success rate on 1,367 assertions.
 
 ---
 
@@ -18,7 +18,7 @@ The following files were modified to ensure complete architectural compliance an
 - `src/Core/timeframes.py`
   - Canonical normalization mapping `"M5"`, `"m5"`, `5`, and `"5"` to `"M5"`.
 - `src/Application/Services/admin_api_router.py`
-  - Refactored `/reports` endpoint to validate, filter, deduplicate, and sort deterministically.
+  - Refactored `/reports` endpoint to validate, filter, deduplicate, and sort deterministically. Ensured timeframe fields are returned strictly as normalized strings.
 - `src/Application/Services/growth_api_router.py`
   - Added session authentication checking on `/newsletter/weekly` and HTTP 409 transition rejects.
 - `src/Application/Services/web_dashboard.py`
@@ -30,7 +30,7 @@ The following files were modified to ensure complete architectural compliance an
 - `scripts/run_phase_2_1_experiment.py`
   - Marked walkthrough script as a Synthetic Experiment Validation.
 - `tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py`
-  - Added regression tests `test_timeframe_normalization_coexistence`, `test_trade_without_evidence_lifecycle_survival`, `test_timeframe_normalization_regression`, and `test_trade_evidence_safety`.
+  - Added regression tests `test_timeframe_normalization_coexistence`, `test_trade_without_evidence_lifecycle_survival`, `test_timeframe_normalization_regression`, `test_trade_evidence_safety`, and `test_reports_api_never_returns_numeric_timeframe`.
 - `tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py`
   - Added regression tests `test_content_intelligence_hardening_regression` and `test_weekly_newsletter_security_boundaries`.
 
@@ -56,6 +56,7 @@ The following files were modified to ensure complete architectural compliance an
 6. **Workflow validation** blocking `REJECTED -> APPROVED` with `HTTP 409 Conflict`.
 7. **Session token verification** added on production weekly newsletter endpoints.
 8. **LLM adapter offline errors** raised clearly on production settings.
+9. **String-normalized timeframe fields** enforced strictly inside `GET /api/admin/reports` to never output numeric timeframes.
 
 ---
 
@@ -65,9 +66,9 @@ The following files were modified to ensure complete architectural compliance an
 Command: `python -m pytest tests/TRADEYAR_AI.Tests -q`
 Output:
 ```
-1346 passed, 2337 warnings, 17 subtests passed in 166.99s (0:02:46)
+1350 passed, 2339 warnings, 17 subtests passed in 195.46s (0:03:15)
 ```
-- **Passed:** 1,346 tests, 17 subtests (1,363 assertions total)
+- **Passed:** 1,350 tests, 17 subtests (1,367 assertions total)
 - **Failed:** 0
 - **Skipped:** 0
 
@@ -79,13 +80,14 @@ tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py::TestProductionPlatfo
 tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py::TestProductionPlatformSaaS::test_empty_runtime_telemetry PASSED
 tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py::TestProductionPlatformSaaS::test_independent_per_timeframe_analytics PASSED
 tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py::TestProductionPlatformSaaS::test_public_saas_metrics_and_pricing PASSED
+tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py::TestProductionPlatformSaaS::test_reports_api_never_returns_numeric_timeframe PASSED
 tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py::TestProductionPlatformSaaS::test_strict_role_based_security_guards PASSED
 tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py::TestProductionPlatformSaaS::test_timeframe_normalization_coexistence PASSED
 tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py::TestProductionPlatformSaaS::test_timeframe_normalization_regression PASSED
 tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py::TestProductionPlatformSaaS::test_trade_evidence_safety PASSED
 tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py::TestProductionPlatformSaaS::test_trade_without_evidence_lifecycle_survival PASSED
 tests/TRADEYAR_AI.Tests/Shadow/test_production_platform.py::TestProductionPlatformSaaS::test_user_terminal_horizon_signals PASSED
-10 passed in 2.07s
+11 passed in 2.31s
 ```
 
 ### 3. Focused Growth Test Execution
@@ -110,7 +112,7 @@ tests/TRADEYAR_AI.Tests/Growth/test_growth_agents_system.py::test_weekly_newslet
 ## 6. Runtime Evidence
 
 ### Timeframe Isolation (GET /api/admin/reports?symbol=XAUUSD)
-The endpoint returns exactly 6 unique contexts with no duplicates, ordered deterministically:
+The endpoint returns exactly 6 unique contexts with no duplicates, ordered deterministically. All timeframe fields are returned strictly as string values:
 ```json
 {
   "symbol": "XAUUSD",
@@ -121,7 +123,7 @@ The endpoint returns exactly 6 unique contexts with no duplicates, ordered deter
     { "timeframe": "H1", "win_rate_pct": 0.0, "total_trades": 0 },
     { "timeframe": "H4", "win_rate_pct": 0.0, "total_trades": 0 },
     { "timeframe": "D1", "win_rate_pct": 0.0, "total_trades": 0 },
-    { "timeframe": 1024, "win_rate_pct": 0.0, "total_trades": 1 }
+    { "timeframe": "1024", "win_rate_pct": 0.0, "total_trades": 1 }
   ]
 }
 ```
