@@ -92,6 +92,16 @@ function MainApp() {
     }
   }, [theme]);
 
+  // Dynamic Route Theme Mapping: Public pages -> Light editorial, Terminal/Admin -> Dark
+  useEffect(() => {
+    const isPublic = hash === '#/' || hash === '#/features' || hash === '#/pricing' || hash === '#/blog' || hash === '#/login' || hash === '#/register' || hash === '#/forgot-password';
+    if (isPublic) {
+      setTheme('light');
+    } else {
+      setTheme('dark');
+    }
+  }, [hash]);
+
   // Auth & Routing Guard
   useEffect(() => {
     // If attempting restricted routes without being logged in, redirect to login
@@ -436,7 +446,7 @@ function MainApp() {
           <span style={{ fontSize: '1.4em', fontWeight: 'bold', color: 'var(--primary)', letterSpacing: '1px' }}>
             TradeYar AI
           </span>
-          <span id="uptime-indicator" className="status-item" style={{ fontSize: '0.8em', padding: '6px 12px' }}>
+          <span id="uptime-indicator" className="status-item state-online" style={{ fontSize: '0.8em', padding: '6px 12px', border: 'none' }}>
             {t('online')}
           </span>
           <span id="portal-status-label" style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
@@ -1154,30 +1164,32 @@ function MainApp() {
               {/* deep SCM reports table */}
               <div className="card">
                 <h3>{t('admin_report_title')}</h3>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>{t('col_symbol')}</th>
-                      <th>{t('col_timeframe')}</th>
-                      <th>{t('col_shadow_cycles')}</th>
-                      <th>{t('col_wins_losses')}</th>
-                      <th>{t('col_win_rate')}</th>
-                      <th>{t('col_avg_confidence')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {adminReports.map((rep, idx) => (
-                      <tr key={idx}>
-                        <td>{rep.symbol}</td>
-                        <td>{rep.timeframe}</td>
-                        <td>{rep.total_cycles}</td>
-                        <td>{rep.wins}/{rep.losses}</td>
-                        <td>{rep.win_rate}%</td>
-                        <td>{rep.avg_confidence}%</td>
+                <div style={{ overflowX: 'auto' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>{t('col_symbol')}</th>
+                        <th>{t('col_timeframe')}</th>
+                        <th>{t('col_shadow_cycles')}</th>
+                        <th>{t('col_wins_losses')}</th>
+                        <th>{t('col_win_rate')}</th>
+                        <th>{t('col_avg_confidence')}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {adminReports.map((rep, idx) => (
+                        <tr key={idx}>
+                          <td>{rep.symbol}</td>
+                          <td>{rep.timeframe}</td>
+                          <td>{rep.total_cycles}</td>
+                          <td>{rep.wins}/{rep.losses}</td>
+                          <td>{rep.win_rate}%</td>
+                          <td>{rep.avg_confidence}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
