@@ -105,9 +105,9 @@ class TestMultiAssetMultiResolutionCognitive(unittest.TestCase):
 
         reports = data["reports"]
         # Find frame 4 report
-        rep_4 = next((r for r in reports if r["timeframe"] == 4), None)
+        rep_4 = next((r for r in reports if r["timeframe"] == "4"), None)
         # Find frame 64 report
-        rep_64 = next((r for r in reports if r["timeframe"] == 64), None)
+        rep_64 = next((r for r in reports if r["timeframe"] == "64"), None)
 
         self.assertIsNotNone(rep_4)
         self.assertIsNotNone(rep_64)

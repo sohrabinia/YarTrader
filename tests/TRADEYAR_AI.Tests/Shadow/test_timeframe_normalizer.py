@@ -99,3 +99,23 @@ class TestTimeframeNormalizerRegression(unittest.TestCase):
         self.assertNotEqual(hash1, hash3)
         self.assertIsNotNone(hash1)
         self.assertEqual(len(hash1), 64) # sha256 length
+
+    def test_reports_api_never_returns_numeric_timeframe_values(self) -> None:
+        """
+        Regression test: Reports API must never return numeric timeframe values.
+        Verify that statistics and dictionaries serialized for API clients always have
+        strictly string-typed 'timeframe' fields.
+        """
+        # Create numeric-timeframe context
+        ctx_numeric = self.engine.get_or_create_context("XAUUSD", 1024)
+        stats = ctx_numeric.get_statistics()
+
+        # Must be string-typed
+        self.assertIsInstance(stats["timeframe"], str)
+        self.assertEqual(stats["timeframe"], "1024")
+
+        # Also verify with standard string-based timeframes
+        ctx_str = self.engine.get_or_create_context("XAUUSD", "M5")
+        stats_str = ctx_str.get_statistics()
+        self.assertIsInstance(stats_str["timeframe"], str)
+        self.assertEqual(stats_str["timeframe"], "M5")
