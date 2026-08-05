@@ -1,4 +1,5 @@
 {
+    "type": "synthetic_experiment",
     "simulations_count": 1000,
     "median_projected_return_pct": 495.83,
     "worst_5th_percentile_drawdown_pct": 6.12,

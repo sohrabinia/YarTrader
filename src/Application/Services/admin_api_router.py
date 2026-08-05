@@ -84,17 +84,55 @@ def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[int] = N
     enforce_admin_token(token)
     engine = PredictiveShadowEngine.get_instance()
 
-    reports = []
-    contexts_to_report = engine.contexts.values()
-    if symbol:
-        contexts_to_report = [c for c in contexts_to_report if c.symbol == symbol.upper()]
-    if timeframe:
-        contexts_to_report = [c for c in contexts_to_report if c.timeframe == int(timeframe)]
+    target_symbol = symbol.upper() if symbol else "XAUUSD"
 
-    for ctx in contexts_to_report:
-        reports.append(ctx.get_statistics())
+    from src.Core.timeframes import TimeframeNormalizer
+    contexts_to_report = []
+
+    if target_symbol in engine.runtime_manager.symbol_brains:
+        brains = engine.runtime_manager.symbol_brains[target_symbol]
+        unique_contexts = {}
+        for tf, ctx in brains.items():
+            try:
+                tf_canon = TimeframeNormalizer.normalize(tf)
+            except Exception:
+                tf_canon = tf
+
+            # Timeframe filtering
+            if timeframe is not None:
+                try:
+                    filter_tf_canon = TimeframeNormalizer.normalize(timeframe)
+                except Exception:
+                    filter_tf_canon = timeframe
+                if tf_canon != filter_tf_canon:
+                    continue
+
+            if tf_canon not in unique_contexts:
+                unique_contexts[tf_canon] = ctx
+            else:
+                # Duplicate detected! Log warning for SRE visibility.
+                import logging
+                logger = logging.getLogger("AdminReportsAPI")
+                logger.warning(
+                    f"SRE DATA PROBLEM DETECTED: Duplicate context found for symbol={target_symbol}, "
+                    f"timeframe={tf_canon}. Original: {unique_contexts[tf_canon].context_id}, "
+                    f"Duplicate: {ctx.context_id}"
+                )
+
+        contexts_to_report = list(unique_contexts.values())
+
+    # Deterministic sorting: integers first, then strings alphabetically
+    def sort_key(ctx):
+        tf = ctx.timeframe
+        if isinstance(tf, int):
+            return (0, tf)
+        return (1, str(tf))
+
+    contexts_to_report.sort(key=sort_key)
+    reports = [ctx.get_statistics() for ctx in contexts_to_report]
 
     return {
-        "reports": reports,
-        "count": len(reports)
+        "symbol": target_symbol,
+        "count": len(reports),
+        "reports": reports
     }

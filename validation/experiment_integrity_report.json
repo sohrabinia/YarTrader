@@ -1,9 +1,11 @@
 {
-    "experiment_id": "exp-phase2.1-be7a27",
-    "git_commit_hash": "eef535b5e1910788183e92a3d352164442340a4d",
+    "type": "synthetic_experiment",
+    "experiment_id": "exp-phase2.1-029ba0",
+    "git_commit_hash": "02348779a82b48b20a4a9308187e27e068daedf5",
     "parameters_frozen": true,
     "leakage_audit_status": "CLEAN",
     "sample_validation_gates_verified": true,
     "honest_reporting_compliance": true,
-    "summary": "Verified zero manual trading rules were injected. All performance gains of Engine B are purely self-emergent from experience memory and statistical calibration."
+    "summary": "Verified zero manual trading rules were injected. Performance metrics reflect synthetic walk-forward simulation of experience memory and statistical calibration to validate report pipeline.",
+    "data_source": "synthetic"
 }
