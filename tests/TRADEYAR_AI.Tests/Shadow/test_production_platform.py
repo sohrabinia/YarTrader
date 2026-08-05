@@ -121,3 +121,131 @@ class TestProductionPlatformSaaS(unittest.TestCase):
 
         self.assertEqual(rep_micro["win_rate_pct"], 100.0)
         self.assertEqual(rep_macro["win_rate_pct"], 0.0)
+
+    def test_timeframe_normalization_regression(self) -> None:
+        """
+        Regression tests for Phase 2:
+        Verifies:
+        - Duplicate prevention: 'M5', 'm5', 5, '5' map to the same canonical key ('M5').
+        - Custom timeframe coexistence: e.g. 1024 and 'M5' both coexist beautifully.
+        - Runtime reload/hydration consistency.
+        """
+        self.engine.contexts = {} # Reset
+
+        # 1. Duplicate prevention
+        ctx1 = self.engine.get_or_create_context("XAUUSD", "M5")
+        ctx2 = self.engine.get_or_create_context("XAUUSD", "m5")
+        ctx3 = self.engine.get_or_create_context("XAUUSD", 5)
+        ctx4 = self.engine.get_or_create_context("XAUUSD", "5")
+
+        # Verify that all 4 retrieve the exact same SymbolTimeContext object
+        self.assertEqual(id(ctx1), id(ctx2))
+        self.assertEqual(id(ctx1), id(ctx3))
+        self.assertEqual(id(ctx1), id(ctx4))
+        self.assertEqual(ctx1.timeframe, "M5")
+
+        # 2. Custom timeframe coexistence
+        ctx_custom = self.engine.get_or_create_context("XAUUSD", 1024)
+        self.assertEqual(ctx_custom.timeframe, 1024)
+
+        # 3. Reload/hydration consistency simulation
+        # Simulate saving a trade on "5" (normalized to "M5")
+        t = self.engine.create_predictive_order("XAUUSD", "LONG", 2000.0, 1990.0, 2020.0, 80.0, custom_time_structure=5)
+        self.assertEqual(t.custom_time_structure, "M5")
+
+        # Reset contexts in-memory to trigger hydration
+        self.engine.contexts = {}
+        # Ensure we have only the saved trade in memory and load it back
+        self.engine.trades = [t]
+        self.engine._hydrate_contexts()
+
+        # Verify that it is loaded into the canonical 'M5' context correctly
+        flat_contexts = self.engine.contexts
+        self.assertIn("XAUUSD_M5", flat_contexts)
+        self.assertEqual(len(flat_contexts["XAUUSD_M5"].trades), 1)
+
+    def test_trade_evidence_safety(self) -> None:
+        """
+        Regression tests for Phase 4:
+        Verifies:
+        - No crash when evidence=None, evidence={}, evidence=invalid type (e.g. string).
+        - Correct lifecycle completion (hitting target) without interruption.
+        - Persistence is fully functional and saved.
+        """
+        self.engine.contexts = {} # Reset
+        self.engine.trades = [] # Reset trades in memory
+
+        # 1. Create predictive orders with different evidence payloads (None, dict, invalid string)
+        t_none = self.engine.create_predictive_order(
+            "XAUUSD", "LONG", 2000.0, 1990.0, 2020.0, 80.0,
+            custom_time_structure=5, evidence=None
+        )
+        t_empty = self.engine.create_predictive_order(
+            "XAUUSD", "LONG", 2000.0, 1990.0, 2020.0, 80.0,
+            custom_time_structure=5, evidence={}
+        )
+        t_invalid = self.engine.create_predictive_order(
+            "XAUUSD", "LONG", 2000.0, 1990.0, 2020.0, 80.0,
+            custom_time_structure=5, evidence="not_a_dict"
+        )
+
+        # Confirm evidence has been normalized to dictionary
+        self.assertIsInstance(t_none.evidence, dict)
+        self.assertIsInstance(t_empty.evidence, dict)
+        self.assertIsInstance(t_invalid.evidence, dict)
+
+        # 2. Trigger them
+        self.engine.update_market_ticks("XAUUSD", 2001.0)
+        self.assertEqual(t_none.status, "RUNNING")
+        self.assertEqual(t_empty.status, "RUNNING")
+        self.assertEqual(t_invalid.status, "RUNNING")
+
+        # 3. Hit target to complete the lifecycle
+        self.engine.update_market_ticks("XAUUSD", 2025.0)
+        self.assertEqual(t_none.status, "TARGET_HIT")
+        self.assertEqual(t_empty.status, "TARGET_HIT")
+        self.assertEqual(t_invalid.status, "TARGET_HIT")
+
+        # 4. Verify persistence works and does not get interrupted
+        self.assertEqual(len(self.engine.trades), 3)
+        # Verify that our trades list on disk can be loaded and read cleanly
+        saved_trades = self.engine._load_trades()
+        # Find saved records corresponding to these three trade IDs
+        saved_ids = [st.trade_id for st in saved_trades]
+        self.assertIn(t_none.trade_id, saved_ids)
+        self.assertIn(t_empty.trade_id, saved_ids)
+        self.assertIn(t_invalid.trade_id, saved_ids)
+
+    def test_empty_runtime_telemetry(self) -> None:
+        """
+        Regression tests for Phase 6:
+        Verifies that empty runtime state/memory system returns exactly zeros (no fake additives).
+        """
+        from src.Application.Services.web_dashboard import global_memory_system
+
+        # Backup memory events & tables
+        old_events = list(global_memory_system.events)
+        old_patterns = dict(global_memory_system.patterns)
+        old_concepts = dict(global_memory_system.concepts)
+
+        try:
+            # Clear memory system
+            global_memory_system.events = []
+            global_memory_system.patterns = {}
+            global_memory_system.concepts = {}
+
+            # Fetch intelligence status telemetry
+            resp = self.client.get("/api/intelligence/status")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+
+            # Verify they are strictly zero
+            self.assertEqual(data["memory"], 0)
+            self.assertEqual(data["patterns"], 0)
+            self.assertEqual(data["concepts"], 0)
+
+        finally:
+            # Restore
+            global_memory_system.events = old_events
+            global_memory_system.patterns = old_patterns
+            global_memory_system.concepts = old_concepts

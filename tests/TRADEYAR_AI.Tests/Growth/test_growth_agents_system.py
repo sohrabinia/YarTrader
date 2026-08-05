@@ -1,3 +1,4 @@
+import os
 import pytest
 from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app
@@ -267,3 +268,57 @@ def test_fastapi_growth_endpoints():
 
     r8 = client.get("/api/growth/newsletter/weekly")
     assert r8.status_code == 200
+
+def test_content_intelligence_hardening_regression():
+    """
+    Regression tests for Phase 7 (Content Intelligence Hardening):
+    - Database path validation: reject paths other than 'runtime_logs/content_intelligence.db'.
+    - Workflow transition safety: REJECTED -> APPROVED is strictly forbidden.
+    - Production LLM provider offline failure handling.
+    """
+    from src.Growth.Agents.ContentAgents import ContentDBManager, ContentIntelligenceAgent
+    import pytest
+
+    # 1. Database isolation path rejection
+    with pytest.raises(ValueError, match="Database path violation"):
+        ContentDBManager("invalid_logs/content_intelligence.db")
+
+    with pytest.raises(ValueError, match="Database path violation"):
+        ContentDBManager("runtime_logs/another_db_name.db")
+
+    # Clean path (using a custom test db inside test_runtime_logs which is permitted by ContentDBManager)
+    db_path = "test_runtime_logs/content_intelligence.db"
+    if os.path.exists(db_path):
+        try:
+            os.remove(db_path)
+        except OSError:
+            pass
+
+    agent = ContentIntelligenceAgent(db_path=db_path)
+    assert agent.db_manager is not None
+
+    # 2. Workflow transitions: REJECTED -> APPROVED is blocked
+    # Generate draft
+    drafts = agent.format_content({"symbol": "XAUUSD"}, ["telegram"])
+    assert len(drafts) == 1
+    draft_id = drafts[0]["content_id"]
+
+    # Reject draft
+    rejected_draft = agent.reject_content(draft_id)
+    assert rejected_draft["status"] == "REJECTED"
+
+    # Attempt to Approve a rejected draft -> Must raise ValueError!
+    with pytest.raises(ValueError, match="Workflow Violation"):
+        agent.approve_content(draft_id, "Dr. Aras Noori")
+
+    # 3. Production LLM adapter failure handling
+    prod_agent = ContentIntelligenceAgent(db_path=db_path, provider="production")
+    with pytest.raises(ConnectionError, match="Production LLM Provider is currently offline"):
+        prod_agent.format_content({"symbol": "XAUUSD"}, ["telegram"])
+
+    # Clean up test database file
+    if os.path.exists(db_path):
+        try:
+            os.remove(db_path)
+        except OSError:
+            pass

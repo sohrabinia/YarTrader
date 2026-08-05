@@ -46,7 +46,7 @@ class ShadowTrade:
         self.node_id = node_id or "N-None"
         self.pattern = pattern
         self.volume = float(volume)
-        self.evidence = evidence or {}
+        self.evidence = evidence if isinstance(evidence, dict) else {}
 
         # Performance/Excursion metrics
         self.floating_pnl = 0.0
@@ -247,23 +247,11 @@ class PredictiveShadowEngine:
     @contexts.setter
     def contexts(self, val: Dict[str, SymbolTimeContext]) -> None:
         """Allows resetting contexts list directly for test setup compatibility."""
-        self.runtime_manager.symbol_brains = {}
-        self.runtime_manager.processing_queues = {}
+        self.runtime_manager.reset_brains()
 
     def _get_or_create_context_bypassing_limits(self, symbol: str, timeframe: Any) -> SymbolTimeContext:
         """Retrieves or creates context bypassing limits (used on startup hydration)."""
-        from src.Core.timeframes import TimeframeNormalizer
-        symbol_upper = symbol.upper()
-        tf_canonical = TimeframeNormalizer.normalize(timeframe)
-
-        if symbol_upper not in self.runtime_manager.symbol_brains:
-            self.runtime_manager.symbol_brains[symbol_upper] = {}
-            self.runtime_manager.processing_queues[symbol_upper] = queue.Queue(maxsize=1000)
-
-        brains = self.runtime_manager.symbol_brains[symbol_upper]
-        if tf_canonical not in brains:
-            brains[tf_canonical] = SymbolTimeContext(symbol_upper, tf_canonical)
-        return brains[tf_canonical]
+        return self.runtime_manager.get_or_create_context_bypassing_limits(symbol, timeframe)
 
     def _hydrate_contexts(self) -> None:
         """Hydrates isolated contexts from loaded persistent data, bypassing limits checks."""
@@ -298,15 +286,7 @@ class PredictiveShadowEngine:
 
     def get_or_create_context(self, symbol: str, timeframe: Any) -> SymbolTimeContext:
         """Retrieves or instantiates an isolated context in SymbolRuntimeManager."""
-        from src.Core.timeframes import TimeframeNormalizer
-        symbol_upper = symbol.upper()
-        tf_canonical = TimeframeNormalizer.normalize(timeframe)
-
-        # Hydrate hierarchy if not exists
-        hierarchy = self.runtime_manager.get_or_create_symbol_hierarchy(symbol_upper)
-        if tf_canonical not in hierarchy:
-            hierarchy[tf_canonical] = SymbolTimeContext(symbol_upper, tf_canonical)
-        return hierarchy[tf_canonical]
+        return self.runtime_manager.get_or_create_context(symbol, timeframe)
 
     def create_predictive_order(
         self,
@@ -470,15 +450,16 @@ class PredictiveShadowEngine:
         self._save_generic(self.signals_file, self.signals)
 
     def _record_pattern_outcome_context(self, ctx: SymbolTimeContext, trade: ShadowTrade) -> None:
-        hier_ctx = trade.evidence.get("hierarchical_context", {}) if isinstance(trade.evidence, dict) else {}
-        if not hier_ctx and isinstance(trade.evidence, dict) and "evidence" in trade.evidence:
+        evidence = trade.evidence if isinstance(trade.evidence, dict) else {}
+        hier_ctx = evidence.get("hierarchical_context", {}) if isinstance(evidence, dict) else {}
+        if not hier_ctx and isinstance(evidence, dict) and "evidence" in evidence:
             # check inside nested evidence
-            hier_ctx = trade.evidence.get("evidence", {}).get("hierarchical_context", {})
+            hier_ctx = evidence.get("evidence", {}).get("hierarchical_context", {})
 
-        macro_bias_d1 = hier_ctx.get("macro_bias", {}).get("D1", "Bullish")
-        macro_bias_h4 = hier_ctx.get("macro_bias", {}).get("H4", "Bullish")
-        m15_setup = hier_ctx.get("primary_decision", {}).get("setup", "Long Reversal")
-        m5_trigger = hier_ctx.get("primary_execution", {}).get("trigger", "Breakout Confirmation")
+        macro_bias_d1 = hier_ctx.get("macro_bias", {}).get("D1", "Bullish") if isinstance(hier_ctx, dict) else "Bullish"
+        macro_bias_h4 = hier_ctx.get("macro_bias", {}).get("H4", "Bullish") if isinstance(hier_ctx, dict) else "Bullish"
+        m15_setup = hier_ctx.get("primary_decision", {}).get("setup", "Long Reversal") if isinstance(hier_ctx, dict) else "Long Reversal"
+        m5_trigger = hier_ctx.get("primary_execution", {}).get("trigger", "Breakout Confirmation") if isinstance(hier_ctx, dict) else "Breakout Confirmation"
 
         # Win/Loss
         win_loss = "Win" if trade.status == "TARGET_HIT" else "Loss"
@@ -492,26 +473,29 @@ class PredictiveShadowEngine:
         decision_tf = "M15"
         context_tfs = "H4D1"
         pattern_type = trade.pattern.replace(" ", "")
-        market_regime = hier_ctx.get("regime_and_structure", {}).get("H4", "Accumulation").replace(" ", "")
+
+        reg_and_str = hier_ctx.get("regime_and_structure", {}) if isinstance(hier_ctx, dict) else {}
+        h4_regime = reg_and_str.get("H4", "Accumulation") if isinstance(reg_and_str, dict) else "Accumulation"
+        market_regime = h4_regime.replace(" ", "")
         pattern_key = f"{trade.symbol}_{execution_tf}_{decision_tf}_{context_tfs}_{pattern_type}_{market_regime}"
 
         # Populate pre-trade context data with realistic metrics or resolved values
         pre_trade_context = {
             "candle_structure": {
-                "body_size": float(trade.evidence.get("body_size", 1.25)),
-                "wick_ratio": float(trade.evidence.get("wick_ratio", 0.35)),
-                "state": trade.evidence.get("state", "compression")
+                "body_size": float(evidence.get("body_size", 1.25)),
+                "wick_ratio": float(evidence.get("wick_ratio", 0.35)),
+                "state": evidence.get("state", "compression")
             },
             "volatility_metrics": {
-                "atr_state": trade.evidence.get("atr_state", "normal"),
-                "spread_change": float(trade.evidence.get("spread_change", 0.05)),
-                "volume_spike": bool(trade.evidence.get("volume_spike", False))
+                "atr_state": evidence.get("atr_state", "normal"),
+                "spread_change": float(evidence.get("spread_change", 0.05)),
+                "volume_spike": bool(evidence.get("volume_spike", False))
             },
             "structure_alignment": {
-                "swing_proximity": float(trade.evidence.get("swing_proximity", 15.0)),
-                "order_block_present": bool(trade.evidence.get("order_block_present", True)),
-                "fvg_present": bool(trade.evidence.get("fvg_present", True)),
-                "higher_tf_alignment": bool(trade.evidence.get("higher_tf_alignment", True))
+                "swing_proximity": float(evidence.get("swing_proximity", 15.0)),
+                "order_block_present": bool(evidence.get("order_block_present", True)),
+                "fvg_present": bool(evidence.get("fvg_present", True)),
+                "higher_tf_alignment": bool(evidence.get("higher_tf_alignment", True))
             }
         }
 

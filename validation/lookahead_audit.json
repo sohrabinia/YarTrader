@@ -1,5 +1,6 @@
 {
-    "experiment_name": "Phase 2.1 Pure Learning Temporal Audit",
+    "type": "synthetic_experiment",
+    "experiment_name": "Phase 2.1 Synthetic Temporal Simulation Audit",
     "total_setups_audited": 620,
     "lookahead_leakage_detected": false,
     "audit_status": "PASSED",

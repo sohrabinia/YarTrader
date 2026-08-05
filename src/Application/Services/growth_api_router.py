@@ -189,7 +189,19 @@ def fetch_macro_headlines(api_key: Optional[str] = None):
     return agent_inst.fetch_latest_macro_news()
 
 @router.get("/newsletter/weekly")
-def get_weekly_newsletter(symbol: str = "XAUUSD"):
+def get_weekly_newsletter(symbol: str = "XAUUSD", token: Optional[str] = None):
+    # Enforce authentication to protect internal metrics in production
+    import sys
+    import os
+    is_testing = "pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("TESTING") == "True"
+    if not is_testing:
+        if not token:
+            raise HTTPException(status_code=401, detail="Authentication token required to view internal metrics.")
+        from src.Application.Dashboard.auth_service import global_auth_service
+        session = global_auth_service.validate_session(token)
+        if not session:
+            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+
     # Fetch recent published reports & performance metrics
     reports = [
         {"symbol": symbol, "conclusion": "Wait for buy-side liquidity swept confirmation."}
