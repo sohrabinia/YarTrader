@@ -16,11 +16,46 @@ class SymbolRuntimeManager:
     def __init__(self, max_active_symbols: int = 30) -> None:
         self.max_active_symbols = max_active_symbols
         # Isolated brain context map: symbol_upper (e.g., BTCUSD) -> Dict[timeframe, SymbolTimeContext]
-        self.symbol_brains: Dict[str, Dict[int, SymbolTimeContext]] = {}
+        self.symbol_brains: Dict[str, Dict[Any, SymbolTimeContext]] = {}
 
         # Concurrent worker queues for backpressure safety
         self.processing_queues: Dict[str, queue.Queue] = {}
         self._lock = threading.Lock()
+
+    def reset_brains(self) -> None:
+        """Resets all symbol contexts and queues safely."""
+        with self._lock:
+            self.symbol_brains = {}
+            self.processing_queues = {}
+
+    def get_or_create_context_bypassing_limits(self, symbol: str, timeframe: Any) -> SymbolTimeContext:
+        """Retrieves or creates context bypassing active symbol limits (used on startup hydration)."""
+        from src.Core.timeframes import TimeframeNormalizer
+        symbol_upper = symbol.upper()
+        tf_canonical = TimeframeNormalizer.normalize(timeframe)
+
+        with self._lock:
+            if symbol_upper not in self.symbol_brains:
+                self.symbol_brains[symbol_upper] = {}
+                self.processing_queues[symbol_upper] = queue.Queue(maxsize=1000)
+
+            brains = self.symbol_brains[symbol_upper]
+            if tf_canonical not in brains:
+                brains[tf_canonical] = SymbolTimeContext(symbol_upper, tf_canonical)
+            return brains[tf_canonical]
+
+    def get_or_create_context(self, symbol: str, timeframe: Any) -> SymbolTimeContext:
+        """Retrieves or instantiates an isolated context, enforcing limits."""
+        from src.Core.timeframes import TimeframeNormalizer
+        symbol_upper = symbol.upper()
+        tf_canonical = TimeframeNormalizer.normalize(timeframe)
+
+        # get_or_create_symbol_hierarchy enforces the active symbols limit
+        hierarchy = self.get_or_create_symbol_hierarchy(symbol_upper)
+        with self._lock:
+            if tf_canonical not in hierarchy:
+                hierarchy[tf_canonical] = SymbolTimeContext(symbol_upper, tf_canonical)
+            return hierarchy[tf_canonical]
 
     def get_or_create_symbol_hierarchy(self, symbol: str, default_timeframes: Optional[List[Any]] = None) -> Dict[Any, SymbolTimeContext]:
         """
@@ -49,10 +84,16 @@ class SymbolRuntimeManager:
             self.symbol_brains[symbol_upper] = {}
             self.processing_queues[symbol_upper] = queue.Queue(maxsize=1000) # backpressure capped queue
 
+            from src.Core.timeframes import TimeframeNormalizer
             for tf in timeframes:
-                self.symbol_brains[symbol_upper][tf] = SymbolTimeContext(symbol_upper, tf)
+                try:
+                    tf_norm = TimeframeNormalizer.normalize(tf)
+                except Exception:
+                    tf_norm = tf
+                if tf_norm not in self.symbol_brains[symbol_upper]:
+                    self.symbol_brains[symbol_upper][tf_norm] = SymbolTimeContext(symbol_upper, tf_norm)
 
-            logger.info(f"Successfully spun up isolated timeframe hierarchy context for symbol: {symbol_upper} (5 contexts)")
+            logger.info(f"Successfully spun up isolated timeframe hierarchy context for symbol: {symbol_upper} ({len(self.symbol_brains[symbol_upper])} contexts)")
             return self.symbol_brains[symbol_upper]
 
     def queue_tick_update(self, symbol: str, price: float) -> None:

@@ -1,4 +1,5 @@
 {
+    "type": "synthetic_experiment",
     "asset": "XAUUSD",
     "total_windows": 8,
     "windows": [

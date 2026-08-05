@@ -2649,11 +2649,10 @@ def get_multi_timeframe():
 def get_intelligence_status():
     """Retrieves dynamic intelligence brain and memory counters."""
     stats = global_memory_system.get_learning_statistics()
-    # Align counts: standard base counts plus memory system actual counts
     return {
-        "memory": 125000 + len(global_memory_system.events),
-        "patterns": 4820 + stats["patterns_created"],
-        "concepts": 320 + stats["concepts_learned"],
+        "memory": len(global_memory_system.events),
+        "patterns": stats.get("patterns_created", 0),
+        "concepts": stats.get("concepts_learned", 0),
         "learning": "running"
     }
 
