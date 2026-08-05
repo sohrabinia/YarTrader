@@ -240,10 +240,12 @@ def test_fastapi_growth_endpoints():
     assert r3.json()["status"] == "Submitted to Approval Queue"
     content_id = r3.json()["items"][0]["content_id"]
 
-    # Approve item
-    r4 = client.post("/api/growth/content/approve", json={
+    # Approve item - Authenticate session first as ADMIN to approve
+    from src.Application.Dashboard.auth_service import global_auth_service
+    admin_token = global_auth_service.create_session({"email": "admin@tradeyar.ai", "role": "ADMIN", "name": "Dr. Aras Noori"})
+    r4 = client.post(f"/api/growth/content/approve?token={admin_token}", json={
         "content_id": content_id,
-        "approver": "Dr. Aras Noori"
+        "approver": "Discarded"
     })
     assert r4.status_code == 200
     assert r4.json()["status"] == "Approved and Dispatched"

@@ -42,7 +42,56 @@ class ContentDBManager:
                     approved_by TEXT
                 );
             """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS content_audit_trail (
+                    audit_id TEXT PRIMARY KEY,
+                    content_id TEXT,
+                    from_status TEXT,
+                    to_status TEXT,
+                    action_by TEXT,
+                    timestamp TEXT
+                );
+            """)
             conn.commit()
+        finally:
+            conn.close()
+
+    def add_audit_record(self, content_id: str, from_status: str, to_status: str, action_by: str) -> None:
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO content_audit_trail (audit_id, content_id, from_status, to_status, action_by, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                uuid.uuid4().hex[:12],
+                content_id,
+                from_status,
+                to_status,
+                action_by,
+                datetime.now().isoformat()
+            ))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_audit_trail(self, content_id: str) -> List[Dict[str, Any]]:
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT audit_id, content_id, from_status, to_status, action_by, timestamp FROM content_audit_trail WHERE content_id = ? ORDER BY timestamp ASC", (content_id,))
+            rows = cursor.fetchall()
+            trail = []
+            for row in rows:
+                trail.append({
+                    "audit_id": row[0],
+                    "content_id": row[1],
+                    "from_status": row[2],
+                    "to_status": row[3],
+                    "action_by": row[4],
+                    "timestamp": row[5]
+                })
+            return trail
         finally:
             conn.close()
 
@@ -185,9 +234,13 @@ class ContentIntelligenceAgent:
                 # Review workflow: Prevent invalid transition REJECTED -> APPROVED
                 if item["status"] == "REJECTED":
                     raise ValueError("Security/Workflow Violation: Cannot approve a rejected content draft.")
+                if item["status"] == "APPROVED":
+                    return item
+                old_status = item["status"]
                 item["status"] = "APPROVED"
                 item["approved_by"] = approver_name
                 self.db_manager.save_draft(item)
+                self.db_manager.add_audit_record(content_id, old_status, "APPROVED", approver_name)
                 return item
             return None
         else:
@@ -195,6 +248,8 @@ class ContentIntelligenceAgent:
                 if item["content_id"] == content_id:
                     if item["status"] == "REJECTED":
                         raise ValueError("Security/Workflow Violation: Cannot approve a rejected content draft.")
+                    if item["status"] == "APPROVED":
+                        return item
                     item["status"] = "APPROVED"
                     item["approved_by"] = approver_name
                     return item
@@ -204,13 +259,21 @@ class ContentIntelligenceAgent:
         if self.db_manager:
             item = self.db_manager.get_draft(content_id)
             if item:
+                if item["status"] == "APPROVED":
+                    raise ValueError("Security/Workflow Violation: Cannot reject an already approved content draft.")
+                if item["status"] == "REJECTED":
+                    return item
+                old_status = item["status"]
                 item["status"] = "REJECTED"
                 self.db_manager.save_draft(item)
+                self.db_manager.add_audit_record(content_id, old_status, "REJECTED", "System/Auditor")
                 return item
             return None
         else:
             for item in self._approval_queue_mem:
                 if item["content_id"] == content_id:
+                    if item["status"] == "APPROVED":
+                        raise ValueError("Security/Workflow Violation: Cannot reject an already approved content draft.")
                     item["status"] = "REJECTED"
                     return item
             return None

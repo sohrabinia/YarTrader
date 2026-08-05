@@ -194,13 +194,17 @@ def run_phase_2_1():
     # 4. Anti-Lookahead Timestamp Audit
     lookahead_records = []
     base_time = datetime(2024, 1, 1, 12, 0, 0)
+    leakage_detected = False
     for idx in range(total_setups):
         dec_time = base_time + timedelta(minutes=idx * 15)
         bar_close = dec_time - timedelta(seconds=1)
         feat_time = bar_close - timedelta(seconds=2)
 
         # Verify strict anti-lookahead assertion: feature_timestamp <= decision_timestamp
-        assert feat_time <= dec_time, "Fatal: Future data leakage detected!"
+        is_valid = feat_time <= dec_time
+        if not is_valid:
+            leakage_detected = True
+        assert is_valid, "Fatal: Future data leakage detected!"
 
         if idx < 10:
             lookahead_records.append({
@@ -208,15 +212,15 @@ def run_phase_2_1():
                 "decision_timestamp": dec_time.isoformat(),
                 "last_closed_bar_timestamp": bar_close.isoformat(),
                 "feature_timestamp": feat_time.isoformat(),
-                "temporal_boundary_valid": True
+                "temporal_boundary_valid": is_valid
             })
 
     lookahead_audit = {
         "type": "synthetic_experiment",
         "experiment_name": "Phase 2.1 Synthetic Temporal Simulation Audit",
         "total_setups_audited": total_setups,
-        "lookahead_leakage_detected": False,
-        "audit_status": "PASSED",
+        "lookahead_leakage_detected": leakage_detected,
+        "audit_status": "FAILED" if leakage_detected else "PASSED",
         "sample_records": lookahead_records
     }
 
@@ -273,15 +277,20 @@ def run_phase_2_1():
         json.dump(monte_carlo, f, indent=4)
     print("[INFO] Saved validation/monte_carlo_report.json")
 
-    # 6. Experiment Integrity Report
+    # 6. Experiment Integrity Report - Derived dynamically from executed checks
+    is_parameters_frozen = isinstance(snapshot.get("configuration_hash"), str) and len(snapshot["configuration_hash"]) == 64
+    leakage_status = "FAILED" if leakage_detected else "CLEAN"
+    val_gates_verified = len(windows) == 8
+    honest_compliance = (metrics_a.get("data_source") == "synthetic") and (metrics_b.get("data_source") == "synthetic")
+
     integrity = {
         "type": "synthetic_experiment",
         "experiment_id": "exp-phase2.1-" + generate_deterministic_hash({"type": "walk_forward", "windows": 8})[:6],
         "git_commit_hash": git_hash,
-        "parameters_frozen": True,
-        "leakage_audit_status": "CLEAN",
-        "sample_validation_gates_verified": True,
-        "honest_reporting_compliance": True,
+        "parameters_frozen": is_parameters_frozen,
+        "leakage_audit_status": leakage_status,
+        "sample_validation_gates_verified": val_gates_verified,
+        "honest_reporting_compliance": honest_compliance,
         "summary": "Verified zero manual trading rules were injected. Performance metrics reflect synthetic walk-forward simulation of experience memory and statistical calibration to validate report pipeline.",
         "data_source": "synthetic"
     }

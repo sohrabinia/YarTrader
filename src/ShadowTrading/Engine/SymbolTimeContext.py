@@ -36,7 +36,7 @@ class SymbolTimeContext:
         return {
             "context_id": self.context_id,
             "symbol": self.symbol,
-            "timeframe": self.timeframe,
+            "timeframe": str(self.timeframe),
             "total_trades": len(self.trades),
             "completed_trades": total,
             "wins": wins,
@@ -51,7 +51,7 @@ class SymbolTimeContext:
         return {
             "context_id": self.context_id,
             "symbol": self.symbol,
-            "timeframe": self.timeframe,
+            "timeframe": str(self.timeframe),
             "ticks_count": len(self.tick_buffer),
             "trades_count": len(self.trades),
             "bases_count": len(self.bases),

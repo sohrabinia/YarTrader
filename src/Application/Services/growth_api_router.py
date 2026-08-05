@@ -144,24 +144,25 @@ def generate_channel_content(payload: ContentPayload, role: str = Header("USER")
 
 @router.post("/content/approve")
 def approve_content_item(payload: ApprovePayload, token: Optional[str] = None):
-    import sys
-    import os
+    """
+    Approves a content draft.
+    Does NOT trust payload.approver.
+    Requires a valid, authenticated ADMIN or SRE user session token.
+    """
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required to approve content drafts.")
 
-    is_testing = "pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("TESTING") == "True"
-    approver = payload.approver
+    from src.Application.Dashboard.auth_service import global_auth_service
+    session = global_auth_service.validate_session(token)
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
 
-    if not is_testing or token:
-        if not token:
-            raise HTTPException(status_code=401, detail="Authentication token required to approve content drafts.")
-        from src.Application.Dashboard.auth_service import global_auth_service
-        session = global_auth_service.validate_session(token)
-        if not session:
-            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
-        # Ensure only ADMIN or SRE roles can approve content
-        if session.get("role") not in ["ADMIN", "SRE"]:
-            raise HTTPException(status_code=403, detail="Forbidden: Only administrators or SRE operators can approve content drafts.")
-        # Override the payload approver to the real validated user session identity!
-        approver = session.get("username") or session.get("name") or session.get("email") or "Authorized Administrator"
+    # Ensure only ADMIN or SRE roles can approve content
+    if session.get("role") not in ["ADMIN", "SRE"]:
+        raise HTTPException(status_code=403, detail="Forbidden: Only administrators or SRE operators can approve content drafts.")
+
+    # Strictly bind the approver name to the authenticated session identity only, ignoring any untrusted client payload approver name
+    approver = session.get("name") or session.get("username") or session.get("email") or "Authorized Administrator"
 
     approved_item = content_intel_agent.approve_content(payload.content_id, approver)
     if not approved_item:

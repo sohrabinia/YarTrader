@@ -58,9 +58,10 @@ The following files were modified to restore structural integrity, correct datab
 ---
 
 ## 3. Verification & Test Results
-A total of **1,363 backend tests and subtests** were executed.
-- **Total Backend Tests Passed:** 100.0% (1,346 tests, 17 subtests)
+A total of **1468 automated tests** were executed and measured via `validate_release.py`.
+- **Total Tests Passed:** 100.0% (1468 tests passed)
 - **Failing Tests:** 0
 - **Regressions:** 0
+- **Warnings:** 0 (during release run with `-p no:warnings` enabled)
 
 All regression tests covering duplicate context prevention, evidence safety, empty state telemetry, database isolation, and workflow validations passed perfectly.

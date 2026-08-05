@@ -20,7 +20,7 @@ class SymbolRuntimeManager:
 
         # Concurrent worker queues for backpressure safety
         self.processing_queues: Dict[str, queue.Queue] = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     def reset_brains(self) -> None:
         """Resets all symbol contexts and queues safely."""
@@ -91,10 +91,7 @@ class SymbolRuntimeManager:
 
             from src.Core.timeframes import TimeframeNormalizer
             for tf in timeframes:
-                try:
-                    tf_norm = TimeframeNormalizer.normalize(tf)
-                except Exception:
-                    tf_norm = tf
+                tf_norm = TimeframeNormalizer.normalize(tf)
                 if tf_norm not in self.symbol_brains[symbol_upper]:
                     self.symbol_brains[symbol_upper][tf_norm] = SymbolTimeContext(symbol_upper, tf_norm)
 
