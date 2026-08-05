@@ -233,3 +233,39 @@ class TestAutonomousShadowTradingEngine(unittest.TestCase):
         for ts in engine.target_sizes:
             self.assertIsInstance(ts, int)
             self.assertNotIn(ts, [16385, 16386, 16387, 16388]) # Standard MT5 timeframe constant values
+
+    # Test 10: Trade evidence safety regression test (PR #104)
+    def test_trade_evidence_safety(self) -> None:
+        # Case A: None evidence
+        trade_none = self.engine.create_predictive_order(
+            symbol="XAUUSD", direction="LONG", entry=2000.0, stop=1990.0, target=2020.0, confidence=80.0,
+            evidence=None
+        )
+        self.assertEqual(trade_none.evidence, {})
+        # Trigger activation and stop hit to trigger _record_pattern_outcome_context
+        self.engine.update_market_ticks("XAUUSD", 2001.0)
+        self.engine.update_market_ticks("XAUUSD", 1985.0)
+        self.assertEqual(trade_none.status, "STOP_HIT")
+
+        # Case B: Empty evidence
+        trade_empty = self.engine.create_predictive_order(
+            symbol="XAUUSD", direction="LONG", entry=2000.0, stop=1990.0, target=2020.0, confidence=80.0,
+            evidence={}
+        )
+        self.assertEqual(trade_empty.evidence, {})
+        self.engine.update_market_ticks("XAUUSD", 2001.0)
+        self.engine.update_market_ticks("XAUUSD", 1985.0)
+        self.assertEqual(trade_empty.status, "STOP_HIT")
+
+        # Case C: Populated evidence
+        trade_pop = self.engine.create_predictive_order(
+            symbol="XAUUSD", direction="LONG", entry=2000.0, stop=1990.0, target=2020.0, confidence=80.0,
+            evidence={"body_size": 2.5, "hierarchical_context": {"macro_bias": {"D1": "Bearish"}}}
+        )
+        self.assertEqual(trade_pop.evidence["body_size"], 2.5)
+        self.engine.update_market_ticks("XAUUSD", 2001.0)
+        self.engine.update_market_ticks("XAUUSD", 1985.0)
+        self.assertEqual(trade_pop.status, "STOP_HIT")
+
+        # Ensure all trades survived and persisted
+        self.assertGreater(len(self.engine.trades), 0)
