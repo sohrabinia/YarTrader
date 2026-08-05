@@ -320,6 +320,23 @@ def test_approve_content_with_token_validation():
     with pytest.raises(ValueError, match="Workflow Violation"):
         agent.approve_content(draft_id, "Dr. Aras Noori")
 
+    # Generate another draft for testing APPROVED -> REJECTED transition blocking
+    drafts2 = agent.format_content({"symbol": "XAUUSD"}, ["telegram"])
+    assert len(drafts2) == 1
+    draft_id2 = drafts2[0]["content_id"]
+
+    # Approve draft
+    approved_draft = agent.approve_content(draft_id2, "Dr. Aras Noori")
+    assert approved_draft["status"] == "APPROVED"
+
+    # Attempt to Reject an approved draft -> Must raise ValueError!
+    with pytest.raises(ValueError, match="Workflow Violation"):
+        agent.reject_content(draft_id2)
+
+    # Attempt to Approve with empty or whitespace approver -> Must raise ValueError!
+    with pytest.raises(ValueError, match="Workflow Violation"):
+        agent.approve_content(draft_id2, "   ")
+
     # 3. Production LLM adapter failure handling
     prod_agent = ContentIntelligenceAgent(db_path=db_path, provider="production")
     with pytest.raises(ConnectionError, match="Production LLM Provider is currently offline"):

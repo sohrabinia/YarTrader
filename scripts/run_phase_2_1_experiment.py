@@ -274,14 +274,26 @@ def run_phase_2_1():
     print("[INFO] Saved validation/monte_carlo_report.json")
 
     # 6. Experiment Integrity Report
+    expected_params = {
+        "execution_timeframe": "M5",
+        "decision_timeframe": "M15",
+        "context_timeframe": "H1/H4/D1",
+        "minimum_events_threshold": 10000,
+        "minimum_setups_threshold": 500
+    }
+    params_frozen = (runtime_params == expected_params)
+    leakage_ok = (lookahead_audit["lookahead_leakage_detected"] is False and lookahead_audit["audit_status"] == "PASSED")
+    validation_gates_passed = (total_events >= runtime_params["minimum_events_threshold"]) and (total_setups >= runtime_params["minimum_setups_threshold"])
+    honest_compliance = (0.0 < metrics_a["win_rate_pct"] < 100.0) and (0.0 < metrics_b["win_rate_pct"] < 100.0)
+
     integrity = {
         "type": "synthetic_experiment",
         "experiment_id": "exp-phase2.1-" + generate_deterministic_hash({"type": "walk_forward", "windows": 8})[:6],
         "git_commit_hash": git_hash,
-        "parameters_frozen": True,
-        "leakage_audit_status": "CLEAN",
-        "sample_validation_gates_verified": True,
-        "honest_reporting_compliance": True,
+        "parameters_frozen": params_frozen,
+        "leakage_audit_status": "CLEAN" if leakage_ok else "LEAK_DETECTED",
+        "sample_validation_gates_verified": validation_gates_passed,
+        "honest_reporting_compliance": honest_compliance,
         "summary": "Verified zero manual trading rules were injected. Performance metrics reflect synthetic walk-forward simulation of experience memory and statistical calibration to validate report pipeline.",
         "data_source": "synthetic"
     }
@@ -312,7 +324,7 @@ Synthetic simulation was executed over XAUUSD across 8 rolling windows from **20
 ---
 
 ## Learning Delta: Engine B vs Engine A (Synthetic Validation)
-By simulating the four-layered Experience Memory accumulation and statistical confidence gates, Engine B demonstrates a massive simulated edge over the non-learning baseline Engine A:
+By simulating the four-layered Experience Memory accumulation and statistical confidence gates, Engine B demonstrates a consistent, measurable improvement over the non-learning baseline Engine A:
 
 - **Win Rate Improvement**: +{learning_delta['learning_delta']['win_rate_improvement_pct']}%
 - **Profit Factor Increase**: +{learning_delta['learning_delta']['profit_factor_increase']}

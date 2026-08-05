@@ -179,6 +179,8 @@ class ContentIntelligenceAgent:
         return formatted_items
 
     def approve_content(self, content_id: str, approver_name: str) -> Optional[Dict[str, Any]]:
+        if not approver_name or not approver_name.strip():
+            raise ValueError("Security/Workflow Violation: Approver name cannot be empty.")
         if self.db_manager:
             item = self.db_manager.get_draft(content_id)
             if item:
@@ -204,6 +206,9 @@ class ContentIntelligenceAgent:
         if self.db_manager:
             item = self.db_manager.get_draft(content_id)
             if item:
+                # Review workflow: Prevent invalid transition APPROVED -> REJECTED
+                if item["status"] == "APPROVED":
+                    raise ValueError("Security/Workflow Violation: Cannot reject an approved content draft.")
                 item["status"] = "REJECTED"
                 self.db_manager.save_draft(item)
                 return item
@@ -211,6 +216,9 @@ class ContentIntelligenceAgent:
         else:
             for item in self._approval_queue_mem:
                 if item["content_id"] == content_id:
+                    # Review workflow: Prevent invalid transition APPROVED -> REJECTED
+                    if item["status"] == "APPROVED":
+                        raise ValueError("Security/Workflow Violation: Cannot reject an approved content draft.")
                     item["status"] = "REJECTED"
                     return item
             return None
