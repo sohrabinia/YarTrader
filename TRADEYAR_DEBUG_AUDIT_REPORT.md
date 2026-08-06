@@ -50,6 +50,20 @@ This report documents the repository-wide scanning, debugging, stabilization pas
 - **Issue**: Vite environment paths could have trailing slashes (e.g. `https://my-backend.com/`), causing double slashes like `https://my-backend.com//api/` during request construction.
 - **Resolution**: Enhanced `trader-terminal/src/core/config.js` to strip out any trailing slashes automatically.
 
+### G. Execution Intelligence Contract Alignments
+- **Issue**:
+  - Backend `/api/execution/plans` returned an object, but frontend parsed it using `execPlans[0]` indexing and read `entry_price` instead of `entry`, showing stale dash fallbacks.
+  - Backend `/api/execution/reasoning` returned an object with `reasoning` array, but frontend mapped directly over the object, triggering a TypeError rendering crash.
+  - Backend `/api/structure/map` returned an object with `structure_nodes`, but frontend mapped over the root object, causing crashes and missing the chronological index keys.
+  - Backend `/api/portfolio/exposure` returned an object, but frontend expected an array, causing a crash.
+  - Backend `/api/structure/alignment` returned `alignment` and `confidence`, but frontend read `alignment_state` and `synthesis_confidence`.
+  - Backend `/api/subscription/plans` returned `price_usd` and no descriptions, but frontend read `price` and `description`, rendering blank cards.
+- **Resolution**:
+  - Harmonized `App.jsx` states with standard, non-empty default objects.
+  - Restructured `fetchExecutionIntelligence` to parse nested structures (`reas.reasoning`, `sMap.structure_nodes`, `sMap.order_blocks`, `sMap.fair_value_gaps`), converting exposure maps dynamically into arrays.
+  - Mapped pricing layout to fallback correctly on `plan.price_usd || plan.price` and build detailed limit labels dynamically.
+  - Updated all render elements to cleanly query `execPlans.entry`, `execPlans.action`, `structureAlignment.alignment`, etc.
+
 ---
 
 ## 3. Test Commands & Verification Output
@@ -62,7 +76,7 @@ PYTHONPATH=. pytest
 
 ### Exact Results
 ```text
-====== 13 passed, 1 warning in 123.28s (0:02:03) ====== (Services suite)
+====== 13 passed, 1 warning in 123.50s (0:02:03) ====== (Services suite)
 ====== 1467 passed, 2337 warnings in 168.10s (0:02:48) ====== (Full workspace)
 ```
 
