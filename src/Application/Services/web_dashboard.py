@@ -24,7 +24,7 @@ from app.core.logging import log_event, log_audit, log_intelligence_decision
 from src.Application.Runtime.runtime_state import central_runtime_state
 
 app = FastAPI(
-    title="TradeYar AI Autonomous Management & Acceptance Portal",
+    title="YarTrader Autonomous Management & Acceptance Portal",
     version="1.0.0",
     description="Descriptive, analytical cognitive administrative panel and System Validation Center"
 )
@@ -72,7 +72,7 @@ MOCK_BLOG_ARTICLES = [
         "category": "Algorithmic Research",
         "author": "Dr. Aras Noori",
         "published_at": "2026-08-15",
-        "content": "Classical indicators like RSI, EMA, and MACD fail because they compress non-linear tick sequences into delayed, lossy broker candles. In v3.2, TradeYar AI replaces MT5 standard timeframes entirely with integer tick-bar structures, enabling raw price-action similarity detection without subjective bias."
+        "content": "Classical indicators like RSI, EMA, and MACD fail because they compress non-linear tick sequences into delayed, lossy broker candles. In v3.2, YarTrader replaces MT5 standard timeframes entirely with integer tick-bar structures, enabling raw price-action similarity detection without subjective bias."
     },
     {
         "id": "2",
@@ -80,7 +80,7 @@ MOCK_BLOG_ARTICLES = [
         "category": "Platform Governance",
         "author": "SRE Architecture Lead",
         "published_at": "2026-08-10",
-        "content": "To meet strict simulation-only constraints, TradeYar AI operates a virtual wallet position lifecycle tracker called the Shadow Trading Engine. Closed positions are retrospectively audited by an independent Judge Brain and stored to cumulative Experience Memory databases."
+        "content": "To meet strict simulation-only constraints, YarTrader operates a virtual wallet position lifecycle tracker called the Shadow Trading Engine. Closed positions are retrospectively audited by an independent Judge Brain and stored to cumulative Experience Memory databases."
     }
 ]
 
@@ -143,7 +143,7 @@ def run_research_background_loop():
     configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
 
     print("================================================")
-    print("TradeYar AI Production Research Runtime")
+    print("YarTrader Production Research Runtime")
     print("================================================")
     print("Mode: PRODUCTION")
     print(f"Registered Symbols: {len(registry.get_all_registered())}")
@@ -563,7 +563,7 @@ def get_dashboard_spa():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TradeYar AI — Institutional Research Terminal</title>
+    <title>YarTrader — Institutional Research Terminal</title>
     <!-- Optimized Persian Font Support -->
     <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
     <style>
@@ -1214,7 +1214,7 @@ def get_dashboard_spa():
             const isRTL = (currentLang === 'fa' || currentLang === 'ar');
             document.body.dir = isRTL ? 'rtl' : 'ltr';
             document.body.style.fontFamily = isRTL ? "'Vazirmatn', sans-serif" : "'Segoe UI', Roboto, sans-serif";
-            document.title = locales['app_title'] || "TradeYar AI";
+            document.title = locales['app_title'] || "YarTrader";
 
             // Translate elements query binding
             const elements = document.querySelectorAll('[data-i18n]');
@@ -1280,7 +1280,7 @@ def get_dashboard_spa():
             // Remove active classes
             document.querySelectorAll('.sidebar-link').forEach(link => link.classList.remove('active'));
 
-            const token = localStorage.getItem('tradeyar_token');
+            const token = localStorage.getItem('yartrader_token');
             const role = localStorage.getItem('tradeyar_role');
             const name = localStorage.getItem('tradeyar_name');
 
@@ -1411,7 +1411,7 @@ def get_dashboard_spa():
                 if (resp.status >= 400) {
                     showNotification(data.detail || "Authentication failed.", "error");
                 } else {
-                    localStorage.setItem('tradeyar_token', data.session_token);
+                    localStorage.setItem('yartrader_token', data.session_token);
                     localStorage.setItem('tradeyar_role', data.user.role);
                     localStorage.setItem('tradeyar_name', data.user.name);
                     localStorage.setItem('tradeyar_email', data.user.email);
@@ -1473,7 +1473,7 @@ def get_dashboard_spa():
         }
 
         async function submitLogout() {
-            const token = localStorage.getItem('tradeyar_token');
+            const token = localStorage.getItem('yartrader_token');
             if (token) {
                 try {
                     await fetch('/api/auth/logout', {
@@ -1522,7 +1522,7 @@ def get_dashboard_spa():
 
         // SRE Symbols & Dynamic Limit Enforcements
         async function fetchAdminSymbols() {
-            const token = localStorage.getItem('tradeyar_token');
+            const token = localStorage.getItem('yartrader_token');
             try {
                 const resp = await fetch('/api/admin/symbols?token=' + encodeURIComponent(token));
                 const data = await resp.json();
@@ -1535,7 +1535,7 @@ def get_dashboard_spa():
             const sym = prompt(locales['enter_symbol_prompt'] || "Enter new symbol (e.g. SOLUSD):");
             if (!sym) return;
 
-            const token = localStorage.getItem('tradeyar_token');
+            const token = localStorage.getItem('yartrader_token');
             const tf = parseInt(document.getElementById('register-tf-dropdown').value);
 
             try {
@@ -1643,7 +1643,7 @@ def get_dashboard_spa():
 
         // SRE reports
         async function fetchAdminReports() {
-            const token = localStorage.getItem('tradeyar_token');
+            const token = localStorage.getItem('yartrader_token');
             try {
                 const resp = await fetch('/api/admin/reports?token=' + encodeURIComponent(token));
                 const data = await resp.json();
@@ -1912,7 +1912,7 @@ def get_dashboard_spa():
                 const data = await response.json();
                 appendChatBubble(data.response, 'bot');
             } catch (e) {
-                appendChatBubble("Error communicating with TradeYar Cognitive AI.", 'bot');
+                appendChatBubble("Error communicating with YarTrader Cognitive AI.", 'bot');
             }
         }
 
@@ -1996,7 +1996,7 @@ def get_dashboard_spa():
             <!-- PANEL 1: PUBLIC MARKETING LANDING SHELL -->
             <div id="shell-marketing">
                 <div class="card" style="border-right: 6px solid var(--accent); border-left: 6px solid var(--accent);">
-                    <h2 style="margin: 0 0 10px 0; color: var(--primary);" data-i18n="welcome_title">Welcome to TradeYar AI v7.0</h2>
+                    <h2 style="margin: 0 0 10px 0; color: var(--primary);" data-i18n="welcome_title">Welcome to YarTrader v7.0</h2>
                     <p style="font-size: 1.05em; line-height: 1.7;" data-i18n="welcome_desc">
                         Discover non-linear market patterns through multi-asset raw data, advanced cognitive AI models, and autonomous research across multiple horizons—bypassing delayed technical indicators.
                     </p>
@@ -2025,7 +2025,7 @@ def get_dashboard_spa():
             <!-- PANEL 1B: FEATURES -->
             <div id="shell-features" style="display: none;">
                 <div class="card">
-                    <h2 style="margin-top: 0; color: var(--primary);" data-i18n="features_title">TradeYar Cognitive Features</h2>
+                    <h2 style="margin-top: 0; color: var(--primary);" data-i18n="features_title">YarTrader Cognitive Features</h2>
                     <p style="color: var(--text-muted); margin-bottom: 25px;" data-i18n="features_desc">Discover our multi-layered cognitive intelligence architecture built on clean scientific price-action principles.</p>
 
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;">
@@ -2522,7 +2522,7 @@ def get_dashboard_spa():
         <div class="chatbot-header" onclick="toggleChatbot()">
             <div style="display: flex; align-items: center; gap: 10px;">
                 <div class="ai-pulse"></div>
-                <span data-i18n="assistant_title">TradeYar Cognitive AI Active</span>
+                <span data-i18n="assistant_title">YarTrader Cognitive AI Active</span>
             </div>
             <span>▲ / ▼</span>
         </div>
@@ -3093,7 +3093,7 @@ def get_production_health():
 
     return {
         "status": "Healthy",
-        "service": "TradeYar-AI",
+        "service": "YarTrader",
         "api": "Online",
         "mt5": mt5_status,
         "intelligence": "Ready" if _mock_replay_session["active"] else "Offline",
@@ -3108,7 +3108,7 @@ def get_production_health():
 
 @app.get("/api/devops/status")
 def get_devops_status():
-    """API Contract interface for TradeYar.DevOps to fetch overall system status."""
+    """API Contract interface for YarTrader.DevOps to fetch overall system status."""
     state = central_runtime_state.get_state()
     error_count = 0
     err_log_path = os.path.join("logs", "error", "error.log")
@@ -3137,7 +3137,7 @@ def get_devops_status():
 
 @app.get("/api/devops/metrics")
 def get_devops_metrics():
-    """API Contract interface for TradeYar.DevOps to fetch performance metrics."""
+    """API Contract interface for YarTrader.DevOps to fetch performance metrics."""
     # Read virtual memory if possible, otherwise use standard python process metrics
     import sys
     try:
@@ -3902,6 +3902,6 @@ def chatbot_assistant_explain(payload: ChatPrompt, lang: str = "fa"):
 
     return {
         "response": ans,
-        "status": "TradeYar Cognitive AI Active",
+        "status": "YarTrader Cognitive AI Active",
         "timestamp": datetime.now().isoformat()
     }
