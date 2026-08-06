@@ -1,4 +1,4 @@
-# TRADEYAR_AI Deployment Guide
+# YarTrader Deployment Guide
 
 ## 1. Production Configuration variables
 Deployments are structured and validated using `ProductionConfig` settings:
@@ -15,7 +15,7 @@ Logs are formatted into single-line structured JSON objects for ingestion by Flu
 ```json
 {
   "timestamp": "2026-03-01T12:00:00.123456",
-  "service": "TRADEYAR_AI",
+  "service": "YarTrader",
   "level": "INFO",
   "event": "PipelineExecutionCompleted",
   "metadata": {

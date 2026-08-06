@@ -5,10 +5,10 @@ import { apiService } from './services/api.js';
 function MainApp() {
   const { lang, changeLanguage, t, locales, loading } = useTranslation();
   const [hash, setHash] = useState(() => window.location.hash || '#/');
-  const [theme, setTheme] = useState('dark');
-  const [token, setToken] = useState(() => localStorage.getItem('tradeyar_token'));
-  const [role, setRole] = useState(() => localStorage.getItem('tradeyar_role'));
-  const [name, setName] = useState(() => localStorage.getItem('tradeyar_name'));
+  const [theme, setTheme] = useState(() => localStorage.getItem('yartrader_theme') || 'dark');
+  const [token, setToken] = useState(() => localStorage.getItem('yartrader_token'));
+  const [role, setRole] = useState(() => localStorage.getItem('yartrader_role'));
+  const [name, setName] = useState(() => localStorage.getItem('yartrader_name'));
 
   // Notification state
   const [notif, setNotif] = useState({ show: false, msg: '', type: 'success' });
@@ -94,11 +94,16 @@ function MainApp() {
 
   // Dynamic Route Theme Mapping: Public pages -> Light editorial, Terminal/Admin -> Dark
   useEffect(() => {
-    const isPublic = hash === '#/' || hash === '#/features' || hash === '#/pricing' || hash === '#/blog' || hash === '#/login' || hash === '#/register' || hash === '#/forgot-password';
-    if (isPublic) {
-      setTheme('light');
+    const savedTheme = localStorage.getItem('yartrader_theme');
+    if (savedTheme) {
+      setTheme(savedTheme);
     } else {
-      setTheme('dark');
+      const isPublic = hash === '#/' || hash === '#/features' || hash === '#/pricing' || hash === '#/blog' || hash === '#/login' || hash === '#/register' || hash === '#/forgot-password';
+      if (isPublic) {
+        setTheme('light');
+      } else {
+        setTheme('dark');
+      }
     }
   }, [hash]);
 
@@ -149,7 +154,9 @@ function MainApp() {
   };
 
   const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    localStorage.setItem('yartrader_theme', nextTheme);
   };
 
   // Auth Operations
@@ -160,9 +167,9 @@ function MainApp() {
         email: loginEmail,
         password: loginPass
       });
-      localStorage.setItem('tradeyar_token', res.token);
-      localStorage.setItem('tradeyar_role', res.role);
-      localStorage.setItem('tradeyar_name', res.username);
+      localStorage.setItem('yartrader_token', res.token);
+      localStorage.setItem('yartrader_role', res.role);
+      localStorage.setItem('yartrader_name', res.username);
       setToken(res.token);
       setRole(res.role);
       setName(res.username);
@@ -210,9 +217,9 @@ function MainApp() {
     } catch (err) {
       console.warn("Logout endpoint error:", err);
     } finally {
-      localStorage.removeItem('tradeyar_token');
-      localStorage.removeItem('tradeyar_role');
-      localStorage.removeItem('tradeyar_name');
+      localStorage.removeItem('yartrader_token');
+      localStorage.removeItem('yartrader_role');
+      localStorage.removeItem('yartrader_name');
       setToken(null);
       setRole(null);
       setName(null);
@@ -226,9 +233,9 @@ function MainApp() {
       lang === 'fa' ? `ورود با ${provider} شبیه‌سازی شد.` : `Signed in with ${provider} (Simulated).`,
       'success'
     );
-    localStorage.setItem('tradeyar_token', 'mock_social_token');
-    localStorage.setItem('tradeyar_role', 'ADMIN');
-    localStorage.setItem('tradeyar_name', `${provider} Guest`);
+    localStorage.setItem('yartrader_token', 'mock_social_token');
+    localStorage.setItem('yartrader_role', 'ADMIN');
+    localStorage.setItem('yartrader_name', `${provider} Guest`);
     setToken('mock_social_token');
     setRole('ADMIN');
     setName(`${provider} Guest`);
@@ -444,7 +451,7 @@ function MainApp() {
       <div className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <span style={{ fontSize: '1.4em', fontWeight: 'bold', color: 'var(--primary)', letterSpacing: '1px' }}>
-            TradeYar AI
+            YarTrader
           </span>
           <span id="uptime-indicator" className="status-item state-online" style={{ fontSize: '0.8em', padding: '6px 12px', border: 'none' }}>
             {t('online')}
@@ -542,7 +549,7 @@ function MainApp() {
           {hash === '#/features' && (
             <div id="shell-features">
               <div className="card">
-                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('features_title') || 'TradeYar Cognitive Features'}</h2>
+                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('features_title') || 'YarTrader Cognitive Features'}</h2>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '25px' }}>{t('features_desc') || 'Discover our multi-layered cognitive intelligence architecture.'}</p>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
@@ -660,22 +667,57 @@ function MainApp() {
 
                 {/* Signals Feed Grid */}
                 <div className="blog-grid">
-                  {signals
-                    .filter(s => selectedAsset === 'all' || s.symbol_class === selectedAsset)
-                    .map((sig, idx) => (
-                      <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderRight: '4px solid var(--accent)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                          <span style={{ fontWeight: 'bold', color: 'var(--text-dark)' }}>{sig.symbol}</span>
-                          <span className={`status-val ${sig.posture === 'BULLISH' ? 'status-passed' : 'status-failed'}`} style={{ fontSize: '0.85em', padding: '2px 8px', borderRadius: '4px' }}>
-                            {sig.posture}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '0.8em', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                          Frame: {sig.timeframe} | Confidence: {sig.confidence}%
-                        </div>
-                        <p style={{ fontSize: '0.85em', margin: 0, color: 'var(--text-dark)' }}>{sig.narrative}</p>
-                      </div>
-                    ))}
+                  {signals && signals.length > 0 ? (
+                    signals
+                      .filter(s => {
+                        if (selectedAsset === 'all') return true;
+                        const sym = s.symbol ? s.symbol.toUpperCase() : '';
+                        if (selectedAsset === 'gold' && sym.includes('XAU')) return true;
+                        if (selectedAsset === 'bitcoin' && (sym.includes('BTC') || sym.includes('BITCOIN'))) return true;
+                        if (selectedAsset === 'euro' && sym.includes('EUR')) return true;
+                        return s.symbol_class === selectedAsset;
+                      })
+                      .map((sig, idx) => {
+                        const posture = sig.posture || (sig.direction === 'BUY' || sig.direction === 'Bullish' || sig.direction === 'BULLISH' ? 'BULLISH' : 'BEARISH');
+                        const isBullish = posture === 'BULLISH' || posture === 'BUY';
+                        const narrativeText = sig.narrative || sig.reason || sig.explanation || 'No setup description.';
+                        return (
+                          <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderRight: `4px solid ${isBullish ? 'var(--accent)' : 'var(--danger)'}` }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                              <span style={{ fontWeight: 'bold', color: 'var(--text-dark)' }}>{sig.symbol}</span>
+                              <span className={`status-val ${isBullish ? 'status-passed' : 'status-failed'}`} style={{ fontSize: '0.85em', padding: '2px 8px', borderRadius: '4px' }}>
+                                {posture}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.8em', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                              Frame: {sig.timeframe || 'H1'} | Confidence: {sig.confidence}%
+                            </div>
+                            {sig.entry_zone && (
+                              <div style={{ fontSize: '0.85em', margin: '4px 0' }}>
+                                <strong>Entry:</strong> {sig.entry_zone}
+                              </div>
+                            )}
+                            {sig.target_zone && (
+                              <div style={{ fontSize: '0.85em', margin: '4px 0' }}>
+                                <strong>Target:</strong> {sig.target_zone}
+                              </div>
+                            )}
+                            {sig.invalidation_level && (
+                              <div style={{ fontSize: '0.85em', margin: '4px 0' }}>
+                                <strong>Invalidation:</strong> {sig.invalidation_level}
+                              </div>
+                            )}
+                            <p style={{ fontSize: '0.85em', marginTop: '10px', color: 'var(--text-dark)', borderTop: '1px solid var(--border-dark)', paddingTop: '8px' }}>
+                              {narrativeText}
+                            </p>
+                          </div>
+                        );
+                      })
+                  ) : (
+                    <div style={{ gridColumn: 'span 3', padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      No signals active for this horizon. Try triggering validation or adding predictive shadow orders!
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1289,7 +1331,7 @@ function MainApp() {
             <div className="chatbot-messages">
               {chatMessages.map((msg, idx) => (
                 <div key={idx} className={`chat-bubble ${msg.sender === 'bot' ? 'bot' : 'user'}`}>
-                  {msg.text}
+                  {idx === 0 && msg.sender === 'bot' ? t('assistant_greet') : msg.text}
                 </div>
               ))}
               <div ref={chatMessagesEndRef} />
@@ -1300,7 +1342,7 @@ function MainApp() {
                 type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="سوال خود را مطرح کنید..."
+                placeholder={t('assistant_placeholder') || "سوال خود را مطرح کنید..."}
                 onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
               />
               <button className="chatbot-send" onClick={sendChatMessage}>{t('assistant_send') || 'Send'}</button>

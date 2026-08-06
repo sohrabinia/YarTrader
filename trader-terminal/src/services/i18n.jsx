@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const I18nContext = createContext(null);
 
 export function I18nProvider({ children }) {
-  const [lang, setLang] = useState(() => localStorage.getItem('tradeyar_language') || 'fa');
+  const [lang, setLang] = useState(() => localStorage.getItem('yartrader_language') || 'fa');
   const [locales, setLocales] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -20,7 +20,7 @@ export function I18nProvider({ children }) {
       const isRTL = targetLang === 'fa' || targetLang === 'ar';
       document.body.dir = isRTL ? 'rtl' : 'ltr';
       document.body.style.fontFamily = isRTL ? "'Vazirmatn', sans-serif" : "'Segoe UI', Roboto, sans-serif";
-      document.title = data['app_title'] || "TradeYar AI";
+      document.title = data['app_title'] || "YarTrader";
     } catch (err) {
       console.error(err);
     } finally {
@@ -33,7 +33,7 @@ export function I18nProvider({ children }) {
   }, [lang]);
 
   const changeLanguage = (newLang) => {
-    localStorage.setItem('tradeyar_language', newLang);
+    localStorage.setItem('yartrader_language', newLang);
     setLang(newLang);
   };
 

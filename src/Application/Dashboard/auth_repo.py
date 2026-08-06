@@ -19,15 +19,15 @@ class AuthRepository:
         if not os.path.exists(self.filepath):
             # Seed default admin and user accounts
             default_data = {
-                "admin@tradeyar.ai": {
-                    "email": "admin@tradeyar.ai",
+                "admin@yartrader.app": {
+                    "email": "admin@yartrader.app",
                     "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'admin123'
                     "role": "ADMIN",
                     "name": "Principal Supervisor",
                     "social_providers": {}
                 },
-                "trader@tradeyar.ai": {
-                    "email": "trader@tradeyar.ai",
+                "trader@yartrader.app": {
+                    "email": "trader@yartrader.app",
                     "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'trader123'
                     "role": "USER",
                     "name": "Elite Trader",

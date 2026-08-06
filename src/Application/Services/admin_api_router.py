@@ -12,7 +12,7 @@ def enforce_admin_token(token: Optional[str] = None):
     """Enforces strict role-based access control, rejecting non-ADMIN accounts with 403 Forbidden."""
     if not token:
         # Fallback testing mode override
-        return {"email": "test-admin@tradeyar.ai", "role": "ADMIN"}
+        return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
 
     session = global_auth_service.validate_session(token)
     if not session or session.get("role") != "ADMIN":

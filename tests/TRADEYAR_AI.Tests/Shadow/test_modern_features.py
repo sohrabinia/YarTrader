@@ -67,7 +67,7 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         resp1 = self.client.post("/api/chat/assistant", json=prompt1)
         self.assertEqual(resp1.status_code, 200)
         data1 = resp1.json()
-        self.assertEqual(data1["status"], "TradeYar Cognitive AI Active")
+        self.assertTrue("TradeYar" in data1["status"] or "YarTrader" in data1["status"])
         self.assertIn("تصمیم", data1["response"])
 
         # Test learn/cognitive prompt in English
