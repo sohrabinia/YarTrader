@@ -625,8 +625,10 @@ function MainApp() {
                   {subscriptionPlans.map((plan, idx) => (
                     <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderTop: '4px solid var(--primary)' }}>
                       <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>{plan.name}</h3>
-                      <div className="status-val" style={{ fontSize: '1.5em', margin: '10px 0', color: 'var(--text-dark)' }}>{plan.price}</div>
-                      <p style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6' }}>{plan.description}</p>
+                      <div className="status-val" style={{ fontSize: '1.5em', margin: '10px 0', color: 'var(--text-dark)' }}>{plan.price_usd || plan.price}</div>
+                      <p style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                        {plan.description || `Max Active Symbols: ${plan.max_symbols} | Timeframes: ${plan.enabled_timeframes?.join(', ')}`}
+                      </p>
                       <ul style={{ paddingLeft: '15px', fontSize: '0.85em', color: 'var(--text-muted)', lineHeight: '1.7', marginTop: '15px' }}>
                         {plan.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
                       </ul>
