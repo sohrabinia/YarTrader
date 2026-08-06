@@ -26,6 +26,11 @@ function MainApp() {
   });
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
   const [blogArticles, setBlogArticles] = useState([]);
+  const [publicMetrics, setPublicMetrics] = useState({
+    activeMarketsCount: '30',
+    historicalSimulatedTrades: '125k+',
+    platformUptimePct: '99.9'
+  });
   const [activeHorizon, setActiveHorizon] = useState('medium');
   const [selectedAsset, setSelectedAsset] = useState('all');
 
@@ -129,7 +134,9 @@ function MainApp() {
 
   // Route-specific Data Fetching
   useEffect(() => {
-    if (hash === '#/pricing') {
+    if (hash === '#/' || hash === '') {
+      fetchPublicMetrics();
+    } else if (hash === '#/pricing') {
       fetchSubscriptionPlans();
     } else if (hash === '#/blog') {
       fetchBlogArticles();
@@ -144,7 +151,7 @@ function MainApp() {
       fetchAdminReports();
       fetchStatus();
     }
-  }, [hash, selectedAsset, role]);
+  }, [hash, selectedAsset, role, activeHorizon]);
 
   const showNotification = (msg, type = 'success') => {
     setNotif({ show: true, msg, type });
@@ -167,12 +174,16 @@ function MainApp() {
         email: loginEmail,
         password: loginPass
       });
-      localStorage.setItem('yartrader_token', res.token);
-      localStorage.setItem('yartrader_role', res.role);
-      localStorage.setItem('yartrader_name', res.username);
-      setToken(res.token);
-      setRole(res.role);
-      setName(res.username);
+      const tokenVal = res.session_token || res.token;
+      const roleVal = (res.user && res.user.role) || res.role || 'USER';
+      const nameVal = (res.user && res.user.name) || res.username || 'Elite Trader';
+
+      localStorage.setItem('yartrader_token', tokenVal);
+      localStorage.setItem('yartrader_role', roleVal);
+      localStorage.setItem('yartrader_name', nameVal);
+      setToken(tokenVal);
+      setRole(roleVal);
+      setName(nameVal);
       showNotification(lang === 'fa' ? 'ورود موفقیت‌آمیز بود.' : 'Successfully signed in.', 'success');
       window.location.hash = '#/dashboard';
     } catch (err) {
@@ -184,6 +195,7 @@ function MainApp() {
     e.preventDefault();
     try {
       await apiService.post('/api/auth/register', {
+        name: registerName,
         username: registerName,
         email: registerEmail,
         password: registerPass
@@ -213,7 +225,8 @@ function MainApp() {
 
   const handleLogout = async () => {
     try {
-      await apiService.post('/api/auth/logout', {});
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      await apiService.post('/api/auth/logout', { token: currentToken });
     } catch (err) {
       console.warn("Logout endpoint error:", err);
     } finally {
@@ -243,6 +256,19 @@ function MainApp() {
   };
 
   // Data Fetching Operations
+  const fetchPublicMetrics = async () => {
+    try {
+      const res = await apiService.get('/api/public/metrics');
+      setPublicMetrics({
+        activeMarketsCount: res.active_markets_count,
+        historicalSimulatedTrades: res.historical_simulated_trades,
+        platformUptimePct: res.platform_uptime_pct
+      });
+    } catch (err) {
+      console.error("Error fetching public metrics:", err);
+    }
+  };
+
   const fetchSubscriptionPlans = async () => {
     try {
       const res = await apiService.get('/api/subscription/plans');
@@ -265,7 +291,7 @@ function MainApp() {
     try {
       const mkts = await apiService.get('/api/user/markets');
       setMarkets(mkts);
-      const sigs = await apiService.get(`/api/user/signals?symbol=XAUUSD`);
+      const sigs = await apiService.get(`/api/user/signals?horizon=${activeHorizon}`);
       setSignals(sigs);
     } catch (err) {
       console.error(err);
@@ -312,8 +338,9 @@ function MainApp() {
 
   const fetchAdminSymbols = async () => {
     try {
-      const res = await apiService.get('/api/admin/symbols');
-      setAdminSymbols(res);
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      const res = await apiService.get(`/api/admin/symbols?token=${encodeURIComponent(currentToken)}`);
+      setAdminSymbols(res.registered_symbols || res.active_symbols || res || []);
     } catch (err) {
       console.error(err);
     }
@@ -321,8 +348,9 @@ function MainApp() {
 
   const fetchAdminReports = async () => {
     try {
-      const res = await apiService.get('/api/admin/reports');
-      setAdminReports(res);
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      const res = await apiService.get(`/api/admin/reports?token=${encodeURIComponent(currentToken)}`);
+      setAdminReports(res.reports || res || []);
     } catch (err) {
       console.error(err);
     }
@@ -347,10 +375,14 @@ function MainApp() {
 
   const handleRegisterNewActiveSymbol = async () => {
     try {
-      const res = await apiService.post('/api/admin/symbols', {
-        symbol: "XAUUSD",
-        timeframe_multiplier: parseInt(registerTf),
-        horizon: "medium"
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      const promptSymbol = prompt(lang === 'fa' ? 'لطفا نماد جدید را وارد کنید (مثلا SOLUSD):' : 'Enter new symbol (e.g. SOLUSD):', "XAUUSD");
+      if (!promptSymbol) return;
+
+      const res = await apiService.post(`/api/admin/symbols?token=${encodeURIComponent(currentToken)}`, {
+        symbol: promptSymbol.toUpperCase(),
+        timeframe: parseInt(registerTf),
+        timeframes: ["H1"]
       });
       showNotification(res.message || "Symbol Registered.", "success");
       fetchAdminSymbols();
@@ -526,15 +558,23 @@ function MainApp() {
                 <div className="status-board" style={{ marginTop: '25px' }}>
                   <div className="status-item">
                     <div>{t('pub_markets_title')}</div>
-                    <div id="pub-markets" className="status-val status-passed">30</div>
+                    <div id="pub-markets" className="status-val status-passed">{publicMetrics.activeMarketsCount}</div>
                   </div>
                   <div className="status-item">
                     <div>{t('pub_trades_title')}</div>
-                    <div id="pub-trades" className="status-val" style={{ color: 'var(--primary)' }}>125k+</div>
+                    <div id="pub-trades" className="status-val" style={{ color: 'var(--primary)' }}>
+                      {typeof publicMetrics.historicalSimulatedTrades === 'number'
+                        ? (publicMetrics.historicalSimulatedTrades / 1000).toFixed(1) + 'k+'
+                        : publicMetrics.historicalSimulatedTrades}
+                    </div>
                   </div>
                   <div className="status-item">
                     <div>{t('pub_uptime_title')}</div>
-                    <div id="pub-uptime" className="status-val status-passed">99.9%</div>
+                    <div id="pub-uptime" className="status-val status-passed">
+                      {typeof publicMetrics.platformUptimePct === 'number'
+                        ? publicMetrics.platformUptimePct + '%'
+                        : publicMetrics.platformUptimePct}
+                    </div>
                   </div>
                   <div className="status-item">
                     <div>{t('pub_standards_title')}</div>
