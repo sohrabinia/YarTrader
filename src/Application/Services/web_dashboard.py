@@ -29,6 +29,17 @@ app = FastAPI(
     description="Descriptive, analytical cognitive administrative panel and System Validation Center"
 )
 
+from fastapi.middleware.cors import CORSMiddleware
+
+# Enable CORS for cross-origin requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Mount three isolated production-grade SaaS routers
 app.mount("/locales", StaticFiles(directory="locales"), name="locales")
 
