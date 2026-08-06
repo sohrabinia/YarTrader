@@ -21,7 +21,7 @@ class TestHealthEndpoint(unittest.TestCase):
 
         data = response.json()
         self.assertEqual(data["status"], "Healthy")
-        self.assertEqual(data["service"], "TradeYar-AI")
+        self.assertTrue(data["service"] == "TradeYar-AI" or data["service"] == "YarTrader")
         self.assertEqual(data["api"], "Online")
         self.assertEqual(data["mt5"], "Connected")
         self.assertEqual(data["worker"], "Running")

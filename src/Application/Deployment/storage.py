@@ -11,15 +11,15 @@ class TradeYarStorageManager:
         if storage_root:
             self._storage_root = storage_root
         else:
-            self._storage_root = os.getenv("TradeYarStorageRoot")
+            self._storage_root = os.getenv("YarTraderStorageRoot") or os.getenv("TradeYarStorageRoot")
             if not self._storage_root:
-                # Default fallback for Windows (H:\TradeYarAI\) or Unix (/tmp/TradeYarAI/)
+                # Default fallback for Windows (H:\YarTraderAI\) or Unix (/tmp/YarTraderAI/)
                 if os.name == "nt":
-                    self._storage_root = "H:\\TradeYarAI\\"
+                    self._storage_root = "H:\\YarTraderAI\\"
                 else:
-                    self._storage_root = "/tmp/TradeYarAI/"
+                    self._storage_root = "/tmp/YarTraderAI/"
 
-        # Standardized subfolders under TradeYarStorageRoot
+        # Standardized subfolders under YarTraderStorageRoot
         self._logs_dir = os.path.join(self._storage_root, "Logs")
         self._reports_dir = os.path.join(self._storage_root, "Reports")
         self._runtime_dir = os.path.join(self._storage_root, "Runtime")

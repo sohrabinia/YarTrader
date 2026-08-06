@@ -438,7 +438,7 @@ class ReleaseValidationPlatform:
             "CHANGELOG.md",
             "RELEASE_NOTES.md",
             "docs/DEPLOYMENT/DEPLOYMENT_GUIDE.md",
-            "docs/DEPLOYMENT/TRADEYAR_STORAGE_ISOLATION.md",
+            "docs/DEPLOYMENT/YARTRADER_STORAGE_ISOLATION.md",
             "docs/FINAL_GO_LIVE_ACCEPTANCE_REPORT.md",
             "scripts/backup_production.ps1",
             "scripts/restore_drill.ps1",

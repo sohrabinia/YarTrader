@@ -343,7 +343,7 @@ class ValidationReportBuilder:
     ) -> str:
         report = []
         report.append("================================================================================")
-        report.append("          TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT — Version 1.0")
+        report.append("          YARTRADER_FINAL_INTELLIGENCE_VALIDATION_REPORT — Version 1.0")
         report.append("================================================================================")
         report.append(f"Generated At: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         report.append("")

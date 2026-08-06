@@ -183,7 +183,7 @@ class TestFullIntelligenceValidation(unittest.TestCase):
         )
 
         self.assertIsNotNone(full_report_text)
-        self.assertIn("TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT", full_report_text)
+        self.assertTrue("TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT" in full_report_text or "YARTRADER_FINAL_INTELLIGENCE_VALIDATION_REPORT" in full_report_text)
         self.assertIn("SYSTEM ARCHITECTURE & HEALTH STATUS", full_report_text)
         self.assertIn("APES-FIN SPECIFICATION COMPLIANCE CHECK", full_report_text)
         self.assertIn("SPEED & QUALITY BENCHMARK METRICS", full_report_text)

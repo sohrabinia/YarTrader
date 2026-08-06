@@ -44,8 +44,8 @@ class ProductionConfig:
         self.vault.store_secret("db_token", default_db_key)
 
         # TradeYar Storage Isolation Configuration (Task 39)
-        default_root = "H:\\TradeYarAI\\" if os.name == "nt" else "/tmp/TradeYarAI/"
-        self.storage_root = os.getenv("TradeYarStorageRoot", self._settings.get("TradeYarStorageRoot", default_root))
+        default_root = "H:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
+        self.storage_root = os.getenv("YarTraderStorageRoot", os.getenv("TradeYarStorageRoot", self._settings.get("YarTraderStorageRoot", default_root)))
         if not self.storage_root:
             self.storage_root = default_root
 
