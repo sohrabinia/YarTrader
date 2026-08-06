@@ -470,6 +470,14 @@ function MainApp() {
     chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, chatOpen]);
 
+  const totalEvaluatedPatterns = learningMatrix.reduce((acc, curr) => acc + curr.sample_count, 0);
+  const avgPatternWinRate = totalEvaluatedPatterns > 0
+    ? (learningMatrix.reduce((acc, curr) => acc + (curr.win_rate_pct * curr.sample_count), 0) / totalEvaluatedPatterns).toFixed(1) + "%"
+    : "0.0%";
+  const avgRiskReward = totalEvaluatedPatterns > 0
+    ? (learningMatrix.reduce((acc, curr) => acc + (curr.average_rr * curr.sample_count), 0) / totalEvaluatedPatterns).toFixed(1) + " R"
+    : "0.0 R";
+
   return (
     <div>
       {/* Dynamic Toast/Notification Overlay */}
@@ -1019,22 +1027,18 @@ function MainApp() {
                 <div className="status-board">
                   <div className="status-item">
                     <div>Total Evaluated Patterns</div>
-                    <div className="status-val" style={{ color: 'var(--primary)' }}>{learningMatrix.length}</div>
+                    <div className="status-val" style={{ color: 'var(--primary)' }}>{totalEvaluatedPatterns}</div>
                   </div>
                   <div className="status-item">
                     <div>Avg Pattern Win-Rate</div>
                     <div className="status-val status-passed">
-                      {learningMatrix.length > 0
-                        ? (learningMatrix.reduce((acc, curr) => acc + curr.win_rate_pct, 0) / learningMatrix.length).toFixed(1) + "%"
-                        : "0.0%"}
+                      {avgPatternWinRate}
                     </div>
                   </div>
                   <div className="status-item">
                     <div>Average Risk/Reward (R:R)</div>
                     <div className="status-val" style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>
-                      {learningMatrix.length > 0
-                        ? (learningMatrix.reduce((acc, curr) => acc + curr.average_rr, 0) / learningMatrix.length).toFixed(1) + " R"
-                        : "0.0 R"}
+                      {avgRiskReward}
                     </div>
                   </div>
                   <div className="status-item">
@@ -1177,7 +1181,7 @@ function MainApp() {
                 <div className="status-board">
                   <div className="status-item">
                     <div>{t('admin_active_symbols')}</div>
-                    <div className="status-val status-passed">{adminSymbols.length} / 30</div>
+                    <div className="status-val status-passed">{adminSymbols.filter(s => s.active).length} / 30</div>
                   </div>
                   <div className="status-item">
                     <div>{t('admin_limits')}</div>
@@ -1188,7 +1192,7 @@ function MainApp() {
                 <p style={{ marginTop: '15px', lineHeight: '1.6' }}>
                   <strong style={{ marginRight: '10px' }}>{t('admin_symbols_list')}</strong>
                   <span style={{ color: 'var(--primary)', fontFamily: 'monospace' }}>
-                    {adminSymbols.map(s => s.symbol).join(', ') || 'None'}
+                    {adminSymbols.filter(s => s.active).map(s => s.symbol).join(', ') || 'None'}
                   </span>
                 </p>
               </div>
@@ -1199,19 +1203,19 @@ function MainApp() {
                 <div className="status-board">
                   <div className="status-item">
                     <div>{t('passed_label')}</div>
-                    <div className="status-val status-passed">{validationStatus.passed || 0}</div>
+                    <div className="status-val status-passed">{validationStatus.passed_count || validationStatus.passed || 0}</div>
                   </div>
                   <div className="status-item">
                     <div>{t('failed_label')}</div>
-                    <div className="status-val status-failed">{validationStatus.failed || 0}</div>
+                    <div className="status-val status-failed">{validationStatus.failed_count || validationStatus.failed || 0}</div>
                   </div>
                   <div className="status-item">
                     <div>{t('skipped_label')}</div>
-                    <div className="status-val">{validationStatus.skipped || 0}</div>
+                    <div className="status-val">{validationStatus.skipped_count || validationStatus.skipped || 0}</div>
                   </div>
                   <div className="status-item">
                     <div>{t('warnings_label')}</div>
-                    <div className="status-val status-warn">{validationStatus.warnings || 0}</div>
+                    <div className="status-val status-warn">{validationStatus.warning_count || validationStatus.warnings || 0}</div>
                   </div>
                 </div>
 
