@@ -3278,6 +3278,10 @@ def get_shadow_trading_metrics():
     from src.ShadowTrading.Engine.ShadowTradingEngine import ShadowTradingEngine
     engine = ShadowTradingEngine.get_instance()
     metrics = engine.get_metrics()
+    # Enrich with Virtual Capital Isolation details
+    metrics["capital_mode"] = "SHADOW SIMULATION"
+    metrics["virtual_capital"] = 1000.0
+    metrics["capital_source"] = "Simulation Engine"
     return metrics
 
 

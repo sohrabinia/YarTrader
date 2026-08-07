@@ -19,19 +19,19 @@ class ShadowTradingEngine:
     _instance: Optional["ShadowTradingEngine"] = None
 
     @classmethod
-    def get_instance(cls, initial_balance: float = 10000.0) -> "ShadowTradingEngine":
+    def get_instance(cls, initial_balance: float = 1000.0) -> "ShadowTradingEngine":
         if cls._instance is None:
             cls._instance = cls(initial_balance)
         return cls._instance
 
-    def __init__(self, initial_balance: float = 10000.0) -> None:
+    def __init__(self, initial_balance: float = 1000.0) -> None:
         self.account = VirtualAccount(initial_balance)
         self.position_manager = PositionManager(self.account)
         self.judge = JudgeBrain()
         self.memory_system = MarketMemorySystem()
         self.trade_evaluator = TradeEvaluator(self.judge, self.memory_system)
 
-    def reset_account(self, balance: float = 10000.0) -> None:
+    def reset_account(self, balance: float = 1000.0) -> None:
         """Resets the account state for fresh testing or initialization."""
         self.account = VirtualAccount(balance)
         self.position_manager = PositionManager(self.account)

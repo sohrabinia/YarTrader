@@ -7,7 +7,7 @@ class VirtualAccount:
     Manages the financial and position state of a virtual non-trading shadow account.
     Calculates balance, floating PnL, and live account equity.
     """
-    def __init__(self, initial_balance: float = 10000.0) -> None:
+    def __init__(self, initial_balance: float = 1000.0) -> None:
         self.balance = float(initial_balance)
         self.equity = float(initial_balance)
         self.positions: Dict[str, VirtualPosition] = {}

@@ -1191,6 +1191,21 @@ function MainApp() {
                   </div>
                 </div>
 
+                <div className="status-board" style={{ marginTop: '15px' }}>
+                  <div className="status-item">
+                    <div>Capital Mode</div>
+                    <div className="status-val status-passed" style={{ fontSize: '1.1em', fontWeight: 'bold', color: 'var(--accent)' }}>SHADOW SIMULATION</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Virtual Capital</div>
+                    <div className="status-val status-passed" style={{ fontSize: '1.1em', fontWeight: 'bold' }}>$1,000</div>
+                  </div>
+                  <div className="status-item">
+                    <div>Source</div>
+                    <div className="status-val" style={{ fontSize: '1.1em', fontWeight: 'bold', color: 'var(--text-muted)' }}>Simulation Engine</div>
+                  </div>
+                </div>
+
                 <p style={{ marginTop: '15px', lineHeight: '1.6' }}>
                   <strong style={{ marginRight: '10px' }}>{t('admin_symbols_list')}</strong>
                   <span style={{ color: 'var(--primary)', fontFamily: 'monospace' }}>
