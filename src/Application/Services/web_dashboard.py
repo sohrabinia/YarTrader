@@ -269,9 +269,21 @@ def ensure_worker_started():
             research_thread = threading.Thread(target=run_research_background_loop, daemon=True)
             research_thread.start()
 
-# Call initially to start background daemon on boot if not managed by external Service Host
-if os.environ.get("YARTRADER_SERVICE_RUN") != "True" and "pytest" not in sys.modules:
-    ensure_worker_started()
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan_context(app: FastAPI):
+    # 1. Initialize SymbolRegistry to force registry load
+    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+    SymbolRegistry.get_instance()
+
+    # 2. Start the worker thread if not in test/service host mode
+    if os.environ.get("YARTRADER_SERVICE_RUN") != "True" and "pytest" not in sys.modules:
+        ensure_worker_started()
+    yield
+    log_event("INFO", "web_dashboard_shutdown", message="FastAPI lifespan shutting down cleanly")
+
+app.router.lifespan_context = lifespan_context
 
 
 # Active live state tracker of the acceptance validation platform

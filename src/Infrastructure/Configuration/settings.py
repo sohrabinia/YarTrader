@@ -11,7 +11,7 @@ class BaseSettings:
         self.api_timeout_sec: float = 5.0
         self.max_retries: int = 3
         self.log_level: str = "INFO"
-        self.storage_root: str = "H:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
+        self.storage_root: str = "C:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
         self.db_token: str = "dev-token-12345"
         self._load_and_validate()
 
@@ -42,7 +42,7 @@ class BaseSettings:
             raise ValidationException(f"Configuration Error: Invalid log level '{self.log_level}'.")
 
         # Storage Root Isolation
-        default_root = "H:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
+        default_root = "C:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
         self.storage_root = str(self._overrides.get("storage_root", os.environ.get("YarTraderStorageRoot", os.environ.get("TradeYarStorageRoot", default_root))))
         if not self.storage_root:
             self.storage_root = default_root
