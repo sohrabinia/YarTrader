@@ -15,7 +15,11 @@ All fixes were applied using highly localized, production-safe patches. No archi
 - **File**: `src/Application/Dashboard/auth_repo.py`
 - **Problem**: Default admin (`admin@yartrader.app`) and user (`trader@yartrader.app`) credentials with weak mock passwords (`admin123` / `trader123`) were automatically seeded into the credential database `runtime_logs/auth.json` on initialization. This constituted a severe risk in production environments.
 - **Evidence**: `auth_repo.py` unconditionally wrote the default credentials dictionary whenever `runtime_logs/auth.json` was not found on disk.
+<<<<<<< HEAD
 - **Fix**: Modified the startup seeding loop to detect the active environment (`TRADEYAR_ENV` or `RG_ENV`). In production mode, weak static default account/password seeding is disabled. Instead, the primary SRE email configured via `TRADEYAR_DEFAULT_ADMIN_EMAIL` (defaulting to `'admin-disabled@yartrader.app'`) is seeded with an invalid/locked hash (`"*"`) to prevent unauthorized password logins unless a custom secure hash is supplied via `TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH`.
+=======
+- **Fix**: Modified the startup seeding loop to detect the active environment (`TRADEYAR_ENV` or `RG_ENV`). In production mode, weak static default account/password seeding is disabled. Instead, the primary SRE email configured via `TRADEYAR_DEFAULT_ADMIN_EMAIL` (defaulting to `'m.a.sohrabinia@gmail.com'`) is seeded with an invalid/locked hash (`"*"`) to prevent unauthorized password logins unless a custom secure hash is supplied via `TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH`.
+>>>>>>> main
 
 ### Issue ID: LIFECYCLE-01
 - **Severity**: High
