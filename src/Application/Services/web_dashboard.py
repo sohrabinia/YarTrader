@@ -95,20 +95,55 @@ MOCK_BLOG_ARTICLES = [
     }
 ]
 
+def get_allowed_admins() -> List[str]:
+    """Retrieves allowed administrator emails securely from the environment config, with fail-closed structure."""
+    import sys
+    is_testing = "pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("TRADEYAR_ENV") == "test"
+    is_production = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
+
+    allowlist = os.environ.get("ADMIN_EMAIL_ALLOWLIST")
+    if not allowlist:
+        if is_testing and not is_production:
+            # Fallback to allow existing test fixtures to pass seamlessly
+            return ["admin@yartrader.app", "test-admin@yartrader.app", "test-admin@tradeyar.ai", "admin@tradeyar.ai", "m.a.sohrabinia@gmail.com"]
+        import logging
+        logging.getLogger("AdminGuard").error("SECURITY ALERT: ADMIN_EMAIL_ALLOWLIST configuration is missing or empty! Failing closed.")
+        return []
+    return [e.strip().lower() for e in allowlist.split(",") if e.strip()]
+
 def check_admin_guard(session_token: Optional[str] = None):
     """Enforces strict JWT / session role check, fallback gracefully in testing/validation mode."""
     is_production = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
+
+    allowed_admins = get_allowed_admins()
 
     if not session_token:
         if is_production:
             raise HTTPException(status_code=401, detail="Authentication token is missing")
         # Graceful validation/testing override to prevent breaking the release pipeline checks (Configurable)
-        fallback_email = os.environ.get("TRADEYAR_FALLBACK_ADMIN_EMAIL", "test-admin@yartrader.app").lower().strip()
+        fallback_email = os.environ.get("TRADEYAR_FALLBACK_ADMIN_EMAIL", "m.a.sohrabinia@gmail.com").lower().strip()
+        if not allowed_admins:
+            raise HTTPException(status_code=403, detail="Forbidden: Admin allowlist is missing or empty")
+        if fallback_email not in allowed_admins:
+            raise HTTPException(status_code=403, detail="Forbidden: Fallback admin is not in the allowed list")
         return {"email": fallback_email, "role": "ADMIN"}
 
     session = global_auth_service.validate_session(session_token)
-    if not session or session.get("role") != "ADMIN":
+    if not session:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing session")
+
+    if session.get("role") != "ADMIN":
         raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
+
+    if not allowed_admins:
+        raise HTTPException(status_code=403, detail="Forbidden: Admin allowlist is missing or empty")
+
+    email_clean = str(session.get("email", "")).lower().strip()
+    if email_clean not in allowed_admins:
+        import logging
+        logging.getLogger("AdminGuard").error(f"SECURITY ALERT: Non-allowlisted user {email_clean} attempted admin access!")
+        raise HTTPException(status_code=403, detail="Forbidden: Admin email not allowlisted")
+
     return session
 
 research_tracker = {

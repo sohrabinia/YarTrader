@@ -88,6 +88,33 @@ function MainApp() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
+  // Verify session integrity on boot to prevent client-side privilege escalation
+  useEffect(() => {
+    const verifySession = async () => {
+      if (!token) return;
+      try {
+        const currentToken = localStorage.getItem('yartrader_token') || token || '';
+        if (role === 'ADMIN') {
+          // Admin endpoint validation
+          await apiService.get(`/api/admin/symbols?token=${encodeURIComponent(currentToken)}`);
+        } else {
+          // Regular user validation
+          await apiService.get('/api/user/markets');
+        }
+      } catch (err) {
+        // Validation failed! Fail closed: clean hacked or stale local storage flags
+        localStorage.removeItem('yartrader_token');
+        localStorage.removeItem('yartrader_role');
+        localStorage.removeItem('yartrader_name');
+        setToken(null);
+        setRole(null);
+        setName(null);
+        window.location.hash = '#/login';
+      }
+    };
+    verifySession();
+  }, [token, role]);
+
   // Update body theme class
   useEffect(() => {
     if (theme === 'light') {

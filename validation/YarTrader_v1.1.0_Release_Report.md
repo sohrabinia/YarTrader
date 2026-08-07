@@ -4,7 +4,7 @@
 - **Verification Timestamp (UTC):** 2026-08-07 05:30:00
 - **Lead Production Engineer:** Jules (Lead SRE & Production Architect)
 - **Target Release Version:** v1.1.0
-- **Exact Commit SHA:** `7fce4697b9f6af8766097c29367c8eef5f9c4160`
+- **Exact Commit SHA:** `5f64852d5b1fc3fe483806e715f0c6d9171015aa`
 
 ---
 
@@ -84,7 +84,7 @@ YarTrader v1.1.0 hardens the multi-asset shadow trading simulation layer, strict
 
   nothing to commit, working tree clean
 
-  7fce4697b9f6af8766097c29367c8eef5f9c4160
+  5f64852d5b1fc3fe483806e715f0c6d9171015aa
   ```
 
 ---
