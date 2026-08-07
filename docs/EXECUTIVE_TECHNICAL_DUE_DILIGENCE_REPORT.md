@@ -160,7 +160,7 @@ We executed the query interface against the five standard diagnostic questions:
 
 ```text
 ============================================================
-              TRADEYAR AI OBJECTIVE SCORECARD
+              YarTrader OBJECTIVE SCORECARD
 ============================================================
 Architecture Alignments & Decoupling :  98/100
 AI Brain & Memory Layers Separations :  97/100

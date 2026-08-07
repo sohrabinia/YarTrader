@@ -15,7 +15,7 @@ def run_phase_2_1():
     # Helper definitions for type hint
     from typing import Any
     print("==========================================================================")
-    print("TRADEYAR AI — PHASE 2.1 SYNTHETIC EXPERIMENT PIPELINE VALIDATION")
+    print("YarTrader — PHASE 2.1 SYNTHETIC EXPERIMENT PIPELINE VALIDATION")
     print("==========================================================================")
 
     os.makedirs("validation", exist_ok=True)
