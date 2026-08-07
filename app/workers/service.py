@@ -14,6 +14,7 @@ sys.path.insert(0, project_root)
 
 # Signal to web_dashboard to bypass duplicate background worker loops
 os.environ["TRADEYAR_SERVICE_RUN"] = "True"
+os.environ["YARTRADER_SERVICE_RUN"] = "True"
 
 # Ensure logs/service directory exists
 os.makedirs(os.path.join("logs", "service"), exist_ok=True)
