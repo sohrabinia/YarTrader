@@ -10,9 +10,17 @@ from src.Application.Dashboard.auth_service import global_auth_service
 
 def enforce_admin_token(token: Optional[str] = None):
     """Enforces strict role-based access control, rejecting non-ADMIN accounts with 403 Forbidden."""
+    import os
+    is_production = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
+
     if not token:
+        if is_production:
+            raise HTTPException(status_code=401, detail="Authentication token is missing")
         # Fallback testing mode override
         return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
+
+    if token == "mock_social_token" and is_production:
+        raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
 
     session = global_auth_service.validate_session(token)
     if not session or session.get("role") != "ADMIN":

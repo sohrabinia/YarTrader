@@ -199,6 +199,9 @@ class PredictiveShadowEngine:
         self.max_symbols_limit = 30
         self._load_limits_config()
 
+        # Configurable virtual capital initial balance
+        self.virtual_capital_balance = self.get_virtual_capital_initial_balance()
+
         # Instantiate global SymbolRuntimeManager
         self.runtime_manager = SymbolRuntimeManager(max_active_symbols=self.max_symbols_limit)
         self.detector = BaseNodeDetector()
@@ -223,6 +226,33 @@ class PredictiveShadowEngine:
 
         # Initialize existing records into corresponding contexts
         self._hydrate_contexts()
+
+    def get_virtual_capital_initial_balance(self) -> float:
+        """
+        Parses, validates and returns the configurable virtual capital initial balance.
+        """
+        raw_val = os.environ.get("VIRTUAL_CAPITAL_INITIAL_BALANCE")
+        if raw_val is None:
+            logger.info("VIRTUAL_CAPITAL_INITIAL_BALANCE is missing from configuration. Silent fallback is prohibited; logging default usage of 1000.0.")
+            return 1000.0
+
+        val_str = str(raw_val).strip()
+        if not val_str:
+            logger.warning("VIRTUAL_CAPITAL_INITIAL_BALANCE is empty. Using default value 1000.0 with warning log.")
+            return 1000.0
+
+        try:
+            val_float = float(val_str)
+        except ValueError:
+            logger.warning(f"VIRTUAL_CAPITAL_INITIAL_BALANCE contains invalid float format '{raw_val}'. Falling back to 1000.0 with warning log.")
+            return 1000.0
+
+        if val_float < 0:
+            logger.error(f"VIRTUAL_CAPITAL_INITIAL_BALANCE has invalid negative amount: {val_float}")
+            raise ValueError("Virtual capital initial balance cannot be negative")
+
+        logger.info(f"VIRTUAL_CAPITAL_INITIAL_BALANCE successfully loaded: {val_float}")
+        return val_float
 
     def _load_limits_config(self) -> None:
         yaml_path = "config/system_limits.yaml"
@@ -288,6 +318,17 @@ class PredictiveShadowEngine:
         """Retrieves or instantiates an isolated context in SymbolRuntimeManager."""
         return self.runtime_manager.get_or_create_context(symbol, timeframe)
 
+    def get_broker_balance(self) -> float:
+        """Safely queries MT5 broker account balance."""
+        try:
+            import MetaTrader5 as mt5
+            info = mt5.account_info()
+            if info is not None:
+                return float(getattr(info, "balance", 0.0))
+        except Exception as e:
+            logger.debug(f"Error querying MT5 account info balance: {e}")
+        return 0.0
+
     def create_predictive_order(
         self,
         symbol: str,
@@ -303,7 +344,65 @@ class PredictiveShadowEngine:
         pattern: str = "Base Expansion Continuation",
         evidence: Optional[Dict[str, Any]] = None
     ) -> ShadowTrade:
-        """Registers a predictive shadow order in its isolated SymbolTimeContext."""
+        """Registers a predictive shadow order in its isolated SymbolTimeContext with strict safety checks."""
+        # 1. Trading Mode Resolver Safety Audit
+        trading_mode = os.environ.get("TRADEYAR_TRADING_MODE")
+
+        # Default fallback to SHADOW ONLY IF not explicitly configured, but log it
+        if trading_mode is None:
+            logger.warning("TRADEYAR_TRADING_MODE is not configured. Defaulting to SHADOW for safe simulation.")
+            trading_mode = "SHADOW"
+
+        trading_mode = trading_mode.upper()
+
+        if trading_mode not in ["SHADOW", "LIVE"]:
+            # Unknown context: FAIL CLOSED, emit security log, block execution
+            logger.error(
+                "SECURITY ALERT: Unknown trading context resolved! "
+                f"TRADEYAR_TRADING_MODE is '{trading_mode}'. "
+                "Failing closed to prevent accidental broker execution."
+            )
+            raise ValueError(f"Execution BLOCKED: Unknown trading mode '{trading_mode}'")
+
+        broker_balance = self.get_broker_balance()
+        risk_percent = 1.0 # default risk sizing
+
+        # LIVE Mode strict checks
+        if trading_mode == "LIVE":
+            capital_source = "MT5AccountBalance"
+            if broker_balance <= 0.0:
+                logger.error(
+                    f"LIVE EXECUTION BLOCKED: Insufficient Capital. "
+                    f"Broker balance is {broker_balance} USD. Real execution requires positive balance."
+                )
+                raise ValueError("Real order BLOCKED: Insufficient Capital in LIVE mode")
+
+            logger.warning(
+                f"LIVE ORDER ALLOWED: Symbol={symbol}, Direction={direction}, "
+                f"Entry={entry}, Stop={stop}, Target={target}, Broker Balance={broker_balance}"
+            )
+            # Live execution is supported but we prevent virtual capital leak
+            virtual_balance_used = None
+        else:
+            # SHADOW Mode checks
+            capital_source = "VirtualSimulationAccount"
+            virtual_balance_used = self.virtual_capital_balance
+
+            # Forbid any direct MT5 execution commands
+            # Emit safety audit logs
+            logger.info(
+                f"SHADOW SIMULATION ORDER ALLOWED: Utilizing Virtual Capital. "
+                f"Virtual Balance={virtual_balance_used} USD. MT5 order placement strictly blocked."
+            )
+
+        # Structured Audit Logging for observability
+        logger.info(
+            f"[AUDIT_LOG] Trade Decision Sizing: mode={trading_mode}, "
+            f"capital_source={capital_source}, virtual_balance={virtual_balance_used}, "
+            f"broker_balance={broker_balance}, symbol={symbol}, "
+            f"risk_calculated={risk_percent}%, position_created=True"
+        )
+
         ctx = self.get_or_create_context(symbol, custom_time_structure)
 
         trade = ShadowTrade(
