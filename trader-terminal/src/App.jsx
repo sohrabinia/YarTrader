@@ -1205,19 +1205,19 @@ function MainApp() {
                 <div className="status-board">
                   <div className="status-item">
                     <div>{t('passed_label')}</div>
-                    <div className="status-val status-passed">{validationStatus.passed || 0}</div>
+                    <div className="status-val status-passed">{validationStatus.passed_count || 0}</div>
                   </div>
                   <div className="status-item">
                     <div>{t('failed_label')}</div>
-                    <div className="status-val status-failed">{validationStatus.failed || 0}</div>
+                    <div className="status-val status-failed">{validationStatus.failed_count || 0}</div>
                   </div>
                   <div className="status-item">
                     <div>{t('skipped_label')}</div>
-                    <div className="status-val">{validationStatus.skipped || 0}</div>
+                    <div className="status-val">{validationStatus.skipped_count || 0}</div>
                   </div>
                   <div className="status-item">
                     <div>{t('warnings_label')}</div>
-                    <div className="status-val status-warn">{validationStatus.warnings || 0}</div>
+                    <div className="status-val status-warn">{validationStatus.warning_count || 0}</div>
                   </div>
                 </div>
 
