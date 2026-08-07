@@ -278,7 +278,9 @@ async def lifespan_context(app: FastAPI):
     SymbolRegistry.get_instance()
 
     # 2. Start the worker thread if not in test/service host mode
-    if os.environ.get("YARTRADER_SERVICE_RUN") != "True" and "pytest" not in sys.modules:
+    is_service_run = (os.environ.get("YARTRADER_SERVICE_RUN") == "True" or
+                      os.environ.get("TRADEYAR_SERVICE_RUN") == "True")
+    if not is_service_run and "pytest" not in sys.modules:
         ensure_worker_started()
     yield
     log_event("INFO", "web_dashboard_shutdown", message="FastAPI lifespan shutting down cleanly")
@@ -3118,8 +3120,17 @@ def get_production_health():
     except Exception:
         shadow_status_active = "Offline"
 
+    # Harden SRE Health Accuracy against fake reporting
+    overall_status = "Healthy"
+    degraded_states = ["Failed", "Degraded", "Recovering"]
+    if (research_status in degraded_states or
+        intelligence_status in degraded_states or
+        shadow_status in degraded_states or
+        research_tracker.get("worker_status") in degraded_states):
+        overall_status = "Degraded"
+
     return {
-        "status": "Healthy",
+        "status": overall_status,
         "service": "YarTrader",
         "api": "Online",
         "mt5": mt5_status,

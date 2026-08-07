@@ -51,6 +51,8 @@ def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
     return {"market_universe": result}
 
 
+import threading
+
 class SymbolRegistry:
     """
     Manages active symbols, their asset class classification, and assigned timeframes dynamically.
@@ -58,28 +60,32 @@ class SymbolRegistry:
     Persists config cleanly across restarts.
     """
     _instance = None
+    _singleton_lock = threading.Lock()
 
     @classmethod
     def get_instance(cls) -> "SymbolRegistry":
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+        with cls._singleton_lock:
+            if cls._instance is None:
+                cls._instance = cls()
+            return cls._instance
 
     def __init__(self) -> None:
         self.max_symbols = 50
         self.registry: Dict[str, Dict[str, Any]] = {}
+        self.lock = threading.RLock()
         os.makedirs("runtime_logs", exist_ok=True)
         self.load_registry()
 
     def load_registry(self) -> None:
-        # Check if saved registry config file exists
-        if os.path.exists(REGISTRY_FILE):
-            try:
-                with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
-                    self.registry = json.load(f)
-                return
-            except Exception:
-                pass
+        with self.lock:
+            # Check if saved registry config file exists
+            if os.path.exists(REGISTRY_FILE):
+                try:
+                    with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
+                        self.registry = json.load(f)
+                    return
+                except Exception:
+                    pass
 
         # Load from config/market_universe.yaml if exists
         yaml_path = "config/market_universe.yaml"
@@ -114,11 +120,13 @@ class SymbolRegistry:
         self.save_registry()
 
     def save_registry(self) -> None:
-        with open(REGISTRY_FILE, "w", encoding="utf-8") as f:
-            json.dump(self.registry, f, indent=4)
+        with self.lock:
+            with open(REGISTRY_FILE, "w", encoding="utf-8") as f:
+                json.dump(self.registry, f, indent=4)
 
     def get_all_registered(self) -> Dict[str, Dict[str, Any]]:
-        return self.registry
+        with self.lock:
+            return self.registry.copy()
 
     def get_timeframe_policy(self, asset_class: str) -> List[str]:
         """Resolves timeframe policies per asset class. Returns all 9 timeframes."""
@@ -126,40 +134,43 @@ class SymbolRegistry:
 
     def get_active_matrix(self) -> List[Tuple[str, str, str, str]]:
         """Resolves execution matrix tuples of (symbol, timeframe, asset_class, provider)"""
-        matrix = []
-        active_count = 0
-        for symbol, info in sorted(self.registry.items()):
-            if info.get("active", True):
-                if active_count >= self.max_symbols:
-                    break
-                active_count += 1
-                asset_class = info.get("asset_class", "Forex")
-                provider = info.get("provider", "MT5")
-                tfs = info.get("timeframes") or self.get_timeframe_policy(asset_class)
-                for tf in tfs:
-                    matrix.append((symbol, tf, asset_class, provider))
-        return matrix
+        with self.lock:
+            matrix = []
+            active_count = 0
+            for symbol, info in sorted(self.registry.items()):
+                if info.get("active", True):
+                    if active_count >= self.max_symbols:
+                        break
+                    active_count += 1
+                    asset_class = info.get("asset_class", "Forex")
+                    provider = info.get("provider", "MT5")
+                    tfs = info.get("timeframes") or self.get_timeframe_policy(asset_class)
+                    for tf in tfs:
+                        matrix.append((symbol, tf, asset_class, provider))
+            return matrix
 
     def register_symbol(self, symbol: str, timeframes: List[str], asset_class: str = "Forex", provider: str = "MT5") -> None:
-        symbol_upper = symbol.upper()
-        active_count = sum(1 for sym, info in self.registry.items() if info.get("active", True) and sym != symbol_upper)
-        if active_count >= self.max_symbols:
-            raise ValueError(f"Hard SRE limit reached: Maximum {self.max_symbols} active symbols allowed concurrent execution.")
+        with self.lock:
+            symbol_upper = symbol.upper()
+            active_count = sum(1 for sym, info in self.registry.items() if info.get("active", True) and sym != symbol_upper)
+            if active_count >= self.max_symbols:
+                raise ValueError(f"Hard SRE limit reached: Maximum {self.max_symbols} active symbols allowed concurrent execution.")
 
-        self.registry[symbol_upper] = {
-            "active": True,
-            "asset_class": asset_class,
-            "provider": provider,
-            "timeframes": timeframes
-        }
-        self.save_registry()
+            self.registry[symbol_upper] = {
+                "active": True,
+                "asset_class": asset_class,
+                "provider": provider,
+                "timeframes": timeframes
+            }
+            self.save_registry()
 
     def set_symbol_active(self, symbol: str, active: bool) -> None:
-        symbol_upper = symbol.upper()
-        if symbol_upper in self.registry:
-            if active:
-                active_count = sum(1 for sym, info in self.registry.items() if info.get("active", True) and sym != symbol_upper)
-                if active_count >= self.max_symbols:
-                    raise ValueError(f"Hard SRE limit reached: Maximum {self.max_symbols} active symbols allowed concurrent execution.")
-            self.registry[symbol_upper]["active"] = active
-            self.save_registry()
+        with self.lock:
+            symbol_upper = symbol.upper()
+            if symbol_upper in self.registry:
+                if active:
+                    active_count = sum(1 for sym, info in self.registry.items() if info.get("active", True) and sym != symbol_upper)
+                    if active_count >= self.max_symbols:
+                        raise ValueError(f"Hard SRE limit reached: Maximum {self.max_symbols} active symbols allowed concurrent execution.")
+                self.registry[symbol_upper]["active"] = active
+                self.save_registry()
