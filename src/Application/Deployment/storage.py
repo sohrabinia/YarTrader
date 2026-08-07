@@ -13,9 +13,9 @@ class TradeYarStorageManager:
         else:
             self._storage_root = os.getenv("YarTraderStorageRoot") or os.getenv("TradeYarStorageRoot")
             if not self._storage_root:
-                # Default fallback for Windows (H:\YarTraderAI\) or Unix (/tmp/YarTraderAI/)
+                # Default fallback for Windows (C:\YarTraderAI\) or Unix (/tmp/YarTraderAI/)
                 if os.name == "nt":
-                    self._storage_root = "H:\\YarTraderAI\\"
+                    self._storage_root = "C:\\YarTraderAI\\"
                 else:
                     self._storage_root = "/tmp/YarTraderAI/"
 
