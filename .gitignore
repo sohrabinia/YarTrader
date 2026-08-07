@@ -172,4 +172,4 @@ models/cache/
 # ==========================================
 node_modules/
 trader-terminal/node_modules/
-trader-terminal/dist/
+trader-terminal/dist/*.zip 
