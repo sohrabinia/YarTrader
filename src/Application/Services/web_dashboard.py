@@ -23,10 +23,23 @@ HISTORY_DIR = "history"
 from app.core.logging import log_event, log_audit, log_intelligence_decision
 from src.Application.Runtime.runtime_state import central_runtime_state
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Unified FastAPI lifespan context managing SRE worker daemon startup cleanly."""
+    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+    SymbolRegistry.get_instance()
+
+    if os.environ.get("YARTRADER_SERVICE_RUN") != "True":
+        ensure_worker_started()
+    yield
+
 app = FastAPI(
     title="YarTrader Autonomous Management & Acceptance Portal",
     version="1.0.0",
-    description="Descriptive, analytical cognitive administrative panel and System Validation Center"
+    description="Descriptive, analytical cognitive administrative panel and System Validation Center",
+    lifespan=lifespan
 )
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -112,21 +125,9 @@ def get_allowed_admins() -> List[str]:
     return [e.strip().lower() for e in allowlist.split(",") if e.strip()]
 
 def check_admin_guard(session_token: Optional[str] = None):
-    """Enforces strict JWT / session role check, fallback gracefully in testing/validation mode."""
-    is_production = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
-
-    allowed_admins = get_allowed_admins()
-
+    """Enforces strict role-based access control, rejecting missing tokens under all modes."""
     if not session_token:
-        if is_production:
-            raise HTTPException(status_code=401, detail="Authentication token is missing")
-        # Graceful validation/testing override to prevent breaking the release pipeline checks (Configurable)
-        fallback_email = os.environ.get("TRADEYAR_FALLBACK_ADMIN_EMAIL", "m.a.sohrabinia@gmail.com").lower().strip()
-        if not allowed_admins:
-            raise HTTPException(status_code=403, detail="Forbidden: Admin allowlist is missing or empty")
-        if fallback_email not in allowed_admins:
-            raise HTTPException(status_code=403, detail="Forbidden: Fallback admin is not in the allowed list")
-        return {"email": fallback_email, "role": "ADMIN"}
+        raise HTTPException(status_code=401, detail="Authentication token is missing")
 
     session = global_auth_service.validate_session(session_token)
     if not session:
@@ -135,6 +136,7 @@ def check_admin_guard(session_token: Optional[str] = None):
     if session.get("role") != "ADMIN":
         raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
 
+    allowed_admins = get_allowed_admins()
     if not allowed_admins:
         raise HTTPException(status_code=403, detail="Forbidden: Admin allowlist is missing or empty")
 
@@ -305,9 +307,8 @@ def ensure_worker_started():
             research_thread = threading.Thread(target=run_research_background_loop, daemon=True)
             research_thread.start()
 
-# Call initially to start background daemon on boot if not managed by external Service Host
-if os.environ.get("YARTRADER_SERVICE_RUN") != "True" and "pytest" not in sys.modules:
-    ensure_worker_started()
+# Module-level worker execution removed to prevent import-driven side effects.
+# Worker startup is now managed strictly via the FastAPI lifespan context manager.
 
 
 # Active live state tracker of the acceptance validation platform
