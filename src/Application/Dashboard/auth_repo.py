@@ -20,8 +20,13 @@ class AuthRepository:
             is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
                              os.environ.get("RG_ENV") == "production")
 
+<<<<<<< HEAD
+            # Derive primary administrator details safely without exposing personal identities
+            admin_email = os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "admin-disabled@yartrader.app").lower()
+=======
             # Derive primary administrator details
             admin_email = os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "m.a.sohrabinia@gmail.com").lower()
+>>>>>>> main
 
             # Seed default admin and user accounts
             if is_production:
