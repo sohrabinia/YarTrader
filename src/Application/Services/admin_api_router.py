@@ -16,8 +16,9 @@ def enforce_admin_token(token: Optional[str] = None):
     if not token:
         if is_production:
             raise HTTPException(status_code=401, detail="Authentication token is missing")
-        # Fallback testing mode override
-        return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
+        # Fallback testing mode override (Configurable)
+        fallback_email = os.environ.get("TRADEYAR_FALLBACK_ADMIN_EMAIL", "test-admin@yartrader.app").lower().strip()
+        return {"email": fallback_email, "role": "ADMIN"}
 
     if token == "mock_social_token" and is_production:
         raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")

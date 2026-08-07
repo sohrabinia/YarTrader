@@ -102,8 +102,9 @@ def check_admin_guard(session_token: Optional[str] = None):
     if not session_token:
         if is_production:
             raise HTTPException(status_code=401, detail="Authentication token is missing")
-        # Graceful validation/testing override to prevent breaking the release pipeline checks
-        return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
+        # Graceful validation/testing override to prevent breaking the release pipeline checks (Configurable)
+        fallback_email = os.environ.get("TRADEYAR_FALLBACK_ADMIN_EMAIL", "test-admin@yartrader.app").lower().strip()
+        return {"email": fallback_email, "role": "ADMIN"}
 
     session = global_auth_service.validate_session(session_token)
     if not session or session.get("role") != "ADMIN":

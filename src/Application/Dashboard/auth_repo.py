@@ -17,17 +17,19 @@ class AuthRepository:
 
     def _load_db(self) -> Dict[str, Dict[str, Any]]:
         if not os.path.exists(self.filepath):
-            # Seed default admin and user accounts
+            # Seed default admin and user accounts dynamically
+            admin_email = os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "m.a.sohrabinia@gmail.com").lower().strip()
+            trader_email = os.environ.get("TRADEYAR_DEFAULT_TRADER_EMAIL", "trader@yartrader.app").lower().strip()
             default_data = {
-                "admin@yartrader.app": {
-                    "email": "admin@yartrader.app",
+                admin_email: {
+                    "email": admin_email,
                     "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'admin123'
                     "role": "ADMIN",
                     "name": "Principal Supervisor",
                     "social_providers": {}
                 },
-                "trader@yartrader.app": {
-                    "email": "trader@yartrader.app",
+                trader_email: {
+                    "email": trader_email,
                     "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'trader123'
                     "role": "USER",
                     "name": "Elite Trader",
