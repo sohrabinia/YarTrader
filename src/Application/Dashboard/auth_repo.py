@@ -17,23 +17,43 @@ class AuthRepository:
 
     def _load_db(self) -> Dict[str, Dict[str, Any]]:
         if not os.path.exists(self.filepath):
+            is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
+                             os.environ.get("RG_ENV") == "production")
+
+            # Derive primary administrator details
+            admin_email = os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "m.a.sohrabinia@gmail.com").lower()
+
             # Seed default admin and user accounts
-            default_data = {
-                "admin@yartrader.app": {
-                    "email": "admin@yartrader.app",
-                    "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'admin123'
-                    "role": "ADMIN",
-                    "name": "Principal Supervisor",
-                    "social_providers": {}
-                },
-                "trader@yartrader.app": {
-                    "email": "trader@yartrader.app",
-                    "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'trader123'
-                    "role": "USER",
-                    "name": "Elite Trader",
-                    "social_providers": {}
+            if is_production:
+                # In production, we do NOT seed weak mock passwords.
+                # Admin password must be set securely or configured via environments.
+                admin_pw_hash = os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH", "*")
+                default_data = {
+                    admin_email: {
+                        "email": admin_email,
+                        "password_hash": admin_pw_hash,
+                        "role": "ADMIN",
+                        "name": "Principal Supervisor",
+                        "social_providers": {}
+                    }
                 }
-            }
+            else:
+                default_data = {
+                    admin_email: {
+                        "email": admin_email,
+                        "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'admin123'
+                        "role": "ADMIN",
+                        "name": "Principal Supervisor",
+                        "social_providers": {}
+                    },
+                    "trader@yartrader.app": {
+                        "email": "trader@yartrader.app",
+                        "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'trader123'
+                        "role": "USER",
+                        "name": "Elite Trader",
+                        "social_providers": {}
+                    }
+                }
             with open(self.filepath, "w", encoding="utf-8") as f:
                 json.dump(default_data, f, indent=4)
             return default_data
