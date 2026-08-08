@@ -50,6 +50,22 @@ class BaseSettings:
 
         self.db_token = str(self._overrides.get("db_token", os.environ.get("RG_DB_SECURE_TOKEN", self.db_token)))
 
+        is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
+                         os.environ.get("RG_ENV") == "production" or
+                         self.__class__.__name__ == "ProductionSettings")
+
+        if is_production:
+            env_token = os.environ.get("RG_DB_SECURE_TOKEN")
+            if not env_token:
+                raise ValidationException(
+                    "Production Security Violation: 'RG_DB_SECURE_TOKEN' must be set in production mode."
+                )
+            if env_token in ("prod-token-secure", "dev-token-12345", "dev-token-99999", "test-token-77777", "sim-token-sandbox", ""):
+                raise ValidationException(
+                    "Production Security Violation: Insecure placeholder or default token detected in 'RG_DB_SECURE_TOKEN'."
+                )
+            self.db_token = env_token
+
         self.tick_chart_analysis_enabled = self._overrides.get(
             "tick_chart_analysis_enabled",
             os.environ.get("TICK_CHART_ANALYSIS_ENABLED", "False") == "True"

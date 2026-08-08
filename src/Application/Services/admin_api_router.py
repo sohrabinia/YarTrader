@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends
+import os
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
@@ -10,7 +11,6 @@ from src.Application.Dashboard.auth_service import global_auth_service
 
 def enforce_admin_token(token: Optional[str] = None):
     """Enforces strict role-based access control, rejecting non-ADMIN accounts with 403 Forbidden."""
-    import os
     is_production = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
 
     if not token:
@@ -69,11 +69,9 @@ def register_new_active_symbol_context(payload: SymbolRegistration, token: Optio
     engine = PredictiveShadowEngine.get_instance()
     try:
         symbol_upper = payload.symbol.upper()
-        # Fallback to H1/H4 if timeframes not provided
         tfs = payload.timeframes or ["H1"]
         registry_inst.register_symbol(symbol_upper, tfs)
 
-        # Also register in the PredictiveShadowEngine cognitive contexts to keep isolation
         tf_int = payload.timeframe if payload.timeframe is not None else 64
         ctx = engine.get_or_create_context(symbol_upper, tf_int)
 
@@ -106,7 +104,6 @@ def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[Any] = N
             except Exception:
                 tf_canon = tf
 
-            # Timeframe filtering
             if timeframe is not None:
                 try:
                     filter_tf_canon = TimeframeNormalizer.normalize(timeframe)
@@ -118,7 +115,6 @@ def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[Any] = N
             if tf_canon not in unique_contexts:
                 unique_contexts[tf_canon] = ctx
             else:
-                # Duplicate detected! Log warning for SRE visibility.
                 import logging
                 logger = logging.getLogger("AdminReportsAPI")
                 logger.warning(
@@ -129,7 +125,6 @@ def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[Any] = N
 
         contexts_to_report = list(unique_contexts.values())
 
-    # Deterministic sorting: integers first, then strings alphabetically
     def sort_key(ctx):
         tf = ctx.timeframe
         if isinstance(tf, int):
@@ -143,4 +138,232 @@ def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[Any] = N
         "symbol": target_symbol,
         "count": len(reports),
         "reports": reports
+    }
+
+# 4. SRE Backup snapshot operation
+@router.post("/backup")
+def trigger_backup_snapshot(token: Optional[str] = None):
+    """SRE administrative action to trigger an atomic snapshot backup of persistent state."""
+    enforce_admin_token(token)
+    from src.Application.Runtime.backup_manager import BackupManager
+    manager = BackupManager()
+    try:
+        res = manager.create_backup()
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 5. SRE Restore operation
+class RestorePayload(BaseModel):
+    filename: str
+
+@router.post("/restore")
+def trigger_restore(payload: RestorePayload, token: Optional[str] = None):
+    """SRE administrative action to safely restore persistent state from a backup archive."""
+    enforce_admin_token(token)
+    from src.Application.Runtime.backup_manager import BackupManager
+    manager = BackupManager()
+    try:
+        res = manager.restore_backup(payload.filename)
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ==============================================================================
+# P2-1 — DOUBLE-ENTRY FINANCIAL LEDGER ADMIN ENDPOINTS
+# ==============================================================================
+class LedgerEntry(BaseModel):
+    account_id: str
+    type: str  # "debit" or "credit"
+    amount: int  # integer cents
+
+class LedgerTransactionPayload(BaseModel):
+    idempotency_key: str
+    description: str
+    currency: Optional[str] = "USD"
+    entries: List[LedgerEntry]
+
+class LedgerReversalPayload(BaseModel):
+    original_transaction_id: str
+    idempotency_key: str
+    reason: str
+
+@router.post("/ledger/transaction")
+def admin_post_transaction(payload: LedgerTransactionPayload, token: Optional[str] = None):
+    """Posts a balanced double-entry transaction atomically."""
+    enforce_admin_token(token)
+    from src.Application.Dashboard.ledger_manager import LedgerManager
+    manager = LedgerManager()
+    entries_dict = [entry.dict() for entry in payload.entries]
+    try:
+        return manager.post_transaction(
+            idempotency_key=payload.idempotency_key,
+            entries=entries_dict,
+            description=payload.description,
+            currency=payload.currency
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/ledger/reverse")
+def admin_reverse_transaction(payload: LedgerReversalPayload, token: Optional[str] = None):
+    """Performs a reversal compensating transaction to correct a posted ledger transaction."""
+    enforce_admin_token(token)
+    from src.Application.Dashboard.ledger_manager import LedgerManager
+    manager = LedgerManager()
+    try:
+        return manager.reverse_transaction(
+            original_tx_id=payload.original_transaction_id,
+            idempotency_key=payload.idempotency_key,
+            reason=payload.reason
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ==============================================================================
+# P2-2 — SaaS BILLING & INVOICING WEBHOOKS
+# ==============================================================================
+@router.post("/billing/webhook")
+async def payment_gateway_webhook(request: Request):
+    """
+    Idempotent Webhook endpoint ingesting Stripe or cryptographic gateway payment events.
+    Verifies authenticity and integrity signatures strictly before executing state machine.
+    """
+    body_bytes = await request.body()
+    signature = request.headers.get("X-Gateway-Signature", "")
+
+    # Retrieve webhook secret from environment config safely
+    webhook_secret = os.environ.get("BILLING_WEBHOOK_SECRET")
+    if not webhook_secret:
+        raise HTTPException(status_code=500, detail="Billing webhook secret is not configured in production.")
+
+    from src.Application.Dashboard.billing_manager import BillingManager
+    manager = BillingManager()
+    try:
+        return manager.process_signed_webhook(
+            payload_bytes=body_bytes,
+            signature=signature,
+            webhook_secret=webhook_secret
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ==============================================================================
+# P2-3 — SUPPORT TICKETING ADMIN ENDPOINTS
+# ==============================================================================
+class AdminReplyPayload(BaseModel):
+    message: str
+
+class TicketStatusPayload(BaseModel):
+    status: str
+    priority: Optional[str] = None
+
+@router.get("/tickets")
+def admin_list_tickets(page: int = Query(1, ge=1), limit: int = Query(20, le=50), token: Optional[str] = None):
+    """Lists all support tickets globally for administrative action."""
+    enforce_admin_token(token)
+    from src.Application.Dashboard.ticket_manager import TicketManager
+    manager = TicketManager()
+    return manager.list_all_tickets_admin(page=page, limit=limit)
+
+@router.post("/tickets/{ticket_id}/reply")
+def admin_reply_to_ticket(ticket_id: str, payload: AdminReplyPayload, token: Optional[str] = None):
+    """Appends an administrative SRE response reply message to the support ticket."""
+    enforce_admin_token(token)
+    from src.Application.Dashboard.ticket_manager import TicketManager
+    manager = TicketManager()
+    try:
+        return manager.add_reply(
+            ticket_id=ticket_id,
+            email="sre-support@yartrader.app",
+            message=payload.message,
+            is_admin=True
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/tickets/{ticket_id}/status")
+def admin_update_ticket_status(ticket_id: str, payload: TicketStatusPayload, token: Optional[str] = None):
+    """Updates status or priority of a support ticket administratively."""
+    enforce_admin_token(token)
+    from src.Application.Dashboard.ticket_manager import TicketManager
+    manager = TicketManager()
+    try:
+        return manager.update_status(
+            ticket_id=ticket_id,
+            status=payload.status,
+            priority=payload.priority
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ==============================================================================
+# P2-5 — REVENUE BUSINESS ANALYTICS ADMIN ENDPOINTS
+# ==============================================================================
+@router.get("/analytics/revenue")
+def get_revenue_business_analytics(token: Optional[str] = None):
+    """
+    Computes real, non-synthetic revenue and SaaS business analytics metrics
+    derived dynamically from actual, persisted billing data.
+    """
+    enforce_admin_token(token)
+    from src.Application.Dashboard.billing_manager import BillingManager
+    manager = BillingManager()
+
+    # Dynamic computation of SaaS metrics directly from source of truth
+    data = manager._load()
+
+    active_subscriptions_count = 0
+    mrr_cents = 0
+    cancelled_count = 0
+    total_count = 0
+
+    # Calculate MRR from active subscriptions
+    for email, sub in data.get("subscriptions", {}).items():
+        total_count += 1
+        status = sub.get("status", "")
+        if status == "ACTIVE":
+            active_subscriptions_count += 1
+            tier = sub.get("tier_id", "FREE")
+            # Derived plan pricing matching standard pricing plans
+            if tier == "DAILY":
+                mrr_cents += 2900
+            elif tier == "PRO":
+                mrr_cents += 7900
+            elif tier == "INSTITUTIONAL":
+                mrr_cents += 29900
+        elif status == "CANCELLED":
+            cancelled_count += 1
+
+    mrr_usd = round(mrr_cents / 100.0, 2)
+    arr_usd = round(mrr_usd * 12.0, 2)
+
+    # Calculate churn rate: cancelled / total active and cancelled
+    churn_rate = 0.0
+    if total_count > 0:
+        churn_rate = round((cancelled_count / total_count) * 100.0, 2)
+
+    # Invoices aggregate
+    total_invoiced_cents = sum(inv.get("amount_cents", 0) for inv in data.get("invoices", []))
+    total_payments = len(data.get("invoices", []))
+    total_invoiced_usd = round(total_invoiced_cents / 100.0, 2)
+
+    # Calculate LTV: average revenue per active customer
+    ltv_usd = 0.0
+    if active_subscriptions_count > 0:
+        ltv_usd = round(total_invoiced_usd / active_subscriptions_count, 2)
+
+    return {
+        "mrr_usd": mrr_usd,
+        "arr_usd": arr_usd,
+        "active_subscriptions": active_subscriptions_count,
+        "churn_rate_pct": churn_rate,
+        "total_revenue_usd": total_invoiced_usd,
+        "total_payments_count": total_payments,
+        "ltv_usd": ltv_usd,
+        "currency": "USD"
     }

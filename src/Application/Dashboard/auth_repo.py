@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from typing import Dict, Any, List, Optional
+from src.Infrastructure.exceptions import ValidationException
 
 logger = logging.getLogger("AuthRepository")
 
@@ -25,16 +26,24 @@ class AuthRepository:
 
             # Seed default admin and user accounts
             if is_production:
-                # In production, we do NOT seed weak mock passwords.
-                # Admin password must be set securely or configured via environments.
-                admin_pw_hash = os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH", "*")
+                admin_pw_hash = os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH")
+                if not admin_pw_hash or admin_pw_hash in ("*", "placeholder", ""):
+                    raise ValidationException(
+                        "Production Configuration Error: TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH must be configured with a secure, non-empty PBKDF2 hash."
+                    )
+                if admin_email == "admin-disabled@yartrader.app" or not admin_email:
+                    raise ValidationException(
+                        "Production Configuration Error: TRADEYAR_DEFAULT_ADMIN_EMAIL must be configured with a valid production administrator email."
+                    )
                 default_data = {
                     admin_email: {
                         "email": admin_email,
                         "password_hash": admin_pw_hash,
                         "role": "ADMIN",
                         "name": "Principal Supervisor",
-                        "social_providers": {}
+                        "social_providers": {},
+                        "is_verified": True,
+                        "tier": "INSTITUTIONAL"
                     }
                 }
             else:
@@ -44,14 +53,18 @@ class AuthRepository:
                         "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'admin123'
                         "role": "ADMIN",
                         "name": "Principal Supervisor",
-                        "social_providers": {}
+                        "social_providers": {},
+                        "is_verified": True,
+                        "tier": "INSTITUTIONAL"
                     },
                     "trader@yartrader.app": {
                         "email": "trader@yartrader.app",
                         "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'trader123'
                         "role": "USER",
                         "name": "Elite Trader",
-                        "social_providers": {}
+                        "social_providers": {},
+                        "is_verified": True,
+                        "tier": "FREE"
                     }
                 }
             with open(self.filepath, "w", encoding="utf-8") as f:
@@ -82,7 +95,13 @@ class AuthRepository:
             "password_hash": password_hash,
             "role": role,
             "name": name or email_clean.split("@")[0].capitalize(),
-            "social_providers": {}
+            "social_providers": {},
+            "is_verified": False,
+            "tier": "FREE",
+            "verification_token_hash": None,
+            "verification_token_expires": 0.0,
+            "reset_token_hash": None,
+            "reset_token_expires": 0.0
         }
         self.users[email_clean] = user_data
         self.save_db()
