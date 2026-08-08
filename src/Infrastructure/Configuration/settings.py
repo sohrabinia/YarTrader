@@ -13,6 +13,7 @@ class BaseSettings:
         self.log_level: str = "INFO"
         self.storage_root: str = "C:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
         self.db_token: str = "dev-token-12345"
+        self.tick_chart_analysis_enabled: bool = False
         self._load_and_validate()
 
     def _load_and_validate(self) -> None:
@@ -49,6 +50,11 @@ class BaseSettings:
 
         self.db_token = str(self._overrides.get("db_token", os.environ.get("RG_DB_SECURE_TOKEN", self.db_token)))
 
+        self.tick_chart_analysis_enabled = self._overrides.get(
+            "tick_chart_analysis_enabled",
+            os.environ.get("TICK_CHART_ANALYSIS_ENABLED", "False") == "True"
+        )
+
         # Scan for forbidden live trading indicators
         forbidden_keywords = ["buy_signal", "sell_signal", "place_order", "execute_trade", "open_position", "send_transaction"]
         for key, val in self._overrides.items():
@@ -66,7 +72,8 @@ class BaseSettings:
             "max_retries": self.max_retries,
             "log_level": self.log_level,
             "storage_root": self.storage_root,
-            "db_token": self.db_token
+            "db_token": self.db_token,
+            "tick_chart_analysis_enabled": self.tick_chart_analysis_enabled
         }
 
 
