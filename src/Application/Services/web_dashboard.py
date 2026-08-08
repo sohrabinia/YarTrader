@@ -2646,9 +2646,15 @@ def get_multi_timeframe():
 
     response_data = {}
 
+    from src.Infrastructure.Configuration.config import ConfigurationManager
+    config = ConfigurationManager.get_config()
+    tfs_to_use = ["M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
+    if config.tick_chart_analysis_enabled:
+        tfs_to_use = ["Tick"] + tfs_to_use
+
     for sym in symbols:
         obs_by_tf = {}
-        for tf in ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]:
+        for tf in tfs_to_use:
             # Generate 5 consecutive observations
             base_price = 2400.0 if sym == "XAUUSD" else (1.1000 if "EUR" in sym else 95000.0)
             obs_list = []

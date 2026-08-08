@@ -469,25 +469,29 @@ class PredictiveShadowEngine:
         if symbol_upper in self.runtime_manager.symbol_brains:
             brains = self.runtime_manager.symbol_brains[symbol_upper]
             for ctx in brains.values():
-                ctx.tick_buffer.append({"price": current_price, "timestamp": datetime.now().isoformat()})
-                if len(ctx.tick_buffer) > 5000:
-                    ctx.tick_buffer.pop(0)
+                from src.Infrastructure.Configuration.config import ConfigurationManager
+                config = ConfigurationManager.get_config()
 
-                # Automatic Base/Node Detection at runtime
-                base_struct = self.detector.detect_base(symbol_upper, ctx.tick_buffer)
-                if base_struct:
-                    # Check if base high/low boundaries already exist
-                    exists = any(abs(b["high"] - base_struct.high) < 0.01 and abs(b["low"] - base_struct.low) < 0.01 for b in ctx.bases)
-                    if not exists:
-                        self.add_base(symbol_upper, ctx.timeframe, base_struct.to_dict())
-                        logger.info(f"Automatically detected Base for {symbol_upper} @ high={base_struct.high}, low={base_struct.low}")
+                if config.tick_chart_analysis_enabled:
+                    ctx.tick_buffer.append({"price": current_price, "timestamp": datetime.now().isoformat()})
+                    if len(ctx.tick_buffer) > 5000:
+                        ctx.tick_buffer.pop(0)
 
-                node_struct = self.detector.detect_node(ctx.tick_buffer)
-                if node_struct:
-                    exists = any(abs(n["price_level"] - node_struct.price_level) < 0.01 for n in ctx.nodes)
-                    if not exists:
-                        self.add_node(symbol_upper, ctx.timeframe, node_struct.to_dict())
-                        logger.info(f"Automatically detected Node for {symbol_upper} @ price={node_struct.price_level}")
+                    # Automatic Base/Node Detection at runtime
+                    base_struct = self.detector.detect_base(symbol_upper, ctx.tick_buffer)
+                    if base_struct:
+                        # Check if base high/low boundaries already exist
+                        exists = any(abs(b["high"] - base_struct.high) < 0.01 and abs(b["low"] - base_struct.low) < 0.01 for b in ctx.bases)
+                        if not exists:
+                            self.add_base(symbol_upper, ctx.timeframe, base_struct.to_dict())
+                            logger.info(f"Automatically detected Base for {symbol_upper} @ high={base_struct.high}, low={base_struct.low}")
+
+                    node_struct = self.detector.detect_node(ctx.tick_buffer)
+                    if node_struct:
+                        exists = any(abs(n["price_level"] - node_struct.price_level) < 0.01 for n in ctx.nodes)
+                        if not exists:
+                            self.add_node(symbol_upper, ctx.timeframe, node_struct.to_dict())
+                            logger.info(f"Automatically detected Node for {symbol_upper} @ price={node_struct.price_level}")
 
                 for trade in ctx.trades:
                     if trade.status in ["CREATED", "RUNNING"]:
