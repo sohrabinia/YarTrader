@@ -6,7 +6,7 @@ import threading
 import subprocess
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -3834,9 +3834,19 @@ def register_user(payload: RegisterPayload):
     }
 
 @app.post("/api/auth/login")
-def login_user(payload: LoginPayload):
+def login_user(payload: LoginPayload, request: Request):
     """Secure credentials login returning an active session token."""
-    user = global_auth_service.authenticate_credentials(payload.email, payload.password)
+    client_host = request.client.host if request.client else None
+    forwarded_for = request.headers.get("x-forwarded-for")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
+    user_agent = request.headers.get("user-agent", "Unknown")
+
+    user = global_auth_service.authenticate_credentials(
+        payload.email,
+        payload.password,
+        ip_address=ip_address,
+        user_agent=user_agent
+    )
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
@@ -3874,15 +3884,39 @@ class SocialLoginPayload(BaseModel):
     email: str
     provider_id: str
     name: Optional[str] = ""
+    id_token: Optional[str] = None
 
 @app.post("/api/auth/google")
 def login_with_google(payload: SocialLoginPayload):
     """Secure authenticating callback mapping Google sign-in profiles to user sessions."""
+    is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
+                     os.environ.get("RG_ENV") == "production")
+
+    id_token = payload.id_token if hasattr(payload, "id_token") else None
+
+    if not id_token:
+        if is_production:
+            raise HTTPException(status_code=400, detail="OIDC id_token is required in production.")
+        email = payload.email
+        provider_id = payload.provider_id
+        name = payload.name or ""
+    else:
+        try:
+            from src.Application.Dashboard.oidc_validator import validate_social_token
+            decoded = validate_social_token(id_token, "google")
+            email = decoded.get("email")
+            provider_id = decoded.get("sub")
+            name = decoded.get("name") or payload.name or ""
+            if not email or not provider_id:
+                raise HTTPException(status_code=401, detail="Token missing required claims (email, sub).")
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"Google authentication failed: {str(e)}")
+
     user = global_auth_service.authenticate_social(
-        email=payload.email,
+        email=email,
         provider="google",
-        provider_id=payload.provider_id,
-        name=payload.name
+        provider_id=provider_id,
+        name=name
     )
     token = global_auth_service.create_session(user)
     return {
@@ -3898,11 +3932,34 @@ def login_with_google(payload: SocialLoginPayload):
 @app.post("/api/auth/apple")
 def login_with_apple(payload: SocialLoginPayload):
     """Secure authenticating callback mapping Apple sign-in profiles to user sessions."""
+    is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
+                     os.environ.get("RG_ENV") == "production")
+
+    id_token = payload.id_token if hasattr(payload, "id_token") else None
+
+    if not id_token:
+        if is_production:
+            raise HTTPException(status_code=400, detail="OIDC id_token is required in production.")
+        email = payload.email
+        provider_id = payload.provider_id
+        name = payload.name or ""
+    else:
+        try:
+            from src.Application.Dashboard.oidc_validator import validate_social_token
+            decoded = validate_social_token(id_token, "apple")
+            email = decoded.get("email")
+            provider_id = decoded.get("sub")
+            name = decoded.get("name") or payload.name or ""
+            if not email or not provider_id:
+                raise HTTPException(status_code=401, detail="Token missing required claims (email, sub).")
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"Apple authentication failed: {str(e)}")
+
     user = global_auth_service.authenticate_social(
-        email=payload.email,
+        email=email,
         provider="apple",
-        provider_id=payload.provider_id,
-        name=payload.name
+        provider_id=provider_id,
+        name=name
     )
     token = global_auth_service.create_session(user)
     return {
