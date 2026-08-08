@@ -130,10 +130,19 @@ class SymbolRegistry:
 
     def get_timeframe_policy(self, asset_class: str) -> List[str]:
         """Resolves timeframe policies per asset class. Returns all 9 timeframes."""
-        return ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
+        from src.Infrastructure.Configuration.config import ConfigurationManager
+        config = ConfigurationManager.get_config()
+        tick_enabled = getattr(config, "tick_chart_analysis_enabled", False)
+        tfs = ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
+        if not tick_enabled:
+            tfs = [t for t in tfs if t != "Tick"]
+        return tfs
 
     def get_active_matrix(self) -> List[Tuple[str, str, str, str]]:
         """Resolves execution matrix tuples of (symbol, timeframe, asset_class, provider)"""
+        from src.Infrastructure.Configuration.config import ConfigurationManager
+        config = ConfigurationManager.get_config()
+        tick_enabled = getattr(config, "tick_chart_analysis_enabled", False)
         with self.lock:
             matrix = []
             active_count = 0
@@ -145,6 +154,8 @@ class SymbolRegistry:
                     asset_class = info.get("asset_class", "Forex")
                     provider = info.get("provider", "MT5")
                     tfs = info.get("timeframes") or self.get_timeframe_policy(asset_class)
+                    if not tick_enabled:
+                        tfs = [t for t in tfs if t != "Tick"]
                     for tf in tfs:
                         matrix.append((symbol, tf, asset_class, provider))
             return matrix

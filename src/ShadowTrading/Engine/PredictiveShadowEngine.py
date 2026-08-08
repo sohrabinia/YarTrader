@@ -466,9 +466,16 @@ class PredictiveShadowEngine:
                         self._update_learning_history_context(ctx, trade)
                         self._sync_user_signal(trade)
 
+        from src.Infrastructure.Configuration.config import ConfigurationManager
+        config = ConfigurationManager.get_config()
+        tick_enabled = getattr(config, "tick_chart_analysis_enabled", False)
+
         if symbol_upper in self.runtime_manager.symbol_brains:
             brains = self.runtime_manager.symbol_brains[symbol_upper]
             for ctx in brains.values():
+                if ctx.timeframe == "Tick" and not tick_enabled:
+                    continue
+
                 ctx.tick_buffer.append({"price": current_price, "timestamp": datetime.now().isoformat()})
                 if len(ctx.tick_buffer) > 5000:
                     ctx.tick_buffer.pop(0)

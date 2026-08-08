@@ -71,11 +71,18 @@ class SymbolRuntimeManager:
         import os
         symbol_upper = symbol.upper()
 
+        from src.Infrastructure.Configuration.config import ConfigurationManager
+        config = ConfigurationManager.get_config()
+        tick_enabled = getattr(config, "tick_chart_analysis_enabled", False)
+
         is_testing = "pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("TESTING") == "True"
         if is_testing:
             timeframes = default_timeframes or [1, 4, 16, 64, 256]
         else:
             timeframes = default_timeframes or ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
+
+        if not tick_enabled:
+            timeframes = [t for t in timeframes if t != "Tick"]
 
         with self._lock:
             if symbol_upper in self.symbol_brains:

@@ -13,9 +13,11 @@ class BaseSettings:
         self.log_level: str = "INFO"
         self.storage_root: str = "C:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
         self.db_token: str = "dev-token-12345"
+        self.tick_chart_analysis_enabled: bool = False
         self._load_and_validate()
 
     def _load_and_validate(self) -> None:
+        self.tick_chart_analysis_enabled = bool(self._overrides.get("tick_chart_analysis_enabled", os.environ.get("TICK_CHART_ANALYSIS_ENABLED", "False") == "True"))
         # Load from env vars or overrides
         self.simulation_mode = bool(self._overrides.get("simulation_mode", os.environ.get("TRADEYAR_SIMULATION_MODE", "True") == "True"))
         if not self.simulation_mode:
@@ -66,7 +68,8 @@ class BaseSettings:
             "max_retries": self.max_retries,
             "log_level": self.log_level,
             "storage_root": self.storage_root,
-            "db_token": self.db_token
+            "db_token": self.db_token,
+            "tick_chart_analysis_enabled": self.tick_chart_analysis_enabled
         }
 
 
