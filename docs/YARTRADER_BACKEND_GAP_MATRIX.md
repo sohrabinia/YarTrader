@@ -10,9 +10,9 @@ These gaps represent critical security vulnerabilities, auth loop gaps, data int
 
 | Capability | Current Status | Priority | Evidence | Required Work | Dependencies | Complexity | Blocking? |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Social Sign-In Validation** | `🟡 PARTIAL` | **P0** | `src/Application/Services/web_dashboard.py` (Endpoints `/api/auth/google`, `/api/auth/apple`) | Replace mock credentials with real OpenID Connect / OAuth2 client libraries (e.g. Authlib) validating JWT signatures from Google/Apple JWKS servers. | JWT cryptography, Social Provider Developer accounts | Medium | **Yes** |
-| **Database Credentials Integrity** | `🟡 PARTIAL` | **P0** | `src/Application/Dashboard/auth_repo.py` | Enforce complete environment extraction of all database paths and default passwords. Disable weak fallback credential hashes completely in production mode. | Secret Management / Environment config | Low | **Yes** |
-| **Admin Lockout Audit Trail** | `🟡 PARTIAL` | **P0** | `src/Application/Dashboard/auth_service.py` | Create a persistent, tamper-resistant administrative log table tracking failed logins, IP addresses, and progressive penalty events to prevent brute-force memory evasion. | AuthService, File/SQLite DB | Low | **Yes** |
+| **Social Sign-In Validation** | `🟢 REMEDIATED` | **P0** | `src/Application/Services/web_dashboard.py` (Endpoints `/api/auth/google`, `/api/auth/apple`), `src/Application/Dashboard/oidc_validator.py` | Replaced mock credentials with real OIDC verification of signed Google and Apple ID tokens, validating signatures against official JWKS keys, issuer, audience, and expiration. | JWT cryptography, Social Provider Developer accounts | Medium | **No** |
+| **Database Credentials Integrity** | `🟢 REMEDIATED` | **P0** | `src/Infrastructure/Configuration/settings.py`, `src/Application/Dashboard/auth_repo.py` | Enforced complete environment extraction of all database paths and default passwords. Disabled weak fallback credential hashes completely in production mode and fail closed. | Secret Management / Environment config | Low | **No** |
+| **Admin Lockout Audit Trail** | `🟢 REMEDIATED` | **P0** | `src/Application/Dashboard/auth_service.py` | Created a persistent, append-only, tamper-resistant administrative log table tracking failed logins, IP addresses, user agents, and progressive penalty events to prevent brute-force memory evasion. | AuthService, File/SQLite DB | Low | **No** |
 
 ---
 

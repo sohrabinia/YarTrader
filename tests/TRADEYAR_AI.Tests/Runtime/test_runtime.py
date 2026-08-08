@@ -58,9 +58,18 @@ class TestTradeYarRuntimeAndConfiguration(unittest.TestCase):
         self.assertEqual(dev_config.lookback_days, 5)
 
         ConfigurationManager.reset()
-        prod_config = ConfigurationManager.get_config(EnvironmentType.PRODUCTION)
-        self.assertEqual(prod_config.log_level, "INFO")
-        self.assertEqual(prod_config.lookback_days, 15)
+        # Set a dummy secure token to satisfy the new production fail-closed security contract
+        old_token = os.environ.get("RG_DB_SECURE_TOKEN")
+        os.environ["RG_DB_SECURE_TOKEN"] = "prod-token-super-secret-unique-key-12345"
+        try:
+            prod_config = ConfigurationManager.get_config(EnvironmentType.PRODUCTION)
+            self.assertEqual(prod_config.log_level, "INFO")
+            self.assertEqual(prod_config.lookback_days, 15)
+        finally:
+            if old_token is not None:
+                os.environ["RG_DB_SECURE_TOKEN"] = old_token
+            else:
+                os.environ.pop("RG_DB_SECURE_TOKEN", None)
 
     def test_settings_validation_boundaries(self) -> None:
         """Verify settings parameter boundaries raising validation errors."""
