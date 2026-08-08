@@ -177,6 +177,10 @@ class AuthService:
         role = user.get("role", "USER") if user else "USER"
         is_admin = (role == "ADMIN")
 
+        if user and not user.get("is_verified", True):
+            from src.Infrastructure.exceptions import ValidationException
+            raise ValidationException("Account is not verified. Please verify your email first.")
+
         if user and self.verify_password(password, user.get("password_hash", "")):
             # Clear failed attempts persistently
             self.lockout_store.clear_failed_attempts(email_clean)
@@ -262,7 +266,8 @@ class AuthService:
         self.active_sessions[token] = {
             "email": user["email"],
             "role": user.get("role", "USER"),
-            "name": user.get("name", "")
+            "name": user.get("name", ""),
+            "tier": user.get("tier", "FREE")
         }
         return token
 
@@ -275,3 +280,44 @@ class AuthService:
 
 # Secure Shared Global Singleton to prevent circular imports or state leaks
 global_auth_service = AuthService()
+
+def send_saas_email(to_email: str, subject: str, body: str) -> bool:
+    """
+    Sends SaaS system emails. If SMTP environment configurations are available,
+    delivers via real SMTP. Otherwise, falls back to logging mock emails to disk.
+    """
+    import smtplib
+    from email.mime.text import MIMEText
+    from datetime import datetime
+
+    smtp_host = os.environ.get("SMTP_HOST")
+    smtp_port = os.environ.get("SMTP_PORT")
+    smtp_user = os.environ.get("SMTP_USERNAME")
+    smtp_pass = os.environ.get("SMTP_PASSWORD")
+
+    log_file = "runtime_logs/mock_emails.log"
+    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    log_record = f"=== EMAIL SEND ===\nTimestamp: {datetime.now().isoformat()}\nTo: {to_email}\nSubject: {subject}\nBody: {body}\n==================\n\n"
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(log_record)
+
+    if smtp_host and smtp_port and smtp_user and smtp_pass:
+        try:
+            msg = MIMEText(body)
+            msg["Subject"] = subject
+            msg["From"] = smtp_user
+            msg["To"] = to_email
+
+            with smtplib.SMTP(smtp_host, int(smtp_port), timeout=5.0) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_pass)
+                server.send_message(msg)
+            return True
+        except Exception as e:
+            try:
+                from app.core.logging import log_event
+                log_event("ERROR", f"SMTP delivery failed to {to_email}: {str(e)}")
+            except Exception:
+                pass
+            return False
+    return True

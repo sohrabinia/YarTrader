@@ -41,7 +41,9 @@ class AuthRepository:
                         "password_hash": admin_pw_hash,
                         "role": "ADMIN",
                         "name": "Principal Supervisor",
-                        "social_providers": {}
+                        "social_providers": {},
+                        "is_verified": True,
+                        "tier": "INSTITUTIONAL"
                     }
                 }
             else:
@@ -51,14 +53,18 @@ class AuthRepository:
                         "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'admin123'
                         "role": "ADMIN",
                         "name": "Principal Supervisor",
-                        "social_providers": {}
+                        "social_providers": {},
+                        "is_verified": True,
+                        "tier": "INSTITUTIONAL"
                     },
                     "trader@yartrader.app": {
                         "email": "trader@yartrader.app",
                         "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'trader123'
                         "role": "USER",
                         "name": "Elite Trader",
-                        "social_providers": {}
+                        "social_providers": {},
+                        "is_verified": True,
+                        "tier": "FREE"
                     }
                 }
             with open(self.filepath, "w", encoding="utf-8") as f:
@@ -89,7 +95,13 @@ class AuthRepository:
             "password_hash": password_hash,
             "role": role,
             "name": name or email_clean.split("@")[0].capitalize(),
-            "social_providers": {}
+            "social_providers": {},
+            "is_verified": False,
+            "tier": "FREE",
+            "verification_token_hash": None,
+            "verification_token_expires": 0.0,
+            "reset_token_hash": None,
+            "reset_token_expires": 0.0
         }
         self.users[email_clean] = user_data
         self.save_db()

@@ -38,6 +38,12 @@ class TestSaaSAuthAPI(unittest.TestCase):
         self.assertEqual(resp_reg.json()["status"], "Success")
         self.assertEqual(resp_reg.json()["user"]["email"], self.test_email)
 
+        # Mark verified for this test's login step compliance
+        repo = global_auth_service.repo
+        if self.test_email in repo.users:
+            repo.users[self.test_email]["is_verified"] = True
+            repo.save_db()
+
         # Try duplicate registration
         resp_reg_dup = self.client.post("/api/auth/register", json=reg_payload)
         self.assertEqual(resp_reg_dup.status_code, 400)

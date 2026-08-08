@@ -3813,6 +3813,10 @@ class ForgotPasswordPayload(BaseModel):
 class LogoutPayload(BaseModel):
     token: str
 
+class ResetPasswordPayload(BaseModel):
+    token: str
+    new_password: str
+
 @app.post("/api/auth/register")
 def register_user(payload: RegisterPayload):
     """SaaS client registration using PBKDF2-SHA256."""
@@ -3823,9 +3827,29 @@ def register_user(payload: RegisterPayload):
 
     password_hash = global_auth_service.hash_password(payload.password)
     user = repo.create_user(email=email_clean, password_hash=password_hash, role="USER", name=payload.name)
+
+    # Generate secure email verification token
+    import secrets
+    import hashlib
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+    expires_at = time.time() + 86400.0  # 24 hours expiration
+
+    user["verification_token_hash"] = token_hash
+    user["verification_token_expires"] = expires_at
+    repo.users[email_clean] = user
+    repo.save_db()
+
+    # Send verification email
+    from src.Application.Dashboard.auth_service import send_saas_email
+    subject = "Verify Your YarTrader Account"
+    verification_url = f"/api/auth/verify-email?token={raw_token}"
+    body = f"Hello {user['name']},\n\nPlease verify your YarTrader account by clicking the link: {verification_url}"
+    send_saas_email(email_clean, subject, body)
+
     return {
         "status": "Success",
-        "message": "User registered successfully.",
+        "message": "User registered successfully. Please check your email to verify your account.",
         "user": {
             "email": user["email"],
             "name": user["name"],
@@ -3841,12 +3865,16 @@ def login_user(payload: LoginPayload, request: Request):
     ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
     user_agent = request.headers.get("user-agent", "Unknown")
 
-    user = global_auth_service.authenticate_credentials(
-        payload.email,
-        payload.password,
-        ip_address=ip_address,
-        user_agent=user_agent
-    )
+    try:
+        user = global_auth_service.authenticate_credentials(
+            payload.email,
+            payload.password,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
@@ -3864,14 +3892,102 @@ def login_user(payload: LoginPayload, request: Request):
 @app.post("/api/auth/forgot-password")
 def forgot_password_recovery(payload: ForgotPasswordPayload):
     """Simulates sending standard SaaS reset link securely."""
+    import secrets
+    import hashlib
     repo = global_auth_service.repo
     user = repo.get_user_by_email(payload.email)
     if not user:
         return {"status": "Success", "message": "If this email is registered, a password recovery link has been sent."}
+
+    # Generate secure reset token
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+    expires_at = time.time() + 3600.0  # 1 hour expiration
+
+    user["reset_token_hash"] = token_hash
+    user["reset_token_expires"] = expires_at
+    repo.users[payload.email.lower()] = user
+    repo.save_db()
+
+    # Send reset link email
+    from src.Application.Dashboard.auth_service import send_saas_email
+    subject = "Reset Your YarTrader Password"
+    reset_url = f"#/reset-password?token={raw_token}"
+    body = f"Hello {user['name']},\n\nYou requested a password reset. Please use the following token to reset your password: {raw_token}\nOr use the link: {reset_url}"
+    send_saas_email(payload.email.lower(), subject, body)
+
     return {
         "status": "Success",
         "message": "Password recovery email has been sent successfully."
     }
+
+@app.get("/api/auth/verify-email")
+def verify_email(token: str):
+    """Verifies a user email using the secure registration token."""
+    import hashlib
+    repo = global_auth_service.repo
+    raw_token = token.strip()
+    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+
+    target_user = None
+    for email, user in repo.users.items():
+        if user.get("verification_token_hash") == token_hash:
+            target_user = user
+            break
+
+    if not target_user:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token.")
+
+    expires = target_user.get("verification_token_expires", 0.0)
+    if time.time() > expires:
+        raise HTTPException(status_code=400, detail="Verification token has expired.")
+
+    target_user["is_verified"] = True
+    target_user["verification_token_hash"] = None
+    target_user["verification_token_expires"] = 0.0
+
+    repo.users[target_user["email"].lower()] = target_user
+    repo.save_db()
+
+    return HTMLResponse(
+        content="<h2>Email Verified Successfully!</h2><p>Your account is now active. You can now login to YarTrader.</p>"
+    )
+
+@app.post("/api/auth/reset-password")
+def reset_password_endpoint(payload: ResetPasswordPayload):
+    """Accepts a secure reset token and updates the user password, invalidating the token."""
+    import hashlib
+    repo = global_auth_service.repo
+    raw_token = payload.token.strip()
+
+    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+
+    target_user = None
+    for email, user in repo.users.items():
+        if user.get("reset_token_hash") == token_hash:
+            target_user = user
+            break
+
+    if not target_user:
+        raise HTTPException(status_code=400, detail="Invalid or expired password reset token.")
+
+    expires = target_user.get("reset_token_expires", 0.0)
+    if time.time() > expires:
+        raise HTTPException(status_code=400, detail="Password reset token has expired.")
+
+    new_pw = payload.new_password.strip()
+    if len(new_pw) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
+
+    hashed_password = global_auth_service.hash_password(new_pw)
+    target_user["password_hash"] = hashed_password
+    target_user["reset_token_hash"] = None
+    target_user["reset_token_expires"] = 0.0
+
+    repo.users[target_user["email"].lower()] = target_user
+    repo.save_db()
+
+    return {"status": "Success", "message": "Password has been successfully reset."}
 
 @app.post("/api/auth/logout")
 def logout_user(payload: LogoutPayload):

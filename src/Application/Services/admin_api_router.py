@@ -144,3 +144,32 @@ def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[Any] = N
         "count": len(reports),
         "reports": reports
     }
+
+# 4. SRE Backup snapshot operation
+@router.post("/backup")
+def trigger_backup_snapshot(token: Optional[str] = None):
+    """SRE administrative action to trigger an atomic snapshot backup of persistent state."""
+    enforce_admin_token(token)
+    from src.Application.Runtime.backup_manager import BackupManager
+    manager = BackupManager()
+    try:
+        res = manager.create_backup()
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 5. SRE Restore operation
+class RestorePayload(BaseModel):
+    filename: str
+
+@router.post("/restore")
+def trigger_restore(payload: RestorePayload, token: Optional[str] = None):
+    """SRE administrative action to safely restore persistent state from a backup archive."""
+    enforce_admin_token(token)
+    from src.Application.Runtime.backup_manager import BackupManager
+    manager = BackupManager()
+    try:
+        res = manager.restore_backup(payload.filename)
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
