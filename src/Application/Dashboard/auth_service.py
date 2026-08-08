@@ -261,7 +261,7 @@ class AuthService:
         user = self.repo.link_social_account(email, provider, provider_id)
         return user
 
-    def create_session(self, user: Dict[str, Any]) -> str:
+    def create_session(self, user: Dict[str, Any], user_agent: Optional[str] = None, ip_address: Optional[str] = None) -> str:
         token = f"tkn-{secrets.token_hex(24)}"
         self.active_sessions[token] = {
             "email": user["email"],
@@ -269,9 +269,29 @@ class AuthService:
             "name": user.get("name", ""),
             "tier": user.get("tier", "FREE")
         }
+
+        # Persistently record active session login
+        try:
+            from src.Application.Dashboard.device_tracker import DeviceTracker
+            tracker = DeviceTracker()
+            tracker.record_session(token, user["email"], user_agent or "Unknown", ip_address or "Unknown")
+        except Exception:
+            pass
+
         return token
 
     def validate_session(self, token: str) -> Optional[Dict[str, Any]]:
+        try:
+            from src.Application.Dashboard.device_tracker import DeviceTracker
+            tracker = DeviceTracker()
+            if tracker.is_session_revoked(token):
+                if token in self.active_sessions:
+                    del self.active_sessions[token]
+                return None
+            tracker.refresh_last_seen(token)
+        except Exception:
+            pass
+
         return self.active_sessions.get(token)
 
     def logout(self, token: str) -> None:

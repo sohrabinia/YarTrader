@@ -3878,7 +3878,7 @@ def login_user(payload: LoginPayload, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
-    token = global_auth_service.create_session(user)
+    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
     return {
         "status": "Success",
         "session_token": token,
@@ -4003,10 +4003,15 @@ class SocialLoginPayload(BaseModel):
     id_token: Optional[str] = None
 
 @app.post("/api/auth/google")
-def login_with_google(payload: SocialLoginPayload):
+def login_with_google(payload: SocialLoginPayload, request: Request):
     """Secure authenticating callback mapping Google sign-in profiles to user sessions."""
     is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
                      os.environ.get("RG_ENV") == "production")
+
+    client_host = request.client.host if request.client else None
+    forwarded_for = request.headers.get("x-forwarded-for")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
+    user_agent = request.headers.get("user-agent", "Unknown")
 
     id_token = payload.id_token if hasattr(payload, "id_token") else None
 
@@ -4034,7 +4039,7 @@ def login_with_google(payload: SocialLoginPayload):
         provider_id=provider_id,
         name=name
     )
-    token = global_auth_service.create_session(user)
+    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
     return {
         "status": "Success",
         "session_token": token,
@@ -4046,10 +4051,15 @@ def login_with_google(payload: SocialLoginPayload):
     }
 
 @app.post("/api/auth/apple")
-def login_with_apple(payload: SocialLoginPayload):
+def login_with_apple(payload: SocialLoginPayload, request: Request):
     """Secure authenticating callback mapping Apple sign-in profiles to user sessions."""
     is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
                      os.environ.get("RG_ENV") == "production")
+
+    client_host = request.client.host if request.client else None
+    forwarded_for = request.headers.get("x-forwarded-for")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
+    user_agent = request.headers.get("user-agent", "Unknown")
 
     id_token = payload.id_token if hasattr(payload, "id_token") else None
 
@@ -4077,7 +4087,7 @@ def login_with_apple(payload: SocialLoginPayload):
         provider_id=provider_id,
         name=name
     )
-    token = global_auth_service.create_session(user)
+    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
     return {
         "status": "Success",
         "session_token": token,

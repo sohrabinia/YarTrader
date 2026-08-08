@@ -1,5 +1,5 @@
 import os
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, HTTPException, Header, Depends, Query
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
@@ -176,5 +176,108 @@ def get_symbol_decision_fusion(symbol: str, session: Dict[str, Any] = Depends(ge
     try:
         fusion = engine.runtime_manager.synthesize_symbol_decision_fusion(symbol)
         return fusion
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ==============================================================================
+# P2-1 — DOUBLE-ENTRY FINANCIAL LEDGER ENDPOINTS
+# ==============================================================================
+@router.get("/ledger/balance")
+def get_ledger_balance(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    """Returns the user's secure ledger account balance (in cents; no floats)."""
+    from src.Application.Dashboard.ledger_manager import LedgerManager
+    manager = LedgerManager()
+    email = session["email"].lower()
+    balance = manager.get_account_balance(email)
+    return {
+        "email": email,
+        "balance_cents": balance,
+        "balance_usd": round(balance / 100.0, 2),
+        "currency": "USD"
+    }
+
+
+# ==============================================================================
+# P2-2 — SaaS BILLING & INVOICING ENDPOINTS
+# ==============================================================================
+@router.get("/billing/subscription")
+def get_billing_subscription(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    """Returns the user's active billing subscription state from server-side state."""
+    from src.Application.Dashboard.billing_manager import BillingManager
+    manager = BillingManager()
+    email = session["email"].lower()
+    return manager.get_subscription(email)
+
+
+# ==============================================================================
+# P2-3 — SUPPORT TICKETING SYSTEM ENDPOINTS
+# ==============================================================================
+class CreateTicketPayload(BaseModel):
+    subject: str
+    category: str
+    priority: str
+    message: str
+
+class ReplyTicketPayload(BaseModel):
+    message: str
+
+@router.get("/tickets")
+def list_my_tickets(page: int = Query(1, ge=1), limit: int = Query(10, le=50), session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    """Returns a paginated list of tickets owned by the authenticated user."""
+    from src.Application.Dashboard.ticket_manager import TicketManager
+    manager = TicketManager()
+    return manager.list_user_tickets(session["email"], page=page, limit=limit)
+
+@router.post("/tickets")
+def create_new_ticket(payload: CreateTicketPayload, session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    """Creates a new support ticket securely bound to the authenticated user."""
+    from src.Application.Dashboard.ticket_manager import TicketManager
+    manager = TicketManager()
+    return manager.create_ticket(
+        email=session["email"],
+        subject=payload.subject,
+        category=payload.category,
+        priority=payload.priority,
+        message=payload.message
+    )
+
+@router.post("/tickets/{ticket_id}/reply")
+def reply_to_ticket(ticket_id: str, payload: ReplyTicketPayload, session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    """Appends a reply message to the support ticket with strict ownership checks."""
+    from src.Application.Dashboard.ticket_manager import TicketManager
+    manager = TicketManager()
+    try:
+        return manager.add_reply(
+            ticket_id=ticket_id,
+            email=session["email"],
+            message=payload.message,
+            is_admin=False
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ==============================================================================
+# P2-4 — LOGIN DEVICE sessionS TRACKING ENDPOINTS
+# ==============================================================================
+class RevokeSessionPayload(BaseModel):
+    token: str
+
+@router.get("/sessions")
+def list_my_sessions(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    """Lists all active login sessions/devices for the authenticated user."""
+    from src.Application.Dashboard.device_tracker import DeviceTracker
+    tracker = DeviceTracker()
+    return tracker.list_active_sessions(session["email"])
+
+@router.post("/sessions/revoke")
+def revoke_active_session(payload: RevokeSessionPayload, session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    """Securely revokes an active login session with strict user boundary validation."""
+    from src.Application.Dashboard.device_tracker import DeviceTracker
+    tracker = DeviceTracker()
+    try:
+        tracker.revoke_session(payload.token, session["email"])
+        return {"status": "Success", "message": "Session revoked successfully."}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
