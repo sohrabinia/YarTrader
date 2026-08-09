@@ -1,7 +1,7 @@
-# TRADEYAR_AI Autonomous Financial Intelligence Platform
+# YarTrader Autonomous Financial Intelligence Platform
 
 ## Overview
-The **TRADEYAR_AI Platform** is a production-ready, highly-decoupled, and strictly non-trading Autonomous Financial Intelligence Platform. Built using **Python 3.12**, it adheres strictly to the **APES-FIN Clean Architecture** standard, ensuring absolute domain isolation with **zero execution leakage**.
+The **YarTrader Platform** is a production-ready, highly-decoupled, and strictly non-trading Autonomous Financial Intelligence Platform. Built using **Python 3.12**, it adheres strictly to the **APES-FIN Clean Architecture** standard, ensuring absolute domain isolation with **zero execution leakage**.
 
 This system is strictly descriptive, analytical, and diagnostic; it contains **zero execution or trade placement logic**.
 

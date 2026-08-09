@@ -586,13 +586,26 @@ def get_dashboard_spa():
     """Serves the rich, production-grade System Validation Center SPA page with full bilingual RTL/LTR support."""
     react_index = "trader-terminal/dist/index.html"
     if os.path.exists(react_index):
-        return FileResponse(react_index)
+        try:
+            with open(react_index, "r", encoding="utf-8") as f:
+                content = f.read()
+            # Dynamic self-healing brand layer sanitization to neutralize any stale build artifacts
+            for legacy_title in [
+                "TRADEYAR AI — Institutional Research Terminal",
+                "TradeYar AI — Institutional Research Terminal",
+                "YarTrader — Institutional Research Terminal",
+                "YarTrader — Institutional-Grade Cognitive Market Intelligence Terminal"
+            ]:
+                content = content.replace(legacy_title, "YarTrader")
+            return HTMLResponse(content=content)
+        except Exception:
+            return FileResponse(react_index)
     html_content = """<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YarTrader — Institutional Research Terminal</title>
+    <title>YarTrader</title>
     <!-- Optimized Persian Font Support -->
     <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
     <style>
