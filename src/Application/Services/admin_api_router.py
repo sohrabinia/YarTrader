@@ -367,3 +367,69 @@ def get_revenue_business_analytics(token: Optional[str] = None):
         "ltv_usd": ltv_usd,
         "currency": "USD"
     }
+
+
+# ==============================================================================
+# SRE ADMIN BUSINESS CATALOG ENDPOINTS
+# ==============================================================================
+class AdminProductPayload(BaseModel):
+    id: str
+    slug: str
+    name: str
+    short_description: str
+    long_description: str
+    category: str
+    subcategory: Optional[str] = None
+    product_type: str
+    price: float
+    currency: str
+    billing_period: str
+    features: List[str] = []
+    limits: Dict[str, Any] = {}
+    visible: bool = True
+    purchasable: bool = False
+    status: str
+    badge: Optional[str] = None
+    cta_label: Optional[str] = None
+    display_order: int = 999
+    featured: bool = False
+
+@router.get("/business/catalog")
+def admin_get_business_catalog(token: Optional[str] = None):
+    """Retrieves all products from the Business Catalog, including invisible/draft ones."""
+    session = enforce_admin_token(token)
+    from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
+    manager = BusinessCatalogManager()
+    return manager.list_products(include_invisible=True)
+
+@router.post("/business/catalog")
+def admin_save_product(payload: AdminProductPayload, token: Optional[str] = None):
+    """Creates or updates a product in the authoritative Business Catalog."""
+    session = enforce_admin_token(token)
+    admin_email = session.get("email", "sre-admin@yartrader.app")
+    from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
+    manager = BusinessCatalogManager()
+    try:
+        updated = manager.save_product(payload.dict(), admin_email=admin_email)
+        return {
+            "status": "Success",
+            "message": f"Successfully updated product '{updated['name']}' in the Business Catalog.",
+            "product": updated
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/business/catalog/{product_id}")
+def admin_delete_product(product_id: str, token: Optional[str] = None):
+    """Deletes/archives a product from the Business Catalog."""
+    session = enforce_admin_token(token)
+    admin_email = session.get("email", "sre-admin@yartrader.app")
+    from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
+    manager = BusinessCatalogManager()
+    success = manager.delete_product(product_id, admin_email=admin_email)
+    if not success:
+        raise HTTPException(status_code=404, detail="Product not found in Business Catalog.")
+    return {
+        "status": "Success",
+        "message": f"Successfully deleted product '{product_id}' from the Business Catalog."
+    }
