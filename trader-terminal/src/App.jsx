@@ -27,6 +27,24 @@ function MainApp() {
   });
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
   const [blogArticles, setBlogArticles] = useState([]);
+
+  // SRE Admin Business Catalog states
+  const [adminCatalog, setAdminCatalog] = useState([]);
+  const [catalogEditingProduct, setCatalogEditingProduct] = useState(null);
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
+
+  // Page Loading & Error States
+  const [blogLoading, setBlogLoading] = useState(false);
+  const [blogError, setBlogError] = useState(null);
+  const [signalsLoading, setSignalsLoading] = useState(false);
+  const [signalsError, setSignalsError] = useState(null);
+  const [execLoading, setExecLoading] = useState(false);
+  const [execError, setExecError] = useState(null);
+  const [learningLoading, setLearningLoading] = useState(false);
+  const [learningError, setLearningError] = useState(null);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState(null);
+
   const [publicMetrics, setPublicMetrics] = useState({
     activeMarketsCount: '30',
     historicalSimulatedTrades: '125k+',
@@ -62,11 +80,6 @@ function MainApp() {
   const [validationComponent, setValidationComponent] = useState('N/A');
   const [validationTrace, setValidationTrace] = useState('N/A');
   const [validationLogs, setValidationLogs] = useState([]);
-
-  // SRE Admin Business Catalog states
-  const [adminCatalog, setAdminCatalog] = useState([]);
-  const [catalogEditingProduct, setCatalogEditingProduct] = useState(null);
-  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
 
   // Auth Forms states
   const [loginEmail, setLoginEmail] = useState('');
@@ -277,11 +290,16 @@ function MainApp() {
   };
 
   const fetchSubscriptionPlans = async () => {
+    setCatalogLoading(true);
+    setCatalogError(null);
     try {
       const res = await apiService.get('/api/public/business/catalog');
       setSubscriptionPlans(res);
     } catch (err) {
       console.error(err);
+      setCatalogError(err.message || "Failed to connect to backend");
+    } finally {
+      setCatalogLoading(false);
     }
   };
 
@@ -346,15 +364,22 @@ function MainApp() {
   };
 
   const fetchBlogArticles = async () => {
+    setBlogLoading(true);
+    setBlogError(null);
     try {
       const res = await apiService.get('/api/blog');
       setBlogArticles(res);
     } catch (err) {
       console.error(err);
+      setBlogError(err.message || "Failed to connect to backend");
+    } finally {
+      setBlogLoading(false);
     }
   };
 
   const fetchUserSignals = async () => {
+    setSignalsLoading(true);
+    setSignalsError(null);
     try {
       const mkts = await apiService.get('/api/user/markets');
       setMarkets(mkts);
@@ -362,19 +387,29 @@ function MainApp() {
       setSignals(sigs);
     } catch (err) {
       console.error(err);
+      setSignalsError(err.message || "Market data connection unavailable");
+    } finally {
+      setSignalsLoading(false);
     }
   };
 
   const fetchLearningMatrix = async () => {
+    setLearningLoading(true);
+    setLearningError(null);
     try {
       const res = await apiService.get('/api/intelligence/learning-matrix');
       setLearningMatrix(res);
     } catch (err) {
       console.error(err);
+      setLearningError(err.message || "Failed to connect to backend");
+    } finally {
+      setLearningLoading(false);
     }
   };
 
   const fetchExecutionIntelligence = async () => {
+    setExecLoading(true);
+    setExecError(null);
     try {
       const plans = await apiService.get('/api/execution/plans?symbol=XAUUSD&timeframe=H1');
       setExecPlans(plans);
@@ -400,6 +435,9 @@ function MainApp() {
       setPortfolioExposure(exp);
     } catch (err) {
       console.error(err);
+      setExecError(err.message || "Failed to connect to backend");
+    } finally {
+      setExecLoading(false);
     }
   };
 
@@ -696,77 +734,99 @@ function MainApp() {
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('pricing_title')}</h2>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '25px' }}>{t('pricing_desc')}</p>
 
-                <h3 style={{ color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '10px', marginTop: '30px' }}>Available Now</h3>
-                <div className="blog-grid" id="pricing-plans-container">
-                  {subscriptionPlans
-                    .filter(prod => prod.visible && prod.status === 'ACTIVE' && prod.purchasable)
-                    .map((prod, idx) => {
-                      const price_str = prod.price === 0 ? 'Free' : `$${prod.price}`;
-                      const billing_period_str = prod.price === 0 ? '' : ` / ${prod.billing_period || 'mo'}`;
-                      return (
-                        <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '24px', borderTop: '4px solid var(--primary)', display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignWith: 'center' }}>
-                            <strong style={{ fontSize: '1.1em', color: 'var(--text-dark)' }}>{prod.name}</strong>
-                            {prod.badge && (
-                              <span className="blog-tag" style={{ fontSize: '0.7em', padding: '2px 6px', background: 'var(--primary)', color: 'white', borderRadius: '4px', fontWeight: 'bold' }}>
-                                {prod.badge}
-                              </span>
-                            )}
-                          </div>
-                          <h3 style={{ margin: '15px 0 10px 0', fontFamily: 'monospace', fontSize: '1.8em', color: 'var(--text-dark)' }}>{price_str}{billing_period_str}</h3>
-                          <p style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginBottom: '15px' }}>{prod.short_description}</p>
-                          <div style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6', flexGrow: 1 }}>
-                            {prod.limits && prod.limits.max_symbols && (
-                              <div style={{ fontSize: '0.85em', color: 'var(--text-dark)', fontWeight: 'bold', marginBottom: '8px' }}>
-                                Max Active Symbols: {prod.limits.max_symbols}
-                              </div>
-                            )}
-                            <ul style={{ paddingLeft: '15px', fontSize: '0.85em', color: 'var(--text-muted)', lineHeight: '1.7', marginTop: '10px' }}>
-                              {prod.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
-                            </ul>
-                          </div>
-                          <button className="btn" style={{ width: '100%', marginTop: '15px', backgroundColor: 'var(--primary)', color: 'white' }} onClick={() => initiatePurchase(prod.id)}>
-                            {prod.cta_label || 'Subscribe Now'}
-                          </button>
-                        </div>
-                      );
-                    })}
-                </div>
+                {catalogLoading && (
+                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--primary)', fontWeight: 'bold' }}>
+                    Loading Business Catalog...
+                  </div>
+                )}
 
-                <h3 style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', paddingBottom: '10px', marginTop: '50px' }}>Coming Soon & Future Innovations</h3>
-                <div className="blog-grid" id="pricing-coming-soon-container">
-                  {subscriptionPlans
-                    .filter(prod => prod.visible && (prod.status === 'COMING_SOON' || !prod.purchasable))
-                    .map((prod, idx) => {
-                      const price_str = prod.price === 0 ? 'Free' : `$${prod.price}`;
-                      const billing_period_str = prod.price === 0 ? '' : ` / ${prod.billing_period || 'mo'}`;
-                      return (
-                        <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '24px', borderTop: '4px solid var(--border-dark)', display: 'flex', flexDirection: 'column', opacity: 0.85 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignWith: 'center' }}>
-                            <strong style={{ fontSize: '1.1em', color: 'var(--text-dark)' }}>{prod.name}</strong>
-                            <span className="blog-tag" style={{ fontSize: '0.7em', padding: '2px 6px', background: 'var(--border-dark)', color: 'var(--text-muted)', borderRadius: '4px', fontWeight: 'bold' }}>
-                              {prod.badge || 'COMING SOON'}
-                            </span>
-                          </div>
-                          <h3 style={{ margin: '15px 0 10px 0', fontFamily: 'monospace', fontSize: '1.8em', color: 'var(--text-dark)' }}>{price_str}{billing_period_str}</h3>
-                          <p style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginBottom: '15px' }}>{prod.short_description}</p>
-                          <div style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6', flexGrow: 1 }}>
-                            {prod.limits && prod.limits.max_symbols && (
-                              <div style={{ fontSize: '0.85em', color: 'var(--text-dark)', fontWeight: 'bold', marginBottom: '8px' }}>
-                                Max Active Symbols: {prod.limits.max_symbols}
+                {catalogError && (
+                  <div style={{ padding: '24px', textAlign: 'center', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderRadius: '8px', marginBottom: '20px', fontWeight: 'bold' }}>
+                    ⚠️ {catalogError}
+                  </div>
+                )}
+
+                {!catalogLoading && !catalogError && subscriptionPlans.length === 0 && (
+                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    No products registered in the business catalog yet.
+                  </div>
+                )}
+
+                {!catalogLoading && !catalogError && subscriptionPlans.length > 0 && (
+                  <>
+                    <h3 style={{ color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '10px', marginTop: '30px' }}>Available Now</h3>
+                    <div className="blog-grid" id="pricing-plans-container">
+                      {subscriptionPlans
+                        .filter(prod => prod.visible && prod.status === 'ACTIVE' && prod.purchasable)
+                        .map((prod, idx) => {
+                          const price_str = prod.price === 0 ? 'Free' : `$${prod.price}`;
+                          const billing_period_str = prod.price === 0 ? '' : ` / ${prod.billing_period || 'mo'}`;
+                          return (
+                            <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '24px', borderTop: '4px solid var(--primary)', display: 'flex', flexDirection: 'column' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong style={{ fontSize: '1.1em', color: 'var(--text-dark)' }}>{prod.name}</strong>
+                                {prod.badge && (
+                                  <span className="blog-tag" style={{ fontSize: '0.7em', padding: '2px 6px', background: 'var(--primary)', color: 'white', borderRadius: '4px', fontWeight: 'bold' }}>
+                                    {prod.badge}
+                                  </span>
+                                )}
                               </div>
-                            )}
-                            <ul style={{ paddingLeft: '15px', fontSize: '0.85em', color: 'var(--text-muted)', lineHeight: '1.7', marginTop: '10px' }}>
-                              {prod.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
-                            </ul>
-                          </div>
-                          <button className="btn" style={{ width: '100%', marginTop: '15px', backgroundColor: 'var(--border-dark)', color: 'var(--text-muted)', cursor: 'not-allowed' }} disabled>
-                            {prod.cta_label || 'Coming Soon'}
-                          </button>
-                        </div>
-                      );
-                    })}
-                </div>
+                              <h3 style={{ margin: '15px 0 10px 0', fontFamily: 'monospace', fontSize: '1.8em', color: 'var(--text-dark)' }}>{price_str}{billing_period_str}</h3>
+                              <p style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginBottom: '15px' }}>{prod.short_description}</p>
+                              <div style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6', flexGrow: 1 }}>
+                                {prod.limits && prod.limits.max_symbols && (
+                                  <div style={{ fontSize: '0.85em', color: 'var(--text-dark)', fontWeight: 'bold', marginBottom: '8px' }}>
+                                    Max Active Symbols: {prod.limits.max_symbols}
+                                  </div>
+                                )}
+                                <ul style={{ paddingLeft: '15px', fontSize: '0.85em', color: 'var(--text-muted)', lineHeight: '1.7', marginTop: '10px' }}>
+                                  {prod.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
+                                </ul>
+                              </div>
+                              <button className="btn" style={{ width: '100%', marginTop: '15px', backgroundColor: 'var(--primary)', color: 'white' }} onClick={() => initiatePurchase(prod.id)}>
+                                {prod.cta_label || 'Subscribe Now'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                    </div>
+
+                    <h3 style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', paddingBottom: '10px', marginTop: '50px' }}>Coming Soon & Future Innovations</h3>
+                    <div className="blog-grid" id="pricing-coming-soon-container">
+                      {subscriptionPlans
+                        .filter(prod => prod.visible && (prod.status === 'COMING_SOON' || !prod.purchasable))
+                        .map((prod, idx) => {
+                          const price_str = prod.price === 0 ? 'Free' : `$${prod.price}`;
+                          const billing_period_str = prod.price === 0 ? '' : ` / ${prod.billing_period || 'mo'}`;
+                          return (
+                            <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '24px', borderTop: '4px solid var(--border-dark)', display: 'flex', flexDirection: 'column', opacity: 0.85 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <strong style={{ fontSize: '1.1em', color: 'var(--text-dark)' }}>{prod.name}</strong>
+                                <span className="blog-tag" style={{ fontSize: '0.7em', padding: '2px 6px', background: 'var(--border-dark)', color: 'var(--text-muted)', borderRadius: '4px', fontWeight: 'bold' }}>
+                                  {prod.badge || 'COMING SOON'}
+                                </span>
+                              </div>
+                              <h3 style={{ margin: '15px 0 10px 0', fontFamily: 'monospace', fontSize: '1.8em', color: 'var(--text-dark)' }}>{price_str}{billing_period_str}</h3>
+                              <p style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginBottom: '15px' }}>{prod.short_description}</p>
+                              <div style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6', flexGrow: 1 }}>
+                                {prod.limits && prod.limits.max_symbols && (
+                                  <div style={{ fontSize: '0.85em', color: 'var(--text-dark)', fontWeight: 'bold', marginBottom: '8px' }}>
+                                    Max Active Symbols: {prod.limits.max_symbols}
+                                  </div>
+                                )}
+                                <ul style={{ paddingLeft: '15px', fontSize: '0.85em', color: 'var(--text-muted)', lineHeight: '1.7', marginTop: '10px' }}>
+                                  {prod.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
+                                </ul>
+                              </div>
+                              <button className="btn" style={{ width: '100%', marginTop: '15px', backgroundColor: 'var(--border-dark)', color: 'var(--text-muted)', cursor: 'not-allowed' }} disabled>
+                                {prod.cta_label || 'Coming Soon'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -776,24 +836,45 @@ function MainApp() {
             <div id="shell-blog">
               <div className="card">
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('nav_blog')}</h2>
-                <div className="blog-grid">
-                  {blogArticles.map((art, idx) => (
-                    <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderLeft: '4px solid var(--primary)' }}>
-                      <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>{art.title}</h3>
-                      <div style={{ fontSize: '0.8em', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                        {art.date} | By {art.author}
+
+                {blogLoading && (
+                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--primary)', fontWeight: 'bold' }}>
+                    Loading Research Articles...
+                  </div>
+                )}
+
+                {blogError && (
+                  <div style={{ padding: '24px', textAlign: 'center', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderRadius: '8px', fontWeight: 'bold' }}>
+                    ⚠️ {blogError}
+                  </div>
+                )}
+
+                {!blogLoading && !blogError && blogArticles.length === 0 && (
+                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    No blog articles available yet.
+                  </div>
+                )}
+
+                {!blogLoading && !blogError && blogArticles.length > 0 && (
+                  <div className="blog-grid">
+                    {blogArticles.map((art, idx) => (
+                      <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderLeft: '4px solid var(--primary)' }}>
+                        <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>{art.title}</h3>
+                        <div style={{ fontSize: '0.8em', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                          {art.date} | By {art.author}
+                        </div>
+                        <p style={{ fontSize: '0.9em', lineHeight: '1.6' }}>{art.summary}</p>
+                        <div style={{ marginTop: '15px' }}>
+                          {art.tags?.map((tag, tIdx) => (
+                            <span key={tIdx} style={{ fontSize: '0.75em', padding: '4px 8px', background: 'rgba(79, 70, 229, 0.1)', color: 'var(--primary)', borderRadius: '4px', marginRight: '5px' }}>
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <p style={{ fontSize: '0.9em', lineHeight: '1.6' }}>{art.summary}</p>
-                      <div style={{ marginTop: '15px' }}>
-                        {art.tags?.map((tag, tIdx) => (
-                          <span key={tIdx} style={{ fontSize: '0.75em', padding: '4px 8px', background: 'rgba(79, 70, 229, 0.1)', color: 'var(--primary)', borderRadius: '4px', marginRight: '5px' }}>
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -840,59 +921,73 @@ function MainApp() {
                 </div>
 
                 {/* Signals Feed Grid */}
-                <div className="blog-grid">
-                  {signals && signals.length > 0 ? (
-                    signals
-                      .filter(s => {
-                        if (selectedAsset === 'all') return true;
-                        const sym = s.symbol ? s.symbol.toUpperCase() : '';
-                        if (selectedAsset === 'gold' && sym.includes('XAU')) return true;
-                        if (selectedAsset === 'bitcoin' && (sym.includes('BTC') || sym.includes('BITCOIN'))) return true;
-                        if (selectedAsset === 'euro' && sym.includes('EUR')) return true;
-                        return s.symbol_class === selectedAsset;
-                      })
-                      .map((sig, idx) => {
-                        const posture = sig.posture || (sig.direction === 'BUY' || sig.direction === 'Bullish' || sig.direction === 'BULLISH' ? 'BULLISH' : 'BEARISH');
-                        const isBullish = posture === 'BULLISH' || posture === 'BUY';
-                        const narrativeText = sig.narrative || sig.reason || sig.explanation || 'No setup description.';
-                        return (
-                          <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderRight: `4px solid ${isBullish ? 'var(--accent)' : 'var(--danger)'}` }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                              <span style={{ fontWeight: 'bold', color: 'var(--text-dark)' }}>{sig.symbol}</span>
-                              <span className={`status-val ${isBullish ? 'status-passed' : 'status-failed'}`} style={{ fontSize: '0.85em', padding: '2px 8px', borderRadius: '4px' }}>
-                                {posture}
-                              </span>
+                {signalsLoading && (
+                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--primary)', fontWeight: 'bold' }}>
+                    Loading active signals...
+                  </div>
+                )}
+
+                {signalsError && (
+                  <div style={{ padding: '24px', textAlign: 'center', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderRadius: '8px', marginBottom: '20px', fontWeight: 'bold' }}>
+                    ⚠️ {signalsError}
+                  </div>
+                )}
+
+                {!signalsLoading && !signalsError && (
+                  <div className="blog-grid">
+                    {signals && signals.length > 0 ? (
+                      signals
+                        .filter(s => {
+                          if (selectedAsset === 'all') return true;
+                          const sym = s.symbol ? s.symbol.toUpperCase() : '';
+                          if (selectedAsset === 'gold' && sym.includes('XAU')) return true;
+                          if (selectedAsset === 'bitcoin' && (sym.includes('BTC') || sym.includes('BITCOIN'))) return true;
+                          if (selectedAsset === 'euro' && sym.includes('EUR')) return true;
+                          return s.symbol_class === selectedAsset;
+                        })
+                        .map((sig, idx) => {
+                          const posture = sig.posture || (sig.direction === 'BUY' || sig.direction === 'Bullish' || sig.direction === 'BULLISH' ? 'BULLISH' : 'BEARISH');
+                          const isBullish = posture === 'BULLISH' || posture === 'BUY';
+                          const narrativeText = sig.narrative || sig.reason || sig.explanation || 'No setup description.';
+                          return (
+                            <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderRight: `4px solid ${isBullish ? 'var(--accent)' : 'var(--danger)'}` }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                <span style={{ fontWeight: 'bold', color: 'var(--text-dark)' }}>{sig.symbol}</span>
+                                <span className={`status-val ${isBullish ? 'status-passed' : 'status-failed'}`} style={{ fontSize: '0.85em', padding: '2px 8px', borderRadius: '4px' }}>
+                                  {posture}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '0.8em', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                                Frame: {sig.timeframe || 'H1'} | Confidence: {sig.confidence}%
+                              </div>
+                              {sig.entry_zone && (
+                                <div style={{ fontSize: '0.85em', margin: '4px 0' }}>
+                                  <strong>Entry:</strong> {sig.entry_zone}
+                                </div>
+                              )}
+                              {sig.target_zone && (
+                                <div style={{ fontSize: '0.85em', margin: '4px 0' }}>
+                                  <strong>Target:</strong> {sig.target_zone}
+                                </div>
+                              )}
+                              {sig.invalidation_level && (
+                                <div style={{ fontSize: '0.85em', margin: '4px 0' }}>
+                                  <strong>Invalidation:</strong> {sig.invalidation_level}
+                                </div>
+                              )}
+                              <p style={{ fontSize: '0.85em', marginTop: '10px', color: 'var(--text-dark)', borderTop: '1px solid var(--border-dark)', paddingTop: '8px' }}>
+                                {narrativeText}
+                              </p>
                             </div>
-                            <div style={{ fontSize: '0.8em', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                              Frame: {sig.timeframe || 'H1'} | Confidence: {sig.confidence}%
-                            </div>
-                            {sig.entry_zone && (
-                              <div style={{ fontSize: '0.85em', margin: '4px 0' }}>
-                                <strong>Entry:</strong> {sig.entry_zone}
-                              </div>
-                            )}
-                            {sig.target_zone && (
-                              <div style={{ fontSize: '0.85em', margin: '4px 0' }}>
-                                <strong>Target:</strong> {sig.target_zone}
-                              </div>
-                            )}
-                            {sig.invalidation_level && (
-                              <div style={{ fontSize: '0.85em', margin: '4px 0' }}>
-                                <strong>Invalidation:</strong> {sig.invalidation_level}
-                              </div>
-                            )}
-                            <p style={{ fontSize: '0.85em', marginTop: '10px', color: 'var(--text-dark)', borderTop: '1px solid var(--border-dark)', paddingTop: '8px' }}>
-                              {narrativeText}
-                            </p>
-                          </div>
-                        );
-                      })
-                  ) : (
-                    <div style={{ gridColumn: 'span 3', padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      No signals active for this horizon. Try triggering validation or adding predictive shadow orders!
-                    </div>
-                  )}
-                </div>
+                          );
+                        })
+                    ) : (
+                      <div style={{ gridColumn: 'span 3', padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        No signals active for this horizon. Try triggering validation or adding predictive shadow orders!
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Equity Growth simulator */}
@@ -938,205 +1033,221 @@ function MainApp() {
           {/* PANEL 2B: EXECUTION INTELLIGENCE ZONE */}
           {hash === '#/execution-intel' && (
             <div id="shell-execution-intel">
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '25px' }}>
-                <div className="card">
-                  <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>🎯 Institutional Execution Board</h2>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9em', marginBottom: '20px' }}>
-                    Advisory trade plans formulated based on chronological market structure alignment. Zero automated execution.
-                  </p>
-                  <div className="status-board" style={{ marginBottom: '20px' }}>
-                    <div className="status-item">
-                      <div>Action</div>
-                      <div className="status-val" style={{ color: 'var(--accent)' }}>
-                        {execPlans[0]?.action || 'WAIT'}
-                      </div>
-                    </div>
-                    <div className="status-item">
-                      <div>Advisory Entry</div>
-                      <div className="status-val" style={{ color: 'var(--text-dark)', fontFamily: 'monospace' }}>
-                        {execPlans[0]?.entry_price || '-'}
-                      </div>
-                    </div>
-                    <div className="status-item">
-                      <div>Stop Loss</div>
-                      <div className="status-val" style={{ color: 'var(--danger)', fontFamily: 'monospace' }}>
-                        {execPlans[0]?.stop_loss || '-'}
-                      </div>
-                    </div>
-                    <div className="status-item">
-                      <div>Take Profit</div>
-                      <div className="status-val" style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>
-                        {execPlans[0]?.take_profit || '-'}
-                      </div>
-                    </div>
-                    <div className="status-item">
-                      <div>Risk/Reward</div>
-                      <div className="status-val" style={{ color: 'var(--primary)', fontFamily: 'monospace' }}>
-                        {execPlans[0]?.risk_reward || '-'}
-                      </div>
-                    </div>
-                    <div className="status-item">
-                      <div>Confidence</div>
-                      <div className="status-val" style={{ color: 'var(--warning)', fontFamily: 'monospace' }}>
-                        {execConfidence.confidence || '-'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <h4 style={{ color: 'var(--primary)', margin: '0 0 10px 0' }}>Reasoning Trace (XAI)</h4>
-                  <ul style={{ lineHeight: '1.6', paddingLeft: '20px', color: 'var(--text-muted)' }}>
-                    {execReasoning.map((reason, idx) => (
-                      <li key={idx}>{reason}</li>
-                    ))}
-                  </ul>
+              {execLoading && (
+                <div className="card" style={{ padding: '40px', textAlign: 'center', color: 'var(--primary)', fontWeight: 'bold' }}>
+                  Loading Execution Intelligence...
                 </div>
+              )}
 
-                <div className="card">
-                  <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>🛡️ Portfolio Risk Board</h2>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9em', marginBottom: '20px' }}>
-                    Enforces risk controls on asset concentration and correlation heat.
-                  </p>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
-                    <div className="status-item">
-                      <div>Portfolio Heat</div>
-                      <div className="status-val" style={{ color: 'var(--danger)', fontFamily: 'monospace' }}>
-                        {portfolioRisk.portfolio_heat || '0%'}
-                      </div>
-                    </div>
-                    <div className="status-item">
-                      <div>Risk Budget Left</div>
-                      <div className="status-val" style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>
-                        {portfolioRisk.risk_budget_remaining || '100%'}
-                      </div>
-                    </div>
-                    <div className="status-item">
-                      <div>Drawdown Risk</div>
-                      <div className="status-val" style={{ color: 'var(--warning)' }}>
-                        {portfolioRisk.drawdown_level || 'LOW'}
-                      </div>
-                    </div>
-                    <div className="status-item">
-                      <div>SRE Risk Approved</div>
-                      <div className="status-val status-passed">
-                        {portfolioRisk.risk_approved ? 'APPROVED' : 'BLOCKED'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <h4 style={{ color: 'var(--primary)', margin: '0 0 10px 0' }}>Portfolio Exposure & Concentration</h4>
-                  <ul style={{ lineHeight: '1.6', paddingLeft: '20px', color: 'var(--text-muted)' }}>
-                    {portfolioExposure.map((exp, idx) => (
-                      <li key={idx}>{exp.asset}: {exp.percentage}%</li>
-                    ))}
-                  </ul>
+              {execError && (
+                <div className="card" style={{ padding: '24px', textAlign: 'center', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', borderRadius: '8px', fontWeight: 'bold' }}>
+                  ⚠️ {execError}
                 </div>
-              </div>
+              )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '25px' }}>
-                <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>📈 Market Structure Map (Pure Price Action)</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '15px' }}>
-                    Tracks Swing Highs and Lows chronologically. Zero technical indicators are used.
-                  </p>
-                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Bar Node</th>
-                          <th>Price</th>
-                          <th>Type</th>
-                          <th>Structural Label</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {structureMap.map((node, idx) => (
-                          <tr key={idx}>
-                            <td>{node.node_index}</td>
-                            <td>{node.price}</td>
-                            <td>{node.type}</td>
-                            <td>{node.label}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🧱 Institutional Supply/Demand Zones</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '15px' }}>
-                    Identifies Order Blocks and Fair Value Gaps (FVG) with freshness metrics.
-                  </p>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                    <div>
-                      <h4 style={{ color: 'var(--primary)', margin: '0 0 10px 0' }}>Order Blocks (OB)</h4>
-                      <div>
-                        {liquidityMap.order_blocks?.map((ob, idx) => (
-                          <div key={idx} className="status-item" style={{ marginBottom: '8px' }}>
-                            <div>Price: {ob.price}</div>
-                            <div>Strength: {ob.strength}</div>
+              {!execLoading && !execError && (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '25px' }}>
+                    <div className="card">
+                      <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>🎯 Institutional Execution Board</h2>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9em', marginBottom: '20px' }}>
+                        Advisory trade plans formulated based on chronological market structure alignment. Zero automated execution.
+                      </p>
+                      <div className="status-board" style={{ marginBottom: '20px' }}>
+                        <div className="status-item">
+                          <div>Action</div>
+                          <div className="status-val" style={{ color: 'var(--accent)' }}>
+                            {execPlans[0]?.action || 'WAIT'}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <h4 style={{ color: 'var(--warning)', margin: '0 0 10px 0' }}>Fair Value Gaps (FVG)</h4>
-                      <div>
-                        {liquidityMap.fair_value_gaps?.map((fvg, idx) => (
-                          <div key={idx} className="status-item" style={{ marginBottom: '8px' }}>
-                            <div>Gap: {fvg.low} - {fvg.high}</div>
+                        </div>
+                        <div className="status-item">
+                          <div>Advisory Entry</div>
+                          <div className="status-val" style={{ color: 'var(--text-dark)', fontFamily: 'monospace' }}>
+                            {execPlans[0]?.entry_price || '-'}
                           </div>
+                        </div>
+                        <div className="status-item">
+                          <div>Stop Loss</div>
+                          <div className="status-val" style={{ color: 'var(--danger)', fontFamily: 'monospace' }}>
+                            {execPlans[0]?.stop_loss || '-'}
+                          </div>
+                        </div>
+                        <div className="status-item">
+                          <div>Take Profit</div>
+                          <div className="status-val" style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>
+                            {execPlans[0]?.take_profit || '-'}
+                          </div>
+                        </div>
+                        <div className="status-item">
+                          <div>Risk/Reward</div>
+                          <div className="status-val" style={{ color: 'var(--primary)', fontFamily: 'monospace' }}>
+                            {execPlans[0]?.risk_reward || '-'}
+                          </div>
+                        </div>
+                        <div className="status-item">
+                          <div>Confidence</div>
+                          <div className="status-val" style={{ color: 'var(--warning)', fontFamily: 'monospace' }}>
+                            {execConfidence.confidence || '-'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <h4 style={{ color: 'var(--primary)', margin: '0 0 10px 0' }}>Reasoning Trace (XAI)</h4>
+                      <ul style={{ lineHeight: '1.6', paddingLeft: '20px', color: 'var(--text-muted)' }}>
+                        {execReasoning.map((reason, idx) => (
+                          <li key={idx}>{reason}</li>
                         ))}
+                      </ul>
+                    </div>
+
+                    <div className="card">
+                      <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>🛡️ Portfolio Risk Board</h2>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9em', marginBottom: '20px' }}>
+                        Enforces risk controls on asset concentration and correlation heat.
+                      </p>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
+                        <div className="status-item">
+                          <div>Portfolio Heat</div>
+                          <div className="status-val" style={{ color: 'var(--danger)', fontFamily: 'monospace' }}>
+                            {portfolioRisk.portfolio_heat || '0%'}
+                          </div>
+                        </div>
+                        <div className="status-item">
+                          <div>Risk Budget Left</div>
+                          <div className="status-val" style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>
+                            {portfolioRisk.risk_budget_remaining || '100%'}
+                          </div>
+                        </div>
+                        <div className="status-item">
+                          <div>Drawdown Risk</div>
+                          <div className="status-val" style={{ color: 'var(--warning)' }}>
+                            {portfolioRisk.drawdown_level || 'LOW'}
+                          </div>
+                        </div>
+                        <div className="status-item">
+                          <div>SRE Risk Approved</div>
+                          <div className="status-val status-passed">
+                            {portfolioRisk.risk_approved ? 'APPROVED' : 'BLOCKED'}
+                          </div>
+                        </div>
+                      </div>
+
+                      <h4 style={{ color: 'var(--primary)', margin: '0 0 10px 0' }}>Portfolio Exposure & Concentration</h4>
+                      <ul style={{ lineHeight: '1.6', paddingLeft: '20px', color: 'var(--text-muted)' }}>
+                        {portfolioExposure.map((exp, idx) => (
+                          <li key={idx}>{exp.asset}: {exp.percentage}%</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '25px' }}>
+                    <div className="card">
+                      <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>📈 Market Structure Map (Pure Price Action)</h3>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '15px' }}>
+                        Tracks Swing Highs and Lows chronologically. Zero technical indicators are used.
+                      </p>
+                      <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Bar Node</th>
+                              <th>Price</th>
+                              <th>Type</th>
+                              <th>Structural Label</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {structureMap.map((node, idx) => (
+                              <tr key={idx}>
+                                <td>{node.node_index}</td>
+                                <td>{node.price}</td>
+                                <td>{node.type}</td>
+                                <td>{node.label}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="card">
+                      <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🧱 Institutional Supply/Demand Zones</h3>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '15px' }}>
+                        Identifies Order Blocks and Fair Value Gaps (FVG) with freshness metrics.
+                      </p>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                        <div>
+                          <h4 style={{ color: 'var(--primary)', margin: '0 0 10px 0' }}>Order Blocks (OB)</h4>
+                          <div>
+                            {liquidityMap.order_blocks?.map((ob, idx) => (
+                              <div key={idx} className="status-item" style={{ marginBottom: '8px' }}>
+                                <div>Price: {ob.price}</div>
+                                <div>Strength: {ob.strength}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <h4 style={{ color: 'var(--warning)', margin: '0 0 10px 0' }}>Fair Value Gaps (FVG)</h4>
+                          <div>
+                            {liquidityMap.fair_value_gaps?.map((fvg, idx) => (
+                              <div key={idx} className="status-item" style={{ marginBottom: '8px' }}>
+                                <div>Gap: {fvg.low} - {fvg.high}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🌐 Multi-Timeframe Structural Alignment</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '20px' }}>
-                    Synthesizes trend alignment from higher timeframes (D1/H4) down to the execution frame.
-                  </p>
-                  <div className="status-board" style={{ marginBottom: '15px' }}>
-                    <div className="status-item">
-                      <div>Alignment Status</div>
-                      <div className="status-val" style={{ color: 'var(--accent)', fontSize: '1.1em' }}>
-                        {structureAlignment.alignment_state || 'FULLY_ALIGNED'}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div className="card">
+                      <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🌐 Multi-Timeframe Structural Alignment</h3>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '20px' }}>
+                        Synthesizes trend alignment from higher timeframes (D1/H4) down to the execution frame.
+                      </p>
+                      <div className="status-board" style={{ marginBottom: '15px' }}>
+                        <div className="status-item">
+                          <div>Alignment Status</div>
+                          <div className="status-val" style={{ color: 'var(--accent)', fontSize: '1.1em' }}>
+                            {structureAlignment.alignment_state || 'FULLY_ALIGNED'}
+                          </div>
+                        </div>
+                        <div className="status-item">
+                          <div>Synthesis Confidence</div>
+                          <div className="status-val" style={{ color: 'var(--warning)' }}>
+                            {structureAlignment.synthesis_confidence || '88'}%
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ padding: '12px', background: 'rgba(30, 41, 59, 0.4)', border: '1px solid var(--border-dark)', borderRadius: '8px', color: 'var(--text-dark)', lineHeight: '1.5' }}>
+                        {structureNarrative || 'No structural narrative available.'}
                       </div>
                     </div>
-                    <div className="status-item">
-                      <div>Synthesis Confidence</div>
-                      <div className="status-val" style={{ color: 'var(--warning)' }}>
-                        {structureAlignment.synthesis_confidence || '88'}%
+
+                    <div className="card">
+                      <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🧠 Pattern Similarity Intelligence Feed</h3>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '20px' }}>
+                        Matches the current market structure signature with the 4-layered memory system.
+                      </p>
+
+                      <div style={{ background: 'rgba(30, 41, 59, 0.2)', border: '1px solid var(--border-dark)', borderRadius: '10px', padding: '18px' }}>
+                        <div style={{ marginBottom: '10px' }}><strong>Matched Pattern ID:</strong> <span style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>{patternSimilarity.pattern_id || '-'}</span></div>
+                        <div style={{ marginBottom: '10px' }}><strong>Cosine Similarity Score:</strong> <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{patternSimilarity.similarity_score || '-'}</span></div>
+                        <div style={{ marginBottom: '10px' }}><strong>Historical Occurrences:</strong> <span style={{ color: 'var(--warning)', fontWeight: 'bold' }}>{patternSimilarity.occurrences || '-'}</span></div>
+                        <div style={{ marginBottom: '10px' }}><strong>Historical Success Rate:</strong> <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{patternSimilarity.success_rate || '-'}</span></div>
+                        <div style={{ marginTop: '15px', borderTop: '1px solid var(--border-dark)', paddingTop: '10px', fontStyle: 'italic', color: 'var(--text-muted)' }}>
+                          {patternSimilarity.description || 'No matching similarities at this timeframe.'}
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div style={{ padding: '12px', background: 'rgba(30, 41, 59, 0.4)', border: '1px solid var(--border-dark)', borderRadius: '8px', color: 'var(--text-dark)', lineHeight: '1.5' }}>
-                    {structureNarrative || 'No structural narrative available.'}
-                  </div>
-                </div>
-
-                <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🧠 Pattern Similarity Intelligence Feed</h3>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '20px' }}>
-                    Matches the current market structure signature with the 4-layered memory system.
-                  </p>
-
-                  <div style={{ background: 'rgba(30, 41, 59, 0.2)', border: '1px solid var(--border-dark)', borderRadius: '10px', padding: '18px' }}>
-                    <div style={{ marginBottom: '10px' }}><strong>Matched Pattern ID:</strong> <span style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>{patternSimilarity.pattern_id || '-'}</span></div>
-                    <div style={{ marginBottom: '10px' }}><strong>Cosine Similarity Score:</strong> <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{patternSimilarity.similarity_score || '-'}</span></div>
-                    <div style={{ marginBottom: '10px' }}><strong>Historical Occurrences:</strong> <span style={{ color: 'var(--warning)', fontWeight: 'bold' }}>{patternSimilarity.occurrences || '-'}</span></div>
-                    <div style={{ marginBottom: '10px' }}><strong>Historical Success Rate:</strong> <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{patternSimilarity.success_rate || '-'}</span></div>
-                    <div style={{ marginTop: '15px', borderTop: '1px solid var(--border-dark)', paddingTop: '10px', fontStyle: 'italic', color: 'var(--text-muted)' }}>
-                      {patternSimilarity.description || 'No matching similarities at this timeframe.'}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
           )}
 
