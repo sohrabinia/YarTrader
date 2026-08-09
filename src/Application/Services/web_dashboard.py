@@ -1376,6 +1376,7 @@ def get_dashboard_spa():
                 document.getElementById('link-admin').classList.add('active');
                 fetchAdminSymbols();
                 fetchAdminReports();
+                fetchAdminCatalog();
                 fetchStatus();
             } else if (hash === '#/login') {
                 if (token) {
@@ -1533,32 +1534,267 @@ def get_dashboard_spa():
 
         async function fetchSubscriptionPlans() {
             try {
-                const resp = await fetch('/api/subscription/plans');
-                const plans = await resp.json();
-                const container = document.getElementById('pricing-plans-container');
-                if (container) {
-                    container.innerHTML = '';
-                    plans.forEach(plan => {
-                        const border_color = plan.tier_id === 'institutional' ? 'var(--accent)' : (plan.tier_id === 'pro' ? 'var(--primary)' : 'var(--border-dark)');
-                        const tag_bg = plan.tier_id === 'free' ? '' : 'style="background-color: rgba(79, 70, 229, 0.2);"';
+                const resp = await fetch('/api/public/business/catalog');
+                const products = await resp.json();
 
-                        container.innerHTML += `
-                            <div class="blog-card" style="padding: 24px; border-color: ${border_color};">
-                                <span class="blog-tag" ${tag_bg}>${plan.name}</span>
-                                <h3 style="margin: 15px 0 10px 0; font-family: monospace; font-size: 1.8em;">${plan.price_usd}</h3>
-                                <div style="font-size: 0.9em; color: var(--text-muted); line-height: 1.6; margin: 0; flex-grow: 1;">
-                                    <p><strong>Max Symbols:</strong> ${plan.max_symbols}</p>
-                                    <p><strong>Timeframes:</strong> ${plan.enabled_timeframes.join(', ')}</p>
-                                    <ul style="padding-left: 20px; margin-top: 10px;">
-                                        ${plan.features.map(f => `<li>${f}</li>`).join('')}
-                                    </ul>
-                                </div>
+                const container = document.getElementById('pricing-plans-container');
+                const soonContainer = document.getElementById('pricing-coming-soon-container');
+
+                if (container) container.innerHTML = '';
+                if (soonContainer) soonContainer.innerHTML = '';
+
+                products.forEach(prod => {
+                    const border_color = prod.id === 'institutional' ? 'var(--accent)' : (prod.id === 'pro' ? 'var(--primary)' : 'var(--border-dark)');
+                    const tag_bg = prod.price === 0 ? '' : 'style="background-color: rgba(79, 70, 229, 0.2);"';
+                    const badge_text = prod.badge || (prod.status === 'COMING_SOON' ? 'COMING SOON' : '');
+                    const badge_html = badge_text ? `<span class="blog-tag" ${tag_bg}>${badge_text}</span>` : '';
+
+                    const price_str = prod.price === 0 ? 'Free' : `$${prod.price.toFixed(0)}`;
+                    const billing_period_str = prod.price === 0 ? '' : ` / ${prod.billing_period}`;
+
+                    const limits_info = prod.limits && prod.limits.max_symbols ? `
+                        <p><strong>Max Active Symbols:</strong> ${prod.limits.max_symbols}</p>
+                    ` : '';
+
+                    let features_list = '';
+                    if (prod.features && prod.features.length > 0) {
+                        features_list = `
+                            <ul style="padding-left: 20px; margin-top: 10px;">
+                                ${prod.features.map(f => `<li>${f}</li>`).join('')}
+                            </ul>
+                        `;
+                    }
+
+                    // Button setup
+                    let btn_html = '';
+                    if (prod.purchasable && prod.status === 'ACTIVE') {
+                        const cta_label = prod.cta_label || 'Subscribe Now';
+                        btn_html = `<button class="btn" style="width: 100%; margin-top: 15px; background-color: var(--primary);" onclick="initiatePurchase('${prod.id}')">${cta_label}</button>`;
+                    } else {
+                        const cta_label = prod.cta_label || 'Coming Soon';
+                        btn_html = `<button class="btn" style="width: 100%; margin-top: 15px; background-color: var(--border-dark); cursor: not-allowed;" disabled>${cta_label}</button>`;
+                    }
+
+                    const card_html = `
+                        <div class="blog-card" style="padding: 24px; border-color: ${border_color}; display: flex; flex-direction: column;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong style="font-size: 1.1em; color: var(--text-dark);">${prod.name}</strong>
+                                ${badge_html}
                             </div>
+                            <h3 style="margin: 15px 0 10px 0; font-family: monospace; font-size: 1.8em;">${price_str}${billing_period_str}</h3>
+                            <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 15px; flex-grow: 0;">${prod.short_description}</p>
+                            <div style="font-size: 0.9em; color: var(--text-muted); line-height: 1.6; margin: 0; flex-grow: 1;">
+                                ${limits_info}
+                                ${features_list}
+                            </div>
+                            ${btn_html}
+                        </div>
+                    `;
+
+                    if (prod.status === 'ACTIVE' && prod.purchasable) {
+                        if (container) container.innerHTML += card_html;
+                    } else {
+                        if (soonContainer) soonContainer.innerHTML += card_html;
+                    }
+                });
+            } catch(e) {
+                console.error("Failed to fetch subscription plans:", e);
+            }
+        }
+
+        async function initiatePurchase(productId) {
+            const email = localStorage.getItem('yartrader_name') || 'guest@yartrader.app';
+            try {
+                const resp = await fetch('/api/public/business/purchase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ product_id: productId, email: email })
+                });
+                const res = await resp.json();
+                if (resp.ok) {
+                    showNotification(`Checkout success: ${res.message}`, 'success');
+                } else {
+                    showNotification(`Purchase failed: ${res.detail}`, 'error');
+                }
+            } catch (e) {
+                showNotification(`Network error during purchase verification.`, 'error');
+            }
+        }
+
+        // SRE Business Catalog Admin Operations
+        async function fetchAdminCatalog() {
+            const token = localStorage.getItem('yartrader_token');
+            try {
+                const resp = await fetch('/api/admin/business/catalog?token=' + encodeURIComponent(token));
+                if (!resp.ok) {
+                    document.getElementById('admin-catalog-tbody').innerHTML = `
+                        <tr><td colspan="8" style="padding: 15px; text-align: center; color: var(--text-failed);">Failed to load catalog. Admin access required.</td></tr>
+                    `;
+                    return;
+                }
+                const products = await resp.json();
+                const tbody = document.getElementById('admin-catalog-tbody');
+                if (tbody) {
+                    tbody.innerHTML = '';
+                    if (products.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="8" style="padding: 15px; text-align: center; color: var(--text-muted);">No products registered in the catalog yet.</td></tr>`;
+                        return;
+                    }
+                    products.forEach(p => {
+                        tbody.innerHTML += `
+                            <tr style="border-bottom: 1px solid var(--border); font-size: 0.9em;">
+                                <td style="padding: 10px; font-family: monospace;">${p.id}</td>
+                                <td style="padding: 10px; font-weight: bold;">${p.name}</td>
+                                <td style="padding: 10px;"><span class="blog-tag" style="padding: 3px 6px; font-size: 0.75em;">${p.category}</span></td>
+                                <td style="padding: 10px; font-family: monospace;">$${p.price.toFixed(2)}</td>
+                                <td style="padding: 10px;">
+                                    <span class="${p.visible ? 'status-passed' : 'status-failed'}" style="font-weight: bold;">
+                                        ${p.visible ? 'ON' : 'OFF'}
+                                    </span>
+                                </td>
+                                <td style="padding: 10px;">
+                                    <span class="${p.purchasable ? 'status-passed' : 'status-failed'}" style="font-weight: bold;">
+                                        ${p.purchasable ? 'ON' : 'OFF'}
+                                    </span>
+                                </td>
+                                <td style="padding: 10px;">
+                                    <span style="font-size: 0.85em; font-family: monospace; background: rgba(255,255,255,0.05); padding: 3px 6px; border-radius: 4px;">
+                                        ${p.status}
+                                    </span>
+                                </td>
+                                <td style="padding: 10px; text-align: right;">
+                                    <button class="btn" style="padding: 4px 8px; font-size: 0.8em; margin-right: 5px;" onclick="editProductInline('${p.id}')">Edit</button>
+                                    <button class="btn" style="padding: 4px 8px; font-size: 0.8em; background-color: var(--text-failed);" onclick="deleteProductInline('${p.id}')">Delete</button>
+                                </td>
+                            </tr>
                         `;
                     });
                 }
             } catch(e) {
-                console.error("Failed to fetch subscription plans:", e);
+                console.error("Failed to fetch admin business catalog:", e);
+            }
+        }
+
+        let activeEditProductId = null;
+
+        function openNewProductModal() {
+            activeEditProductId = null;
+            document.getElementById('modal-title').innerText = "Add New Catalog Product";
+            document.getElementById('product-editor-form').reset();
+            document.getElementById('modal-product-id').readOnly = false;
+            document.getElementById('modal-product-status').value = "ACTIVE";
+            document.getElementById('modal-product-visible').checked = true;
+            document.getElementById('modal-product-purchasable').checked = true;
+            document.getElementById('product-editor-modal').style.display = 'flex';
+        }
+
+        async function editProductInline(productId) {
+            activeEditProductId = productId;
+            document.getElementById('modal-title').innerText = "Edit Catalog Product";
+            document.getElementById('modal-product-id').readOnly = true;
+
+            const token = localStorage.getItem('yartrader_token');
+            try {
+                const resp = await fetch('/api/admin/business/catalog?token=' + encodeURIComponent(token));
+                const products = await resp.json();
+                const p = products.find(x => x.id === productId);
+                if (p) {
+                    document.getElementById('modal-product-id').value = p.id;
+                    document.getElementById('modal-product-slug').value = p.slug;
+                    document.getElementById('modal-product-name').value = p.name;
+                    document.getElementById('modal-product-short-desc').value = p.short_description || '';
+                    document.getElementById('modal-product-long-desc').value = p.long_description || '';
+                    document.getElementById('modal-product-category').value = p.category;
+                    document.getElementById('modal-product-type').value = p.product_type;
+                    document.getElementById('modal-product-price').value = p.price;
+                    document.getElementById('modal-product-currency').value = p.currency || 'USD';
+                    document.getElementById('modal-product-billing').value = p.billing_period || 'monthly';
+                    document.getElementById('modal-product-badge').value = p.badge || '';
+                    document.getElementById('modal-product-cta').value = p.cta_label || '';
+                    document.getElementById('modal-product-order').value = p.display_order || 999;
+                    document.getElementById('modal-product-status').value = p.status;
+                    document.getElementById('modal-product-visible').checked = p.visible;
+                    document.getElementById('modal-product-purchasable').checked = p.purchasable;
+                    document.getElementById('modal-product-featured').checked = p.featured || false;
+                    document.getElementById('modal-product-features').value = (p.features || []).join(', ');
+
+                    document.getElementById('product-editor-modal').style.display = 'flex';
+                }
+            } catch(e) {
+                showNotification("Failed to load product details.", 'error');
+            }
+        }
+
+        function closeProductModal() {
+            document.getElementById('product-editor-modal').style.display = 'none';
+        }
+
+        async function saveProduct(event) {
+            event.preventDefault();
+            const token = localStorage.getItem('yartrader_token');
+
+            const featuresStr = document.getElementById('modal-product-features').value;
+            const features = featuresStr ? featuresStr.split(',').map(x => x.trim()).filter(Boolean) : [];
+
+            const payload = {
+                id: document.getElementById('modal-product-id').value.trim(),
+                slug: document.getElementById('modal-product-slug').value.trim(),
+                name: document.getElementById('modal-product-name').value.trim(),
+                short_description: document.getElementById('modal-product-short-desc').value.trim(),
+                long_description: document.getElementById('modal-product-long-desc').value.trim(),
+                category: document.getElementById('modal-product-category').value,
+                product_type: document.getElementById('modal-product-type').value,
+                price: parseFloat(document.getElementById('modal-product-price').value),
+                currency: document.getElementById('modal-product-currency').value.trim(),
+                billing_period: document.getElementById('modal-product-billing').value,
+                features: features,
+                limits: {},
+                visible: document.getElementById('modal-product-visible').checked,
+                purchasable: document.getElementById('modal-product-purchasable').checked,
+                status: document.getElementById('modal-product-status').value,
+                badge: document.getElementById('modal-product-badge').value.trim() || null,
+                cta_label: document.getElementById('modal-product-cta').value.trim() || null,
+                display_order: parseInt(document.getElementById('modal-product-order').value) || 999,
+                featured: document.getElementById('modal-product-featured').checked
+            };
+
+            try {
+                const resp = await fetch('/api/admin/business/catalog?token=' + encodeURIComponent(token), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const res = await resp.json();
+                if (resp.ok) {
+                    showNotification(res.message, 'success');
+                    closeProductModal();
+                    fetchAdminCatalog();
+                    fetchSubscriptionPlans();
+                } else {
+                    showNotification(`Failed to save product: ${res.detail}`, 'error');
+                }
+            } catch(e) {
+                showNotification("Network error occurred while saving product.", 'error');
+            }
+        }
+
+        async function deleteProductInline(productId) {
+            if (!confirm(`Are you sure you want to delete product '${productId}'?`)) return;
+            const token = localStorage.getItem('yartrader_token');
+            try {
+                const resp = await fetch(`/api/admin/business/catalog/${productId}?token=` + encodeURIComponent(token), {
+                    method: 'DELETE'
+                });
+                const res = await resp.json();
+                if (resp.ok) {
+                    showNotification(res.message, 'success');
+                    fetchAdminCatalog();
+                    fetchSubscriptionPlans();
+                } else {
+                    showNotification(`Failed to delete product: ${res.detail}`, 'error');
+                }
+            } catch(e) {
+                showNotification("Network error occurred while deleting product.", 'error');
             }
         }
 
@@ -2097,8 +2333,14 @@ def get_dashboard_spa():
                     <h2 style="margin-top: 0; color: var(--primary);" data-i18n="pricing_title">SaaS Premium Subscriptions & Billing</h2>
                     <p style="color: var(--text-muted); margin-bottom: 25px;" data-i18n="pricing_desc">Choose the tier that matches your institutional intelligence needs.</p>
 
+                    <h3 style="color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 30px;">Available Now</h3>
                     <div class="blog-grid" id="pricing-plans-container">
-                        <!-- Dynamically populated from /api/subscription/plans -->
+                        <!-- Dynamically populated ACTIVE products from /api/public/business/catalog -->
+                    </div>
+
+                    <h3 style="color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 50px;">Coming Soon & Future Innovations</h3>
+                    <div class="blog-grid" id="pricing-coming-soon-container">
+                        <!-- Dynamically populated COMING_SOON products from /api/public/business/catalog -->
                     </div>
                 </div>
             </div>
@@ -2402,6 +2644,176 @@ def get_dashboard_spa():
                     <p style="margin-top: 15px; line-height: 1.6;">
                         <strong data-i18n="admin_symbols_list">Currently Active Symbols:</strong> <span id="adm-symbols-list" style="color: var(--primary); font-family: monospace;">EURUSD, BTCUSD, XAUUSD, GBPUSD, ETHUSD</span>
                     </p>
+                </div>
+
+                <!-- SRE Business & Product Catalog Manager Card -->
+                <div class="card">
+                    <h2 style="margin-top:0;">🛡️ YarTrader SRE Business & Product Catalog</h2>
+                    <p style="color: var(--text-muted); font-size: 0.9em; margin-bottom: 20px;">
+                        Manage public visibility, pricing, and independent purchasability states dynamically for all plans and future services without source-code redeployment.
+                    </p>
+
+                    <button class="btn" style="background-color: var(--primary); margin-bottom: 15px;" onclick="openNewProductModal()">+ Add New Catalog Product</button>
+
+                    <div style="overflow-x: auto;">
+                        <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background-color: var(--bg-dark); text-align: left;">
+                                    <th style="padding: 10px;">ID / Slug</th>
+                                    <th style="padding: 10px;">Product Name</th>
+                                    <th style="padding: 10px;">Category</th>
+                                    <th style="padding: 10px;">Price</th>
+                                    <th style="padding: 10px;">Visible</th>
+                                    <th style="padding: 10px;">Purchasable</th>
+                                    <th style="padding: 10px;">Status</th>
+                                    <th style="padding: 10px; text-align: right;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-catalog-tbody">
+                                <tr><td colspan="8" style="padding: 15px; text-align: center; color: var(--text-muted);">Loading YarTrader Product Catalog...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Product Editor Modal -->
+                <div id="product-editor-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center; padding: 20px;">
+                    <div class="card" style="width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border); box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+                        <h2 id="modal-title" style="margin-top: 0; color: var(--primary);">Edit Catalog Product</h2>
+
+                        <form id="product-editor-form" onsubmit="saveProduct(event)">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Product ID</label>
+                                    <input type="text" class="input-field" id="modal-product-id" required placeholder="e.g. daily-pulse" style="width: 100%;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Product Slug</label>
+                                    <input type="text" class="input-field" id="modal-product-slug" required placeholder="e.g. daily-pulse" style="width: 100%;">
+                                </div>
+                            </div>
+
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Product Name</label>
+                                <input type="text" class="input-field" id="modal-product-name" required placeholder="e.g. Daily Pulse Plan" style="width: 100%;">
+                            </div>
+
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Short Description</label>
+                                <input type="text" class="input-field" id="modal-product-short-desc" required placeholder="Short summary" style="width: 100%;">
+                            </div>
+
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Long Description</label>
+                                <textarea class="input-field" id="modal-product-long-desc" rows="3" placeholder="Detailed product summary..." style="width: 100%; font-family: inherit; resize: vertical;"></textarea>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Category</label>
+                                    <select class="select-field" id="modal-product-category" required style="width: 100%;">
+                                        <option value="PLANS">PLANS</option>
+                                        <option value="AI">AI</option>
+                                        <option value="TRADING">TRADING</option>
+                                        <option value="RESEARCH">RESEARCH</option>
+                                        <option value="ANALYTICS">ANALYTICS</option>
+                                        <option value="PROP">PROP</option>
+                                        <option value="TOOLS">TOOLS</option>
+                                        <option value="EDUCATION">EDUCATION</option>
+                                        <option value="REPORTS">REPORTS</option>
+                                        <option value="DATA">DATA</option>
+                                        <option value="SERVICES">SERVICES</option>
+                                        <option value="ENTERPRISE">ENTERPRISE</option>
+                                        <option value="API">API</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Product Type</label>
+                                    <select class="select-field" id="modal-product-type" required style="width: 100%;">
+                                        <option value="FREE">FREE</option>
+                                        <option value="SUBSCRIPTION">SUBSCRIPTION</option>
+                                        <option value="ONE_TIME">ONE_TIME</option>
+                                        <option value="SERVICE">SERVICE</option>
+                                        <option value="CREDIT_PACKAGE">CREDIT_PACKAGE</option>
+                                        <option value="ENTERPRISE">ENTERPRISE</option>
+                                        <option value="COMING_SOON">COMING_SOON</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Price</label>
+                                    <input type="number" step="0.01" min="0" class="input-field" id="modal-product-price" required placeholder="0.00" style="width: 100%;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Currency</label>
+                                    <input type="text" class="input-field" id="modal-product-currency" required placeholder="USD" value="USD" style="width: 100%;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Billing Period</label>
+                                    <select class="select-field" id="modal-product-billing" required style="width: 100%;">
+                                        <option value="monthly">monthly</option>
+                                        <option value="annual">annual</option>
+                                        <option value="one-time">one-time</option>
+                                        <option value="trial">trial</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Badge Label</label>
+                                    <input type="text" class="input-field" id="modal-product-badge" placeholder="e.g. HOT" style="width: 100%;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">CTA Label</label>
+                                    <input type="text" class="input-field" id="modal-product-cta" placeholder="e.g. Subscribe" style="width: 100%;">
+                                </div>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Display Order</label>
+                                    <input type="number" class="input-field" id="modal-product-order" value="1" style="width: 100%;">
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Lifecycle Status</label>
+                                    <select class="select-field" id="modal-product-status" required style="width: 100%;">
+                                        <option value="DRAFT">DRAFT</option>
+                                        <option value="VISIBLE">VISIBLE</option>
+                                        <option value="COMING_SOON">COMING_SOON</option>
+                                        <option value="ACTIVE">ACTIVE</option>
+                                        <option value="PAUSED">PAUSED</option>
+                                        <option value="DISABLED">DISABLED</option>
+                                        <option value="ARCHIVED">ARCHIVED</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="modal-product-visible" checked> Visible Publicly
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="modal-product-purchasable"> Purchasable (Enable Checkout)
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="modal-product-featured"> Featured Card
+                                </label>
+                            </div>
+
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-size: 0.85em; margin-bottom: 5px; color: var(--text-muted);">Features (comma separated list)</label>
+                                <input type="text" class="input-field" id="modal-product-features" placeholder="e.g. Feature 1, Feature 2, Feature 3" style="width: 100%;">
+                            </div>
+
+                            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                                <button type="button" class="btn" style="background-color: var(--border-dark);" onclick="closeProductModal()">Cancel</button>
+                                <button type="submit" class="btn" style="background-color: var(--primary);">Save Product</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
 
                 <!-- SRE Validation Hub -->
