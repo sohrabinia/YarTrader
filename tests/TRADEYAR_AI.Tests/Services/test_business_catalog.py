@@ -95,6 +95,22 @@ class TestBusinessCatalogSystem:
         with pytest.raises(ValidationException, match="cannot be both COMING_SOON and purchasable"):
             temp_catalog_manager.save_product(invalid_combination)
 
+        # Reject DISABLED + purchasable combination
+        disabled_purchasable = {
+            "id": "disabled-purchasable",
+            "slug": "disabled-purchasable",
+            "name": "Deactivated plan",
+            "short_description": "Disabled",
+            "category": "PLANS",
+            "product_type": "SUBSCRIPTION",
+            "price": 49.0,
+            "currency": "USD",
+            "purchasable": True,  # Cannot sell disabled products!
+            "status": "DISABLED"
+        }
+        with pytest.raises(ValidationException, match="disabled products must be non-purchasable"):
+            temp_catalog_manager.save_product(disabled_purchasable)
+
     def test_product_isolation_independent_mutations(self, temp_catalog_manager):
         # Mutating product A does not alter product B
         free = temp_catalog_manager.get_product("free")
@@ -110,7 +126,7 @@ class TestBusinessCatalogSystem:
     def test_direct_purchase_rejection_from_backend(self):
         client = TestClient(app)
 
-        # Attempt to purchase an unvalidated, non-purchasable product ('prop-assistant' defaults to purchasable=False)
+        # 1. Attempt to purchase an unvalidated, non-purchasable product ('prop-assistant' defaults to purchasable=False)
         payload = {
             "product_id": "prop-assistant",
             "email": "tester@yartrader.app"
@@ -118,6 +134,28 @@ class TestBusinessCatalogSystem:
         response = client.post("/api/public/business/purchase", json=payload)
         assert response.status_code == 400
         assert "not available for purchase" in response.json()["detail"]
+
+        # 2. Attempt to purchase non-active status product
+        from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
+        mgr = BusinessCatalogManager()
+        prod = mgr.get_product("pro")
+        original_status = prod["status"]
+
+        try:
+            prod["status"] = "PAUSED"
+            prod["purchasable"] = False
+            mgr.save_product(prod)
+
+            payload = {
+                "product_id": "pro",
+                "email": "tester@yartrader.app"
+            }
+            response = client.post("/api/public/business/purchase", json=payload)
+            assert response.status_code == 400
+        finally:
+            prod["status"] = original_status
+            prod["purchasable"] = True
+            mgr.save_product(prod)
 
     def test_admin_authorization_gating(self):
         client = TestClient(app)

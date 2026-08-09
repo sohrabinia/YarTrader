@@ -215,8 +215,7 @@ class BusinessCatalogManager:
                 "purchasable": False,
                 "status": "COMING_SOON",
                 "badge": "COMING SOON",
-                "cta_label": "Coming Soon",
-                "display_order": 7,
+                "cta_order": 7,
                 "featured": False
             }
         }
@@ -270,6 +269,9 @@ class BusinessCatalogManager:
 
         if status == "DRAFT" and (visible or purchasable):
             raise ValidationException("Invalid state combination: draft products must be hidden and non-purchasable.")
+
+        if status == "DISABLED" and purchasable:
+            raise ValidationException("Invalid state combination: disabled products must be non-purchasable.")
 
     def save_product(self, product: Dict[str, Any], admin_email: str = "sre-admin@yartrader.app") -> Dict[str, Any]:
         """

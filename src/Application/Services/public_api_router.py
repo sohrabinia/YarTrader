@@ -86,13 +86,20 @@ def initiate_purchase(payload: PurchasePayload):
     if not prod.get("visible", True) or not prod.get("purchasable", False):
         raise HTTPException(status_code=400, detail="Financial safety rule: product is currently not available for purchase.")
 
+    if prod.get("status", "ACTIVE") != "ACTIVE":
+        raise HTTPException(status_code=400, detail="Financial safety rule: product status is not active.")
+
     if prod.get("price", 0) < 0:
         raise HTTPException(status_code=400, detail="Financial safety: negative price is invalid.")
+
+    # Secure boundary conversion from catalog presentation float to transactional integer cents
+    cents = int(prod["price"] * 100)
 
     return {
         "status": "Success",
         "message": f"Checkout path verified successfully for product '{prod['name']}'.",
         "product_id": prod["id"],
+        "price_cents": cents,
         "price": prod["price"],
         "currency": prod["currency"]
     }
