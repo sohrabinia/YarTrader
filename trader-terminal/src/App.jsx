@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { I18nProvider, useTranslation } from './services/i18n.jsx';
 import { apiService } from './services/api.js';
+import { CONFIG } from './core/config.js';
 
 function MainApp() {
   const { lang, changeLanguage, t, locales, loading } = useTranslation();
@@ -61,6 +62,11 @@ function MainApp() {
   const [validationComponent, setValidationComponent] = useState('N/A');
   const [validationTrace, setValidationTrace] = useState('N/A');
   const [validationLogs, setValidationLogs] = useState([]);
+
+  // SRE Admin Business Catalog states
+  const [adminCatalog, setAdminCatalog] = useState([]);
+  const [catalogEditingProduct, setCatalogEditingProduct] = useState(null);
+  const [isCatalogModalOpen, setIsCatalogModalOpen] = useState(false);
 
   // Auth Forms states
   const [loginEmail, setLoginEmail] = useState('');
@@ -150,6 +156,7 @@ function MainApp() {
       fetchAdminSymbols();
       fetchAdminReports();
       fetchStatus();
+      fetchAdminCatalog();
     }
   }, [hash, selectedAsset, role, activeHorizon]);
 
@@ -271,10 +278,70 @@ function MainApp() {
 
   const fetchSubscriptionPlans = async () => {
     try {
-      const res = await apiService.get('/api/subscription/plans');
+      const res = await apiService.get('/api/public/business/catalog');
       setSubscriptionPlans(res);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchAdminCatalog = async () => {
+    try {
+      const res = await apiService.get(`/api/admin/business/catalog?token=${encodeURIComponent(token)}`);
+      setAdminCatalog(res);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveProduct = async (productData) => {
+    try {
+      const res = await apiService.post(`/api/admin/business/catalog?token=${encodeURIComponent(token)}`, productData);
+      showNotification(res.message || "Product saved successfully.", "success");
+      setIsCatalogModalOpen(false);
+      setCatalogEditingProduct(null);
+      fetchAdminCatalog();
+      fetchSubscriptionPlans();
+    } catch (err) {
+      showNotification(err.message, "failed");
+    }
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (!window.confirm(`Are you sure you want to delete product "${productId}"?`)) return;
+    try {
+      const resp = await fetch(`${CONFIG.apiBaseUrl}/api/admin/business/catalog/${productId}?token=${encodeURIComponent(token)}`, {
+        method: 'DELETE'
+      });
+      const data = await resp.json();
+      if (resp.ok) {
+        showNotification(data.message || "Product deleted.", "success");
+        fetchAdminCatalog();
+        fetchSubscriptionPlans();
+      } else {
+        showNotification(data.detail || "Failed to delete product.", "failed");
+      }
+    } catch (err) {
+      showNotification(err.message, "failed");
+    }
+  };
+
+  const initiatePurchase = async (productId) => {
+    const email = localStorage.getItem('yartrader_name') || 'guest@yartrader.app';
+    try {
+      const res = await apiService.post('/api/public/business/purchase', {
+        product_id: productId,
+        email: email
+      });
+      showNotification(
+        lang === 'fa' ? `خرید با موفقیت تایید شد: ${res.message}` : `Checkout success: ${res.message}`,
+        'success'
+      );
+    } catch (err) {
+      showNotification(
+        lang === 'fa' ? `خطا در خرید: ${err.message}` : `Purchase failed: ${err.message}`,
+        'error'
+      );
     }
   };
 
@@ -629,19 +696,76 @@ function MainApp() {
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('pricing_title')}</h2>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '25px' }}>{t('pricing_desc')}</p>
 
+                <h3 style={{ color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '10px', marginTop: '30px' }}>Available Now</h3>
                 <div className="blog-grid" id="pricing-plans-container">
-                  {subscriptionPlans.map((plan, idx) => (
-                    <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderTop: '4px solid var(--primary)' }}>
-                      <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>{plan.name}</h3>
-                      <div className="status-val" style={{ fontSize: '1.5em', margin: '10px 0', color: 'var(--text-dark)' }}>{plan.price_usd || plan.price}</div>
-                      <p style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                        {plan.description || `Max Active Symbols: ${plan.max_symbols} | Timeframes: ${plan.enabled_timeframes?.join(', ')}`}
-                      </p>
-                      <ul style={{ paddingLeft: '15px', fontSize: '0.85em', color: 'var(--text-muted)', lineHeight: '1.7', marginTop: '15px' }}>
-                        {plan.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
-                      </ul>
-                    </div>
-                  ))}
+                  {subscriptionPlans
+                    .filter(prod => prod.visible && prod.status === 'ACTIVE' && prod.purchasable)
+                    .map((prod, idx) => {
+                      const price_str = prod.price === 0 ? 'Free' : `$${prod.price}`;
+                      const billing_period_str = prod.price === 0 ? '' : ` / ${prod.billing_period || 'mo'}`;
+                      return (
+                        <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '24px', borderTop: '4px solid var(--primary)', display: 'flex', flexDirection: 'column' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignWith: 'center' }}>
+                            <strong style={{ fontSize: '1.1em', color: 'var(--text-dark)' }}>{prod.name}</strong>
+                            {prod.badge && (
+                              <span className="blog-tag" style={{ fontSize: '0.7em', padding: '2px 6px', background: 'var(--primary)', color: 'white', borderRadius: '4px', fontWeight: 'bold' }}>
+                                {prod.badge}
+                              </span>
+                            )}
+                          </div>
+                          <h3 style={{ margin: '15px 0 10px 0', fontFamily: 'monospace', fontSize: '1.8em', color: 'var(--text-dark)' }}>{price_str}{billing_period_str}</h3>
+                          <p style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginBottom: '15px' }}>{prod.short_description}</p>
+                          <div style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6', flexGrow: 1 }}>
+                            {prod.limits && prod.limits.max_symbols && (
+                              <div style={{ fontSize: '0.85em', color: 'var(--text-dark)', fontWeight: 'bold', marginBottom: '8px' }}>
+                                Max Active Symbols: {prod.limits.max_symbols}
+                              </div>
+                            )}
+                            <ul style={{ paddingLeft: '15px', fontSize: '0.85em', color: 'var(--text-muted)', lineHeight: '1.7', marginTop: '10px' }}>
+                              {prod.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
+                            </ul>
+                          </div>
+                          <button className="btn" style={{ width: '100%', marginTop: '15px', backgroundColor: 'var(--primary)', color: 'white' }} onClick={() => initiatePurchase(prod.id)}>
+                            {prod.cta_label || 'Subscribe Now'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                <h3 style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)', paddingBottom: '10px', marginTop: '50px' }}>Coming Soon & Future Innovations</h3>
+                <div className="blog-grid" id="pricing-coming-soon-container">
+                  {subscriptionPlans
+                    .filter(prod => prod.visible && (prod.status === 'COMING_SOON' || !prod.purchasable))
+                    .map((prod, idx) => {
+                      const price_str = prod.price === 0 ? 'Free' : `$${prod.price}`;
+                      const billing_period_str = prod.price === 0 ? '' : ` / ${prod.billing_period || 'mo'}`;
+                      return (
+                        <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '24px', borderTop: '4px solid var(--border-dark)', display: 'flex', flexDirection: 'column', opacity: 0.85 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignWith: 'center' }}>
+                            <strong style={{ fontSize: '1.1em', color: 'var(--text-dark)' }}>{prod.name}</strong>
+                            <span className="blog-tag" style={{ fontSize: '0.7em', padding: '2px 6px', background: 'var(--border-dark)', color: 'var(--text-muted)', borderRadius: '4px', fontWeight: 'bold' }}>
+                              {prod.badge || 'COMING SOON'}
+                            </span>
+                          </div>
+                          <h3 style={{ margin: '15px 0 10px 0', fontFamily: 'monospace', fontSize: '1.8em', color: 'var(--text-dark)' }}>{price_str}{billing_period_str}</h3>
+                          <p style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginBottom: '15px' }}>{prod.short_description}</p>
+                          <div style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6', flexGrow: 1 }}>
+                            {prod.limits && prod.limits.max_symbols && (
+                              <div style={{ fontSize: '0.85em', color: 'var(--text-dark)', fontWeight: 'bold', marginBottom: '8px' }}>
+                                Max Active Symbols: {prod.limits.max_symbols}
+                              </div>
+                            )}
+                            <ul style={{ paddingLeft: '15px', fontSize: '0.85em', color: 'var(--text-muted)', lineHeight: '1.7', marginTop: '10px' }}>
+                              {prod.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
+                            </ul>
+                          </div>
+                          <button className="btn" style={{ width: '100%', marginTop: '15px', backgroundColor: 'var(--border-dark)', color: 'var(--text-muted)', cursor: 'not-allowed' }} disabled>
+                            {prod.cta_label || 'Coming Soon'}
+                          </button>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             </div>
@@ -1198,6 +1322,250 @@ function MainApp() {
                   </span>
                 </p>
               </div>
+
+              {/* SRE Business Catalog Console */}
+              <div className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
+                  <h3 style={{ color: 'var(--primary)', margin: 0 }}>🛡️ SRE Business Catalog Management</h3>
+                  <button className="btn" style={{ backgroundColor: 'var(--primary)' }} onClick={() => {
+                    setCatalogEditingProduct({
+                      id: '',
+                      slug: '',
+                      name: '',
+                      short_description: '',
+                      long_description: '',
+                      category: 'PLANS',
+                      product_type: 'SUBSCRIPTION',
+                      price: 0,
+                      currency: 'USD',
+                      billing_period: 'monthly',
+                      features: [],
+                      limits: {},
+                      visible: true,
+                      purchasable: false,
+                      status: 'DRAFT',
+                      badge: '',
+                      cta_label: '',
+                      display_order: 1,
+                      featured: false
+                    });
+                    setIsCatalogModalOpen(true);
+                  }}>
+                    + Add New Product
+                  </button>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Product ID</th>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th>Visible</th>
+                        <th>Purchasable</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminCatalog.length === 0 ? (
+                        <tr><td colSpan="8" style={{ padding: '15px', textAlign: 'center', color: 'var(--text-muted)' }}>No catalog items registered.</td></tr>
+                      ) : (
+                        adminCatalog.map((prod) => (
+                          <tr key={prod.id}>
+                            <td style={{ fontFamily: 'monospace', fontSize: '0.85em' }}>{prod.id}</td>
+                            <td><strong>{prod.name}</strong></td>
+                            <td><span className="blog-tag" style={{ background: 'rgba(79, 70, 229, 0.1)' }}>{prod.category}</span></td>
+                            <td style={{ fontFamily: 'monospace' }}>${prod.price} {prod.currency}</td>
+                            <td>
+                              <span className="blog-tag" style={{
+                                background: prod.status === 'ACTIVE' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                color: prod.status === 'ACTIVE' ? 'var(--accent)' : 'var(--danger)'
+                              }}>
+                                {prod.status}
+                              </span>
+                            </td>
+                            <td>{prod.visible ? '✅' : '❌'}</td>
+                            <td>{prod.purchasable ? '✅' : '❌'}</td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className="btn" style={{ padding: '4px 10px', fontSize: '0.8em', backgroundColor: 'var(--primary)' }} onClick={() => {
+                                  setCatalogEditingProduct({ ...prod });
+                                  setIsCatalogModalOpen(true);
+                                }}>
+                                  Edit
+                                </button>
+                                <button className="btn" style={{ padding: '4px 10px', fontSize: '0.8em', backgroundColor: 'var(--danger)' }} onClick={() => handleDeleteProduct(prod.id)}>
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Product Editor Modal */}
+              {isCatalogModalOpen && catalogEditingProduct && (
+                <div style={{
+                  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                  backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center',
+                  zIndex: 1000, padding: '20px'
+                }}>
+                  <div className="card" style={{ maxWidth: '600px', width: '100%', maxHeight: '90vh', overflowY: 'auto', borderTop: '5px solid var(--primary)' }}>
+                    <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>
+                      {catalogEditingProduct.id ? 'Edit Product' : 'Add New Product'}
+                    </h3>
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSaveProduct(catalogEditingProduct);
+                    }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                        <div>
+                          <label className="form-label">Product ID (immutable key)</label>
+                          <input className="input-field" required type="text" value={catalogEditingProduct.id} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, id: e.target.value })} disabled={!!catalogEditingProduct.created_at} placeholder="e.g. daily" />
+                        </div>
+                        <div>
+                          <label className="form-label">Product Slug</label>
+                          <input className="input-field" required type="text" value={catalogEditingProduct.slug} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, slug: e.target.value })} placeholder="e.g. daily-pulse" />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Product Name</label>
+                        <input className="input-field" required type="text" value={catalogEditingProduct.name} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, name: e.target.value })} placeholder="e.g. Daily Pulse Plan" />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Short Description</label>
+                        <input className="input-field" required type="text" value={catalogEditingProduct.short_description} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, short_description: e.target.value })} placeholder="e.g. Active daily market analysis updates" />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Long Description</label>
+                        <textarea className="input-field" rows="3" value={catalogEditingProduct.long_description} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, long_description: e.target.value })} placeholder="Detailed product specifications..." style={{ resize: 'vertical' }} />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                        <div>
+                          <label className="form-label">Category</label>
+                          <select className="select-field" value={catalogEditingProduct.category} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, category: e.target.value })}>
+                            <option value="PLANS">PLANS</option>
+                            <option value="AI">AI</option>
+                            <option value="TRADING">TRADING</option>
+                            <option value="RESEARCH">RESEARCH</option>
+                            <option value="ANALYTICS">ANALYTICS</option>
+                            <option value="PROP">PROP</option>
+                            <option value="TOOLS">TOOLS</option>
+                            <option value="EDUCATION">EDUCATION</option>
+                            <option value="REPORTS">REPORTS</option>
+                            <option value="DATA">DATA</option>
+                            <option value="SERVICES">SERVICES</option>
+                            <option value="ENTERPRISE">ENTERPRISE</option>
+                            <option value="API">API</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="form-label">Product Type</label>
+                          <select className="select-field" value={catalogEditingProduct.product_type} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, product_type: e.target.value })}>
+                            <option value="FREE">FREE</option>
+                            <option value="SUBSCRIPTION">SUBSCRIPTION</option>
+                            <option value="ONE_TIME">ONE_TIME</option>
+                            <option value="SERVICE">SERVICE</option>
+                            <option value="CREDIT_PACKAGE">CREDIT_PACKAGE</option>
+                            <option value="ENTERPRISE">ENTERPRISE</option>
+                            <option value="COMING_SOON">COMING_SOON</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                        <div>
+                          <label className="form-label">Price</label>
+                          <input className="input-field" required type="number" step="0.01" min="0" value={catalogEditingProduct.price} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, price: parseFloat(e.target.value) || 0 })} placeholder="0.00" />
+                        </div>
+                        <div>
+                          <label className="form-label">Currency</label>
+                          <input className="input-field" required type="text" value={catalogEditingProduct.currency} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, currency: e.target.value })} placeholder="USD" />
+                        </div>
+                        <div>
+                          <label className="form-label">Billing Period</label>
+                          <select className="select-field" value={catalogEditingProduct.billing_period} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, billing_period: e.target.value })}>
+                            <option value="monthly">monthly</option>
+                            <option value="annual">annual</option>
+                            <option value="one-time">one-time</option>
+                            <option value="trial">trial</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                        <div>
+                          <label className="form-label">Badge Label</label>
+                          <input className="input-field" type="text" value={catalogEditingProduct.badge || ''} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, badge: e.target.value })} placeholder="e.g. RECOMMEND" />
+                        </div>
+                        <div>
+                          <label className="form-label">CTA Label</label>
+                          <input className="input-field" type="text" value={catalogEditingProduct.cta_label || ''} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, cta_label: e.target.value })} placeholder="e.g. Subscribe Now" />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                        <div>
+                          <label className="form-label">Display Order</label>
+                          <input className="input-field" type="number" value={catalogEditingProduct.display_order} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, display_order: parseInt(e.target.value) || 1 })} />
+                        </div>
+                        <div>
+                          <label className="form-label">Lifecycle Status</label>
+                          <select className="select-field" value={catalogEditingProduct.status} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, status: e.target.value })}>
+                            <option value="DRAFT">DRAFT</option>
+                            <option value="VISIBLE">VISIBLE</option>
+                            <option value="COMING_SOON">COMING_SOON</option>
+                            <option value="ACTIVE">ACTIVE</option>
+                            <option value="PAUSED">PAUSED</option>
+                            <option value="DISABLED">DISABLED</option>
+                            <option value="ARCHIVED">ARCHIVED</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={catalogEditingProduct.visible} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, visible: e.target.checked })} /> Visible Publicly
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={catalogEditingProduct.purchasable} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, purchasable: e.target.checked })} /> Purchasable (Enable Checkout)
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={catalogEditingProduct.featured} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, featured: e.target.checked })} /> Featured Card
+                        </label>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label">Features (comma separated list)</label>
+                        <input className="input-field" type="text" value={catalogEditingProduct.features?.join(', ') || ''} onChange={(e) => setCatalogEditingProduct({ ...catalogEditingProduct, features: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} placeholder="e.g. Pro Signals, Live Coaching, Risk Alerts" />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                        <button type="button" className="btn" style={{ backgroundColor: 'var(--border-dark)' }} onClick={() => {
+                          setIsCatalogModalOpen(false);
+                          setCatalogEditingProduct(null);
+                        }}>
+                          Cancel
+                        </button>
+                        <button type="submit" className="btn" style={{ backgroundColor: 'var(--accent)' }}>
+                          Save Product
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
 
               {/* SRE Validation Hub */}
               <div className="card">
