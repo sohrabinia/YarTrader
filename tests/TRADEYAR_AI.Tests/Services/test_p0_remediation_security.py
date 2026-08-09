@@ -48,7 +48,8 @@ class TestP0RemediationSecurity(unittest.TestCase):
 
     def setUp(self) -> None:
         # Clear lockout audit logs before each test
-        self.lockout_file = "runtime_logs/lockout_test_audit.json"
+        import uuid
+        self.lockout_file = f"runtime_logs/lockout_test_audit_{uuid.uuid4().hex}.json"
         if os.path.exists(self.lockout_file):
             try:
                 os.remove(self.lockout_file)
