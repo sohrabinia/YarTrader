@@ -87,7 +87,7 @@ class CommunityReferralAgent:
         }
         return {
             "invite_token": token,
-            "referral_link": f"https://yartrader.vercel.app/#/register?ref={token}",
+            "referral_link": f"https://tradeyar.ai/register?ref={token}",
             "reward_tier_target": reward_tier
         }
 
