@@ -110,7 +110,6 @@ def check_admin_guard(session_token: Optional[str] = None):
             raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
         else:
             return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
-
     session = global_auth_service.validate_session(session_token)
     if not session or session.get("role") != "ADMIN":
         raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")

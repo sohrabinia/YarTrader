@@ -1,0 +1,21 @@
+{
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://tradeyar.ai/api/:path*"
+    },
+    {
+      "source": "/v1/:path*",
+      "destination": "https://tradeyar.ai/v1/:path*"
+    },
+    {
+      "source": "/locales/:path*",
+      "destination": "https://tradeyar.ai/locales/:path*"
+    },
+    {
+      "source": "/((?!assets|favicon.ico).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
