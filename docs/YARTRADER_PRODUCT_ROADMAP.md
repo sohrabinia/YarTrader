@@ -1,4 +1,4 @@
-# YARTRADER — COMPREHENSIVE PRODUCT ROADMAP (PHASE 0)
+# YARTRADER — COMPREHENSIVE PRODUCT ROADMAP (PHASE 0 & PHASE 1)
 
 ## OVERVIEW
 The YarTrader product direction is locked against unvalidated or decorative engineering. This Roadmap specifies exactly what needs to be built across six logical phases to transition YarTrader from a robust algorithmic simulation suite into a professional, commercially viable, and high-trust user-facing SaaS platform.
@@ -24,7 +24,26 @@ Ensure absolute integrity of the existing infrastructure, security models, and s
 
 ---
 
-## PHASE 1 — Core User Value
+## PHASE 1 — Vercel Site Availability (COMPLETE)
+Make the complete existing YarTrader website accessible and functional from the production Vercel URL.
+
+* **Objective:** Ensure absolute web routing integrity, smooth asset deliveries, and seamless production API proxy routing.
+* **User Outcome:** Users successfully access, load, refresh, and utilize all public and authenticated pages of YarTrader.
+* **Required Backend Capability:**
+  * Support secure CORS headers and dynamic reverse proxy rewrites from Vercel edge to production API servers (`tradeyar.ai`).
+* **Required Frontend Capability:**
+  * Robust same-origin dynamic base API selection to automatically self-heal against proxy configurations.
+  * Complete routing layout using hash-based window change hooks in `App.jsx`.
+* **Evidence Required:**
+  * Deployed SPA at `https://yartrader.vercel.app/` passes all direct open, refresh, asset loading, and auth gate audits (100% PASS).
+  * `vercel.json` rewrite configuration verified.
+* **Acceptance Criteria:**
+  * Entering any existing route directly from browser URL bar loads the correct view.
+  * No localhost references or uncaught exceptions remain in the frontend builds.
+
+---
+
+## PHASE 2 — Core User Value & Gated Horizons
 Bridge the gap between raw statistical signals and an authentic, high-trust consumer terminal.
 
 * **Objective:** Deliver verified chronological price-action insights directly to logged-in users.
@@ -43,7 +62,7 @@ Bridge the gap between raw statistical signals and an authentic, high-trust cons
 
 ---
 
-## PHASE 2 — Evidence & Trust
+## PHASE 3 — Evidence & Trust
 Establish unmatched credibility and regulatory transparency for the trading intelligence core.
 
 * **Objective:** Replace statically rendered benchmark examples with historical, dynamically updated, and audited performance evidence.
@@ -62,7 +81,7 @@ Establish unmatched credibility and regulatory transparency for the trading inte
 
 ---
 
-## PHASE 3 — Monetization
+## PHASE 4 — Monetization
 Activate physical, self-service payment flows and financial integrity layers.
 
 * **Objective:** Enable frictionless, self-service commercialization of the product catalog.
@@ -82,7 +101,7 @@ Activate physical, self-service payment flows and financial integrity layers.
 
 ---
 
-## PHASE 4 — Growth
+## PHASE 5 — Growth
 Incentivize active community acquisition and distribution loops.
 
 * **Objective:** Scale organic user acquisition through automated newsletters, referrals, and localized social channels.
@@ -101,7 +120,7 @@ Incentivize active community acquisition and distribution loops.
 
 ---
 
-## PHASE 5 — Future Products
+## PHASE 6 — Future Products
 Expand commercial offerings into elite B2B enterprise services and customized prop assistants.
 
 * **Objective:** Secure long-term institutional enterprise contracts.

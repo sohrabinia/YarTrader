@@ -1,4 +1,4 @@
-# YARTRADER — COMPREHENSIVE PRODUCT REALITY AUDIT (PHASE 0)
+# YARTRADER — COMPREHENSIVE PRODUCT REALITY AUDIT (PHASE 0 & PHASE 1)
 
 ## EXECUTIVE SUMMARY
 This audit provides an exhaustive, forensic, and objective evaluation of the **YarTrader** product as of today (August 2026). It is designed to establish an absolute baseline of **what actually exists and works** vs. **what is UI-only / simulated**, bridging the gap between technical infrastructure, backend engine capabilities, and real user value.
@@ -178,3 +178,28 @@ To turn YarTrader into a highly successful commercial venture, the user journey 
 1. **Do NOT build automated execution connectors**: Do not write real-money MT5 order placement scripts. Keep the system advisory-only.
 2. **Do NOT build custom blockchain ledgers**: Do not construct complex smart contracts. Use standard Stripe subscription webhooks.
 3. **Do NOT build proprietary indicators**: Do not reintroduce MACD, RSI, or EMA. Stand firm on pure price action.
+
+---
+
+## 12. ROUTE INVENTORY AND VERCEL SITE AVAILABILITY (PHASE 1)
+
+Below is the complete inventory of all frontend routes verified against the active Single-Page Application (SPA) deployment at `https://yartrader.vercel.app/`.
+
+### ROUTE INVENTORY
+
+| Area | Route | Access Level | Source Component | Direct Open | Browser Refresh | API Connectivity | Render | Status |
+| :--- | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Public** | `#/` (or empty) | Public | `App.jsx` (Shell Marketing) | **PASS** | **PASS** | `api/public/metrics` | **PASS** | `REAL + WORKING` |
+| **Public** | `#/features` | Public | `App.jsx` (Shell Features) | **PASS** | **PASS** | N/A | **PASS** | `REAL + WORKING` |
+| **Public** | `#/pricing` | Public | `App.jsx` (Shell Pricing) | **PASS** | **PASS** | `api/public/business/catalog` | **PASS** | `REAL + WORKING` |
+| **Public** | `#/blog` | Public | `App.jsx` (Shell Blog) | **PASS** | **PASS** | `api/blog` | **PASS** | `REAL + WORKING` |
+| **Auth** | `#/login` | Public | `App.jsx` (Shell Login) | **PASS** | **PASS** | `api/auth/login` | **PASS** | `REAL + WORKING` |
+| **Auth** | `#/register` | Public | `App.jsx` (Shell Register) | **PASS** | **PASS** | `api/auth/register` | **PASS** | `REAL + WORKING` |
+| **Auth** | `#/forgot-password`| Public | `App.jsx` (Shell Forgot) | **PASS** | **PASS** | `api/auth/forgot-password` | **PASS** | `REAL + WORKING` |
+| **User** | `#/dashboard` | Authenticated | `App.jsx` (Shell Terminal) | **PASS** | **PASS** | `api/user/signals` | **PASS** | `REAL + WORKING` |
+| **User** | `#/execution-intel`| Authenticated | `App.jsx` (Shell Execution Intel) | **PASS** | **PASS** | `api/execution/plans`, etc. | **PASS** | `REAL + WORKING` |
+| **Admin** | `#/admin` | SRE Admin Only | `App.jsx` (Shell SRE Admin) | **PASS** | **PASS** | `api/admin/*` | **PASS** | `REAL + WORKING` |
+
+### DIRECT REFRESH & WILD-CARD RESOLUTIONS
+* **Wildcard Fallback Rules**: Handled beautifully via Vercel's `vercel.json` wildcard rewrite rules, redirecting all non-asset requests dynamically to `/index.html`.
+* **Hash Fallback Redirection**: Direct refreshes of subpaths (e.g. `https://yartrader.vercel.app/pricing`) are cleanly intercepted by the backend dynamic Fallback Redirect sanitizer before mounting the SPA layout.
