@@ -310,27 +310,30 @@ function MainApp() {
   const fetchExecutionIntelligence = async () => {
     try {
       const plans = await apiService.get('/api/execution/plans?symbol=XAUUSD&timeframe=H1');
-      setExecPlans(plans);
+      setExecPlans(plans ? [plans] : []);
       const conf = await apiService.get('/api/execution/confidence?symbol=XAUUSD&timeframe=H1');
-      setExecConfidence(conf);
+      setExecConfidence(conf || {});
       const reas = await apiService.get('/api/execution/reasoning?symbol=XAUUSD&timeframe=H1');
-      setExecReasoning(reas);
+      setExecReasoning(reas && reas.reasoning ? reas.reasoning : (Array.isArray(reas) ? reas : []));
       const sMap = await apiService.get('/api/structure/map?symbol=XAUUSD&timeframe=H1');
-      setStructureMap(sMap);
+      setStructureMap(sMap && sMap.structure_nodes ? sMap.structure_nodes : (Array.isArray(sMap) ? sMap : []));
       const align = await apiService.get('/api/structure/alignment?symbol=XAUUSD');
-      setStructureAlignment(align);
+      setStructureAlignment(align || {});
       const narr = await apiService.get('/api/structure/narrative?symbol=XAUUSD&timeframe=H1');
-      setStructureNarrative(narr);
+      setStructureNarrative(narr && narr.summary ? narr.summary : (typeof narr === 'string' ? narr : ''));
       const lMap = await apiService.get('/api/liquidity/map?symbol=XAUUSD&timeframe=H1');
-      setLiquidityMap(lMap);
+      setLiquidityMap(lMap || {});
       const lEvents = await apiService.get('/api/liquidity/events?symbol=XAUUSD&timeframe=H1');
-      setLiquidityEvents(lEvents);
+      setLiquidityEvents(lEvents || {});
       const sim = await apiService.get('/api/pattern/similarity?symbol=XAUUSD&timeframe=H1');
-      setPatternSimilarity(sim);
+      setPatternSimilarity(sim || {});
       const risk = await apiService.get('/api/portfolio/risk');
-      setPortfolioRisk(risk);
+      setPortfolioRisk(risk || {});
       const exp = await apiService.get('/api/portfolio/exposure');
-      setPortfolioExposure(exp);
+      const concentrations = exp && exp.asset_concentrations_pct
+        ? Object.entries(exp.asset_concentrations_pct).map(([asset, percentage]) => ({ asset, percentage }))
+        : (Array.isArray(exp) ? exp : []);
+      setPortfolioExposure(concentrations);
     } catch (err) {
       console.error(err);
     }
@@ -992,7 +995,7 @@ function MainApp() {
                     </div>
                   </div>
                   <div style={{ padding: '12px', background: 'rgba(30, 41, 59, 0.4)', border: '1px solid var(--border-dark)', borderRadius: '8px', color: 'var(--text-dark)', lineHeight: '1.5' }}>
-                    {structureNarrative || 'No structural narrative available.'}
+                    {structureNarrative.summary || structureNarrative || 'No structural narrative available.'}
                   </div>
                 </div>
 
