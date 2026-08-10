@@ -70,11 +70,23 @@ class SymbolRegistry:
             return cls._instance
 
     def __init__(self) -> None:
-        self.max_symbols = 50
+        self.max_symbols = 30
         self.registry: Dict[str, Dict[str, Any]] = {}
         self.lock = threading.RLock()
         os.makedirs("runtime_logs", exist_ok=True)
+        self._load_max_symbols_from_limits()
         self.load_registry()
+
+    def _load_max_symbols_from_limits(self) -> None:
+        yaml_path = "config/system_limits.yaml"
+        if os.path.exists(yaml_path):
+            try:
+                import yaml
+                with open(yaml_path, "r", encoding="utf-8") as f:
+                    limits = yaml.safe_load(f)
+                    self.max_symbols = limits.get("system_limits", {}).get("max_active_symbols", 30)
+            except Exception:
+                self.max_symbols = 30
 
     def load_registry(self) -> None:
         with self.lock:
