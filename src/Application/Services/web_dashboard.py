@@ -2211,6 +2211,13 @@ def get_dashboard_spa():
         window.addEventListener('hashchange', handleRoute);
 
         window.onload = () => {
+            const path = window.location.pathname.replace(/^\/|\/$/g, '');
+            const validPaths = ['features', 'pricing', 'blog', 'dashboard', 'execution-intel', 'learning', 'admin', 'login', 'register', 'forgot-password'];
+            if (validPaths.includes(path) && !window.location.hash) {
+                window.location.replace(window.location.origin + '/#/' + path);
+                return;
+            }
+
             const savedLang = localStorage.getItem('yartrader_language') || 'fa';
             const savedTheme = localStorage.getItem('yartrader_theme') || 'dark';
 

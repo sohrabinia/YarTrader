@@ -78,6 +78,15 @@ function MainApp() {
   ]);
   const chatMessagesEndRef = useRef(null);
 
+  // Direct Path Redirection Fallback (Self-healing Routing)
+  useEffect(() => {
+    const path = window.location.pathname.replace(/^\/|\/$/g, '');
+    const validPaths = ['features', 'pricing', 'blog', 'dashboard', 'execution-intel', 'learning', 'admin', 'login', 'register', 'forgot-password'];
+    if (validPaths.includes(path) && !window.location.hash) {
+      window.location.replace(`${window.location.origin}/#/${path}`);
+    }
+  }, []);
+
   // Sync hash state with window.location
   useEffect(() => {
     const handleHashChange = () => {

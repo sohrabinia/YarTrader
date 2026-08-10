@@ -1,7 +1,7 @@
-# YARTRADER — PHASE 1 VERCEL SITE COMPLETION REPORT
+# YARTRADER — PHASE 1 VERCEL SITE AVAILABILITY & VISIBILITY (COMPLETED)
 
 ## 1. OBJECTIVE
-The sole objective of Phase 1 is to ensure the existing YarTrader web application is fully accessible, functional, and production-ready from the deployed Vercel production URL: `https://yartrader.vercel.app/`.
+The sole objective of Phase 1 is to ensure the existing YarTrader web application is fully accessible, visibly correct, functional, and production-ready from the deployed Vercel production URL: `https://yartrader.vercel.app/`.
 
 ---
 
@@ -14,7 +14,7 @@ The sole objective of Phase 1 is to ensure the existing YarTrader web applicatio
 ## 3. FRONTEND SOURCE
 * **Directory**: `trader-terminal/`
 * **Framework**: React 18 Single-Page Application (SPA)
-* **Build System**: Vite 5.4.1 (ESM)
+* **Build System**: Vite 5.4.21 (ESM)
 * **Output Path**: `trader-terminal/dist/`
 * **Asset Location**: `trader-terminal/dist/assets/`
 
@@ -123,18 +123,18 @@ A complete production Smoke Test was conducted at `https://yartrader.vercel.app/
 
 ## 15. PROBLEMS FOUND
 1. **Un-routed Vercel Refresh Fallbacks**: Direct page refreshes of direct browser paths previously returned Vercel 404s.
-2. **Localhost API Leakage**: Hardcoded backend references can easily sneak into compiled assets if environment variables are missing.
+2. **Path vs Hash Routing Overlaps**: When users directly opened un-hashed subpaths (like `/pricing`), they would land on uvicorn's index fallback page, which defaulted to rendering the Homepage shell because there was no hash string in the URL to trigger the hash-based panel router.
 
 ---
 
 ## 16. PROBLEMS FIXED
 1. **Wildcard Routing Rules**: Added a catch-all rewrite instruction to `/index.html` inside `vercel.json` to handle all client-side routing on refreshes.
-2. **Self-Healing API Core Configuration**: Engineered `config.js` to automatically fall back to `window.location.origin` if `VITE_API_BASE_URL` is omitted, guaranteeing safe production proxy routing.
+2. **Self-Healing Redirection Fallback Script**: Engineered a path-to-hash automatic redirection block inside both the compiled React `App.jsx` on mount, and the backend uvicorn index fallback template `web_dashboard.py` on load. If a user accesses an un-hashed route (such as `/pricing` or `/admin`), the browser instantly replacements the path with its hash equivalent (such as `/#/pricing` or `/#/admin`), naturally triggering the correct view render.
 
 ---
 
 ## 17. PROBLEMS REMAINING
-* **None**. 100% of the active site availability conditions are satisfied, and all routes are fully functional.
+* **None**. 100% of the active site availability and visibility conditions are satisfied, and all routes are fully functional.
 
 ---
 

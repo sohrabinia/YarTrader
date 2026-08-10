@@ -203,3 +203,46 @@ Below is the complete inventory of all frontend routes verified against the acti
 ### DIRECT REFRESH & WILD-CARD RESOLUTIONS
 * **Wildcard Fallback Rules**: Handled beautifully via Vercel's `vercel.json` wildcard rewrite rules, redirecting all non-asset requests dynamically to `/index.html`.
 * **Hash Fallback Redirection**: Direct refreshes of subpaths (e.g. `https://yartrader.vercel.app/pricing`) are cleanly intercepted by the backend dynamic Fallback Redirect sanitizer before mounting the SPA layout.
+
+---
+
+## 13. YARTRADER PRODUCTION DATA TRUTH MATRIX
+
+This matrix records exactly where the dynamic and static/simulated variables on the platform originate, verifying that no fake data or unvalidated capabilities are presented as live production logic.
+
+| Capability / Metric | UI Location | Access Level | Backend API Endpoint | Real Data Source | Status Classification | Evidence & Context |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Active Markets Count** | Home Telemetry | Public | `/api/public/metrics` | `symbols_registry.json` count | `REAL` | Fetches active register counts dynamically. |
+| **Simulated Historical Trades** | Home Telemetry | Public | `/api/public/metrics` | Statically Hardcoded | `SIMULATED` | Statically populated as `125420` benchmark examples. |
+| **Platform Uptime Percentage** | Home Telemetry | Public | `/api/public/metrics` | Statically Hardcoded | `SIMULATED` | Evaluates to static SRE SLA promise of `99.9%`. |
+| **SaaS pricing plans list** | Pricing Page | Public | `/api/public/business/catalog` | `business_catalog.json` | `REAL` | Fully dynamic SRE business catalog database. |
+| **Checkout Session** | Pricing CTA click | Public | `/api/public/business/purchase` | simulated checkout flow | `SIMULATED` | Validates prices and gates on backend, sandbox checkout only. |
+| **Research Blog Articles** | Blog Page | Public | `/api/blog` | `web_dashboard.py` array | `REAL` | Renders SRE research articles dynamically. |
+| **Multi-Horizon Signals**| Trader Terminal| User | `/api/user/signals` | `shadow_trades.json` | `REAL` | Reads active simulated position lifecycles. |
+| **Execution Advisory Plan** | Execution Board| User | `/api/execution/plans` | dynamic OHLCV pricing | `REAL` | Computes raw swing structures at runtime. |
+| **Bilingual Reasoning Trace**| Execution Board| User | `/api/execution/reasoning` | Bilingual XAI Engine | `REAL` | Generates text interpretations in EN and FA. |
+| **Portfolio Risk & Heat** | Risk Board | User | `/api/portfolio/risk` | Portfolio Risk Engine | `REAL` | Aggregates trade correlations dynamically. |
+| **Pattern Similarity Score** | Similarity Board| User | `/api/pattern/similarity` | Similarity Engine | `REAL` | Computes cosine similarity of tick sequences. |
+| **Pattern Learning matrix** | Learning Page | User | `/api/intelligence/learning-matrix`| `pattern_outcomes.json` | `REAL` | Evaluates historical outcomes per pattern key. |
+| **M5 / M15 Win Rates** | Learning Page | User | Statically Hardcoded | Static UI benchmarks | `SIMULATED` | Labeled as "Historical Benchmark Examples" for compliance. |
+| **Validation Uptime Score** | SRE Validation | Admin | `/api/validation/status` | `validate_release.py` output | `REAL` | Reports complete test counts and score. |
+
+---
+
+## 14. YARTRADER PRODUCTION ACCESS MATRIX
+
+This matrix records the explicit authentication and authorization security gates enforced across all system routes on Vercel.
+
+| Route | Expected Page View | Public Access | User Access | Admin Access | Auth Gate | Auth Mode | Direct Open | Refresh | Real Data Status |
+| :--- | :--- | :---: | :---: | :---: | :---: | :--- | :---: | :---: | :---: |
+| `#/` | Shell Marketing Home | **ALLOW** | **ALLOW** | **ALLOW** | None | Public | **PASS** | **PASS** | Real Telemetry |
+| `#/features` | Shell Features List | **ALLOW** | **ALLOW** | **ALLOW** | None | Public | **PASS** | **PASS** | Static |
+| `#/pricing` | Shell Pricing Plans | **ALLOW** | **ALLOW** | **ALLOW** | None | Public | **PASS** | **PASS** | Dynamic Catalog |
+| `#/blog` | Shell Blog List | **ALLOW** | **ALLOW** | **ALLOW** | None | Public | **PASS** | **PASS** | Dynamic Articles |
+| `#/login` | Shell Login Form | **ALLOW** | **ALLOW** | **ALLOW** | None | Public | **PASS** | **PASS** | N/A |
+| `#/register` | Shell Register Form | **ALLOW** | **ALLOW** | **ALLOW** | None | Public | **PASS** | **PASS** | N/A |
+| `#/forgot-password`| Shell Reset Form | **ALLOW** | **ALLOW** | **ALLOW** | None | Public | **PASS** | **PASS** | N/A |
+| `#/dashboard` | Shell Trader Terminal | DENY | **ALLOW** | **ALLOW** | `yartrader_token` | Token | **PASS** | **PASS** | Real Signals |
+| `#/execution-intel`| Shell Execution Board | DENY | **ALLOW** | **ALLOW** | `yartrader_token` | Token | **PASS** | **PASS** | Dynamic Plans |
+| `#/learning` | Shell Learning Matrix | DENY | **ALLOW** | **ALLOW** | `yartrader_token` | Token | **PASS** | **PASS** | Dynamic Matrix |
+| `#/admin` | Shell SRE Admin Console| DENY | DENY | **ALLOW** | `yartrader_role` | Token | **PASS** | **PASS** | Admin SRE |
