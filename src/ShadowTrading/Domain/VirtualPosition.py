@@ -5,8 +5,9 @@ from src.ShadowTrading.Domain.TradeState import PositionStatus, PositionResult
 
 class VirtualPosition:
     """
-    Represents an active or closed virtual shadow position.
+    Represents an active, pending, or closed virtual shadow/paper position.
     Strictly simulated; has no active trading connection or real capital.
+    Supports BACKTEST, PAPER, SHADOW, and LIVE modes.
     """
     def __init__(
         self,
@@ -21,23 +22,43 @@ class VirtualPosition:
         evidence: Optional[Dict[str, Any]] = None,
         position_id: Optional[str] = None,
         open_time: Optional[datetime] = None,
-        timeframe: str = "H1"
+        timeframe: str = "H1",
+        account_id: str = "YARTRADER-PAPER-001",
+        mode: str = "PAPER",
+        strategy_id: str = "strat-v3",
+        strategy_version: str = "strat-v3.2.1-heuristic",
+        decision_id: Optional[str] = None
     ) -> None:
         self.position_id = position_id or f"vpos-{uuid.uuid4().hex[:8]}"
+        self.account_id = account_id
         self.symbol = symbol
         self.timeframe = timeframe.upper()
         self.direction = direction.upper()  # BUY or SELL
         self.entry_price = float(entry_price)
         self.current_price = float(entry_price)
         self.volume = float(volume)
+
         self.open_time = open_time or datetime.now()
+        self.created_at = self.open_time.isoformat()
+        self.filled_at = None
         self.close_time: Optional[datetime] = None
 
         # SL/TP Setup: If not provided, set reasonable defaults (e.g. 15 points)
         self.stop_loss = float(stop_loss) if stop_loss is not None else self._calculate_default_sl()
         self.take_profit = float(take_profit) if take_profit is not None else self._calculate_default_tp()
 
-        self.status = PositionStatus.OPEN
+        # Operational Mode and Tracking
+        self.mode = mode.upper()  # BACKTEST, PAPER, SHADOW, LIVE
+        self.strategy_id = strategy_id
+        self.strategy_version = strategy_version
+        self.decision_id = decision_id or f"dec-{uuid.uuid4().hex[:8]}"
+
+        # Costs and Fees
+        self.fees = 2.0 * self.volume  # realistic standard fee of $2 per lot
+        self.slippage = 0.1 * self.volume  # realistic slippage simulation
+
+        # Status matching both Position and Order structures
+        self.status = PositionStatus.OPEN  # Default to OPEN / FILLED for compatibility
         self.result: Optional[PositionResult] = None
         self.profit_loss: float = 0.0
         self.reason = reason
@@ -115,6 +136,7 @@ class VirtualPosition:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "position_id": self.position_id,
+            "account_id": self.account_id,
             "symbol": self.symbol,
             "timeframe": self.timeframe,
             "direction": self.direction,
@@ -125,10 +147,18 @@ class VirtualPosition:
             "close_time": self.close_time.isoformat() if self.close_time else None,
             "stop_loss": self.stop_loss,
             "take_profit": self.take_profit,
-            "status": self.status.value,
-            "result": self.result.value if self.result else None,
+            "status": self.status.value if hasattr(self.status, "value") else str(self.status),
+            "result": self.result.value if (self.result and hasattr(self.result, "value")) else str(self.result) if self.result else None,
             "profit_loss": round(self.profit_loss, 2),
             "reason": self.reason,
             "confidence": self.confidence,
-            "evidence": self.evidence
+            "evidence": self.evidence,
+            "mode": self.mode,
+            "strategy_id": self.strategy_id,
+            "strategy_version": self.strategy_version,
+            "decision_id": self.decision_id,
+            "created_at": self.created_at,
+            "filled_at": self.filled_at,
+            "fees": self.fees,
+            "slippage": self.slippage
         }

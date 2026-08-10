@@ -12,29 +12,31 @@ logger = logging.getLogger("ShadowTradingEngine")
 
 class ShadowTradingEngine:
     """
-    Unified Orchestrator and API Interface for the TradeYar Shadow Trading Engine.
+    Unified Orchestrator and API Interface for the TradeYar Shadow/Paper Trading Engine.
     Handles simulated account tracking, position lifecycles, real-time pricing updates,
     and automatic Judge & Memory learning loop integration.
     """
     _instance: Optional["ShadowTradingEngine"] = None
 
     @classmethod
-    def get_instance(cls, initial_balance: float = 10000.0) -> "ShadowTradingEngine":
+    def get_instance(cls, initial_balance: float = 1000.0) -> "ShadowTradingEngine":
         if cls._instance is None:
             cls._instance = cls(initial_balance)
         return cls._instance
 
-    def __init__(self, initial_balance: float = 10000.0) -> None:
-        self.account = VirtualAccount(initial_balance)
+    def __init__(self, initial_balance: float = 1000.0) -> None:
+        # Load or initialize the persistent paper account
+        self.account = VirtualAccount(initial_balance, account_id="YARTRADER-PAPER-001")
         self.position_manager = PositionManager(self.account)
         self.judge = JudgeBrain()
         self.memory_system = MarketMemorySystem()
         self.trade_evaluator = TradeEvaluator(self.judge, self.memory_system)
 
-    def reset_account(self, balance: float = 10000.0) -> None:
-        """Resets the account state for fresh testing or initialization."""
-        self.account = VirtualAccount(balance)
+    def reset_account(self, balance: float = 1000.0) -> None:
+        """Resets the account state for fresh testing or initialization and persists it."""
+        self.account = VirtualAccount(balance, account_id="YARTRADER-PAPER-001")
         self.position_manager = PositionManager(self.account)
+        self.account.save_state()
 
     def handle_decision(
         self,
@@ -47,17 +49,18 @@ class ShadowTradingEngine:
         volume: float = 1.0,
         stop_loss: Optional[float] = None,
         take_profit: Optional[float] = None,
-        timeframe: str = "H1"
+        timeframe: str = "H1",
+        mode: str = "PAPER"
     ) -> Optional[VirtualPosition]:
         """
         Consumes a decision intelligence event.
         If direction is BUY or SELL, triggers the opening of a new virtual position.
         """
         if decision_action.upper() not in ["BUY", "SELL"]:
-            logger.info(f"Ignored shadow decision: {decision_action} state received (WAIT).")
+            logger.info(f"Ignored shadow/paper decision: {decision_action} state received (WAIT).")
             return None
 
-        # To prevent over-exposure, we check if we already have an active position of the same direction, symbol, and timeframe
+        # Check existing active position to prevent overexposure
         active = [
             p for p in self.account.get_open_positions()
             if p.symbol.upper() == symbol.upper()
@@ -65,7 +68,7 @@ class ShadowTradingEngine:
             and p.direction.upper() == decision_action.upper()
         ]
         if active:
-            logger.warning(f"Shadow position of direction {decision_action} already open on {symbol} on {timeframe}. Skipping duplication.")
+            logger.warning(f"Simulated position of direction {decision_action} already open on {symbol} on {timeframe}. Skipping duplication.")
             return None
 
         # Open Virtual Position
@@ -81,6 +84,13 @@ class ShadowTradingEngine:
             evidence=evidence,
             timeframe=timeframe
         )
+        if pos:
+            # Propagate custom fields
+            pos.account_id = self.account.account_id
+            pos.mode = mode.upper()
+            pos.filled_at = pos.open_time.isoformat()
+            self.account.save_state()
+
         return pos
 
     def update_market_price(self, symbol: str, current_price: float, timeframe: str = "H1") -> List[VirtualPosition]:
@@ -97,22 +107,33 @@ class ShadowTradingEngine:
             except Exception as e:
                 logger.error(f"Failed to evaluate closed virtual position: {str(e)}")
 
+        if closed_positions:
+            self.account.recalculate()
+            self.account.save_state()
+
         return closed_positions
 
     def get_metrics(self) -> Dict[str, Any]:
         """Compiles overall performance and account telemetry metrics."""
         self.account.recalculate()
         closed = self.account.get_closed_positions()
-        wins = sum(1 for p in closed if p.result and p.result.value == "WIN")
-        losses = sum(1 for p in closed if p.result and p.result.value == "LOSS")
+        wins = sum(1 for p in closed if p.result and (p.result == "WIN" or getattr(p.result, "value", None) == "WIN"))
+        losses = sum(1 for p in closed if p.result and (p.result == "LOSS" or getattr(p.result, "value", None) == "LOSS"))
         total = len(closed)
 
         win_rate = (wins / total * 100.0) if total > 0 else 0.0
         avg_confidence = sum(p.confidence for p in closed) / total if total > 0 else 0.0
 
         return {
-            "balance": round(self.account.balance, 2),
+            "account_id": self.account.account_id,
+            "balance": round(self.account.cash_balance, 2),
             "equity": round(self.account.equity, 2),
+            "available_cash": round(self.account.available_cash, 2),
+            "used_margin": round(self.account.used_margin, 2),
+            "unrealized_pnl": round(self.account.unrealized_pnl, 2),
+            "realized_pnl": round(self.account.realized_pnl, 2),
+            "fees": round(self.account.fees, 2),
+            "slippage": round(self.account.slippage, 2),
             "open_positions_count": len(self.account.get_open_positions()),
             "closed_positions_count": total,
             "performance": {
@@ -127,13 +148,10 @@ class ShadowTradingEngine:
     def tick_update(self) -> None:
         """
         Processes a safe periodic heartbeat and updates live shadow prices if active.
-        If no active shadow positions or session configuration is found, skips gracefully.
         """
         logger.debug("ShadowTradingEngine tick update heartbeat.")
-        # Perform safe tick evaluation of open positions
         open_positions = self.account.get_open_positions()
         if not open_positions:
-            # Skip gracefully if no active trades, keeping state in IDLE
             return
 
         for pos in open_positions:
