@@ -167,8 +167,8 @@ class AuthService:
                 penalty_info="Threshold 5/5 breached"
             )
             try:
-                from app.core.logging import log_event
-                log_event("WARNING", f"Account lockout triggered for email: {email_clean} due to excessive failed attempts.", source="auth_service")
+                from app.core.logging import log_security
+                log_security("ACCOUNT_LOCKOUT", email=email_clean, reason="Threshold 5/5 breached", source_ip=ip_address)
             except Exception:
                 pass
             return None
@@ -198,8 +198,8 @@ class AuthService:
             )
 
             try:
-                from app.core.logging import log_event
-                log_event("INFO", f"User {email_clean} successfully authenticated.", source="auth_service")
+                from app.core.logging import log_security
+                log_security("LOGIN_SUCCESS", email=email_clean, role=role, source_ip=ip_address)
             except Exception:
                 pass
             return user
@@ -228,6 +228,12 @@ class AuthService:
             penalty_info=penalty_str
         )
 
+        try:
+            from app.core.logging import log_security
+            log_security("LOGIN_FAILURE", email=email_clean, role=role, attempts=failed_count, source_ip=ip_address)
+        except Exception:
+            pass
+
         if failed_count >= 5:
             # Persistent ADMIN LOCKOUT trigger log
             self.lockout_store.log_audit_event(
@@ -239,15 +245,15 @@ class AuthService:
                 lockout_state=True,
                 penalty_info="Lockout enforced"
             )
+            try:
+                from app.core.logging import log_security
+                log_security("ACCOUNT_LOCKOUT", email=email_clean, reason="Max failed attempts exceeded", source_ip=ip_address)
+            except Exception:
+                pass
 
         if delay > 0.0:
             time.sleep(delay)
 
-        try:
-            from app.core.logging import log_event
-            log_event("WARNING", f"Failed authentication attempt for email: {email_clean} (Attempt {failed_count}/5)", source="auth_service")
-        except Exception:
-            pass
         return None
 
     def authenticate_social(self, email: str, provider: str, provider_id: str, name: str = "") -> Dict[str, Any]:

@@ -128,5 +128,9 @@
   "dl_html": "HTML Report",
   "dl_json": "JSON Report",
   "dl_markdown": "Markdown Report",
-  "enter_symbol_prompt": "Enter new symbol context (e.g. SOLUSD):"
+  "enter_symbol_prompt": "Enter new symbol context (e.g. SOLUSD):",
+  "live_mode": "LIVE",
+  "demo_mode": "DEMO / MOCK",
+  "unreachable_mode": "BACKEND UNREACHABLE",
+  "checking_mode": "CHECKING CONNECTION..."
 }
