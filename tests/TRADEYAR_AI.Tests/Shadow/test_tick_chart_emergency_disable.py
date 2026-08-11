@@ -24,6 +24,9 @@ class TestTickChartEmergencyDisable(unittest.TestCase):
         self.original_registry = self.registry.registry.copy()
         self.original_flag = ConfigurationManager.get_config().tick_chart_analysis_enabled
 
+        # Clear other active keys temporarily to avoid exceeding self.max_symbols (30) limit and skipping XAUUSD
+        self.registry.registry = {}
+
         # Set up a test entry that explicitly requests Tick timeframe
         self.registry.registry["XAUUSD"] = {
             "active": True,
@@ -61,6 +64,8 @@ class TestTickChartEmergencyDisable(unittest.TestCase):
         # 3. Verify detect_base and detect_node are not invoked and tick buffer is not populated
         ctx = self.engine.get_or_create_context("XAUUSD", 64)
         ctx.tick_buffer = []
+        ctx.bases = []
+        ctx.nodes = []
         self.engine.update_market_ticks("XAUUSD", 2400.0)
 
         self.assertEqual(len(ctx.tick_buffer), 0)

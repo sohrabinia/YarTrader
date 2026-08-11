@@ -64,13 +64,18 @@ class ReleaseValidationPlatform:
 
         # Determine the most suitable Python executable
         self.python_exec = sys.executable
-        # Prioritize Pyenv python or virtualenv python with pytest installed
-        pyenv_python = "/home/jules/.pyenv/versions/3.12.13/bin/python"
-        pipx_pytest_python = "/home/jules/.local/share/pipx/venvs/pytest/bin/python"
-        if os.path.exists(pyenv_python):
-            self.python_exec = pyenv_python
-        elif os.path.exists(pipx_pytest_python):
-            self.python_exec = pipx_pytest_python
+        # Prioritize local venv python if available
+        venv_python = os.path.join("venv", "bin", "python")
+        if os.path.exists(venv_python):
+            self.python_exec = venv_python
+        else:
+            # Prioritize Pyenv python or virtualenv python with pytest installed
+            pyenv_python = "/home/jules/.pyenv/versions/3.12.13/bin/python"
+            pipx_pytest_python = "/home/jules/.local/share/pipx/venvs/pytest/bin/python"
+            if os.path.exists(pyenv_python):
+                self.python_exec = pyenv_python
+            elif os.path.exists(pipx_pytest_python):
+                self.python_exec = pipx_pytest_python
 
         # Self-heal missing directories immediately on init
         for d in [LOGS_DIR, REPORTS_DIR, VALIDATION_DIR, HISTORY_DIR, os.path.join(LOGS_DIR, "security")]:

@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
 class SecurityReviewAgent:
@@ -32,7 +32,7 @@ class SecurityReviewAgent:
             "endpoint": endpoint,
             "is_secure": is_secure,
             "issues": issues,
-            "scanned_at": datetime.utcnow().isoformat() + "Z",
+            "scanned_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "action": "ALLOW" if is_secure else "BLOCK_ACCESS"
         }
 
@@ -72,7 +72,7 @@ class AICostOptimizationLayer:
             "tokens_budget_remaining": max(0, self.token_budget - self.tokens_consumed),
             "estimated_cost_usd": cost_usd,
             "cache_status": "HIT" if is_cache_hit else "MISS",
-            "tracked_at": datetime.utcnow().isoformat() + "Z"
+            "tracked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         }
 
     def set_cache(self, prompt_key: str, response_payload: Dict[str, Any]) -> None:
@@ -140,5 +140,5 @@ class TierEntitlementMiddleware:
             "tier": tier_clean,
             "access_granted": is_allowed,
             "reasons": reasons,
-            "checked_at": datetime.utcnow().isoformat() + "Z"
+            "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         }

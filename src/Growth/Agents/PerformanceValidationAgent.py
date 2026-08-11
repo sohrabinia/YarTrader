@@ -1,6 +1,6 @@
 import uuid
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 
 class PerformanceValidationAgent:
@@ -36,7 +36,7 @@ class PerformanceValidationAgent:
         trade_record = {
             "trade_id": trade_id,
             "asset": asset.upper(),
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "market_condition": market_condition,
             "direction": direction.upper(),
             "entry_price": entry_price,
@@ -56,7 +56,7 @@ class PerformanceValidationAgent:
         """
         Computes 100% traceable performance metrics from simulated trades database.
         """
-        timestamp = datetime.utcnow().isoformat() + "Z"
+        timestamp = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         if not self.trades_db:
             return {
                 "timestamp": timestamp,

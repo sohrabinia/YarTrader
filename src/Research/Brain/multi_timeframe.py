@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional
 from src.Research.Brain.models import MarketObservation, MarketEvent
 
@@ -88,7 +88,7 @@ class MultiTimeframePerception:
         """
         Constructs a unified HierarchicalMarketContext model across the 9 resolutions.
         """
-        ts = timestamp or datetime.utcnow()
+        ts = timestamp or datetime.now(timezone.utc)
 
         # Calculate macro bias
         macro_bias = {}

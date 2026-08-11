@@ -1,7 +1,10 @@
 import os
 import time
 import json
+import logging
 from datetime import datetime, timedelta
+
+logger = logging.getLogger("ResearchRuntime")
 from typing import Optional, List, Dict, Any
 from src.Infrastructure.exceptions import ValidationException
 from src.Data.MarketData.Providers.providers import MetaTrader5Provider
@@ -201,13 +204,7 @@ class ResearchRuntime:
             self._log_evidence(f"Research cycle completed successfully. Result ID: {result.Findings.get('report_id', 'unknown')}")
 
             # Phase 9: Clear, structured logging matching task requirements
-            print("\nResearch Started\n")
-            print(f"Symbol:\n{self._symbol}\n")
-            print(f"Timeframe:\n{self._timeframe}\n")
-            print(f"Provider:\n{self._provider_name}\n")
-            print(f"Candles:\n{candles_count}\n")
-            print(f"Features:\nGenerated\n")
-            print(f"Status:\nCompleted\n")
+            logger.info("Research Started - Symbol: %s - Timeframe: %s - Provider: %s - Candles: %s - Features: Generated - Status: Completed", self._symbol, self._timeframe, self._provider_name, candles_count)
 
             # Update metrics
             self.last_successful_cycle = datetime.now()
@@ -325,4 +322,4 @@ class ResearchRuntime:
             f.write(log_entry)
 
         # Also output to stdout for diagnostics
-        print(message)
+        logger.info(message)

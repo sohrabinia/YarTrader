@@ -2,8 +2,11 @@ import os
 import sys
 import json
 import time
+import logging
 import threading
 import subprocess
+
+logger = logging.getLogger("WebDashboard")
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
@@ -162,35 +165,35 @@ def run_research_background_loop():
     unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
     configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
 
-    print("================================================")
-    print("YarTrader Production Research Runtime")
-    print("================================================")
-    print("Mode: PRODUCTION")
-    print(f"Registered Symbols: {len(registry.get_all_registered())}")
-    print(f"Active Symbols: {len(unique_symbols)}")
-    print("Providers:")
-    print("  MT5: CONNECTED")
-    print("  Crypto Provider: CONNECTED")
-    print(f"Timeframes: {', '.join(configured_tfs)}")
-    print("Workers: RUNNING")
-    print("================================================\n")
+    logger.info("================================================")
+    logger.info("YarTrader Production Research Runtime")
+    logger.info("================================================")
+    logger.info("Mode: PRODUCTION")
+    logger.info("Registered Symbols: %s", len(registry.get_all_registered()))
+    logger.info("Active Symbols: %s", len(unique_symbols))
+    logger.info("Providers:")
+    logger.info("  MT5: CONNECTED")
+    logger.info("  Crypto Provider: CONNECTED")
+    logger.info("Timeframes: %s", ', '.join(configured_tfs))
+    logger.info("Workers: RUNNING")
+    logger.info("================================================\n")
 
     # Initial cycle immediately on server boot
     active_matrix = registry.get_active_matrix()
     for symbol, tf, asset_class, provider in active_matrix:
         try:
             runtime = _get_or_create_runtime(symbol, tf, asset_class, provider)
-            print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
-            print(f"Provider: {provider}")
+            logger.info("Research Started - Symbol: %s - Timeframe: %s", symbol, tf)
+            logger.info("Provider: %s", provider)
 
             # Active connection check based on provider
             if provider == "Crypto":
-                print("Crypto Provider: CONNECTED")
+                logger.info("Crypto Provider: CONNECTED")
                 research_tracker["mt5_status"] = "CONNECTED"
             else:
                 conn_health = runtime.provider.delegate.get_connection_health()
                 research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-                print("MT5: Connected")
+                logger.info("MT5: Connected")
 
             res = runtime.run_once()
             research_tracker["last_analysis_time"] = datetime.now().isoformat()
@@ -199,9 +202,9 @@ def run_research_background_loop():
 
             # Record exact candle count
             candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])) or 500
-            print(f"Candles: {candles_count}")
-            print("Features: Generated")
-            print("Research: Completed\n")
+            logger.info("Candles: %s", candles_count)
+            logger.info("Features: Generated")
+            logger.info("Research: Completed\n")
 
             log_event("INFO", "market_snapshot_created", symbol=symbol, timeframe=tf)
             log_intelligence_decision("Initial market evaluation completed", symbol=symbol, timeframe=tf, confidence=77)
@@ -222,17 +225,17 @@ def run_research_background_loop():
 
             for symbol, tf, asset_class, provider in active_matrix:
                 runtime = _get_or_create_runtime(symbol, tf, asset_class, provider)
-                print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
-                print(f"Provider: {provider}")
+                logger.info("Research Started - Symbol: %s - Timeframe: %s", symbol, tf)
+                logger.info("Provider: %s", provider)
 
                 # Active connection check
                 if provider == "Crypto":
-                    print("Crypto Provider: CONNECTED")
+                    logger.info("Crypto Provider: CONNECTED")
                     research_tracker["mt5_status"] = "CONNECTED"
                 else:
                     conn_health = runtime.provider.delegate.get_connection_health()
                     research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-                    print("MT5: Connected")
+                    logger.info("MT5: Connected")
 
                 res = runtime.run_once()
                 research_tracker["last_analysis_time"] = datetime.now().isoformat()
@@ -241,9 +244,9 @@ def run_research_background_loop():
                 research_tracker["worker_status"] = "RUNNING"
 
                 candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])) or 500
-                print(f"Candles: {candles_count}")
-                print("Features: Generated")
-                print("Research: Completed\n")
+                logger.info("Candles: %s", candles_count)
+                logger.info("Features: Generated")
+                logger.info("Research: Completed\n")
 
                 log_event("INFO", "market_snapshot_created", symbol=symbol, timeframe=tf)
 
@@ -3073,7 +3076,7 @@ def get_multi_timeframe():
     from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
     from src.Research.Brain.multi_timeframe import MultiTimeframePerception
     from src.Research.Brain.models import MarketObservation
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     registry = SymbolRegistry.get_instance()
     active_matrix = registry.get_active_matrix()
@@ -3100,7 +3103,7 @@ def get_multi_timeframe():
                     MarketObservation(
                         symbol=sym,
                         timeframe=tf,
-                        timestamp=datetime.utcnow() - timedelta(minutes=i * 15),
+                            timestamp=datetime.now(timezone.utc) - timedelta(minutes=i * 15),
                         high=base_price + i * 0.5 + 0.2,
                         low=base_price + i * 0.5 - 0.2,
                         open_price=base_price + i * 0.5,

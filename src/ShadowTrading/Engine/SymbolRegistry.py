@@ -1,6 +1,9 @@
 import os
 import json
+import logging
 from typing import Dict, List, Any, Tuple
+
+logger = logging.getLogger("SymbolRegistry")
 
 REGISTRY_FILE = "runtime_logs/symbols_registry.json"
 
@@ -119,7 +122,7 @@ class SymbolRegistry:
                 self.save_registry()
                 return
             except Exception as e:
-                print(f"Warning: Failed to load market_universe.yaml: {e}")
+                logger.warning("Failed to load market_universe.yaml: %s", e)
 
         # Default fallback registry configuration
         self.registry = {

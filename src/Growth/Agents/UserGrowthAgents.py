@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 
 class UserIntelligenceAgent:
@@ -30,7 +30,7 @@ class UserIntelligenceAgent:
         return {
             "user_id": user_id,
             "segment": segment,
-            "profiled_at": datetime.utcnow().isoformat() + "Z",
+            "profiled_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "telemetry_metrics": {
                 "articles_read": articles_read,
                 "shadow_trades_watched": shadow_trades_watched,
@@ -56,7 +56,7 @@ class GrowthAgent:
         return {
             "retention_rate_pct": round(retention_rate, 2),
             "acquisition_growth_rate_pct": round(user_acquisition_growth, 2),
-            "calculated_at": datetime.utcnow().isoformat() + "Z"
+            "calculated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         }
 
 
@@ -100,5 +100,5 @@ class ConversionAgent:
                 "active_to_premium": round(premium_conv, 2)
             },
             "overall_conversion_sign_up_rate_pct": round(overall_sign_up_rate, 2),
-            "audited_at": datetime.utcnow().isoformat() + "Z"
+            "audited_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         }

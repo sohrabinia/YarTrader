@@ -25,6 +25,29 @@ class TestHierarchicalM5M15Trading(unittest.TestCase):
         self.alignment_engine = MultiTimeframeAlignmentEngine()
         self.shadow_engine = PredictiveShadowEngine.get_instance()
 
+        from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+        self.registry = SymbolRegistry.get_instance()
+        self.original_registry = self.registry.registry.copy()
+        # Keep only XAUUSD and EURUSD to avoid exceeding the active symbols limit of 30
+        self.registry.registry = {
+            "XAUUSD": {
+                "active": True,
+                "asset_class": "Commodities",
+                "provider": "MT5",
+                "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
+            },
+            "EURUSD": {
+                "active": True,
+                "asset_class": "Forex",
+                "provider": "MT5",
+                "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
+            }
+        }
+
+    def tearDown(self) -> None:
+        self.registry.registry = self.original_registry
+        self.registry.save_registry()
+
     def test_nine_timeframe_ingestion(self) -> None:
         """
         1. Validate multi-timeframe perception can handle ingestion of all 9 resolutions.

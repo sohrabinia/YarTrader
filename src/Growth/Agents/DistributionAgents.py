@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
 class DistributionIntelligenceAgent:
@@ -24,7 +24,7 @@ class DistributionIntelligenceAgent:
             "channel": channel,
             "delivery_status": delivery_status,
             "recipient_feed_endpoint": recipient_feed,
-            "dispatched_at": datetime.utcnow().isoformat() + "Z",
+            "dispatched_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "body_length_dispatched": len(body)
         }
 
@@ -39,7 +39,7 @@ class NewsletterIntelligenceAgent:
         self.agent_id = agent_id
 
     def compile_weekly_newsletter(self, symbol: str, reports: List[Dict[str, Any]], performance: Dict[str, Any]) -> Dict[str, Any]:
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         compiled_sections = []
 
         for r in reports[:3]:
@@ -82,7 +82,7 @@ class CommunityReferralAgent:
             "invitee": None,
             "status": "PENDING",
             "reward_tier": reward_tier,
-            "created_at": datetime.utcnow().isoformat() + "Z",
+            "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "accepted_at": None
         }
         return {
@@ -96,7 +96,7 @@ class CommunityReferralAgent:
             invite = self.invites_db[token]
             invite["invitee"] = invitee_user_id
             invite["status"] = "COMPLETED"
-            invite["accepted_at"] = datetime.utcnow().isoformat() + "Z"
+            invite["accepted_at"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             return invite
         return None
 
@@ -125,7 +125,7 @@ class CompetitorIntelligenceAgent:
 
         return {
             "agent_id": self.agent_id,
-            "audited_at": datetime.utcnow().isoformat() + "Z",
+            "audited_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "keywords_gaps": gap_results,
             "suggested_content_refresh_topic": "How Single-Page Applications Leverage Multi-Timeframe Structural Fusion"
         }

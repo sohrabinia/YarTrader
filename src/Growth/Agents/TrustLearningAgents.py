@@ -1,6 +1,9 @@
 import re
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 from typing import Dict, Any, List
+
+logger = logging.getLogger("TrustLearningAgents")
 
 class TrustComplianceAgent:
     """
@@ -28,7 +31,7 @@ class TrustComplianceAgent:
         return {
             "is_compliant": is_compliant,
             "violations": violations,
-            "scanned_at": datetime.utcnow().isoformat() + "Z",
+            "scanned_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "action": "APPROVED" if is_compliant else "REJECTED_BY_COMPLIANCE_GATE"
         }
 
@@ -71,8 +74,8 @@ class MarketFeedbackLearningAgent:
                     evt = MarketEvent(
                         symbol=symbol,
                         timeframe="H1",
-                        start_time=datetime.utcnow(),
-                        end_time=datetime.utcnow(),
+                        start_time=datetime.now(timezone.utc),
+                        end_time=datetime.now(timezone.utc),
                         price_change=-deviation_factor,
                         duration_candles=1,
                         previous_sequence_len=0,
@@ -87,7 +90,7 @@ class MarketFeedbackLearningAgent:
                     self.memory_system.add_event(evt)
                     action_taken = "MEMORY_EVENT_RECORDED"
                 except Exception as e:
-                    print(f"DEBUG EXCEPTION during add_event call: {str(e)}")
+                    logger.exception("EXCEPTION during add_event call")
             elif hasattr(self.memory_system, "record_event"):
                 self.memory_system.record_event(
                     event_type="LEARNING_FEEDBACK_OUTCOME",
@@ -104,7 +107,7 @@ class MarketFeedbackLearningAgent:
                 "trade_id": trade_record.get("trade_id"),
                 "symbol": symbol,
                 "error_insight": insight_summary,
-                "logged_at": datetime.utcnow().isoformat() + "Z"
+                "logged_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
             })
         else:
             insight_summary = f"Successful prediction on {symbol}. Pattern confirmed."
@@ -114,5 +117,5 @@ class MarketFeedbackLearningAgent:
             "outcome_evaluated": outcome,
             "insight": insight_summary,
             "action_taken": action_taken,
-            "timestamp": datetime.utcnow().isoformat() + "Z"
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
         }
