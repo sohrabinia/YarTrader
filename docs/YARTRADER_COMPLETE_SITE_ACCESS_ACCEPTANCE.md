@@ -149,11 +149,24 @@ None. All pre-existing, implemented capabilities (such as the learning matrix, S
 
 ---
 
-## 18. Final Result
+## 18. FORENSIC CONNECTIVITY BLOCKER SPECIFICATION
+* **Current Vercel API Target**: `https://tradeyar.ai` (configured in `vercel.json` rewrites).
+* **Current Backend Availability**: **Unavailable / Parked**. GoDaddy intercepts all requests and redirects them to parked pages.
+* **Exact Missing Infrastructure**: Active production API hosting for the FastAPI backend. There is no other hosted hostname/IP/server running the backend already deployed for YarTrader.
+* **Evidence (Live Browser Curl Trace)**:
+  ```bash
+  $ curl -s https://tradeyar.ai | head -n 5
+  <!DOCTYPE html><html><head><script>window.onload=function(){window.location.href="/lander"}</script></head></html>
+  ```
+* **Required External Infrastructure Action**: Point the DNS records (A/CNAME records) of the registered domain `tradeyar.ai` directly to the live hosted FastAPI production server, or deploy the backend FastAPI code on an active server host and update Vercel rewrites to proxy `/api/*` to it.
+
+---
+
+## 19. Final Result
 ```text
-FINAL RELEASE STATUS: PASS (PENDING DNS UNPARKING)
+FINAL RELEASE STATUS: BLOCKED (API Domain Parked at GoDaddy)
 ```
-The entire existing YarTrader product codebase is fully exposed, structurally safety-locked, and authenticated according to Guest, User, and Admin access levels.
+The entire existing YarTrader product codebase is fully exposed, structurally safety-locked, and authenticated according to Guest, User, and Admin access levels. However, real-time connectivity remains blocked because the API domain is parked at GoDaddy.
 
 ==================================================
 YARTRADER FINAL PRODUCTION ACCEPTANCE
@@ -223,7 +236,7 @@ Translations:
 PASS
 
 Real Production Data:
-PASS (PENDING DNS UNPARKING)
+BLOCKED (API Domain Parked at GoDaddy)
 
 Mock Data Exposure:
 NONE
@@ -247,12 +260,12 @@ Runtime Blockers:
 0
 
 Production Blockers:
-0
+1 (DNS Domain Parking)
 
 Unverified Critical Items:
-1 (Telegram live credentials)
+1 (Telegram Live Credentials)
 
 Final Verdict:
-GO
+NO-GO / BLOCKED
 
 ==================================================
