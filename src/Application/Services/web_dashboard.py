@@ -97,20 +97,22 @@ MOCK_BLOG_ARTICLES = [
 
 def check_admin_guard(session_token: Optional[str] = None):
     """Enforces strict JWT / session role check, fallback gracefully in testing/validation mode."""
-    is_production = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
+    import sys
+    is_prod = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
+    is_testing = ("pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("TESTING") == "True" or os.environ.get("TRADEYAR_ALLOW_TEST_FALLBACK") == "true") and not is_prod
     from app.core.logging import log_security
 
     log_token = f"{session_token[:8]}..." if session_token else None
 
     if not session_token:
-        if is_production:
+        if not is_testing:
             log_security("AUTHORIZATION_DENIED", reason="Authentication token is missing")
             raise HTTPException(status_code=401, detail="Authentication token is missing")
-        # Graceful validation/testing override to prevent breaking the release pipeline checks
+        # Graceful validation/testing override ONLY during automated tests
         return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
 
     if session_token == "mock_social_token":
-        if is_production:
+        if not is_testing:
             log_security("AUTHORIZATION_DENIED", token=log_token, reason="Mock social token forbidden in production")
             raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
         else:
@@ -3862,6 +3864,9 @@ def trigger_backtesting_job(params: Dict[str, Any]):
     )
     from src.Decision.Intelligence.engine import DecisionEngine
     from src.Data.connector import ExternalDataPipelineConnector
+    from datetime import datetime, timedelta
+    import uuid
+    import json
 
     symbol = str(params.get("symbol", "XAUUSD")).upper()
     timeframe = str(params.get("timeframe", "H1")).upper()

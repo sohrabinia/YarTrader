@@ -1,7 +1,7 @@
 ================================================================================
           YARTRADER_FINAL_INTELLIGENCE_VALIDATION_REPORT — Version 1.0
 ================================================================================
-Generated At: 2026-08-11 19:05:08
+Generated At: 2026-08-11 21:27:04
 
 1. SYSTEM ARCHITECTURE & HEALTH STATUS
 --------------------------------------------------------------------------------
@@ -23,11 +23,11 @@ Metrics:
 
 3. SPEED & QUALITY BENCHMARK METRICS
 --------------------------------------------------------------------------------
-Total Pipeline execution time: 0.0130 seconds
+Total Pipeline execution time: 0.0152 seconds
 Response delays per component scenario:
- - Normal: 0.0067 seconds
- - HighVolatility: 0.0061 seconds
- - Conflicting: 0.0002 seconds
+ - Normal: 0.0077 seconds
+ - HighVolatility: 0.0033 seconds
+ - Conflicting: 0.0042 seconds
 Scenario Completion Rate:      100.0%
 Output Consistency Score:      98.0%
 
