@@ -3,15 +3,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://tradeyar.ai/api/:path*"
+      "destination": "/api/proxy?path=api/:path*"
     },
     {
       "source": "/v1/:path*",
-      "destination": "https://tradeyar.ai/v1/:path*"
+      "destination": "/api/proxy?path=v1/:path*"
     },
     {
       "source": "/locales/:path*",
-      "destination": "https://tradeyar.ai/locales/:path*"
+      "destination": "/api/proxy?path=locales/:path*"
     },
     {
       "source": "/((?!assets|favicon.ico).*)",

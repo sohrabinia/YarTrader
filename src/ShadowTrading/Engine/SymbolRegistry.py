@@ -56,7 +56,7 @@ import threading
 class SymbolRegistry:
     """
     Manages active symbols, their asset class classification, and assigned timeframes dynamically.
-    Enforces maximum 50 active symbols universe limit.
+    Enforces maximum active symbols universe limit dynamically resolved from system_limits.yaml.
     Persists config cleanly across restarts.
     """
     _instance = None
@@ -69,12 +69,38 @@ class SymbolRegistry:
                 cls._instance = cls()
             return cls._instance
 
+    def _load_max_symbols(self) -> int:
+        yaml_path = "config/system_limits.yaml"
+        if os.path.exists(yaml_path):
+            try:
+                with open(yaml_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("max_active_symbols:"):
+                            val_str = line.split(":", 1)[1].strip()
+                            return int(val_str)
+            except Exception:
+                pass
+        return 30
+
     def __init__(self) -> None:
-        self.max_symbols = 50
+        self.max_symbols = self._load_max_symbols()
         self.registry: Dict[str, Dict[str, Any]] = {}
         self.lock = threading.RLock()
         os.makedirs("runtime_logs", exist_ok=True)
         self.load_registry()
+
+    def _enforce_max_active_limit(self) -> None:
+        """Enforces that the total active symbols in the registry does not exceed max_symbols limit."""
+        core_priorities = {"XAUUSD", "EURUSD", "GBPUSD", "BTCUSD", "ETHUSD"}
+        active_symbols = [sym for sym, info in self.registry.items() if info.get("active", True)]
+
+        if len(active_symbols) > self.max_symbols:
+            non_core_actives = [sym for sym in active_symbols if sym not in core_priorities]
+            to_deactivate_count = len(active_symbols) - self.max_symbols
+            # Deactivate from the end of non_core list to bring total active to max_symbols
+            for sym in non_core_actives[-to_deactivate_count:]:
+                self.registry[sym]["active"] = False
 
     def load_registry(self) -> None:
         with self.lock:
@@ -83,6 +109,8 @@ class SymbolRegistry:
                 try:
                     with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
                         self.registry = json.load(f)
+                    self._enforce_max_active_limit()
+                    self.save_registry()
                     return
                 except Exception:
                     pass
@@ -104,6 +132,7 @@ class SymbolRegistry:
                             "provider": info.get("provider", "MT5"),
                             "timeframes": info.get("timeframes", ["H1", "H4"])
                         }
+                self._enforce_max_active_limit()
                 self.save_registry()
                 return
             except Exception as e:

@@ -98,20 +98,26 @@ MOCK_BLOG_ARTICLES = [
 def check_admin_guard(session_token: Optional[str] = None):
     """Enforces strict JWT / session role check, fallback gracefully in testing/validation mode."""
     is_production = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
+    from app.core.logging import log_security
+
+    log_token = f"{session_token[:8]}..." if session_token else None
 
     if not session_token:
         if is_production:
+            log_security("AUTHORIZATION_DENIED", reason="Authentication token is missing")
             raise HTTPException(status_code=401, detail="Authentication token is missing")
         # Graceful validation/testing override to prevent breaking the release pipeline checks
         return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
 
     if session_token == "mock_social_token":
         if is_production:
+            log_security("AUTHORIZATION_DENIED", token=log_token, reason="Mock social token forbidden in production")
             raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
         else:
             return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
     session = global_auth_service.validate_session(session_token)
     if not session or session.get("role") != "ADMIN":
+        log_security("AUTHORIZATION_DENIED", token=log_token, email=session.get("email") if session else None)
         raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
     return session
 

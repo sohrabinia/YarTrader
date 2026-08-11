@@ -256,14 +256,18 @@ class PredictiveShadowEngine:
 
     def _load_limits_config(self) -> None:
         yaml_path = "config/system_limits.yaml"
+        self.max_symbols_limit = 30
         if os.path.exists(yaml_path):
             try:
-                import yaml
                 with open(yaml_path, "r", encoding="utf-8") as f:
-                    limits = yaml.safe_load(f)
-                    self.max_symbols_limit = limits.get("system_limits", {}).get("max_active_symbols", 30)
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("max_active_symbols:"):
+                            val_str = line.split(":", 1)[1].strip()
+                            self.max_symbols_limit = int(val_str)
+                            return
             except Exception:
-                self.max_symbols_limit = 30
+                pass
 
     @property
     def contexts(self) -> Dict[str, SymbolTimeContext]:

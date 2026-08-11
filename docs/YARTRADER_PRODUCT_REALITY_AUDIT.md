@@ -69,14 +69,14 @@ We audited `https://yartrader.vercel.app/` as an anonymous guest and compared it
 
 ---
 
-## 6. CRITICAL RUNTIME INTEGRITY BUG: THE 30/50 SYMBOL INCONSISTENCY
-* **Where the discrepancy originates:**
+## 6. CRITICAL RUNTIME INTEGRITY BUG: THE 30/50 SYMBOL INCONSISTENCY (RESOLVED & VERIFIED)
+* **Where the discrepancy originated:**
   * **`system_limits.yaml`**: Configured as `max_active_symbols: 30`.
   * **`SymbolRuntimeManager`**: Uses `self.max_active_symbols = 30`. Raising exceptions if `len(self.symbol_brains) >= 30`.
   * **`SymbolRegistry`**: Uses `self.max_symbols = 50`. Raising exceptions if active counts exceed `50`.
   * **`/api/admin/symbols`**: Exposes `max_limit = 50` and `max_active_symbols_limit = 50`.
-* **The SRE Impact:** If an administrator registers symbols beyond 30 up to 50 in the `SymbolRegistry`, they will be marked as registered and saved to `symbols_registry.json`. However, when the backend attempts to spin up or hydrate active timeframe hierarchies, the `SymbolRuntimeManager` will throw a `ValueError` or crash, creating a severe runtime out-of-sync state.
-* **Remediation Recommendation:** Establish `30` as the authoritative maximum limit across both classes, updating `/api/admin/symbols` and `SymbolRegistry` to match `system_limits.yaml`.
+* **The SRE Impact:** If an administrator registered symbols beyond 30 up to 50 in the `SymbolRegistry`, they were marked as registered and saved to `symbols_registry.json`. However, when the backend attempted to spin up or hydrate active timeframe hierarchies, the `SymbolRuntimeManager` threw a `ValueError` or crashed, creating a severe runtime out-of-sync state.
+* **Resolution (Phase 0):** Establishes exactly `30` as the single authoritative maximum limit across `SymbolRegistry`, `PredictiveShadowEngine`, and `/api/admin/symbols` API routes, dynamically resolved from `config/system_limits.yaml`. Deactivates excess active symbols on startup gracefully using prioritization checks. Fully covered by high-fidelity regression tests in `test_p0_infrastructure_security_remediation.py`.
 
 ---
 
