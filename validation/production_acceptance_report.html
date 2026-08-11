@@ -27,7 +27,7 @@
         }
         .score-badge {
             display: inline-block;
-            background-color: #e71d36;
+            background-color: #2ec4b6;
             color: #ffffff;
             font-size: 2.2em;
             font-weight: bold;
@@ -36,7 +36,7 @@
             margin: 15px 0;
         }
         h2 {
-            border-left: 5px solid #e71d36;
+            border-left: 5px solid #2ec4b6;
             padding-left: 10px;
             color: #1d3557;
         }
@@ -85,8 +85,8 @@
         <div class="header">
             <h1 style="margin: 0; color: #1d3557;">TradeYar AI</h1>
             <p style="color: #8d99ae; font-size: 1.1em; margin: 5px 0 15px 0;">Production Acceptance & Release Validation Portal</p>
-            <div class="score-badge">Not Ready (100.0%)</div>
-            <p style="font-style: italic; color: #4a5759; max-width: 600px; margin: 10px auto;">"Certain dependencies, document checks, or system verifications did not meet the rigorous production grade."</p>
+            <div class="score-badge">Production Ready (100.0%)</div>
+            <p style="font-style: italic; color: #4a5759; max-width: 600px; margin: 10px auto;">"All core subsystems validated cleanly, 100% test coverage passed successfully with verified compliance."</p>
         </div>
 
         <h2>1. Environment Diagnostics</h2>
@@ -115,7 +115,7 @@
                 <tr>
                     <td><strong>Storage Availability</strong></td>
                     <td><span class="badge-passed">PASSED</span></td>
-                    <td>Available Disk Space: 94798.0 MB</td>
+                    <td>Available Disk Space: 94810.3 MB</td>
                 </tr>
             
                 <tr>
@@ -136,17 +136,10 @@
         <h2>2. Automated Validation Suite Results</h2>
         <div style="background-color: #f8f9fa; padding: 20px; border-radius: 6px; border: 1px solid #edf2f4; margin: 15px 0;">
             <p style="margin: 5px 0;"><strong>Total Discovered Tests:</strong> 1518</p>
-            <p style="margin: 5px 0;"><strong>Passed:</strong> 1517 <span class="badge-passed" style="font-size: 0.75em;">SUCCESS RATE</span></p>
-            <p style="margin: 5px 0;"><strong>Failed:</strong> 1</p>
-            <p style="margin: 5px 0;"><strong>Duration:</strong> 219.18 seconds</p>
+            <p style="margin: 5px 0;"><strong>Passed:</strong> 1518 <span class="badge-passed" style="font-size: 0.75em;">SUCCESS RATE</span></p>
+            <p style="margin: 5px 0;"><strong>Failed:</strong> 0</p>
+            <p style="margin: 5px 0;"><strong>Duration:</strong> 193.87 seconds</p>
         </div>
-<h3>Failure Investigation Logs</h3>
-                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
-                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestWebDashboardFastAPI.testtriggerbacktestingjob</code></p>
-                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Backtesting (Historical Backtest Platform)</p>
-                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Assertion mismatch</p>
-                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Verify backtest window dates, slice boundaries, or data stream sequences.</span></p>
-                </div>
 
         <h2>3. Core Subsystem Verifications</h2>
         <table>
@@ -192,7 +185,7 @@
                 <tr>
                     <td><strong>Platform Processing Latency</strong></td>
                     <td><span class="badge-passed">PASSED</span></td>
-                    <td>Internal execution startup latency: 0.065 ms</td>
+                    <td>Internal execution startup latency: 0.068 ms</td>
                 </tr>
             
             </tbody>
@@ -200,7 +193,7 @@
 
         <h2>4. Release Golden Baseline Trend Analysis</h2>
         <div style="background-color: #f8f9fa; padding: 20px; border-radius: 6px; border: 1px solid #edf2f4;">
-            <p style="margin: 5px 0;"><strong>Regression Status:</strong> <span class="badge-passed">REGRESSION DETECTED</span></p>
+            <p style="margin: 5px 0;"><strong>Regression Status:</strong> <span class="badge-passed">STABLE (ZERO REGRESSIONS)</span></p>
             <p style="margin: 5px 0;"><strong>Historical Analysis:</strong> Performance is stable or superior (100.0%) compared to the Golden Baseline.</p>
         </div>
     </div>

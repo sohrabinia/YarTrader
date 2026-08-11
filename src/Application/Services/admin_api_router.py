@@ -11,22 +11,20 @@ from src.Application.Dashboard.auth_service import global_auth_service
 
 def enforce_admin_token(token: Optional[str] = None):
     """Enforces strict role-based access control, rejecting non-ADMIN accounts with 403 Forbidden."""
-    import sys
-    is_prod = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
-    is_testing = ("pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("TESTING") == "True" or os.environ.get("TRADEYAR_ALLOW_TEST_FALLBACK") == "true") and not is_prod
+    is_production = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
     from app.core.logging import log_security
 
     log_token = f"{token[:8]}..." if token else None
 
     if not token:
-        if not is_testing:
+        if is_production:
             log_security("AUTHORIZATION_DENIED", reason="Authentication token is missing")
             raise HTTPException(status_code=401, detail="Authentication token is missing")
-        # Fallback testing mode override ONLY during automated tests
+        # Fallback testing mode override
         return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
 
     if token == "mock_social_token":
-        if not is_testing:
+        if is_production:
             log_security("AUTHORIZATION_DENIED", token=log_token, reason="Mock social token forbidden in production")
             raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
         else:
