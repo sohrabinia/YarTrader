@@ -6,6 +6,21 @@ function MainApp() {
   const { lang, changeLanguage, t, locales, loading } = useTranslation();
   const [hash, setHash] = useState(() => window.location.hash || '#/');
   const [theme, setTheme] = useState(() => localStorage.getItem('yartrader_theme') || 'dark');
+  const [backendState, setBackendState] = useState('CHECKING'); // 'LIVE', 'DEMO', 'UNREACHABLE', 'CHECKING'
+
+  const checkBackendStatus = async () => {
+    try {
+      const res = await apiService.get('/api/public/metrics');
+      if (res && res.active_markets_count !== undefined) {
+        setBackendState('LIVE');
+      } else {
+        setBackendState('DEMO');
+      }
+    } catch (err) {
+      console.error("Backend health check failed, falling back to UNREACHABLE:", err);
+      setBackendState('UNREACHABLE');
+    }
+  };
   const [token, setToken] = useState(() => localStorage.getItem('yartrader_token'));
   const [role, setRole] = useState(() => localStorage.getItem('yartrader_role'));
   const [name, setName] = useState(() => localStorage.getItem('yartrader_name'));
@@ -88,6 +103,11 @@ function MainApp() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
+  // Check backend connectivity on mount
+  useEffect(() => {
+    checkBackendStatus();
+  }, []);
+
   // Update body theme class
   useEffect(() => {
     if (theme === 'light') {
@@ -134,6 +154,7 @@ function MainApp() {
 
   // Route-specific Data Fetching
   useEffect(() => {
+    checkBackendStatus();
     if (hash === '#/' || hash === '') {
       fetchPublicMetrics();
     } else if (hash === '#/pricing') {
@@ -499,6 +520,30 @@ function MainApp() {
           <span id="uptime-indicator" className="status-item state-online" style={{ fontSize: '0.8em', padding: '6px 12px', border: 'none' }}>
             {t('online')}
           </span>
+          <span
+            id="backend-connection-indicator"
+            className={`status-item ${
+              backendState === 'LIVE' ? 'state-online' :
+              backendState === 'DEMO' ? 'state-online' :
+              backendState === 'UNREACHABLE' ? 'state-offline' : 'state-offline'
+            }`}
+            style={{
+              fontSize: '0.8em',
+              padding: '6px 12px',
+              border: 'none',
+              backgroundColor:
+                backendState === 'LIVE' ? '#2ec4b6' :
+                backendState === 'DEMO' ? '#ff9f1c' :
+                backendState === 'UNREACHABLE' ? '#e71d36' : '#8d99ae',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              borderRadius: '4px'
+            }}
+          >
+            {backendState === 'LIVE' ? t('live_mode') :
+             backendState === 'DEMO' ? t('demo_mode') :
+             backendState === 'UNREACHABLE' ? t('unreachable_mode') : t('checking_mode')}
+          </span>
           <span id="portal-status-label" style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
             {t('portal_status')}
           </span>
@@ -525,6 +570,30 @@ function MainApp() {
           </select>
         </div>
       </div>
+
+      {/* Backend Unreachable Error Banner */}
+      {backendState === 'UNREACHABLE' && (
+        <div style={{
+          backgroundColor: '#e71d36',
+          color: '#ffffff',
+          textAlign: 'center',
+          padding: '12px 20px',
+          fontWeight: 'bold',
+          fontSize: '0.95em',
+          letterSpacing: '0.5px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <span>⚠️</span>
+          <span>
+            {lang === 'fa'
+              ? "خطای اتصال: ارتباط با سرور واقعی برقرار نشد. داده‌های نمایش‌ داده‌شده جنبه دمو/شبیه‌سازی دارند."
+              : "Backend Unreachable: Real-time backend connection is offline. Displayed data is Demo/Mock."}
+          </span>
+        </div>
+      )}
 
       {/* Main Container Layout */}
       <div className="container">

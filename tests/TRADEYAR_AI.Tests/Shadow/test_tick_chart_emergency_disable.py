@@ -19,6 +19,7 @@ class TestTickChartEmergencyDisable(unittest.TestCase):
         self.engine.signals = []
         self.engine.bases = []
         self.engine.nodes = []
+        self.engine.runtime_manager.reset_brains()
 
         # Backup original registry state and configuration
         self.original_registry = self.registry.registry.copy()
@@ -37,6 +38,7 @@ class TestTickChartEmergencyDisable(unittest.TestCase):
         self.registry.registry = self.original_registry
         self.registry.save_registry()
         ConfigurationManager.get_config().tick_chart_analysis_enabled = self.original_flag
+        self.engine.runtime_manager.reset_brains()
 
     def test_disabled_state_behavior(self):
         """

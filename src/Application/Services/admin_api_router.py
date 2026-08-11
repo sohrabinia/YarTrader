@@ -12,21 +12,27 @@ from src.Application.Dashboard.auth_service import global_auth_service
 def enforce_admin_token(token: Optional[str] = None):
     """Enforces strict role-based access control, rejecting non-ADMIN accounts with 403 Forbidden."""
     is_production = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
+    from app.core.logging import log_security
+
+    log_token = f"{token[:8]}..." if token else None
 
     if not token:
         if is_production:
+            log_security("AUTHORIZATION_DENIED", reason="Authentication token is missing")
             raise HTTPException(status_code=401, detail="Authentication token is missing")
         # Fallback testing mode override
         return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
 
     if token == "mock_social_token":
         if is_production:
+            log_security("AUTHORIZATION_DENIED", token=log_token, reason="Mock social token forbidden in production")
             raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
         else:
             return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
 
     session = global_auth_service.validate_session(token)
     if not session or session.get("role") != "ADMIN":
+        log_security("AUTHORIZATION_DENIED", token=log_token, email=session.get("email") if session else None)
         raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
     return session
 
@@ -66,7 +72,8 @@ class SymbolRegistration(BaseModel):
 @router.post("/symbols")
 def register_new_active_symbol_context(payload: SymbolRegistration, token: Optional[str] = None):
     """SRE administrative action to dynamically spin up a new SymbolTimeContext."""
-    enforce_admin_token(token)
+    session = enforce_admin_token(token)
+    admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
     registry_inst = SymbolRegistry.get_instance()
     engine = PredictiveShadowEngine.get_instance()
@@ -77,6 +84,9 @@ def register_new_active_symbol_context(payload: SymbolRegistration, token: Optio
 
         tf_int = payload.timeframe if payload.timeframe is not None else 64
         ctx = engine.get_or_create_context(symbol_upper, tf_int)
+
+        from app.core.logging import log_audit
+        log_audit("SYMBOL_REGISTRY_CHANGE", action="REGISTER", symbol=symbol_upper, timeframes=tfs, actor=admin_email)
 
         return {
             "status": "Success",
@@ -147,13 +157,18 @@ def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[Any] = N
 @router.post("/backup")
 def trigger_backup_snapshot(token: Optional[str] = None):
     """SRE administrative action to trigger an atomic snapshot backup of persistent state."""
-    enforce_admin_token(token)
+    session = enforce_admin_token(token)
+    admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Application.Runtime.backup_manager import BackupManager
     manager = BackupManager()
     try:
         res = manager.create_backup()
+        from app.core.logging import log_audit
+        log_audit("ADMIN_ACTION", action="BACKUP", result="SUCCESS", actor=admin_email)
         return res
     except Exception as e:
+        from app.core.logging import log_audit
+        log_audit("ADMIN_ACTION", action="BACKUP", result="FAILED", error=str(e), actor=admin_email)
         raise HTTPException(status_code=500, detail=str(e))
 
 # 5. SRE Restore operation
@@ -163,11 +178,14 @@ class RestorePayload(BaseModel):
 @router.post("/restore")
 def trigger_restore(payload: RestorePayload, token: Optional[str] = None):
     """SRE administrative action to safely restore persistent state from a backup archive."""
-    enforce_admin_token(token)
+    session = enforce_admin_token(token)
+    admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Application.Runtime.backup_manager import BackupManager
     manager = BackupManager()
     try:
         res = manager.restore_backup(payload.filename)
+        from app.core.logging import log_audit
+        log_audit("ADMIN_ACTION", action="RESTORE", filename=payload.filename, result="SUCCESS", actor=admin_email)
         return res
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

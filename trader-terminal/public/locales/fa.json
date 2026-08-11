@@ -128,5 +128,9 @@
   "dl_html": "دانلود گزارش HTML",
   "dl_json": "دانلود گزارش JSON",
   "dl_markdown": "دانلود گزارش Markdown",
-  "enter_symbol_prompt": "نام نماد جدید را وارد کنید (مانند SOLUSD):"
+  "enter_symbol_prompt": "نام نماد جدید را وارد کنید (مانند SOLUSD):",
+  "live_mode": "زنده (واقعی)",
+  "demo_mode": "دمو / شبیه‌سازی",
+  "unreachable_mode": "عدم اتصال به بک‌اند",
+  "checking_mode": "در حال بررسی اتصال..."
 }

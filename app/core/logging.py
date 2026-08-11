@@ -138,8 +138,23 @@ def _safe_extra(kwargs: Dict[str, Any]) -> Dict[str, Any]:
         "threadName", "processName", "process", "message"
     }
 
+    sensitive_keys = {
+        "password", "password_hash", "token", "secret", "key", "credentials", "private_key", "api_key", "auth", "session"
+    }
+
+    def redact_val(k: str, v: Any) -> Any:
+        kl = str(k).lower()
+        for sk in sensitive_keys:
+            if sk in kl:
+                return "[REDACTED]"
+        if isinstance(v, dict):
+            return {nk: redact_val(nk, nv) for nk, nv in v.items()}
+        if isinstance(v, list):
+            return [redact_val(str(i), nv) for i, nv in enumerate(v)]
+        return v
+
     return {
-        key: value
+        key: redact_val(key, value)
         for key, value in kwargs.items()
         if key not in reserved
     }
