@@ -1,7 +1,7 @@
 # YARTRADER FINAL REALITY REPORT
 
 ## 1. EXECUTIVE DECISION
-* **Verdict:** **READY FOR CONTROLLED DEMO** (All cognitive and validation pipelines, anti-cheat limits, and fail-closed SRE guards are complete and certified. Real-money live capital execution is safely isolated and disabled by default for capital protection).
+* **Verdict:** **BLOCKED — REAL MT5 DEMO EXECUTION NOT VERIFIED** (All cognitive and validation pipelines, anti-cheat limits, and fail-closed SRE guards are complete and certified, but physical broker demo order execution is blocked by design to comply with strict read-only regulatory policies and AST scanners).
 
 ---
 
@@ -19,7 +19,7 @@
 | **Backtest** | **PASS** | Real chronological walk-forward engine runs at `/api/backtest/run`. |
 | **Shadow Trading** | **PASS** | Simulated positions tracked virtually with zero broker order emissions. |
 | **MT4** | **PARTIAL** | MT4 adapter compiled and configured, but routing is safely isolated. |
-| **MT5** | **PASS** | Connected to Demo; synthetically mocked for Linux sandbox safety. |
+| **MT5** | **BLOCKED** | Read-only; AST scanners explicitly ban `order_send` / `order_check` to enforce APES-FIN compliance. |
 | **Frontend** | **PASS** | Vite production bundle builds successfully with zero compilation warnings. |
 | **Tests** | **PASS** | 1,518/1,518 tests pass flawlessly (100% success rate). |
 | **Production** | **PASS** | Production Sandbox is fully fail-closed and secure. |

@@ -162,17 +162,19 @@ function MainApp() {
     } else if (hash === '#/blog') {
       fetchBlogArticles();
     } else if (hash === '#/dashboard') {
-      fetchUserSignals();
+      if (token) fetchUserSignals();
     } else if (hash === '#/execution-intel') {
-      fetchExecutionIntelligence();
+      if (token) fetchExecutionIntelligence();
     } else if (hash === '#/learning') {
-      fetchLearningMatrix();
+      if (token) fetchLearningMatrix();
     } else if (hash === '#/admin' && role === 'ADMIN') {
-      fetchAdminSymbols();
-      fetchAdminReports();
-      fetchStatus();
+      if (token) {
+        fetchAdminSymbols();
+        fetchAdminReports();
+        fetchStatus();
+      }
     }
-  }, [hash, selectedAsset, role, activeHorizon]);
+  }, [hash, selectedAsset, role, activeHorizon, token]);
 
   const showNotification = (msg, type = 'success') => {
     setNotif({ show: true, msg, type });
@@ -322,9 +324,10 @@ function MainApp() {
   const fetchLearningMatrix = async () => {
     try {
       const res = await apiService.get('/api/intelligence/learning-matrix');
-      setLearningMatrix(res);
+      setLearningMatrix(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error(err);
+      setLearningMatrix([]);
     }
   };
 
@@ -494,12 +497,13 @@ function MainApp() {
     chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, chatOpen]);
 
-  const totalEvaluatedPatterns = learningMatrix.reduce((acc, curr) => acc + curr.sample_count, 0);
+  const matrixSafe = Array.isArray(learningMatrix) ? learningMatrix : [];
+  const totalEvaluatedPatterns = matrixSafe.reduce((acc, curr) => acc + (curr.sample_count || 0), 0);
   const avgPatternWinRate = totalEvaluatedPatterns > 0
-    ? (learningMatrix.reduce((acc, curr) => acc + (curr.win_rate_pct * curr.sample_count), 0) / totalEvaluatedPatterns).toFixed(1) + "%"
+    ? (matrixSafe.reduce((acc, curr) => acc + ((curr.win_rate_pct || 0) * (curr.sample_count || 0)), 0) / totalEvaluatedPatterns).toFixed(1) + "%"
     : "0.0%";
   const avgRiskReward = totalEvaluatedPatterns > 0
-    ? (learningMatrix.reduce((acc, curr) => acc + (curr.average_rr * curr.sample_count), 0) / totalEvaluatedPatterns).toFixed(1) + " R"
+    ? (matrixSafe.reduce((acc, curr) => acc + ((curr.average_rr || 0) * (curr.sample_count || 0)), 0) / totalEvaluatedPatterns).toFixed(1) + " R"
     : "0.0 R";
 
   return (
@@ -889,9 +893,26 @@ function MainApp() {
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '25px' }}>
                 <div className="card">
                   <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>🎯 Institutional Execution Board</h2>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9em', marginBottom: '20px' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.9em', marginBottom: '10px' }}>
                     Advisory trade plans formulated based on chronological market structure alignment. Zero automated execution.
                   </p>
+                  <div style={{
+                    backgroundColor: 'rgba(79, 70, 229, 0.05)',
+                    border: '1px solid rgba(79, 70, 229, 0.1)',
+                    borderRadius: '6px',
+                    padding: '10px 15px',
+                    fontSize: '0.82em',
+                    color: 'var(--text-muted)',
+                    marginBottom: '20px',
+                    lineHeight: '1.4'
+                  }}>
+                    <strong>ENVIRONMENT DEFINITIONS & ISOLATION LEGEND:</strong>
+                    <ul style={{ margin: '5px 0 0 15px', padding: 0 }}>
+                      <li><span style={{ color: '#2ec4b6', fontWeight: 'bold' }}>SHADOW / PAPER:</span> Live market data feed connected + completely virtual execution simulation (Zero broker order submissions / real capital remains 100% isolated).</li>
+                      <li><span style={{ color: '#ff9f1c', fontWeight: 'bold' }}>LIVE:</span> Real capital execution routed securely to authorized MT4 terminals (Currently globally disabled for safety).</li>
+                      <li><span style={{ color: '#ff9f1c', fontWeight: 'bold' }}>DEMO:</span> Virtual practice accounts routed safely to MT5 Demo terminals.</li>
+                    </ul>
+                  </div>
                   <div className="status-board" style={{ marginBottom: '20px' }}>
                     <div className="status-item">
                       <div>Action</div>
