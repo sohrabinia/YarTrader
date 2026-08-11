@@ -129,15 +129,34 @@ security_handler.setFormatter(JSONFormatter())
 security_logger.addHandler(security_handler)
 
 
+def _safe_extra(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    reserved = {
+        "name", "msg", "args", "levelname", "levelno",
+        "pathname", "filename", "module", "exc_info",
+        "exc_text", "stack_info", "lineno", "funcName",
+        "created", "msecs", "relativeCreated", "thread",
+        "threadName", "processName", "process", "message"
+    }
+
+    return {
+        key: value
+        for key, value in kwargs.items()
+        if key not in reserved
+    }
+
+
 def log_event(level: str, event: str, **kwargs: Any) -> None:
     lvl = getattr(logging, level.upper(), logging.INFO)
-    logger.log(lvl, event, extra=kwargs)
+    logger.log(lvl, event, extra=_safe_extra(kwargs))
+
 
 def log_audit(event: str, **kwargs: Any) -> None:
-    audit_logger.info(event, extra=kwargs)
+    audit_logger.info(event, extra=_safe_extra(kwargs))
+
 
 def log_intelligence_decision(event: str, **kwargs: Any) -> None:
-    intelligence_logger.info(event, extra=kwargs)
+    intelligence_logger.info(event, extra=_safe_extra(kwargs))
+
 
 def log_security(event: str, **kwargs: Any) -> None:
-    security_logger.info(event, extra=kwargs)
+    security_logger.info(event, extra=_safe_extra(kwargs))
