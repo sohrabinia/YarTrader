@@ -162,17 +162,19 @@ function MainApp() {
     } else if (hash === '#/blog') {
       fetchBlogArticles();
     } else if (hash === '#/dashboard') {
-      fetchUserSignals();
+      if (token) fetchUserSignals();
     } else if (hash === '#/execution-intel') {
-      fetchExecutionIntelligence();
+      if (token) fetchExecutionIntelligence();
     } else if (hash === '#/learning') {
-      fetchLearningMatrix();
+      if (token) fetchLearningMatrix();
     } else if (hash === '#/admin' && role === 'ADMIN') {
-      fetchAdminSymbols();
-      fetchAdminReports();
-      fetchStatus();
+      if (token) {
+        fetchAdminSymbols();
+        fetchAdminReports();
+        fetchStatus();
+      }
     }
-  }, [hash, selectedAsset, role, activeHorizon]);
+  }, [hash, selectedAsset, role, activeHorizon, token]);
 
   const showNotification = (msg, type = 'success') => {
     setNotif({ show: true, msg, type });
@@ -322,9 +324,10 @@ function MainApp() {
   const fetchLearningMatrix = async () => {
     try {
       const res = await apiService.get('/api/intelligence/learning-matrix');
-      setLearningMatrix(res);
+      setLearningMatrix(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error(err);
+      setLearningMatrix([]);
     }
   };
 
@@ -494,12 +497,13 @@ function MainApp() {
     chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages, chatOpen]);
 
-  const totalEvaluatedPatterns = learningMatrix.reduce((acc, curr) => acc + curr.sample_count, 0);
+  const matrixSafe = Array.isArray(learningMatrix) ? learningMatrix : [];
+  const totalEvaluatedPatterns = matrixSafe.reduce((acc, curr) => acc + (curr.sample_count || 0), 0);
   const avgPatternWinRate = totalEvaluatedPatterns > 0
-    ? (learningMatrix.reduce((acc, curr) => acc + (curr.win_rate_pct * curr.sample_count), 0) / totalEvaluatedPatterns).toFixed(1) + "%"
+    ? (matrixSafe.reduce((acc, curr) => acc + ((curr.win_rate_pct || 0) * (curr.sample_count || 0)), 0) / totalEvaluatedPatterns).toFixed(1) + "%"
     : "0.0%";
   const avgRiskReward = totalEvaluatedPatterns > 0
-    ? (learningMatrix.reduce((acc, curr) => acc + (curr.average_rr * curr.sample_count), 0) / totalEvaluatedPatterns).toFixed(1) + " R"
+    ? (matrixSafe.reduce((acc, curr) => acc + ((curr.average_rr || 0) * (curr.sample_count || 0)), 0) / totalEvaluatedPatterns).toFixed(1) + " R"
     : "0.0 R";
 
   return (
