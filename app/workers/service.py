@@ -90,9 +90,9 @@ class TradeYarAIServiceHost:
                 log_service_message("Workers Started — Research Worker")
                 self.research_worker.start()
 
-            if self.config.workers_intelligence:
-                log_service_message("Workers Started — Intelligence Worker")
-                self.intelligence_worker.start()
+            # Continuous IntelligenceWorker is deprecated and removed from orchestration.
+            # Active startup dependency has been completely removed to avoid server CPU pressure.
+            log_service_message("Workers Started — Intelligence Worker (DEPRECATED/SKIPPED)")
 
             log_service_message("Workers Started — Shadow Trading Worker")
             self.shadow_worker.start()
@@ -131,7 +131,8 @@ class TradeYarAIServiceHost:
         # 1. Stop workers
         try:
             self.research_worker.stop()
-            self.intelligence_worker.stop()
+            # Continuous IntelligenceWorker is deprecated and removed from active shutdown.
+            # self.intelligence_worker.stop()
             self.shadow_worker.stop()
         except Exception as e:
             log_service_message(f"Exception during worker shutdown: {str(e)}")

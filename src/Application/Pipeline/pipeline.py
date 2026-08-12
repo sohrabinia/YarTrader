@@ -93,7 +93,10 @@ class IntelligencePipeline:
 
         self._config = config or PipelineConfig()
 
-    def execute(self, context: PipelineContext) -> PipelineResult:
+    def _execute_common_steps(self, context: PipelineContext):
+        """
+        Internal helper sharing the exact steps 1 to 4 to prevent pipeline logic duplication.
+        """
         # Enforce that only execution simulation mode is supported for safety
         if not self._config.SimulationMode:
             raise ValueError(
@@ -135,6 +138,11 @@ class IntelligencePipeline:
         proposed_weights = {context.Asset: strat_eval.Score.OverallScore}
         risk_assess = self._risk_engine.analyze_risk(proposed_weights, context.TargetRiskProfile)
 
+        return data_resp, research_res, candidate, strat_eval, risk_assess, proposed_weights
+
+    def execute(self, context: PipelineContext) -> PipelineResult:
+        data_resp, research_res, candidate, strat_eval, risk_assess, proposed_weights = self._execute_common_steps(context)
+
         # 5. Decision Layer Integration
         dec_context = DecisionContext(
             StrategyId=candidate.Id,
@@ -168,45 +176,7 @@ class IntelligencePipeline:
         Executes the advanced multi-factor intelligence pipeline incorporating
         the Advanced Decision Intelligence Layer.
         """
-        if not self._config.SimulationMode:
-            raise ValueError(
-                "Execution is strictly restricted to simulation mode only. "
-                "Real trading, broker connection, and real money operations are prohibited."
-            )
-
-        # 1. Ingest/Data Layer Acquisition
-        lookback = self._config.LookbackDays
-        data_req = MarketDataRequest(
-            Asset=context.Asset,
-            StartTime=context.StartTime - timedelta(days=lookback),
-            EndTime=context.StartTime,
-            Timeframe=context.Timeframe
-        )
-        data_resp = self._data_provider.retrieve_market_data(data_req)
-
-        # 2. Research Layer Interpretation
-        res_req = ResearchRequest(
-            Asset=context.Asset,
-            StartTime=data_req.StartTime,
-            EndTime=data_req.EndTime,
-            Context={"bars_count": len(data_resp.DataPoints), "simulation": self._config.SimulationMode}
-        )
-        research_res = self._research_engine.analyze_market(res_req)
-
-        # 3. Strategy Layer Assessment
-        candidate = StrategyCandidate(
-            Id=f"cand-{context.Asset}",
-            Name="Pipeline Momentum Concept",
-            Description=f"Momentum concept for {context.Asset}",
-            ResearchContext=research_res.Findings,
-            CreatedAt=datetime.now(),
-            EvaluationStatus="Pending"
-        )
-        strat_eval = self._strategy_evaluator.evaluate(candidate)
-
-        # 4. Risk Layer Verification
-        proposed_weights = {context.Asset: strat_eval.Score.OverallScore}
-        risk_assess = self._risk_engine.analyze_risk(proposed_weights, context.TargetRiskProfile)
+        data_resp, research_res, candidate, strat_eval, risk_assess, proposed_weights = self._execute_common_steps(context)
 
         # 5. Advanced Decision Layer Integration
         from src.Decision.Intelligence.services import DecisionContextBuilder
