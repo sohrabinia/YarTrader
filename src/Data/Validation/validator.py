@@ -74,6 +74,9 @@ class DataQualityAnalyzer:
             if "timestamp" in actual_expected and "time" in r and "timestamp" not in r:
                 actual_expected.remove("timestamp")
                 actual_expected.append("time")
+            if "volume" in actual_expected and "tick_volume" in r and "volume" not in r:
+                actual_expected.remove("volume")
+                actual_expected.append("tick_volume")
 
             # 1. Schema check
             mismatches = validator.validate_record_schema(r, actual_expected)

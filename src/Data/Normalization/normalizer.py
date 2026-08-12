@@ -51,6 +51,11 @@ class DataNormalizer:
             t_key = f_map.get("timestamp", "timestamp")
 
             # 3. Timestamp Normalization
+            if t_key not in r and "time" in r:
+                t_key = "time"
+            if v_key not in r and "tick_volume" in r:
+                v_key = "tick_volume"
+
             raw_ts = r.get(t_key)
             if raw_ts is None:
                 continue

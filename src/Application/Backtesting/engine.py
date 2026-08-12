@@ -105,31 +105,11 @@ class IntelligenceBacktestEngine:
             # 2. Ingest into Agent Ecosystem
             agent_ctx = AgentContextBuilder.create_with_market_data(symbol, scenario.timeframe)
             if normalized_records:
-                # Add sample records to data
+                # Add actual normalized records to context so agents can read and process them dynamically
                 agent_ctx = agent_ctx.enrich(
                     "system",
-                    "ResearchReport",
-                    {
-                        "findings": ["Bullish trend checked during backtest."],
-                        "features": {"trend_strength": 0.85}
-                    }
-                )
-                agent_ctx = agent_ctx.enrich(
-                    "system",
-                    "StrategyEvaluation",
-                    {
-                        "strategy_id": "strat-momentum",
-                        "score": {"OverallScore": 0.85, "Confidence": 0.90}
-                    }
-                )
-                agent_ctx = agent_ctx.enrich(
-                    "system",
-                    "RiskAssessment",
-                    {
-                        "IsApproved": True,
-                        "RiskProfileName": "Moderate",
-                        "PortfolioRiskMetrics": {"annualized_volatility": 0.12, "max_drawdown": 0.05}
-                    }
+                    "normalized_records",
+                    normalized_records
                 )
 
             # Orchestrate agents

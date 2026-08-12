@@ -128,6 +128,7 @@ class TestDataFlowAndGatewayIntegration(unittest.TestCase):
     def test_simulation_4_corrupted_market_data_rejected(self) -> None:
         sim_p = SimulationDataProvider()
         connector = ExternalDataPipelineConnector()
+        connector.gateway.registry.unregister_provider("mt5-provider")
         connector.gateway.registry.register_provider(sim_p)
 
         req = ExternalDataRequest("EURUSD", "M15", self.now - timedelta(hours=2), self.now, parameters={"scenario": "CORRUPTED_MARKET_DATA"})
