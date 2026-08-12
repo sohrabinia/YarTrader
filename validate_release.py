@@ -64,10 +64,14 @@ class ReleaseValidationPlatform:
 
         # Determine the most suitable Python executable
         self.python_exec = sys.executable
-        # Prioritize Pyenv python or virtualenv python with pytest installed
+        # Prioritize local virtual environment python or Pyenv python or virtualenv python with pytest installed
+        local_venv_python = os.path.abspath("venv/bin/python")
         pyenv_python = "/home/jules/.pyenv/versions/3.12.13/bin/python"
         pipx_pytest_python = "/home/jules/.local/share/pipx/venvs/pytest/bin/python"
-        if os.path.exists(pyenv_python):
+
+        if os.path.exists(local_venv_python):
+            self.python_exec = local_venv_python
+        elif os.path.exists(pyenv_python):
             self.python_exec = pyenv_python
         elif os.path.exists(pipx_pytest_python):
             self.python_exec = pipx_pytest_python
