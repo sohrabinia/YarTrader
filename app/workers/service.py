@@ -250,4 +250,19 @@ if __name__ == "__main__":
             log_service_message("Windows Service packages are not installed on this system. Running standalone instead...")
             run_standalone()
     else:
-        run_standalone()
+        # Check if run by the Windows Service Control Manager (SCM)
+        if WINDOWS_SERVICE_SUPPORTED:
+            try:
+                servicemanager.Initialize()
+                servicemanager.PrepareToHostSingle(TradeYarAIWindowsService)
+                servicemanager.StartServiceCtrlDispatcher()
+            except Exception as e:
+                # If we cannot connect to SCM (e.g. running interactively), fallback to standalone console
+                winerr = getattr(e, "winerror", None)
+                if winerr == 1063:  # ERROR_FAILED_SERVICE_CONTROLLER_CONNECT
+                    run_standalone()
+                else:
+                    log_service_message(f"SCM dispatcher failed: {str(e)}. Falling back to standalone...")
+                    run_standalone()
+        else:
+            run_standalone()
