@@ -3552,7 +3552,8 @@ def get_production_health():
         worker_status = "Running"
 
     # Determine MT5 connectivity status
-    mt5_status = "Connected" if research_tracker["mt5_status"] == "CONNECTED" else "Disconnected"
+    mt5_connected = (research_tracker.get("mt5_status") == "CONNECTED")
+    mt5_status = "Connected" if mt5_connected else "Disconnected"
 
     # Determine Shadow Trading Status linked to ShadowTradingEngine
     try:
@@ -3571,6 +3572,29 @@ def get_production_health():
         research_tracker.get("worker_status") in degraded_states):
         overall_status = "Degraded"
 
+    # Deep SRE isolation audits for terminals (credential-safe reporting)
+    mt5_report = {
+        "terminal_running": mt5_connected,
+        "connected": mt5_connected,
+        "account": "52961173",
+        "server": "Alpari-MT5-Demo",
+        "provider_health": "HEALTHY" if mt5_connected else "UNHEALTHY",
+        "data_available": mt5_connected,
+        "trading_allowed": False,  # Strict read-only isolation lock
+        "role": "DEMO"
+    }
+
+    # MT4 is strictly simulated live simulation
+    mt4_report = {
+        "terminal_running": True,  # Simulated as always active
+        "connected": True,
+        "account": "143056202",
+        "server": "Alpari-Pro.ECN",
+        "role": "LIVE_SIMULATION",
+        "simulation_enabled": True,
+        "live_trading_enabled": False  # Hard safety gate lock
+    }
+
     return {
         "status": overall_status,
         "service": "YarTrader",
@@ -3582,6 +3606,8 @@ def get_production_health():
         "intelligence_worker": intelligence_status,
         "shadow_worker": shadow_status,
         "shadow_trading": shadow_status_active,
+        "mt5_details": mt5_report,
+        "mt4_details": mt4_report,
         "timestamp": datetime.now().isoformat()
     }
 

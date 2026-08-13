@@ -1,0 +1,115 @@
+import os
+import unittest
+from unittest.mock import MagicMock, patch
+from fastapi.testclient import TestClient
+
+from src.Infrastructure.exceptions import ValidationException
+from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
+from src.Infrastructure.Configuration.settings import BaseSettings
+from src.Application.Services.web_dashboard import app
+
+class TestMetaTraderSafetyHardening(unittest.TestCase):
+    def setUp(self) -> None:
+        self.client = TestClient(app)
+
+    def test_safety_gate_permits_authorized_mt5_data_operation(self) -> None:
+        """Verifies that Safety Gate allows valid read-only MT5 operations."""
+        res = MetaTraderSafetyGate.verify_operation(
+            terminal_type="MT5",
+            operation_type="DATA",
+            account_id="52961173",
+            server_name="Alpari-MT5-Demo"
+        )
+        self.assertTrue(res)
+
+    def test_safety_gate_rejects_unauthorized_mt5_account(self) -> None:
+        """Verifies that Safety Gate blocks unauthorized accounts on MT5."""
+        with self.assertRaises(ValidationException) as ctx:
+            MetaTraderSafetyGate.verify_operation(
+                terminal_type="MT5",
+                operation_type="DATA",
+                account_id="99999999",  # Unauthorized account
+                server_name="Alpari-MT5-Demo"
+            )
+        self.assertIn("unauthorized account", str(ctx.exception))
+
+    def test_safety_gate_rejects_unauthorized_mt5_server(self) -> None:
+        """Verifies that Safety Gate blocks unauthorized servers on MT5."""
+        with self.assertRaises(ValidationException) as ctx:
+            MetaTraderSafetyGate.verify_operation(
+                terminal_type="MT5",
+                operation_type="DATA",
+                account_id="52961173",
+                server_name="Insecure-Live-Server"  # Unauthorized server
+            )
+        self.assertIn("unauthorized server", str(ctx.exception))
+
+    def test_safety_gate_rejects_live_trading_operation_completely(self) -> None:
+        """Verifies that SRE Safety Gate completely blocks real live trading execution."""
+        with self.assertRaises(ValidationException) as ctx:
+            MetaTraderSafetyGate.verify_operation(
+                terminal_type="MT5",
+                operation_type="REAL_LIVE"
+            )
+        self.assertIn("Real Live Trading is hard-disabled", str(ctx.exception))
+
+    def test_safety_gate_rejects_live_trading_enabled_config_manipulation(self) -> None:
+        """Verifies that even if config flag is enabled, SRE Safety Gate blocks real live operations."""
+        with patch("src.Infrastructure.Configuration.config.ConfigurationManager.get_config") as mock_get_config:
+            mock_conf = MagicMock()
+            mock_conf.live_trading_enabled = True
+            mock_get_config.return_value = mock_conf
+
+            with self.assertRaises(ValidationException) as ctx:
+                MetaTraderSafetyGate.verify_operation(
+                    terminal_type="MT4",
+                    operation_type="REAL_LIVE"
+                )
+            self.assertIn("Real Live Trading is hard-disabled", str(ctx.exception))
+
+    def test_safety_gate_allows_mt4_live_simulation(self) -> None:
+        """Verifies that MT4 can perform simulated live operations under the official account."""
+        res = MetaTraderSafetyGate.verify_operation(
+            terminal_type="MT4",
+            operation_type="LIVE_SIMULATION",
+            account_id="143056202",
+            server_name="Alpari-Pro.ECN"
+        )
+        self.assertTrue(res)
+
+    def test_safety_gate_rejects_mt4_unauthorized_server(self) -> None:
+        """Verifies that MT4 live simulation fails if connected to unauthorized broker servers."""
+        with self.assertRaises(ValidationException) as ctx:
+            MetaTraderSafetyGate.verify_operation(
+                terminal_type="MT4",
+                operation_type="LIVE_SIMULATION",
+                account_id="143056202",
+                server_name="Real-Live-Server"
+            )
+        self.assertIn("unauthorized server", str(ctx.exception))
+
+    def test_health_endpoint_details_isolation(self) -> None:
+        """Verifies that the /health API endpoint reports correct segregated MT5/MT4 schemas without credential leakage."""
+        resp = self.client.get("/health")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        self.assertIn("mt5_details", data)
+        self.assertIn("mt4_details", data)
+
+        mt5_det = data["mt5_details"]
+        self.assertEqual(mt5_det["account"], "52961173")
+        self.assertEqual(mt5_det["server"], "Alpari-MT5-Demo")
+        self.assertEqual(mt5_det["trading_allowed"], False)
+        self.assertEqual(mt5_det["role"], "DEMO")
+
+        mt4_det = data["mt4_details"]
+        self.assertEqual(mt4_det["account"], "143056202")
+        self.assertEqual(mt4_det["server"], "Alpari-Pro.ECN")
+        self.assertEqual(mt4_det["live_trading_enabled"], False)
+        self.assertEqual(mt4_det["role"], "LIVE_SIMULATION")
+
+        # Confirm no passwords or raw credentials are leaked
+        self.assertNotIn("password", str(data))
+        self.assertNotIn("token", str(data))
+        self.assertNotIn("secret", str(data))

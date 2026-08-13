@@ -302,29 +302,32 @@ function MainApp() {
   const fetchBlogArticles = async () => {
     try {
       const res = await apiService.get('/api/blog');
-      setBlogArticles(res);
+      setBlogArticles(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error(err);
+      setBlogArticles([]);
     }
   };
 
   const fetchUserSignals = async () => {
     try {
       const mkts = await apiService.get('/api/user/markets');
-      setMarkets(mkts);
+      setMarkets(Array.isArray(mkts) ? mkts : []);
       const sigs = await apiService.get(`/api/user/signals?horizon=${activeHorizon}`);
-      setSignals(sigs);
+      setSignals(Array.isArray(sigs) ? sigs : []);
     } catch (err) {
       console.error(err);
+      setSignals([]);
     }
   };
 
   const fetchLearningMatrix = async () => {
     try {
       const res = await apiService.get('/api/intelligence/learning-matrix');
-      setLearningMatrix(res);
+      setLearningMatrix(Array.isArray(res) ? res : []);
     } catch (err) {
       console.error(err);
+      setLearningMatrix([]);
     }
   };
 
@@ -364,9 +367,11 @@ function MainApp() {
     try {
       const currentToken = localStorage.getItem('yartrader_token') || token || '';
       const res = await apiService.get(`/api/admin/symbols?token=${encodeURIComponent(currentToken)}`);
-      setAdminSymbols(res.registered_symbols || res.active_symbols || res || []);
+      const symList = res.registered_symbols || res.active_symbols || res || [];
+      setAdminSymbols(Array.isArray(symList) ? symList : []);
     } catch (err) {
       console.error(err);
+      setAdminSymbols([]);
     }
   };
 
@@ -374,9 +379,11 @@ function MainApp() {
     try {
       const currentToken = localStorage.getItem('yartrader_token') || token || '';
       const res = await apiService.get(`/api/admin/reports?token=${encodeURIComponent(currentToken)}`);
-      setAdminReports(res.reports || res || []);
+      const repList = res.reports || res || [];
+      setAdminReports(Array.isArray(repList) ? repList : []);
     } catch (err) {
       console.error(err);
+      setAdminReports([]);
     }
   };
 
@@ -789,7 +796,7 @@ function MainApp() {
 
                 {/* Signals Feed Grid */}
                 <div className="blog-grid">
-                  {signals && signals.length > 0 ? (
+                  {signals && Array.isArray(signals) && signals.length > 0 ? (
                     signals
                       .filter(s => {
                         if (selectedAsset === 'all') return true;
