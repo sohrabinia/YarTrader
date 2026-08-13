@@ -1,16 +1,28 @@
 import os
 import sys
+import site
+
+# 1. Forensic virtual environment site-packages bootstrap
+# Set working directory to project root relative to this file
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+os.chdir(project_root)
+
+# Prepend project root to sys.path
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Locate and dynamically add the virtual environment's site-packages to sys.path
+# This ensures pythonservice.exe (running as LocalSystem) can find uvicorn, fastapi, etc.
+venv_site_packages = os.path.join(project_root, ".venv", "Lib", "site-packages")
+if os.path.isdir(venv_site_packages):
+    site.addsitedir(venv_site_packages)
+
 import time
 import signal
 import threading
 import uvicorn
 from datetime import datetime
 from typing import Any, Dict, Optional
-
-# Set working directory to project root relative to this file
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-os.chdir(project_root)
-sys.path.insert(0, project_root)
 
 # Signal to web_dashboard to bypass duplicate background worker loops
 os.environ["TRADEYAR_SERVICE_RUN"] = "True"
@@ -152,8 +164,8 @@ class TradeYarAIServiceHost:
 if WINDOWS_SERVICE_SUPPORTED:
     class TradeYarAIWindowsService(win32serviceutil.ServiceFramework):
         """Native Windows Service Lifecycle handler for TradeYar-AI."""
-        _svc_name_ = "TradeYar-AI"
-        _svc_display_name_ = "TradeYar AI Production Runtime Service"
+        _svc_name_ = "YarTrader"
+        _svc_display_name_ = "YarTrader Production Runtime Service"
         _svc_description_ = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
 
         def __init__(self, args):
@@ -162,37 +174,39 @@ if WINDOWS_SERVICE_SUPPORTED:
             self.host = TradeYarAIServiceHost()
 
         def SvcStop(self):
+            log_service_message("SERVICE_STOP_REQUESTED")
             # Report stop pending to SCM
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
             self.host.stop()
+            log_service_message("SERVICE_HOST_STOPPED")
             win32event.SetEvent(self.hWaitStop)
 
         def SvcDoRun(self):
             try:
-                # Log started state natively to Windows Event Viewer and files
-                servicemanager.Initialize()
-                servicemanager.PrepareToHostSingle(self)
-                servicemanager.LogMsg(
-                    servicemanager.EVENTLOG_INFORMATION_TYPE,
-                    servicemanager.PYS_SERVICE_STARTED,
-                    (self._svc_name_, '')
-                )
-
-                log_service_message("Service starting up via Windows Service Control Manager (SCM)")
+                log_service_message("SERVICE_START_REQUESTED")
                 # Start service host
                 self.host.start()
+                log_service_message("SERVICE_HOST_STARTED")
+
+                # Report RUNNING status to SCM
+                self.ReportServiceStatus(win32service.SERVICE_RUNNING)
+                log_service_message("SERVICE_RUNNING")
 
                 # Wait for SCM stop notification
                 win32event.WaitForSingleObject(self.hWaitStop, win32event.INFINITE)
+                log_service_message("SERVICE_STOPPED")
             except Exception as e:
+                log_service_message("SERVICE_START_FAILURE")
                 crash_msg = f"Windows Service Crash/Failure: {str(e)}"
                 log_service_message(crash_msg)
                 try:
                     import traceback
                     log_service_message(traceback.format_exc())
-                    servicemanager.LogErrorMsg(f"{self._svc_name_} - {crash_msg}")
+                    if WINDOWS_SERVICE_SUPPORTED:
+                        servicemanager.LogErrorMsg(f"{self._svc_name_} - {crash_msg}")
                 except Exception:
                     pass
+                self.ReportServiceStatus(win32service.SERVICE_STOPPED)
                 raise
 else:
     class TradeYarAIWindowsService:
@@ -229,7 +243,7 @@ def run_standalone():
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] in ["install", "remove", "start", "stop", "debug"]:
+    if len(sys.argv) > 1 and sys.argv[1] in ["install", "remove", "start", "stop", "debug", "update"]:
         if WINDOWS_SERVICE_SUPPORTED:
             win32serviceutil.HandleCommandLine(TradeYarAIWindowsService)
         else:
@@ -238,9 +252,17 @@ if __name__ == "__main__":
     else:
         # Check if run by the Windows Service Control Manager (SCM)
         if WINDOWS_SERVICE_SUPPORTED:
-            # Handle native SCM run dispatching
-            servicemanager.Initialize()
-            servicemanager.PrepareToHostSingle(TradeYarAIWindowsService)
-            servicemanager.StartServiceCtrlDispatcher()
+            try:
+                servicemanager.Initialize()
+                servicemanager.PrepareToHostSingle(TradeYarAIWindowsService)
+                servicemanager.StartServiceCtrlDispatcher()
+            except Exception as e:
+                # If we cannot connect to SCM (e.g. running interactively), fallback to standalone console
+                winerr = getattr(e, "winerror", None)
+                if winerr == 1063:  # ERROR_FAILED_SERVICE_CONTROLLER_CONNECT
+                    run_standalone()
+                else:
+                    log_service_message(f"SCM dispatcher failed: {str(e)}. Falling back to standalone...")
+                    run_standalone()
         else:
             run_standalone()

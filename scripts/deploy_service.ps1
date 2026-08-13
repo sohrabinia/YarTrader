@@ -1,13 +1,13 @@
-# PowerShell NSSM Service Deployment Script for TradeYar-AI
-# Coordinates registering TradeYar-AI as a background 24/7 Windows Service using NSSM.
+# PowerShell NSSM Service Deployment Script for YarTrader
+# Coordinates registering YarTrader as a background 24/7 Windows Service using NSSM.
 # Enforces delayed auto-start, explicit working directories, log rotation, and SRE compliance.
 
-$ServiceName = "TradeYar-AI"
-$ServiceDisplayName = "TradeYar AI Production Runtime Service"
+$ServiceName = "YarTrader"
+$ServiceDisplayName = "YarTrader Production Runtime Service"
 $ServiceDescription = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
 
 # 1. Configuration & Directories
-$TargetWorkDir = "C:\Projects\TradeYar_AI"
+$TargetWorkDir = "C:\Projects\YarTrader"
 $VenvPython = "$TargetWorkDir\.venv\Scripts\python.exe"
 $ScriptPath = "$TargetWorkDir\app\workers\service.py"
 
@@ -16,7 +16,7 @@ $LogStdout = "$LogDir\service_stdout.log"
 $LogStderr = "$LogDir\service_stderr.log"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "Registering TradeYar-AI Windows Service via NSSM..." -ForegroundColor Cyan
+Write-Host "Registering YarTrader Windows Service via NSSM..." -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # Check Administrator Privileges
@@ -101,7 +101,7 @@ if ($nssm) {
     & $nssm set $ServiceName AppThrottle 1500
     & $nssm set $ServiceName AppExit Default Restart
 
-    Write-Host "Successfully registered and hardened TradeYar-AI service via NSSM!" -ForegroundColor Green
+    Write-Host "Successfully registered and hardened YarTrader service via NSSM!" -ForegroundColor Green
     Write-Host "Log Rotation limit set to 10MB." -ForegroundColor Green
     Write-Host "Working directory locked to: $TargetWorkDir" -ForegroundColor Green
 } else {
@@ -119,7 +119,7 @@ if ($nssm) {
     sc.exe description $ServiceName "$ServiceDescription" | Out-Null
     sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
 
-    Write-Host "Successfully registered TradeYar-AI service natively using sc.exe fallback!" -ForegroundColor Green
+    Write-Host "Successfully registered YarTrader service natively using sc.exe fallback!" -ForegroundColor Green
 }
 
 Write-Host "To manage the service, use start_service.ps1 and stop_service.ps1." -ForegroundColor Green

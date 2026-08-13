@@ -1,6 +1,6 @@
-# Stop TradeYar-AI Windows Service Script
+# Stop YarTrader Windows Service Script
 
-$ServiceName = "TradeYar-AI"
+$ServiceName = "YarTrader"
 
 Write-Host "Stopping $ServiceName service..." -ForegroundColor Cyan
 

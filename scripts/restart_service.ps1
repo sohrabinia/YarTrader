@@ -1,6 +1,6 @@
-# Restart TradeYar-AI Windows Service Script
+# Restart YarTrader Windows Service Script
 
-Write-Host "Restarting TradeYar-AI Windows Service..." -ForegroundColor Cyan
+Write-Host "Restarting YarTrader Windows Service..." -ForegroundColor Cyan
 
 & "$PSScriptRoot\stop_service.ps1"
 Start-Sleep -Seconds 2

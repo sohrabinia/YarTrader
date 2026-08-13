@@ -1,16 +1,16 @@
-# PowerShell Production Deployment Script for TradeYar AI
-# Location: C:\Projects\TradeYar_AI\scripts\deploy_production.ps1
+# PowerShell Production Deployment Script for YarTrader
+# Location: C:\Projects\YarTrader\scripts\deploy_production.ps1
 #
 # Idempotency Rule: This script can be run multiple times safely.
 # It validates production artifacts, verifies environment configurations,
-# and checks the status of the TradeYar-AI background service.
+# and checks the status of the YarTrader background service.
 
-$ServiceName = "TradeYar-AI"
+$ServiceName = "YarTrader"
 $TargetWorkDir = Split-Path -Parent $PSScriptRoot
 Set-Location $TargetWorkDir
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "TradeYar AI Production Deployment Automation" -ForegroundColor Cyan
+Write-Host "YarTrader Production Deployment Automation" -ForegroundColor Cyan
 Write-Host "Target Directory: $TargetWorkDir" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
@@ -119,7 +119,7 @@ if (-not (Test-Path $EnvFile)) {
 # ------------------------------------------------------------------------------
 # STEP 4: Windows Service Verification
 # ------------------------------------------------------------------------------
-Write-Host "`n[+] Step 4: Checking TradeYar-AI Windows Service..." -ForegroundColor Cyan
+Write-Host "`n[+] Step 4: Checking YarTrader Windows Service..." -ForegroundColor Cyan
 
 $Service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 
@@ -135,7 +135,7 @@ if ($Service) {
             $NewService = Get-Service -Name $ServiceName
             Write-Host "  [OK] Service restarted successfully. New Status: $($NewService.Status)" -ForegroundColor Green
         } catch {
-            Write-Host "  [WARN] Failed to automatically restart service. You may need to manually restart 'TradeYar-AI'." -ForegroundColor Yellow
+            Write-Host "  [WARN] Failed to automatically restart service. You may need to manually restart 'YarTrader'." -ForegroundColor Yellow
             Write-Host "  Error detail: $_" -ForegroundColor Yellow
         }
     } else {

@@ -1,8 +1,8 @@
-# Install TradeYar-AI Windows Service Script
-# This script installs and registers TradeYar-AI as a Windows Service running 24/7 on Windows Server using the local virtual environment Python.
+# Install YarTrader Windows Service Script
+# This script installs and registers YarTrader as a Windows Service running 24/7 on Windows Server using the local virtual environment Python.
 
-$ServiceName = "TradeYar-AI"
-$ServiceDisplayName = "TradeYar AI Production Runtime Service"
+$ServiceName = "YarTrader"
+$ServiceDisplayName = "YarTrader Production Runtime Service"
 $ServiceDescription = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
 
 # 1. Resolve local virtual environment Python
@@ -12,7 +12,7 @@ $ScriptPath = "$PSScriptRoot\..\app\workers\service.py"
 $WorkDir = "$PSScriptRoot\.."
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "Installing TradeYar-AI Windows Service..." -ForegroundColor Cyan
+Write-Host "Installing YarTrader Windows Service..." -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # Check Administrator Privileges
@@ -83,7 +83,7 @@ if ($LASTEXITCODE -ne 0) {
     # Subsequent Failures: Restart Service (30s delay -> 30000ms)
     sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
 
-    Write-Host "Successfully registered TradeYar-AI Windows Service natively!" -ForegroundColor Green
+    Write-Host "Successfully registered YarTrader Windows Service natively!" -ForegroundColor Green
 }
 
 Write-Host "To start the service, run: .\start_service.ps1" -ForegroundColor Green
