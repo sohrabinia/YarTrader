@@ -1,16 +1,28 @@
 import os
 import sys
+import site
+
+# 1. Forensic virtual environment site-packages bootstrap
+# Set working directory to project root relative to this file
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+os.chdir(project_root)
+
+# Prepend project root to sys.path
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+# Locate and dynamically add the virtual environment's site-packages to sys.path
+# This ensures pythonservice.exe (running as LocalSystem) can find uvicorn, fastapi, etc.
+venv_site_packages = os.path.join(project_root, ".venv", "Lib", "site-packages")
+if os.path.isdir(venv_site_packages):
+    site.addsitedir(venv_site_packages)
+
 import time
 import signal
 import threading
 import uvicorn
 from datetime import datetime
 from typing import Any, Dict, Optional
-
-# Set working directory to project root relative to this file
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-os.chdir(project_root)
-sys.path.insert(0, project_root)
 
 # Signal to web_dashboard to bypass duplicate background worker loops
 os.environ["TRADEYAR_SERVICE_RUN"] = "True"
