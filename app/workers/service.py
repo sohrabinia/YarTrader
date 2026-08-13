@@ -162,37 +162,39 @@ if WINDOWS_SERVICE_SUPPORTED:
             self.host = TradeYarAIServiceHost()
 
         def SvcStop(self):
+            log_service_message("SERVICE_STOP_REQUESTED")
             # Report stop pending to SCM
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
             self.host.stop()
+            log_service_message("SERVICE_HOST_STOPPED")
             win32event.SetEvent(self.hWaitStop)
 
         def SvcDoRun(self):
             try:
-                # Log started state natively to Windows Event Viewer and files
-                servicemanager.Initialize()
-                servicemanager.PrepareToHostSingle(self)
-                servicemanager.LogMsg(
-                    servicemanager.EVENTLOG_INFORMATION_TYPE,
-                    servicemanager.PYS_SERVICE_STARTED,
-                    (self._svc_name_, '')
-                )
-
-                log_service_message("Service starting up via Windows Service Control Manager (SCM)")
+                log_service_message("SERVICE_START_REQUESTED")
                 # Start service host
                 self.host.start()
+                log_service_message("SERVICE_HOST_STARTED")
+
+                # Report RUNNING status to SCM
+                self.ReportServiceStatus(win32service.SERVICE_RUNNING)
+                log_service_message("SERVICE_RUNNING")
 
                 # Wait for SCM stop notification
                 win32event.WaitForSingleObject(self.hWaitStop, win32event.INFINITE)
+                log_service_message("SERVICE_STOPPED")
             except Exception as e:
+                log_service_message("SERVICE_START_FAILURE")
                 crash_msg = f"Windows Service Crash/Failure: {str(e)}"
                 log_service_message(crash_msg)
                 try:
                     import traceback
                     log_service_message(traceback.format_exc())
-                    servicemanager.LogErrorMsg(f"{self._svc_name_} - {crash_msg}")
+                    if WINDOWS_SERVICE_SUPPORTED:
+                        servicemanager.LogErrorMsg(f"{self._svc_name_} - {crash_msg}")
                 except Exception:
                     pass
+                self.ReportServiceStatus(win32service.SERVICE_STOPPED)
                 raise
 else:
     class TradeYarAIWindowsService:
@@ -229,18 +231,11 @@ def run_standalone():
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] in ["install", "remove", "start", "stop", "debug"]:
+    if len(sys.argv) > 1 and sys.argv[1] in ["install", "remove", "start", "stop", "debug", "update"]:
         if WINDOWS_SERVICE_SUPPORTED:
             win32serviceutil.HandleCommandLine(TradeYarAIWindowsService)
         else:
             log_service_message("Windows Service packages are not installed on this system. Running standalone instead...")
             run_standalone()
     else:
-        # Check if run by the Windows Service Control Manager (SCM)
-        if WINDOWS_SERVICE_SUPPORTED:
-            # Handle native SCM run dispatching
-            servicemanager.Initialize()
-            servicemanager.PrepareToHostSingle(TradeYarAIWindowsService)
-            servicemanager.StartServiceCtrlDispatcher()
-        else:
-            run_standalone()
+        run_standalone()
