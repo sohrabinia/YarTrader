@@ -98,8 +98,8 @@ class BackupManager:
     def _enforce_retention_policy(self, max_keep: int = 5) -> None:
         """Deletes older backup files, keeping only the max_keep most recent ones."""
         backups = glob.glob(os.path.join(self.backup_dir, "backup_*.zip"))
-        # Sort backups descending by modification time (most recent first)
-        backups.sort(key=os.path.getmtime, reverse=True)
+        # Sort lexicographically descending by filename which aligns with %Y%m%d_%H%M%S_%f chronological order
+        backups.sort(reverse=True)
 
         if len(backups) > max_keep:
             for old_backup in backups[max_keep:]:
