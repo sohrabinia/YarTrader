@@ -1,6 +1,6 @@
-# Start TradeYar-AI Windows Service Script
+# Start YarTrader Windows Service Script
 
-$ServiceName = "TradeYar-AI"
+$ServiceName = "YarTrader"
 
 Write-Host "Starting $ServiceName service..." -ForegroundColor Cyan
 

@@ -164,8 +164,8 @@ class TradeYarAIServiceHost:
 if WINDOWS_SERVICE_SUPPORTED:
     class TradeYarAIWindowsService(win32serviceutil.ServiceFramework):
         """Native Windows Service Lifecycle handler for TradeYar-AI."""
-        _svc_name_ = "TradeYar-AI"
-        _svc_display_name_ = "TradeYar AI Production Runtime Service"
+        _svc_name_ = "YarTrader"
+        _svc_display_name_ = "YarTrader Production Runtime Service"
         _svc_description_ = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
 
         def __init__(self, args):

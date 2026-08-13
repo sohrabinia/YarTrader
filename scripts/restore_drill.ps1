@@ -1,9 +1,9 @@
-# PowerShell Disaster Recovery Restore Drill Script for TradeYar AI v3.2
+# PowerShell Disaster Recovery Restore Drill Script for YarTrader
 # Location: scripts/restore_drill.ps1
 #
 # Idempotency Rule: Can be run safely multiple times.
 # This script performs a complete SRE Disaster Recovery and Restore Drill:
-#   1. Gracefully stops the running TradeYar-AI Windows Service.
+#   1. Gracefully stops the running YarTrader Windows Service.
 #   2. Resolves the specified backup archive (or auto-selects the latest).
 #   3. Re-constitutes the entire application configuration and env parameters.
 #   4. Restores database schemas and verifies SQL/JSON structure parsing health.
@@ -17,10 +17,10 @@ param (
 
 $ErrorActionPreference = "Stop"
 $BackupRoot = Join-Path $PSScriptRoot "..\" | Resolve-Path
-$ServiceName = "TradeYar-AI"
+$ServiceName = "YarTrader"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "TradeYar AI v3.2 — Enterprise Disaster Recovery Drill" -ForegroundColor Cyan
+Write-Host "YarTrader — Enterprise Disaster Recovery Drill" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # Check Administrator Privileges
@@ -33,7 +33,7 @@ if (-not $isAdmin) {
 # ------------------------------------------------------------------------------
 # STEP 1: Stop Active System Service
 # ------------------------------------------------------------------------------
-Write-Host "`n[+] Step 1: Stopping TradeYar-AI Background Services..." -ForegroundColor Cyan
+Write-Host "`n[+] Step 1: Stopping YarTrader Background Services..." -ForegroundColor Cyan
 $Service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($Service) {
     if ($isAdmin) {
