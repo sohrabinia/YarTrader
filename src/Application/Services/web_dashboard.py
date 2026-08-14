@@ -3068,18 +3068,31 @@ def get_replay_error_analysis():
 def get_multi_timeframe():
     """
     Exposes the 9-layer market perception matrix for all active symbols.
+    Strictly verifies provider connection; fails closed with DATA UNAVAILABLE if disconnected.
     """
     from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
     from src.Research.Brain.multi_timeframe import MultiTimeframePerception
     from src.Research.Brain.models import MarketObservation
+    from src.Data.MarketData.Models.models import MarketDataRequest
     from datetime import datetime, timedelta
+
+    # 1. Check Provider Health First
+    try:
+        conn_health = global_research_runtime.provider.delegate.get_connection_health()
+        mt5_connected = conn_health.connected
+    except Exception:
+        mt5_connected = False
+
+    if not mt5_connected:
+        raise HTTPException(
+            status_code=400,
+            detail="DATA UNAVAILABLE: MT5 provider is disconnected. Synthetic fallback is strictly forbidden in production."
+        )
 
     registry = SymbolRegistry.get_instance()
     active_matrix = registry.get_active_matrix()
 
-    # Group by symbol
     symbols = sorted(list(set([item[0] for item in active_matrix])))
-
     response_data = {}
 
     from src.Infrastructure.Configuration.config import ConfigurationManager
@@ -3088,36 +3101,64 @@ def get_multi_timeframe():
     if config.tick_chart_analysis_enabled:
         tfs_to_use = ["Tick"] + tfs_to_use
 
+    provider = global_research_runtime.provider
+
     for sym in symbols:
         obs_by_tf = {}
         for tf in tfs_to_use:
-            # Generate 5 consecutive observations with strict symbol-correct, current, plausible prices
-            if sym == "XAUUSD":
-                base_price = 2400.0
-            elif "EUR" in sym:
-                base_price = 1.1000
-            elif "GBP" in sym:
-                base_price = 1.2700
-            elif "JPY" in sym:
-                base_price = 145.0
-            elif "CAD" in sym:
-                base_price = 1.3600
-            elif "CHF" in sym:
-                base_price = 0.8900
-            elif "OIL" in sym:
-                base_price = 78.0
-            elif "XAG" in sym:
-                base_price = 28.0
-            elif "XRP" in sym:
-                base_price = 0.55
-            elif "BTC" in sym:
-                base_price = 65000.0
-            else:
-                base_price = 1.0000
+            # Attempt to fetch real market data from connected provider
+            try:
+                start_time = datetime.now() - timedelta(hours=24)
+                end_time = datetime.now()
+                req = MarketDataRequest(Asset=sym, StartTime=start_time, EndTime=end_time, timeframe=tf)
+                resp = provider.fetch_market_data(req)
 
-            obs_list = []
-            for i in range(5):
-                obs_list.append(
+                if resp.is_success and resp.candles:
+                    obs_list = [
+                        MarketObservation(
+                            symbol=sym,
+                            timeframe=tf,
+                            timestamp=c.timestamp,
+                            high=c.high,
+                            low=c.low,
+                            open_price=c.open,
+                            close_price=c.close,
+                            volume=c.volume
+                        )
+                        for c in resp.candles
+                    ]
+                else:
+                    obs_list = []
+            except Exception:
+                obs_list = []
+
+            # In development/test mode, populate symbol-correct fallback observations if provider returned no candles
+            from src.Data.Providers.MT5.mt5 import is_production
+            if not obs_list and not is_production:
+                if sym == "XAUUSD":
+                    base_price = 2400.0
+                elif "EUR" in sym:
+                    base_price = 1.1000
+                elif "GBP" in sym:
+                    base_price = 1.2700
+                elif "JPY" in sym:
+                    base_price = 145.0
+                elif "CAD" in sym:
+                    base_price = 1.3600
+                elif "CHF" in sym:
+                    base_price = 0.8900
+                elif "OIL" in sym:
+                    base_price = 78.0
+                elif "XAG" in sym:
+                    base_price = 28.0
+                elif "XRP" in sym:
+                    base_price = 0.55
+                elif "BTC" in sym:
+                    base_price = 65000.0
+                else:
+                    base_price = 1.0000
+
+                obs_list = [
                     MarketObservation(
                         symbol=sym,
                         timeframe=tf,
@@ -3128,12 +3169,22 @@ def get_multi_timeframe():
                         close_price=base_price + (i + 1) * 0.5,
                         volume=100.0
                     )
-                )
+                    for i in range(5)
+                ]
+
             obs_by_tf[tf] = obs_list
 
-        perception = MultiTimeframePerception(symbol=sym)
-        ctx = perception.generate_hierarchical_context(sym, obs_by_tf)
-        response_data[sym] = ctx
+        has_any_obs = any(len(obs) > 0 for obs in obs_by_tf.values())
+        if not has_any_obs:
+            response_data[sym] = {
+                "symbol": sym,
+                "status": "DATA UNAVAILABLE",
+                "message": "No current market observations retrieved from provider."
+            }
+        else:
+            perception = MultiTimeframePerception(symbol=sym)
+            ctx = perception.generate_hierarchical_context(sym, obs_by_tf)
+            response_data[sym] = ctx
 
     return response_data
 
@@ -4499,6 +4550,10 @@ def get_user_signals(market: Optional[str] = None, horizon: Optional[str] = None
 
     mapped = []
     for s in signals:
+        # Strictly filter out historical/completed signals from current signals feed
+        if s.get("status") not in ["ACTIVE", "CREATED", "RUNNING"]:
+            continue
+
         # Resolve related shadow trade custom structure to check horizons
         trade_id = s.get("shadow_trade_id")
         trade = next((t for t in engine.trades if t.trade_id == trade_id), None)

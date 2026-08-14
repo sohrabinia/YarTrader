@@ -79,6 +79,10 @@ def get_user_signals(market: Optional[str] = None, horizon: Optional[str] = None
 
     mapped = []
     for s in signals:
+        # Strictly filter out completed/historical signals from active signals feed
+        if s.get("status") not in ["ACTIVE", "CREATED", "RUNNING"]:
+            continue
+
         trade_id = s.get("shadow_trade_id")
         trade = next((t for t in engine.trades if t.trade_id == trade_id), None)
 

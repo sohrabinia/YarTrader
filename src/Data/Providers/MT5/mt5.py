@@ -262,7 +262,7 @@ class MT5DataProvider(IDataProvider):
                 last_error="Connection lost to MT5 terminal."
             )
 
-        if not MT5_AVAILABLE or mt5 is None:
+        if mt5 is None:
             return MT5ConnectionHealth(
                 connected=False,
                 server=self._server,
