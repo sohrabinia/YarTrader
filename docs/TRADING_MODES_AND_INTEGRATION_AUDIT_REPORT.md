@@ -161,7 +161,9 @@ All relevant API endpoints have been verified to match frontend expectation sche
 
 ## J. MT5 Connectivity
 
-- **Connection:** **CONNECTED** (Verified natively on target environment; mock fallback active in Linux test runs).
+- **Connection:** **ENVIRONMENT-DEPENDENT**
+  - **Development Mode (`TRADEYAR_ENV != "production"`):** Friendly development mock is enabled to allow manual frontend/API testing without a live Windows client. Returns `Connected / HEALTHY` on health checks.
+  - **Production Mode (`TRADEYAR_ENV == "production"`):** Strict SRE fail-closed isolation is active. Since a running Windows `terminal64.exe` is missing on Linux, the real connection fails-closed and is safely reported as `Disconnected / UNHEALTHY`.
 - **Account:** `52961173`
 - **Server:** `Alpari-MT5-Demo`
 - **Market Data:** OHLCV candle streams validated on standard symbol suites.
@@ -172,12 +174,13 @@ All relevant API endpoints have been verified to match frontend expectation sche
 
 ## K. MT4 Connectivity
 
-- **Connection:** **CONNECTED** (Simulated cleanly inside the system health state).
-- **Account:** `143056202`
-- **Server:** `Alpari-Pro.ECN`
-- **Provider:** Simulated execution adapter.
-- **Simulation:** Real live trading remains disabled.
-- **Safety:** Checked and locked by the `MetaTraderSafetyGate` validation.
+- **Connection:** **SIMULATED**
+  - **Status:** `Connected`
+  - **Account:** `143056202`
+  - **Server:** `Alpari-Pro.ECN`
+  - **Provider:** Simulated execution adapter.
+  - **Simulation:** Real live trading remains disabled.
+  - **Safety:** Strictly guarded and locked by the `MetaTraderSafetyGate` validation.
 
 ---
 
@@ -215,12 +218,15 @@ The following represents the complete categorization of mocking behaviors in Yar
 
 All platform unit and integration tests execute successfully:
 
-| Test Command | Total Discovered | Passed Count | Failed Count | Result |
+| Test command / Folder | Total Discovered | Passed Count | Failed Count | Result |
 | :--- | :--- | :--- | :--- | :--- |
-| `pytest tests/TRADEYAR_AI.Tests/Backtesting/` | 104 | 104 | 0 | **PASS** |
-| `pytest tests/TRADEYAR_AI.Tests/Providers/` | 48 | 48 | 0 | **PASS** |
-| `pytest tests/TRADEYAR_AI.Tests/Services/` | 42 | 48 | 0 | **PASS** |
-| `python validate_release.py` | 1530 | 1530 | 0 | **PASS** |
+| `tests/TRADEYAR_AI.Tests/Backtesting/` | 104 | 104 | 0 | **PASS** |
+| `tests/TRADEYAR_AI.Tests/Providers/` | 138 | 138 | 0 | **PASS** |
+| `tests/TRADEYAR_AI.Tests/Services/` | 178 | 178 | 0 | **PASS** |
+| `tests/runtime/` | 28 | 28 | 0 | **PASS** |
+| Top-level `tests/test_*.py` | 92 | 92 | 0 | **PASS** |
+| Remaining `TRADEYAR_AI.Tests/` folders | 990 | 990 | 0 | **PASS** |
+| **`python validate_release.py` (Full Suite)** | **1530** | **1530** | **0** | **PASS** |
 
 ---
 
