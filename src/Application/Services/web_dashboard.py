@@ -4129,8 +4129,10 @@ def run_demo_trading_scenario(payload: Dict[str, Any]):
         sl = entry_price * 0.99
         tp = entry_price * 1.025 if direction == "BUY" else entry_price * 0.975
 
-        # Finalized result
-        p_and_l = 250.0 if result.final_decision_state == "Approved" else -120.0
+        # Dynamic contract-sized P&L calculation
+        exit_price = tp if result.final_decision_state == "Approved" else sl
+        price_diff = (exit_price - entry_price) if direction == "BUY" else (entry_price - exit_price)
+        p_and_l = round(price_diff * 100000.0 * 0.1, 2)
 
         simulated_trade = {
             "trade_id": f"demo-trade-{uuid.uuid4().hex[:6]}",

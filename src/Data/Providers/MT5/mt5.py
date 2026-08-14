@@ -436,8 +436,8 @@ class MT5DataProvider(IDataProvider):
                     error_message=err_msg
                 )
 
-            # Enforce SRE Safety Gate verification via dynamic compliant resolution
-            safety_module_name = "src.Ex" + "ecution.Safety.safety_gate"
+            # Enforce SRE Safety Gate verification
+            safety_module_name = "src.Execution.Safety.safety_gate"
             safety_module = __import__(safety_module_name, fromlist=["MetaTraderSafetyGate"])
             safety_gate_cls = getattr(safety_module, "MetaTraderSafetyGate")
 

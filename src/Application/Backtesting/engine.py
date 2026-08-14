@@ -116,10 +116,7 @@ class IntelligenceBacktestEngine:
             if normalized_records:
                 latest_close = normalized_records[-1].close
 
-            # Introduce a realistic SRE chronological price fluctuation to simulate real market motion
-            import math
-            fluctuation_pct = 0.005 * math.sin(total_intervals * 0.6)
-            latest_close = latest_close * (1.0 + fluctuation_pct)
+            # Use actual market close price directly without synthetic modification
 
             # 2. Ingest into Agent Ecosystem
             agent_ctx = AgentContextBuilder.create_with_market_data(symbol, scenario.timeframe)
