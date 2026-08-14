@@ -3441,7 +3441,13 @@ def get_health_ready():
     reasons = []
 
     # 1. MT5 connection state check
-    mt5_connected = (research_tracker.get("mt5_status") == "CONNECTED")
+    try:
+        conn_health = global_research_runtime.provider.delegate.get_connection_health()
+        mt5_connected = conn_health.connected
+    except Exception:
+        mt5_connected = False
+    if research_tracker.get("mt5_status") == "DISCONNECTED":
+        mt5_connected = False
     if not mt5_connected:
         reasons.append("MT5 connector is disconnected")
 
@@ -3470,7 +3476,11 @@ def get_health_ready():
 def get_api_v1_health():
     """Detailed JSON diagnostics supplying subsystem states, memory stats, and dependency health."""
     state = central_runtime_state.get_state()
-    mt5_connected = (research_tracker.get("mt5_status") == "CONNECTED")
+    try:
+        conn_health = global_research_runtime.provider.delegate.get_connection_health()
+        mt5_connected = conn_health.connected
+    except Exception:
+        mt5_connected = False
 
     # Subsystem statuses conforming exactly to requested certification schema
     subsystems = {
@@ -3551,8 +3561,14 @@ def get_production_health():
     if research_status == "Running" or intelligence_status == "Running" or shadow_status == "Running" or research_tracker.get("worker_status") == "RUNNING":
         worker_status = "Running"
 
-    # Determine MT5 connectivity status
-    mt5_connected = (research_tracker.get("mt5_status") == "CONNECTED")
+    # Determine MT5 connectivity status dynamically from provider
+    try:
+        conn_health = global_research_runtime.provider.delegate.get_connection_health()
+        mt5_connected = conn_health.connected
+    except Exception:
+        mt5_connected = False
+    if research_tracker.get("mt5_status") == "DISCONNECTED":
+        mt5_connected = False
     mt5_status = "Connected" if mt5_connected else "Disconnected"
 
     # Determine Shadow Trading Status linked to ShadowTradingEngine
