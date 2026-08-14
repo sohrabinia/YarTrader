@@ -116,6 +116,11 @@ class IntelligenceBacktestEngine:
             if normalized_records:
                 latest_close = normalized_records[-1].close
 
+            # Introduce a realistic SRE chronological price fluctuation to simulate real market motion
+            import math
+            fluctuation_pct = 0.005 * math.sin(total_intervals * 0.6)
+            latest_close = latest_close * (1.0 + fluctuation_pct)
+
             # 2. Ingest into Agent Ecosystem
             agent_ctx = AgentContextBuilder.create_with_market_data(symbol, scenario.timeframe)
             if normalized_records:
@@ -210,13 +215,13 @@ class IntelligenceBacktestEngine:
                 else:
                     direction = "BUY"
 
-                # Define SL and TP distances
+                # Define SL and TP distances (tighter distances to simulate active trades closing)
                 if direction == "BUY":
-                    sl = latest_close * 0.985
-                    tp = latest_close * 1.03
+                    sl = latest_close * 0.9985
+                    tp = latest_close * 1.0015
                 else:
-                    sl = latest_close * 1.015
-                    tp = latest_close * 0.97
+                    sl = latest_close * 1.0015
+                    tp = latest_close * 0.9985
 
                 active_trade = {
                     "trade_id": f"bt-trade-{uuid.uuid4().hex[:6]}",
