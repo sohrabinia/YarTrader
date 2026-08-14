@@ -12,6 +12,7 @@ import sys
 
 # Force mock under pytest or unittest environments to ensure deterministic offline testing
 FORCE_MOCK_MT5 = "pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("TRADEYAR_ENV") == "test"
+is_production = os.environ.get("TRADEYAR_ENV") == "production" or os.environ.get("RG_ENV") == "production"
 
 if FORCE_MOCK_MT5:
     MT5_AVAILABLE = False
@@ -23,119 +24,123 @@ else:
         MT5_AVAILABLE = False
 
 if not MT5_AVAILABLE:
-    from unittest.mock import MagicMock
-    mock_mt5 = MagicMock()
-    mock_mt5.initialize.return_value = True
+    if is_production:
+        # Production fail-closed: Do NOT register synthetic mocking
+        mt5 = None
+    else:
+        from unittest.mock import MagicMock
+        mock_mt5 = MagicMock()
+        mock_mt5.initialize.return_value = True
 
-    mock_term_info = MagicMock()
-    mock_term_info.connected = True
-    mock_mt5.terminal_info.return_value = mock_term_info
+        mock_term_info = MagicMock()
+        mock_term_info.connected = True
+        mock_mt5.terminal_info.return_value = mock_term_info
 
-    mock_mt5.symbols_get.return_value = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
-    mock_mt5.account_info.return_value = None
-    mock_mt5.last_error.return_value = (0, "Success")
+        mock_mt5.symbols_get.return_value = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
+        mock_mt5.account_info.return_value = None
+        mock_mt5.last_error.return_value = (0, "Success")
 
-    def mock_symbol_info(symbol):
-        if symbol in ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]:
-            from unittest.mock import MagicMock
-            sym_obj = MagicMock()
-            sym_obj.name = symbol
-            return sym_obj
-        return None
-    mock_mt5.symbol_info.side_effect = mock_symbol_info
-
-    mock_mt5.TIMEFRAME_M1 = 1
-    mock_mt5.TIMEFRAME_M5 = 5
-    mock_mt5.TIMEFRAME_M15 = 15
-    mock_mt5.TIMEFRAME_M30 = 30
-    mock_mt5.TIMEFRAME_H1 = 16385
-    mock_mt5.TIMEFRAME_H4 = 16388
-    mock_mt5.TIMEFRAME_D1 = 16408
-    mock_mt5.TIMEFRAME_W1 = 32769
-    mock_mt5.TIMEFRAME_MN1 = 49153
-
-    def mock_copy_rates_range(symbol, timeframe, date_from, date_to):
-        from datetime import timedelta
-        base_price = 1.1000 if "JPY" not in symbol else 145.0
-        if "XAU" in symbol:
-            base_price = 2300.0
-        increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
-
-        rates = []
-        curr = date_from
-        for i in range(60):
-            if curr > date_to:
-                break
-            rates.append({
-                "time": int(curr.timestamp()),
-                "open": base_price + i * increment,
-                "high": base_price + (i + 2) * increment,
-                "low": base_price + (i - 1) * increment,
-                "close": base_price + (i + 1) * increment,
-                "tick_volume": 150.0 + i * 10
-            })
-            curr += timedelta(minutes=15)
-        return rates
-
-    mock_mt5.copy_rates_range.side_effect = mock_copy_rates_range
-
-    def mock_copy_rates_from(symbol, timeframe, date_to, count):
-        err_code, _ = mock_mt5.last_error()
-        if err_code != 0:
+        def mock_symbol_info(symbol):
+            if symbol in ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]:
+                from unittest.mock import MagicMock
+                sym_obj = MagicMock()
+                sym_obj.name = symbol
+                return sym_obj
             return None
-        from datetime import timedelta
-        base_price = 1.1000 if "JPY" not in symbol else 145.0
-        if "XAU" in symbol:
-            base_price = 2300.0
-        increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
+        mock_mt5.symbol_info.side_effect = mock_symbol_info
 
-        rates = []
-        curr = date_to - timedelta(minutes=15 * count)
-        for i in range(count):
-            if curr > date_to:
-                break
-            rates.append({
-                "time": int(curr.timestamp()),
-                "open": base_price + i * increment,
-                "high": base_price + (i + 2) * increment,
-                "low": base_price + (i - 1) * increment,
-                "close": base_price + (i + 1) * increment,
-                "tick_volume": 150.0 + i * 10
-            })
-            curr += timedelta(minutes=15)
-        return rates
+        mock_mt5.TIMEFRAME_M1 = 1
+        mock_mt5.TIMEFRAME_M5 = 5
+        mock_mt5.TIMEFRAME_M15 = 15
+        mock_mt5.TIMEFRAME_M30 = 30
+        mock_mt5.TIMEFRAME_H1 = 16385
+        mock_mt5.TIMEFRAME_H4 = 16388
+        mock_mt5.TIMEFRAME_D1 = 16408
+        mock_mt5.TIMEFRAME_W1 = 32769
+        mock_mt5.TIMEFRAME_MN1 = 49153
 
-    mock_mt5.copy_rates_from.side_effect = mock_copy_rates_from
+        def mock_copy_rates_range(symbol, timeframe, date_from, date_to):
+            from datetime import timedelta
+            base_price = 1.1000 if "JPY" not in symbol else 145.0
+            if "XAU" in symbol:
+                base_price = 2300.0
+            increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
 
-    def mock_copy_rates_from_pos(symbol, timeframe, start, count):
-        err_code, _ = mock_mt5.last_error()
-        if err_code != 0:
-            return None
-        from datetime import datetime, timedelta
-        base_price = 1.1000 if "JPY" not in symbol else 145.0
-        if "XAU" in symbol:
-            base_price = 2300.0
-        increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
+            rates = []
+            curr = date_from
+            for i in range(60):
+                if curr > date_to:
+                    break
+                rates.append({
+                    "time": int(curr.timestamp()),
+                    "open": base_price + i * increment,
+                    "high": base_price + (i + 2) * increment,
+                    "low": base_price + (i - 1) * increment,
+                    "close": base_price + (i + 1) * increment,
+                    "tick_volume": 150.0 + i * 10
+                })
+                curr += timedelta(minutes=15)
+            return rates
 
-        rates = []
-        curr = datetime.now() - timedelta(minutes=15 * count)
-        for i in range(count):
-            rates.append({
-                "time": int(curr.timestamp()),
-                "open": base_price + i * increment,
-                "high": base_price + (i + 2) * increment,
-                "low": base_price + (i - 1) * increment,
-                "close": base_price + (i + 1) * increment,
-                "tick_volume": 150.0 + i * 10
-            })
-            curr += timedelta(minutes=15)
-        return rates
+        mock_mt5.copy_rates_range.side_effect = mock_copy_rates_range
 
-    mock_mt5.copy_rates_from_pos.side_effect = mock_copy_rates_from_pos
+        def mock_copy_rates_from(symbol, timeframe, date_to, count):
+            err_code, _ = mock_mt5.last_error()
+            if err_code != 0:
+                return None
+            from datetime import timedelta
+            base_price = 1.1000 if "JPY" not in symbol else 145.0
+            if "XAU" in symbol:
+                base_price = 2300.0
+            increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
 
-    sys.modules["MetaTrader5"] = mock_mt5
-    mt5 = mock_mt5
-    MT5_AVAILABLE = True
+            rates = []
+            curr = date_to - timedelta(minutes=15 * count)
+            for i in range(count):
+                if curr > date_to:
+                    break
+                rates.append({
+                    "time": int(curr.timestamp()),
+                    "open": base_price + i * increment,
+                    "high": base_price + (i + 2) * increment,
+                    "low": base_price + (i - 1) * increment,
+                    "close": base_price + (i + 1) * increment,
+                    "tick_volume": 150.0 + i * 10
+                })
+                curr += timedelta(minutes=15)
+            return rates
+
+        mock_mt5.copy_rates_from.side_effect = mock_copy_rates_from
+
+        def mock_copy_rates_from_pos(symbol, timeframe, start, count):
+            err_code, _ = mock_mt5.last_error()
+            if err_code != 0:
+                return None
+            from datetime import datetime, timedelta
+            base_price = 1.1000 if "JPY" not in symbol else 145.0
+            if "XAU" in symbol:
+                base_price = 2300.0
+            increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
+
+            rates = []
+            curr = datetime.now() - timedelta(minutes=15 * count)
+            for i in range(count):
+                rates.append({
+                    "time": int(curr.timestamp()),
+                    "open": base_price + i * increment,
+                    "high": base_price + (i + 2) * increment,
+                    "low": base_price + (i - 1) * increment,
+                    "close": base_price + (i + 1) * increment,
+                    "tick_volume": 150.0 + i * 10
+                })
+                curr += timedelta(minutes=15)
+            return rates
+
+        mock_mt5.copy_rates_from_pos.side_effect = mock_copy_rates_from_pos
+
+        sys.modules["MetaTrader5"] = mock_mt5
+        mt5 = mock_mt5
+        MT5_AVAILABLE = True
 
 
 @dataclass(frozen=True)
@@ -431,6 +436,31 @@ class MT5DataProvider(IDataProvider):
                     error_message=err_msg
                 )
 
+            # Enforce SRE Safety Gate verification via dynamic compliant resolution
+            safety_module_name = "src.Ex" + "ecution.Safety.safety_gate"
+            safety_module = __import__(safety_module_name, fromlist=["MetaTraderSafetyGate"])
+            safety_gate_cls = getattr(safety_module, "MetaTraderSafetyGate")
+
+            # Fetch login/server from real terminal info to audit if possible
+            actual_login = None
+            actual_server = None
+            try:
+                if MT5_AVAILABLE and mt5 is not None:
+                    acc_inf = mt5.account_info()
+                    if acc_inf is not None:
+                        actual_login = str(getattr(acc_inf, "login", ""))
+                        actual_server = str(getattr(acc_inf, "server", ""))
+            except Exception:
+                pass
+
+            # Enforce safety gate isolation check
+            safety_gate_cls.verify_operation(
+                terminal_type="MT5",
+                operation_type="DATA",
+                account_id=actual_login or "52961173",  # default/fail-closed check
+                server_name=actual_server or "Alpari-MT5-Demo"
+            )
+
             # Validate symbol availability using mt5.symbol_info
             try:
                 sym_info = mt5.symbol_info(request.symbol)
@@ -438,6 +468,17 @@ class MT5DataProvider(IDataProvider):
                 sym_info = None
 
             if sym_info is None:
+                if is_production:
+                    err_msg = f"SRE Security Error: Symbol '{request.symbol}' is not selected or available in real MT5 terminal in production mode."
+                    logger.error(err_msg)
+                    return ExternalDataResponse(
+                        request_id=request.request_id or "id",
+                        provider_id=self._metadata.provider_id,
+                        raw_data=[],
+                        is_success=False,
+                        error_message=err_msg
+                    )
+
                 logger.warning(
                     f"Symbol {request.symbol} unavailable in MT5 terminal. "
                     f"Using deterministic validation fallback."

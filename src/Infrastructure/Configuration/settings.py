@@ -14,9 +14,28 @@ class BaseSettings:
         self.storage_root: str = "C:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
         self.db_token: str = "dev-token-12345"
         self.tick_chart_analysis_enabled: bool = False
+
+        # MetaTrader Separation & Isolation Settings
+        self.mt5_account: str = "52961173"
+        self.mt5_server: str = "Alpari-MT5-Demo"
+        self.mt5_terminal_path: str = "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+        self.mt4_account: str = "143056202"
+        self.mt4_server: str = "Alpari-Pro.ECN"
+        self.mt4_terminal_path: str = "C:\\Program Files (x86)\\MetaTrader 4\\terminal.exe"
+        self.live_trading_enabled: bool = False
+
         self._load_and_validate()
 
     def _load_and_validate(self) -> None:
+        # Load MetaTrader isolation parameters
+        self.mt5_account = str(self._overrides.get("mt5_account", os.environ.get("TRADEYAR_MT5_LOGIN", "52961173")))
+        self.mt5_server = str(self._overrides.get("mt5_server", os.environ.get("TRADEYAR_MT5_SERVER", "Alpari-MT5-Demo")))
+        self.mt5_terminal_path = str(self._overrides.get("mt5_terminal_path", os.environ.get("TRADEYAR_MT5_TERMINAL_PATH", "C:\\Program Files\\MetaTrader 5\\terminal64.exe")))
+        self.mt4_account = str(self._overrides.get("mt4_account", os.environ.get("TRADEYAR_MT4_LOGIN", "143056202")))
+        self.mt4_server = str(self._overrides.get("mt4_server", os.environ.get("TRADEYAR_MT4_SERVER", "Alpari-Pro.ECN")))
+        self.mt4_terminal_path = str(self._overrides.get("mt4_terminal_path", os.environ.get("TRADEYAR_MT4_TERMINAL_PATH", "C:\\Program Files (x86)\\MetaTrader 4\\terminal.exe")))
+        self.live_trading_enabled = bool(self._overrides.get("live_trading_enabled", os.environ.get("LIVE_TRADING_ENABLED", "False") == "True"))
+
         # Load from env vars or overrides
         self.simulation_mode = bool(self._overrides.get("simulation_mode", os.environ.get("TRADEYAR_SIMULATION_MODE", "True") == "True"))
         if not self.simulation_mode:
@@ -89,7 +108,14 @@ class BaseSettings:
             "log_level": self.log_level,
             "storage_root": self.storage_root,
             "db_token": self.db_token,
-            "tick_chart_analysis_enabled": self.tick_chart_analysis_enabled
+            "tick_chart_analysis_enabled": self.tick_chart_analysis_enabled,
+            "mt5_account": self.mt5_account,
+            "mt5_server": self.mt5_server,
+            "mt5_terminal_path": self.mt5_terminal_path,
+            "mt4_account": self.mt4_account,
+            "mt4_server": self.mt4_server,
+            "mt4_terminal_path": self.mt4_terminal_path,
+            "live_trading_enabled": self.live_trading_enabled
         }
 
 
