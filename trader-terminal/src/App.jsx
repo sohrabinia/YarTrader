@@ -557,11 +557,14 @@ function MainApp() {
     setChatOpen(prev => !prev);
   };
 
-  const sendChatMessage = async () => {
-    if (!chatInput.trim()) return;
-    const userMsg = chatInput;
-    setChatMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
-    setChatInput('');
+  const sendChatMessage = async (textToSend) => {
+    const userMsg = typeof textToSend === 'string' ? textToSend : chatInput;
+    if (!userMsg || !userMsg.trim()) return;
+
+    if (typeof textToSend !== 'string') {
+      setChatMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
+      setChatInput('');
+    }
 
     try {
       const res = await apiService.post('/api/chat/assistant', {
@@ -577,7 +580,7 @@ function MainApp() {
            lang === 'tr' ? 'Yapay zekâ asistanına ulaşılamadı. Lütfen tekrar deneyin.' :
            lang === 'ar' ? 'تعذر الاتصال بالمساعد الذكي. يرجى المحاولة مرة أخرى.' :
            'The AI assistant could not be reached. Please try again.');
-      setChatMessages(prev => [...prev, { text: errorText, sender: 'bot', isError: true }]);
+      setChatMessages(prev => [...prev, { text: errorText, sender: 'bot', isError: true, lastUserText: userMsg }]);
     }
   };
 
@@ -1960,8 +1963,9 @@ function MainApp() {
                       className="btn btn-secondary"
                       style={{ display: 'block', marginTop: '8px', padding: '4px 8px', fontSize: '0.8em' }}
                       onClick={() => {
+                        const retryText = msg.lastUserText;
                         setChatMessages(prev => prev.filter((_, i) => i !== idx));
-                        sendChatMessage();
+                        sendChatMessage(retryText);
                       }}
                     >
                       {lang === 'fa' ? 'تلاش مجدد 🔄' : lang === 'tr' ? 'Tekrar Dene 🔄' : lang === 'ar' ? 'إعادة المحاولة 🔄' : 'Retry 🔄'}
