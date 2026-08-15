@@ -1,0 +1,6 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "test_name": "test_decision_gate_approved_on_valid_inputs",
+  "result": "PASSED"
+}

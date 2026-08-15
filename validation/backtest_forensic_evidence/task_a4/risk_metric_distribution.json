@@ -1,0 +1,29 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "run_id": "bt-f2304d80",
+  "volatility": {
+    "min": 0.12,
+    "max": 0.12,
+    "mean": 0.12,
+    "median": 0.12,
+    "p95": 0.12,
+    "p99": 0.12
+  },
+  "drawdown": {
+    "min": 0.05,
+    "max": 0.05,
+    "mean": 0.05,
+    "median": 0.05,
+    "p95": 0.05,
+    "p99": 0.05
+  },
+  "confidence": {
+    "min": 0.868,
+    "max": 0.868,
+    "mean": 0.868,
+    "median": 0.868,
+    "p95": 0.868,
+    "p99": 0.868
+  }
+}

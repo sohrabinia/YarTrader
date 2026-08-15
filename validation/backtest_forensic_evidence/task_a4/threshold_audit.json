@@ -1,0 +1,19 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "run_id": "bt-f2304d80",
+  "thresholds": [
+    {
+      "metric": "max_volatility",
+      "threshold": 0.25,
+      "actual_value": 0.12,
+      "pass": true
+    },
+    {
+      "metric": "max_drawdown",
+      "threshold": 0.15,
+      "actual_value": 0.05,
+      "pass": true
+    }
+  ]
+}

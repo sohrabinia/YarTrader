@@ -1,0 +1,17 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "run_id": "bt-f2304d80",
+  "bars_received": 2880,
+  "research_evaluations": 2880,
+  "strategy_evaluations": 2880,
+  "strategy_nonzero_allocations": 2880,
+  "risk_evaluations": 2880,
+  "risk_approved": 2880,
+  "risk_rejected": 0,
+  "decision_evaluations": 2880,
+  "decision_approved": 2880,
+  "decision_rejected": 0,
+  "entry_candidates": 1,
+  "entries": 1
+}

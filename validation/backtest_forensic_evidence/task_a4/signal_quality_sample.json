@@ -1,0 +1,77 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "run_id": "bt-f2304d80",
+  "samples": [
+    {
+      "step": 1,
+      "direction": "BUY",
+      "confidence": 0.868,
+      "state": "Approved",
+      "intelligence_summary": "Decision Analysis for XAUUSD. Completeness: 100.0%. Alignment: 1.00. Risk Approved: True. Synthesized Confidence: 0.87."
+    },
+    {
+      "step": 2,
+      "direction": "BUY",
+      "confidence": 0.868,
+      "state": "Approved",
+      "intelligence_summary": "Decision Analysis for XAUUSD. Completeness: 100.0%. Alignment: 1.00. Risk Approved: True. Synthesized Confidence: 0.87."
+    },
+    {
+      "step": 3,
+      "direction": "BUY",
+      "confidence": 0.868,
+      "state": "Approved",
+      "intelligence_summary": "Decision Analysis for XAUUSD. Completeness: 100.0%. Alignment: 1.00. Risk Approved: True. Synthesized Confidence: 0.87."
+    },
+    {
+      "step": 4,
+      "direction": "BUY",
+      "confidence": 0.868,
+      "state": "Approved",
+      "intelligence_summary": "Decision Analysis for XAUUSD. Completeness: 100.0%. Alignment: 1.00. Risk Approved: True. Synthesized Confidence: 0.87."
+    },
+    {
+      "step": 5,
+      "direction": "BUY",
+      "confidence": 0.868,
+      "state": "Approved",
+      "intelligence_summary": "Decision Analysis for XAUUSD. Completeness: 100.0%. Alignment: 1.00. Risk Approved: True. Synthesized Confidence: 0.87."
+    },
+    {
+      "step": 6,
+      "direction": "BUY",
+      "confidence": 0.868,
+      "state": "Approved",
+      "intelligence_summary": "Decision Analysis for XAUUSD. Completeness: 100.0%. Alignment: 1.00. Risk Approved: True. Synthesized Confidence: 0.87."
+    },
+    {
+      "step": 7,
+      "direction": "BUY",
+      "confidence": 0.868,
+      "state": "Approved",
+      "intelligence_summary": "Decision Analysis for XAUUSD. Completeness: 100.0%. Alignment: 1.00. Risk Approved: True. Synthesized Confidence: 0.87."
+    },
+    {
+      "step": 8,
+      "direction": "BUY",
+      "confidence": 0.868,
+      "state": "Approved",
+      "intelligence_summary": "Decision Analysis for XAUUSD. Completeness: 100.0%. Alignment: 1.00. Risk Approved: True. Synthesized Confidence: 0.87."
+    },
+    {
+      "step": 9,
+      "direction": "BUY",
+      "confidence": 0.868,
+      "state": "Approved",
+      "intelligence_summary": "Decision Analysis for XAUUSD. Completeness: 100.0%. Alignment: 1.00. Risk Approved: True. Synthesized Confidence: 0.87."
+    },
+    {
+      "step": 10,
+      "direction": "BUY",
+      "confidence": 0.868,
+      "state": "Approved",
+      "intelligence_summary": "Decision Analysis for XAUUSD. Completeness: 100.0%. Alignment: 1.00. Risk Approved: True. Synthesized Confidence: 0.87."
+    }
+  ]
+}

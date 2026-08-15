@@ -1,0 +1,14 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "run_id": "bt-f2304d80",
+  "allocation_present": 2880,
+  "allocation_zero": 0,
+  "allocation_positive": 2880,
+  "allocation_negative": 0,
+  "allocation_missing": 0,
+  "min_allocation": 0.85,
+  "max_allocation": 0.85,
+  "mean_allocation": 0.85,
+  "median_allocation": 0.85
+}

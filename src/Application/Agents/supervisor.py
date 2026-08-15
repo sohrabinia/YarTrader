@@ -1,5 +1,6 @@
 import uuid
 import time
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from src.Application.Agents.interfaces import IIntelligenceAgent
@@ -14,19 +15,35 @@ from src.Strategy.Models.models import StrategyCandidate, StrategyEvaluation, St
 from src.Risk.Models.models import RiskProfile, RiskAssessment, PortfolioRisk
 from src.Infrastructure.exceptions import ValidationException
 
+logger = logging.getLogger("IntelligenceSupervisor")
+
 
 class IntelligenceSupervisor:
     """
     Supervisor coordinating Multi-Agent lifecycle, registration, execution ordering,
     failure recovery, timeout simulations, and compilation into DecisionIntelligenceContext.
+    Auto-registers default research, strategy, and risk agents upon initialization.
     """
-    def __init__(self) -> None:
+    def __init__(self, register_defaults: bool = True) -> None:
         self._agents: Dict[str, IIntelligenceAgent] = {}
         self._agent_status: Dict[str, str] = {}  # agent_id -> ACTIVE, FAILED, TIMED_OUT, etc.
         self._router = MessageRouter()
         self._memory = AgentMemory()
         self._tracker = AgentPerformanceTracker()
         self._timeouts: Dict[str, float] = {}  # agent_id -> timeout_seconds limit
+
+        if register_defaults:
+            self._register_default_agents()
+
+    def _register_default_agents(self) -> None:
+        """Registers default concrete research, strategy, and risk agents."""
+        try:
+            from src.Application.Agents.concrete_agents import ResearchAgent, StrategyAnalystAgent, RiskAgent
+            self.register_agent(ResearchAgent())
+            self.register_agent(StrategyAnalystAgent())
+            self.register_agent(RiskAgent())
+        except Exception as e:
+            logger.warning(f"Failed to auto-register default agents in IntelligenceSupervisor: {e}")
 
     def register_agent(self, agent: IIntelligenceAgent, timeout_seconds: float = 2.0) -> None:
         """Registers an intelligence agent and sets its initial active state."""

@@ -1,0 +1,12 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "run_id": "bt-f2304d80",
+  "default_agents_auto_registered": true,
+  "default_risk_profile": "Moderate",
+  "registered_agents": [
+    "agent-research",
+    "agent-strategy",
+    "agent-risk"
+  ]
+}

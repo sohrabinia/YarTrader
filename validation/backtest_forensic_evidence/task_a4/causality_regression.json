@@ -1,0 +1,7 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "run_id": "bt-f2304d80",
+  "timestamp_rule": "record.timestamp <= decision_timestamp",
+  "causality_verified": true
+}
