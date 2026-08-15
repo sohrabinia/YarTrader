@@ -1,0 +1,31 @@
+{
+  "retcode": 10018,
+  "deal": 0,
+  "order": 0,
+  "volume": 0.0,
+  "price": 0.0,
+  "bid": 0.0,
+  "ask": 0.0,
+  "comment": "Market closed",
+  "request_id": 4289419174,
+  "retcode_external": 0,
+  "request": [
+    1,
+    100001,
+    0,
+    "XAUUSD",
+    0.01,
+    4376.44,
+    0.0,
+    0.0,
+    0.0,
+    20,
+    0,
+    1,
+    0,
+    0,
+    "YarTrader Real DEMO E2E Test",
+    0,
+    0
+  ]
+}

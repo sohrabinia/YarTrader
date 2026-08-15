@@ -1,0 +1,61 @@
+{
+  "final_verdict": "DEMO E2E BLOCKED",
+  "evidence_table": [
+    {
+      "Gate": "Safety Gate Verification",
+      "Result": "PROVEN",
+      "Evidence": "MetaTraderSafetyGate passed for MT5 DEMO 52961173 Alpari-MT5-Demo"
+    },
+    {
+      "Gate": "Live Trading Blocked",
+      "Result": "PROVEN",
+      "Evidence": "live_trading_enabled is False (HARD BLOCKED)"
+    },
+    {
+      "Gate": "MT5 Connection",
+      "Result": "PROVEN",
+      "Evidence": "MT5 Terminal connected: MetaTrader 5"
+    },
+    {
+      "Gate": "DEMO Account",
+      "Result": "PROVEN",
+      "Evidence": "Logged into DEMO account 52****73 on Alpari-MT5-Demo"
+    },
+    {
+      "Gate": "Current Market Data",
+      "Result": "PROVEN",
+      "Evidence": "Real XAUUSD tick: Bid=4376.25, Ask=4376.44"
+    },
+    {
+      "Gate": "Symbol Integrity",
+      "Result": "PROVEN",
+      "Evidence": "XAUUSD price clean and no contamination observed"
+    },
+    {
+      "Gate": "Natural Decision",
+      "Result": "PROVEN",
+      "Evidence": "YarTrader Research -> Decision -> VPOS -> Risk pipeline invoked"
+    },
+    {
+      "Gate": "vpos",
+      "Result": "PROVEN",
+      "Evidence": "Virtual Position ID vpos-xauusd-demo-001 created"
+    },
+    {
+      "Gate": "Risk",
+      "Result": "PROVEN",
+      "Evidence": "Risk Gate approved minimum volume 0.01 on XAUUSD"
+    },
+    {
+      "Gate": "Real MT5 Adapter",
+      "Result": "PROVEN",
+      "Evidence": "RealMT5BrokerAdapter wired to execution path"
+    },
+    {
+      "Gate": "Real mt5.order_send()",
+      "Result": "FAILED",
+      "Evidence": "Order submission failed: Market closed (Retcode 10018)"
+    }
+  ],
+  "timestamp": "2026-08-15T04:30:32.196602+00:00"
+}
