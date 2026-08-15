@@ -1950,7 +1950,7 @@ function MainApp() {
           <span>▲ / ▼</span>
         </div>
         {chatOpen && (
-          <div className="chatbot-body" id="chat-body" style={{ display: 'block' }}>
+          <div className="chatbot-body" id="chat-body" style={{ display: 'flex' }}>
             <div className="chatbot-messages">
               {chatMessages.map((msg, idx) => (
                 <div key={idx} className={`chat-bubble ${msg.sender === 'bot' ? 'bot' : 'user'}`} style={msg.isError ? { border: '1px solid var(--danger)', backgroundColor: 'rgba(194, 74, 62, 0.1)' } : {}}>
