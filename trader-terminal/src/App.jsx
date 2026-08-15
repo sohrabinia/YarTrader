@@ -561,8 +561,8 @@ function MainApp() {
     const userMsg = typeof textToSend === 'string' ? textToSend : chatInput;
     if (!userMsg || !userMsg.trim()) return;
 
+    setChatMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
     if (typeof textToSend !== 'string') {
-      setChatMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
       setChatInput('');
     }
 

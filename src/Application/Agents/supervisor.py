@@ -30,9 +30,9 @@ class IntelligenceSupervisor:
         # Auto-register default concrete agents for seamless orchestration
         try:
             from src.Application.Agents.concrete_agents import ResearchAgent, StrategyAnalystAgent, RiskAgent
-            self.register_agent("research", ResearchAgent())
-            self.register_agent("strategy", StrategyAnalystAgent())
-            self.register_agent("risk", RiskAgent())
+            self.register_agent(ResearchAgent())
+            self.register_agent(StrategyAnalystAgent())
+            self.register_agent(RiskAgent())
         except Exception:
             pass
         self._timeouts: Dict[str, float] = {}  # agent_id -> timeout_seconds limit
