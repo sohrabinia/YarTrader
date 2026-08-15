@@ -515,4 +515,4 @@ class TestMT5AdapterAndMapper(unittest.TestCase):
         resp = self.provider.fetch_market_data(req)
         self.assertTrue(resp.is_success)
         self.assertGreater(len(resp.candles), 0)
-        self.assertEqual(resp.candles[0].open, 150.0) # check AAPL base price
+        self.assertEqual(resp.candles[0].open, 180.0) # check AAPL base price

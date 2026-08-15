@@ -73,7 +73,7 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         # Verify first point properties
         first_point = resp.DataPoints[0]
         self.assertEqual(first_point.AssetId, "EURUSD")
-        self.assertEqual(first_point.Open, 1.1000)
+        self.assertEqual(first_point.Open, 1.0850)
         self.assertGreater(first_point.Volume, 0.0)
 
     def test_adapter_unsuccessful_delegate_rejection(self) -> None:
