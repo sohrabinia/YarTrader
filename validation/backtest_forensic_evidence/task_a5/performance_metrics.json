@@ -1,0 +1,13 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "total_trades": 1,
+  "wins": 0,
+  "losses": 1,
+  "win_rate": "N/A",
+  "profit_factor": "N/A",
+  "expectancy": "N/A",
+  "sharpe": "N/A",
+  "sortino": "N/A",
+  "sample_sufficiency": "INSUFFICIENT_SAMPLE"
+}

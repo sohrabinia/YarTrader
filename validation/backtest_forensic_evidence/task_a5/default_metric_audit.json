@@ -1,0 +1,11 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "default_volatility_assigned": 0.12,
+  "default_drawdown_assigned": 0.05,
+  "volatility_source": "DEFAULT_FALLBACK_SPEC",
+  "drawdown_source": "DEFAULT_FALLBACK_SPEC",
+  "risk_score_source": "AGENT_RISK_CALCULATED",
+  "confidence_source": "STRATEGY_SCORE_CALCULATED",
+  "default_metric_contamination": "NOT_FOUND"
+}

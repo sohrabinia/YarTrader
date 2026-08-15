@@ -1,0 +1,16 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "run_id": "bt-7b6e80e8",
+  "trade_id": "bt-trade-d41ec9",
+  "symbol": "XAUUSD",
+  "timeframe": "M15",
+  "direction": "BUY",
+  "entry_timestamp": "2026-07-16T06:40:55.342489+00:00",
+  "entry_price": 2300.0,
+  "entry_reason": "DECISION_STATE_APPROVED",
+  "exit_timestamp": "2026-08-15T06:40:55.342489+00:00",
+  "exit_price": 2300.0,
+  "exit_reason": "END_OF_BACKTEST",
+  "quantity": 1.0
+}

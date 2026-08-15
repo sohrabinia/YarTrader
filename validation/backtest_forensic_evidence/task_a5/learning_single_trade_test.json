@@ -1,0 +1,7 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "sample_size": 1,
+  "learning_admitted": false,
+  "rejection_reason": "INSUFFICIENT_SAMPLES_BELOW_MINIMUM_5"
+}

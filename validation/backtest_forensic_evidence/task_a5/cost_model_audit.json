@@ -1,0 +1,10 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "spread_model": "FIXED_PER_LOT",
+  "spread_rate_usd": 0.25,
+  "commission_model": "FIXED_PER_LOT",
+  "commission_rate_usd": 0.05,
+  "slippage_model": "FIXED_PER_LOT",
+  "slippage_rate_usd": 0.02
+}

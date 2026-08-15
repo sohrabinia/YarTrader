@@ -1,0 +1,11 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "broker_calls": 0,
+  "mt5_order_send": 0,
+  "live_positions": 0,
+  "demo_positions": 0,
+  "shadow_positions": 0,
+  "live_trading_enabled": false,
+  "safety_gate": "ACTIVE"
+}

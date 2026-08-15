@@ -1,0 +1,6 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "entry_timestamp_rule": "entry_timestamp <= decision_timestamp",
+  "future_data_used": false
+}

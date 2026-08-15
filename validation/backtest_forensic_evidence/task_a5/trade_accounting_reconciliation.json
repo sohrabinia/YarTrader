@@ -1,0 +1,11 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "gross_pnl": -0.32,
+  "spread_cost": 0.25,
+  "commission": 0.05,
+  "slippage": 0.02,
+  "net_pnl": -0.64,
+  "engine_net_pnl": -0.64,
+  "match": true
+}

@@ -1,0 +1,8 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "sample_size": 8,
+  "min_samples_threshold": 5,
+  "learning_admitted": true,
+  "gate_condition": "Judge accuracy >= 0.60 and consistency >= 0.75"
+}

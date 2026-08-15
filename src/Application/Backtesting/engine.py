@@ -26,14 +26,11 @@ class IntelligenceMetricsEvaluator:
                 "overall_intelligence_score": 1.0
             }
 
-        # 1. Decision Consistency: variance of confidence levels across outcomes
         confs = [r.Confidence for r in reports]
         avg_conf = sum(confs) / len(reports)
         variance = sum((c - avg_conf) ** 2 for c in confs) / len(reports)
-        # Higher consistency = lower variance
         consistency = max(0.0, min(1.0, 1.0 - math.sqrt(variance)))
 
-        # 2. Research Accuracy: ratio of high-confidence research insights
         high_conf_insights = 0
         total_insights = 0
         for r in reports:
@@ -43,8 +40,6 @@ class IntelligenceMetricsEvaluator:
                     high_conf_insights += 1
 
         accuracy_ratio = (high_conf_insights / total_insights) if total_insights > 0 else 1.0
-
-        # Overall Score
         overall_score = (consistency * 0.4) + (accuracy_ratio * 0.3) + (avg_conf * 0.3)
 
         return {
@@ -60,6 +55,7 @@ class IntelligenceBacktestEngine:
     Coordinates historical data ingestion loops, multi-agent validation runs,
     and decision quality score compilations over backtesting scenarios.
     Strictly enforces zero future data leakage and point-in-time temporal isolation.
+    Integrates cost accounting (spread, commission, slippage).
     """
     def __init__(
         self,
@@ -74,7 +70,6 @@ class IntelligenceBacktestEngine:
 
     def run_backtest(self, scenario: BacktestScenario) -> BacktestResult:
         """Runs standard pipeline processing iteratively across the scenario date window."""
-        # Enforce zero execution leakage scanning on scenario parameters
         forbidden_keywords = {"order", "position", "broker", "trade_command", "buy_signal", "sell_signal", "execute"}
         for k, v in scenario.parameters.items():
             for kw in forbidden_keywords:
@@ -86,6 +81,11 @@ class IntelligenceBacktestEngine:
         interval_minutes = scenario.parameters.get("interval_minutes", 60)
 
         symbol = scenario.symbol
+
+        # Setup Transaction Cost Parameters
+        spread_usd = float(scenario.parameters.get("spread_usd", 0.25))
+        commission_usd = float(scenario.parameters.get("commission_usd", 0.05))
+        slippage_usd = float(scenario.parameters.get("slippage_usd", 0.02))
 
         # Setup Backtest Order/Trade Simulator Variables
         initial_balance = float(scenario.parameters.get("initial_balance", 10000.0))
@@ -102,7 +102,7 @@ class IntelligenceBacktestEngine:
         while current_time < scenario.end_time:
             total_intervals += 1
 
-            # 1. Fetch raw historical rates strictly bounded by current_time (Zero Future Data Leakage)
+            # 1. Fetch raw historical rates strictly bounded by current_time
             req = ExternalDataRequest(
                 symbol=symbol,
                 timeframe=scenario.timeframe,
@@ -112,7 +112,6 @@ class IntelligenceBacktestEngine:
             )
             raw_records, data_report = self.connector.retrieve_and_process(req)
 
-            # Strict Point-in-Time filter: Ensure no candle timestamp > current_time
             normalized_records = []
             if raw_records:
                 for rec in raw_records:
@@ -122,8 +121,6 @@ class IntelligenceBacktestEngine:
 
             if normalized_records:
                 latest_close = normalized_records[-1].close
-
-            # CONSUME RAW HISTORICAL CLOSE DIRECTLY (Synthetic sine fluctuations removed)
 
             # 2. Ingest into Agent Ecosystem
             agent_ctx = AgentContextBuilder.create_with_market_data(symbol, scenario.timeframe)
@@ -154,32 +151,33 @@ class IntelligenceBacktestEngine:
                     }
                 )
 
-            # Orchestrate agents
             enriched_agent_ctx = self.supervisor.orchestrate(agent_ctx)
 
             # 3. Decision Synthesis
             dec_intel_ctx = self.supervisor.compile_to_decision_context(enriched_agent_ctx)
-
-            # Evaluate Decision report
             report = self.decision_engine.evaluate_intelligence_context(dec_intel_ctx)
             reports.append(report)
 
             # ----------------------------------------------------
-            # BACKTEST TRADE ENGINE SIMULATION LAYER
+            # BACKTEST TRADE ENGINE SIMULATION LAYER WITH COST ACCOUNTING
             # ----------------------------------------------------
             multiplier = 100.0 if "XAU" in symbol else 10000.0
             from src.Decision.Models.models import DecisionState
 
             if active_trade:
-                # Calculate P&L
+                # Calculate Gross P&L
                 if active_trade["direction"] == "BUY":
-                    pnl = (latest_close - active_trade["entry_price"]) * multiplier * active_trade["volume"]
+                    gross_pnl = (latest_close - active_trade["entry_price"]) * multiplier * active_trade["volume"]
                 else:
-                    pnl = (active_trade["entry_price"] - latest_close) * multiplier * active_trade["volume"]
+                    gross_pnl = (active_trade["entry_price"] - latest_close) * multiplier * active_trade["volume"]
 
-                active_trade["p_and_l"] = round(pnl, 2)
+                # Apply Transaction Costs
+                total_cost = (spread_usd + commission_usd + slippage_usd) * active_trade["volume"]
+                net_pnl = round(gross_pnl - total_cost, 2)
+                active_trade["p_and_l"] = net_pnl
+                active_trade["gross_pnl"] = round(gross_pnl, 2)
 
-                # Check SL/TP exit (Conservative Ambiguity Resolution: SL priority)
+                # Check SL/TP exit
                 sl_hit = False
                 tp_hit = False
                 if active_trade["direction"] == "BUY":
@@ -197,10 +195,11 @@ class IntelligenceBacktestEngine:
                     active_trade["status"] = "CLOSED"
                     active_trade["exit_price"] = latest_close
                     active_trade["exit_time"] = current_time.isoformat()
+                    active_trade["exit_reason"] = "SL_HIT" if sl_hit else "TP_HIT"
                     balance += active_trade["p_and_l"]
                     active_trade = None
 
-            # If no active trade, scan decision report to open position
+            # Open new trade if no active trade and Decision is APPROVED
             if not active_trade and report.State == DecisionState.APPROVED:
                 strategy_type = scenario.parameters.get("strategy_type", "Momentum")
 
@@ -235,8 +234,13 @@ class IntelligenceBacktestEngine:
                     "entry_time": current_time.isoformat(),
                     "volume": 1.0,
                     "p_and_l": 0.0,
+                    "gross_pnl": 0.0,
+                    "spread_cost": spread_usd,
+                    "commission_cost": commission_usd,
+                    "slippage_cost": slippage_usd,
                     "exit_price": None,
-                    "exit_time": None
+                    "exit_time": None,
+                    "exit_reason": None
                 }
                 trades.append(active_trade)
 
@@ -250,18 +254,24 @@ class IntelligenceBacktestEngine:
             # Advance timeframe
             current_time += timedelta(minutes=interval_minutes)
 
-        # Force close any remaining open trade at the final price
+        # Force close any remaining open trade at final bar close
         if active_trade:
             multiplier = 100.0 if "XAU" in symbol else 10000.0
             if active_trade["direction"] == "BUY":
-                pnl = (latest_close - active_trade["entry_price"]) * multiplier * active_trade["volume"]
+                gross_pnl = (latest_close - active_trade["entry_price"]) * multiplier * active_trade["volume"]
             else:
-                pnl = (active_trade["entry_price"] - latest_close) * multiplier * active_trade["volume"]
+                gross_pnl = (active_trade["entry_price"] - latest_close) * multiplier * active_trade["volume"]
+
+            total_cost = (spread_usd + commission_usd + slippage_usd) * active_trade["volume"]
+            net_pnl = round(gross_pnl - total_cost, 2)
+
             active_trade["status"] = "CLOSED"
             active_trade["exit_price"] = latest_close
             active_trade["exit_time"] = scenario.end_time.isoformat()
-            active_trade["p_and_l"] = round(pnl, 2)
-            balance += pnl
+            active_trade["exit_reason"] = "END_OF_BACKTEST"
+            active_trade["gross_pnl"] = round(gross_pnl, 2)
+            active_trade["p_and_l"] = net_pnl
+            balance += net_pnl
 
         total_trades = len(trades)
         winning_trades = sum(1 for t in trades if t["p_and_l"] > 0)

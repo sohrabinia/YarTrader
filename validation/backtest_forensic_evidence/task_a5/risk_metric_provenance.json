@@ -1,0 +1,8 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "volatility_provenance": "CONFIGURED_DEFAULT",
+  "drawdown_provenance": "CONFIGURED_DEFAULT",
+  "risk_score_provenance": "AGENT_EVALUATED",
+  "confidence_provenance": "AGENT_EVALUATED"
+}
