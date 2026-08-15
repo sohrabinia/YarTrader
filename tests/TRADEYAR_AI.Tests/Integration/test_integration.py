@@ -149,7 +149,8 @@ class TestDecisionAndConflictIntegration(unittest.TestCase):
         Missing agent output (e.g. Research Agent is not registered).
         Expected: Safe degradation, pipeline completes, report switches state to REVIEW_REQUIRED.
         """
-        # Register Strategy and Risk, but NOT Research agent
+        # Clear default auto-registered ResearchAgent to simulate missing Research agent
+        self.supervisor._agents.pop("agent-research", None)
         self.supervisor.register_agent(StrategyAnalystAgent())
         self.supervisor.register_agent(RiskAgent())
 
