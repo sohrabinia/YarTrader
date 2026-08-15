@@ -1,0 +1,14 @@
+{
+  "audit_gate": "LEARNING_ADMISSION",
+  "status": "PROVEN",
+  "admission_rules": [
+    "trade_status == CLOSED",
+    "exit_timestamp > entry_timestamp",
+    "risk_approved == True",
+    "compliance_audit_passed == True",
+    "min_samples >= 5",
+    "judge_vetted_accuracy >= 0.60"
+  ],
+  "synthetic_data_admitted": false,
+  "ui_benchmark_admitted": false
+}

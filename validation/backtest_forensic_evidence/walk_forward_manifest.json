@@ -1,0 +1,37 @@
+{
+  "symbol": "XAUUSD",
+  "timeframe": "M15",
+  "walk_forward_windows": [
+    {
+      "window": "TRAIN_WINDOW_1",
+      "start_time": "2026-07-18T05:14:05.469924+00:00",
+      "end_time": "2026-08-01T05:14:05.469924+00:00",
+      "intervals_processed": 1344,
+      "total_trades": 0,
+      "win_rate_pct": 0.0,
+      "net_pnl": 0.0,
+      "max_drawdown_pct": 0.0
+    },
+    {
+      "window": "VALIDATION_WINDOW_1",
+      "start_time": "2026-08-01T05:14:05.469924+00:00",
+      "end_time": "2026-08-08T05:14:05.469924+00:00",
+      "intervals_processed": 672,
+      "total_trades": 0,
+      "win_rate_pct": 0.0,
+      "net_pnl": 0.0,
+      "max_drawdown_pct": 0.0
+    },
+    {
+      "window": "OOS_WINDOW_1",
+      "start_time": "2026-08-08T05:14:05.469924+00:00",
+      "end_time": "2026-08-15T05:14:05.469924+00:00",
+      "intervals_processed": 672,
+      "total_trades": 0,
+      "win_rate_pct": 0.0,
+      "net_pnl": 0.0,
+      "max_drawdown_pct": 0.0
+    }
+  ],
+  "executed_at": "2026-08-15T05:14:08.760553+00:00"
+}

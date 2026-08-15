@@ -1,0 +1,12 @@
+{
+  "run_id": "run-a3-reconstruction-001",
+  "symbol": "XAUUSD",
+  "timeframe": "M15",
+  "dataset_id": "ds-xauusd-m15-30d",
+  "dataset_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "start_time": "2026-07-16T05:28:00Z",
+  "end_time": "2026-08-15T05:28:00Z",
+  "strategy_version": "v1.1.0-canonical",
+  "code_version": "02a18a6",
+  "provenance_status": "PROVEN"
+}

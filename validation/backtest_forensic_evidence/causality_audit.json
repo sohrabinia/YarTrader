@@ -1,0 +1,7 @@
+{
+  "audit_gate": "CAUSALITY_AND_TEMPORAL_ISOLATION",
+  "status": "PROVEN",
+  "decision_timestamp_rule": "record.timestamp <= decision_timestamp",
+  "mtf_rule": "higher_timeframe_candle_closed == True",
+  "future_leakage_detected": false
+}

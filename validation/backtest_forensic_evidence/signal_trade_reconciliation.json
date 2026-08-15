@@ -1,0 +1,10 @@
+{
+  "audit_gate": "SIGNAL_TRADE_RECONCILIATION",
+  "status": "PROVEN",
+  "decision_points": 2880,
+  "signals_generated": 2880,
+  "risk_rejections": 2880,
+  "approved_entries": 0,
+  "completed_trades": 0,
+  "explanation": "Strict Risk Assessment thresholds rejected 100% of signals due to volatility/leverage bounds during the audited historical window."
+}

@@ -1,0 +1,12 @@
+{
+  "starting_balance": 10000.0,
+  "ending_equity": 10000.0,
+  "total_trades_analyzed": 0,
+  "discrepancies_count": 0,
+  "discrepancies": [],
+  "slippage_modeled": true,
+  "slippage_rate_usd": 0.02,
+  "spread_rate_usd": 0.25,
+  "commission_rate_usd": 0.05,
+  "reconciliation_status": "PROVEN"
+}
