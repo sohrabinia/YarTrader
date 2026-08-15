@@ -59,12 +59,34 @@ if not MT5_AVAILABLE:
         mock_mt5.TIMEFRAME_W1 = 32769
         mock_mt5.TIMEFRAME_MN1 = 49153
 
+        def get_symbol_scale(sym):
+            sym_upper = sym.upper()
+            if "BTC" in sym_upper:
+                return 65000.0, 10.0
+            elif "XAU" in sym_upper or "GOLD" in sym_upper:
+                return 2300.0, 0.5
+            elif "OIL" in sym_upper or "WTI" in sym_upper or "BRENT" in sym_upper:
+                return 75.0, 0.1
+            elif "ADA" in sym_upper:
+                return 0.45, 0.001
+            elif "EUR" in sym_upper:
+                return 1.0850, 0.00011
+            elif "GBP" in sym_upper:
+                return 1.2850, 0.00013
+            elif "AUDJPY" in sym_upper:
+                return 98.50, 0.01
+            elif "AUD" in sym_upper:
+                return 0.6650, 0.0001
+            elif "JPY" in sym_upper:
+                return 152.0, 0.01
+            elif "AAPL" in sym_upper:
+                return 180.0, 0.5
+            else:
+                return 100.0, 0.1
+
         def mock_copy_rates_range(symbol, timeframe, date_from, date_to):
             from datetime import timedelta
-            base_price = 1.1000 if "JPY" not in symbol else 145.0
-            if "XAU" in symbol:
-                base_price = 2300.0
-            increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
+            base_price, increment = get_symbol_scale(symbol)
 
             rates = []
             curr = date_from
@@ -89,10 +111,7 @@ if not MT5_AVAILABLE:
             if err_code != 0:
                 return None
             from datetime import timedelta
-            base_price = 1.1000 if "JPY" not in symbol else 145.0
-            if "XAU" in symbol:
-                base_price = 2300.0
-            increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
+            base_price, increment = get_symbol_scale(symbol)
 
             rates = []
             curr = date_to - timedelta(minutes=15 * count)
@@ -382,15 +401,29 @@ class MT5DataProvider(IDataProvider):
                 }
                 tf_mins = tf_minutes_map.get(tf_str, 60)
 
-                base_price = 1.1000 if "JPY" not in symbol else 145.0
-                if "XAU" in symbol:
-                    base_price = 2300.0
-                elif "AAPL" in symbol:
-                    base_price = 150.0
-
-                increment = 0.0001 if "JPY" not in symbol and "XAU" not in symbol else 0.1
-                if "AAPL" in symbol:
-                    increment = 0.5
+                sym_upper = symbol.upper()
+                if "BTC" in sym_upper:
+                    base_price, increment = 65000.0, 10.0
+                elif "XAU" in sym_upper or "GOLD" in sym_upper:
+                    base_price, increment = 2300.0, 0.5
+                elif "OIL" in sym_upper or "WTI" in sym_upper or "BRENT" in sym_upper:
+                    base_price, increment = 75.0, 0.1
+                elif "ADA" in sym_upper:
+                    base_price, increment = 0.45, 0.001
+                elif "EUR" in sym_upper:
+                    base_price, increment = 1.0850, 0.00011
+                elif "GBP" in sym_upper:
+                    base_price, increment = 1.2850, 0.00013
+                elif "AUDJPY" in sym_upper:
+                    base_price, increment = 98.50, 0.01
+                elif "AUD" in sym_upper:
+                    base_price, increment = 0.6650, 0.0001
+                elif "JPY" in sym_upper:
+                    base_price, increment = 152.0, 0.01
+                elif "AAPL" in sym_upper:
+                    base_price, increment = 180.0, 0.5
+                else:
+                    base_price, increment = 100.0, 0.1
 
                 rates_list = []
                 curr = start_datetime

@@ -26,6 +26,15 @@ class IntelligenceSupervisor:
         self._router = MessageRouter()
         self._memory = AgentMemory()
         self._tracker = AgentPerformanceTracker()
+
+        # Auto-register default concrete agents for seamless orchestration
+        try:
+            from src.Application.Agents.concrete_agents import ResearchAgent, StrategyAnalystAgent, RiskAgent
+            self.register_agent(ResearchAgent())
+            self.register_agent(StrategyAnalystAgent())
+            self.register_agent(RiskAgent())
+        except Exception:
+            pass
         self._timeouts: Dict[str, float] = {}  # agent_id -> timeout_seconds limit
 
     def register_agent(self, agent: IIntelligenceAgent, timeout_seconds: float = 2.0) -> None:
