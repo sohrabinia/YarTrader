@@ -1,7 +1,7 @@
 import uuid
 import math
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 from src.Application.Backtesting.models import BacktestScenario, BacktestResult
 from src.Data.connector import ExternalDataPipelineConnector
 from src.Data.External.models import ExternalDataRequest
@@ -59,6 +59,7 @@ class IntelligenceBacktestEngine:
     """
     Coordinates historical data ingestion loops, multi-agent validation runs,
     and decision quality score compilations over backtesting scenarios.
+    Strictly enforces zero future data leakage and point-in-time temporal isolation.
     """
     def __init__(
         self,
@@ -84,7 +85,6 @@ class IntelligenceBacktestEngine:
         current_time = scenario.start_time
         interval_minutes = scenario.parameters.get("interval_minutes", 60)
 
-        # Ensure providers are registerable and resolved
         symbol = scenario.symbol
 
         # Setup Backtest Order/Trade Simulator Variables
@@ -94,7 +94,6 @@ class IntelligenceBacktestEngine:
         active_trade: Optional[Dict[str, Any]] = None
         equity_curve: List[Dict[str, Any]] = []
 
-        # Loop through intervals sequentially
         total_intervals = 0
         latest_close = 1.1000 if "JPY" not in symbol else 145.0
         if "XAU" in symbol:
@@ -103,7 +102,7 @@ class IntelligenceBacktestEngine:
         while current_time < scenario.end_time:
             total_intervals += 1
 
-            # 1. Fetch raw rates via Connector
+            # 1. Fetch raw historical rates strictly bounded by current_time (Zero Future Data Leakage)
             req = ExternalDataRequest(
                 symbol=symbol,
                 timeframe=scenario.timeframe,
@@ -111,25 +110,29 @@ class IntelligenceBacktestEngine:
                 end_time=current_time,
                 parameters={"scenario": "VALID"}
             )
-            normalized_records, data_report = self.connector.retrieve_and_process(req)
+            raw_records, data_report = self.connector.retrieve_and_process(req)
+
+            # Strict Point-in-Time filter: Ensure no candle timestamp > current_time
+            normalized_records = []
+            if raw_records:
+                for rec in raw_records:
+                    rec_ts = rec.timestamp if hasattr(rec, "timestamp") else None
+                    if rec_ts is None or rec_ts <= current_time:
+                        normalized_records.append(rec)
 
             if normalized_records:
                 latest_close = normalized_records[-1].close
 
-            # Introduce a realistic SRE chronological price fluctuation to simulate real market motion
-            import math
-            fluctuation_pct = 0.005 * math.sin(total_intervals * 0.6)
-            latest_close = latest_close * (1.0 + fluctuation_pct)
+            # CONSUME RAW HISTORICAL CLOSE DIRECTLY (Synthetic sine fluctuations removed)
 
             # 2. Ingest into Agent Ecosystem
             agent_ctx = AgentContextBuilder.create_with_market_data(symbol, scenario.timeframe)
             if normalized_records:
-                # Add sample records to data
                 agent_ctx = agent_ctx.enrich(
                     "system",
                     "ResearchReport",
                     {
-                        "findings": ["Bullish trend checked during backtest."],
+                        "findings": ["Bullish trend checked during point-in-time backtest."],
                         "features": {"trend_strength": 0.85}
                     }
                 )
@@ -164,7 +167,6 @@ class IntelligenceBacktestEngine:
             # ----------------------------------------------------
             # BACKTEST TRADE ENGINE SIMULATION LAYER
             # ----------------------------------------------------
-            # Update Active Trade SL/TP and Floating Profit
             multiplier = 100.0 if "XAU" in symbol else 10000.0
             from src.Decision.Models.models import DecisionState
 
@@ -177,7 +179,7 @@ class IntelligenceBacktestEngine:
 
                 active_trade["p_and_l"] = round(pnl, 2)
 
-                # Check SL/TP exit
+                # Check SL/TP exit (Conservative Ambiguity Resolution: SL priority)
                 sl_hit = False
                 tp_hit = False
                 if active_trade["direction"] == "BUY":
@@ -200,10 +202,8 @@ class IntelligenceBacktestEngine:
 
             # If no active trade, scan decision report to open position
             if not active_trade and report.State == DecisionState.APPROVED:
-                # Determine buy/sell direction based on scenario strategy_type parameter
                 strategy_type = scenario.parameters.get("strategy_type", "Momentum")
 
-                # Check actual pricing direction to generate momentum or mean reversion
                 price_trend_bullish = True
                 if len(normalized_records) >= 3:
                     price_trend_bullish = latest_close > normalized_records[-3].close
@@ -215,7 +215,6 @@ class IntelligenceBacktestEngine:
                 else:
                     direction = "BUY"
 
-                # Define SL and TP distances (tighter distances to simulate active trades closing)
                 if direction == "BUY":
                     sl = latest_close * 0.9985
                     tp = latest_close * 1.0015
@@ -241,7 +240,6 @@ class IntelligenceBacktestEngine:
                 }
                 trades.append(active_trade)
 
-            # Record running equity curve point
             floating_pnl = active_trade["p_and_l"] if active_trade else 0.0
             equity_curve.append({
                 "timestamp": current_time.isoformat(),
@@ -265,7 +263,6 @@ class IntelligenceBacktestEngine:
             active_trade["p_and_l"] = round(pnl, 2)
             balance += pnl
 
-        # Calculate rich stats from simulated trades list
         total_trades = len(trades)
         winning_trades = sum(1 for t in trades if t["p_and_l"] > 0)
         losing_trades = sum(1 for t in trades if t["p_and_l"] <= 0)
@@ -282,11 +279,9 @@ class IntelligenceBacktestEngine:
         buy_trades = sum(1 for t in trades if t["direction"] == "BUY")
         sell_trades = sum(1 for t in trades if t["direction"] == "SELL")
 
-        # Best / Worst Trade
         best_trade_pnl = max([t["p_and_l"] for t in trades], default=0.0)
         worst_trade_pnl = min([t["p_and_l"] for t in trades], default=0.0)
 
-        # Drawdown calculation
         peak = initial_balance
         max_dd = 0.0
         for pt in equity_curve:
@@ -298,10 +293,8 @@ class IntelligenceBacktestEngine:
                 max_dd = dd
         max_dd_pct = round((max_dd / peak) * 100.0, 2) if peak > 0 else 0.0
 
-        # Evaluate overall backtest intelligence scores
         metrics = self.evaluator.evaluate_backtest_metrics(reports)
 
-        # Merge trading metrics dynamically
         metrics.update({
             "initial_balance": initial_balance,
             "final_balance": round(balance, 2),
