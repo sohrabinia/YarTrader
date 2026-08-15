@@ -29,12 +29,18 @@ class BackupManager:
         backup_path = os.path.join(self.backup_dir, backup_filename)
 
         file_count = 0
+        abs_backup_dir = os.path.abspath(self.backup_dir)
         try:
             # Create compressed zip archive atomically
             with zipfile.ZipFile(backup_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-                for root, _, files in os.walk(self.source_dir):
+                for root, dirs, files in os.walk(self.source_dir):
+                    # Skip backup directory itself to prevent recursive archiving of active zip files
+                    if os.path.abspath(root).startswith(abs_backup_dir):
+                        continue
                     for file in files:
                         filepath = os.path.join(root, file)
+                        if os.path.abspath(filepath).startswith(abs_backup_dir):
+                            continue
                         # Archive path relative to parent of source_dir to preserve folder structure
                         arcname = os.path.relpath(filepath, os.path.dirname(self.source_dir))
                         zipf.write(filepath, arcname)
@@ -82,9 +88,12 @@ class BackupManager:
                 if corrupt_file is not None:
                     raise zipfile.BadZipFile(f"Corrupted file '{corrupt_file}' inside backup archive.")
 
-                # 2. Safe isolated restore
-                # Extract to parent directory of self.source_dir to overwrite it correctly
-                parent_dir = os.path.dirname(self.source_dir) or "."
+                # 2. Safe isolated restore with path traversal (Zip Slip) prevention
+                parent_dir = os.path.abspath(os.path.dirname(self.source_dir) or ".")
+                for member in zipf.infolist():
+                    target_path = os.path.abspath(os.path.join(parent_dir, member.filename))
+                    if not target_path.startswith(parent_dir):
+                        raise ValidationException(f"Security Alert: Blocked path traversal attempt in backup archive member '{member.filename}'.")
                 zipf.extractall(parent_dir)
 
             return {
