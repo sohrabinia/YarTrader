@@ -25,7 +25,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 # Signal to web_dashboard to bypass duplicate background worker loops
-os.environ["TRADEYAR_SERVICE_RUN"] = "True"
+os.environ["YARTRADER_SERVICE_RUN"] = "True"
 os.environ["YARTRADER_SERVICE_RUN"] = "True"
 
 # Ensure logs/service directory exists
@@ -71,8 +71,8 @@ try:
 except ImportError:
     WINDOWS_SERVICE_SUPPORTED = False
 
-class TradeYarAIServiceHost:
-    """Orchestrator for the TradeYar-AI Windows Service runtime and background workers."""
+class YarTraderAIServiceHost:
+    """Orchestrator for the YarTrader Windows Service runtime and background workers."""
     def __init__(self, config: Optional[ProductionConfig] = None) -> None:
         self.config = config or ProductionConfig()
         self.is_running = False
@@ -162,8 +162,8 @@ class TradeYarAIServiceHost:
 
 
 if WINDOWS_SERVICE_SUPPORTED:
-    class TradeYarAIWindowsService(win32serviceutil.ServiceFramework):
-        """Native Windows Service Lifecycle handler for TradeYar-AI."""
+    class YarTraderAIWindowsService(win32serviceutil.ServiceFramework):
+        """Native Windows Service Lifecycle handler for YarTrader."""
         _svc_name_ = "YarTrader"
         _svc_display_name_ = "YarTrader Production Runtime Service"
         _svc_description_ = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
@@ -171,7 +171,7 @@ if WINDOWS_SERVICE_SUPPORTED:
         def __init__(self, args):
             win32serviceutil.ServiceFramework.__init__(self, args)
             self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-            self.host = TradeYarAIServiceHost()
+            self.host = YarTraderAIServiceHost()
 
         def SvcStop(self):
             log_service_message("SERVICE_STOP_REQUESTED")
@@ -209,13 +209,13 @@ if WINDOWS_SERVICE_SUPPORTED:
                 self.ReportServiceStatus(win32service.SERVICE_STOPPED)
                 raise
 else:
-    class TradeYarAIWindowsService:
+    class YarTraderAIWindowsService:
         pass
 
 
 def run_standalone():
     """Standalone CLI process entrypoint with SIGINT/SIGTERM signal handling."""
-    host = TradeYarAIServiceHost()
+    host = YarTraderAIServiceHost()
 
     def handle_signal(signum, frame):
         log_service_message(f"Received signal {signum}. Shutting down...")
@@ -245,7 +245,7 @@ def run_standalone():
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] in ["install", "remove", "start", "stop", "debug", "update"]:
         if WINDOWS_SERVICE_SUPPORTED:
-            win32serviceutil.HandleCommandLine(TradeYarAIWindowsService)
+            win32serviceutil.HandleCommandLine(YarTraderAIWindowsService)
         else:
             log_service_message("Windows Service packages are not installed on this system. Running standalone instead...")
             run_standalone()
@@ -254,7 +254,7 @@ if __name__ == "__main__":
         if WINDOWS_SERVICE_SUPPORTED:
             try:
                 servicemanager.Initialize()
-                servicemanager.PrepareToHostSingle(TradeYarAIWindowsService)
+                servicemanager.PrepareToHostSingle(YarTraderAIWindowsService)
                 servicemanager.StartServiceCtrlDispatcher()
             except Exception as e:
                 # If we cannot connect to SCM (e.g. running interactively), fallback to standalone console

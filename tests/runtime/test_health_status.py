@@ -27,7 +27,7 @@ class TestHealthStatus(unittest.TestCase):
         with patch.dict("src.Application.Services.web_dashboard.research_tracker", {"mt5_status": "CONNECTED", "worker_status": "RUNNING"}):
             health = get_production_health()
             self.assertEqual(health["status"], "Healthy")
-            self.assertTrue(health["service"] == "TradeYar-AI" or health["service"] == "YarTrader")
+            self.assertTrue(health["service"] == "YarTrader" or health["service"] == "YarTrader")
             self.assertEqual(health["api"], "Online")
             self.assertEqual(health["mt5"], "Connected")
             self.assertEqual(health["worker"], "Running")

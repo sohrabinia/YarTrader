@@ -9,7 +9,7 @@ logger = logging.getLogger("SymbolRuntimeManager")
 
 class SymbolRuntimeManager:
     """
-    Orchestrates the hierarchical cognitive topology for TradeYar AI v8.0.
+    Orchestrates the hierarchical cognitive topology for YarTrader v8.0.
     Manages 30 Symbols x 5 Timeframes = 150+ completely isolated independent engines.
     Provides thread-safe processing queues with backpressure and concurrent worker pools.
     """

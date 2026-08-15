@@ -1,4 +1,4 @@
-# PowerShell Automated Production Backup Script for TradeYar AI v3.2
+# PowerShell Automated Production Backup Script for YarTrader v3.2
 # Location: scripts/backup_production.ps1
 #
 # Idempotency Rule: Can be run safely multiple times.
@@ -22,7 +22,7 @@ $BackupRoot = Join-Path $PSScriptRoot "..\" | Resolve-Path
 $TargetBackupFolder = Join-Path $BackupRoot $BackupDir
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "TradeYar AI v3.2 — Enterprise Backup & Migration Safety" -ForegroundColor Cyan
+Write-Host "YarTrader v3.2 — Enterprise Backup & Migration Safety" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "[*] Timestamp: $Timestamp" -ForegroundColor Yellow
 Write-Host "[*] Backup Root: $BackupRoot" -ForegroundColor Yellow
@@ -133,7 +133,7 @@ if ($PgDumpExe) {
     Log-BackupMessage "pg_dump utility was not found in System PATH. Generating secure mock dump fallback..." "INFO"
     $MockSQL = @"
 -- ==============================================================================
--- TradeYar AI Production SRE Fallback Mock Dump
+-- YarTrader Production SRE Fallback Mock Dump
 -- ==============================================================================
 -- Database: $PgDb
 -- Host: $PgHost:$PgPort

@@ -11,8 +11,8 @@ import os
 import sys
 
 # Force mock under pytest or unittest environments to ensure deterministic offline testing
-FORCE_MOCK_MT5 = "pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("TRADEYAR_ENV") == "test"
-is_production = os.environ.get("TRADEYAR_ENV") == "production" or os.environ.get("RG_ENV") == "production"
+FORCE_MOCK_MT5 = "pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("YARTRADER_ENV") == "test"
+is_production = os.environ.get("YARTRADER_ENV") == "production" or os.environ.get("RG_ENV") == "production"
 
 if FORCE_MOCK_MT5:
     MT5_AVAILABLE = False

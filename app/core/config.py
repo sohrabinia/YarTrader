@@ -75,7 +75,7 @@ class ProductionConfig:
 
     def _load_config(self, config_path: Optional[str] = None) -> None:
         if not config_path:
-            env = os.environ.get("TRADEYAR_ENV", os.environ.get("RG_ENV", "production")).lower()
+            env = os.environ.get("YARTRADER_ENV", os.environ.get("RG_ENV", "production")).lower()
             config_filename = f"{env}.yaml"
             possible_paths = [
                 os.path.join("config", config_filename),
@@ -111,31 +111,31 @@ class ProductionConfig:
                 print(f"Warning: Failed to load config from {config_path}: {e}")
 
     def _load_env_overrides(self) -> None:
-        self.api_host = os.environ.get("TRADEYAR_API_HOST", os.environ.get("RG_API_HOST", self.api_host))
+        self.api_host = os.environ.get("YARTRADER_API_HOST", os.environ.get("RG_API_HOST", self.api_host))
 
-        env_port = os.environ.get("TRADEYAR_API_PORT", os.environ.get("RG_API_PORT"))
+        env_port = os.environ.get("YARTRADER_API_PORT", os.environ.get("RG_API_PORT"))
         if env_port:
             self.api_port = int(env_port)
 
-        self.mt5_symbol = os.environ.get("TRADEYAR_MT5_SYMBOL", os.environ.get("RG_MT5_SYMBOL", self.mt5_symbol))
-        self.mt5_timeframe = os.environ.get("TRADEYAR_MT5_TIMEFRAME", os.environ.get("RG_MT5_TIMEFRAME", self.mt5_timeframe))
-        self.logging_level = os.environ.get("TRADEYAR_LOG_LEVEL", os.environ.get("RG_LOG_LEVEL", self.logging_level)).upper()
-        self.logging_rotation = os.environ.get("TRADEYAR_LOG_ROTATION", self.logging_rotation)
+        self.mt5_symbol = os.environ.get("YARTRADER_MT5_SYMBOL", os.environ.get("RG_MT5_SYMBOL", self.mt5_symbol))
+        self.mt5_timeframe = os.environ.get("YARTRADER_MT5_TIMEFRAME", os.environ.get("RG_MT5_TIMEFRAME", self.mt5_timeframe))
+        self.logging_level = os.environ.get("YARTRADER_LOG_LEVEL", os.environ.get("RG_LOG_LEVEL", self.logging_level)).upper()
+        self.logging_rotation = os.environ.get("YARTRADER_LOG_ROTATION", self.logging_rotation)
 
-        env_res = os.environ.get("TRADEYAR_WORKERS_RESEARCH")
+        env_res = os.environ.get("YARTRADER_WORKERS_RESEARCH")
         if env_res:
             self.workers_research = env_res.lower() == "true"
 
-        env_intel = os.environ.get("TRADEYAR_WORKERS_INTELLIGENCE")
+        env_intel = os.environ.get("YARTRADER_WORKERS_INTELLIGENCE")
         if env_intel:
             self.workers_intelligence = env_intel.lower() == "true"
 
-        env_conf = os.environ.get("TRADEYAR_AI_CONFIDENCE_THRESHOLD")
+        env_conf = os.environ.get("YARTRADER_AI_CONFIDENCE_THRESHOLD")
         if env_conf:
             self.ai_confidence_threshold = int(env_conf)
 
-        self.mt5_password = os.environ.get("TRADEYAR_MT5_PASSWORD")
-        self.api_key = os.environ.get("TRADEYAR_API_KEY")
+        self.mt5_password = os.environ.get("YARTRADER_MT5_PASSWORD")
+        self.api_key = os.environ.get("YARTRADER_API_KEY")
 
     def _validate(self) -> None:
         if self.api_port <= 0 or self.api_port > 65535:

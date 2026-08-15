@@ -25,7 +25,7 @@ class TestSREOperational(unittest.TestCase):
         log_data = json.loads(last_line)
 
         self.assertEqual(log_data["level"], "INFO")
-        self.assertTrue(log_data["service"] == "TradeYar-AI" or log_data["service"] == "YarTrader")
+        self.assertTrue(log_data["service"] == "YarTrader" or log_data["service"] == "YarTrader")
         self.assertEqual(log_data["event"], "Unauthorized endpoint access attempt detected")
         self.assertEqual(log_data["src_ip"], "192.168.1.100")
         self.assertEqual(log_data["port"], 443)
@@ -46,7 +46,7 @@ class TestSREOperational(unittest.TestCase):
         resp = self.client.get("/health")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        self.assertTrue(data["service"] == "TradeYar-AI" or data["service"] == "YarTrader")
+        self.assertTrue(data["service"] == "YarTrader" or data["service"] == "YarTrader")
         self.assertIn("api", data)
         self.assertIn("mt5", data)
         self.assertIn("worker", data)

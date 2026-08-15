@@ -3,8 +3,8 @@ param (
     [string]$ExternalUrl = ""
 )
 
-# Health Check Script for TradeYar AI Production Service
-# Location: C:\Projects\TradeYar_AI\scripts\health_check.ps1
+# Health Check Script for YarTrader Production Service
+# Location: C:\Projects\YarTrader_AI\scripts\health_check.ps1
 #
 # Idempotency Rule: This script can be run multiple times safely.
 # It performs end-to-end HTTP health checks against local runtime endpoints
@@ -15,7 +15,7 @@ param (
 [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "TradeYar AI Production SRE Health Check Diagnostics" -ForegroundColor Cyan
+Write-Host "YarTrader Production SRE Health Check Diagnostics" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # 1. LOCAL RUNTIME ENDPOINT DIAGNOSTICS

@@ -18,22 +18,22 @@ class AuthRepository:
 
     def _load_db(self) -> Dict[str, Dict[str, Any]]:
         if not os.path.exists(self.filepath):
-            is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
+            is_production = (os.environ.get("YARTRADER_ENV") == "production" or
                              os.environ.get("RG_ENV") == "production")
 
             # Derive primary administrator details safely without exposing personal identities
-            admin_email = os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "admin-disabled@yartrader.app").lower()
+            admin_email = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", "admin-disabled@yartrader.app").lower()
 
             # Seed default admin and user accounts
             if is_production:
-                admin_pw_hash = os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH")
+                admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH")
                 if not admin_pw_hash or admin_pw_hash in ("*", "placeholder", ""):
                     raise ValidationException(
-                        "Production Configuration Error: TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH must be configured with a secure, non-empty PBKDF2 hash."
+                        "Production Configuration Error: YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH must be configured with a secure, non-empty PBKDF2 hash."
                     )
                 if admin_email == "admin-disabled@yartrader.app" or not admin_email:
                     raise ValidationException(
-                        "Production Configuration Error: TRADEYAR_DEFAULT_ADMIN_EMAIL must be configured with a valid production administrator email."
+                        "Production Configuration Error: YARTRADER_DEFAULT_ADMIN_EMAIL must be configured with a valid production administrator email."
                     )
                 default_data = {
                     admin_email: {

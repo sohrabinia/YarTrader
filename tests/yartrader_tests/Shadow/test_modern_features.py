@@ -5,7 +5,7 @@ from src.Application.Services.web_dashboard import app, global_auth_service
 
 class TestModernFeaturesIntegration(unittest.TestCase):
     """
-    Standard Engineering integration tests for TradeYar AI v3.2 new features.
+    Standard Engineering integration tests for YarTrader v3.2 new features.
     Verifies Social Auth callbacks, Role-based route guards, and AI chatbot reasoning.
     """
 
@@ -67,7 +67,7 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         resp1 = self.client.post("/api/chat/assistant", json=prompt1)
         self.assertEqual(resp1.status_code, 200)
         data1 = resp1.json()
-        self.assertTrue("TradeYar" in data1["status"] or "YarTrader" in data1["status"])
+        self.assertTrue("YarTrader" in data1["status"] or "YarTrader" in data1["status"])
         self.assertIn("تصمیم", data1["response"])
 
         # Test learn/cognitive prompt in English

@@ -1,4 +1,4 @@
-# TradeYar AI v3.3 - SRE Resource Configuration Limits
+# YarTrader v3.3 - SRE Resource Configuration Limits
 system_limits:
   max_active_symbols: 30
   default_timeframes: [1, 4, 16, 64, 256, 1024]

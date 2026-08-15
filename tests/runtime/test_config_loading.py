@@ -26,12 +26,12 @@ class TestConfigLoading(unittest.TestCase):
 
     def test_env_override(self):
         """Checks that environment variables properly override default parameters."""
-        os.environ["TRADEYAR_API_HOST"] = "0.0.0.0"
-        os.environ["TRADEYAR_API_PORT"] = "9090"
-        os.environ["TRADEYAR_MT5_SYMBOL"] = "GBPUSD"
-        os.environ["TRADEYAR_LOG_LEVEL"] = "DEBUG"
-        os.environ["TRADEYAR_MT5_PASSWORD"] = "secret_pass_123"
-        os.environ["TRADEYAR_API_KEY"] = "api_key_777"
+        os.environ["YARTRADER_API_HOST"] = "0.0.0.0"
+        os.environ["YARTRADER_API_PORT"] = "9090"
+        os.environ["YARTRADER_MT5_SYMBOL"] = "GBPUSD"
+        os.environ["YARTRADER_LOG_LEVEL"] = "DEBUG"
+        os.environ["YARTRADER_MT5_PASSWORD"] = "secret_pass_123"
+        os.environ["YARTRADER_API_KEY"] = "api_key_777"
 
         config = ProductionConfig()
         self.assertEqual(config.api_host, "0.0.0.0")
@@ -43,12 +43,12 @@ class TestConfigLoading(unittest.TestCase):
 
     def test_invalid_port_validation(self):
         """Verifies that setting an invalid port raises a validation error."""
-        os.environ["TRADEYAR_API_PORT"] = "-1"
+        os.environ["YARTRADER_API_PORT"] = "-1"
         with self.assertRaises(ConfigurationException):
             ProductionConfig()
 
     def test_invalid_confidence_threshold(self):
         """Verifies that confidence threshold boundaries are validated."""
-        os.environ["TRADEYAR_AI_CONFIDENCE_THRESHOLD"] = "150"
+        os.environ["YARTRADER_AI_CONFIDENCE_THRESHOLD"] = "150"
         with self.assertRaises(ConfigurationException):
             ProductionConfig()

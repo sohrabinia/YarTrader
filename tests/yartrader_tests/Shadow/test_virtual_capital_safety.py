@@ -16,7 +16,7 @@ def test_shadow_mode_zero_broker_balance():
     Test 1: Checks that virtual balance allows simulation trades to proceed
     even if the broker balance is $0 under SHADOW mode.
     """
-    os.environ["TRADEYAR_TRADING_MODE"] = "SHADOW"
+    os.environ["YARTRADER_TRADING_MODE"] = "SHADOW"
     os.environ["VIRTUAL_CAPITAL_INITIAL_BALANCE"] = "1000.0"
 
     # Instantiate PredictiveShadowEngine (or get singleton instance and reset config)
@@ -45,7 +45,7 @@ def test_live_mode_zero_balance_blocked():
     """
     Test 2: Checks that LIVE execution is blocked if Broker Balance is <= 0.
     """
-    os.environ["TRADEYAR_TRADING_MODE"] = "LIVE"
+    os.environ["YARTRADER_TRADING_MODE"] = "LIVE"
 
     engine = PredictiveShadowEngine.get_instance()
 
@@ -67,7 +67,7 @@ def test_shadow_mode_blocks_mt5_order_send():
     """
     Test 3: Confirms that SHADOW mode does not call any live order send or broker mutations.
     """
-    os.environ["TRADEYAR_TRADING_MODE"] = "SHADOW"
+    os.environ["YARTRADER_TRADING_MODE"] = "SHADOW"
 
     engine = PredictiveShadowEngine.get_instance()
 
@@ -92,7 +92,7 @@ def test_unknown_mode_fails_closed():
     """
     Test 4: If trading context is unknown, fail closed.
     """
-    os.environ["TRADEYAR_TRADING_MODE"] = "UNKNOWN_MODE"
+    os.environ["YARTRADER_TRADING_MODE"] = "UNKNOWN_MODE"
 
     engine = PredictiveShadowEngine.get_instance()
 

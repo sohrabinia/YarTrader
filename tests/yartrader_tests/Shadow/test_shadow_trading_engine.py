@@ -11,7 +11,7 @@ from src.Research.Brain.memory import MarketMemorySystem
 
 class TestShadowTradingEngine(unittest.TestCase):
     """
-    Comprehensive test suite verifying the TradeYar Shadow Trading Engine.
+    Comprehensive test suite verifying the YarTrader Shadow Trading Engine.
     Covers Virtual Account, Position Lifecycle, SL/TP simulation, and full E2E Integration.
     """
 

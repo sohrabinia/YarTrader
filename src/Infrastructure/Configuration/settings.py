@@ -28,16 +28,16 @@ class BaseSettings:
 
     def _load_and_validate(self) -> None:
         # Load MetaTrader isolation parameters
-        self.mt5_account = str(self._overrides.get("mt5_account", os.environ.get("TRADEYAR_MT5_LOGIN", "52961173")))
-        self.mt5_server = str(self._overrides.get("mt5_server", os.environ.get("TRADEYAR_MT5_SERVER", "Alpari-MT5-Demo")))
-        self.mt5_terminal_path = str(self._overrides.get("mt5_terminal_path", os.environ.get("TRADEYAR_MT5_TERMINAL_PATH", "C:\\Program Files\\MetaTrader 5\\terminal64.exe")))
-        self.mt4_account = str(self._overrides.get("mt4_account", os.environ.get("TRADEYAR_MT4_LOGIN", "143056202")))
-        self.mt4_server = str(self._overrides.get("mt4_server", os.environ.get("TRADEYAR_MT4_SERVER", "Alpari-Pro.ECN")))
-        self.mt4_terminal_path = str(self._overrides.get("mt4_terminal_path", os.environ.get("TRADEYAR_MT4_TERMINAL_PATH", "C:\\Program Files (x86)\\MetaTrader 4\\terminal.exe")))
+        self.mt5_account = str(self._overrides.get("mt5_account", os.environ.get("YARTRADER_MT5_LOGIN", "52961173")))
+        self.mt5_server = str(self._overrides.get("mt5_server", os.environ.get("YARTRADER_MT5_SERVER", "Alpari-MT5-Demo")))
+        self.mt5_terminal_path = str(self._overrides.get("mt5_terminal_path", os.environ.get("YARTRADER_MT5_TERMINAL_PATH", "C:\\Program Files\\MetaTrader 5\\terminal64.exe")))
+        self.mt4_account = str(self._overrides.get("mt4_account", os.environ.get("YARTRADER_MT4_LOGIN", "143056202")))
+        self.mt4_server = str(self._overrides.get("mt4_server", os.environ.get("YARTRADER_MT4_SERVER", "Alpari-Pro.ECN")))
+        self.mt4_terminal_path = str(self._overrides.get("mt4_terminal_path", os.environ.get("YARTRADER_MT4_TERMINAL_PATH", "C:\\Program Files (x86)\\MetaTrader 4\\terminal.exe")))
         self.live_trading_enabled = bool(self._overrides.get("live_trading_enabled", os.environ.get("LIVE_TRADING_ENABLED", "False") == "True"))
 
         # Load from env vars or overrides
-        self.simulation_mode = bool(self._overrides.get("simulation_mode", os.environ.get("TRADEYAR_SIMULATION_MODE", "True") == "True"))
+        self.simulation_mode = bool(self._overrides.get("simulation_mode", os.environ.get("YARTRADER_SIMULATION_MODE", "True") == "True"))
         if not self.simulation_mode:
             raise ValidationException(
                 "APES-FIN Compliance Error: Real trading is strictly prohibited. simulation_mode must be set to True."
@@ -63,13 +63,13 @@ class BaseSettings:
 
         # Storage Root Isolation
         default_root = "C:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
-        self.storage_root = str(self._overrides.get("storage_root", os.environ.get("YarTraderStorageRoot", os.environ.get("TradeYarStorageRoot", default_root))))
+        self.storage_root = str(self._overrides.get("storage_root", os.environ.get("YarTraderStorageRoot", os.environ.get("YarTraderStorageRoot", default_root))))
         if not self.storage_root:
             self.storage_root = default_root
 
         self.db_token = str(self._overrides.get("db_token", os.environ.get("RG_DB_SECURE_TOKEN", self.db_token)))
 
-        is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
+        is_production = (os.environ.get("YARTRADER_ENV") == "production" or
                          os.environ.get("RG_ENV") == "production" or
                          self.__class__.__name__ == "ProductionSettings")
 

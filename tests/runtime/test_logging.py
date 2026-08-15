@@ -18,7 +18,7 @@ class TestLogging(unittest.TestCase):
         data = json.loads(last_line)
 
         self.assertEqual(data["level"], "INFO")
-        self.assertEqual(data["service"], "TradeYar-AI")
+        self.assertEqual(data["service"], "YarTrader")
         self.assertEqual(data["event"], "Test event format")
         self.assertEqual(data["custom_id"], 987)
         self.assertIn("time", data)

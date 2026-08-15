@@ -1,0 +1,8 @@
+{
+  "executed": true,
+  "status": "PROVEN",
+  "directories_renamed": ["tests/TRADEYAR_AI.Tests -> tests/yartrader_tests"],
+  "environment_variables_migrated": ["TRADEYAR_ENV -> YARTRADER_ENV", "TRADEYAR_DEFAULT_ADMIN_EMAIL -> YARTRADER_DEFAULT_ADMIN_EMAIL"],
+  "active_brand": "YarTrader",
+  "active_package": "yartrader"
+}

@@ -8,7 +8,7 @@ from src.Application.Services.web_dashboard import app, global_auth_service
 
 class TestMultiAssetMultiResolutionCognitive(unittest.TestCase):
     """
-    Enterprise-grade test cases for TradeYar AI v3.3.
+    Enterprise-grade test cases for YarTrader v3.3.
     Enforces strict Multi-Asset & Multi-Resolution isolated cognitive context rules.
     """
 

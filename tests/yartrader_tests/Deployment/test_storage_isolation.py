@@ -2,29 +2,29 @@ import os
 import shutil
 import unittest
 from src.Infrastructure.exceptions import ValidationException
-from src.Application.Deployment.storage import TradeYarStorageManager
+from src.Application.Deployment.storage import YarTraderStorageManager
 from src.Application.Deployment.config import ProductionConfig, ConfigManager
 from src.Application.Deployment.observability import StructuredLogger
 
 
-class TestTradeYarStorageIsolation(unittest.TestCase):
+class TestYarTraderStorageIsolation(unittest.TestCase):
     """
-    Automated test suite verifying Phase 39: TradeYar AI Storage Isolation.
+    Automated test suite verifying Phase 39: YarTrader Storage Isolation.
     Ensures that all runtime directories are strictly placed and write-isolated
-    under TradeYarStorageRoot, preventing fallback writes to OS system directories.
+    under YarTraderStorageRoot, preventing fallback writes to OS system directories.
     """
 
     def setUp(self) -> None:
         ConfigManager.reset()
-        TradeYarStorageManager.reset()
+        YarTraderStorageManager.reset()
 
         # We configure a safe testing storage root path
-        self.test_root = os.path.join(os.getcwd(), "test_TradeYarAI")
-        self.manager = TradeYarStorageManager.get_manager(self.test_root)
+        self.test_root = os.path.join(os.getcwd(), "test_YarTraderAI")
+        self.manager = YarTraderStorageManager.get_manager(self.test_root)
 
     def tearDown(self) -> None:
         ConfigManager.reset()
-        TradeYarStorageManager.reset()
+        YarTraderStorageManager.reset()
         if os.path.exists(self.test_root):
             shutil.rmtree(self.test_root, ignore_errors=True)
 
@@ -45,10 +45,10 @@ class TestTradeYarStorageIsolation(unittest.TestCase):
         if os.path.exists(self.test_root):
             shutil.rmtree(self.test_root)
 
-        logger = StructuredLogger(service_name="TradeYar_Test")
+        logger = StructuredLogger(service_name="YarTrader_Test")
         logger.info("OperationalStep", {"payload": "test"})
 
-        expected_log_file = os.path.join(self.manager.get_log_dir(), "tradeyar_ai.log")
+        expected_log_file = os.path.join(self.manager.get_log_dir(), "yartrader.log")
         self.assertTrue(os.path.exists(expected_log_file))
 
         # Verify that we can read back and parse JSON
@@ -57,11 +57,11 @@ class TestTradeYarStorageIsolation(unittest.TestCase):
             self.assertGreater(len(lines), 0)
 
     def test_config_storage_root_parameter(self) -> None:
-        """Verify that ProductionConfig correctly exposes and defaults the TradeYarStorageRoot config."""
-        os.environ["TradeYarStorageRoot"] = self.test_root
+        """Verify that ProductionConfig correctly exposes and defaults the YarTraderStorageRoot config."""
+        os.environ["YarTraderStorageRoot"] = self.test_root
         config = ProductionConfig()
         self.assertEqual(config.storage_root, self.test_root)
-        del os.environ["TradeYarStorageRoot"]
+        del os.environ["YarTraderStorageRoot"]
 
     def test_no_write_leaks_outside_root(self) -> None:
         """Verify that no file path fallbacks default to OS directories or active user homes."""

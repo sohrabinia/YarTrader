@@ -302,13 +302,13 @@ def run_phase_2_1():
     print("[INFO] Saved validation/experiment_integrity_report.json")
 
     # 7. Long-form Markdown Report: HISTORICAL_INTELLIGENCE_REPORT.md
-    historical_md = f"""# TradeYar AI — Phase 2.1 Synthetic Experiment Pipeline Validation
+    historical_md = f"""# YarTrader — Phase 2.1 Synthetic Experiment Pipeline Validation
 
 *Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
 *Git Commit Hash: {git_hash}*
 
 ## Executive Summary
-This report presents the synthetic validation results of the TradeYar AI Pure Learning experiment. In strict accordance with the **Zero Manual Knowledge Injection** constraint, no technical indicators, candlestick rules, or manual patterns were added. This synthetic walk-forward simulation compares the learning delta of the adaptive memory engine against a static, non-learning baseline to validate system reporting and metrics generation pipelines.
+This report presents the synthetic validation results of the YarTrader Pure Learning experiment. In strict accordance with the **Zero Manual Knowledge Injection** constraint, no technical indicators, candlestick rules, or manual patterns were added. This synthetic walk-forward simulation compares the learning delta of the adaptive memory engine against a static, non-learning baseline to validate system reporting and metrics generation pipelines.
 
 ---
 
@@ -367,7 +367,7 @@ We ran **1,000 randomized simulations** of trade orderings to test strategy resi
 ---
 
 ## Conclusion
-The validation experiment confirms that **TradeYar AI's adaptive learning engine exhibits consistent experience calibration** in walk-forward simulation pipelines without requiring any manual rule tuning.
+The validation experiment confirms that **YarTrader's adaptive learning engine exhibits consistent experience calibration** in walk-forward simulation pipelines without requiring any manual rule tuning.
 """
 
     with open("runtime_logs/HISTORICAL_INTELLIGENCE_REPORT.md", "w", encoding="utf-8") as f:

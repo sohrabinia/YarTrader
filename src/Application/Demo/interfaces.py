@@ -8,7 +8,7 @@ class IDemoScenarioRunner(ABC):
 
     @abstractmethod
     def run_scenario(self, scenario: DemoScenario) -> DemoExecutionResult:
-        """Executes a complete demo scenario through the TRADEYAR_AI intelligence layers."""
+        """Executes a complete demo scenario through the YARTRADER intelligence layers."""
         pass
 
 

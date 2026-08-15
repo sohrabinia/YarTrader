@@ -1,4 +1,4 @@
-# PowerShell Dev Environment Startup Script for TradeYar AI
+# PowerShell Dev Environment Startup Script for YarTrader
 # Auto-detects repository root, manages port bindings, and starts servers cleanly.
 
 $ErrorActionPreference = "Stop"
@@ -20,7 +20,7 @@ $RepoRoot = Resolve-Path "$ScriptDir\.."
 Set-Location $RepoRoot
 
 Write-Host "===============================================" -ForegroundColor Cyan
-Write-Host "  TradeYar AI Development Environment Launcher " -ForegroundColor Cyan
+Write-Host "  YarTrader Development Environment Launcher " -ForegroundColor Cyan
 Write-Host "===============================================" -ForegroundColor Cyan
 Write-Host "Detected Repository Root: $RepoRoot" -ForegroundColor Gray
 
@@ -85,7 +85,7 @@ Start-Sleep -Seconds 2
 # 5. Output unified Summary
 Clear-Host
 Write-Host "===============================================" -ForegroundColor Cyan
-Write-Host "   TradeYar AI Developer Environment Startup" -ForegroundColor Cyan
+Write-Host "   YarTrader Developer Environment Startup" -ForegroundColor Cyan
 Write-Host "===============================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Backend Gateway Endpoint:" -ForegroundColor Gray

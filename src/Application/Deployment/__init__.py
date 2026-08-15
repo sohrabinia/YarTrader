@@ -15,7 +15,7 @@ from src.Application.Deployment.health import (
     ProductionHealthChecker
 )
 from src.Application.Deployment.storage import (
-    TradeYarStorageManager
+    YarTraderStorageManager
 )
 
 __all__ = [
@@ -27,5 +27,5 @@ __all__ = [
     "StructuredLogger",
     "PerformanceMetricsTracker",
     "ProductionHealthChecker",
-    "TradeYarStorageManager"
+    "YarTraderStorageManager"
 ]

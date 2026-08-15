@@ -1,13 +1,13 @@
-# PowerShell IIS Reverse Proxy Automation Script for TradeYar AI
-# Location: C:\Projects\TradeYar_AI\scripts\setup_iis_reverse_proxy.ps1
+# PowerShell IIS Reverse Proxy Automation Script for YarTrader
+# Location: C:\Projects\YarTrader_AI\scripts\setup_iis_reverse_proxy.ps1
 #
 # Idempotency Rule: This script can be run multiple times safely.
 # It automates creating the IIS Website, Application Pool, configuring URL Rewrite rules,
 # writing the secure web.config with enterprise security headers, and setting up static caching.
 
-$SiteName = "TradeYarAI"
-$AppPoolName = "TradeYarPool"
-$PhysicalPath = "C:\inetpub\wwwroot\TradeYarAI"
+$SiteName = "YarTraderAI"
+$AppPoolName = "YarTraderPool"
+$PhysicalPath = "C:\inetpub\wwwroot\YarTraderAI"
 $BackendUrl = "http://127.0.0.1:8000"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -48,7 +48,7 @@ $503Content = @"
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سامانه موقتاً در دسترس نیست | TradeYar AI</title>
+    <title>سامانه موقتاً در دسترس نیست | YarTrader</title>
     <style>
         body {
             font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif;
@@ -89,12 +89,12 @@ $503Content = @"
 <body>
     <div class="container">
         <h1>سامانه موقتاً در دسترس نیست (خطای ۵۰۳)</h1>
-        <p>کاربر گرامی، موتور اجرای پس‌زمینه TradeYar AI در حال حاضر آفلاین است، در حال راه‌اندازی مجدد است، یا عملیات نگهداری SRE بر روی آن در حال انجام است.</p>
+        <p>کاربر گرامی، موتور اجرای پس‌زمینه YarTrader در حال حاضر آفلاین است، در حال راه‌اندازی مجدد است، یا عملیات نگهداری SRE بر روی آن در حال انجام است.</p>
         <p>لطفاً چند لحظه دیگر مجدداً تلاش نمایید. از شکیبایی شما سپاسگزاریم.</p>
 
         <div class="english">
             <h2 style="color: #1d3557; font-size: 1.4em;">Service Temporarily Unavailable (503 Error)</h2>
-            <p>The downstream TradeYar AI background execution service is currently offline, restarting, or undergoing active SRE maintenance.</p>
+            <p>The downstream YarTrader background execution service is currently offline, restarting, or undergoing active SRE maintenance.</p>
             <p>Please try again in a few moments. Thank you for your patience.</p>
         </div>
     </div>
@@ -116,7 +116,7 @@ $WebConfigPath = Join-Path $PhysicalPath "web.config"
 $WebConfigContent = @"
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  TradeYar AI v3.2 — Enterprise IIS Reverse Proxy web.config
+  YarTrader v3.2 — Enterprise IIS Reverse Proxy web.config
   This file configures:
     1. URL Rewrite rules from Public HTTPS to Local FastAPI (Port 8000).
     2. Enterprise Security Headers (HSTS, clickjacking protection, mime-sniffing block).

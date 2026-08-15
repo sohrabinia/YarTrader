@@ -27,9 +27,9 @@ from src.Application.Runtime import (
 )
 
 
-class TestTradeYarRuntimeAndConfiguration(unittest.TestCase):
+class TestYarTraderRuntimeAndConfiguration(unittest.TestCase):
     """
-    Unit and integration tests for the TradeYar AI Runtime Foundation.
+    Unit and integration tests for the YarTrader Runtime Foundation.
     Verifies environment config, DI registrations, lifecycle transitions, and host execution.
     """
 
@@ -45,10 +45,10 @@ class TestTradeYarRuntimeAndConfiguration(unittest.TestCase):
 
     def test_environment_resolution(self) -> None:
         """Verify fallback and resolution of EnvironmentType from env vars."""
-        os.environ["TRADEYAR_ENV"] = "simulation"
+        os.environ["YARTRADER_ENV"] = "simulation"
         self.assertEqual(get_current_environment(), EnvironmentType.SIMULATION)
 
-        os.environ["TRADEYAR_ENV"] = "invalid_environment"
+        os.environ["YARTRADER_ENV"] = "invalid_environment"
         self.assertEqual(get_current_environment(), EnvironmentType.DEVELOPMENT)
 
     def test_settings_by_environment(self) -> None:

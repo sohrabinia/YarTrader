@@ -137,7 +137,7 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
 
     def test_anonymous_access_to_admin_endpoints_is_unauthorized(self) -> None:
         """Verifies that accessing administrative endpoints without a token fails closed in production-like environment."""
-        with patch.dict(os.environ, {"TRADEYAR_ENV": "production"}):
+        with patch.dict(os.environ, {"YARTRADER_ENV": "production"}):
             # No token passed -> 401 Unauthorized
             response = self.client.get("/api/admin/symbols")
             self.assertEqual(response.status_code, 401)

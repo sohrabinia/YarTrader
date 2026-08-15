@@ -1,0 +1,13 @@
+{
+  "project_name": "yartrader",
+  "brand_name": "YarTrader",
+  "obsolete_identifiers": [
+    "TradeYar",
+    "TradeYarAI",
+    "TRADEYAR",
+    "TRADEYAR_AI",
+    "tradeyar",
+    "tradeyar_ai"
+  ],
+  "active_status": "MIGRATED"
+}

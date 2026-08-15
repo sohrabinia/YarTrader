@@ -7,7 +7,7 @@ from src.Application.Services.web_dashboard import app, global_auth_service
 
 class TestProductionPlatformSaaS(unittest.TestCase):
     """
-    Final SRE SaaS platform validation test suite for TradeYar AI v7.0.
+    Final SRE SaaS platform validation test suite for YarTrader v7.0.
     Ensures absolute three-tier route isolation, limits, and pricing compliance.
     """
 
