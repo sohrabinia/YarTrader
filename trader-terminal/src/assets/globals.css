@@ -428,13 +428,15 @@
         }
 
         .chatbot-body {
-            height: 350px;
+            height: 380px;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
         }
 
         .chatbot-messages {
-            flex-grow: 1;
+            flex: 1 1 auto;
+            min-height: 0;
             padding: var(--space-4);
             overflow-y: auto;
             display: flex;
@@ -666,38 +668,69 @@
             font-family: inherit;
         }
 
-        /* Responsive layout tweaks for mobile/tablet breakpoints */
-        @media (max-width: 991px) {
+        /* Responsive layout tweaks across standard SRE breakpoints (375px, 768px, 1024px, 1440px, 1920px) */
+        @media (max-width: 1024px) {
             .container {
                 flex-direction: column;
-                padding: 0 var(--space-4);
+                padding: 0 var(--space-3);
             }
             .sidebar {
                 width: 100%;
                 flex-direction: row;
                 flex-wrap: wrap;
-                justify-content: center;
+                justify-content: flex-start;
+                gap: var(--space-1);
+                background: var(--surface-dark);
+                padding: var(--space-2);
+                border-radius: var(--space-2);
+                border: 1px solid var(--border-dark);
             }
             .sidebar-link {
-                flex: 1;
-                min-width: 120px;
+                flex: 1 1 auto;
+                min-width: 100px;
+                text-align: center;
                 justify-content: center;
+                font-size: 0.85em;
+                padding: var(--space-2) var(--space-3);
             }
             .status-board {
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             }
         }
 
-        @media (max-width: 575px) {
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                gap: var(--space-3);
+                align-items: stretch;
+                text-align: center;
+            }
+            .header > div {
+                justify-content: center;
+            }
+            .chatbot-widget {
+                bottom: 0;
+                right: 0;
+                left: 0;
+                width: 100%;
+                max-width: 100vw;
+                border-radius: var(--space-2) var(--space-2) 0 0;
+            }
+            .chatbot-body {
+                height: 70vh;
+            }
+        }
+
+        @media (max-width: 375px) {
             .sidebar-link {
                 min-width: 100%;
             }
             .status-board {
                 grid-template-columns: 1fr;
             }
-            /* Hide lower priority columns in responsive views */
-            table th:nth-child(4), table td:nth-child(4),
-            table th:nth-child(5), table td:nth-child(5) {
-                display: none;
+            table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
             }
         }

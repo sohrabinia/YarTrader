@@ -1,7 +1,7 @@
 # TradeYar AI — Release Verification Acceptance Report
 
 ## Overall Status: Not Ready ❌
-- **Timestamp:** 2026-08-14 18:24:00
+- **Timestamp:** 2026-08-15 05:18:17
 - **Ready Score:** 83.3%
 - **Rationals:** Certain dependencies, document checks, or system verifications did not meet the rigorous production grade.
 
@@ -12,7 +12,7 @@
 | :--- | :--- | :--- |
 | Python Environment | PASSED | Target is Python >= 3.10 |
 | Virtual Environment Isolation | WARNING | Running globally |
-| Storage Availability | PASSED | Available Disk Space: 95041.5 MB |
+| Storage Availability | PASSED | Available Disk Space: 94906.5 MB |
 | Package Dependencies | FAILED | Missing packages: ['pytest', 'fastapi', 'uvicorn'] |
 | MetaTrader 5 Link | SIMULATED_FALLBACK | Synthetic Fallback Mode Active (Non-Windows platform) |
 
@@ -23,7 +23,7 @@
 - **Passed Count:** 0
 - **Failed Count:** 1
 - **Skipped:** 0
-- **Duration:** 1.56 seconds
+- **Duration:** 4.07 seconds
 
 ### Recent Failed Investigations
 - **Test File/Name:** `ERROR collecting tests/TRADEYARAI.Tests/Agents/testperformance.py`
@@ -319,7 +319,7 @@
 | APES-FIN Passive Compliance Scan | PASSED | Conformity to 100% passive non-trading guidelines verified |
 | REST API Schema Routing | PASSED | Validated endpoints schemas, authorizations and serialization scopes |
 | Research Pipeline Feature Extraction | PASSED | Indicator calculators pipeline compiled successfully with 0 features. |
-| Platform Processing Latency | PASSED | Internal execution startup latency: 0.059 ms |
+| Platform Processing Latency | PASSED | Internal execution startup latency: 0.078 ms |
 
 ---
 
