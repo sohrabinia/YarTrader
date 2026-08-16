@@ -1846,20 +1846,25 @@ function MainApp() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                   <h3 style={{ margin: 0, color: 'var(--primary)' }}>🖥️ {lang === 'fa' ? 'مدیریت سیستم و پایش SRE' : 'System Management & DevOps Monitoring'}</h3>
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <button className="btn" style={{ backgroundColor: 'var(--primary)', padding: '8px 16px', fontSize: '0.85em' }} onClick={() => {
-                      fetch('/api/admin/backup', { method: 'POST' })
-                        .then(r => r.json())
-                        .then(d => showNotification(d.message || 'Backup complete', 'success'))
-                        .catch(e => showNotification(e.message, 'failed'));
+                    <button className="btn" style={{ backgroundColor: 'var(--primary)', padding: '8px 16px', fontSize: '0.85em' }} onClick={async () => {
+                      try {
+                        const currentToken = localStorage.getItem('yartrader_token') || token || '';
+                        const res = await apiService.post(`/api/admin/backup?token=${encodeURIComponent(currentToken)}`, {});
+                        showNotification(res?.message || 'Backup completed successfully', 'success');
+                      } catch (err) {
+                        showNotification(err.message, 'failed');
+                      }
                     }}>
                       💾 {lang === 'fa' ? 'پشتیبان‌گیری (Backup)' : 'Create Backup'}
                     </button>
-                    <button className="btn" style={{ backgroundColor: 'var(--danger)', padding: '8px 16px', fontSize: '0.85em' }} onClick={() => {
+                    <button className="btn" style={{ backgroundColor: 'var(--danger)', padding: '8px 16px', fontSize: '0.85em' }} onClick={async () => {
                       if (confirm(lang === 'fa' ? 'آیا از اجرای توقف اضطراری اطمینان دارید؟' : 'Trigger Emergency Stop?')) {
-                        fetch('/api/risk/emergency_stop', { method: 'POST' })
-                          .then(r => r.json())
-                          .then(d => showNotification(d.message || 'Halted', 'failed'))
-                          .catch(e => showNotification(e.message, 'failed'));
+                        try {
+                          const res = await apiService.post('/api/risk/emergency_stop', {});
+                          showNotification(res?.message || 'Emergency stop active.', 'failed');
+                        } catch (err) {
+                          showNotification(err.message, 'failed');
+                        }
                       }
                     }}>
                       🚨 {lang === 'fa' ? 'توقف اضطراری (Emergency Stop)' : 'Emergency Stop'}
@@ -1870,23 +1875,23 @@ function MainApp() {
                 <div className="status-board">
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'وضعیت سرویس' : 'Service Status'}</div>
-                    <div className="status-val status-passed">{devopsStatus.service_status || 'RUNNING'}</div>
+                    <div className="status-val status-passed">{devopsStatus?.service_status || 'RUNNING'}</div>
                   </div>
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'سلامت عمومی' : 'Runtime Health'}</div>
-                    <div className="status-val status-passed">{devopsStatus.runtime_health || 'Healthy'}</div>
+                    <div className="status-val status-passed">{devopsStatus?.runtime_health || 'Healthy'}</div>
                   </div>
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'اتصال MT5' : 'MT5 Link'}</div>
-                    <div className="status-val status-passed">{devopsStatus.mt5_status || 'Connected'}</div>
+                    <div className="status-val status-passed">{devopsStatus?.mt5_status || 'Connected'}</div>
                   </div>
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'تأخیر خط پردازش' : 'Pipeline Latency'}</div>
-                    <div className="status-val" style={{ color: 'var(--primary)' }}>{devopsMetrics.pipeline_latency_ms || '12.4'} ms</div>
+                    <div className="status-val" style={{ color: 'var(--primary)' }}>{devopsMetrics?.pipeline_latency_ms || '12.4'} ms</div>
                   </div>
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'مصرف حافظه' : 'Memory Usage'}</div>
-                    <div className="status-val" style={{ color: 'var(--warning)' }}>{devopsMetrics.memory_used_mb || '145.4'} MB</div>
+                    <div className="status-val" style={{ color: 'var(--warning)' }}>{devopsMetrics?.memory_used_mb || '145.4'} MB</div>
                   </div>
                 </div>
               </div>
