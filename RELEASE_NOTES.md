@@ -1,6 +1,6 @@
-# Release Notes — TradeYar AI Version 1.0.0
+# Release Notes — YarTrader Version 1.0.0
 
-We are proud to announce the official production-ready release of **TradeYar AI Version 1.0.0** — the premier descriptive, analytical non-trading Autonomous Financial Intelligence Platform.
+We are proud to announce the official production-ready release of **YarTrader Version 1.0.0** — the premier descriptive, analytical non-trading Autonomous Financial Intelligence Platform.
 
 This release represents the culmination of a rigorous features integration, engineering audit, and release validation campaign.
 
@@ -21,4 +21,4 @@ This release represents the culmination of a rigorous features integration, engi
    - Pre-configured `.github/workflows/ci.yml` pipeline that triggers on push, PR, and nightly schedules.
 
 ## Storage Isolation and Passive Safety
-TradeYar AI enforces absolute passive analytical compliance under strictly isolated storage boundaries. No order placement or transactional broker calls exist within the domain boundaries.
+YarTrader enforces absolute passive analytical compliance under strictly isolated storage boundaries. No order placement or transactional broker calls exist within the domain boundaries.

@@ -46,7 +46,7 @@ class NewsletterIntelligenceAgent:
             compiled_sections.append(f"Highlight on {r.get('symbol', symbol)}: {r.get('conclusion', 'Solid structure maintained.')}")
 
         newsletter_body = (
-            f"=== TradeYar Weekly Digest ({symbol}) ===\n"
+            f"=== YarTrader Weekly Digest ({symbol}) ===\n"
             f"Generated at: {now}\n\n"
             f"1. RESEARCH CORNER\n" + "\n".join(compiled_sections) + "\n\n"
             f"2. SRE PERFORMANCE METRICS\n"
@@ -58,7 +58,7 @@ class NewsletterIntelligenceAgent:
 
         return {
             "newsletter_id": f"nl-{symbol.lower()[:3]}-{now[:10]}",
-            "newsletter_title": f"TradeYar AI Weekly Insights: {symbol} Cognitive Outlook",
+            "newsletter_title": f"YarTrader Weekly Insights: {symbol} Cognitive Outlook",
             "compiled_at": now,
             "body": newsletter_body,
             "disclaimer": "DISCLAIMER: For educational purposes only. Zero guarantees."
@@ -87,7 +87,7 @@ class CommunityReferralAgent:
         }
         return {
             "invite_token": token,
-            "referral_link": f"https://tradeyar.ai/register?ref={token}",
+            "referral_link": f"https://yartrader.app/register?ref={token}",
             "reward_tier_target": reward_tier
         }
 

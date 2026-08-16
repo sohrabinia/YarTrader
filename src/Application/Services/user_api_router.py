@@ -15,7 +15,8 @@ def get_user_session_and_enforce_tier(authorization: Optional[str] = Header(None
     FastAPI Router dependency that extracts active session token, retrieves trusted user
     subscription tier from server state, and verifies access boundaries against TierEntitlementMiddleware.
     """
-    is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
+    is_production = (os.environ.get("YARTRADER_ENV") == "production" or
+                     os.environ.get("TRADEYAR_ENV") == "production" or
                      os.environ.get("RG_ENV") == "production")
 
     if not authorization:

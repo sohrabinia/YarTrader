@@ -117,7 +117,7 @@ class LearningSummary:
 
 class DecisionExplainer:
     """
-    Orchestrates the Conversation Intelligence layer for TradeYar AI.
+    Orchestrates the Conversation Intelligence layer for YarTrader.
     Understands Persian/English queries related to decision rationale,
     no-trade outcomes, failures, learned schemas, and unknowns.
     """

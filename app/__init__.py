@@ -1,1 +1,1 @@
-# TradeYar AI Production Runtime Package
+# YarTrader Production Runtime Package

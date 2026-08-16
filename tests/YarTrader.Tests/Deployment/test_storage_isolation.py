@@ -48,7 +48,7 @@ class TestTradeYarStorageIsolation(unittest.TestCase):
         logger = StructuredLogger(service_name="TradeYar_Test")
         logger.info("OperationalStep", {"payload": "test"})
 
-        expected_log_file = os.path.join(self.manager.get_log_dir(), "tradeyar_ai.log")
+        expected_log_file = os.path.join(self.manager.get_log_dir(), "yartrader.log")
         self.assertTrue(os.path.exists(expected_log_file))
 
         # Verify that we can read back and parse JSON

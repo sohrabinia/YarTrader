@@ -11,7 +11,7 @@ from src.Application.Dashboard.auth_service import global_auth_service
 
 def enforce_admin_token(token: Optional[str] = None):
     """Enforces strict role-based access control, rejecting non-ADMIN accounts with 403 Forbidden."""
-    is_production = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
+    is_production = os.environ.get("YARTRADER_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production" or os.environ.get("RG_ENV") == "production"
     from app.core.logging import log_security
 
     log_token = f"{token[:8]}..." if token else None

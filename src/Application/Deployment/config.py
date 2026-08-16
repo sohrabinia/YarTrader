@@ -5,7 +5,7 @@ from src.Application.Deployment.deployment import SecretsVault
 
 
 class ProductionConfig:
-    """Production-ready structured configuration settings for TRADEYAR_AI."""
+    """Production-ready structured configuration settings for YarTrader."""
 
     def __init__(self, settings_dict: Optional[Dict[str, Any]] = None) -> None:
         self._settings = settings_dict or {}
@@ -43,9 +43,9 @@ class ProductionConfig:
         default_db_key = os.getenv("RG_DB_SECURE_TOKEN", self._settings.get("DB_SECURE_TOKEN", "secure-token-12345"))
         self.vault.store_secret("db_token", default_db_key)
 
-        # TradeYar Storage Isolation Configuration (Task 39)
+        # YarTrader Storage Isolation Configuration
         default_root = "C:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
-        self.storage_root = os.getenv("YarTraderStorageRoot", os.getenv("TradeYarStorageRoot", self._settings.get("YarTraderStorageRoot", default_root)))
+        self.storage_root = os.getenv("YarTraderStorageRoot", os.getenv("TradeYarStorageRoot", self._settings.get("YarTraderStorageRoot", self._settings.get("TradeYarStorageRoot", default_root))))
         if not self.storage_root:
             self.storage_root = default_root
 

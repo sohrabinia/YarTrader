@@ -6,7 +6,7 @@ class TestConfigLoading(unittest.TestCase):
     def setUp(self) -> None:
         self.old_env = dict(os.environ)
         for key in list(os.environ.keys()):
-            if "TRADEYAR_" in key or "RG_" in key:
+            if "YARTRADER_" in key or "TRADEYAR_" in key or "RG_" in key:
                 del os.environ[key]
 
     def tearDown(self) -> None:

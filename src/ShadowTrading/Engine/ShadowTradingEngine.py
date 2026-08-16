@@ -12,7 +12,7 @@ logger = logging.getLogger("ShadowTradingEngine")
 
 class ShadowTradingEngine:
     """
-    Unified Orchestrator and API Interface for the TradeYar Shadow Trading Engine.
+    Unified Orchestrator and API Interface for the YarTrader Shadow Trading Engine.
     Handles simulated account tracking, position lifecycles, real-time pricing updates,
     and automatic Judge & Memory learning loop integration.
     """

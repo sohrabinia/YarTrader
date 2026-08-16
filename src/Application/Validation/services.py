@@ -310,8 +310,8 @@ class ComplianceChecker:
 
         # 2. Documentation Rules
         required_docs = [
-            "docs/TRADEYAR_DECISION_INTELLIGENCE.md",
-            "docs/TRADEYAR_LEARNING_OPTIMIZATION.md"
+            "docs/YARTRADER_DECISION_INTELLIGENCE.md",
+            "docs/YARTRADER_LEARNING_OPTIMIZATION.md"
         ]
 
         for doc in required_docs:

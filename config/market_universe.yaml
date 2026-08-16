@@ -1,4 +1,4 @@
-# TradeYar AI Production Market Universe Registry (50 Symbols)
+# YarTrader Production Market Universe Registry (50 Symbols)
 market_universe:
   Forex:
     EURUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }

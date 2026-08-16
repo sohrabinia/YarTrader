@@ -1,1 +1,1 @@
-# TradeYar AI Intelligence layer
+# YarTrader Intelligence layer

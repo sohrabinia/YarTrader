@@ -2,10 +2,10 @@ import os
 from typing import Optional
 
 
-class TradeYarStorageManager:
+class YarTraderStorageManager:
     """Manages isolated storage paths strictly derived from the configured storage root."""
 
-    _instance: Optional["TradeYarStorageManager"] = None
+    _instance: Optional["YarTraderStorageManager"] = None
 
     def __init__(self, storage_root: Optional[str] = None) -> None:
         if storage_root:
@@ -29,9 +29,9 @@ class TradeYarStorageManager:
         self._temp_dir = os.path.join(self._storage_root, "Temp")
 
     @classmethod
-    def get_manager(cls, root_override: Optional[str] = None) -> "TradeYarStorageManager":
+    def get_manager(cls, root_override: Optional[str] = None) -> "YarTraderStorageManager":
         if cls._instance is None or root_override:
-            cls._instance = TradeYarStorageManager(root_override)
+            cls._instance = YarTraderStorageManager(root_override)
         return cls._instance
 
     @classmethod
@@ -62,3 +62,7 @@ class TradeYarStorageManager:
 
     def get_temp_dir(self) -> str:
         return self._temp_dir
+
+
+# Backward compatibility alias
+TradeYarStorageManager = YarTraderStorageManager

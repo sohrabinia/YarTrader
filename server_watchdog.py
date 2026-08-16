@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TradeYar AI — Production Server Watchdog & Self-Healing Engine
+YarTrader — Production Server Watchdog & Self-Healing Engine
 Generates independent logs, fail-safe isolation, monitors resources,
 implements strict restart thresholds, and dispatches simulated Telegram alerts.
 """
@@ -183,7 +183,7 @@ class ServerWatchdogEngine:
 
                 # Dispatch alert
                 self.dispatch_telegram_alert_with_cooldown(
-                    f"[CRITICAL_CRASH] TradeYar-AI restart threshold exceeded. "
+                    f"[CRITICAL_CRASH] YarTrader restart threshold exceeded. "
                     f"System state set to DEGRADED. Reached 5 crashes in 10 minutes."
                 )
 
@@ -211,7 +211,7 @@ class ServerWatchdogEngine:
                 log_watchdog_message(f"Managed process successfully launched. PID: {self.managed_process.pid}")
             except Exception as e:
                 log_watchdog_message(f"ERROR: Failed to launch managed process: {e}")
-                self.dispatch_telegram_alert_with_cooldown(f"[CRITICAL_CRASH] Failed to start TradeYar-AI: {e}")
+                self.dispatch_telegram_alert_with_cooldown(f"[CRITICAL_CRASH] Failed to start YarTrader: {e}")
 
     def stop(self) -> None:
         """Gracefully terminates the managed subprocess if active."""

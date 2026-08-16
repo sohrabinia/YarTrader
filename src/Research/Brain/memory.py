@@ -508,7 +508,7 @@ class MarketMemorySystem:
         In case of reading errors or corrupt files, it triggers automatic snapshot recovery.
         """
         import logging
-        logger = logging.getLogger("tradeyar_memory")
+        logger = logging.getLogger("yartrader_memory")
 
         with self._lock:
             # 1. Load Events
@@ -561,7 +561,7 @@ class MarketMemorySystem:
         Wiping or starting from scratch is strictly forbidden.
         """
         import logging
-        logger = logging.getLogger("tradeyar_memory")
+        logger = logging.getLogger("yartrader_memory")
         logger.critical(f"[CRITICAL_MEMORY_PROTECTION] Failed to load {failed_layer} memory: {exception}")
 
         latest_tag = self.get_latest_snapshot_tag()

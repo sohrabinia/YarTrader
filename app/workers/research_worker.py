@@ -71,7 +71,7 @@ class ResearchWorker:
             configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
 
             print("================================================")
-            print("TradeYar AI Multi-Symbol / Multi-TF Runtime")
+            print("YarTrader Multi-Symbol / Multi-TF Runtime")
             print("================================================")
             print(f"Registry Capacity:\n{registry.max_symbols} Symbols\n")
             print(f"Registered Symbols:\n{len(registry.get_all_registered())}\n")

@@ -151,13 +151,13 @@ class ContentIntelligenceAgent:
             content_body = ""
 
             if ch_upper == "TELEGRAM":
-                content_body = f"📢 *TradeYar Daily Brief ({symbol})*\n\n{raw_report.get('market_context', '')}\n\nRead full report inside our dashboard! #TradeYar"
+                content_body = f"📢 *YarTrader Daily Brief ({symbol})*\n\n{raw_report.get('market_context', '')}\n\nRead full report inside our dashboard! #YarTrader"
             elif ch_upper == "X":
-                content_body = f"🐦 TradeYar AI presents high-fidelity multi-asset analytical research context on {symbol}. Zero subjective indicators. Join us: http://tradeyar.ai"
+                content_body = f"🐦 YarTrader presents high-fidelity multi-asset analytical research context on {symbol}. Zero subjective indicators. Join us: http://yartrader.app"
             elif ch_upper == "LINKEDIN":
-                content_body = f"💼 TradeYar AI Executive Summary:\n\nEvaluating non-linear market structure matrices on {symbol} to understand current chronological swings.\n\n#Fintech #SinglePageApplication #SRE"
+                content_body = f"💼 YarTrader Executive Summary:\n\nEvaluating non-linear market structure matrices on {symbol} to understand current chronological swings.\n\n#Fintech #SinglePageApplication #SRE"
             else:
-                content_body = f"TradeYar AI {report_type} insight on {symbol}: {raw_report.get('market_context', '')}"
+                content_body = f"YarTrader {report_type} insight on {symbol}: {raw_report.get('market_context', '')}"
 
             queue_item = {
                 "content_id": f"cnt-{uuid.uuid4().hex[:8]}",
