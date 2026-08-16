@@ -9,11 +9,11 @@ from src.Application.Deployment.storage import TradeYarStorageManager
 class StructuredLogger:
     """Production-grade structured logger emitting key-value JSON records."""
 
-    def __init__(self, service_name: str = "TRADEYAR_AI") -> None:
+    def __init__(self, service_name: str = "YarTrader") -> None:
         self.service_name = service_name
         self._logs: List[str] = []
         self._storage_manager = TradeYarStorageManager.get_manager()
-        self._log_file_path = os.path.join(self._storage_manager.get_log_dir(), "tradeyar_ai.log")
+        self._log_file_path = os.path.join(self._storage_manager.get_log_dir(), "yartrader.log")
 
     def log(self, level: str, event: str, metadata: Optional[Dict[str, Any]] = None) -> str:
         record = {

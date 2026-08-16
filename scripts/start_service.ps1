@@ -27,6 +27,6 @@ if ($service.Status -eq "Running") {
     if ($service.Status -eq "Running") {
         Write-Host "Service '$ServiceName' started successfully!" -ForegroundColor Green
     } else {
-        Write-Error "Failed to start service. Please check the Windows Event Viewer or TradeYar AI application logs."
+        Write-Error "Failed to start service. Please check the Windows Event Viewer or YarTrader application logs."
     }
 }

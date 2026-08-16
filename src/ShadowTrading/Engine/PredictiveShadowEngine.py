@@ -183,7 +183,7 @@ class ShadowTrade:
 
 class PredictiveShadowEngine:
     """
-    Overhauled main orchestrator for TradeYar AI v8.0.
+    Overhauled main orchestrator for YarTrader.
     Delegates hierarchical multi-asset context processing to the parent SymbolRuntimeManager.
     Enforces maximum limits dynamically.
     """

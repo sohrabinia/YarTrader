@@ -1,4 +1,4 @@
-# TradeYar AI Machine Learning Feature Catalog
+# YarTrader Machine Learning Feature Catalog
 
 This catalog outlines the formal inventory of features that can be extracted from TradeYar AI's existing data layers and persistence files. These features represent the data inputs required to train and evaluate supervised and sequence modeling algorithms on the platform.
 

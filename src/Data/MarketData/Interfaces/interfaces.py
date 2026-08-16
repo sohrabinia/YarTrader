@@ -12,10 +12,10 @@ class IMarketDataProvider(ABC):
 
 
 class IMarketDataNormalizer(ABC):
-    """Interface defining contracts to translate third-party data payloads into TRADEYAR models."""
+    """Interface defining contracts to translate third-party data payloads into YarTrader models."""
     @abstractmethod
     def normalize_external_data(self, external_data: Any, asset_id: str) -> List[MarketDataPoint]:
-        """Translates dynamic external inputs into standardized TRADEYAR MarketDataPoint objects."""
+        """Translates dynamic external inputs into standardized YarTrader MarketDataPoint objects."""
         pass
 
 

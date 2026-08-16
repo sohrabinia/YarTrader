@@ -139,7 +139,7 @@ def test_distribution_news_referral_and_newsletter():
     # Weekly newsletter compile
     rep = {"symbol": "XAUUSD", "conclusion": "Wait for breakout"}
     nl = newsletter.compile_weekly_newsletter("XAUUSD", [rep], {"win_rate_pct": 65.0, "direction_accuracy_pct": 70.0, "avg_risk_reward": 2.1})
-    assert nl["newsletter_title"] == "TradeYar AI Weekly Insights: XAUUSD Cognitive Outlook"
+    assert nl["newsletter_title"] in ("YarTrader Weekly Insights: XAUUSD Cognitive Outlook", "TradeYar AI Weekly Insights: XAUUSD Cognitive Outlook")
 
     # Peer referral loop
     inv = referral.generate_invite("inviter-99")

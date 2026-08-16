@@ -1,5 +1,5 @@
 class RGException(Exception):
-    """Base exception for all TRADEYAR Platform errors."""
+    """Base exception for all YarTrader Platform errors."""
     pass
 
 
