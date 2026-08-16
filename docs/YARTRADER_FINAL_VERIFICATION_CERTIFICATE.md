@@ -1,222 +1,223 @@
-# YARTRADER V1 — INDEPENDENT PRODUCTION READINESS & IDENTITY MIGRATION FINAL VERIFICATION CERTIFICATE
+# YARTRADER V1 — FINAL FORENSIC VERIFICATION & PRODUCTION READINESS CERTIFICATE
 
 **Document Identifier:** `docs/YARTRADER_FINAL_VERIFICATION_CERTIFICATE.md`
 **Audit Executed By:** Jules (Autonomous Senior SRE & Software Engineer)
 **Scan Date:** August 16, 2026
-**Repository Branch:** `jules-14648522056792030123-df36d54f` (based on `main`)
-**Commit SHA:** `2355e82`
-**Scope:** Independent Evidence-Based Verification of Production Readiness & Identity Migration Claims. **STRICT SCOPE LOCK** (No code, migration, file deletion, or refactoring performed).
+**Scope:** Read-Only Independent Forensic Audit (Strict Scope Lock Enforced: No code, configuration, or file changes made).
 
 ---
 
-## EXECUTIVE SUMMARY
+# 1. REPOSITORY IDENTITY VERIFICATION
 
-This independent certificate presents the definitive verification findings for:
-1. **YARTRADER V1 Production Readiness Audit** (`docs/YARTRADER_V1_PRODUCTION_READINESS_AUDIT.md` / `docs/YARTRADER_PRODUCTION_READINESS_AUDIT.md`)
-2. **Global TradeYar → YarTrader Identity Migration** (`validation/yartrader_identity_migration/YARTRADER_IDENTITY_MIGRATION_FINAL.md`)
-
-This audit was conducted strictly under the **SCOPE LOCK** rule (verification only, no feature development, no code modification).
-
----
-
-# SECTION 1 — PRODUCTION READINESS VERIFICATION
-
-Every claim from `docs/YARTRADER_V1_PRODUCTION_READINESS_AUDIT.md` and related audits was audited against direct repository evidence.
-
-### Mandatory Production Checks
-
-#### 1. Frontend Deployment
-- **Frontend source location:** `trader-terminal/` (Vite + React single-page application).
-- **Deployed Repository:** `sohrabinia/YarTrader-AI` (connected to Vercel).
-- **Deployed Branch:** `main`
-- **Vercel Configuration:** `vercel.json` (and `trader-terminal/vercel.json`) contains reverse proxy rewrites forwarding `/api/*`, `/v1/*`, and `/locales/*` to the production backend API, and a SPA catch-all rewrite forwarding `/*` to `/index.html`.
-- **Production URL behavior:** `https://yartrader.vercel.app` loads the compiled React SPA frontend. Direct route navigation (`/pricing`, `/admin`) resolves correctly without 404 errors due to `vercel.json` rewrite rules.
-- **Answer:** `yartrader.vercel.app` **IS connected** to the correct production frontend build (`trader-terminal/`).
-- **Status:** **VERIFIED**
-
-#### 2. Backend API
-- **API Base URL:** `https://tradeyar.ai` (public domain) / `http://127.0.0.1:8000` (local bind).
-- **API Process:** `uvicorn` running `src/Application/Services/web_dashboard.py:app` (or `YarTraderWindowsService` host in `app/workers/service.py`).
-- **Port:** `8000` (configurable via `YARTRADER_API_PORT`).
-- **Health Endpoint:** `/health` (returns JSON `{ "status": "HEALTHY", ... }`).
-- **Swagger Availability:** Available at `/docs` (OpenAPI specification rendered via Swagger UI).
-- **Public Accessibility:** Publicly accessible via proxy gateway.
-- **Status:** **VERIFIED**
-
-#### 3. Runtime Workers
-Current active background worker components:
-- **Research Worker:** `ResearchAgent` / `app/workers/research_worker.py` (Polling MT5 market ticks). Running: **YES** (Idle-safe polling loop). Last execution: Recorded in `runtime_logs/system_audit.log`. Evidence: `app/workers/research_worker.py`.
-- **Intelligence Worker:** `PredictiveShadowEngine` (`src/ShadowTrading/Engine/PredictiveShadowEngine.py`). Running: **YES** (Consumes real-time M1..MN1 candles). Last execution: Real-time. Evidence: `src/ShadowTrading/Engine/PredictiveShadowEngine.py`.
-- **Risk Worker:** `RiskAgent` (`src/Application/Agents/supervisor.py`). Running: **YES** (Evaluates position sizes & drawdown bounds). Evidence: `src/Application/Agents/supervisor.py`.
-- **Decision Worker:** `DecisionEngine` (`src/Decision/Intelligence/engine.py`). Running: **YES** (Evaluates multi-agent trade signals). Evidence: `src/Decision/Intelligence/engine.py`.
-- **Shadow Worker:** `ShadowTradingEngine` (`src/ShadowTrading/Engine/ShadowTradingEngine.py`). Running: **YES** (Tracks paper orders). Evidence: `runtime_logs/shadow_trades.json`.
-- **Demo Worker:** `DemoScenarioRunner` (`src/Application/Demo/DemoScenarioRunner.py`). Running: **YES** (Multi-stage demo simulations). Evidence: `runtime_logs/demo_trades.json`.
-- **Learning Worker:** `MarketMemorySystem` (`src/Research/Brain/memory.py`). Running: **YES** (Consolidates experience snapshots into `runtime_logs/brain_memory/`). Evidence: `src/Research/Brain/memory.py`.
-- **Status:** **VERIFIED**
-
-#### 4. Runtime Data Provenance
-- Dashboard metrics and intelligence perceptions originate strictly from authentic runtime state (`PredictiveShadowEngine`), persistent database files in `runtime_logs/` (`shadow_trades.json`, `demo_trades.json`, `tickets.json`, `sessions.json`, `billing.json`), and live/mocked MT5 symbol tickers.
-- **Confirmation:** No synthetic fake metrics or hardcoded trading activity exist in active production API routes.
-- **Status:** **VERIFIED**
-
-#### 5. Demo Trading
-- **Demo Mode Separation:** Operates independently via `DemoScenarioRunner` connected to `Alpari-MT5-Demo` (account `52961173`).
-- **Persisted Trades:** Persists paper trades to `runtime_logs/demo_trades.json`.
-- **Restart Persistence:** State survives process restarts via atomic JSON serialization.
-- **No Broker Execution:** Uses `VirtualAccount` for paper execution. Real broker execution is hard-blocked via `MetaTraderSafetyGate`.
-- **Status:** **VERIFIED**
-
-#### 6. Shadow Trading
-- **Shadow Execution Path:** `PredictiveShadowEngine` -> `ShadowTradingEngine` -> `VirtualAccount`.
-- **Market Data Dependency:** Consumes MT5 market tick feeds for real-time paper order evaluation and automatic SL/TP checking.
-- **Separation from Live Execution:** Strictly separated from real-money MT4 execution (account `143056202` on `Alpari-Pro.ECN`), which remains hard-blocked.
-- **Status:** **VERIFIED**
-
-#### 7. Backtest Isolation
-- `IntelligenceBacktestEngine` and `engine.py` execute historical candle loops using point-in-time constraints (`candle.timestamp <= current_time`).
-- **Evidence:** Backtest loops **cannot** invoke `MetaTrader5.order_send()`, call real broker adapters, or mutate Demo/Shadow state files (`demo_trades.json`/`shadow_trades.json`). Verified via `tests/YarTrader.Tests/Backtesting/test_forensic_backtest_leakage.py`.
-- **Status:** **VERIFIED**
-
-#### 8. MT5 Production Reliability
-- **Initialization Path:** `RealMT5BrokerAdapter` (`src/Execution/Adapters/mt5_adapter.py`) calls `mt5.initialize(path=terminal_path)`.
-- **Reconnect Behavior:** Fail-closed reconnection logic automatically attempts re-initialization if connection drops.
-- **Terminal Discovery:** Automatically inspects default path `C:\Program Files\MetaTrader 5\terminal64.exe`.
-- **Permission Requirements:** Windows SCM / administrator execution rights.
-- **Answer:** `Can MT5 recover after service restart?` **YES**, on service restart `app/workers/service.py` re-initializes `mt5.initialize()`.
-- **Status:** **VERIFIED**
-
-#### 9. Security Scan
-- Scanned secrets, API keys, database credentials, and environment files.
-- Credentials and HMAC secrets are loaded dynamically from environment variables (`YARTRADER_*`, `BILLING_WEBHOOK_SECRET`). Insecure defaults fail-close on production mode boot.
-- **Report:**
-```text
-SECURITY_STATUS = PASS
-```
-- **Status:** **VERIFIED**
-
-#### 10. Final Production Decision
-```text
-YARTRADER_V1_STATUS = NO-GO
-```
-- **Blockers:**
-  1. Un-migrated active legacy environment variables (`TRADEYAR_*`) and active class identifiers (`TradeYarAIServiceHost`, `TradeYarStorageManager`).
-  2. Compliance check path mismatch in `src/Application/Validation/services.py` causing 1 test failure (`test_7_compliance_validation`).
-- **Severity:** HIGH (Inconsistent configuration & test failure).
-- **Evidence:** Scan results in PART 2 and test output in PART 3.
+- **Repository:** `sohrabinia/YarTrader`
+- **Branch Audited:** `main`
+- **Commit SHA:** `2355e82407e0ce2833d4cbf0ada1bdb30288f501`
+- **Author / Date:** `sohrabinia <m.a.sohrabinia@gmail.com>` | Sat Aug 15 21:24:57 2026 +0330
+- **Audit Target:** Current `HEAD` commit of `origin/main`
+- **Scope:** Read-only forensic verification
 
 ---
 
-# SECTION 2 — IDENTITY MIGRATION VERIFICATION
+# 2. PREVIOUS CLAIMS VERIFICATION
 
-An independent case-insensitive repository search was executed across all files, paths, source code, documentation, scripts, and configuration files for legacy identifiers: `TradeYar`, `TradeYarAI`, `TRADEYAR`, `TRADEYAR_AI`, `tradeyar`, `tradeyar_ai`.
-
-### Previous Claim Verification
+Review of the previous claim:
 ```text
-PREVIOUS_CLAIM:
 ACTIVE_OLD_IDENTITY_REMAINING = NO
-
-CURRENT_FORENSIC_RESULT:
-ACTIVE_OLD_IDENTITY_REMAINING = YES
 ```
 
-### Scan Statistics
-```text
-TOTAL_LEGACY_REFERENCES_FOUND_BEFORE = 1277
-TOTAL_REFERENCES_MIGRATED = 0 (Scope Lock: No migration performed during this audit)
-TOTAL_REMAINING_REFERENCES = 1781 (Complete repository-wide search including docs, logs, and active code)
+### Claim Verification Matrix
 
-TOTAL_LEGACY_REFERENCES_FOUND = 1781
-ACTIVE_REFERENCES = 123
-HISTORICAL_REFERENCES = 1590
-IMMUTABLE_REFERENCES = 68
-UNCLASSIFIED_REFERENCES = 0
-
-ACTIVE_OLD_IDENTITY_REMAINING = YES
-
-CANONICAL_ACTIVE_IDENTITY = YarTrader
-```
-
-### Classification of Active Legacy References (123 occurrences across 37 active files):
-The following active runtime files still contain legacy `TRADEYAR_*` / `TradeYar` identifiers:
-1. `app/core/config.py` (`TRADEYAR_ENV`, `TRADEYAR_API_HOST`, `TRADEYAR_MT5_*`)
-2. `app/core/logging.py` (`TradeYar-AI.Intelligence`, `TradeYar-AI.Security`)
-3. `app/workers/service.py` (`TRADEYAR_SERVICE_RUN`, `TradeYarAIServiceHost`, `TradeYarAIWindowsService`)
-4. `app/workers/research_worker.py` ("TradeYar AI Multi-Symbol / Multi-TF Runtime")
-5. `src/Infrastructure/Configuration/settings.py` (`TRADEYAR_MT5_*`, `TRADEYAR_MT4_*`, `TradeYarStorageRoot`)
-6. `src/Infrastructure/Configuration/environment.py` (`TRADEYAR_ENV`)
-7. `src/Application/Deployment/storage.py` (`TradeYarStorageManager`, `TradeYarStorageRoot`)
-8. `src/Application/Deployment/observability.py` (`TradeYarStorageManager`, `tradeyar_ai.log`)
-9. `src/Application/Deployment/config.py` (`TradeYarStorageRoot`)
-10. `src/Application/Dashboard/auth_repo.py` (`TRADEYAR_DEFAULT_ADMIN_EMAIL`, `TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH`)
-11. `src/Application/Services/web_dashboard.py` (`TRADEYAR_ENV`, `TRADEYAR AI — Institutional Research Terminal`)
-12. `src/Application/Services/admin_api_router.py` (`TRADEYAR_ENV`)
-13. `src/Application/Services/user_api_router.py` (`TRADEYAR_ENV`)
-14. `src/Application/Validation/services.py` (`docs/TRADEYAR_DECISION_INTELLIGENCE.md`)
-15. `src/Data/Providers/MT5/mt5.py` (`TRADEYAR_ENV`)
-16. `src/ShadowTrading/Engine/PredictiveShadowEngine.py` (`TRADEYAR_TRADING_MODE`, "TradeYar AI v8.0")
-17. `src/ShadowTrading/Engine/ShadowTradingEngine.py` ("TradeYar Shadow Trading Engine")
-18. `src/ShadowTrading/Engine/SymbolRuntimeManager.py` ("TradeYar AI v8.0")
-19. `src/Data/MarketData/Normalization/normalization.py` ("TRADEYAR MarketDataPoint")
-20. `src/Data/MarketData/Interfaces/interfaces.py` ("TRADEYAR models")
-21. `src/Infrastructure/exceptions.py` ("TRADEYAR Platform errors")
-22. `src/Intelligence/Explanation/explainer.py` ("TradeYar AI")
-23. `src/Growth/Agents/ContentAgents.py` ("TradeYar AI")
-24. `src/Growth/Agents/DistributionAgents.py` ("TradeYar AI")
-25. `scripts/*.ps1` (`start_service.ps1`, `backup_production.ps1`, `restore_drill.ps1`, `health_check.ps1`, `setup_iis_reverse_proxy.ps1`, `start-dev.ps1`)
+| Claim | Evidence Source | Result | Finding Details |
+| :--- | :--- | :---: | :--- |
+| **No TradeYar identity remains** | `grep -rn -E "TRADEYAR_\|TradeYar" src/ app/ scripts/` | **FAIL** | 123 active occurrences of `TRADEYAR_*` environment variables, `TradeYar-AI` logger names, and `TradeYarAIServiceHost` class names remain in active code. |
+| **No tradeyar directory exists** | Filesystem & `git ls-files` inspection | **PASS** | `tradeyar/` directory was renamed to `yartrader/` in prior commits and no `tradeyar/` directory exists in the working tree or git index. |
+| **No old documentation remains** | `ls -la TRADEYAR_*` | **FAIL** | `TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt` remains at root. Other root docs were renamed to `YARTRADER_*`. |
+| **No runtime legacy naming exists** | `app/core/logging.py`, `app/workers/service.py`, `web_dashboard.py` | **FAIL** | Active loggers (`TradeYar-AI.Intelligence`), Windows service host (`TradeYarAIServiceHost`), and Swagger UI title ("TRADEYAR AI") retain legacy branding. |
 
 ---
 
-# SECTION 3 — TEST EVIDENCE VERIFICATION
+# 3. LEGACY IDENTITY RESIDUAL SCAN
 
-Verification of the statement "100% test pass rates":
+Case-insensitive scan executed for names: `TradeYar`, `TradeYarAI`, `tradeyar`, `trade_yar`, `TRADEYAR`, `TradeYar AI`.
 
-```text
-Test Suite: Pytest (tests/YarTrader.Tests)
-Command: python3 -m pytest tests/YarTrader.Tests
-Executed: 1414
-Passed: 1414
-Failed: 0
-Skipped: 0
-Duration: 174.47s
-```
+### Scan Overview Across Repository Directories (`src/`, `app/`, `docs/`, `validation/`, `scripts/`, `config/`, `tests/`):
+- **Total occurrences found:** 1,781
+- **Active Code & Config References:** 123
+- **Historical Documentation References:** 1,590
+- **Immutable Test Compatibility References:** 68
 
-```text
-Test Suite: Standalone Pipeline & Infrastructure (tests/ runtime & core)
-Command: python3 -m pytest tests/ --ignore=tests/YarTrader.Tests
-Executed: 120
-Passed: 119
-Failed: 1 (test_7_compliance_validation in tests/test_full_intelligence_validation.py)
-Skipped: 0
-Duration: 3.29s
-```
+### Remaining Active References Breakdown (Sample of 123 Active Occurrences across 37 Files)
 
-### Breakdown by Test Category:
-- **Backend Tests (`tests/YarTrader.Tests/Services/`):** 100% Passed (OIDC, gating, lockouts, ledger, billing).
-- **Runtime Tests (`tests/runtime/`):** 100% Passed (health endpoints, API startup, worker lifecycle).
-- **Backtest Tests (`tests/YarTrader.Tests/Backtesting/`):** 100% Passed (leakage verification, accounting).
-- **Identity Validation Tests (`tests/test_full_intelligence_validation.py`):** 1 Failed (`test_7_compliance_validation` fails due to `ComplianceChecker` inspecting renamed legacy doc path).
+1. **`app/core/config.py`**
+   - **Line:** 78, 114, 116, 120, 121, 122, 123, 125, 129, 133, 137, 138
+   - **Type:** Active Configuration
+   - **Classification:** Active legacy identity (FAIL)
+   - **Impact:** Expects `TRADEYAR_ENV`, `TRADEYAR_API_HOST`, `TRADEYAR_API_PORT`, `TRADEYAR_MT5_*`, `TRADEYAR_WORKERS_*`.
+
+2. **`app/core/logging.py`**
+   - **Line:** 29, 46, 79, 97, 115
+   - **Type:** Active Runtime Logging
+   - **Classification:** Active legacy identity (FAIL)
+   - **Impact:** Loggers emit records under service name `"TradeYar-AI"`, `"TradeYar-AI.Audit"`, `"TradeYar-AI.Intelligence"`.
+
+3. **`app/workers/service.py`**
+   - **Line:** 28, 74, 75, 166, 174, 218
+   - **Type:** Active Service Host
+   - **Classification:** Active legacy identity (FAIL)
+   - **Impact:** Windows service host class named `TradeYarAIServiceHost`, sets `TRADEYAR_SERVICE_RUN = "True"`.
+
+4. **`src/Infrastructure/Configuration/settings.py`**
+   - **Line:** 31, 32, 33, 34, 35, 36, 40, 72
+   - **Type:** Active Platform Settings
+   - **Classification:** Active legacy identity (FAIL)
+   - **Impact:** Reads `TRADEYAR_MT5_LOGIN`, `TRADEYAR_MT5_SERVER`, `TRADEYAR_SIMULATION_MODE`, `TradeYarStorageRoot`.
+
+5. **`src/Application/Services/web_dashboard.py`**
+   - **Line:** 100, 293, 605, 606, 4802, 4850
+   - **Type:** Active ASGI Web Server
+   - **Classification:** Active legacy identity (FAIL)
+   - **Impact:** OpenAPI UI title rendered as `"TRADEYAR AI — Institutional Research Terminal"`.
 
 ---
 
-# SECTION 4 — REMAINING RISKS
+# 4. CRITICAL FINDING VERIFICATION
 
-1. **Inconsistent Environment Variables:** Deployment scripts or production environments passing `YARTRADER_ENV` instead of `TRADEYAR_ENV` may fall back to default development settings unless both key formats are supported.
-2. **Swagger UI Public Identity Exposure:** `web_dashboard.py` exposes "TRADEYAR AI — Institutional Research Terminal" on `/docs`.
-3. **Automated Compliance Test Failure:** `test_7_compliance_validation` fails because `src/Application/Validation/services.py` line 313 checks for the old document name `docs/TRADEYAR_DECISION_INTELLIGENCE.md`.
+Audit of root files identified in previous reports:
+
+1. **`TRADEYAR_COMPLETION_ROADMAP.md`**
+   - **Exists:** NO (Renamed)
+   - **Category:** Documentation
+   - **Production Impact:** NO
+   - **Details:** Renamed to `YARTRADER_COMPLETION_ROADMAP.md` via `git mv`.
+
+2. **`TRADEYAR_DEBUG_AUDIT_REPORT.md`**
+   - **Exists:** NO (Renamed)
+   - **Category:** Documentation
+   - **Production Impact:** NO
+   - **Details:** Renamed to `YARTRADER_DEBUG_AUDIT_REPORT.md` via `git mv`.
+
+3. **`TRADEYAR_FINAL_INTELLIGENCE_VALIDATION_REPORT.txt`**
+   - **Exists:** YES
+   - **Category:** Historical / Archive
+   - **Production Impact:** NO
+   - **Details:** Retained at root as read-only historical AI brain validation transcript.
+
+4. **`TRADEYAR_FRONTEND_RUNTIME_VALIDATION_REPORT.md`**
+   - **Exists:** NO (Renamed)
+   - **Category:** Documentation
+   - **Production Impact:** NO
+   - **Details:** Renamed to `YARTRADER_FRONTEND_RUNTIME_VALIDATION_REPORT.md` via `git mv`.
+
+5. **`TRADEYAR_MARKET_BEHAVIOR_MEMORY_AUDIT.md`**
+   - **Exists:** NO (Renamed)
+   - **Category:** Documentation
+   - **Production Impact:** NO
+   - **Details:** Renamed to `YARTRADER_MARKET_BEHAVIOR_MEMORY_AUDIT.md` via `git mv`.
 
 ---
 
-# SECTION 5 — FINAL VERDICT
+# 5. `tradeyar` DIRECTORY VERIFICATION
+
+Verification of `./tradeyar` directory:
+
+- **Exists:** **NO**
+- **Contains:** N/A
+- **Runtime Usage:** NO
+- **Import Reference:** NO
+- **Production Impact:** None. Directory was renamed to `./yartrader` in prior commits.
+
+---
+
+# 6. RUNTIME IDENTITY VERIFICATION
+
+Verification of active runtime components:
+
+- **Python package names:** Uses `src/` and `yartrader/` packages.
+- **Service names:** `TradeYarAIServiceHost` class in `app/workers/service.py`.
+- **Environment variables:** Evaluates `TRADEYAR_ENV`, `TRADEYAR_MT5_*`, `TRADEYAR_SERVICE_RUN`, `TRADEYAR_WORKERS_*`.
+- **Docker names:** `.env.production` sets `YARTRADER_*`.
+- **Windows service names:** Public service name updated to `YarTrader`, but internal python class remains `TradeYarAIServiceHost`.
+- **Logs:** Logs emitted under `TradeYar-AI.Intelligence`.
+- **Config files:** `app/core/config.py` evaluates `TRADEYAR_*`.
+
+### Runtime Identity Status:
+```text
+Runtime Identity Status: FAIL
+```
+
+---
+
+# 7. DOCUMENTATION IDENTITY VERIFICATION
+
+Audit of `README.md` and `docs/`:
+
+- **`README.md`:** Primary title and description read **YarTrader V1.0**. Contains 1 reference to `TradeYarStorageRoot` as a fallback environment variable.
+- **`docs/`:** ~1,100 historical references to `TradeYar` exist in historical architecture and research reports.
+- **Classification:** Mostly **Historical reference**, but with **Incorrect leftover** in `README.md` fallback env vars and `src/Application/Validation/services.py` line 313 (which checks for `docs/TRADEYAR_DECISION_INTELLIGENCE.md`, causing a test failure).
+
+---
+
+# 8. PRODUCTION READINESS VERIFICATION
+
+### Build Evidence
+- **Build command:** `cd trader-terminal && npm run build`
+- **Output:** Built clean under `trader-terminal/dist/`. `vercel.json` provides SPA routing rewrites.
+- **Result:** **PASS**
+
+### Test Evidence
+- **Test Suite 1:** `tests/YarTrader.Tests`
+  - **Command:** `python3 -m pytest tests/YarTrader.Tests`
+  - **Total tests:** 1,414
+  - **Passed:** 1,414
+  - **Failed:** 0
+  - **Skipped:** 0
+- **Test Suite 2:** Standalone tests (`tests/`)
+  - **Command:** `python3 -m pytest tests/ --ignore=tests/YarTrader.Tests`
+  - **Total tests:** 120
+  - **Passed:** 119
+  - **Failed:** 1 (`test_7_compliance_validation` in `tests/test_full_intelligence_validation.py` due to path mismatch in `services.py`)
+  - **Skipped:** 0
+- **Total Repository Test Summary:** 1,533 Passed / 1 Failed (99.93% pass rate).
+
+### Deployment Verification
+- **Deployment Documentation:** `docs/DEPLOYMENT/DEPLOYMENT_GUIDE.md`
+- **Environment Readiness:** Configured for Vercel (frontend) + FastAPI / Windows Service (backend).
+- **Configuration Completeness:** Environment variable mapping active.
+- **Secrets Handling:** `settings.py` fails close on missing DB/SMTP production keys.
+- **Monitoring:** `/health` endpoint and SRE watchdog active.
+
+---
+
+# 9. SECURITY VERIFICATION
+
+- **Hardcoded Secrets:** None found in active source code.
+- **Debug Mode:** Disabled by default in production (`YARTRADER_ENV=production`).
+- **Test Credentials:** Isolated to dev/sandbox test suites.
+- **Development Leftovers:** Mock OIDC bypasses strictly rejected in production mode.
 
 ```text
-IDENTITY_MIGRATION_STATUS = NOT_VERIFIED
+Security Status: PASS
 ```
+
+---
+
+# 10. REMAINING RISKS
+
+```text
+Known Remaining Risks:
+
+1. Environment Variable Inconsistency: Production configurations expecting YARTRADER_ENV will fail unless TRADEYAR_ENV is also set or properly aliased in config.py.
+2. Failing Compliance Test: test_7_compliance_validation in tests/test_full_intelligence_validation.py fails because ComplianceChecker in src/Application/Validation/services.py searches for the old document name docs/TRADEYAR_DECISION_INTELLIGENCE.md.
+3. Swagger UI Identity Mismatch: Public Swagger API documentation served at /docs renders the page title as "TRADEYAR AI — Institutional Research Terminal".
+```
+
+---
+
+# 11. FINAL VERDICT
 
 ```text
 YARTRADER_V1_STATUS = NO-GO
 ```
 
-### Rationale:
-1. **Active Legacy Identity Present:** 123 active occurrences remain across core Python code and PowerShell deployment scripts.
-2. **Non-Passing Compliance Test:** 1 test fails due to un-migrated document check paths.
-3. **Production Gate Rule:** Until active legacy environment variables and class names are fully migrated and all 1,534 tests pass cleanly, final production readiness cannot be certified as GO.
+### Verdict Justification:
+The repository contains robust production trading logic, 100% pass rates in `tests/YarTrader.Tests`, and secure fail-closed authentication. However, the claim `ACTIVE_OLD_IDENTITY_REMAINING = NO` is **refuted by repository evidence** due to 123 active occurrences of `TRADEYAR_*` environment variables, `TradeYar` class names, and `TradeYar` loggers across 37 active runtime files, alongside 1 test failure in the compliance checker.
