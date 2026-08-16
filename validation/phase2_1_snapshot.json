@@ -1,6 +1,6 @@
 {
     "type": "synthetic_experiment",
-    "git_commit_hash": "b50153d3a1668f7d9b87c0806db9d248a6142475",
+    "git_commit_hash": "2355e82407e0ce2833d4cbf0ada1bdb30288f501",
     "branch_name": "feat/phase2.1-pure-learning-validation",
     "configuration_hash": "b284587b6c55c1dfc768454224f035a606efd0e5aa04908385d21ebea653e9a9",
     "runtime_parameters": {
@@ -11,5 +11,5 @@
         "minimum_setups_threshold": 500
     },
     "initial_memory_state_hash": "e49a78e1c88d8b9f",
-    "timestamp": "2026-08-05T10:49:23.168499"
+    "timestamp": "2026-08-16T10:21:20.148166"
 }
