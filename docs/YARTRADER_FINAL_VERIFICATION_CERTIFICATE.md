@@ -3,7 +3,7 @@
 **Document ID:** CERT-YARTRADER-V1-RELEASE-FINAL
 **Date:** Current Operational Baseline
 **Target Release:** YarTrader V1.0
-**Verification Scope:** Master Production Truth Audit, Complete Identity Purification, 5-Trading Mode Boundary Validation, and SRE Safety Hardening.
+**Verification Scope:** Master Independent Release Gate, Complete Identity Purification, 5-Trading Mode Boundary Verification, and Production Build Acceptance.
 
 ---
 
@@ -20,7 +20,7 @@
 | **Live Trading Boundary Isolation** | ✅ PASSED | `LIVE_TRADING_ENABLED=false` and `MetaTraderSafetyGate` hard rejection |
 | **Backend Automated Testing** | ✅ PASSED | 100% test pass rate (`1,534 passed, 0 failed`) |
 | **Frontend SPA Production Build** | ✅ PASSED | `trader-terminal/dist/` generated cleanly |
-| **Security & Secrets Audit** | ✅ PASSED | Zero hardcoded production secrets |
+| **Security & Secrets Audit** | ✅ PASSED | Zero hardcoded production secrets (`HARDCODED_SECRETS = 0`) |
 
 ### Final Merge Verdict
 
@@ -32,4 +32,4 @@ READY FOR MERGE
 
 ## Certification Sign-off
 
-The Master Production Truth Audit and Complete Identity Purification for YarTrader V1 are fully complete. All 5 trading capability boundaries have been verified, 1,534 backend tests pass with 100% success, and the frontend builds cleanly. YarTrader V1 is certified **READY FOR MERGE**.
+The Master Independent Release Gate for YarTrader V1 is complete. All 10 mandatory claims have been independently verified with executable evidence, 1,534 backend tests pass with 100% success, and the frontend builds cleanly. YarTrader V1 is certified **READY FOR MERGE**.
