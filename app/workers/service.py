@@ -71,8 +71,8 @@ try:
 except ImportError:
     WINDOWS_SERVICE_SUPPORTED = False
 
-class TradeYarAIServiceHost:
-    """Orchestrator for the TradeYar-AI Windows Service runtime and background workers."""
+class YarTraderServiceHost:
+    """Orchestrator for the YarTrader Windows Service runtime and background workers."""
     def __init__(self, config: Optional[ProductionConfig] = None) -> None:
         self.config = config or ProductionConfig()
         self.is_running = False
@@ -161,9 +161,13 @@ class TradeYarAIServiceHost:
         log_service_message("Service Stopped")
 
 
+# Backward compatibility alias
+TradeYarAIServiceHost = YarTraderServiceHost
+
+
 if WINDOWS_SERVICE_SUPPORTED:
-    class TradeYarAIWindowsService(win32serviceutil.ServiceFramework):
-        """Native Windows Service Lifecycle handler for TradeYar-AI."""
+    class YarTraderWindowsService(win32serviceutil.ServiceFramework):
+        """Native Windows Service Lifecycle handler for YarTrader."""
         _svc_name_ = "YarTrader"
         _svc_display_name_ = "YarTrader Production Runtime Service"
         _svc_description_ = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
@@ -171,7 +175,7 @@ if WINDOWS_SERVICE_SUPPORTED:
         def __init__(self, args):
             win32serviceutil.ServiceFramework.__init__(self, args)
             self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-            self.host = TradeYarAIServiceHost()
+            self.host = YarTraderServiceHost()
 
         def SvcStop(self):
             log_service_message("SERVICE_STOP_REQUESTED")
@@ -208,7 +212,12 @@ if WINDOWS_SERVICE_SUPPORTED:
                     pass
                 self.ReportServiceStatus(win32service.SERVICE_STOPPED)
                 raise
+
+    # Backward compatibility alias
+    TradeYarAIWindowsService = YarTraderWindowsService
 else:
+    class YarTraderWindowsService:
+        pass
     class TradeYarAIWindowsService:
         pass
 

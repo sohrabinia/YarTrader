@@ -73,7 +73,8 @@ def validate_social_token(token: str, provider: str) -> Dict[str, Any]:
     Enforces signature verification, issuer validation, audience verification, and expiration.
     Fails closed on any discrepancy.
     """
-    is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
+    is_production = (os.environ.get("YARTRADER_ENV") == "production" or
+                     os.environ.get("TRADEYAR_ENV") == "production" or
                      os.environ.get("RG_ENV") == "production")
 
     # Fetch configured Client ID from settings or environment

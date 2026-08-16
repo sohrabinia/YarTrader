@@ -350,11 +350,11 @@ class PredictiveShadowEngine:
     ) -> ShadowTrade:
         """Registers a predictive shadow order in its isolated SymbolTimeContext with strict safety checks."""
         # 1. Trading Mode Resolver Safety Audit
-        trading_mode = os.environ.get("TRADEYAR_TRADING_MODE")
+        trading_mode = os.environ.get("YARTRADER_TRADING_MODE", os.environ.get("TRADEYAR_TRADING_MODE"))
 
         # Default fallback to SHADOW ONLY IF not explicitly configured, but log it
         if trading_mode is None:
-            logger.warning("TRADEYAR_TRADING_MODE is not configured. Defaulting to SHADOW for safe simulation.")
+            logger.warning("YARTRADER_TRADING_MODE / TRADEYAR_TRADING_MODE is not configured. Defaulting to SHADOW for safe simulation.")
             trading_mode = "SHADOW"
 
         trading_mode = trading_mode.upper()
@@ -363,7 +363,7 @@ class PredictiveShadowEngine:
             # Unknown context: FAIL CLOSED, emit security log, block execution
             logger.error(
                 "SECURITY ALERT: Unknown trading context resolved! "
-                f"TRADEYAR_TRADING_MODE is '{trading_mode}'. "
+                f"YARTRADER_TRADING_MODE is '{trading_mode}'. "
                 "Failing closed to prevent accidental broker execution."
             )
             raise ValueError(f"Execution BLOCKED: Unknown trading mode '{trading_mode}'")

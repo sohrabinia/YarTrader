@@ -309,14 +309,14 @@ class ComplianceChecker:
                             checked_rules["ZeroBrokerExecutionDependency"] = False
 
         # 2. Documentation Rules
-        required_docs = [
-            "docs/TRADEYAR_DECISION_INTELLIGENCE.md",
-            "docs/TRADEYAR_LEARNING_OPTIMIZATION.md"
+        required_doc_pairs = [
+            ("docs/YARTRADER_DECISION_INTELLIGENCE.md", "docs/TRADEYAR_DECISION_INTELLIGENCE.md"),
+            ("docs/YARTRADER_LEARNING_OPTIMIZATION.md", "docs/TRADEYAR_LEARNING_OPTIMIZATION.md")
         ]
 
-        for doc in required_docs:
-            if not os.path.exists(doc):
-                violations.append(f"Missing required Phase documentation: '{doc}'.")
+        for primary_doc, legacy_doc in required_doc_pairs:
+            if not (os.path.exists(primary_doc) or os.path.exists(legacy_doc)):
+                violations.append(f"Missing required Phase documentation: '{primary_doc}' (or legacy '{legacy_doc}').")
                 checked_rules["DocumentationStandard"] = False
 
         is_compliant = len(violations) == 0

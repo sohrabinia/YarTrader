@@ -97,7 +97,7 @@ MOCK_BLOG_ARTICLES = [
 
 def check_admin_guard(session_token: Optional[str] = None):
     """Enforces strict JWT / session role check, fallback gracefully in testing/validation mode."""
-    is_production = os.environ.get("RG_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production"
+    is_production = os.environ.get("YARTRADER_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production" or os.environ.get("RG_ENV") == "production"
     from app.core.logging import log_security
 
     log_token = f"{session_token[:8]}..." if session_token else None
@@ -602,8 +602,8 @@ def get_dashboard_spa():
                 content = f.read()
             # Dynamic self-healing brand layer sanitization to neutralize any stale build artifacts
             for legacy_title in [
-                "TRADEYAR AI — Institutional Research Terminal",
-                "TradeYar AI — Institutional Research Terminal",
+                "YarTrader — Institutional Research Terminal",
+                "YarTrader — Institutional Research Terminal",
                 "YarTrader — Institutional Research Terminal",
                 "YarTrader — Institutional-Grade Cognitive Market Intelligence Terminal"
             ]:
@@ -4799,7 +4799,8 @@ class SocialLoginPayload(BaseModel):
 @app.post("/api/auth/google")
 def login_with_google(payload: SocialLoginPayload, request: Request):
     """Secure authenticating callback mapping Google sign-in profiles to user sessions."""
-    is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
+    is_production = (os.environ.get("YARTRADER_ENV") == "production" or
+                     os.environ.get("TRADEYAR_ENV") == "production" or
                      os.environ.get("RG_ENV") == "production")
 
     client_host = request.client.host if request.client else None

@@ -26,7 +26,7 @@ class JSONFormatter(logging.Formatter):
         log_data = {
             "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             "level": record.levelname,
-            "service": "TradeYar-AI",
+            "service": "YarTrader",
             "event": record.getMessage()
         }
 
@@ -43,9 +43,12 @@ class JSONFormatter(logging.Formatter):
 
 
 # Configure central logger
-logger = logging.getLogger("TradeYar-AI")
+logger = logging.getLogger("YarTrader")
 logger.setLevel(logging.DEBUG)
 logger.propagate = False
+
+# Backward compatibility alias
+logging.getLogger("TradeYar-AI").handlers = logger.handlers
 
 if logger.handlers:
     logger.handlers.clear()
@@ -76,7 +79,7 @@ logger.addHandler(err_handler)
 
 
 # 3. Special Logger for Audit Events
-audit_logger = logging.getLogger("TradeYar-AI.Audit")
+audit_logger = logging.getLogger("YarTrader.Audit")
 audit_logger.setLevel(logging.INFO)
 audit_logger.propagate = False
 if audit_logger.handlers:
@@ -94,7 +97,7 @@ audit_logger.addHandler(audit_handler)
 
 
 # 4. Special Logger for Intelligence Decisions
-intelligence_logger = logging.getLogger("TradeYar-AI.Intelligence")
+intelligence_logger = logging.getLogger("YarTrader.Intelligence")
 intelligence_logger.setLevel(logging.INFO)
 intelligence_logger.propagate = False
 if intelligence_logger.handlers:
@@ -112,7 +115,7 @@ intelligence_logger.addHandler(intel_handler)
 
 
 # 5. Special Logger for Security Events
-security_logger = logging.getLogger("TradeYar-AI.Security")
+security_logger = logging.getLogger("YarTrader.Security")
 security_logger.setLevel(logging.INFO)
 security_logger.propagate = False
 if security_logger.handlers:

@@ -45,7 +45,7 @@ class ProductionConfig:
 
         # TradeYar Storage Isolation Configuration (Task 39)
         default_root = "C:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
-        self.storage_root = os.getenv("YarTraderStorageRoot", os.getenv("TradeYarStorageRoot", self._settings.get("YarTraderStorageRoot", default_root)))
+        self.storage_root = os.getenv("YarTraderStorageRoot", os.getenv("TradeYarStorageRoot", self._settings.get("YarTraderStorageRoot", self._settings.get("TradeYarStorageRoot", default_root))))
         if not self.storage_root:
             self.storage_root = default_root
 
