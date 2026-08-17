@@ -17,10 +17,11 @@ class AuthRepository:
         self.users: Dict[str, Dict[str, Any]] = self._load_db()
 
     def _load_db(self) -> Dict[str, Dict[str, Any]]:
+        is_production = (os.environ.get("YARTRADER_ENV") == "production" or
+                         os.environ.get("TRADEYAR_ENV") == "production" or
+                         os.environ.get("RG_ENV") == "production")
+
         if not os.path.exists(self.filepath):
-            is_production = (os.environ.get("YARTRADER_ENV") == "production" or
-                             os.environ.get("TRADEYAR_ENV") == "production" or
-                             os.environ.get("RG_ENV") == "production")
 
             # Derive primary administrator details safely without exposing personal identities
             admin_email = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "admin-disabled@yartrader.app")).lower()
@@ -83,7 +84,38 @@ class AuthRepository:
 
         try:
             with open(self.filepath, "r", encoding="utf-8") as f:
-                return json.load(f)
+                db_data = json.load(f)
+
+            # Ensure canonical YarTrader seed accounts exist in non-production runtime
+            if not is_production:
+                updated = False
+                if "admin@yartrader.app" not in db_data:
+                    db_data["admin@yartrader.app"] = {
+                        "email": "admin@yartrader.app",
+                        "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d",
+                        "role": "ADMIN",
+                        "name": "SRE Admin",
+                        "social_providers": {},
+                        "is_verified": True,
+                        "tier": "INSTITUTIONAL"
+                    }
+                    updated = True
+                if "trader@yartrader.app" not in db_data:
+                    db_data["trader@yartrader.app"] = {
+                        "email": "trader@yartrader.app",
+                        "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d",
+                        "role": "USER",
+                        "name": "Elite Trader",
+                        "social_providers": {},
+                        "is_verified": True,
+                        "tier": "FREE"
+                    }
+                    updated = True
+                if updated:
+                    with open(self.filepath, "w", encoding="utf-8") as f:
+                        json.dump(db_data, f, indent=4)
+
+            return db_data
         except Exception as e:
             logger.error(f"Error loading auth database, fallback to empty: {e}")
             return {}
