@@ -75,6 +75,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         actual_login = str(getattr(acc_info, "login", ""))
         actual_server = str(getattr(acc_info, "server", ""))
+        trade_mode = getattr(acc_info, "trade_mode", None)
 
         if actual_login != self.TARGET_ACCOUNT:
             raise ValidationException(
@@ -84,6 +85,12 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if actual_server != self.TARGET_SERVER:
             raise ValidationException(
                 f"SRE Security Gate Violation: Active MT5 server '{actual_server}' does not match authorized DEMO server '{self.TARGET_SERVER}'."
+            )
+
+        # Explicit trade_mode check: 0 is ACCOUNT_TRADE_MODE_DEMO in MT5 C-API
+        if trade_mode is not None and trade_mode != 0:
+            raise ValidationException(
+                f"SRE Security Gate Violation: Active MT5 account trade_mode '{trade_mode}' is not DEMO (0)."
             )
 
         return True

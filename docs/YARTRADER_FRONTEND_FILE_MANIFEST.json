@@ -1,0 +1,73 @@
+{
+  "frontend_root": "trader-terminal",
+  "framework": "React 18.3.1",
+  "build_tool": "Vite 5.4.1",
+  "entry_point": "trader-terminal/src/main.jsx",
+  "root_component": "trader-terminal/src/App.jsx",
+  "router": "Hash-based routing in App.jsx",
+  "global_styles": "trader-terminal/src/assets/globals.css",
+  "api_client": "trader-terminal/src/services/api.js",
+  "i18n_service": "trader-terminal/src/services/i18n.jsx",
+  "auth_store": "trader-terminal/src/store/useAuthStore.js",
+  "files": [
+    {
+      "path": "trader-terminal/package.json",
+      "type": "configuration",
+      "purpose": "Node package dependencies and build scripts"
+    },
+    {
+      "path": "trader-terminal/vite.config.js",
+      "type": "configuration",
+      "purpose": "Vite build configuration"
+    },
+    {
+      "path": "trader-terminal/src/App.jsx",
+      "type": "source",
+      "purpose": "Main single-page application routing, state, and screen rendering",
+      "routes": [
+        "#/dashboard",
+        "#/backtest",
+        "#/demo",
+        "#/shadow",
+        "#/live",
+        "#/signals",
+        "#/learning",
+        "#/execution-intel",
+        "#/pricing",
+        "#/admin",
+        "#/login"
+      ],
+      "api_dependencies": [
+        "/api/dashboard",
+        "/api/backtest/run",
+        "/api/demo/status",
+        "/api/shadow/report",
+        "/api/live/status",
+        "/api/user/signals",
+        "/api/intelligence/learning-matrix",
+        "/api/chat/assistant",
+        "/api/auth/login"
+      ]
+    },
+    {
+      "path": "trader-terminal/src/services/api.js",
+      "type": "service",
+      "purpose": "HTTP client wrapper for FastAPI dashboard endpoints"
+    },
+    {
+      "path": "trader-terminal/src/services/i18n.jsx",
+      "type": "service",
+      "purpose": "Localization context supporting fa, en, tr, ar"
+    },
+    {
+      "path": "trader-terminal/src/store/useAuthStore.js",
+      "type": "store",
+      "purpose": "Authentication state and localStorage token management"
+    },
+    {
+      "path": "trader-terminal/src/assets/globals.css",
+      "type": "style",
+      "purpose": "Tailwind utility styles and custom dark theme CSS"
+    }
+  ]
+}
