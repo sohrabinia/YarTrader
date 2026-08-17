@@ -34,6 +34,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc = MagicMock()
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
         self.adapter._mt5 = mock_mt5
@@ -60,6 +61,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc = MagicMock()
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
         mock_sym = MagicMock()
