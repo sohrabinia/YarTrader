@@ -18,105 +18,44 @@ class TechnicalAnalysisEngine:
         lows = [c.Low for c in candles]
         n = len(closes)
 
-        # 1. Moving Averages
-        sma_20 = sum(closes[-20:]) / min(n, 20) if n > 0 else 0.0
-        sma_50 = sum(closes[-50:]) / min(n, 50) if n > 0 else 0.0
+        # Price Action & Market Structure analysis (Indicator-Free)
+        recent_highs = highs[-20:] if n >= 20 else highs
+        recent_lows = lows[-20:] if n >= 20 else lows
 
-        def calculate_ema(prices: List[float], period: int) -> List[float]:
-            if not prices:
-                return []
-            ema = []
-            multiplier = 2 / (period + 1)
-            current_ema = sum(prices[:period]) / min(len(prices), period)
-            for i, price in enumerate(prices):
-                if i < period:
-                    ema.append(current_ema)
-                else:
-                    current_ema = (price - current_ema) * multiplier + current_ema
-                    ema.append(current_ema)
-            return ema
+        highest_high = max(highs) if highs else 0.0
+        lowest_low = min(lows) if lows else 0.0
+        support = min(recent_lows) if recent_lows else 0.0
+        resistance = max(recent_highs) if recent_highs else 0.0
 
-        ema_12_list = calculate_ema(closes, 12)
-        ema_26_list = calculate_ema(closes, 26)
+        # Structural swing points
+        swing_highs = [highs[i] for i in range(1, len(highs) - 1) if highs[i] > highs[i-1] and highs[i] > highs[i+1]]
+        swing_lows = [lows[i] for i in range(1, len(lows) - 1) if lows[i] < lows[i-1] and lows[i] < lows[i+1]]
 
-        # 2. MACD Calculation
-        macd_line = 0.0
-        signal_line = 0.0
-        histogram = 0.0
-        if len(ema_12_list) == len(closes) and len(ema_26_list) == len(closes) and n >= 26:
-            macd_series = [e12 - e26 for e12, e26 in zip(ema_12_list, ema_26_list)]
-            macd_line = macd_series[-1]
-            signal_series = calculate_ema(macd_series, 9)
-            if signal_series:
-                signal_line = signal_series[-1]
-                histogram = macd_line - signal_line
-
-        # 3. RSI Calculation
-        rsi = 50.0
-        if n >= 15:
-            gains = []
-            losses = []
-            for i in range(1, n):
-                diff = closes[i] - closes[i-1]
-                gains.append(max(diff, 0.0))
-                losses.append(max(-diff, 0.0))
-
-            avg_gain = sum(gains[:14]) / 14
-            avg_loss = sum(losses[:14]) / 14
-            for i in range(14, len(gains)):
-                avg_gain = (avg_gain * 13 + gains[i]) / 14
-                avg_loss = (avg_loss * 13 + losses[i]) / 14
-
-            if avg_loss > 0:
-                rs = avg_gain / avg_loss
-                rsi = 100 - (100 / (1 + rs))
-            else:
-                rsi = 100.0 if avg_gain > 0 else 50.0
-
-        # 4. ATR Calculation
-        atr = 0.0
-        if n >= 2:
-            tr_list = []
-            for i in range(1, n):
-                h = highs[i]
-                l = lows[i]
-                c_prev = closes[i-1]
-                tr = max(h - l, abs(h - c_prev), abs(l - c_prev))
-                tr_list.append(tr)
-
-            if tr_list:
-                period = min(len(tr_list), 14)
-                atr = sum(tr_list[-period:]) / period
-
-        # 5. Support & Resistance Detection
-        support = min(lows[-20:]) if n >= 20 else (min(lows) if lows else 0.0)
-        resistance = max(highs[-20:]) if n >= 20 else (max(highs) if highs else 0.0)
-
-        # 6. Basic Moving Average Bands
-        mean = sum(closes) / n if n > 0 else 0.0
-        variance = sum((c - mean) ** 2 for c in closes) / n if n > 1 else 0.0
+        # Price Action Range & Variance
+        mean_price = sum(closes) / n if n > 0 else 0.0
+        variance = sum((c - mean_price) ** 2 for c in closes) / n if n > 1 else 0.0
         std_dev = math.sqrt(variance)
-        upper_band = mean + 2 * std_dev
-        lower_band = mean - 2 * std_dev
 
         return {
-            "sma_20": sma_20,
-            "sma_50": sma_50,
-            "ema_12": ema_12_list[-1] if ema_12_list else 0.0,
-            "ema_26": ema_26_list[-1] if ema_26_list else 0.0,
-            "macd": macd_line,
-            "macd_signal": signal_line,
-            "macd_histogram": histogram,
-            "rsi": rsi,
-            "atr": atr,
             "support": support,
             "resistance": resistance,
-            "mean": mean,
+            "highest_high": highest_high,
+            "lowest_low": lowest_low,
+            "swing_highs": swing_highs,
+            "swing_lows": swing_lows,
+            "mean": mean_price,
             "std_dev": std_dev,
-            "upper_band": upper_band,
-            "lower_band": lower_band,
-            "highest_high": max(highs) if highs else 0.0,
-            "lowest_low": min(lows) if lows else 0.0
+            "sma_20": mean_price,  # Retained for backwards schema compatibility
+            "sma_50": mean_price,
+            "ema_12": mean_price,
+            "ema_26": mean_price,
+            "macd": 0.0,
+            "macd_signal": 0.0,
+            "macd_histogram": 0.0,
+            "rsi": 50.0,
+            "atr": (resistance - support) / 14 if n >= 14 else 0.0,
+            "upper_band": resistance,
+            "lower_band": support
         }
 
 class FeatureEngineeringLayer:
@@ -242,9 +181,8 @@ class SmartInterpretationEngine:
             }
 
         latest_close = candles[-1].Close
-        sma_20 = tech.get("sma_20", latest_close)
-        rsi = tech.get("rsi", 50.0)
-        macd = tech.get("macd", 0.0)
+        support = tech.get("support", latest_close)
+        resistance = tech.get("resistance", latest_close)
         trend_lbl = trend.get("direction_label", "Neutral")
         mom_state = mom.get("momentum_state", "Neutral")
 
@@ -253,59 +191,38 @@ class SmartInterpretationEngine:
         bearish_signals = 0
         total_signals = 0
 
-        # 1. Price vs. SMA 20
-        if latest_close > sma_20:
-            reasoning.append("Price is trading above the SMA20 short-term trend line.")
-            bullish_signals += 1
-        else:
-            reasoning.append("Price is trading below the SMA20 short-term trend line.")
-            bearish_signals += 1
-        total_signals += 1
-
-        # 2. RSI Checks
-        if rsi > 70.0:
-            reasoning.append("RSI is overbought (>70), suggesting potential short-term exhaustion.")
-            bearish_signals += 1
+        # 1. Pure Price Action relative to Market Support & Resistance
+        if resistance > support:
+            pos = (latest_close - support) / (resistance - support)
+            if pos > 0.8:
+                reasoning.append("Price action pressing against structural resistance zone (Liquidity sweep risk).")
+                bearish_signals += 1
+            elif pos < 0.2:
+                reasoning.append("Price action retesting key structural support zone with potential demand reaction.")
+                bullish_signals += 1
+            else:
+                reasoning.append("Price action oscillating within fair-value market equilibrium.")
+                bullish_signals += 0.5
+                bearish_signals += 0.5
             total_signals += 1
-        elif rsi < 30.0:
-            reasoning.append("RSI is oversold (<30), indicating potential demand-side exhaustion.")
-            bullish_signals += 1
-            total_signals += 1
-        elif rsi > 50.0:
-            reasoning.append("RSI is in bullish territory (>50) with positive buying pressure.")
-            bullish_signals += 0.5
-            total_signals += 0.5
-        else:
-            reasoning.append("RSI is in bearish territory (<50) with active selling pressure.")
-            bearish_signals += 0.5
-            total_signals += 0.5
 
-        # 3. MACD
-        if macd > 0:
-            reasoning.append("MACD histogram remains above zero, confirming upward momentum.")
-            bullish_signals += 1
-        else:
-            reasoning.append("MACD histogram remains below zero, confirming downward momentum.")
-            bearish_signals += 1
-        total_signals += 1
-
-        # 4. Trend Direction
+        # 2. Market Structure Trend Classification
         if trend_lbl == "Bullish":
-            reasoning.append("Trend direction classification indicates sustained bullish flow.")
+            reasoning.append("Price structure exhibits Higher Highs and Higher Lows (Bullish Structure).")
             bullish_signals += 1.5
             total_signals += 1.5
         elif trend_lbl == "Bearish":
-            reasoning.append("Trend direction classification indicates sustained bearish flow.")
+            reasoning.append("Price structure exhibits Lower Highs and Lower Lows (Bearish Structure).")
             bearish_signals += 1.5
             total_signals += 1.5
 
-        # 5. Momentum Condition
+        # 3. Pure Price Action Momentum & Velocity
         if "Bullish" in mom_state:
-            reasoning.append("Rate of Return (ROC) velocity exhibits expanding bullish acceleration.")
+            reasoning.append("Pure price velocity demonstrates bullish directional momentum.")
             bullish_signals += 1
             total_signals += 1
         elif "Bearish" in mom_state:
-            reasoning.append("Rate of Return (ROC) velocity exhibits expanding bearish acceleration.")
+            reasoning.append("Pure price velocity demonstrates bearish directional momentum.")
             bearish_signals += 1
             total_signals += 1
 
