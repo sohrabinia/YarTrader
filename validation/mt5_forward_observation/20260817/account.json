@@ -1,0 +1,13 @@
+{
+  "account_type": "DEMO",
+  "broker": "Simulated Harness",
+  "server": "Alpari-MT5-Demo",
+  "login": "52****73",
+  "balance": 10000.0,
+  "equity": 10000.0,
+  "currency": "USD",
+  "live_trading_enabled": false,
+  "mt5_demo_mode": true,
+  "classification": "B) SIMULATION ONLY",
+  "timestamp": "2026-08-17T15:27:10.263065+00:00"
+}
