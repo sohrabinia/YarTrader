@@ -29,6 +29,24 @@ class DecisionReason:
 
 
 @dataclass(frozen=True)
+class TradeDecisionSchema:
+    """Standardized trade decision schema containing complete risk/reward and learning metadata."""
+    symbol: str
+    signal_timeframe: str
+    context_timeframe: str
+    entry: float
+    stop_loss: float
+    take_profit: float
+    spread_cost: float
+    risk: float
+    reward: float
+    real_rr: float
+    historical_win_rate: float
+    expected_value: float
+    decision: str  # ALLOW or NO_TRADE
+
+
+@dataclass(frozen=True)
 class DecisionResult:
     """Represents the outcome of a decision evaluation workflow."""
     DecisionId: str
@@ -36,3 +54,4 @@ class DecisionResult:
     State: str  # must be a valid DecisionState (Approved, Rejected, ReviewRequired, NoAction)
     Reason: DecisionReason
     CreatedAt: datetime
+    TradeSchema: TradeDecisionSchema | None = None
