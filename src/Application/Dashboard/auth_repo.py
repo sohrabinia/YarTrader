@@ -58,6 +58,15 @@ class AuthRepository:
                         "is_verified": True,
                         "tier": "INSTITUTIONAL"
                     },
+                    "admin@yartrader.app": {
+                        "email": "admin@yartrader.app",
+                        "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'admin123'
+                        "role": "ADMIN",
+                        "name": "SRE Admin",
+                        "social_providers": {},
+                        "is_verified": True,
+                        "tier": "INSTITUTIONAL"
+                    },
                     "trader@yartrader.app": {
                         "email": "trader@yartrader.app",
                         "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'trader123'
