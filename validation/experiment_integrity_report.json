@@ -1,7 +1,7 @@
 {
     "type": "synthetic_experiment",
     "experiment_id": "exp-phase2.1-029ba0",
-    "git_commit_hash": "2355e82407e0ce2833d4cbf0ada1bdb30288f501",
+    "git_commit_hash": "01f4a3a5e90950f9477052db276cd692a337e1ef",
     "parameters_frozen": true,
     "leakage_audit_status": "CLEAN",
     "sample_validation_gates_verified": true,
