@@ -28,7 +28,7 @@ logger = logging.getLogger("RealMT5DemoE2E")
 
 def run_e2e_verification(auto_confirm: bool = False):
     timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    evidence_dir = os.path.join("validation", "mt5_demo_e2e", timestamp_str)
+    evidence_dir = os.path.join("validation", "mt5_native_demo", timestamp_str)
     os.makedirs(evidence_dir, exist_ok=True)
 
     evidence_table = []

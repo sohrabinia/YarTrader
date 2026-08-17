@@ -173,3 +173,5 @@ models/cache/
 node_modules/
 trader-terminal/node_modules/
 trader-terminal/dist/
+# Forward observation transient evidence
+validation/mt5_demo_forward/

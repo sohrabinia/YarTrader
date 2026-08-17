@@ -62,7 +62,16 @@ class MetaTraderSafetyGate:
                 "SRE Security Gate Violation: Live trading flag manipulation detected! Real execution is hard-disabled."
             )
 
-        # 3. Terminal Assignment Separation & Account Isolation
+        # 3. Explicit Mode Normalization & Verification
+        # Valid execution modes: MT4_LIVE, MT5_DEMO, MT5_BACKTEST, SHADOW
+        if operation_type == "MT5_DEMO":
+            operation_type = "DEMO"
+        elif operation_type in ["MT5_BACKTEST", "BACKTEST"]:
+            operation_type = "BACKTEST"
+        elif operation_type in ["MT4_LIVE", "LIVE_SIMULATION"]:
+            operation_type = "LIVE_SIMULATION"
+
+        # 4. Terminal Assignment Separation & Account Isolation
         if terminal_type == "MT5":
             # MT5 is strictly for analysis, research, backtest, and demo data/trading
             allowed_ops = ["DATA", "ANALYSIS", "RESEARCH", "BACKTEST", "DEMO"]

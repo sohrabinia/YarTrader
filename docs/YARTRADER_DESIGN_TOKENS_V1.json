@@ -1,0 +1,19 @@
+{
+  "theme": "institutional_dark",
+  "palette": {
+    "bg_dark": "#0B1420",
+    "surface_dark": "#121E2C",
+    "surface_card": "#18283B",
+    "border_slate": "#243850",
+    "primary_gold": "#E3A83B",
+    "buy_green": "#4C9A6A",
+    "sell_red": "#C24A3E",
+    "intel_cyan": "#4FB6C7",
+    "text_main": "#F1F5F9",
+    "text_muted": "#94A3B8"
+  },
+  "typography": {
+    "font_primary": "Vazirmatn, Inter, sans-serif",
+    "font_mono": "Fira Code, monospace"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "screens": [
+    {
+      "route": "#/dashboard",
+      "name": "Main Dashboard",
+      "status": "REDESIGNED",
+      "theme": "institutional_dark"
+    },
+    {
+      "route": "#/signals",
+      "name": "Signals Hub",
+      "status": "REDESIGNED",
+      "theme": "institutional_dark"
+    },
+    {
+      "route": "#/execution-intel",
+      "name": "Execution Intelligence",
+      "status": "REDESIGNED",
+      "theme": "institutional_dark"
+    },
+    {
+      "route": "#/live",
+      "name": "Live Execution Gate",
+      "status": "REDESIGNED",
+      "safety_state": "LIVE TRADING = BLOCKED"
+    }
+  ]
+}
