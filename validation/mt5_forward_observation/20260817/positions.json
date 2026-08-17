@@ -1,0 +1,13 @@
+[
+  {
+    "ticket": "123456",
+    "symbol": "XAUUSD",
+    "type": 0,
+    "volume": 0.01,
+    "price_open": 2350.8,
+    "price_current": 2362.46,
+    "profit": 12.0,
+    "swap": 0.0,
+    "comment": "YarTrader Harness Execution Proof"
+  }
+]

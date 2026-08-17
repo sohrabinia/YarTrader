@@ -1,0 +1,13 @@
+[
+  {
+    "order_ticket": "123456",
+    "deal_ticket": "789012",
+    "symbol": "XAUUSD",
+    "status": "FILLED",
+    "retcode": 10009,
+    "comment": "YarTrader Harness Execution Proof",
+    "price": 2350.8,
+    "volume": 0.01,
+    "submitted_at": "2026-08-17T15:27:10.265520+00:00"
+  }
+]

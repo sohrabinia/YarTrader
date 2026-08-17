@@ -1,0 +1,19 @@
+[
+  {
+    "symbol": "XAUUSD",
+    "direction": "WAIT",
+    "trading_style": "SCALPING",
+    "timeframe": "M15",
+    "entry_zone": "N/A",
+    "stop_loss": 0.0,
+    "take_profit": 0.0,
+    "real_rr": 0.0,
+    "confidence_pct": 50,
+    "market_reasoning": [
+      "Higher Timeframe (D1/H4) structure is BULLISH.",
+      "Medium Timeframe (H1/M15) pullback/structure supports long setup.",
+      "Lower Timeframe entry trigger pending."
+    ],
+    "timestamp": "2026-08-17T15:27:10.264498"
+  }
+]
