@@ -574,8 +574,9 @@ function MainApp() {
       const botResponse = res.response || res.answer || (lang === 'fa' ? 'پاسخی دریافت نشد.' : 'No response received.');
       setChatMessages(prev => [...prev, { text: botResponse, sender: 'bot' }]);
     } catch (err) {
-      const errorText = typeof err?.message === 'string' && !err.message.includes('[object Object]')
-        ? err.message
+      const rawMsg = err?.message || (typeof err === 'string' ? err : String(err));
+      const errorText = rawMsg && !rawMsg.includes('[object Object]')
+        ? rawMsg
         : (lang === 'fa' ? 'ارتباط با دستیار هوشمند برقرار نشد. لطفاً دوباره تلاش کنید.' :
            lang === 'tr' ? 'Yapay zekâ asistanına ulaşılamadı. Lütfen tekrar deneyin.' :
            lang === 'ar' ? 'تعذر الاتصال بالمساعد الذكي. يرجى المحاولة مرة أخرى.' :
