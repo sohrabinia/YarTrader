@@ -4,13 +4,15 @@ from src.Research.Brain.models import MarketObservation, MarketEvent
 
 class MultiTimeframePerception:
     """
-    Coordinates multi-timeframe market perception across Tick, M1, M5, M15, H1, H4, D1, W1, MN1.
+    Coordinates multi-timeframe market perception across official trading timeframes (M1, M5, M15, H1, H4, D1, W1).
     Maps temporal containment structures to capture how higher timeframe structures
     are composed of smaller timeframe sequences (fractal containment mapping).
     """
+    OFFICIAL_TRADING_TIMEFRAMES = ["M1", "M5", "M15", "H1", "H4", "D1", "W1"]
+
     def __init__(self, symbol: str) -> None:
         self.symbol = symbol
-        self._timeframe_hierarchy = ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
+        self._timeframe_hierarchy = ["M1", "M5", "M15", "H1", "H4", "D1", "W1"]
 
     def map_fractal_relationships(
         self,
@@ -154,7 +156,7 @@ class MultiTimeframePerception:
 
         micro_confirmation = {
             "M1": m1_state,
-            "Tick": "Liquidity Absorption Confirmed"
+            "M5": "Structure Confirmation"
         }
 
         return {
