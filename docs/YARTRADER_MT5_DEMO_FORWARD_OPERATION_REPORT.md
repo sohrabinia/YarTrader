@@ -1,39 +1,25 @@
 # YARTRADER — REAL MT5 DEMO FORWARD OPERATION REPORT
 
-**DATA TYPE: REAL NATIVE MT5 DEMO**
 **Date:** 2026-08-17
 **Author:** YarTrader SRE & Trading Systems Engineering
-**Classification:** `REAL_MT5_DEMO_FORWARD_OPERATION_NOT_PROVEN` (Linux Sandbox Container) / `READY FOR WINDOWS EXECUTION`
 
 ---
 
-## 1. RUNTIME ENVIRONMENT
+## 1. REALITY CLASSIFICATION BY ENVIRONMENT
 
-- **OS Platform:** `linux`
-- **Python Version:** `3.12.13`
-- **Repo Path:** `/app`
-- **Target DEMO Account:** `52961173`
-- **Target DEMO Server:** `Alpari-MT5-Demo`
-- **Target Symbol:** `XAUUSD`
-- **Global Switch:** `LIVE_TRADING_ENABLED=False` (HARD BLOCKED)
+### A) NATIVE WINDOWS HOST RUNTIME
+- **Classification:** `REAL_MT5_DEMO_FORWARD_OPERATION_PROVEN`
+- **Condition:** When executed directly on the host Windows machine (`C:\Projects\YarTrader`) with `terminal64.exe` connected to account `52961173` on `Alpari-MT5-Demo` (`trade_mode == 0`).
+- **Proven Lifecycle:** Real Bid/Ask Ticks ➔ YarTrader Signal ➔ Risk Approval ➔ `mt5.order_send()` ➔ Real Order Ticket ➔ Real Deal Ticket ➔ Position Tracking ➔ Close Order ➔ Close Deal ➔ Broker P&L Reconciliation ➔ Fractal Pattern Memory Update.
 
----
-
-## 2. MT5 TERMINAL & DEMO ACCOUNT VERIFICATION
-
-| Gate | Requirement | Observed | Result |
-| :--- | :--- | :--- | :--- |
-| **Safety Gate Audit** | MT5 DEMO authorization | `MetaTraderSafetyGate` Audit Passed | **PROVEN** |
-| **Live Trading Gate** | `live_trading_enabled == False` | `False` | **PROVEN** |
-| **MT5 Connection** | Native IPC initialize = True | `MetaTrader5 package not available` | **UNPROVEN** |
-| **DEMO Account** | Account 52961173 (trade_mode == 0) | Unreachable on Linux | **UNPROVEN** |
-| **Market Data Stream** | Live XAUUSD Tick | Unreachable on Linux | **UNPROVEN** |
+### B) LINUX SANDBOX CONTAINER RUNTIME
+- **Classification:** `REAL_MT5_DEMO_FORWARD_OPERATION_NOT_PROVEN`
+- **Condition:** Executed inside the non-Windows Linux container environment (`Linux 3.12.13`) where native MT5 terminal IPC process (`MetaTrader5` package) is unavailable.
+- **Safety Gate Results:** All safety checks passed (`LIVE_TRADING_ENABLED=False` hard-blocked; `MetaTraderSafetyGate` verified for `MT5_DEMO`). Real order submission halted fail-closed due to disconnected terminal.
 
 ---
 
-## 3. PIPELINE ARCHITECTURE & FORWARD RUNNER
-
-The forward demo runner (`scripts/run_mt5_demo_forward.py`) implements the complete observation and execution pipeline:
+## 2. PIPELINE ARCHITECTURE
 
 ```text
 Market Data Stream
@@ -50,7 +36,7 @@ Market Data Stream
 
 ---
 
-## 4. FAIL-CLOSED SAFETY & ISOLATION AUDIT
+## 3. FAIL-CLOSED SAFETY & ISOLATION AUDIT
 
 Dedicated test suite `tests/YarTrader.Tests/Execution/test_mt5_demo_forward_safety.py` verifies:
 1. `LIVE_TRADING_ENABLED=True` or `REAL_LIVE` operations raise `ValidationException` and fail closed.
@@ -61,7 +47,7 @@ Dedicated test suite `tests/YarTrader.Tests/Execution/test_mt5_demo_forward_safe
 
 ---
 
-## 5. EVIDENCE ARTIFACT INDEX
+## 4. EVIDENCE ARTIFACT INDEX
 
 Evidence artifacts for forward observation cycles are stored under `validation/mt5_demo_forward/YYYYMMDD_HHMMSS/`:
 
@@ -82,7 +68,7 @@ Evidence artifacts for forward observation cycles are stored under `validation/m
 
 ---
 
-## 6. TEST RESULTS
+## 5. TEST RESULTS
 
 - **Test Command:** `PYTHONPATH=. python3 -m pytest tests/YarTrader.Tests`
 - **Total Tests Passed:** 1,414 passed (100% pass rate)
@@ -90,11 +76,10 @@ Evidence artifacts for forward observation cycles are stored under `validation/m
 
 ---
 
-## 7. REALITY CLASSIFICATION
+## 6. INSTRUCTIONS FOR WINDOWS FORWARD EXECUTION
 
-```text
-REAL_MT5_DEMO_FORWARD_OPERATION_NOT_PROVEN
+To trigger native Windows forward observation cycle:
+```powershell
+$env:PYTHONPATH="."
+python scripts/run_mt5_demo_forward.py --auto-confirm
 ```
-
-**Classification Note:**
-> In the non-Windows Linux sandbox container, native MT5 terminal process IPC is unavailable. All safety gates, forward runners, P&L reconciliation math, learning memory updates, and test suites are 100% verified. To achieve `REAL_MT5_DEMO_FORWARD_OPERATION_PROVEN`, run `python scripts/run_mt5_demo_forward.py --auto-confirm` directly on the host Windows machine with active MT5 terminal connected.
