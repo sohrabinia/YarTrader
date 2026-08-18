@@ -8,13 +8,17 @@ from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngi
 
 class ResearchWorker:
     """Manages the background research worker polling loop."""
-    def __init__(self, symbol: str = "XAUUSD", timeframe: str = "H1", interval_sec: float = 60.0) -> None:
+    def __init__(self, symbol: str = "XAUUSD", timeframe: str = "H1", interval_sec: float = 60.0, cooldown_sec: float = 300.0) -> None:
         self.default_symbol = symbol
         self.timeframe = timeframe
         self.interval_sec = interval_sec
+        self.cooldown_sec = cooldown_sec
 
         # Cache of active ResearchRuntimes per (symbol, timeframe)
         self.runtimes: Dict[Any, ResearchRuntime] = {}
+
+        # Tracking last executed signal per symbol to prevent duplicate order spamming
+        self.last_executed_signal: Dict[str, Dict[str, Any]] = {}
 
         self.is_running = False
         self.thread: Optional[threading.Thread] = None
@@ -112,19 +116,33 @@ class ResearchWorker:
                         print("Features: Generated")
                         print("Research: Completed\n")
 
-                        # DEMO Execution Bridge: Check for actionable signal setup and dispatch to DemoExecutionEngine
+                        # DEMO Execution Bridge: Check for actionable signal setup with duplicate & cooldown protection
                         signals = res.Findings.get("pipeline_outputs", {}).get("signals", {})
                         if signals and isinstance(signals, dict) and signals.get("direction") in ["BUY", "SELL"]:
+                            sig_dir = signals.get("direction")
+                            sig_time = signals.get("timestamp", time.time())
+                            now_time = time.time()
+
+                            # Check duplicate / cooldown for this symbol
+                            last_exec = self.last_executed_signal.get(symbol.upper())
+                            if last_exec is not None:
+                                elapsed = now_time - last_exec.get("exec_time", 0)
+                                is_same_signal = (last_exec.get("direction") == sig_dir and last_exec.get("sig_time") == sig_time)
+                                if is_same_signal or elapsed < self.cooldown_sec:
+                                    print(f"[ResearchWorker] Signal for {symbol} {sig_dir} skipped (DEDUPLICATED / COOLDOWN active: {int(elapsed)}s < {int(self.cooldown_sec)}s).")
+                                    continue
+
                             try:
                                 from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
                                 if self.demo_engine is None:
                                     self.demo_engine = DemoExecutionEngine(demo_mode=True)
 
-                                sig_dir = signals.get("direction")
                                 sig_price = signals.get("entry_price")
                                 sig_sl = signals.get("sl")
                                 sig_tp = signals.get("tp")
                                 sig_vol = signals.get("volume", 0.01)
+
+                                decision_id = f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}"
 
                                 print(f"[ResearchWorker] Actionable signal detected: {symbol} {sig_dir}. Dispatching to DemoExecutionEngine...")
                                 exec_resp = self.demo_engine.execute_demo_decision(
@@ -136,8 +154,17 @@ class ResearchWorker:
                                     tp=sig_tp,
                                     comment=f"YarTrader DEMO {symbol}",
                                     magic=143056,
-                                    decision_id=f"DEC-{symbol}-{int(time.time())}"
+                                    decision_id=decision_id
                                 )
+
+                                # Record execution time for cooldown tracking
+                                self.last_executed_signal[symbol.upper()] = {
+                                    "direction": sig_dir,
+                                    "sig_time": sig_time,
+                                    "exec_time": now_time,
+                                    "decision_id": decision_id
+                                }
+
                                 print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
                             except Exception as exec_err:
                                 print(f"[ResearchWorker] DEMO Execution Gate / Fail-Closed: {exec_err}")
