@@ -22,6 +22,7 @@ class ResearchWorker:
         self.last_candle_time: Optional[datetime] = None
         self.status = "IDLE"
         self.error_count = 0
+        self.demo_engine = None
         central_runtime_state.update_state("research_status", "Stopped")
 
     def _get_or_create_runtime(self, symbol: str, tf: str, asset_class: str = "Forex", provider: str = "MT5") -> ResearchRuntime:
@@ -110,6 +111,36 @@ class ResearchWorker:
                         print(f"Candles: {candles_count}")
                         print("Features: Generated")
                         print("Research: Completed\n")
+
+                        # DEMO Execution Bridge: Check for actionable signal setup and dispatch to DemoExecutionEngine
+                        signals = res.Findings.get("pipeline_outputs", {}).get("signals", {})
+                        if signals and isinstance(signals, dict) and signals.get("direction") in ["BUY", "SELL"]:
+                            try:
+                                from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
+                                if self.demo_engine is None:
+                                    self.demo_engine = DemoExecutionEngine(demo_mode=True)
+
+                                sig_dir = signals.get("direction")
+                                sig_price = signals.get("entry_price")
+                                sig_sl = signals.get("sl")
+                                sig_tp = signals.get("tp")
+                                sig_vol = signals.get("volume", 0.01)
+
+                                print(f"[ResearchWorker] Actionable signal detected: {symbol} {sig_dir}. Dispatching to DemoExecutionEngine...")
+                                exec_resp = self.demo_engine.execute_demo_decision(
+                                    symbol=symbol,
+                                    direction=sig_dir,
+                                    volume=sig_vol,
+                                    price=sig_price,
+                                    sl=sig_sl,
+                                    tp=sig_tp,
+                                    comment=f"YarTrader DEMO {symbol}",
+                                    magic=143056,
+                                    decision_id=f"DEC-{symbol}-{int(time.time())}"
+                                )
+                                print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+                            except Exception as exec_err:
+                                print(f"[ResearchWorker] DEMO Execution Gate / Fail-Closed: {exec_err}")
 
                         central_runtime_state.update_multiple({
                             "research_status": "Running",

@@ -1,7 +1,0 @@
-{
-  "timestamp": "2026-08-18T13:27:49.479518+00:00",
-  "os": "Linux-6.8.0-x86_64",
-  "python_version": "3.12.13",
-  "metatrader5_package": "UNAVAILABLE (ModuleNotFoundError: No module named MetaTrader5)",
-  "live_trading_enabled": false
-}

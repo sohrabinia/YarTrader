@@ -1,4 +1,0 @@
-{
-  "status": "DISCONNECTED",
-  "reason": "Linux container environment lacks native metatrader64.exe process IPC"
-}

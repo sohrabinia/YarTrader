@@ -1,6 +1,0 @@
-{
-  "verdict": "DEMO_E2E_BLOCKED_EXTERNAL",
-  "failing_api_call": "import MetaTrader5 as mt5 / mt5.initialize()",
-  "error": "ModuleNotFoundError: No module named MetaTrader5",
-  "required_remediation": "Deploy YarTraderServiceHost on native Windows SRE Host with installed metatrader64.exe terminal process logged into Alpari-MT5-Demo account 52961173"
-}
