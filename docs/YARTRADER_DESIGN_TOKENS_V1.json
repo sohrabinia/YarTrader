@@ -1,0 +1,100 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-08-17T00:00:00Z",
+  "colors": {
+    "brand": {
+      "primary": "#E3A83B",
+      "primary_hover": "#F2BA4E",
+      "primary_dim": "rgba(227, 168, 59, 0.12)"
+    },
+    "background": {
+      "base": "#0B1420",
+      "surface": "#121E2C",
+      "card": "#172537",
+      "light_base": "#F9FBFC",
+      "light_surface": "#FFFFFF"
+    },
+    "border": {
+      "subtle": "#23354A",
+      "light": "#E2E8F0"
+    },
+    "signaling": {
+      "success": "#4C9A6A",
+      "critical": "#C24A3E",
+      "warning": "#E3A83B",
+      "signal_cyan": "#4FB6C7",
+      "buy": "#4C9A6A",
+      "sell": "#C24A3E"
+    },
+    "text": {
+      "dark": "#F1F5F9",
+      "light": "#0F172A",
+      "muted": "#9AA1B9"
+    }
+  },
+  "typography": {
+    "font_families": {
+      "sans": ["Vazirmatn", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
+      "mono": ["Fira Code", "Courier New", "Courier", "monospace"]
+    },
+    "sizes": {
+      "display": "1.5rem",
+      "h1": "1.25rem",
+      "h2": "1.0rem",
+      "body": "0.875rem",
+      "caption": "0.75rem"
+    },
+    "weights": {
+      "regular": 400,
+      "semibold": 600,
+      "bold": 700
+    }
+  },
+  "spacing": {
+    "space_1": "0.25rem",
+    "space_2": "0.5rem",
+    "space_3": "0.75rem",
+    "space_4": "1rem",
+    "space_5": "1.5rem",
+    "space_6": "2rem",
+    "space_8": "3rem"
+  },
+  "radius": {
+    "sm": "4px",
+    "md": "8px",
+    "lg": "12px",
+    "full": "9999px"
+  },
+  "shadows": {
+    "sm": "0 1px 2px rgba(0, 0, 0, 0.3)",
+    "md": "0 4px 6px -1px rgba(0, 0, 0, 0.4)",
+    "lg": "0 10px 15px -3px rgba(0, 0, 0, 0.5)"
+  },
+  "breakpoints": {
+    "mobile": "375px",
+    "tablet": "768px",
+    "laptop": "1024px",
+    "desktop": "1440px",
+    "ultrawide": "1600px"
+  },
+  "components": {
+    "button": {
+      "bg": "#E3A83B",
+      "text": "#07090E",
+      "hover_bg": "#F2BA4E",
+      "radius": "8px"
+    },
+    "chatbot": {
+      "width": "380px",
+      "header_bg": "#E3A83B",
+      "header_text": "#07090E",
+      "bottom": "20px",
+      "right": "20px"
+    }
+  },
+  "states": {
+    "live_trading_enabled": false,
+    "mt4_account": "143056202 (Alpari-Pro.ECN)",
+    "mt5_demo_account": "52961173 (Alpari-MT5-Demo)"
+  }
+}
