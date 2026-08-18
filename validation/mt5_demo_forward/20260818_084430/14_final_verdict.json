@@ -1,0 +1,31 @@
+{
+  "final_verdict": "REAL_MT5_DEMO_FORWARD_OPERATION_NOT_PROVEN",
+  "evidence_table": [
+    {
+      "Gate": "Safety Gate Verification",
+      "Result": "PROVEN",
+      "Evidence": "MetaTraderSafetyGate passed for MT5 DEMO 52961173"
+    },
+    {
+      "Gate": "Live Trading Blocked",
+      "Result": "PROVEN",
+      "Evidence": "live_trading_enabled is False (HARD BLOCKED)"
+    },
+    {
+      "Gate": "MT5 Connection",
+      "Result": "UNPROVEN",
+      "Evidence": "MT5 Terminal process not connected in current environment"
+    },
+    {
+      "Gate": "DEMO Account",
+      "Result": "UNPROVEN",
+      "Evidence": "MT5 account unreachable"
+    },
+    {
+      "Gate": "Market Data Stream",
+      "Result": "UNPROVEN",
+      "Evidence": "MT5 tick stream unreachable"
+    }
+  ],
+  "timestamp": "2026-08-18T08:44:30.548165+00:00"
+}
