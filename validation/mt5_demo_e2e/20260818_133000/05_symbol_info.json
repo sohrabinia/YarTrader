@@ -1,0 +1,9 @@
+{
+  "name": "XAUUSD",
+  "visible": true,
+  "trade_mode": 4,
+  "volume_min": 0.01,
+  "volume_max": 100.0,
+  "volume_step": 0.01,
+  "filling_mode": 3
+}
