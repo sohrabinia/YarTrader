@@ -45,7 +45,7 @@ function MainApp() {
   const [publicMetrics, setPublicMetrics] = useState({
     activeMarketsCount: '30',
     historicalSimulatedTrades: '125.4k+',
-    platformUptimePct: '99.9'
+    platformUptimePct: null
   });
   const [activeHorizon, setActiveHorizon] = useState('medium');
   const [selectedAsset, setSelectedAsset] = useState('all');
@@ -939,7 +939,7 @@ function MainApp() {
                 <div className="status-board" style={{ marginBottom: '25px' }}>
                   <div className="status-item">
                     <div>{t('backtest_leakage_status')}</div>
-                    <div className="status-val status-passed">PASS (Point-in-Time)</div>
+                    <div className="status-val status-passed">{backtestRuns && backtestRuns.length > 0 ? "PASS (Point-in-Time)" : "NOT REPORTED"}</div>
                   </div>
                   <div className="status-item">
                     <div>{t('backtest_provenance')}</div>
@@ -949,7 +949,7 @@ function MainApp() {
                   </div>
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'وضعیت ارزیابی' : 'Validation Status'}</div>
-                    <div className="status-val status-passed">PROVENANCE VERIFIED</div>
+                    <div className="status-val status-passed">{backtestRuns && backtestRuns.length > 0 ? "PROVENANCE VERIFIED" : "NOT REPORTED"}</div>
                   </div>
                 </div>
 
@@ -1748,7 +1748,7 @@ function MainApp() {
                   </div>
                   <div className="status-item">
                     <div>Out-of-Sample Audit</div>
-                    <div className="status-val status-passed">VALIDATED</div>
+                    <div className="status-val status-passed">{learningMatrix && learningMatrix.length > 0 ? "VALIDATED" : "DATA UNAVAILABLE"}</div>
                   </div>
                 </div>
               </div>
@@ -1901,7 +1901,7 @@ function MainApp() {
                   <div className="status-board" style={{ marginBottom: '25px' }}>
                     <div className="status-item">
                       <div>Total Users</div>
-                      <div className="status-val" style={{ color: 'var(--primary)' }}>1,420</div>
+                      <div className="status-val" style={{ color: 'var(--primary)' }}>{devopsMetrics && devopsMetrics.total_users !== undefined ? devopsMetrics.total_users.toLocaleString() : "DATA UNAVAILABLE"}</div>
                     </div>
                     <div className="status-item">
                       <div>Active Symbols</div>
@@ -1909,12 +1909,12 @@ function MainApp() {
                     </div>
                     <div className="status-item">
                       <div>API Server SLA</div>
-                      <div className="status-val status-passed">99.98%</div>
+                      <div className="status-val status-passed">{devopsMetrics && devopsMetrics.system_health_pct !== undefined ? devopsMetrics.system_health_pct + "%" : "DATA UNAVAILABLE"}</div>
                     </div>
                     <div className="status-item">
                       <div>Broker MT5 Link</div>
                       <div className="status-val status-passed">
-                        {devopsStatus.mt5_connected ? 'CONNECTED (Alpari-Demo)' : 'DEMO MOCK'}
+                        {devopsStatus && devopsStatus.mt5_connected !== undefined ? (devopsStatus.mt5_connected ? (devopsStatus.mt5_server || 'CONNECTED') : 'DISCONNECTED') : 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
@@ -1927,9 +1927,9 @@ function MainApp() {
                     <div className="card">
                       <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>⚡ System Health & Ingestion Summary</h3>
                       <div style={{ lineHeight: '2', fontSize: '0.9rem' }}>
-                        <div><strong>Service Runtime:</strong> <span style={{ color: 'var(--accent)' }}>OPERATIONAL</span></div>
+                        <div><strong>Service Runtime:</strong> <span style={{ color: 'var(--accent)' }}>{devopsStatus && devopsStatus.status ? devopsStatus.status.toUpperCase() : 'DATA UNAVAILABLE'}</span></div>
                         <div><strong>Background Scheduler Loop:</strong> <span style={{ color: 'var(--accent)' }}>ACTIVE</span></div>
-                        <div><strong>MT5 Provider Stream:</strong> <span style={{ color: 'var(--primary)' }}>HEALTHY (0.12s latency)</span></div>
+                        <div><strong>MT5 Provider Stream:</strong> <span style={{ color: 'var(--primary)' }}>{devopsStatus && devopsStatus.mt5_latency !== undefined ? 'CONNECTED (' + devopsStatus.mt5_latency + 's)' : (devopsStatus && devopsStatus.mt5_connected ? 'CONNECTED' : 'DATA UNAVAILABLE')}</span></div>
                         <div><strong>APES Security Compliance:</strong> <span style={{ color: 'var(--accent)' }}>PASSED</span></div>
                       </div>
                     </div>
@@ -1954,15 +1954,15 @@ function MainApp() {
                   <div className="status-board" style={{ marginBottom: '20px' }}>
                     <div className="status-item">
                       <div>System API</div>
-                      <div className="status-val status-passed">HEALTHY</div>
+                      <div className="status-val status-passed">{devopsStatus && devopsStatus.system_health ? devopsStatus.system_health.toUpperCase() : "DATA UNAVAILABLE"}</div>
                     </div>
                     <div className="status-item">
                       <div>MT5 Provider Link</div>
-                      <div className="status-val status-passed">CONNECTED</div>
+                      <div className="status-val status-passed">{devopsStatus && devopsStatus.api_connected !== undefined ? (devopsStatus.api_connected ? "CONNECTED" : "DISCONNECTED") : "DATA UNAVAILABLE"}</div>
                     </div>
                     <div className="status-item">
                       <div>Service Runtime</div>
-                      <div className="status-val status-passed">RUNNING</div>
+                      <div className="status-val status-passed">{devopsStatus && devopsStatus.ingestion_running !== undefined ? (devopsStatus.ingestion_running ? "RUNNING" : "STOPPED") : "DATA UNAVAILABLE"}</div>
                     </div>
                     <div className="status-item">
                       <div>Background Loop</div>
@@ -1988,7 +1988,7 @@ function MainApp() {
                     <div style={{ textAlign: 'center' }}>
                       <div className="score-circle">
                         <span style={{ fontSize: '0.75em', textAlign: 'center', color: 'var(--text-muted)' }}>Platform Readiness</span>
-                        <span className="score-num">{validationStatus.readiness_score || '100.0%'}</span>
+                        <span className="score-num">{validationStatus && validationStatus.readiness_score !== undefined ? validationStatus.readiness_score : 'DATA UNAVAILABLE'}</span>
                         <span style={{ fontSize: '0.8em', marginTop: '4px', color: 'var(--accent)' }}>PASSED</span>
                       </div>
                     </div>
@@ -2022,7 +2022,7 @@ function MainApp() {
                             <td>H1 / M15</td>
                             <td>Alpari MT5 Feed</td>
                             <td>Just now</td>
-                            <td className="status-passed">120ms</td>
+                            <td className="status-passed">{item.latency_ms !== undefined ? item.latency_ms + 'ms' : 'DATA UNAVAILABLE'}</td>
                             <td>
                               <span className="blog-tag" style={{ background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)' }}>
                                 STREAMING
