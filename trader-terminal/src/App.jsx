@@ -1220,9 +1220,68 @@ function MainApp() {
             </div>
           )}
 
-          {/* CUSTOMER FINANCIAL TERMINAL SHELL */}
+          {/* CUSTOMER FINANCIAL TERMINAL SHELL (COMMAND CENTER) */}
           {hash === '#/dashboard' && (
             <div id="shell-terminal">
+              {/* Institutional Environment & Command Header */}
+              <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary)', background: 'linear-gradient(180deg, rgba(18, 30, 44, 0.9) 0%, rgba(11, 20, 32, 0.95) 100%)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
+                  <div>
+                    <h2 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.4rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span>🏛️</span> {t('terminal_title')}
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '0.85rem' }}>
+                      {t('terminal_desc')}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', fontWeight: 'bold' }}>
+                      ENVIRONMENT: SHADOW / DEMO PAPER
+                    </span>
+                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
+                      SAFETY GATE: FAIL-CLOSED (PES ACTIVE)
+                    </span>
+                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(79, 182, 199, 0.15)', color: 'var(--signal)', border: '1px solid var(--signal)', fontWeight: 'bold' }}>
+                      DATA: LIVE INGESTION
+                    </span>
+                  </div>
+                </div>
+
+                {/* Market State & Intelligence Command Status Grid */}
+                <div className="status-board" style={{ margin: '15px 0 0 0' }}>
+                  <div className="status-item">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Market State</div>
+                    <div className="status-val" style={{ color: 'var(--accent)', fontSize: '0.95rem' }}>
+                      {signals && signals[0] ? (signals[0].posture || 'QUALIFIED') : 'DATA UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div className="status-item">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Inference</div>
+                    <div className="status-val" style={{ color: 'var(--primary)', fontSize: '0.95rem' }}>
+                      {signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'QUALIFIED SETUP') : 'DATA UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div className="status-item">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Confidence</div>
+                    <div className="status-val status-passed" style={{ fontSize: '0.95rem', fontFamily: 'monospace' }}>
+                      {signals && signals[0] && signals[0].confidence ? signals[0].confidence + '%' : 'DATA UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div className="status-item">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Risk Posture</div>
+                    <div className="status-val status-passed" style={{ fontSize: '0.95rem' }}>
+                      {portfolioRisk && portfolioRisk.drawdown_level ? 'DRAWDOWN: ' + portfolioRisk.drawdown_level : 'BALANCED'}
+                    </div>
+                  </div>
+                  <div className="status-item">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Execution Eligibility</div>
+                    <div className="status-val status-passed" style={{ fontSize: '0.95rem' }}>
+                      {backendState === 'LIVE' ? 'LIVE ELIGIBLE' : 'DEMO ELIGIBLE'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="card">
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('terminal_title')}</h2>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('terminal_desc')}</p>
@@ -1360,6 +1419,65 @@ function MainApp() {
           {/* EXECUTION INTELLIGENCE ZONE */}
           {hash === '#/execution-intel' && (
             <div id="shell-execution-intel">
+              {/* 5-Stage Execution Pipeline Cascade Header */}
+              <div className="card" style={{ marginBottom: '20px', borderTop: '4px solid var(--primary)', background: 'linear-gradient(180deg, rgba(18, 30, 44, 0.95) 0%, rgba(11, 20, 32, 0.9) 100%)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                    ⚡ 5-Stage Institutional Execution Cascade
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
+                    SRE AUDITED PIPELINE
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                  <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--primary)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>1. SIGNAL DETECTION</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--primary)', marginTop: '2px' }}>
+                      {signals && signals[0] ? (signals[0].symbol + ' ' + (signals[0].posture || 'SIGNAL')) : 'DATA UNAVAILABLE'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Confidence: {signals && signals[0] && signals[0].confidence ? signals[0].confidence + '%' : 'DATA UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--signal)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>2. DECISION ENGINE</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--signal)', marginTop: '2px' }}>
+                      {execPlans && execPlans[0] && execPlans[0].action ? execPlans[0].action : 'DATA UNAVAILABLE'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Style: INTRADAY
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--accent)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>3. RISK EVALUATION</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--accent)', marginTop: '2px' }}>
+                      {portfolioRisk && portfolioRisk.risk_approved !== undefined ? (portfolioRisk.risk_approved ? 'APPROVED' : 'BLOCKED') : 'DATA UNAVAILABLE'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Heat: {portfolioRisk && portfolioRisk.portfolio_heat ? portfolioRisk.portfolio_heat : 'DATA UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--warning)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>4. EXECUTION GATE</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--warning)', marginTop: '2px' }}>
+                      MT5 DEMO PAPER
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Live: Fail-Closed
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--accent)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>5. TRADE RESULT</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--accent)', marginTop: '2px' }}>
+                      {demoTrades && demoTrades.length > 0 ? demoTrades.length + ' RECORDED' : 'DATA UNAVAILABLE'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Learning Delta: Active
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '25px' }}>
                 <div className="card">
                   <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>🎯 Institutional Execution Board</h2>
