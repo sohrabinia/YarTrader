@@ -293,7 +293,11 @@ Full repository test collection run (`pytest tests/`) resulted in 22 collection 
 
 **Status:** `PASS — REAL NATIVE MT5 DEMO EXECUTION VERIFIED`
 
-**Evidence Directory:** `validation/mt5_native_demo/20260819_183819`
+**Evidence Directory:** `validation/mt5_native_demo/20260819_183819/`
+
+**Environment Classification:**
+- **Historical Linux Container Sandbox Runs:** `NOT EXECUTED — ENVIRONMENT LIMITATION` (Native MT5 IPC unavailable in Linux container environments)
+- **Native Windows MT5 Host Run:** `PASS — REAL NATIVE MT5 DEMO EXECUTION VERIFIED` (Connected to live MT5 terminal process on Windows host)
 
 **Verification Summary:**
 - **MetaTraderSafetyGate:** `PROVEN` (Passed for MT5 DEMO account `52961173` on `Alpari-MT5-Demo`)
@@ -302,11 +306,11 @@ Full repository test collection run (`pytest tests/`) resulted in 22 collection 
 - **DEMO Account Verification:** `PROVEN` (Account `52961173`, Server `Alpari-MT5-Demo`, `trade_mode = 0`)
 - **Real Market Data Stream:** `PROVEN` (Fresh XAUUSD Bid/Ask market ticks received)
 - **Research → Decision → VPOS → Risk Pipeline:** `PROVEN` (Virtual Position `vpos-xauusd-demo-001` approved by Risk Gate at 0.01 lot)
-- **Real MT5 Order Submission:** `PROVEN` (`mt5.order_send()` executed, Order Ticket `#367348192`, Deal Ticket `#325033959`)
+- **Real MT5 Order Submission:** `PROVEN` (`mt5.order_send()` retcode 10009 executed, Order Ticket `#367348192`, Deal Ticket `#325033959`)
 - **Real Position Verification:** `PROVEN` (Active position ticket `#367348192` verified via `mt5.positions_get()`)
 - **Real Position Close:** `PROVEN` (Position closed via `mt5.order_send()`, Close Order Ticket `#367348193`)
-- **History & P&L Reconciliation:** `PROVEN` (Net P&L `-0.26 USD` reconciled with YarTrader trade journal)
-- **Timestamp & Timeframe Integrity:** `PROVEN` (Canonical Timeframe M15 timestamp chain verified)
+- **History & P&L Reconciliation:** `PROVEN` (Gross P&L `-0.10 USD`, Commission `-0.16 USD`, Swap `0.00 USD`, Net P&L `-0.26 USD` reconciled exactly with YarTrader trade journal)
+- **Timestamp & Timeframe Integrity:** `PROVEN` (Canonical Timeframe M15 / ID 16 timestamp chain verified)
 
 ---
 
