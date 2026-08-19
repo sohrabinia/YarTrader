@@ -1,0 +1,183 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-08-17T00:00:00Z",
+  "total_screens": 16,
+  "screens": [
+    {
+      "id": "landing",
+      "route": "#/",
+      "page_name": "Marketing Landing",
+      "access_tier": "PUBLIC",
+      "purpose": "Public introduction, platform performance metrics, and compliance standards.",
+      "api_dependencies": ["/api/public/metrics"],
+      "components_used": ["Header", "Card", "StatusBoard", "StatusItem", "Footer"],
+      "visual_shell": "shell-marketing"
+    },
+    {
+      "id": "features",
+      "route": "#/features",
+      "page_name": "Cognitive Features",
+      "access_tier": "PUBLIC",
+      "purpose": "Highlights non-indicator price action architecture and 4-layered memory.",
+      "api_dependencies": [],
+      "components_used": ["Header", "Card", "FeatureGrid", "FeatureCard"],
+      "visual_shell": "shell-features"
+    },
+    {
+      "id": "pricing",
+      "route": "#/pricing",
+      "page_name": "Pricing Plans",
+      "access_tier": "PUBLIC",
+      "purpose": "Displays subscription plans, active symbol limits, and feature modals.",
+      "api_dependencies": ["/api/subscription/plans"],
+      "components_used": ["Header", "Card", "PricingGrid", "PlanCard", "PlanDetailModal"],
+      "visual_shell": "shell-pricing"
+    },
+    {
+      "id": "blog",
+      "route": "#/blog",
+      "page_name": "Research Blog",
+      "access_tier": "PUBLIC",
+      "purpose": "Institutional research articles and market behavior analysis.",
+      "api_dependencies": ["/api/blog"],
+      "components_used": ["Header", "Card", "BlogGrid", "BlogCard", "TagBadge"],
+      "visual_shell": "shell-blog"
+    },
+    {
+      "id": "login",
+      "route": "#/login",
+      "page_name": "Login Screen",
+      "access_tier": "PUBLIC",
+      "purpose": "User sign in via credentials or simulated Google/Apple social OAuth.",
+      "api_dependencies": ["/api/auth/login", "/api/auth/google", "/api/auth/apple"],
+      "components_used": ["Header", "FormCard", "InputField", "SocialButton", "Button", "Toast"],
+      "visual_shell": "shell-login"
+    },
+    {
+      "id": "register",
+      "route": "#/register",
+      "page_name": "Registration Screen",
+      "access_tier": "PUBLIC",
+      "purpose": "New trader sign up form.",
+      "api_dependencies": ["/api/auth/register"],
+      "components_used": ["Header", "FormCard", "InputField", "SocialButton", "Button", "Toast"],
+      "visual_shell": "shell-register"
+    },
+    {
+      "id": "forgot_password",
+      "route": "#/forgot-password",
+      "page_name": "Forgot Password Screen",
+      "access_tier": "PUBLIC",
+      "purpose": "Password recovery trigger.",
+      "api_dependencies": ["/api/auth/forgot-password"],
+      "components_used": ["Header", "FormCard", "InputField", "Button", "Toast"],
+      "visual_shell": "shell-forgot"
+    },
+    {
+      "id": "terminal_dashboard",
+      "route": "#/dashboard",
+      "page_name": "Trader Terminal",
+      "access_tier": "AUTHENTICATED USER",
+      "purpose": "Multi-horizon market perception, qualified signals feed, and compounding simulator.",
+      "api_dependencies": ["/api/user/markets", "/api/user/signals"],
+      "components_used": ["Header", "Sidebar", "Card", "HorizonTabs", "AssetSelect", "SignalCard", "CompoundingSim"],
+      "visual_shell": "shell-terminal"
+    },
+    {
+      "id": "backtest",
+      "route": "#/backtest",
+      "page_name": "Backtest Engine UI",
+      "access_tier": "AUTHENTICATED USER",
+      "purpose": "Historical point-in-time backtest simulations and audit logs.",
+      "api_dependencies": ["/api/backtest/run", "/api/backtest/history"],
+      "components_used": ["Header", "Sidebar", "Card", "BacktestForm", "AuditBoard", "Table"],
+      "visual_shell": "shell-backtest"
+    },
+    {
+      "id": "demo",
+      "route": "#/demo",
+      "page_name": "MT5 Demo Operations",
+      "access_tier": "AUTHENTICATED USER",
+      "purpose": "Broker demo account status, order lifecycle, and demo trade ledger.",
+      "api_dependencies": ["/api/demo/trades", "/api/demo/report"],
+      "components_used": ["Header", "Sidebar", "Card", "StatusBoard", "StatusItem", "Table"],
+      "visual_shell": "shell-demo"
+    },
+    {
+      "id": "shadow",
+      "route": "#/shadow",
+      "page_name": "Shadow Paper Trading",
+      "access_tier": "AUTHENTICATED USER",
+      "purpose": "Virtual $1,000 paper balance management and paper position tracking.",
+      "api_dependencies": ["/api/shadow/report", "/api/admin/shadow-trades"],
+      "components_used": ["Header", "Sidebar", "Card", "StatusBoard", "Table"],
+      "visual_shell": "shell-shadow"
+    },
+    {
+      "id": "live_gate",
+      "route": "#/live",
+      "page_name": "Live Trading Gate",
+      "access_tier": "AUTHENTICATED USER",
+      "purpose": "SRE fail-closed live execution safety isolation notification screen.",
+      "api_dependencies": [],
+      "components_used": ["Header", "Sidebar", "Card", "SafetyAlertBox", "StatusBoard"],
+      "visual_shell": "shell-live"
+    },
+    {
+      "id": "signals",
+      "route": "#/signals",
+      "page_name": "Signal Hub",
+      "access_tier": "AUTHENTICATED USER",
+      "purpose": "Multi-category signal stream (Live, Shadow, Backtest, Historical).",
+      "api_dependencies": ["/api/user/signals"],
+      "components_used": ["Header", "Sidebar", "Card", "SubNavTabs", "SignalFeedGrid"],
+      "visual_shell": "shell-signals"
+    },
+    {
+      "id": "execution_intel",
+      "route": "#/execution-intel",
+      "page_name": "Execution Intelligence Board",
+      "access_tier": "AUTHENTICATED USER",
+      "purpose": "Advisory trade plans, price action structure maps, and supply/demand zones.",
+      "api_dependencies": [
+        "/api/execution/plans",
+        "/api/execution/confidence",
+        "/api/execution/reasoning",
+        "/api/structure/map",
+        "/api/structure/alignment",
+        "/api/liquidity/map",
+        "/api/portfolio/risk",
+        "/api/portfolio/exposure"
+      ],
+      "components_used": ["Header", "Sidebar", "Card", "StatusBoard", "StructureTable", "SupplyDemandCards"],
+      "visual_shell": "shell-execution-intel"
+    },
+    {
+      "id": "learning",
+      "route": "#/learning",
+      "page_name": "Pattern Learning Matrix",
+      "access_tier": "AUTHENTICATED USER",
+      "purpose": "Multi-timeframe fractal pattern memory weights and evidence inspector.",
+      "api_dependencies": ["/api/intelligence/learning-matrix"],
+      "components_used": ["Header", "Sidebar", "Card", "StatusBoard", "Table", "PatternInspectModal"],
+      "visual_shell": "shell-learning"
+    },
+    {
+      "id": "admin",
+      "route": "#/admin",
+      "page_name": "SRE Control Center",
+      "access_tier": "ADMIN",
+      "purpose": "Active symbol registration, validation runner, SCM reports, and SRE logs.",
+      "api_dependencies": [
+        "/api/admin/symbols",
+        "/api/admin/reports",
+        "/api/devops/status",
+        "/api/devops/metrics",
+        "/api/validation/run",
+        "/api/validation/status"
+      ],
+      "components_used": ["Header", "Sidebar", "Card", "SymbolRegisterBar", "ValidationRunner", "LogsBox", "ScoreCircle"],
+      "visual_shell": "shell-admin"
+    }
+  ]
+}

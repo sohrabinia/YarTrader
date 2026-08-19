@@ -1,0 +1,223 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-08-17T00:00:00Z",
+  "total_components": 24,
+  "components": [
+    {
+      "name": "Header",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Global navbar displaying branding, status badges, language selector, and theme toggle.",
+      "props": ["lang", "theme", "backendState"],
+      "state_dependencies": ["lang", "theme", "backendState"],
+      "api_dependencies": ["/api/public/metrics"],
+      "used_in": ["Global Layout"]
+    },
+    {
+      "name": "Sidebar",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Collapsible side navigation bar for all trading shells and auth controls.",
+      "props": ["hash", "token", "role", "name"],
+      "state_dependencies": ["hash", "token", "role", "name"],
+      "api_dependencies": [],
+      "used_in": ["Container Layout"]
+    },
+    {
+      "name": "Card",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Surface container providing elevation and borders for dark/light themes.",
+      "props": ["children", "style", "className"],
+      "state_dependencies": ["theme"],
+      "api_dependencies": [],
+      "used_in": ["All Pages"]
+    },
+    {
+      "name": "StatusBoard",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "CSS grid container organizing metric tiles.",
+      "props": ["children"],
+      "state_dependencies": [],
+      "api_dependencies": [],
+      "used_in": ["Landing", "Backtest", "Demo", "Shadow", "Admin", "Execution Intel", "Learning"]
+    },
+    {
+      "name": "StatusItem",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Individual metric tile formatting label and numeric value.",
+      "props": ["label", "value", "statusClass"],
+      "state_dependencies": [],
+      "api_dependencies": [],
+      "used_in": ["StatusBoard"]
+    },
+    {
+      "name": "Button",
+      "file_path": "trader-terminal/src/components/common/Button.jsx",
+      "purpose": "Primary Amber action button.",
+      "props": ["children", "onClick", "className", "disabled"],
+      "state_dependencies": [],
+      "api_dependencies": [],
+      "used_in": ["All Forms", "Action Panels"]
+    },
+    {
+      "name": "ButtonSecondary",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Outline secondary action button.",
+      "props": ["children", "onClick"],
+      "state_dependencies": [],
+      "api_dependencies": [],
+      "used_in": ["Modals", "Tables"]
+    },
+    {
+      "name": "SocialButton",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "OAuth social login trigger (Google / Apple).",
+      "props": ["provider", "onClick"],
+      "state_dependencies": [],
+      "api_dependencies": ["/api/auth/google", "/api/auth/apple"],
+      "used_in": ["Login", "Register"]
+    },
+    {
+      "name": "InputField",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Standard styled text, password, or numeric input control.",
+      "props": ["type", "value", "onChange", "placeholder", "required"],
+      "state_dependencies": [],
+      "api_dependencies": [],
+      "used_in": ["Forms", "Backtest Controls"]
+    },
+    {
+      "name": "SelectField",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Standard styled dropdown select component.",
+      "props": ["value", "onChange", "options"],
+      "state_dependencies": [],
+      "api_dependencies": [],
+      "used_in": ["Header", "Terminal", "Backtest", "Admin"]
+    },
+    {
+      "name": "HorizonTabs",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "4-button time horizon filter control.",
+      "props": ["activeHorizon", "setActiveHorizon"],
+      "state_dependencies": ["activeHorizon"],
+      "api_dependencies": ["/api/user/signals"],
+      "used_in": ["Trader Terminal"]
+    },
+    {
+      "name": "SubNavTabs",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Sub-navigation tab bar.",
+      "props": ["activeTab", "setActiveTab"],
+      "state_dependencies": ["signalTab"],
+      "api_dependencies": [],
+      "used_in": ["Signals Hub"]
+    },
+    {
+      "name": "SignalCard",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Display card for qualified trading signal details and narrative.",
+      "props": ["signal"],
+      "state_dependencies": [],
+      "api_dependencies": ["/api/user/signals"],
+      "used_in": ["Trader Terminal", "Signals Hub"]
+    },
+    {
+      "name": "BacktestForm",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Form controls for symbol, timeframe, and candle count selection.",
+      "props": ["formState", "setFormState", "onSubmit", "running"],
+      "state_dependencies": ["backtestForm", "backtestRunning"],
+      "api_dependencies": ["/api/backtest/run"],
+      "used_in": ["Backtest Page"]
+    },
+    {
+      "name": "Table",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Data table with tabular numeric alignment.",
+      "props": ["headers", "rows"],
+      "state_dependencies": [],
+      "api_dependencies": [],
+      "used_in": ["Backtest", "Demo", "Shadow", "Execution Intel", "Learning", "Admin"]
+    },
+    {
+      "name": "ScoreCircle",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Radial score badge displaying platform readiness or performance.",
+      "props": ["score", "statusLabel"],
+      "state_dependencies": ["validationStatus"],
+      "api_dependencies": ["/api/validation/status"],
+      "used_in": ["Admin Center"]
+    },
+    {
+      "name": "LogsBox",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Monospaced dark console viewing live SRE validation logs.",
+      "props": ["logs"],
+      "state_dependencies": ["validationLogs"],
+      "api_dependencies": ["/api/validation/status"],
+      "used_in": ["Admin Center"]
+    },
+    {
+      "name": "ChatbotWidget",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Floating support assistant widget.",
+      "props": ["isOpen", "messages", "input", "onSend"],
+      "state_dependencies": ["chatOpen", "chatMessages", "chatInput"],
+      "api_dependencies": ["/api/chat/assistant"],
+      "used_in": ["Global Overlay"]
+    },
+    {
+      "name": "ChatBubble",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Text bubble for user or bot message in chatbot.",
+      "props": ["message", "sender", "isError", "onRetry"],
+      "state_dependencies": [],
+      "api_dependencies": [],
+      "used_in": ["ChatbotWidget"]
+    },
+    {
+      "name": "QuickPromptChip",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Quick question button for AI Chat assistant.",
+      "props": ["label", "text", "onClick"],
+      "state_dependencies": [],
+      "api_dependencies": [],
+      "used_in": ["ChatbotWidget"]
+    },
+    {
+      "name": "NotificationToast",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Floating top-centered alert banner.",
+      "props": ["show", "msg", "type"],
+      "state_dependencies": ["notif"],
+      "api_dependencies": [],
+      "used_in": ["Global Overlay"]
+    },
+    {
+      "name": "PlanDetailModal",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Overlay modal displaying selected subscription plan features.",
+      "props": ["plan", "onClose", "onSelect"],
+      "state_dependencies": ["selectedPlan"],
+      "api_dependencies": [],
+      "used_in": ["Pricing Page"]
+    },
+    {
+      "name": "PatternInspectDrawer",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Detail drawer showing pattern memory statistical evidence.",
+      "props": ["pattern", "onClose"],
+      "state_dependencies": ["selectedPattern"],
+      "api_dependencies": ["/api/intelligence/learning-matrix"],
+      "used_in": ["Learning Matrix"]
+    },
+    {
+      "name": "BackendErrorBanner",
+      "file_path": "trader-terminal/src/App.jsx",
+      "purpose": "Red notification bar displayed when backend API is unreachable.",
+      "props": ["backendState", "lang"],
+      "state_dependencies": ["backendState", "lang"],
+      "api_dependencies": ["/api/public/metrics"],
+      "used_in": ["Global Layout"]
+    }
+  ]
+}

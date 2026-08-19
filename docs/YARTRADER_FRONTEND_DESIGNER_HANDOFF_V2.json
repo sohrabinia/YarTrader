@@ -1,0 +1,50 @@
+{
+  "version": "2.0.0",
+  "generated_at": "2026-08-17T00:00:00Z",
+  "meta": {
+    "app_name": "YarTrader Trader Terminal",
+    "root_directory": "trader-terminal/",
+    "entry_point": "trader-terminal/src/main.jsx",
+    "router": "HashRouter (#/)",
+    "framework": "React 18 + Vite 5.4.21"
+  },
+  "routes": [
+    { "path": "#/", "page": "Landing", "access": "PUBLIC" },
+    { "path": "#/features", "page": "Features", "access": "PUBLIC" },
+    { "path": "#/pricing", "page": "Pricing", "access": "PUBLIC" },
+    { "path": "#/blog", "page": "Blog", "access": "PUBLIC" },
+    { "path": "#/login", "page": "Login", "access": "PUBLIC" },
+    { "path": "#/register", "page": "Register", "access": "PUBLIC" },
+    { "path": "#/forgot-password", "page": "Forgot Password", "access": "PUBLIC" },
+    { "path": "#/dashboard", "page": "Trader Terminal", "access": "AUTHENTICATED USER" },
+    { "path": "#/backtest", "page": "Backtest UI", "access": "AUTHENTICATED USER" },
+    { "path": "#/demo", "page": "MT5 Demo Ledger", "access": "AUTHENTICATED USER" },
+    { "path": "#/shadow", "page": "Shadow Paper Trading", "access": "AUTHENTICATED USER" },
+    { "path": "#/live", "page": "Live Trading Gate", "access": "AUTHENTICATED USER" },
+    { "path": "#/signals", "page": "Signal Hub", "access": "AUTHENTICATED USER" },
+    { "path": "#/execution-intel", "page": "Execution Board", "access": "AUTHENTICATED USER" },
+    { "path": "#/learning", "page": "Pattern Learning Matrix", "access": "AUTHENTICATED USER" },
+    { "path": "#/admin", "page": "SRE Control Center", "access": "ADMIN" }
+  ],
+  "components_count": 24,
+  "api_endpoints_count": 42,
+  "screenshots": [
+    "01_landing.png", "02_features.png", "03_pricing.png", "04_blog.png",
+    "05_login.png", "06_register.png", "07_forgot_password.png", "08_terminal_dashboard.png",
+    "09_backtest.png", "10_demo.png", "11_shadow.png", "12_live_gate.png",
+    "13_signals.png", "14_execution_intel.png", "15_learning.png", "16_admin.png",
+    "17_fa_rtl_desktop.png", "18_mobile_dashboard.png"
+  ],
+  "execution_boundaries": {
+    "mt4_live": {
+      "account": "143056202 (Alpari-Pro.ECN)",
+      "state": "HARD BLOCKED",
+      "flag": "LIVE_TRADING_ENABLED=False"
+    },
+    "mt5_demo": {
+      "account": "52961173 (Alpari-MT5-Demo)",
+      "state": "ACTIVE DEMO",
+      "mode": "DEMO / PAPER"
+    }
+  }
+}
