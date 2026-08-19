@@ -1236,13 +1236,13 @@ function MainApp() {
                   </div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', fontWeight: 'bold' }}>
-                      ENVIRONMENT: SHADOW / DEMO PAPER
+                      ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'SHADOW / DEMO PAPER')}
                     </span>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
-                      SAFETY GATE: FAIL-CLOSED (PES ACTIVE)
+                      SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE ACTIVE' : 'FAIL-CLOSED (LIVE DISABLED)')}
                     </span>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(79, 182, 199, 0.15)', color: 'var(--signal)', border: '1px solid var(--signal)', fontWeight: 'bold' }}>
-                      DATA: LIVE INGESTION
+                      DATA: {backendState === 'LIVE' ? 'LIVE INGESTION' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : 'MOCK / DEMO INGESTION')}
                     </span>
                   </div>
                 </div>
@@ -1276,7 +1276,7 @@ function MainApp() {
                   <div className="status-item">
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Execution Eligibility</div>
                     <div className="status-val status-passed" style={{ fontSize: '0.95rem' }}>
-                      {backendState === 'LIVE' ? 'LIVE ELIGIBLE' : 'DEMO ELIGIBLE'}
+                      {backendState === 'LIVE' ? 'LIVE ELIGIBLE' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'NOT VERIFIED'))}
                     </div>
                   </div>
                 </div>
@@ -1446,7 +1446,7 @@ function MainApp() {
                       {execPlans && execPlans[0] && execPlans[0].action ? execPlans[0].action : 'DATA UNAVAILABLE'}
                     </div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      Style: INTRADAY
+                      Style: {execPlans && execPlans[0] && execPlans[0].style ? execPlans[0].style : 'NOT VERIFIED'}
                     </div>
                   </div>
                   <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--accent)' }}>
@@ -1473,7 +1473,7 @@ function MainApp() {
                       {demoTrades && demoTrades.length > 0 ? demoTrades.length + ' RECORDED' : 'DATA UNAVAILABLE'}
                     </div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      Learning Delta: Active
+                      Learning Delta: {demoTrades && demoTrades.length > 0 ? 'Active' : 'Standby'}
                     </div>
                   </div>
                 </div>
