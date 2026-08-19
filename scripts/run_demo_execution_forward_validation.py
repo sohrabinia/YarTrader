@@ -17,7 +17,9 @@ def run_demo_forward_validation():
     print("YARTRADER CONTROLLED MT5 DEMO EXECUTION FORWARD VALIDATION")
     print("================================================================================")
 
-    out_dir = "validation/mt5_demo_execution_audit"
+    from src.Application.Deployment.storage import YarTraderStorageManager
+    storage_mgr = YarTraderStorageManager.get_manager()
+    out_dir = os.path.join(storage_mgr.get_reports_dir(), "mt5_demo_execution_audit")
     os.makedirs(out_dir, exist_ok=True)
 
     adapter = RealMT5BrokerAdapter(auto_initialize=True)

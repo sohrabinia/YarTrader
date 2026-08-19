@@ -32,10 +32,12 @@ class ResearchWorker:
     def _get_or_create_runtime(self, symbol: str, tf: str, asset_class: str = "Forex", provider: str = "MT5") -> ResearchRuntime:
         key = (symbol.upper(), tf.upper())
         if key not in self.runtimes:
+            from src.Application.Deployment.storage import YarTraderStorageManager
+            storage_mgr = YarTraderStorageManager.get_manager()
             self.runtimes[key] = ResearchRuntime(
                 symbol=symbol.upper(),
                 timeframe=tf.upper(),
-                evidence_dir="runtime_logs",
+                evidence_dir=os.path.join(storage_mgr.get_runtime_dir(), "research_logs"),
                 provider_name=provider,
                 asset_class=asset_class
             )

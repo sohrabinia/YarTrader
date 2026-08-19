@@ -24,10 +24,20 @@ class DemoExecutionEngine:
     - Full trade lifecycle evidence output.
     """
 
-    def __init__(self, adapter: Optional[RealMT5BrokerAdapter] = None, demo_mode: bool = True, log_dir: str = "runtime_logs/demo_execution"):
+    def __init__(self, adapter: Optional[RealMT5BrokerAdapter] = None, demo_mode: bool = True, log_dir: Optional[str] = None):
         self.demo_mode = demo_mode
         self.adapter = adapter or RealMT5BrokerAdapter(auto_initialize=True)
-        self.log_dir = log_dir
+
+        from src.Application.Deployment.storage import YarTraderStorageManager
+        storage_mgr = YarTraderStorageManager.get_manager()
+
+        if not log_dir or not os.isabs(log_dir):
+            sub_dir = log_dir if log_dir else "demo_execution"
+            sub_folder = os.path.basename(sub_dir) if ("/" in sub_dir or "\\" in sub_dir) else sub_dir
+            self.log_dir = os.path.join(storage_mgr.get_log_dir(), sub_folder)
+        else:
+            self.log_dir = log_dir
+
         os.makedirs(self.log_dir, exist_ok=True)
 
     def execute_demo_decision(

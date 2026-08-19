@@ -123,6 +123,13 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         self.assertIsNotNone(shadow.account)
         self.assertGreater(shadow.account.balance, 0)
 
+    def test_11_demo_execution_engine_storage_root_isolation(self):
+        """Test 11: DemoExecutionEngine log_dir resolves under canonical TradeYarStorageRoot."""
+        from src.Application.Deployment.storage import YarTraderStorageManager
+        storage_mgr = YarTraderStorageManager.get_manager()
+        engine = DemoExecutionEngine(adapter=self.mock_adapter, demo_mode=True)
+        self.assertTrue(engine.log_dir.startswith(storage_mgr.storage_root) or engine.log_dir.startswith(storage_mgr.get_log_dir()))
+
 
 if __name__ == "__main__":
     unittest.main()

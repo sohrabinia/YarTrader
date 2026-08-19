@@ -86,6 +86,8 @@ history/
 *.log
 uvicorn.log
 validation/mt5_demo_forward/
+validation/mt5_demo_e2e/
+validation/mt5_demo_execution_audit/
 
 
 # ==========================================
