@@ -154,5 +154,10 @@
   "learning_title": "🧠 Bilişsel Öğrenme Matrisi",
   "learning_desc": "İstatistiksel kanıtlara ve Out-of-Sample analizlerine dayalı fiyat yapısı veritabanı.",
   "pattern_details_title": "Desen Kanıtları ve Bilişsel Detaylar",
-  "no_pattern_selected": "İstatistiksel kanıtları incelemek için matristen bir desen seçin."
+  "no_pattern_selected": "İstatistiksel kanıtları incelemek için matristen bir desen seçin.",
+  "nav_execution_intel": "🎯 Uygulama İstihbaratı",
+  "live_mode": "CANLI",
+  "demo_mode": "DEMO / SİMÜLASYON",
+  "checking_mode": "BAĞLANTI KONTROL EDİLİYOR...",
+  "unreachable_mode": "ARKA PLANA ULAŞILAMIYOR"
 }
