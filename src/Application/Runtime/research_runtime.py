@@ -21,7 +21,7 @@ class ResearchRuntime:
         research_engine: Optional[FeatureExtractionResearchEngine] = None,
         symbol: str = "XAUUSD",
         timeframe: str = "H1",
-        evidence_dir: str = "runtime_logs",
+        evidence_dir: Optional[str] = None,
         provider_name: str = "MT5",
         asset_class: str = "Forex"
     ) -> None:
@@ -29,7 +29,15 @@ class ResearchRuntime:
         self._research_engine = research_engine or FeatureExtractionResearchEngine(data_provider=self._provider)
         self._symbol = symbol
         self._timeframe = timeframe
-        self._evidence_dir = evidence_dir
+
+        from src.Application.Deployment.storage import YarTraderStorageManager
+        storage_mgr = YarTraderStorageManager.get_manager()
+
+        if not evidence_dir or not os.isabs(evidence_dir):
+            sub_folder = os.path.basename(evidence_dir) if evidence_dir else "research_logs"
+            self._evidence_dir = os.path.join(storage_mgr.get_runtime_dir(), sub_folder)
+        else:
+            self._evidence_dir = evidence_dir
         self._history: List[ResearchResult] = []
         self._is_running = False
         self._provider_name = provider_name
