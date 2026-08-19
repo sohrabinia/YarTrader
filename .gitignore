@@ -176,3 +176,6 @@ models/cache/
 node_modules/
 trader-terminal/node_modules/
 trader-terminal/dist/
+
+
+validation/mt5_native_demo/
