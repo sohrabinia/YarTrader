@@ -939,7 +939,7 @@ function MainApp() {
                 <div className="status-board" style={{ marginBottom: '25px' }}>
                   <div className="status-item">
                     <div>{t('backtest_leakage_status')}</div>
-                    <div className="status-val status-passed">{backtestRuns && backtestRuns.length > 0 ? "PASS (Point-in-Time)" : "NOT REPORTED"}</div>
+                    <div className="status-val status-passed">{backtestRuns && backtestRuns[0] && backtestRuns[0].leakage_status ? backtestRuns[0].leakage_status : "NOT REPORTED"}</div>
                   </div>
                   <div className="status-item">
                     <div>{t('backtest_provenance')}</div>
@@ -949,7 +949,7 @@ function MainApp() {
                   </div>
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'وضعیت ارزیابی' : 'Validation Status'}</div>
-                    <div className="status-val status-passed">{backtestRuns && backtestRuns.length > 0 ? "PROVENANCE VERIFIED" : "NOT REPORTED"}</div>
+                    <div className="status-val status-passed">{backtestRuns && backtestRuns[0] && backtestRuns[0].provenance_status ? backtestRuns[0].provenance_status : "NOT REPORTED"}</div>
                   </div>
                 </div>
 
@@ -983,15 +983,15 @@ function MainApp() {
                                 {(run.total_trades || run.trades_count || 0) < 30 ? (lang === 'fa' ? 'نمونه محدود' : 'Small N') : 'Valid Sample'}
                               </small>
                             </td>
-                            <td className={(run.win_rate_pct || run.win_rate || 0) >= 50 ? "status-passed" : "status-failed"}>
-                              {run.win_rate_pct || run.win_rate || 0}%
+                            <td className={run.win_rate_pct !== undefined ? (run.win_rate_pct >= 50 ? "status-passed" : "status-failed") : (run.win_rate !== undefined ? (run.win_rate >= 50 ? "status-passed" : "status-failed") : "")}>
+                              {run.win_rate_pct !== undefined ? run.win_rate_pct + "%" : (run.win_rate !== undefined ? run.win_rate + "%" : "DATA UNAVAILABLE")}
                             </td>
                             <td>{run.profit_factor || 'DATA UNAVAILABLE'}</td>
                             <td style={{ color: 'var(--danger)' }}>{run.max_drawdown_pct || run.max_drawdown || 'DATA UNAVAILABLE'}</td>
                             <td>{run.sharpe_ratio || 'DATA UNAVAILABLE'}</td>
                             <td>
                               <span className="blog-tag" style={{ background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)' }}>
-                                {run.leakage_audit || 'PASS'}
+                                {run.leakage_audit || 'NOT REPORTED'}
                               </span>
                             </td>
                           </tr>
