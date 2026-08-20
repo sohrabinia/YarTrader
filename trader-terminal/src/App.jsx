@@ -1277,7 +1277,7 @@ function MainApp() {
                   <div className="status-item">
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Confidence</div>
                     <div className="status-val status-passed" style={{ fontSize: '0.95rem', fontFamily: 'monospace' }}>
-                      {signals && signals[0] && signals[0].confidence ? signals[0].confidence + '%' : 'DATA UNAVAILABLE'}
+                      {signals && signals[0] && signals[0].confidence != null ? signals[0].confidence + '%' : 'DATA UNAVAILABLE'}
                     </div>
                   </div>
                   <div className="status-item">
@@ -1450,7 +1450,7 @@ function MainApp() {
                       {signals && signals[0] ? (signals[0].symbol + ' ' + (signals[0].posture || 'SIGNAL')) : 'DATA UNAVAILABLE'}
                     </div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      Confidence: {signals && signals[0] && signals[0].confidence ? signals[0].confidence + '%' : 'DATA UNAVAILABLE'}
+                      Confidence: {signals && signals[0] && signals[0].confidence != null ? signals[0].confidence + '%' : 'DATA UNAVAILABLE'}
                     </div>
                   </div>
                   <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--signal)' }}>
@@ -1465,7 +1465,7 @@ function MainApp() {
                   <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--accent)' }}>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>3. RISK EVALUATION</div>
                     <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--accent)', marginTop: '2px' }}>
-                      {portfolioRisk && portfolioRisk.risk_approved !== undefined ? (portfolioRisk.risk_approved ? 'APPROVED' : 'BLOCKED') : 'DATA UNAVAILABLE'}
+                      {portfolioRisk && portfolioRisk.risk_approved != null ? (portfolioRisk.risk_approved ? 'APPROVED' : 'BLOCKED') : 'DATA UNAVAILABLE'}
                     </div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                       Heat: {portfolioRisk && portfolioRisk.portfolio_heat ? portfolioRisk.portfolio_heat : 'DATA UNAVAILABLE'}

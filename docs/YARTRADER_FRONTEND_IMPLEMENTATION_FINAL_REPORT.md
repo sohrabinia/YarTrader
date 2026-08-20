@@ -20,7 +20,7 @@ The final truthfulness sweep for YarTrader V6 has been executed across `trader-t
 - **Branch:** `jules-9636665624931956698-bbefc700`
 - **HEAD Commit:** `5d5bff5d1163def6208eaca9740e2ee02ab3d85c`
 - **Calculated Object SHA-1 Hashes:**
-  - `trader-terminal/src/App.jsx`: `6356b638c6200987bbd60a5961e58cfc0d23ac2a`
+  - `trader-terminal/src/App.jsx`: `000aa62ae8df939fb11c2b25679ea2513cd24eef`
   - `trader-terminal/src/components/common/Button.jsx`: `4811e4b579ce0be080665f8de458b30ad2063757`
   - `trader-terminal/src/assets/globals.css`: `54ff61a9b0fbf886fe0ed07fa6c6da61625eaa0e`
   - `trader-terminal/public/locales/fa.json`: `e16eb8bea37aa71183e84ef79da4e8ab912814a1` (161 keys)
@@ -52,9 +52,9 @@ The final truthfulness sweep for YarTrader V6 has been executed across `trader-t
 | Learning Matrix Sample | `item.sample_count` | Displays `DATA UNAVAILABLE` | Backend-derived | **PASS** |
 | Learning Matrix Win Rate | `item.win_rate_pct` | Displays `DATA UNAVAILABLE` | Backend-derived | **PASS** |
 
-- **Production build:** `PASS` (Vite production build completed in 1.85s)
+- **Production build:** `PASS` (Vite production build completed in 2.35s)
 - **Locale parity:** `PASS` (100% key parity across `fa`, `en`, `tr`, and `ar` at 161 keys each)
-- **124 safety tests:** `PASS` (124 passed, 0 failed in 39.33s)
+- **124 safety tests:** `PASS` (124 passed, 0 failed in 38.15s)
 - **Runtime truthfulness:** `PASS` (verified against active REST API endpoints)
 - **Git integrity:** `PASS` (working tree clean, zero storage/log leakage outside `TradeYarStorageRoot`)
 
