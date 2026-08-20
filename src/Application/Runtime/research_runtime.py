@@ -33,9 +33,10 @@ class ResearchRuntime:
         from src.Application.Deployment.storage import YarTraderStorageManager
         storage_mgr = YarTraderStorageManager.get_manager()
 
-        if not evidence_dir or not os.isabs(evidence_dir):
-            sub_folder = os.path.basename(evidence_dir) if evidence_dir else "research_logs"
-            self._evidence_dir = os.path.join(storage_mgr.get_runtime_dir(), sub_folder)
+        if not evidence_dir:
+            self._evidence_dir = os.path.join(storage_mgr.get_runtime_dir(), "research_logs")
+        elif not os.path.isabs(evidence_dir):
+            self._evidence_dir = os.path.join(storage_mgr.get_runtime_dir(), evidence_dir)
         else:
             self._evidence_dir = evidence_dir
         self._history: List[ResearchResult] = []
