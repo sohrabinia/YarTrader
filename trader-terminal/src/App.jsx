@@ -45,7 +45,7 @@ function MainApp() {
   const [publicMetrics, setPublicMetrics] = useState({
     activeMarketsCount: '30',
     historicalSimulatedTrades: '125.4k+',
-    platformUptimePct: '99.9'
+    platformUptimePct: null
   });
   const [activeHorizon, setActiveHorizon] = useState('medium');
   const [selectedAsset, setSelectedAsset] = useState('all');
@@ -939,7 +939,7 @@ function MainApp() {
                 <div className="status-board" style={{ marginBottom: '25px' }}>
                   <div className="status-item">
                     <div>{t('backtest_leakage_status')}</div>
-                    <div className="status-val status-passed">PASS (Point-in-Time)</div>
+                    <div className="status-val status-passed">{backtestRuns && backtestRuns[0] && backtestRuns[0].leakage_status ? backtestRuns[0].leakage_status : "NOT REPORTED"}</div>
                   </div>
                   <div className="status-item">
                     <div>{t('backtest_provenance')}</div>
@@ -949,7 +949,7 @@ function MainApp() {
                   </div>
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'وضعیت ارزیابی' : 'Validation Status'}</div>
-                    <div className="status-val status-passed">PROVENANCE VERIFIED</div>
+                    <div className="status-val status-passed">{backtestRuns && backtestRuns[0] && backtestRuns[0].provenance_status ? backtestRuns[0].provenance_status : "NOT REPORTED"}</div>
                   </div>
                 </div>
 
@@ -978,20 +978,33 @@ function MainApp() {
                             <td><strong>{run.symbol}</strong></td>
                             <td>{run.timeframe || 'H1'}</td>
                             <td>
-                              {run.total_trades || run.trades_count || 0}
-                              <small style={{ display: 'block', color: 'var(--text-muted)' }}>
-                                {(run.total_trades || run.trades_count || 0) < 30 ? (lang === 'fa' ? 'نمونه محدود' : 'Small N') : 'Valid Sample'}
-                              </small>
+                              {(() => {
+                                const tc = run.total_trades != null ? run.total_trades : (run.trades_count != null ? run.trades_count : null);
+                                if (tc == null) return "DATA UNAVAILABLE";
+                                return (
+                                  <>
+                                    {tc}
+                                    <small style={{ display: 'block', color: 'var(--text-muted)' }}>
+                                      {tc < 30 ? (lang === 'fa' ? 'نمونه محدود' : 'Small N') : 'Valid Sample'}
+                                    </small>
+                                  </>
+                                );
+                              })()}
                             </td>
-                            <td className={(run.win_rate_pct || run.win_rate || 0) >= 50 ? "status-passed" : "status-failed"}>
-                              {run.win_rate_pct || run.win_rate || 0}%
-                            </td>
-                            <td>{run.profit_factor || '1.85'}</td>
-                            <td style={{ color: 'var(--danger)' }}>{run.max_drawdown_pct || run.max_drawdown || '4.2%'}</td>
-                            <td>{run.sharpe_ratio || '1.62'}</td>
+                            {(() => {
+                              const wr = run.win_rate_pct != null ? run.win_rate_pct : (run.win_rate != null ? run.win_rate : null);
+                              return (
+                                <td className={wr != null ? (wr >= 50 ? "status-passed" : "status-failed") : ""}>
+                                  {wr != null ? wr + "%" : "DATA UNAVAILABLE"}
+                                </td>
+                              );
+                            })()}
+                            <td>{run.profit_factor || 'DATA UNAVAILABLE'}</td>
+                            <td style={{ color: 'var(--danger)' }}>{run.max_drawdown_pct || run.max_drawdown || 'DATA UNAVAILABLE'}</td>
+                            <td>{run.sharpe_ratio || 'DATA UNAVAILABLE'}</td>
                             <td>
                               <span className="blog-tag" style={{ background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)' }}>
-                                {run.leakage_audit || 'PASS'}
+                                {run.leakage_audit || 'NOT REPORTED'}
                               </span>
                             </td>
                           </tr>
@@ -1021,13 +1034,13 @@ function MainApp() {
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'سرور دمو' : 'Demo Server'}</div>
                     <div className="status-val" style={{ color: 'var(--text-dark)', fontSize: '1em' }}>
-                      {demoReport.server || 'Alpari-MT5-Demo'}
+                      {demoReport.server || 'DATA UNAVAILABLE'}
                     </div>
                   </div>
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'شماره حساب دمو' : 'Demo Account'}</div>
                     <div className="status-val" style={{ color: 'var(--primary)', fontFamily: 'monospace' }}>
-                      {demoReport.account_id || '52961173'}
+                      {demoReport.account_id || 'DATA UNAVAILABLE'}
                     </div>
                   </div>
                   <div className="status-item">
@@ -1039,7 +1052,7 @@ function MainApp() {
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'وضعیت بازار' : 'Market Status'}</div>
                     <div className="status-val status-passed">
-                      {demoReport.market_status || 'OPEN / READY'}
+                      {demoReport.market_status || 'DATA UNAVAILABLE'}
                     </div>
                   </div>
                 </div>
@@ -1074,7 +1087,7 @@ function MainApp() {
                             </td>
                             <td>
                               <span className="blog-tag" style={{ background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)' }}>
-                                {tr.status || 'FILLED'}
+                                {tr.status || 'DATA UNAVAILABLE'}
                               </span>
                             </td>
                           </tr>
@@ -1104,7 +1117,7 @@ function MainApp() {
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'حساب مجازی (Paper)' : 'Virtual Account ID'}</div>
                     <div className="status-val" style={{ color: 'var(--primary)', fontFamily: 'monospace' }}>
-                      {shadowReport.account_id || 'YARTRADER-PAPER-001'}
+                      {shadowReport.account_id || 'DATA UNAVAILABLE'}
                     </div>
                   </div>
                   <div className="status-item">
@@ -1148,7 +1161,7 @@ function MainApp() {
                           <tr key={idx}>
                             <td style={{ fontFamily: 'monospace', fontSize: '0.85em' }}>{st.vpos_id || st.id || `vpos-${idx+1}`}</td>
                             <td><strong>{st.symbol}</strong></td>
-                            <td style={{ color: st.side === 'BUY' ? 'var(--accent)' : 'var(--danger)' }}>{st.side || 'BUY'}</td>
+                            <td style={{ color: st.side === 'BUY' ? 'var(--accent)' : 'var(--danger)' }}>{st.side || 'DATA UNAVAILABLE'}</td>
                             <td>{st.entry_price}</td>
                             <td style={{ color: 'var(--danger)' }}>{st.stop_loss || '-'}</td>
                             <td style={{ color: 'var(--accent)' }}>{st.take_profit || '-'}</td>
@@ -1220,9 +1233,68 @@ function MainApp() {
             </div>
           )}
 
-          {/* CUSTOMER FINANCIAL TERMINAL SHELL */}
+          {/* CUSTOMER FINANCIAL TERMINAL SHELL (COMMAND CENTER) */}
           {hash === '#/dashboard' && (
             <div id="shell-terminal">
+              {/* Institutional Environment & Command Header */}
+              <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary)', background: 'linear-gradient(180deg, rgba(18, 30, 44, 0.9) 0%, rgba(11, 20, 32, 0.95) 100%)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
+                  <div>
+                    <h2 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.4rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span>🏛️</span> {t('terminal_title')}
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '0.85rem' }}>
+                      {t('terminal_desc')}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', fontWeight: 'bold' }}>
+                      ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'SHADOW / DEMO PAPER')}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
+                      SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE ACTIVE' : 'FAIL-CLOSED (LIVE DISABLED)')}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(79, 182, 199, 0.15)', color: 'var(--signal)', border: '1px solid var(--signal)', fontWeight: 'bold' }}>
+                      DATA: {backendState === 'LIVE' ? 'LIVE INGESTION' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : 'MOCK / DEMO INGESTION')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Market State & Intelligence Command Status Grid */}
+                <div className="status-board" style={{ margin: '15px 0 0 0' }}>
+                  <div className="status-item">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Market State</div>
+                    <div className="status-val" style={{ color: 'var(--accent)', fontSize: '0.95rem' }}>
+                      {signals && signals[0] ? (signals[0].posture || 'QUALIFIED') : 'DATA UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div className="status-item">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Inference</div>
+                    <div className="status-val" style={{ color: 'var(--primary)', fontSize: '0.95rem' }}>
+                      {signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'QUALIFIED SETUP') : 'DATA UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div className="status-item">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Confidence</div>
+                    <div className="status-val status-passed" style={{ fontSize: '0.95rem', fontFamily: 'monospace' }}>
+                      {signals && signals[0] && signals[0].confidence != null ? signals[0].confidence + '%' : 'DATA UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div className="status-item">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Risk Posture</div>
+                    <div className="status-val status-passed" style={{ fontSize: '0.95rem' }}>
+                      {portfolioRisk && portfolioRisk.drawdown_level ? 'DRAWDOWN: ' + portfolioRisk.drawdown_level : 'BALANCED'}
+                    </div>
+                  </div>
+                  <div className="status-item">
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Execution Eligibility</div>
+                    <div className="status-val status-passed" style={{ fontSize: '0.95rem' }}>
+                      {backendState === 'LIVE' ? 'LIVE ELIGIBLE' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'NOT VERIFIED'))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="card">
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('terminal_title')}</h2>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('terminal_desc')}</p>
@@ -1286,7 +1358,7 @@ function MainApp() {
                               </span>
                             </div>
                             <div style={{ fontSize: '0.8em', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                              Frame: {sig.timeframe || 'H1'} | Confidence: {sig.confidence}%
+                              Frame: {sig.timeframe || 'DATA UNAVAILABLE'} | Confidence: {sig.confidence}%
                             </div>
                             {sig.entry_zone && (
                               <div style={{ fontSize: '0.85em', margin: '4px 0' }}>
@@ -1360,6 +1432,65 @@ function MainApp() {
           {/* EXECUTION INTELLIGENCE ZONE */}
           {hash === '#/execution-intel' && (
             <div id="shell-execution-intel">
+              {/* 5-Stage Execution Pipeline Cascade Header */}
+              <div className="card" style={{ marginBottom: '20px', borderTop: '4px solid var(--primary)', background: 'linear-gradient(180deg, rgba(18, 30, 44, 0.95) 0%, rgba(11, 20, 32, 0.9) 100%)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                    ⚡ 5-Stage Institutional Execution Cascade
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
+                    SRE AUDITED PIPELINE
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                  <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--primary)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>1. SIGNAL DETECTION</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--primary)', marginTop: '2px' }}>
+                      {signals && signals[0] ? (signals[0].symbol + ' ' + (signals[0].posture || 'SIGNAL')) : 'DATA UNAVAILABLE'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Confidence: {signals && signals[0] && signals[0].confidence != null ? signals[0].confidence + '%' : 'DATA UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--signal)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>2. DECISION ENGINE</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--signal)', marginTop: '2px' }}>
+                      {execPlans && execPlans[0] && execPlans[0].action ? execPlans[0].action : 'DATA UNAVAILABLE'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Style: {execPlans && execPlans[0] && execPlans[0].style ? execPlans[0].style : 'NOT VERIFIED'}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--accent)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>3. RISK EVALUATION</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--accent)', marginTop: '2px' }}>
+                      {portfolioRisk && portfolioRisk.risk_approved != null ? (portfolioRisk.risk_approved ? 'APPROVED' : 'BLOCKED') : 'DATA UNAVAILABLE'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Heat: {portfolioRisk && portfolioRisk.portfolio_heat ? portfolioRisk.portfolio_heat : 'DATA UNAVAILABLE'}
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--warning)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>4. EXECUTION GATE</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--warning)', marginTop: '2px' }}>
+                      MT5 DEMO PAPER
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Live: Fail-Closed
+                    </div>
+                  </div>
+                  <div style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-dark)', borderLeft: '3px solid var(--accent)' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>5. TRADE RESULT</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--accent)', marginTop: '2px' }}>
+                      {demoTrades && demoTrades.length > 0 ? demoTrades.length + ' RECORDED' : 'DATA UNAVAILABLE'}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Learning Delta: {demoTrades && demoTrades.length > 0 ? 'Active' : 'Standby'}
+                    </div>
+                  </div>
+                </div>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '25px' }}>
                 <div className="card">
                   <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>🎯 Institutional Execution Board</h2>
@@ -1370,7 +1501,7 @@ function MainApp() {
                     <div className="status-item">
                       <div>Action</div>
                       <div className="status-val" style={{ color: 'var(--accent)' }}>
-                        {execPlans[0]?.action || 'WAIT'}
+                        {execPlans[0]?.action || 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
@@ -1423,19 +1554,19 @@ function MainApp() {
                     <div className="status-item">
                       <div>Portfolio Heat</div>
                       <div className="status-val" style={{ color: 'var(--danger)', fontFamily: 'monospace' }}>
-                        {portfolioRisk.portfolio_heat || '0%'}
+                        {portfolioRisk.portfolio_heat || 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
                       <div>Risk Budget Left</div>
                       <div className="status-val" style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>
-                        {portfolioRisk.risk_budget_remaining || '100%'}
+                        {portfolioRisk.risk_budget_remaining || 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
                       <div>Drawdown Risk</div>
                       <div className="status-val" style={{ color: 'var(--warning)' }}>
-                        {portfolioRisk.drawdown_level || 'LOW'}
+                        {portfolioRisk.drawdown_level || 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
@@ -1527,13 +1658,13 @@ function MainApp() {
                     <div className="status-item">
                       <div>Alignment Status</div>
                       <div className="status-val" style={{ color: 'var(--accent)', fontSize: '1.1em' }}>
-                        {structureAlignment.alignment_state || 'FULLY_ALIGNED'}
+                        {structureAlignment.alignment_state || 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
                       <div>Synthesis Confidence</div>
                       <div className="status-val" style={{ color: 'var(--warning)' }}>
-                        {structureAlignment.synthesis_confidence || '88'}%
+                        {structureAlignment.synthesis_confidence || 'DATA UNAVAILABLE'}%
                       </div>
                     </div>
                   </div>
@@ -1583,12 +1714,12 @@ function MainApp() {
                     signals.map((sig, idx) => (
                       <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderLeft: '4px solid var(--primary)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                          <strong>{sig.symbol || 'XAUUSD'}</strong>
-                          <span className="blog-tag">{sig.timeframe || 'H1'}</span>
+                          <strong>{sig.symbol || 'DATA UNAVAILABLE'}</strong>
+                          <span className="blog-tag">{sig.timeframe || 'DATA UNAVAILABLE'}</span>
                         </div>
-                        <div><strong>Direction:</strong> {sig.direction || sig.posture || 'BULLISH'}</div>
-                        <div><strong>Confidence:</strong> {sig.confidence || 85}%</div>
-                        <p style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginTop: '10px' }}>{sig.narrative || sig.reason || 'Qualified structural setup.'}</p>
+                        <div><strong>Direction:</strong> {sig.direction || sig.posture || 'DATA UNAVAILABLE'}</div>
+                        <div><strong>Confidence:</strong> {sig.confidence || 'DATA UNAVAILABLE'}%</div>
+                        <p style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginTop: '10px' }}>{sig.narrative || sig.reason || 'DATA UNAVAILABLE'}</p>
                       </div>
                     ))
                   ) : (
@@ -1630,7 +1761,7 @@ function MainApp() {
                   </div>
                   <div className="status-item">
                     <div>Out-of-Sample Audit</div>
-                    <div className="status-val status-passed">VALIDATED</div>
+                    <div className="status-val status-passed">{learningMatrix && learningMatrix.length > 0 ? "VALIDATED" : "DATA UNAVAILABLE"}</div>
                   </div>
                 </div>
               </div>
@@ -1663,19 +1794,25 @@ function MainApp() {
                             <td style={{ fontFamily: 'monospace', fontSize: '0.85em', color: 'var(--text-muted)' }}>{item.pattern_key}</td>
                             <td><strong>{item.pattern_name}</strong></td>
                             <td>
-                              {item.sample_count}
-                              <small style={{ display: 'block', color: 'var(--text-muted)' }}>
-                                {item.sample_count < 30 ? (lang === 'fa' ? 'نمونه محدود' : 'Insufficient N') : 'Sufficient N'}
-                              </small>
+                              {item.sample_count != null ? (
+                                <>
+                                  {item.sample_count}
+                                  <small style={{ display: 'block', color: 'var(--text-muted)' }}>
+                                    {item.sample_count < 30 ? (lang === 'fa' ? 'نمونه محدود' : 'Insufficient N') : 'Sufficient N'}
+                                  </small>
+                                </>
+                              ) : "DATA UNAVAILABLE"}
                             </td>
                             <td>
-                              <strong className={item.win_rate_pct >= 50 ? "status-passed" : "status-failed"}>
-                                {item.win_rate_pct}%
-                              </strong>
+                              {item.win_rate_pct != null ? (
+                                <strong className={item.win_rate_pct >= 50 ? "status-passed" : "status-failed"}>
+                                  {item.win_rate_pct}%
+                                </strong>
+                              ) : "DATA UNAVAILABLE"}
                             </td>
-                            <td>{item.average_rr} R</td>
-                            <td>{item.average_mae}</td>
-                            <td>{item.average_mfe}</td>
+                            <td>{item.average_rr != null ? item.average_rr + ' R' : "DATA UNAVAILABLE"}</td>
+                            <td>{item.average_mae != null ? item.average_mae : "DATA UNAVAILABLE"}</td>
+                            <td>{item.average_mfe != null ? item.average_mfe : "DATA UNAVAILABLE"}</td>
                             <td>
                               <span className="blog-tag" style={{ background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)' }}>
                                 {item.sample_count >= 30 ? 'VALIDATED' : 'PRELIMINARY'}
@@ -1783,7 +1920,7 @@ function MainApp() {
                   <div className="status-board" style={{ marginBottom: '25px' }}>
                     <div className="status-item">
                       <div>Total Users</div>
-                      <div className="status-val" style={{ color: 'var(--primary)' }}>1,420</div>
+                      <div className="status-val" style={{ color: 'var(--primary)' }}>{devopsMetrics && devopsMetrics.total_users != null ? devopsMetrics.total_users.toLocaleString() : "DATA UNAVAILABLE"}</div>
                     </div>
                     <div className="status-item">
                       <div>Active Symbols</div>
@@ -1791,12 +1928,12 @@ function MainApp() {
                     </div>
                     <div className="status-item">
                       <div>API Server SLA</div>
-                      <div className="status-val status-passed">99.98%</div>
+                      <div className="status-val status-passed">{devopsMetrics && devopsMetrics.system_health_pct != null ? devopsMetrics.system_health_pct + "%" : "DATA UNAVAILABLE"}</div>
                     </div>
                     <div className="status-item">
                       <div>Broker MT5 Link</div>
                       <div className="status-val status-passed">
-                        {devopsStatus.mt5_connected ? 'CONNECTED (Alpari-Demo)' : 'DEMO MOCK'}
+                        {devopsStatus && devopsStatus.mt5_connected != null ? (devopsStatus.mt5_connected ? (devopsStatus.mt5_server || 'CONNECTED') : 'DISCONNECTED') : 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
@@ -1809,10 +1946,10 @@ function MainApp() {
                     <div className="card">
                       <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>⚡ System Health & Ingestion Summary</h3>
                       <div style={{ lineHeight: '2', fontSize: '0.9rem' }}>
-                        <div><strong>Service Runtime:</strong> <span style={{ color: 'var(--accent)' }}>OPERATIONAL</span></div>
-                        <div><strong>Background Scheduler Loop:</strong> <span style={{ color: 'var(--accent)' }}>ACTIVE</span></div>
-                        <div><strong>MT5 Provider Stream:</strong> <span style={{ color: 'var(--primary)' }}>HEALTHY (0.12s latency)</span></div>
-                        <div><strong>APES Security Compliance:</strong> <span style={{ color: 'var(--accent)' }}>PASSED</span></div>
+                        <div><strong>Service Runtime:</strong> <span style={{ color: 'var(--accent)' }}>{devopsStatus && devopsStatus.status ? devopsStatus.status.toUpperCase() : 'DATA UNAVAILABLE'}</span></div>
+                        <div><strong>Background Scheduler Loop:</strong> <span style={{ color: devopsStatus && devopsStatus.scheduler_active != null ? 'var(--accent)' : 'var(--text-muted)' }}>{devopsStatus && devopsStatus.scheduler_active != null ? (devopsStatus.scheduler_active ? 'ACTIVE' : 'STOPPED') : 'DATA UNAVAILABLE'}</span></div>
+                        <div><strong>MT5 Provider Stream:</strong> <span style={{ color: 'var(--primary)' }}>{devopsStatus && devopsStatus.mt5_latency != null ? 'CONNECTED (' + devopsStatus.mt5_latency + 's)' : (devopsStatus && devopsStatus.mt5_connected ? 'CONNECTED' : 'DATA UNAVAILABLE')}</span></div>
+                        <div><strong>APES Security Compliance:</strong> <span style={{ color: devopsStatus && devopsStatus.apes_compliance != null ? 'var(--accent)' : 'var(--text-muted)' }}>{devopsStatus && devopsStatus.apes_compliance != null ? (devopsStatus.apes_compliance ? 'PASSED' : 'NON-COMPLIANT') : 'DATA UNAVAILABLE'}</span></div>
                       </div>
                     </div>
 
@@ -1836,15 +1973,15 @@ function MainApp() {
                   <div className="status-board" style={{ marginBottom: '20px' }}>
                     <div className="status-item">
                       <div>System API</div>
-                      <div className="status-val status-passed">HEALTHY</div>
+                      <div className="status-val status-passed">{devopsStatus && devopsStatus.system_health ? devopsStatus.system_health.toUpperCase() : "DATA UNAVAILABLE"}</div>
                     </div>
                     <div className="status-item">
                       <div>MT5 Provider Link</div>
-                      <div className="status-val status-passed">CONNECTED</div>
+                      <div className="status-val status-passed">{devopsStatus && devopsStatus.api_connected != null ? (devopsStatus.api_connected ? "CONNECTED" : "DISCONNECTED") : "DATA UNAVAILABLE"}</div>
                     </div>
                     <div className="status-item">
                       <div>Service Runtime</div>
-                      <div className="status-val status-passed">RUNNING</div>
+                      <div className="status-val status-passed">{devopsStatus && devopsStatus.ingestion_running != null ? (devopsStatus.ingestion_running ? "RUNNING" : "STOPPED") : "DATA UNAVAILABLE"}</div>
                     </div>
                     <div className="status-item">
                       <div>Background Loop</div>
@@ -1870,7 +2007,7 @@ function MainApp() {
                     <div style={{ textAlign: 'center' }}>
                       <div className="score-circle">
                         <span style={{ fontSize: '0.75em', textAlign: 'center', color: 'var(--text-muted)' }}>Platform Readiness</span>
-                        <span className="score-num">{validationStatus.readiness_score || '100.0%'}</span>
+                        <span className="score-num">{validationStatus && validationStatus.readiness_score != null ? validationStatus.readiness_score : 'DATA UNAVAILABLE'}</span>
                         <span style={{ fontSize: '0.8em', marginTop: '4px', color: 'var(--accent)' }}>PASSED</span>
                       </div>
                     </div>
@@ -1904,10 +2041,10 @@ function MainApp() {
                             <td>H1 / M15</td>
                             <td>Alpari MT5 Feed</td>
                             <td>Just now</td>
-                            <td className="status-passed">120ms</td>
+                            <td className={item && item.latency_ms != null ? 'status-passed' : ''}>{item && item.latency_ms != null ? item.latency_ms + 'ms' : 'DATA UNAVAILABLE'}</td>
                             <td>
                               <span className="blog-tag" style={{ background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)' }}>
-                                STREAMING
+                                {item && item.stream_status != null ? item.stream_status.toUpperCase() : 'DATA UNAVAILABLE'}
                               </span>
                             </td>
                           </tr>
