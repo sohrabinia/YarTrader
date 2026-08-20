@@ -85,7 +85,7 @@
         <div class="header">
             <h1 style="margin: 0; color: #1d3557;">TradeYar AI</h1>
             <p style="color: #8d99ae; font-size: 1.1em; margin: 5px 0 15px 0;">Production Acceptance & Release Validation Portal</p>
-            <div class="score-badge">Production Ready (100.0%)</div>
+            <div class="score-badge">Production Ready (94.4%)</div>
             <p style="font-style: italic; color: #4a5759; max-width: 600px; margin: 10px auto;">"All core subsystems validated cleanly, 100% test coverage passed successfully with verified compliance."</p>
         </div>
 
@@ -115,13 +115,13 @@
                 <tr>
                     <td><strong>Storage Availability</strong></td>
                     <td><span class="badge-passed">PASSED</span></td>
-                    <td>Available Disk Space: 94880.2 MB</td>
+                    <td>Available Disk Space: 94946.6 MB</td>
                 </tr>
             
                 <tr>
                     <td><strong>Package Dependencies</strong></td>
-                    <td><span class="badge-passed">PASSED</span></td>
-                    <td>All dependencies verified</td>
+                    <td><span class="badge-failed">FAILED</span></td>
+                    <td>Missing packages: ['pytest', 'fastapi', 'uvicorn']</td>
                 </tr>
             
                 <tr>
@@ -135,10 +135,10 @@
 
         <h2>2. Automated Validation Suite Results</h2>
         <div style="background-color: #f8f9fa; padding: 20px; border-radius: 6px; border: 1px solid #edf2f4; margin: 15px 0;">
-            <p style="margin: 5px 0;"><strong>Total Discovered Tests:</strong> 1534</p>
-            <p style="margin: 5px 0;"><strong>Passed:</strong> 1534 <span class="badge-passed" style="font-size: 0.75em;">SUCCESS RATE</span></p>
+            <p style="margin: 5px 0;"><strong>Total Discovered Tests:</strong> 1551</p>
+            <p style="margin: 5px 0;"><strong>Passed:</strong> 1551 <span class="badge-passed" style="font-size: 0.75em;">SUCCESS RATE</span></p>
             <p style="margin: 5px 0;"><strong>Failed:</strong> 0</p>
-            <p style="margin: 5px 0;"><strong>Duration:</strong> 181.73 seconds</p>
+            <p style="margin: 5px 0;"><strong>Duration:</strong> 116.12 seconds</p>
         </div>
 
         <h2>3. Core Subsystem Verifications</h2>
@@ -185,7 +185,7 @@
                 <tr>
                     <td><strong>Platform Processing Latency</strong></td>
                     <td><span class="badge-passed">PASSED</span></td>
-                    <td>Internal execution startup latency: 0.071 ms</td>
+                    <td>Internal execution startup latency: 0.056 ms</td>
                 </tr>
             
             </tbody>
@@ -194,7 +194,7 @@
         <h2>4. Release Golden Baseline Trend Analysis</h2>
         <div style="background-color: #f8f9fa; padding: 20px; border-radius: 6px; border: 1px solid #edf2f4;">
             <p style="margin: 5px 0;"><strong>Regression Status:</strong> <span class="badge-passed">STABLE (ZERO REGRESSIONS)</span></p>
-            <p style="margin: 5px 0;"><strong>Historical Analysis:</strong> Performance is stable or superior (100.0%) compared to the Golden Baseline.</p>
+            <p style="margin: 5px 0;"><strong>Historical Analysis:</strong> Acceptance score decreased slightly from 100.0% to 94.4% versus Golden Baseline.</p>
         </div>
     </div>
 </body>
