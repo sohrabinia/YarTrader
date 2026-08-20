@@ -986,9 +986,9 @@ function MainApp() {
                             <td className={(run.win_rate_pct || run.win_rate || 0) >= 50 ? "status-passed" : "status-failed"}>
                               {run.win_rate_pct || run.win_rate || 0}%
                             </td>
-                            <td>{run.profit_factor || '1.85'}</td>
-                            <td style={{ color: 'var(--danger)' }}>{run.max_drawdown_pct || run.max_drawdown || '4.2%'}</td>
-                            <td>{run.sharpe_ratio || '1.62'}</td>
+                            <td>{run.profit_factor || 'DATA UNAVAILABLE'}</td>
+                            <td style={{ color: 'var(--danger)' }}>{run.max_drawdown_pct || run.max_drawdown || 'DATA UNAVAILABLE'}</td>
+                            <td>{run.sharpe_ratio || 'DATA UNAVAILABLE'}</td>
                             <td>
                               <span className="blog-tag" style={{ background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)' }}>
                                 {run.leakage_audit || 'PASS'}
@@ -1021,13 +1021,13 @@ function MainApp() {
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'سرور دمو' : 'Demo Server'}</div>
                     <div className="status-val" style={{ color: 'var(--text-dark)', fontSize: '1em' }}>
-                      {demoReport.server || 'Alpari-MT5-Demo'}
+                      {demoReport.server || 'DATA UNAVAILABLE'}
                     </div>
                   </div>
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'شماره حساب دمو' : 'Demo Account'}</div>
                     <div className="status-val" style={{ color: 'var(--primary)', fontFamily: 'monospace' }}>
-                      {demoReport.account_id || '52961173'}
+                      {demoReport.account_id || 'DATA UNAVAILABLE'}
                     </div>
                   </div>
                   <div className="status-item">
@@ -1039,7 +1039,7 @@ function MainApp() {
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'وضعیت بازار' : 'Market Status'}</div>
                     <div className="status-val status-passed">
-                      {demoReport.market_status || 'OPEN / READY'}
+                      {demoReport.market_status || 'DATA UNAVAILABLE'}
                     </div>
                   </div>
                 </div>
@@ -1074,7 +1074,7 @@ function MainApp() {
                             </td>
                             <td>
                               <span className="blog-tag" style={{ background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)' }}>
-                                {tr.status || 'FILLED'}
+                                {tr.status || 'DATA UNAVAILABLE'}
                               </span>
                             </td>
                           </tr>
@@ -1104,7 +1104,7 @@ function MainApp() {
                   <div className="status-item">
                     <div>{lang === 'fa' ? 'حساب مجازی (Paper)' : 'Virtual Account ID'}</div>
                     <div className="status-val" style={{ color: 'var(--primary)', fontFamily: 'monospace' }}>
-                      {shadowReport.account_id || 'YARTRADER-PAPER-001'}
+                      {shadowReport.account_id || 'DATA UNAVAILABLE'}
                     </div>
                   </div>
                   <div className="status-item">
@@ -1148,7 +1148,7 @@ function MainApp() {
                           <tr key={idx}>
                             <td style={{ fontFamily: 'monospace', fontSize: '0.85em' }}>{st.vpos_id || st.id || `vpos-${idx+1}`}</td>
                             <td><strong>{st.symbol}</strong></td>
-                            <td style={{ color: st.side === 'BUY' ? 'var(--accent)' : 'var(--danger)' }}>{st.side || 'BUY'}</td>
+                            <td style={{ color: st.side === 'BUY' ? 'var(--accent)' : 'var(--danger)' }}>{st.side || 'DATA UNAVAILABLE'}</td>
                             <td>{st.entry_price}</td>
                             <td style={{ color: 'var(--danger)' }}>{st.stop_loss || '-'}</td>
                             <td style={{ color: 'var(--accent)' }}>{st.take_profit || '-'}</td>
@@ -1345,7 +1345,7 @@ function MainApp() {
                               </span>
                             </div>
                             <div style={{ fontSize: '0.8em', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                              Frame: {sig.timeframe || 'H1'} | Confidence: {sig.confidence}%
+                              Frame: {sig.timeframe || 'DATA UNAVAILABLE'} | Confidence: {sig.confidence}%
                             </div>
                             {sig.entry_zone && (
                               <div style={{ fontSize: '0.85em', margin: '4px 0' }}>
@@ -1488,7 +1488,7 @@ function MainApp() {
                     <div className="status-item">
                       <div>Action</div>
                       <div className="status-val" style={{ color: 'var(--accent)' }}>
-                        {execPlans[0]?.action || 'WAIT'}
+                        {execPlans[0]?.action || 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
@@ -1541,19 +1541,19 @@ function MainApp() {
                     <div className="status-item">
                       <div>Portfolio Heat</div>
                       <div className="status-val" style={{ color: 'var(--danger)', fontFamily: 'monospace' }}>
-                        {portfolioRisk.portfolio_heat || '0%'}
+                        {portfolioRisk.portfolio_heat || 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
                       <div>Risk Budget Left</div>
                       <div className="status-val" style={{ color: 'var(--accent)', fontFamily: 'monospace' }}>
-                        {portfolioRisk.risk_budget_remaining || '100%'}
+                        {portfolioRisk.risk_budget_remaining || 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
                       <div>Drawdown Risk</div>
                       <div className="status-val" style={{ color: 'var(--warning)' }}>
-                        {portfolioRisk.drawdown_level || 'LOW'}
+                        {portfolioRisk.drawdown_level || 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
@@ -1645,13 +1645,13 @@ function MainApp() {
                     <div className="status-item">
                       <div>Alignment Status</div>
                       <div className="status-val" style={{ color: 'var(--accent)', fontSize: '1.1em' }}>
-                        {structureAlignment.alignment_state || 'FULLY_ALIGNED'}
+                        {structureAlignment.alignment_state || 'DATA UNAVAILABLE'}
                       </div>
                     </div>
                     <div className="status-item">
                       <div>Synthesis Confidence</div>
                       <div className="status-val" style={{ color: 'var(--warning)' }}>
-                        {structureAlignment.synthesis_confidence || '88'}%
+                        {structureAlignment.synthesis_confidence || 'DATA UNAVAILABLE'}%
                       </div>
                     </div>
                   </div>
@@ -1701,12 +1701,12 @@ function MainApp() {
                     signals.map((sig, idx) => (
                       <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderLeft: '4px solid var(--primary)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                          <strong>{sig.symbol || 'XAUUSD'}</strong>
-                          <span className="blog-tag">{sig.timeframe || 'H1'}</span>
+                          <strong>{sig.symbol || 'DATA UNAVAILABLE'}</strong>
+                          <span className="blog-tag">{sig.timeframe || 'DATA UNAVAILABLE'}</span>
                         </div>
-                        <div><strong>Direction:</strong> {sig.direction || sig.posture || 'BULLISH'}</div>
-                        <div><strong>Confidence:</strong> {sig.confidence || 85}%</div>
-                        <p style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginTop: '10px' }}>{sig.narrative || sig.reason || 'Qualified structural setup.'}</p>
+                        <div><strong>Direction:</strong> {sig.direction || sig.posture || 'DATA UNAVAILABLE'}</div>
+                        <div><strong>Confidence:</strong> {sig.confidence || 'DATA UNAVAILABLE'}%</div>
+                        <p style={{ fontSize: '0.85em', color: 'var(--text-muted)', marginTop: '10px' }}>{sig.narrative || sig.reason || 'DATA UNAVAILABLE'}</p>
                       </div>
                     ))
                   ) : (
