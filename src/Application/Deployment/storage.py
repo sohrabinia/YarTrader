@@ -45,6 +45,9 @@ class YarTraderStorageManager:
     def get_log_dir(self) -> str:
         return self._logs_dir
 
+    def get_logs_dir(self) -> str:
+        return self._logs_dir
+
     def get_reports_dir(self) -> str:
         return self._reports_dir
 

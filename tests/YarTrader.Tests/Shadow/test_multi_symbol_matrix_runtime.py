@@ -25,8 +25,10 @@ class TestMultiSymbolMatrixRuntime(unittest.TestCase):
         self.registry.registry = {}
         self.registry.load_registry()
 
-        # Clean snapshots folder for testing
-        self.snapshot_dir = "runtime_logs/research_snapshots"
+        # Clean snapshots folder for testing under canonical StorageRoot
+        from src.Application.Deployment.storage import YarTraderStorageManager
+        storage_mgr = YarTraderStorageManager.get_manager()
+        self.snapshot_dir = os.path.join(storage_mgr.get_runtime_dir(), "runtime_logs", "research_snapshots")
         if os.path.exists(self.snapshot_dir):
             try:
                 shutil.rmtree(self.snapshot_dir)
