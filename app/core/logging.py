@@ -5,7 +5,12 @@ from logging.handlers import TimedRotatingFileHandler
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-LOGS_ROOT = "logs"
+try:
+    from src.Application.Deployment.storage import YarTraderStorageManager
+    LOGS_ROOT = YarTraderStorageManager.get_manager().get_log_dir()
+except Exception:
+    LOGS_ROOT = "logs"
+
 os.makedirs(os.path.join(LOGS_ROOT, "application"), exist_ok=True)
 os.makedirs(os.path.join(LOGS_ROOT, "error"), exist_ok=True)
 os.makedirs(os.path.join(LOGS_ROOT, "audit"), exist_ok=True)
@@ -53,8 +58,18 @@ logging.getLogger("TradeYar-AI").handlers = logger.handlers
 if logger.handlers:
     logger.handlers.clear()
 
+class SafeTimedRotatingFileHandler(TimedRotatingFileHandler):
+    """TimedRotatingFileHandler that gracefully handles Windows file lock PermissionError during log rotation."""
+    def doRollover(self):
+        try:
+            super().doRollover()
+        except (PermissionError, OSError):
+            if self.stream is None or self.stream.closed:
+                self.stream = self._open()
+
+
 # 1. Application Handler
-app_handler = TimedRotatingFileHandler(
+app_handler = SafeTimedRotatingFileHandler(
     filename=os.path.join(LOGS_ROOT, "application", "application.log"),
     when="midnight",
     interval=1,
@@ -66,7 +81,7 @@ app_handler.setFormatter(JSONFormatter())
 logger.addHandler(app_handler)
 
 # 2. Error Handler
-err_handler = TimedRotatingFileHandler(
+err_handler = SafeTimedRotatingFileHandler(
     filename=os.path.join(LOGS_ROOT, "error", "error.log"),
     when="midnight",
     interval=1,
@@ -85,7 +100,7 @@ audit_logger.propagate = False
 if audit_logger.handlers:
     audit_logger.handlers.clear()
 
-audit_handler = TimedRotatingFileHandler(
+audit_handler = SafeTimedRotatingFileHandler(
     filename=os.path.join(LOGS_ROOT, "audit", "audit.log"),
     when="midnight",
     interval=1,
@@ -103,7 +118,7 @@ intelligence_logger.propagate = False
 if intelligence_logger.handlers:
     intelligence_logger.handlers.clear()
 
-intel_handler = TimedRotatingFileHandler(
+intel_handler = SafeTimedRotatingFileHandler(
     filename=os.path.join(LOGS_ROOT, "intelligence", "intelligence.log"),
     when="midnight",
     interval=1,
@@ -121,7 +136,7 @@ security_logger.propagate = False
 if security_logger.handlers:
     security_logger.handlers.clear()
 
-security_handler = TimedRotatingFileHandler(
+security_handler = SafeTimedRotatingFileHandler(
     filename=os.path.join(LOGS_ROOT, "security", "security.log"),
     when="midnight",
     interval=1,

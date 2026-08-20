@@ -119,7 +119,7 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         self.assertEqual(len(runtime.history), 1)
 
         # Confirm evidence file creation
-        evidence_file = os.path.join(self.evidence_dir, "research_runtime_evidence.log")
+        evidence_file = os.path.join(runtime._evidence_dir, "research_runtime_evidence.log")
         self.assertTrue(os.path.exists(evidence_file))
 
         # Verify contents of evidence logs matches the requested evidence pattern

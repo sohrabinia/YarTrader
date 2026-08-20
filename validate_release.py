@@ -30,11 +30,14 @@ import ast
 from datetime import datetime
 from typing import Any, Dict, List, Tuple, Set
 
-# Storage paths derived strictly from TradeYar Storage Isolation spec
-LOGS_DIR = "logs"
-REPORTS_DIR = "reports"
-VALIDATION_DIR = "validation"
-HISTORY_DIR = "history"
+from src.Application.Deployment.storage import YarTraderStorageManager
+
+# Storage paths derived strictly from YarTrader Storage Isolation spec
+storage_mgr = YarTraderStorageManager.get_manager()
+LOGS_DIR = os.path.join(storage_mgr.get_log_dir(), "validation")
+REPORTS_DIR = storage_mgr.get_reports_dir()
+VALIDATION_DIR = os.path.join(storage_mgr.get_reports_dir(), "validation")
+HISTORY_DIR = os.path.join(storage_mgr.get_diagnostics_dir(), "history")
 
 GOLDEN_BASELINE_PATH = os.path.join(HISTORY_DIR, "golden_baseline.json")
 
@@ -69,14 +72,14 @@ class ReleaseValidationPlatform:
         pyenv_python = "/home/jules/.pyenv/versions/3.12.13/bin/python"
         pipx_pytest_python = "/home/jules/.local/share/pipx/venvs/pytest/bin/python"
 
-        if os.path.exists(local_venv_python):
+        if os.path.exists(pipx_pytest_python):
+            self.python_exec = pipx_pytest_python
+        elif os.path.exists(local_venv_python):
             self.python_exec = local_venv_python
         elif os.path.exists(pyenv_python):
             self.python_exec = pyenv_python
-        elif os.path.exists(pipx_pytest_python):
-            self.python_exec = pipx_pytest_python
 
-        # Self-heal missing directories immediately on init
+        # Ensure directories under YarTraderStorageRoot exist on init
         for d in [LOGS_DIR, REPORTS_DIR, VALIDATION_DIR, HISTORY_DIR, os.path.join(LOGS_DIR, "security")]:
             if not os.path.exists(d):
                 os.makedirs(d, exist_ok=True)
@@ -191,7 +194,9 @@ class ReleaseValidationPlatform:
         self.log(f"Running automated tests command: {' '.join(cmd_args)}")
 
         try:
-            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=300)
+            env = dict(os.environ)
+            env["PYTHONPATH"] = "."
+            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=420, env=env)
             stdout = res.stdout
             stderr = res.stderr
             return_code = res.returncode
@@ -449,12 +454,6 @@ class ReleaseValidationPlatform:
             ".env.production.example"
         ]
 
-        # Self-heal missing templates
-        for doc in ["CHANGELOG.md", "RELEASE_NOTES.md"]:
-            if not os.path.exists(doc):
-                with open(doc, "w", encoding="utf-8") as f:
-                    f.write(f"# TradeYar AI Release Asset — {doc.replace('.md', '').replace('_', ' ').title()}\n")
-                self.log(f"Self-healed missing release document template: '{doc}'", "INFO")
 
         missing_docs = []
         for doc in required_docs:

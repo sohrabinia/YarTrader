@@ -65,8 +65,8 @@ class ResearchWorker:
         self.is_running = False
         self.status = "STOPPED"
         central_runtime_state.update_state("research_status", "Stopped")
-        if self.thread:
-            self.thread.join(timeout=2.0)
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=5.0)
 
     def _run_loop(self) -> None:
         """Worker loop running on the background thread."""

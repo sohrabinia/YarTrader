@@ -14,21 +14,31 @@ class TestSREOperational(unittest.TestCase):
         """Verifies that security events write properly formatted JSON to security.log."""
         log_security("Unauthorized endpoint access attempt detected", src_ip="192.168.1.100", port=443)
 
-        security_log_path = os.path.join("logs", "security", "security.log")
+        from src.Application.Deployment.storage import YarTraderStorageManager
+        logs_dir = YarTraderStorageManager.get_manager().get_log_dir()
+        security_log_path = os.path.join(logs_dir, "security", "security.log")
         self.assertTrue(os.path.exists(security_log_path), "security.log must be generated")
 
+        found_data = None
         with open(security_log_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
+            for line in reversed(f.readlines()):
+                line_str = line.strip()
+                if not line_str:
+                    continue
+                try:
+                    data = json.loads(line_str)
+                    if data.get("event") == "Unauthorized endpoint access attempt detected":
+                        found_data = data
+                        break
+                except json.JSONDecodeError:
+                    continue
 
-        self.assertTrue(len(lines) > 0)
-        last_line = lines[-1].strip()
-        log_data = json.loads(last_line)
-
-        self.assertEqual(log_data["level"], "INFO")
-        self.assertTrue(log_data["service"] == "TradeYar-AI" or log_data["service"] == "YarTrader")
-        self.assertEqual(log_data["event"], "Unauthorized endpoint access attempt detected")
-        self.assertEqual(log_data["src_ip"], "192.168.1.100")
-        self.assertEqual(log_data["port"], 443)
+        self.assertIsNotNone(found_data, "Security log entry not found")
+        self.assertEqual(found_data["level"], "INFO")
+        self.assertTrue(found_data["service"] in ("TradeYar-AI", "YarTrader"))
+        self.assertEqual(found_data["event"], "Unauthorized endpoint access attempt detected")
+        self.assertEqual(found_data["src_ip"], "192.168.1.100")
+        self.assertEqual(found_data["port"], 443)
 
     def test_health_endpoints_live_and_ready(self):
         """Checks SRE /health/live and /health/ready liveness and readiness response schemas."""
