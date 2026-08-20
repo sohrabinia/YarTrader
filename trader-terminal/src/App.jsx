@@ -978,14 +978,27 @@ function MainApp() {
                             <td><strong>{run.symbol}</strong></td>
                             <td>{run.timeframe || 'H1'}</td>
                             <td>
-                              {run.total_trades || run.trades_count || 0}
-                              <small style={{ display: 'block', color: 'var(--text-muted)' }}>
-                                {(run.total_trades || run.trades_count || 0) < 30 ? (lang === 'fa' ? 'نمونه محدود' : 'Small N') : 'Valid Sample'}
-                              </small>
+                              {(() => {
+                                const tc = run.total_trades != null ? run.total_trades : (run.trades_count != null ? run.trades_count : null);
+                                if (tc == null) return "DATA UNAVAILABLE";
+                                return (
+                                  <>
+                                    {tc}
+                                    <small style={{ display: 'block', color: 'var(--text-muted)' }}>
+                                      {tc < 30 ? (lang === 'fa' ? 'نمونه محدود' : 'Small N') : 'Valid Sample'}
+                                    </small>
+                                  </>
+                                );
+                              })()}
                             </td>
-                            <td className={run.win_rate_pct !== undefined ? (run.win_rate_pct >= 50 ? "status-passed" : "status-failed") : (run.win_rate !== undefined ? (run.win_rate >= 50 ? "status-passed" : "status-failed") : "")}>
-                              {run.win_rate_pct !== undefined ? run.win_rate_pct + "%" : (run.win_rate !== undefined ? run.win_rate + "%" : "DATA UNAVAILABLE")}
-                            </td>
+                            {(() => {
+                              const wr = run.win_rate_pct != null ? run.win_rate_pct : (run.win_rate != null ? run.win_rate : null);
+                              return (
+                                <td className={wr != null ? (wr >= 50 ? "status-passed" : "status-failed") : ""}>
+                                  {wr != null ? wr + "%" : "DATA UNAVAILABLE"}
+                                </td>
+                              );
+                            })()}
                             <td>{run.profit_factor || 'DATA UNAVAILABLE'}</td>
                             <td style={{ color: 'var(--danger)' }}>{run.max_drawdown_pct || run.max_drawdown || 'DATA UNAVAILABLE'}</td>
                             <td>{run.sharpe_ratio || 'DATA UNAVAILABLE'}</td>
@@ -1781,19 +1794,25 @@ function MainApp() {
                             <td style={{ fontFamily: 'monospace', fontSize: '0.85em', color: 'var(--text-muted)' }}>{item.pattern_key}</td>
                             <td><strong>{item.pattern_name}</strong></td>
                             <td>
-                              {item.sample_count}
-                              <small style={{ display: 'block', color: 'var(--text-muted)' }}>
-                                {item.sample_count < 30 ? (lang === 'fa' ? 'نمونه محدود' : 'Insufficient N') : 'Sufficient N'}
-                              </small>
+                              {item.sample_count != null ? (
+                                <>
+                                  {item.sample_count}
+                                  <small style={{ display: 'block', color: 'var(--text-muted)' }}>
+                                    {item.sample_count < 30 ? (lang === 'fa' ? 'نمونه محدود' : 'Insufficient N') : 'Sufficient N'}
+                                  </small>
+                                </>
+                              ) : "DATA UNAVAILABLE"}
                             </td>
                             <td>
-                              <strong className={item.win_rate_pct >= 50 ? "status-passed" : "status-failed"}>
-                                {item.win_rate_pct}%
-                              </strong>
+                              {item.win_rate_pct != null ? (
+                                <strong className={item.win_rate_pct >= 50 ? "status-passed" : "status-failed"}>
+                                  {item.win_rate_pct}%
+                                </strong>
+                              ) : "DATA UNAVAILABLE"}
                             </td>
-                            <td>{item.average_rr} R</td>
-                            <td>{item.average_mae}</td>
-                            <td>{item.average_mfe}</td>
+                            <td>{item.average_rr != null ? item.average_rr + ' R' : "DATA UNAVAILABLE"}</td>
+                            <td>{item.average_mae != null ? item.average_mae : "DATA UNAVAILABLE"}</td>
+                            <td>{item.average_mfe != null ? item.average_mfe : "DATA UNAVAILABLE"}</td>
                             <td>
                               <span className="blog-tag" style={{ background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)' }}>
                                 {item.sample_count >= 30 ? 'VALIDATED' : 'PRELIMINARY'}
