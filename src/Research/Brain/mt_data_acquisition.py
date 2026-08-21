@@ -20,6 +20,72 @@ class MTDataAcquisitionEngine:
     DEFAULT_DATA_DIR = "data/research"
 
     @classmethod
+    def _try_direct_mt5_acquisition(cls, symbol: str = "XAUUSD", max_count: int = 99999) -> Optional[Dict[str, Any]]:
+        """
+        Read-only acquisition from native MT5 IPC when MetaTrader5 library and terminal are accessible.
+        Strictly forbidden from trade execution, order_send, or account modification.
+        """
+        try:
+            import MetaTrader5 as mt5  # type: ignore
+            if not mt5.initialize():
+                mt5.shutdown()
+                return None
+
+            terminal_info = mt5.terminal_info()
+            account_info = mt5.account_info()
+            term_dict = terminal_info._asdict() if terminal_info else {}
+            acc_dict = account_info._asdict() if account_info else {}
+
+            rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M1, 0, max_count)
+            mt5.shutdown()
+
+            if rates is None or len(rates) == 0:
+                return None
+
+            records = []
+            for r in rates:
+                records.append({
+                    "timestamp": int(r['time']),
+                    "open": float(r['open']),
+                    "high": float(r['high']),
+                    "low": float(r['low']),
+                    "close": float(r['close']),
+                    "volume": int(r['tick_volume']),
+                    "spread": int(r['spread']) if 'spread' in r.dtype.names else 0
+                })
+
+            dataset_hash = cls.compute_dataset_sha256(records)
+            metadata = {
+                "instrument": symbol,
+                "source_platform": "MT5",
+                "terminal_build": term_dict.get("build", "UNKNOWN"),
+                "company": term_dict.get("company") or acc_dict.get("company") or "Alpari",
+                "broker": acc_dict.get("server", "Alpari-MT5-Demo"),
+                "symbol": symbol,
+                "timeframe": "M1",
+                "start_timestamp": records[0]["timestamp"],
+                "end_timestamp": records[-1]["timestamp"],
+                "record_count": len(records),
+                "is_synthetic": False,
+                "DATA_CLASSIFICATION": "REAL_HISTORICAL",
+                "sha256_hash": dataset_hash,
+                "acquisition_mode": "DIRECT_READ_ONLY_MT5_IPC"
+            }
+
+            os.makedirs(cls.DEFAULT_DATA_DIR, exist_ok=True)
+            out_file = os.path.join(cls.DEFAULT_DATA_DIR, f"{symbol.lower()}_m1_real.json")
+            with open(out_file, "w", encoding="utf-8") as f:
+                json.dump({"dataset_metadata": metadata, "records": records}, f, indent=2)
+
+            return {
+                "records": records,
+                "metadata": metadata,
+                "filepath": out_file
+            }
+        except Exception:
+            return None
+
+    @classmethod
     def discover_environment(cls, search_dir: Optional[str] = None) -> Dict[str, Any]:
         """
         Discovers OS, platform, MT4/MT5 installations, active processes, and available historical exports.
@@ -53,7 +119,6 @@ class MTDataAcquisitionEngine:
                 if fname.endswith(".json") or fname.endswith(".csv"):
                     fpath = os.path.join(data_dir, fname)
                     available_files.append(fpath)
-                    # Check for symbol naming variants in file names
                     lower_name = fname.lower()
                     if "xauusd" in lower_name:
                         discovered_symbol_variants.append("XAUUSD")
@@ -75,6 +140,28 @@ class MTDataAcquisitionEngine:
         """
         Selects optimal data source and produces DataSourceSelectionReport.json dictionary.
         """
+        # First check if direct read-only MT5 IPC is available
+        direct_result = cls._try_direct_mt5_acquisition("XAUUSD")
+        if direct_result:
+            meta = direct_result["metadata"]
+            count = meta["record_count"]
+            quality = "HIGH" if count >= 5000 else "LIMITED_HISTORICAL_COVERAGE"
+            return {
+                "platform": discovery.get("os_platform", "UNKNOWN"),
+                "terminal": "MT5",
+                "broker": meta.get("broker", "Alpari-MT5-Demo"),
+                "symbol": meta.get("symbol", "XAUUSD"),
+                "timeframe": "M1",
+                "available_date_range": {
+                    "start_timestamp": meta.get("start_timestamp"),
+                    "end_timestamp": meta.get("end_timestamp")
+                },
+                "record_count": count,
+                "quality_status": quality,
+                "selection_reason": f"Direct read-only MT5 IPC acquisition retrieved {count} authentic M1 historical records.",
+                "selected_filepath": direct_result["filepath"]
+            }
+
         export_files = discovery.get("available_export_files", [])
         real_files = [f for f in export_files if not f.endswith("_synthetic.json")]
 
@@ -88,7 +175,7 @@ class MTDataAcquisitionEngine:
                 "available_date_range": None,
                 "record_count": 0,
                 "quality_status": "REAL_DATA_UNAVAILABLE",
-                "selection_reason": "No authentic MT4/MT5 historical market data export file found in data/research/. Synthetic fallback rejected in accordance with Truthfulness Gate."
+                "selection_reason": "No authentic MT4/MT5 historical market data export file found in data/research/ or via MT5 IPC. Synthetic fallback rejected in accordance with Truthfulness Gate."
             }
 
         # Select first valid authentic dataset file
