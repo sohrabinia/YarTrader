@@ -3,8 +3,11 @@ import threading
 from typing import Dict, Any, Optional
 from datetime import datetime
 
+from src.Application.Deployment.storage import YarTraderStorageManager
+
 # Ensure logs/runtime directory exists
-os.makedirs(os.path.join("logs", "runtime"), exist_ok=True)
+RUNTIME_LOG_DIR = os.path.join(YarTraderStorageManager.get_manager().get_log_dir(), "runtime")
+os.makedirs(RUNTIME_LOG_DIR, exist_ok=True)
 
 class RuntimeStateManager:
     """Thread-safe centralized manager for storing and querying active runtime statuses with transition logging."""
@@ -44,7 +47,7 @@ class RuntimeStateManager:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"{timestamp} | {worker_name} | {old_val} -> {new_val}\n"
         try:
-            with open(os.path.join("logs", "runtime", "runtime_state.log"), "a", encoding="utf-8") as f:
+            with open(os.path.join(RUNTIME_LOG_DIR, "runtime_state.log"), "a", encoding="utf-8") as f:
                 f.write(log_entry)
         except Exception:
             pass

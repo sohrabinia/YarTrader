@@ -12,7 +12,8 @@ class DeviceTracker:
     Saves state persistently to file-based database runtime_logs/sessions.json.
     Enforces secure session revocation, last seen refreshes, and prevents uncontrolled database growth.
     """
-    def __init__(self, filepath: str = "runtime_logs/sessions.json") -> None:
+    def __init__(self, filepath: Optional[str] = None) -> None:
+        filepath = filepath or os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "sessions.json")
         self.filepath = filepath
         self.lock = threading.RLock()
         os.makedirs(os.path.dirname(self.filepath), exist_ok=True)

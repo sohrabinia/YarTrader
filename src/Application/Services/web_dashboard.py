@@ -1,3 +1,4 @@
+from src.Application.Deployment.storage import YarTraderStorageManager
 import os
 import sys
 import json
@@ -14,11 +15,13 @@ from fastapi.staticfiles import StaticFiles
 from src.Research.Brain.memory import MarketMemorySystem
 from src.Intelligence.Explanation.explainer import DecisionExplainer
 
+storage_mgr = YarTraderStorageManager.get_manager()
+
 # Setup directory paths relative to repo root
-LOGS_DIR = "logs"
-REPORTS_DIR = "reports"
-VALIDATION_DIR = "validation"
-HISTORY_DIR = "history"
+LOGS_DIR = storage_mgr.get_log_dir()
+REPORTS_DIR = storage_mgr.get_reports_dir()
+VALIDATION_DIR = os.path.join(storage_mgr.get_reports_dir(), "validation")
+HISTORY_DIR = os.path.join(storage_mgr.get_diagnostics_dir(), "history")
 
 # Import production logging functions
 from app.core.logging import log_event, log_audit, log_intelligence_decision
@@ -67,7 +70,7 @@ from src.Application.Runtime.research_runtime import ResearchRuntime
 global_research_runtime = ResearchRuntime(
     symbol="XAUUSD",
     timeframe="H1",
-    evidence_dir="runtime_logs"
+    evidence_dir=storage_mgr.get_runtime_dir()
 )
 
 global_memory_system = MarketMemorySystem()
@@ -158,7 +161,7 @@ def run_research_background_loop():
             runtimes[key] = ResearchRuntime(
                 symbol=symbol.upper(),
                 timeframe=tf.upper(),
-                evidence_dir="runtime_logs",
+                evidence_dir=storage_mgr.get_runtime_dir(),
                 provider_name=provider,
                 asset_class=asset_class
             )
@@ -3279,7 +3282,7 @@ def get_intelligence_learning_report():
 @app.get("/v1/dashboard/live-research")
 def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] = None):
     """Returns the latest generated analysis, reading from disk snapshots first for true persistence."""
-    snapshot_dir = "runtime_logs/research_snapshots"
+    snapshot_dir = os.path.join(storage_mgr.get_runtime_dir(), "research_snapshots")
     search_symbol = symbol or "XAUUSD"
     if os.path.exists(snapshot_dir):
         try:
@@ -3341,7 +3344,7 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
 def get_analysis_history(symbol: Optional[str] = "XAUUSD"):
     """Returns previous analyses, reading from serialized disk snapshots for absolute persistence."""
     history_list = []
-    snapshot_dir = "runtime_logs/research_snapshots"
+    snapshot_dir = os.path.join(storage_mgr.get_runtime_dir(), "research_snapshots")
     search_symbol = symbol or "XAUUSD"
     if os.path.exists(snapshot_dir):
         try:
@@ -3399,7 +3402,7 @@ def get_research_health():
     research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
 
     last_res_id = "None"
-    snapshot_dir = "runtime_logs/research_snapshots"
+    snapshot_dir = os.path.join(storage_mgr.get_runtime_dir(), "research_snapshots")
     if os.path.exists(snapshot_dir):
         try:
             files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
@@ -3634,7 +3637,7 @@ def get_devops_status():
     """API Contract interface for YarTrader.DevOps to fetch overall system status."""
     state = central_runtime_state.get_state()
     error_count = 0
-    err_log_path = os.path.join("logs", "error", "error.log")
+    err_log_path = os.path.join(storage_mgr.get_log_dir(), "error", "error.log")
     if os.path.exists(err_log_path):
         try:
             with open(err_log_path, "r", encoding="utf-8") as f:
@@ -4010,7 +4013,7 @@ def trigger_backtesting_job(params: Dict[str, Any]):
         raise HTTPException(status_code=400, detail=f"Backtest Execution Failed: {str(e)}")
 
     # Prepare Run Entry to persist
-    runs_file = "runtime_logs/backtest_runs.json"
+    runs_file = os.path.join(storage_mgr.get_runtime_dir(), "backtest_runs.json")
     runs = []
     if os.path.exists(runs_file):
         try:
@@ -4033,7 +4036,7 @@ def trigger_backtesting_job(params: Dict[str, Any]):
     }
     runs.append(run_entry)
 
-    os.makedirs("runtime_logs", exist_ok=True)
+    os.makedirs(storage_mgr.get_runtime_dir(), exist_ok=True)
     try:
         with open(runs_file, "w", encoding="utf-8") as f:
             json.dump(runs, f, indent=4)
@@ -4052,7 +4055,7 @@ def trigger_backtesting_job(params: Dict[str, Any]):
 @app.get("/api/backtest/history")
 def get_backtest_history():
     """Returns chronological history of all executed backtesting runs."""
-    runs_file = "runtime_logs/backtest_runs.json"
+    runs_file = os.path.join(storage_mgr.get_runtime_dir(), "backtest_runs.json")
     if not os.path.exists(runs_file):
         return []
     try:
@@ -4088,7 +4091,7 @@ def run_demo_trading_scenario(payload: Dict[str, Any]):
     result = runner.run_scenario(scenario)
 
     # Convert Demo outcome to simulated trade records
-    trades_file = "runtime_logs/demo_trades.json"
+    trades_file = os.path.join(storage_mgr.get_runtime_dir(), "demo_trades.json")
     demo_trades = []
     if os.path.exists(trades_file):
         try:
@@ -4130,7 +4133,7 @@ def run_demo_trading_scenario(payload: Dict[str, Any]):
         }
         demo_trades.append(simulated_trade)
 
-        os.makedirs("runtime_logs", exist_ok=True)
+        os.makedirs(storage_mgr.get_runtime_dir(), exist_ok=True)
         try:
             with open(trades_file, "w", encoding="utf-8") as f:
                 json.dump(demo_trades, f, indent=4)
@@ -4177,7 +4180,7 @@ def run_demo_trading_scenario(payload: Dict[str, Any]):
 @app.get("/api/demo/trades")
 def get_demo_trades():
     """Returns the list of Demo Trading trades."""
-    trades_file = "runtime_logs/demo_trades.json"
+    trades_file = os.path.join(storage_mgr.get_runtime_dir(), "demo_trades.json")
     if not os.path.exists(trades_file):
         return []
     try:
@@ -4190,7 +4193,7 @@ def get_demo_trades():
 @app.get("/api/demo/report")
 def get_demo_report():
     """Compiles the independent SRE report for Demo Trading."""
-    trades_file = "runtime_logs/demo_trades.json"
+    trades_file = os.path.join(storage_mgr.get_runtime_dir(), "demo_trades.json")
     demo_trades = []
     if os.path.exists(trades_file):
         try:

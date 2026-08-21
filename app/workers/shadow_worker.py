@@ -65,7 +65,7 @@ class ShadowWorker:
 
                 # Write to dedicated service log file
                 try:
-                    with open("logs/service/service.log", "a", encoding="utf-8") as f:
+                    with open(os.path.join(YarTraderStorageManager.get_manager().get_log_dir(), "service", "service.log"), "a", encoding="utf-8") as f:
                         f.write(error_msg)
                 except Exception:
                     pass

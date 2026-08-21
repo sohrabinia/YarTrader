@@ -12,7 +12,8 @@ class TicketManager:
     Supports user ticket creation, message replies, admin status/priority updates,
     strict cross-user access controls, input sanitization, and result pagination.
     """
-    def __init__(self, filepath: str = "runtime_logs/tickets.json") -> None:
+    def __init__(self, filepath: Optional[str] = None) -> None:
+        filepath = filepath or os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "tickets.json")
         self.filepath = filepath
         self.lock = threading.RLock()
         os.makedirs(os.path.dirname(self.filepath), exist_ok=True)

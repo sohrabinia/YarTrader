@@ -2,8 +2,9 @@ import json
 import os
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
+from src.Application.Deployment.storage import YarTraderStorageManager
 
-MEMORY_FILE = "runtime_logs/fractal_pattern_memory.json"
+MEMORY_FILE = os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "fractal_pattern_memory.json")
 
 @dataclass
 class FractalPatternRecord:

@@ -81,3 +81,22 @@ class TestTradeYarStorageIsolation(unittest.TestCase):
             self.assertTrue(d.startswith(self.test_root))
             for fr in forbidden_roots:
                 self.assertFalse(d.startswith(fr))
+
+    def test_system_wide_service_and_journal_isolation(self) -> None:
+        """Verify that all system services, journals, and loggers construct paths under TradeYarStorageRoot."""
+        from src.Application.Dashboard.auth_repo import AuthRepository
+        from src.Application.Dashboard.auth_service import LockoutAuditStore
+        from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
+        from app.workers.service import SERVICE_LOG_DIR
+        import server_watchdog
+
+        ar = AuthRepository()
+        ls = LockoutAuditStore()
+        PredictiveShadowEngine._instance = None
+        pse = PredictiveShadowEngine.get_instance()
+
+        self.assertTrue(ar.filepath.startswith(self.test_root))
+        self.assertTrue(ls.filepath.startswith(self.test_root))
+        self.assertTrue(pse.trades_file.startswith(self.test_root))
+        self.assertTrue(SERVICE_LOG_DIR.startswith(self.test_root))
+        self.assertTrue(server_watchdog.WATCHDOG_LOG_PATH.startswith(self.test_root))

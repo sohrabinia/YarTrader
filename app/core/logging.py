@@ -9,7 +9,7 @@ try:
     from src.Application.Deployment.storage import YarTraderStorageManager
     LOGS_ROOT = YarTraderStorageManager.get_manager().get_log_dir()
 except Exception:
-    LOGS_ROOT = "logs"
+    LOGS_ROOT = os.path.join(os.getenv("YarTraderStorageRoot", "/tmp/YarTraderAI"), "Logs")
 
 os.makedirs(os.path.join(LOGS_ROOT, "application"), exist_ok=True)
 os.makedirs(os.path.join(LOGS_ROOT, "error"), exist_ok=True)

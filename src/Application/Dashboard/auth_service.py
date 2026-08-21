@@ -7,13 +7,15 @@ import threading
 import time
 from typing import Dict, Any, Optional, List
 from src.Application.Dashboard.auth_repo import AuthRepository
+from src.Application.Deployment.storage import YarTraderStorageManager
 
 class LockoutAuditStore:
     """
     Thread-safe and process-safe persistent manager for failed login attempts and audit logs.
     Saves state persistently to file-based database runtime_logs/lockout_audit.json.
     """
-    def __init__(self, filepath: str = "runtime_logs/lockout_audit.json") -> None:
+    def __init__(self, filepath: Optional[str] = None) -> None:
+        filepath = filepath or os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "lockout_audit.json")
         self.filepath = filepath
         self.lock = threading.RLock()
         os.makedirs(os.path.dirname(self.filepath), exist_ok=True)
@@ -321,7 +323,7 @@ def send_saas_email(to_email: str, subject: str, body: str) -> bool:
     smtp_user = os.environ.get("SMTP_USERNAME")
     smtp_pass = os.environ.get("SMTP_PASSWORD")
 
-    log_file = "runtime_logs/mock_emails.log"
+    log_file = os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "mock_emails.log")
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
     log_record = f"=== EMAIL SEND ===\nTimestamp: {datetime.now().isoformat()}\nTo: {to_email}\nSubject: {subject}\nBody: {body}\n==================\n\n"
     with open(log_file, "a", encoding="utf-8") as f:

@@ -173,8 +173,10 @@ class TestHierarchicalM5M15Trading(unittest.TestCase):
         self.assertEqual(logged_p["m5_trigger"], "Breakout Confirmation")
         self.assertIn("historical_win_rate_pct", logged_p)
 
-        # Check snapshot exists in runtime_logs/brain_memory/
-        snapshot_filepath = f"runtime_logs/brain_memory/pattern_{trade.trade_id}.json"
+        # Check snapshot exists in TradeYarStorageRoot/Runtime/brain_memory/
+        from src.Application.Deployment.storage import YarTraderStorageManager
+        brain_memory_dir = os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "brain_memory")
+        snapshot_filepath = os.path.join(brain_memory_dir, f"pattern_{trade.trade_id}.json")
         self.assertTrue(os.path.exists(snapshot_filepath))
         with open(snapshot_filepath, "r") as sf:
             sf_data = json.load(sf)

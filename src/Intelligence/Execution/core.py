@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 import os
 import json
+from src.Application.Deployment.storage import YarTraderStorageManager
 
 from src.Intelligence.Execution.narrative import MarketNarrativeEngine
 from src.Intelligence.Execution.liquidity import LiquidityIntelligenceEngine
@@ -150,7 +151,7 @@ class ExecutionIntelligenceCore:
 
     def _load_historical_pattern_memory(self) -> List[Dict[str, Any]]:
         """Helper to load historical pattern definitions safely."""
-        patterns_path = "runtime_logs/pattern_outcomes.json"
+        patterns_path = os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "pattern_outcomes.json")
         if os.path.exists(patterns_path):
             try:
                 with open(patterns_path, "r", encoding="utf-8") as f:

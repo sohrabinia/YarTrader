@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Dict, Any, List, Optional
 from src.Infrastructure.exceptions import ValidationException
+from src.Application.Deployment.storage import YarTraderStorageManager
 
 logger = logging.getLogger("AuthRepository")
 
@@ -11,7 +12,8 @@ class AuthRepository:
     Manages secure user accounts, profiles, and social sign-in bindings.
     Saves state persistently to file-based database runtime_logs/auth.json.
     """
-    def __init__(self, filepath: str = "runtime_logs/auth.json") -> None:
+    def __init__(self, filepath: Optional[str] = None) -> None:
+        filepath = filepath or os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "auth.json")
         self.filepath = filepath
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         self.users: Dict[str, Dict[str, Any]] = self._load_db()

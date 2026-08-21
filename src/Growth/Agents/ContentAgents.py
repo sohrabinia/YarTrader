@@ -2,6 +2,7 @@ import uuid
 import sqlite3
 import os
 from datetime import datetime
+from src.Application.Deployment.storage import YarTraderStorageManager
 from typing import Dict, Any, List, Optional
 
 class ContentDBManager:
@@ -9,14 +10,13 @@ class ContentDBManager:
     Manages SQLite persistence for ContentDraft and ContentArticle records.
     Strictly isolates database to 'runtime_logs/content_intelligence.db'.
     """
-    def __init__(self, db_path: str = "runtime_logs/content_intelligence.db") -> None:
+    def __init__(self, db_path: str = os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "content_intelligence.db")) -> None:
         normalized_path = os.path.normpath(db_path)
 
         # Database isolation check: reject other paths
         # Must only allow runtime_logs/content_intelligence.db or normalized equivalent.
-        if (os.path.basename(normalized_path) != "content_intelligence.db" or
-                ("runtime_logs" not in normalized_path and "test_runtime_logs" not in normalized_path)):
-            raise ValueError("Database path violation: ContentDBManager only permits 'runtime_logs/content_intelligence.db'")
+        if os.path.basename(normalized_path) != "content_intelligence.db":
+            raise ValueError("Database path violation: ContentDBManager only permits content_intelligence.db")
 
         self.db_path = db_path
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
@@ -117,7 +117,7 @@ class ContentIntelligenceAgent:
     def __init__(
         self,
         agent_id: str = "agent-content-intel",
-        db_path: str = "runtime_logs/content_intelligence.db",
+        db_path: str = os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "content_intelligence.db"),
         provider: str = "mock"
     ):
         self.agent_id = agent_id

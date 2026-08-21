@@ -7,6 +7,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from src.Infrastructure.exceptions import ValidationException
+from src.Application.Deployment.storage import YarTraderStorageManager
 
 class BillingManager:
     """
@@ -14,7 +15,8 @@ class BillingManager:
     Handles user subscription updates, immutable invoices, plans management,
     and secure, signed, idempotent payment webhooks.
     """
-    def __init__(self, filepath: str = "runtime_logs/billing.json") -> None:
+    def __init__(self, filepath: Optional[str] = None) -> None:
+        filepath = filepath or os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "billing.json")
         self.filepath = filepath
         self.lock = threading.RLock()
         os.makedirs(os.path.dirname(self.filepath), exist_ok=True)

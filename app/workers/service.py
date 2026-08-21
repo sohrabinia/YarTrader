@@ -28,15 +28,18 @@ from typing import Any, Dict, Optional
 os.environ["TRADEYAR_SERVICE_RUN"] = "True"
 os.environ["YARTRADER_SERVICE_RUN"] = "True"
 
+from src.Application.Deployment.storage import YarTraderStorageManager
+
 # Ensure logs/service directory exists
-os.makedirs(os.path.join("logs", "service"), exist_ok=True)
+SERVICE_LOG_DIR = os.path.join(YarTraderStorageManager.get_manager().get_log_dir(), "service")
+os.makedirs(SERVICE_LOG_DIR, exist_ok=True)
 
 def log_service_message(message: str) -> None:
     """Logs dedicated service messages directly to logs/service/service.log and main application.log."""
     timestamp = datetime.now().isoformat()
     log_entry = f"[{timestamp}] [SERVICE] {message}\n"
     try:
-        with open(os.path.join("logs", "service", "service.log"), "a", encoding="utf-8") as f:
+        with open(os.path.join(SERVICE_LOG_DIR, "service.log"), "a", encoding="utf-8") as f:
             f.write(log_entry)
     except Exception:
         pass

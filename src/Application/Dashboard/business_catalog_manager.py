@@ -4,6 +4,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from src.Infrastructure.exceptions import ValidationException
+from src.Application.Deployment.storage import YarTraderStorageManager
 
 VALID_CATEGORIES = {
     "PLANS", "AI", "TRADING", "RESEARCH", "ANALYTICS", "PROP",
@@ -24,7 +25,10 @@ class BusinessCatalogManager:
     Provides thread-safe persistence, seed preservation of legacy pricing,
     comprehensive field validation, and secure administrative mutations.
     """
-    def __init__(self, filepath: str = "runtime_logs/business_catalog.json", audit_filepath: str = "runtime_logs/business_audit.json") -> None:
+    def __init__(self, filepath: Optional[str] = None, audit_filepath: Optional[str] = None) -> None:
+        storage_mgr = YarTraderStorageManager.get_manager()
+        filepath = filepath or os.path.join(storage_mgr.get_runtime_dir(), "business_catalog.json")
+        audit_filepath = audit_filepath or os.path.join(storage_mgr.get_runtime_dir(), "business_audit.json")
         self.filepath = filepath
         self.audit_filepath = audit_filepath
         self.lock = threading.RLock()

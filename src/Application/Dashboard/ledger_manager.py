@@ -12,7 +12,8 @@ class LedgerManager:
     Enforces balanced debits/credits, idempotency, safe integer representations,
     reversal workflows, and concurrency controls using RLock and atomic disk writes.
     """
-    def __init__(self, filepath: str = "runtime_logs/ledger.json") -> None:
+    def __init__(self, filepath: Optional[str] = None) -> None:
+        filepath = filepath or os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "ledger.json")
         self.filepath = filepath
         self.lock = threading.RLock()
         os.makedirs(os.path.dirname(self.filepath), exist_ok=True)

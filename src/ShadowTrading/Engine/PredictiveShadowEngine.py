@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 from src.ShadowTrading.Engine.SymbolTimeContext import SymbolTimeContext
 from src.ShadowTrading.Engine.SymbolRuntimeManager import SymbolRuntimeManager
 from src.ShadowTrading.Engine.BaseNodeDetector import BaseNodeDetector, BaseStructure, NodeStructure
+from src.Application.Deployment.storage import YarTraderStorageManager
 
 logger = logging.getLogger("PredictiveShadowEngine")
 
@@ -206,16 +207,6 @@ class PredictiveShadowEngine:
         self.runtime_manager = SymbolRuntimeManager(max_active_symbols=self.max_symbols_limit)
         self.detector = BaseNodeDetector()
 
-        # Database File Paths (Consolidated memory indices)
-        self.trades_file = "runtime_logs/shadow_trades.json"
-        self.bases_file = "runtime_logs/base_memory.json"
-        self.nodes_file = "runtime_logs/node_memory.json"
-        self.patterns_file = "runtime_logs/pattern_outcomes.json"
-        self.learning_file = "runtime_logs/learning_history.json"
-        self.signals_file = "runtime_logs/signal_history.json"
-
-        os.makedirs("runtime_logs", exist_ok=True)
-
         # Core lists for serialization
         self.trades: List[ShadowTrade] = self._load_trades()
         self.bases: List[Dict[str, Any]] = self._load_generic(self.bases_file)
@@ -226,6 +217,31 @@ class PredictiveShadowEngine:
 
         # Initialize existing records into corresponding contexts
         self._hydrate_contexts()
+
+    @property
+    def trades_file(self) -> str:
+        return os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "shadow_trades.json")
+
+    @property
+    def bases_file(self) -> str:
+        return os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "base_memory.json")
+
+    @property
+    def nodes_file(self) -> str:
+        return os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "node_memory.json")
+
+    @property
+    def patterns_file(self) -> str:
+        return os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "pattern_outcomes.json")
+
+    @property
+    def learning_file(self) -> str:
+        return os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "learning_history.json")
+
+    @property
+    def signals_file(self) -> str:
+        return os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "signal_history.json")
+
 
     def get_virtual_capital_initial_balance(self) -> float:
         """
@@ -659,8 +675,9 @@ class PredictiveShadowEngine:
         self.patterns.append(outcome)
         self._save_generic(self.patterns_file, self.patterns)
 
-        # Store multi-timeframe pattern snapshots into runtime_logs/brain_memory/
-        brain_memory_dir = "runtime_logs/brain_memory"
+        # Store multi-timeframe pattern snapshots into TradeYarStorageRoot/Runtime/brain_memory/
+        runtime_dir = YarTraderStorageManager.get_manager().get_runtime_dir()
+        brain_memory_dir = os.path.join(runtime_dir, "brain_memory")
         os.makedirs(brain_memory_dir, exist_ok=True)
         snapshot_filepath = os.path.join(brain_memory_dir, f"pattern_{trade.trade_id}.json")
         try:
@@ -696,6 +713,7 @@ class PredictiveShadowEngine:
             return []
 
     def _save_trades(self) -> None:
+        os.makedirs(os.path.dirname(self.trades_file), exist_ok=True)
         with open(self.trades_file, "w", encoding="utf-8") as f:
             json.dump([t.to_dict() for t in self.trades], f, indent=4)
 
@@ -709,5 +727,6 @@ class PredictiveShadowEngine:
             return []
 
     def _save_generic(self, filepath: str, data: List[Dict[str, Any]]) -> None:
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)

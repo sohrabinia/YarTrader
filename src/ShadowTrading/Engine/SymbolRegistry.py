@@ -1,8 +1,9 @@
 import os
 import json
 from typing import Dict, List, Any, Tuple
+from src.Application.Deployment.storage import YarTraderStorageManager
 
-REGISTRY_FILE = "runtime_logs/symbols_registry.json"
+REGISTRY_FILE = os.path.join(YarTraderStorageManager.get_manager().get_runtime_dir(), "symbols_registry.json")
 
 def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
     """Pure-Python YAML parser for market_universe.yaml mapping."""
@@ -87,7 +88,7 @@ class SymbolRegistry:
         self.max_symbols = self._load_max_symbols()
         self.registry: Dict[str, Dict[str, Any]] = {}
         self.lock = threading.RLock()
-        os.makedirs("runtime_logs", exist_ok=True)
+        os.makedirs(YarTraderStorageManager.get_manager().get_runtime_dir(), exist_ok=True)
         self.load_registry()
 
     def _enforce_max_active_limit(self) -> None:

@@ -19,12 +19,16 @@ project_root = os.path.abspath(os.path.dirname(__file__))
 os.chdir(project_root)
 sys.path.insert(0, project_root)
 
-# Create directory structures
-os.makedirs(os.path.join("logs", "watchdog"), exist_ok=True)
-os.makedirs(os.path.join("logs", "runtime"), exist_ok=True)
+from src.Application.Deployment.storage import YarTraderStorageManager
 
-WATCHDOG_LOG_PATH = os.path.join("logs", "watchdog", "watchdog.log")
-TELEGRAM_ALERTS_LOG_PATH = os.path.join("logs", "watchdog", "telegram_alerts.log")
+# Create directory structures
+WATCHDOG_DIR = os.path.join(YarTraderStorageManager.get_manager().get_log_dir(), "watchdog")
+RUNTIME_DIR = os.path.join(YarTraderStorageManager.get_manager().get_log_dir(), "runtime")
+os.makedirs(WATCHDOG_DIR, exist_ok=True)
+os.makedirs(RUNTIME_DIR, exist_ok=True)
+
+WATCHDOG_LOG_PATH = os.path.join(WATCHDOG_DIR, "watchdog.log")
+TELEGRAM_ALERTS_LOG_PATH = os.path.join(WATCHDOG_DIR, "telegram_alerts.log")
 
 
 def log_watchdog_message(message: str) -> None:
@@ -125,7 +129,7 @@ class ServerWatchdogEngine:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"{timestamp} | ServiceHost | RUNNING -> {new_status}\n"
         try:
-            with open(os.path.join("logs", "runtime", "runtime_state.log"), "a", encoding="utf-8") as f:
+            with open(os.path.join(RUNTIME_DIR, "runtime_state.log"), "a", encoding="utf-8") as f:
                 f.write(log_entry)
         except Exception:
             pass
