@@ -26,6 +26,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
     TARGET_SERVER = "Alpari-MT5-Demo"
 
     def __init__(self, auto_initialize: bool = True):
+        logger.info("[MT5 ADAPTER VERSION] CLOSE FORENSIC REMEDIATION ACTIVE")
         self._mt5 = None
         self._initialized = False
         if auto_initialize:
