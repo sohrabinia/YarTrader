@@ -139,7 +139,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertEqual(mode_btc, 0)
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
-    def test_close_buy_position_maps_to_sell(self, mock_verify):
+    def test_close_buy_generates_sell_request(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_mt5.TRADE_ACTION_DEAL = 1
         mock_mt5.ORDER_TYPE_SELL = 1
@@ -204,6 +204,49 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         sent_trade_req = mock_mt5.order_send.call_args[0][0]
         self.assertEqual(sent_trade_req["type"], 1)
         self.assertEqual(sent_trade_req["position"], 368555219)
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_order_check_blocks_10030(self, mock_verify):
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+
+        mock_sym = MagicMock()
+        mock_sym.visible = True
+        mock_sym.volume_min = 0.01
+        mock_sym.volume_step = 0.01
+        mock_sym.volume_max = 100.0
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        mock_tick = MagicMock()
+        mock_tick.bid = 65000.0
+        mock_tick.ask = 65050.0
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        # order_check returns retcode 10030 (Unsupported filling mode)
+        mock_check = MagicMock()
+        mock_check.retcode = 10030
+        mock_check.comment = "Unsupported filling mode"
+        mock_check._asdict.return_value = {"retcode": 10030, "comment": "Unsupported filling mode"}
+        mock_mt5.order_check.return_value = mock_check
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        req = OrderRequest(
+            Symbol="BITCOIN",
+            OrderType="Buy",
+            Volume=0.01
+        )
+
+        resp = self.adapter.send_order_to_broker(req)
+
+        self.assertEqual(resp.Status, "Failed")
+        self.assertEqual(resp.Retcode, 10030)
+        mock_mt5.order_send.assert_not_called()
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_invalid_filling_blocks_order_send(self, mock_verify):

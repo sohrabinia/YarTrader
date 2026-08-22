@@ -281,6 +281,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             trade_req["tp"] = float(request.TakeProfit)
 
         # Debug logging before order_check
+        logger.info(f"[MT5 DEBUG] symbol={request.Symbol} symbol_filling_flags={getattr(sym_info, 'filling_mode', None)} resolved_filling={filling_mode}")
         logger.info(f"[MT5 DEBUG] trade_req before order_check: {trade_req}")
 
         # 4. Check Order with Fail-Closed Safety
