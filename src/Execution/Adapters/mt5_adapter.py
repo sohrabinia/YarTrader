@@ -239,11 +239,23 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if request.TakeProfit and request.TakeProfit > 0:
             trade_req["tp"] = float(request.TakeProfit)
 
-        # 4. Check Order
+        # 4. Check Order with Fail-Closed Safety
         check_res = mt5.order_check(trade_req)
-        if check_res is not None and getattr(check_res, "retcode", 0) != 0 and getattr(check_res, "retcode", 0) != 10013:
-            # retcode 0 or 10013 (done/check ok)
-            logger.warning(f"[RealMT5BrokerAdapter] order_check returned retcode={getattr(check_res, 'retcode')}: {getattr(check_res, 'comment')}")
+        if check_res is not None:
+            check_retcode = getattr(check_res, "retcode", 0)
+            check_comment = getattr(check_res, "comment", "")
+            # Accepted order_check success retcodes: 0, 10009 (DONE), 10013 (INVALID_STOPS/CHECK_OK in check API)
+            if check_retcode not in [0, 10009, 10013]:
+                logger.error(f"[RealMT5BrokerAdapter] order_check validation failed: retcode={check_retcode}, comment={check_comment}")
+                return OrderResponse(
+                    OrderId="0",
+                    Symbol=request.Symbol,
+                    Status="Failed",
+                    SubmittedAt=datetime.now(timezone.utc),
+                    Retcode=check_retcode,
+                    Comment=f"order_check validation failed: ({check_retcode}) {check_comment}",
+                    RawResponse=check_res._asdict() if hasattr(check_res, "_asdict") else {"retcode": check_retcode, "comment": check_comment}
+                )
 
         # 5. Send Order
         res = mt5.order_send(trade_req)
@@ -268,7 +280,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         fill_price = float(getattr(res, "price", price))
         fill_volume = float(getattr(res, "volume", volume))
 
-        status = "Placed" if retcode in [mt5.TRADE_RETCODE_DONE, mt5.TRADE_RETCODE_PLACED] else "Failed"
+        done_code = getattr(mt5, "TRADE_RETCODE_DONE", 10009)
+        placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", 10008)
+        status = "Placed" if retcode in [done_code, placed_code, 0, 10009, 10008] else "Failed"
 
         logger.info(
             f"[RealMT5BrokerAdapter] Real mt5.order_send response: "
