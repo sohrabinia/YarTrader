@@ -1,1 +1,1 @@
-# TRADEYAR Architecture 
+# TRADEYAR Architecture

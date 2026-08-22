@@ -1,11 +1,11 @@
 # YarTrader Autonomous Windows MT5 DEMO Runtime Verification & Closure Gate Report
 
 **Date:** 2026-08-22
-**Authority:** Technical Manager Release Directive — Windows MT5 DEMO Runtime Closure Gate
+**Authority:** Technical Manager Release Directive — Pre-Windows Runtime Release Review
 **Baseline Commit:** `729813aca5d3acc0e4f2e6d17f50022c7e948854`
 **Branch:** `jules-12194981418183937295-3f964fe2`
 **Target Account:** `52961173` @ `Alpari-MT5-Demo`
-**Final Status:** `PASS WITH LIMITATIONS` (Outlined in Section 27 according to Section 23/25)
+**Final Status:** `🔴 FINAL GATE — BLOCKED`
 
 ---
 
@@ -65,34 +65,6 @@ ExecutionIntelligencePlanner (src/Intelligence/Execution/execution_planner.py)
 AutonomousTradingDecision (src/Decision/Models/models.py)
 ```
 
-### Immutable Contract Sample (`AutonomousTradingDecision`):
-```json
-{
-  "decision_id": "DEC-XAUUSD-H1-1771632000",
-  "cycle_id": "cyc-XAUUSD-H1-1771632000",
-  "action": "BUY",
-  "symbol": "XAUUSD",
-  "timeframe": "H1",
-  "entry": 2600.50,
-  "stop_loss": 2590.00,
-  "take_profit": 2620.00,
-  "volume": 0.01,
-  "risk_reward": 1.95,
-  "confidence": 85.0,
-  "reasoning": [
-    "Bullish Order Block retest",
-    "Sell-side liquidity swept"
-  ],
-  "evidence": {
-    "latest_price": 2600.50
-  },
-  "risk_status": "APPROVED",
-  "execution_status": "PENDING",
-  "configuration_version": "1.2.0",
-  "timestamp": "2026-08-22T00:00:00Z"
-}
-```
-
 ---
 
 ## 5. Risk & Confidence Gates Verification
@@ -122,11 +94,11 @@ All 9 SRE DEMO safety rules are enforced in `DemoExecutionGate` (`src/Execution/
 
 ---
 
-## 7. `order_check` & `order_send` Verification
+## 7. `order_check` & `order_send` Fail-Closed Safety
 
 In `RealMT5BrokerAdapter` (`src/Execution/Adapters/mt5_adapter.py`):
 1. `mt5.order_check(trade_req)` executes prior to submission.
-2. `mt5.order_send(trade_req)` executes only after `order_check` succeeds.
+2. If `order_check` fails, `send_order_to_broker()` returns a failed response immediately without calling `mt5.order_send()`.
 
 ---
 
@@ -143,153 +115,75 @@ In `DemoExecutionEngine` (`src/Execution/Services/demo_execution_engine.py`):
 
 ---
 
-## 9. Position Lifecycle & Immutable Trade Journal Evidence
+## 9. Position Lifecycle & Trade Journal Status
 
-Position updates are tracked by `PredictiveShadowEngine` and `TradeJournalManager` (`src/Execution/Services/trade_journal.py`):
-
-- **Immutable Record:** `TradeJournalRecord` stores tickets (`order_ticket`, `deal_ticket`), actual entry/exit, PnL, duration, reasoning, evidence, and excursion metrics (`MFE`/`MAE`).
-- **MFE / MAE Calculation:**
-  - `MFE`: Maximum Favorable Excursion calculated from peak favorable price excursion.
-  - `MAE`: Maximum Adverse Excursion calculated from peak adverse price excursion.
-
----
-
-## 10. Post-Trade Analysis & Pattern Memory Evidence
-
-- **Outcome Analyzer:** `OutcomeAnalyzer` (`src/Learning/Services/post_trade_analysis.py`) classifies closed trades into `GOOD_ENTRY`, `SL_TOO_TIGHT`, `TP_TOO_FAR`, `CORRECT_DIRECTION_BAD_TIMING`, or `TREND_FAILURE`.
-- **Pattern Memory:** Outcome statistics are recorded in `FractalPatternMemory` (`src/Research/Brain/fractal_memory.py`) under `runtime_logs/fractal_pattern_memory.json`.
+- **`order_check`:** `TEST PROVEN — PASS`
+- **`filling_mode`:** `TEST PROVEN — PASS`
+- **`order_send` safety:** `TEST PROVEN — PASS`
+- **`position_open`:** `CODE PROVEN — RUNTIME NOT PROVEN`
+- **`position_close`:** `CODE PROVEN — RUNTIME NOT PROVEN`
+- **`history_deals`:** `CODE PROVEN — RUNTIME NOT PROVEN`
+- **`real P&L reconciliation`:** `RUNTIME NOT PROVEN / BLOCKED`
+- **`real MT5 journal reconciliation`:** `RUNTIME NOT PROVEN / BLOCKED`
+- **`journal persistence / unit test`:** `TEST PROVEN — PASS`
 
 ---
 
-## 11. Learning Safety & Sample-Size Protection Evidence
+## 10. Post-Trade Analysis & Pattern Memory Status
 
-- **Sample-Size Gate (`minimum_sample_size` = 5):**
-  - When `N < 5`, `EvidenceBasedAdaptationEngine.propose_adaptation()` sets `validation_status = "OBSERVE_ONLY"`. No decision parameters are updated.
-- **Data Leakage Protection:** Every update logs `source_trade_ids`, `source_timestamp_range`, and snapshot timestamps.
-- **Protected Safety Boundary Guard:** Prohibits modifications to `LIVE_TRADING_ENABLED`, `DemoExecutionGate`, `MetaTraderSafetyGate`, or `autonomous_demo_trading_enabled`. Throws `ValidationException` on any attempt.
-
----
-
-## 12. Next Autonomous Cycle Continuation Evidence
-
-After decision evaluation, execution attempt, journal recording, and learning observation, `ResearchWorker` sleeps for `interval_sec` and automatically continues to the **NEXT RESEARCH CYCLE** without requiring manual intervention or worker restart.
+- **Outcome Analyzer:** `TEST PROVEN — PASS`
+- **Pattern Memory:** `TEST PROVEN — PASS`
+- **Sample Size Protection (N < 5):** `TEST PROVEN — PASS` (`validation_status = "OBSERVE_ONLY"`)
+- **Safety Boundary Protection:** `TEST PROVEN — PASS`
 
 ---
 
-## 13. Dashboard Truthfulness Verification
-
-Dashboard APIs in `src/Application/Services/web_dashboard.py` query actual runtime state:
-
-- `/health` ➔ Returns dynamic MT5 connection status, worker health, and SRE isolation details.
-- `/api/v1/health` ➔ Returns memory statistics, subsystem states, and dependency health.
-- `/api/demo/report` ➔ Summarizes trades directly from `runtime_logs/demo_trades.json`.
-- `/api/production-readiness` ➔ Dynamically evaluates MT5 connection state, simulated fallback, worker health, shadow journal consistency, acceptance validation state, and live safety gates.
-
----
-
-## 14. Storage Policy Compliance Verification
-
-All runtime output files resolve dynamically via `YarTraderStorageManager` under `TradeYarStorageRoot` (`/tmp/YarTraderAI/`):
-
-- `Logs/demo_execution/` ➔ Order execution evidence JSONs.
-- `Logs/trade_journal.json` ➔ Immutable trade journal.
-- `Logs/learning_adaptations.json` ➔ Learning adaptation audit logs.
-- `Runtime/research_logs/` ➔ Snapshot research logs.
-
-Zero unauthorized files are written to system roots or untracked directories.
-
----
-
-## 15. Complete Forensic Traceability Chain
-
-Every trade is 100% reconstructable across pipelines:
-
-```text
-cycle_id (cyc-XAUUSD-H1-1771632000)
- → decision_id (DEC-XAUUSD-H1-1771632000)
- → execution_id (exec-1771632000)
- → order_ticket (10001)
- → deal_ticket (20001)
- → trade_id (TR-001)
- → learning_update_id (adapt-1771632000)
- → next cycle_id (cyc-XAUUSD-H1-1771632060)
-```
-
----
-
-## 16. LIVE Negative Test Evidence
-
-- `LIVE_TRADING_ENABLED` is hardcoded to `False` in `src/Execution/Safety/safety_gate.py`.
-- Any attempt to configure an account as `LIVE` or `UNKNOWN` results in immediate `ValidationException` (`FAIL CLOSED`).
-- Direct order reachability from autonomous workers to live broker endpoints is impossible.
-
----
-
-## 17. Test Matrix Results
+## 11. Test Count Reconciliation & Provenance
 
 ```text
 ======================================
 TEST SUITE SUMMARY
 ======================================
-Command: python3 -m pytest tests/YarTrader.Tests/ -q
-Total Test Cases: 1,467
-Passed: 1,467
-Failed: 0
-Skipped: 0
-Duration: 187.43s
-Pass Rate: 100.0%
-Targeted Master Task Test Suite: 4 / 4 PASSED (tests/YarTrader.Tests/Execution/test_master_task_autonomous_demo_learning.py)
+Command: python3 -m pytest tests/ -q
+tests/YarTrader.Tests/ : 1,474 passed
+tests/ Root Modules    : 120 passed
+Total Test Suite       : 1,594 passed (100.0% Pass Rate)
+Failed                 : 0
+Skipped                : 0
+Duration               : 233.46s
 ======================================
 ```
 
 ---
 
-## 18. Acceptance Matrix
+## 12. Storage Policy Compliance
 
-| Gate | Status | Evidence |
-| :--- | :--- | :--- |
-| **Native Windows MT5** | `LIMITATION` | Sandbox environment is Linux x86_64 container |
-| **MT5 IPC Connectivity** | `LIMITATION` | Fail-closed state active on non-Windows host |
-| **DEMO Account Verification** | `PASS` | `52961173` @ `Alpari-MT5-Demo` validated in `DemoExecutionGate` |
-| **Autonomous Research** | `PASS` | Polling loop active in `ResearchWorker` and `ResearchRuntime` |
-| **Real BUY/SELL Decision** | `PASS` | Generated by `ExecutionIntelligenceCore` & `Planner` |
-| **Confidence Gate** | `PASS` | `MINIMUM_CONFIDENCE = 50.0` enforced in `ResearchWorker` |
-| **Risk Gate** | `PASS` | `MINIMUM_RR = 1.5` enforced in `ResearchWorker` |
-| **Kill Switch** | `PASS` | `AUTONOMOUS_DEMO_TRADING_ENABLED` enforced in `ResearchWorker` |
-| **DemoExecutionGate** | `PASS` | Enforces 9 SRE DEMO safety rules in `demo_execution_gate.py` |
-| **MetaTraderSafetyGate** | `PASS` | Hard-blocks MT5 Live trading in `safety_gate.py` |
-| **order_check** | `PASS` | Pre-validation wired in `RealMT5BrokerAdapter` |
-| **order_send** | `PASS` | Pre-validation wired in `RealMT5BrokerAdapter` |
-| **Real Order Ticket** | `LIMITATION` | Awaiting native MT5 process IPC on Windows host |
-| **Real Deal Ticket** | `LIMITATION` | Awaiting native MT5 process IPC on Windows host |
-| **Real Position** | `LIMITATION` | Awaiting native MT5 process IPC on Windows host |
-| **Position Monitoring** | `PASS` | Floating PnL and excursion tracking in `PredictiveShadowEngine` |
-| **Real Closure** | `LIMITATION` | Awaiting native MT5 process IPC on Windows host |
-| **Real Exit Reason** | `PASS` | Recorded upon position closure in `TradeJournalRecord` |
-| **Realized PnL** | `PASS` | Calculated upon position closure in `TradeJournalRecord` |
-| **Real MFE** | `PASS` | Peak favorable price excursion in `TradeJournalRecord` |
-| **Real MAE** | `PASS` | Peak adverse price excursion in `TradeJournalRecord` |
-| **Immutable Trade Journal** | `PASS` | Persisted under `YarTraderStorageManager` |
-| **Post-Trade Analysis** | `PASS` | Entry/exit quality classified by `OutcomeAnalyzer` |
-| **Pattern Memory** | `PASS` | Outcome statistics updated in `FractalPatternMemory` |
-| **Learning Sample Protection** | `PASS` | Enforces `N >= 5` (`OBSERVE_ONLY` for `N < 5`) in `post_trade_analysis.py` |
-| **Learning Adaptation** | `PASS` | Bounded parameter updates in `EvidenceBasedAdaptationEngine` |
-| **Continuous Next Cycle** | `PASS` | Automatic continuation in `ResearchWorker` loop |
-| **Dashboard Truthfulness** | `PASS` | Queries live runtime state in `web_dashboard.py` |
-| **StorageRoot Compliance** | `PASS` | All paths derived via `YarTraderStorageManager` |
-| **LIVE Fail-Closed** | `PASS` | Hard isolation lock `LIVE_TRADING_ENABLED=False` |
-| **Full Traceability** | `PASS` | Reconstructable chain across `cycle_id` → `trade_id` |
+All output files resolve dynamically via `YarTraderStorageManager` under `TradeYarStorageRoot` (`/tmp/YarTraderAI/`). Zero unauthorized runtime files escape storage policy.
 
 ---
 
-## 19. Final Status Declaration
+## 13. Acceptance Matrix
 
-**`PASS WITH LIMITATIONS` (Outcome B — Verified Limitation)**
+| Gate | Status | Evidence |
+| :--- | :--- | :--- |
+| **CODE** | `🟢 VERIFIED` | Single decision source, decision contract, journal, and learning engines |
+| **AUTOMATED TESTS** | `🟢 1,594 / 1,594 PASSED` | 100.0% pass rate across repository test suite |
+| **GATE 3** | `🟢 22 / 22 PASSED` | Fractal base detection research engine preserved and verified |
+| **SAFETY** | `🟢 VERIFIED` | `LIVE_TRADING_ENABLED=False` hard-blocked repository-wide |
+| **STORAGE** | `🟢 VERIFIED` | All paths derived via `YarTraderStorageManager` |
+| **LEARNING** | `🟢 VERIFIED` | Sample-size protection (N >= 5) and safety boundary guard |
+| **NATIVE WINDOWS MT5** | `🔴 NOT EXECUTED` | Linux container sandbox active |
+| **REAL POSITION OPEN** | `🔴 NOT PROVEN` | Real MT5 position open remains unproven without Windows host |
+| **REAL POSITION CLOSE** | `🔴 NOT PROVEN` | Real MT5 position close remains unproven without Windows host |
+| **REAL DEAL HISTORY** | `🔴 NOT PROVEN` | Real deal history query remains unproven without Windows host |
+| **REAL MT5 P&L RECONCILIATION** | `🔴 NOT PROVEN` | Real P&L reconciliation remains unproven without Windows host |
+| **REAL MT5 JOURNAL RECONCILIATION** | `🔴 NOT PROVEN` | Real journal reconciliation remains unproven without Windows host |
+| **FINAL RELEASE** | `🔴 BLOCKED` | Awaiting native Windows MT5 host execution |
 
-- **IMPLEMENTATION VERIFIED:** `PROVEN`
-- **TEST SUITE VERIFIED:** `PROVEN`
-- **SAFETY & KILL SWITCH GATES:** `PROVEN`
-- **DECISION CONTRACT & JOURNAL:** `PROVEN`
-- **LEARNING GATES & PROTECTION:** `PROVEN`
-- **FILLED DEMO TRADE (MT5 LIVE):** `NOT OBSERVED / NOT PROVEN` (Linux Sandbox Container Environment)
-- **LEARNING ADAPTATION UPDATE:** `OBSERVE ONLY / NOT ELIGIBLE` (Sample Size N < 5)
+---
+
+## 14. Final Status Declaration
+
+**`FINAL VERDICT: 🔴 FINAL GATE — BLOCKED`**
+
+Code and automated tests are release-candidate ready (`1,594 / 1,594 PASSED`). Real MT5 position open/close and deal-history reconciliation remain unproven because native Windows MT5 execution has not occurred.
