@@ -31,7 +31,7 @@ def sample_bars():
     return bars
 
 def test_base_detector_version():
-    assert Gate3BaseDetectorEngine.ALGORITHM_VERSION == "base_detector_v1.1.0"
+    assert Gate3BaseDetectorEngine.ALGORITHM_VERSION == "base_detector_v1.2.0"
 
 def test_detect_bases_at_scale(sample_bars):
     detector = Gate3BaseDetectorEngine(min_duration_bars=4, max_compression_threshold=1.5)

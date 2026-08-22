@@ -15,7 +15,7 @@ class Gate3BaseDetectorEngine:
     Strictly excludes look-ahead information from Base detection and scoring.
     """
 
-    ALGORITHM_VERSION = "base_detector_v1.1.0"
+    ALGORITHM_VERSION = "base_detector_v1.2.0"
 
     def __init__(
         self,
@@ -58,7 +58,8 @@ class Gate3BaseDetectorEngine:
     ) -> Dict[str, Any]:
         """
         Detects candidate Bases in a given bar series at a specific scale.
-        Strictly excludes partial trailing groups and uses backward-looking metrics only.
+        Strictly excludes partial trailing groups and uses 100% intra-base backward-looking metrics only.
+        Memory-optimized to handle large datasets (100,000+ bars).
         """
         # Filter out partial trailing groups
         valid_bars = [b for b in bars if not b.get("is_partial_trailing_group", False)]
@@ -71,12 +72,14 @@ class Gate3BaseDetectorEngine:
                 "valid_bar_count": len(valid_bars),
                 "partial_groups_excluded": excluded_partial_count,
                 "accepted_bases": [],
+                "rejected_count": 0,
                 "rejected_candidates": []
             }
 
         atrs = self._calculate_atr(valid_bars)
         accepted_bases = []
-        rejected_candidates = []
+        rejected_count = 0
+        sample_rejected = []
         n = len(valid_bars)
         i = 0
 
@@ -95,8 +98,8 @@ class Gate3BaseDetectorEngine:
                     local_atr = 0.0001
 
                 compression_ratio = local_range / local_atr
-                start_ts = window[0]["timestamp"]
-                end_ts = window[-1]["timestamp"]
+                start_ts = window[0].get("timestamp") or window[0].get("start_timestamp")
+                end_ts = window[-1].get("timestamp") or window[-1].get("end_timestamp")
                 closes = [b["close"] for b in window]
                 open_start = window[0]["open"]
                 close_end = window[-1]["close"]
@@ -119,27 +122,13 @@ class Gate3BaseDetectorEngine:
                         internal_movement_count += 1
                         direction = -1
 
-                # INTRA-BASE STRICTLY BACKWARD-LOOKING DETECTION SCORE & CONFIDENCE
+                # INTRA-BASE STRICTLY BACKWARD-LOOKING DETECTION SCORE & CONFIDENCE (NO LOOKAHEAD)
                 tightness_score = max(0.0, 1.0 - (compression_ratio / self.max_compression_threshold))
                 duration_score = min(1.0, length / 20.0)
                 detection_score = round(min(1.0, 0.6 * tightness_score + 0.4 * duration_score), 4)
                 confidence = round(min(1.0, 0.5 * detection_score + 0.5 * (1.0 - min(1.0, std_close / (local_range or 1.0)))), 4)
 
                 is_accepted = compression_ratio <= self.max_compression_threshold
-
-                # Post-base transition observation (strictly separate, non-scoring)
-                post_breakout = False
-                post_expansion = 0.0
-                lookahead_start = i + length
-                for j in range(lookahead_start, min(n, lookahead_start + 20)):
-                    ahead_bar = valid_bars[j]
-                    dist = abs(ahead_bar["close"] - local_mid)
-                    if local_range > 0:
-                        exp = dist / local_range
-                        if exp > post_expansion:
-                            post_expansion = exp
-                    if ahead_bar["close"] > local_high or ahead_bar["close"] < local_low:
-                        post_breakout = True
 
                 candidate_record = {
                     "base_id": f"base_{scale_label}_{start_ts}_{length}",
@@ -170,10 +159,6 @@ class Gate3BaseDetectorEngine:
                         "eligible_child": True,
                         "scale_family": family
                     },
-                    "post_transition_characteristics": {
-                        "post_breakout_observed": post_breakout,
-                        "post_max_expansion_ratio": round(post_expansion, 5)
-                    },
                     "detection_score": detection_score,
                     "confidence": confidence,
                     "status": "ACCEPTED_BASE" if is_accepted else "REJECTED_CANDIDATE",
@@ -186,11 +171,12 @@ class Gate3BaseDetectorEngine:
                 }
 
                 if is_accepted:
-                    # Choose candidate with highest detection_score
                     if best_candidate is None or candidate_record["detection_score"] > best_candidate["detection_score"]:
                         best_candidate = candidate_record
                 else:
-                    rejected_candidates.append(candidate_record)
+                    rejected_count += 1
+                    if len(sample_rejected) < 10:
+                        sample_rejected.append(candidate_record)
 
             if best_candidate:
                 accepted_bases.append(best_candidate)
@@ -204,7 +190,8 @@ class Gate3BaseDetectorEngine:
             "valid_bar_count": len(valid_bars),
             "partial_groups_excluded": excluded_partial_count,
             "accepted_bases": accepted_bases,
-            "rejected_candidates": rejected_candidates
+            "rejected_count": rejected_count,
+            "rejected_candidates": sample_rejected
         }
 
     def detect_multiscale_bases(
@@ -220,11 +207,12 @@ class Gate3BaseDetectorEngine:
         total_rejected = 0
         total_partials_excluded = 0
 
-        for scale_label, bar_series in scale_family_map.items():
-            res = self.detect_bases_at_scale(bar_series, scale_label=scale_label, family=family)
-            results_by_scale[scale_label] = res
+        for scale_key, bar_series in scale_family_map.items():
+            label = f"x{scale_key}" if isinstance(scale_key, int) or (isinstance(scale_key, str) and scale_key.isdigit()) else str(scale_key)
+            res = self.detect_bases_at_scale(bar_series, scale_label=label, family=family)
+            results_by_scale[label] = res
             total_accepted += len(res["accepted_bases"])
-            total_rejected += len(res["rejected_candidates"])
+            total_rejected += res["rejected_count"]
             total_partials_excluded += res["partial_groups_excluded"]
 
         return {

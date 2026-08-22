@@ -81,10 +81,17 @@ def main():
             "DATA_CLASSIFICATION": "REAL_DATA_UNAVAILABLE",
             "message": "Gate 3 execution halted. Authentic MT4/MT5 historical market dataset unavailable."
         }
+        persian_halt = {
+            "عنوان": "گزارش کشف فاز ۳ — عدم دسترسی به داده واقعی",
+            "ارزیابی_کلی": "REAL_DATA_UNAVAILABLE",
+            "توضیح_فارسی": "داده واقعی بازار در دسترس نیست. طبق ضوابط دروازه راستی‌آزمایی، اجرای تحقیق متوقف شد."
+        }
         with open(os.path.join(out_dir, "Gate3_BaseDetectionReport_REAL.json"), "w", encoding="utf-8") as f:
             json.dump(report_halt, f, indent=2)
         with open(os.path.join(out_dir, "BaseDetectionReport_REAL.json"), "w", encoding="utf-8") as f:
             json.dump(report_halt, f, indent=2)
+        with open(os.path.join(out_dir, "Gate3_PersianForensicReport_REAL.json"), "w", encoding="utf-8") as f:
+            json.dump(persian_halt, f, ensure_ascii=False, indent=2)
         return
 
     selected_file = selection_report.get("selected_filepath")
