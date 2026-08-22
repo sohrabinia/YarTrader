@@ -235,6 +235,16 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         actual_open_price = float(matched_pos.get("price_open", ask))
 
     # PHASE 2: REAL MT5 CLOSE
+    trade_request_data = {
+        "symbol": actual_symbol,
+        "type": "CLOSE",
+        "volume": actual_volume,
+        "price": actual_open_price,
+        "position": int(actual_pos_ticket),
+        "filling_mode": "FOK"
+    }
+    save_artifact("14_trade_request.json", trade_request_data)
+
     close_req = OrderRequest(
         Symbol=actual_symbol,
         OrderType="CLOSE",

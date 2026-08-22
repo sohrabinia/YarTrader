@@ -36,14 +36,22 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         try:
             import MetaTrader5 as mt5
             self._mt5 = mt5
-            if self._mt5.initialize():
+            if self._mt5.initialize() and self._mt5.account_info() is not None:
                 self._initialized = True
                 logger.info("[RealMT5BrokerAdapter] MetaTrader5 initialized successfully.")
                 return True
-            else:
-                err = self._mt5.last_error()
-                logger.warning(f"[RealMT5BrokerAdapter] MT5 initialize failed: {err}")
-                return False
+
+            # Fallback to explicit terminal path if standard initialize has no IPC connection
+            import os
+            default_path = r"C:\Program Files\MetaTrader 5\terminal64.exe"
+            if os.path.exists(default_path) and self._mt5.initialize(default_path):
+                self._initialized = True
+                logger.info(f"[RealMT5BrokerAdapter] MetaTrader5 initialized via path: {default_path}")
+                return True
+
+            err = self._mt5.last_error()
+            logger.warning(f"[RealMT5BrokerAdapter] MT5 initialize failed: {err}")
+            return False
         except ImportError:
             logger.warning("[RealMT5BrokerAdapter] MetaTrader5 Python package not available.")
             return False
