@@ -134,9 +134,82 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.ORDER_FILLING_RETURN = 2
 
         sym_info_btc = MagicMock()
-        sym_info_btc.filling_mode = 1
+        sym_info_btc.filling_mode = 1  # SYMBOL_FILLING_FOK
         mode_btc = self.adapter._resolve_filling_mode(mock_mt5, "BITCOIN", sym_info_btc)
-        self.assertEqual(mode_btc, 0)
+        self.assertEqual(mode_btc, 0)  # ORDER_FILLING_FOK
+
+        sym_info_ioc = MagicMock()
+        sym_info_ioc.filling_mode = 2  # SYMBOL_FILLING_IOC
+        mode_ioc = self.adapter._resolve_filling_mode(mock_mt5, "EURUSD", sym_info_ioc)
+        self.assertEqual(mode_ioc, 1)  # ORDER_FILLING_IOC
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_bitcoin_runtime_filling_mapping(self, mock_verify):
+        mock_mt5 = MagicMock()
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TYPE_SELL = 1
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.POSITION_TYPE_BUY = 0
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+
+        mock_sym = MagicMock()
+        mock_sym.visible = True
+        mock_sym.volume_min = 0.01
+        mock_sym.volume_step = 0.01
+        mock_sym.volume_max = 100.0
+        mock_sym.filling_mode = 1  # BITCOIN filling_mode = 1 (SYMBOL_FILLING_FOK)
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        mock_tick = MagicMock()
+        mock_tick.bid = 65000.0
+        mock_tick.ask = 65050.0
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        mock_pos = MagicMock()
+        mock_pos.type = 0  # BUY
+        mock_mt5.positions_get.return_value = [mock_pos]
+
+        mock_check = MagicMock()
+        mock_check.retcode = 0
+        mock_mt5.order_check.return_value = mock_check
+
+        mock_res = MagicMock()
+        mock_res.retcode = 10009
+        mock_res.order = 368555219
+        mock_res.deal = 9999999
+        mock_res.price = 65000.0
+        mock_res.volume = 0.01
+        mock_res.comment = "Success"
+        mock_res._asdict.return_value = {"retcode": 10009, "order": 368555219}
+        mock_mt5.order_send.return_value = mock_res
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        req = OrderRequest(
+            Symbol="BITCOIN",
+            OrderType="CLOSE",
+            Volume=0.01,
+            PositionTicket=368555219
+        )
+
+        resp = self.adapter.send_order_to_broker(req)
+
+        self.assertEqual(resp.Status, "Placed")
+        self.assertEqual(resp.OrderId, "368555219")
+        mock_mt5.order_check.assert_called_once()
+        trade_req_checked = mock_mt5.order_check.call_args[0][0]
+        self.assertEqual(trade_req_checked["symbol"], "BITCOIN")
+        self.assertEqual(trade_req_checked["position"], 368555219)
+        self.assertEqual(trade_req_checked["type"], 1)
+        self.assertEqual(trade_req_checked["type_filling"], 0)  # ORDER_FILLING_FOK
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_close_buy_generates_sell_request(self, mock_verify):
@@ -438,7 +511,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
-        mock_sym.filling_mode = 2  # IOC supported
+        mock_sym.filling_mode = 2  # SYMBOL_FILLING_IOC (bit 1 = 2)
         mock_mt5.symbol_info.return_value = mock_sym
 
         mock_tick = MagicMock()
@@ -472,7 +545,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.adapter.send_order_to_broker(req)
 
         trade_req_sent = mock_mt5.order_send.call_args[0][0]
-        self.assertEqual(trade_req_sent["type_filling"], 1)  # IOC resolved
+        self.assertEqual(trade_req_sent["type_filling"], 1)  # ORDER_FILLING_IOC resolved (1)
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_order_check_none_blocks_send(self, mock_verify):

@@ -188,11 +188,11 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         f_mode = getattr(sym_info, "filling_mode", None) if sym_info else None
         if f_mode is not None and isinstance(f_mode, int):
-            if f_mode & 1:  # FOK supported
+            if f_mode & 1:  # SYMBOL_FILLING_FOK bit 0 set (1) -> ORDER_FILLING_FOK (0)
                 return fok_code
-            if f_mode & 2:  # IOC supported
+            if f_mode & 2:  # SYMBOL_FILLING_IOC bit 1 set (2) -> ORDER_FILLING_IOC (1)
                 return ioc_code
-            if f_mode & 4:  # RETURN supported
+            if f_mode & 4:  # SYMBOL_FILLING_RETURN bit 2 set (4) -> ORDER_FILLING_RETURN (2)
                 return return_code
 
         # Default fallback preference: FOK -> IOC
@@ -280,9 +280,20 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if request.TakeProfit and request.TakeProfit > 0:
             trade_req["tp"] = float(request.TakeProfit)
 
-        # Debug logging before order_check
+        # Debug and forensic logging before order_check
+        pos_id = trade_req.get("position", None)
         logger.info(f"[MT5 DEBUG] symbol={request.Symbol} symbol_filling_flags={getattr(sym_info, 'filling_mode', None)} resolved_filling={filling_mode}")
-        logger.info(f"[MT5 DEBUG] trade_req before order_check: {trade_req}")
+        logger.info(
+            f"[MT5 CLOSE FORENSIC]\n"
+            f"symbol: {request.Symbol}\n"
+            f"position: {pos_id}\n"
+            f"type: {mt5_action_type}\n"
+            f"volume: {volume}\n"
+            f"price: {price}\n"
+            f"symbol.filling_mode: {getattr(sym_info, 'filling_mode', None)}\n"
+            f"resolved_filling: {filling_mode}\n"
+            f"trade_req: {trade_req}"
+        )
 
         # 4. Check Order with Fail-Closed Safety
         check_res = mt5.order_check(trade_req)
