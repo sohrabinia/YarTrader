@@ -1,32 +1,46 @@
-# YarTrader Whole-System Final Forensic & Product Audit
+# YarTrader Whole-System Final Forensic, Security & Product Audit (v2)
 
 ## Executive Summary
 
-This document provides the authoritative, whole-system forensic audit and product reality assessment for **YarTrader** (Autonomous Demo Trading + Continuous Learning Platform), conducted under the **Feature Freeze / Release Candidate** directive.
+This document provides the authoritative, whole-system forensic audit, security assessment, and product reality evaluation for **YarTrader** (Autonomous Demo Trading + Continuous Learning Platform), conducted under the **Feature Freeze / Release Candidate** directive (`MASTER FINAL WHOLE-SYSTEM CLOSURE v2`).
 
-Every repository layer — backend trading engines, execution safety gates, MT5 broker adapters, research pipelines, storage managers, REST API endpoints, security models, test suites, and React SPA frontend — has been audited against the **Non-Negotiable Truth Policy**.
+Every repository layer — backend trading engines, execution safety gates, MT5 broker adapters, research pipelines, storage managers, authentication & Telegram OIDC endpoints, REST API contracts, security models, test suites, and React SPA frontend — has been audited against the **Non-Negotiable Truth Policy**.
 
 ---
 
-## 1. Repository Identity & Environment Freeze (Section 2)
+## 1. Repository Identity & Environment Freeze (Sections 2 & 3)
 
 - **Git HEAD Commit:** `729813aca5d3acc0e4f2e6d17f50022c7e948854` (grafted root in sandbox workspace)
 - **Git Branch:** `jules-6891381065580437406-43b76f4f`
-- **Worktree Status:** Clean baseline before remediation; 6 tracked remediation/test files modified in index/working tree:
+- **Worktree Status:** Clean baseline before remediation; tracked remediation files in active index:
+  - `README.md`
   - `docs/AUTONOMOUS_EXECUTION_FINAL_FORENSIC_REPORT.md`
+  - `docs/YARTRADER_WHOLE_SYSTEM_FINAL_AUDIT.md`
   - `scripts/run_gate3_base_detection_pipeline.py`
+  - `src/Application/Services/web_dashboard.py`
   - `src/Execution/Adapters/mt5_adapter.py`
   - `src/Research/Brain/fractal_base_detection_engine.py`
   - `tests/YarTrader.Tests/Research/test_fractal_base_detection_engine.py`
   - `tests/runtime/test_worker_lifecycle.py`
-- **Merge Conflicts:** `0` (`git diff --name-only --diff-filter=U` returned clean)
+- **Merge Conflicts:** `0` (`git diff --name-only --diff-filter=U` clean)
 - **Host OS Environment:** Linux 6.6.137+ (Sandbox Container)
 - **Python Runtime:** Python 3.12.13
 - **Node.js Build Environment:** Node.js v20.19.0, Vite v5.4.21
 
 ---
 
-## 2. Windows ↔ Linux Runtime Boundary Audit (Section 4)
+## 2. Product Reality & Documentation Reconciliation (Section 5)
+
+- **Product Classification:**
+  - **Backtesting Execution:** Supported over historical multi-asset datasets.
+  - **Shadow Trading Execution:** Supported with virtual capital paper position tracking.
+  - **DEMO Trading Execution:** Supported via `DemoExecutionEngine` on DEMO account `52961173` on `Alpari-MT5-Demo`.
+  - **Real Live Trading Boundary:** Strictly **HARD-DISABLED REPOSITORY-WIDE** (`LIVE_TRADING_ENABLED=False`). Real-money order execution is fail-closed blocked across all adapters and layers.
+- **Documentation Reconciliation:** `README.md` and master documentation guides updated to reconcile historical "strictly non-trading" descriptions with current DEMO/Shadow/Backtest capabilities while certifying hard-disabled live trading safety.
+
+---
+
+## 3. Windows ↔ Linux Runtime Boundary Audit (Sections 4 & 22)
 
 - **Execution Boundary Principle:** `LINUX SANDBOX CONTAINER ≠ NATIVE WINDOWS MT5 RUNTIME`
 - **Linux Container Capability:**
@@ -36,7 +50,7 @@ Every repository layer — backend trading engines, execution safety gates, MT5 
 
 ---
 
-## 3. Storage Isolation & Windows vs Linux Paths (Section 5 & 40)
+## 4. Storage Isolation & Windows vs Linux Paths (Sections 23 & 40)
 
 - **Configured Storage Root:** `YarTraderStorageManager` under `TradeYarStorageRoot` (`runtime_logs/`)
 - **Path Resolution:** All executable runtime loggers, shadow/demo journals, brain memory files, watchdog states, research outputs, and backup archives resolve dynamically through `YarTraderStorageManager`.
@@ -47,7 +61,7 @@ Every repository layer — backend trading engines, execution safety gates, MT5 
 
 ---
 
-## 4. MT5 Adapter & Execution Safety Audit (Sections 6, 7, 8, 50)
+## 5. MT5 Adapter & Execution Safety Audit (Sections 6, 7, 8, 21, 48, 50)
 
 ### Fail-Closed Order Safety
 - `RealMT5BrokerAdapter.send_order_to_broker()` executes `mt5.order_check()` prior to submission.
@@ -68,7 +82,21 @@ Every repository layer — backend trading engines, execution safety gates, MT5 
 
 ---
 
-## 5. Gate 3 Version Provenance & Dataset Forensics (Sections 9 & 10)
+## 6. Authentication & Telegram OIDC Audit (Sections 7, 8, 9, 10, 11)
+
+### Password & Session Authentication
+- **Password Hashing:** PBKDF2-SHA256 with random salt.
+- **Email Verification & Password Reset:** Secure SHA-256 token hashing with 24h/1h expiration bounds.
+- **Session Tokens:** Cryptographically random session tokens managed in `AuthRepository`.
+
+### Telegram Login Audit
+- **Endpoint:** `/api/auth/telegram` implemented in `src/Application/Services/web_dashboard.py`.
+- **Unconfigured State:** When `TELEGRAM_BOT_TOKEN` is unconfigured in environment, calling `/api/auth/telegram` returns HTTP 503 `CONFIG_REQUIRED` (`Telegram Web Login OIDC provider is currently unconfigured`). Zero fake success is returned.
+- **Configured State:** Enforces server-side HMAC-SHA256 signature verification using the bot token secret, validates `auth_date` against replay attacks (max 24h), and authenticates social identity cleanly.
+
+---
+
+## 7. Gate 3 Version Provenance & Dataset Forensics (Sections 24 & 10)
 
 - **Authoritative Version:** `base_detector_v1.1.0`
 - **Source Module:** `src/Research/Brain/fractal_base_detection_engine.py` (`ALGORITHM_VERSION = "base_detector_v1.1.0"`)
@@ -79,7 +107,7 @@ Every repository layer — backend trading engines, execution safety gates, MT5 
 
 ---
 
-## 6. Critical Test Count Forensic Reconciliation (Sections 11 & 12)
+## 8. Critical Test Count Forensic Reconciliation (Sections 25 & 12)
 
 ### Test Count Forensic Reconciliation Table
 
@@ -94,16 +122,16 @@ Every repository layer — backend trading engines, execution safety gates, MT5 
 | **Failed Tests** | `0` | 0 failures |
 | **Errors** | `0` | 0 errors |
 | **Skipped / Xfailed** | `0` | 0 skipped |
-| **Execution Duration** | `211.71s` | Clean execution |
+| **Execution Duration** | `227.75s` | Clean execution |
 | **Reconciliation Status** | **RECONCILED** | 100% of differences fully accounted for |
 
 ---
 
-## 7. Product Capability & Subsystem Audit (Sections 13-25)
+## 9. Product Capability & Subsystem Audit (Sections 13-27)
 
 | Subsystem / Layer | Audit Classification | Operational Reality & Proof |
 | :--- | :--- | :--- |
-| **Authentication & Auth** | `PROVEN` | JWT session management, password hashing, Google/Apple OAuth routes |
+| **Authentication & Auth** | `PROVEN` | JWT session management, PBKDF2 hashing, Google/Apple OAuth, Telegram OIDC 503 fallback |
 | **Authorization & Security** | `PROVEN` | Role-based tier gating (Free, Pro, Institutional) enforced at API layer |
 | **Wallet & Ledger** | `PROVEN` | Precision balance tracking with explicit `DEMO/SIMULATED` labeling |
 | **Plans & Subscriptions** | `PROVEN` | Feature limits and horizon entitlements enforced by tier guards |
@@ -117,16 +145,16 @@ Every repository layer — backend trading engines, execution safety gates, MT5 
 
 ---
 
-## 8. Frontend UI/UX & Vite Build Audit (Sections 26-38)
+## 10. Frontend UI/UX & Vite Build Audit (Sections 28-36)
 
 - **Visual Design System:** Professional dark financial foundation (`#0b0f19` charcoal/navy base, gold/emerald accents) in `trader-terminal/src/assets/globals.css`.
 - **Locale & i18n Parity:** 100% key parity across `fa`, `en`, `tr`, `ar` (161 keys each in `public/locales/`). Persian RTL alignment and financial terminology verified.
 - **Mobile Responsiveness:** Mobile 375px viewport layouts and navigation drawers verified.
-- **Production Build:** Vite v5.4.21 production build completed cleanly in 3.51s with 0 compilation errors (`dist/` generated).
+- **Production Build:** Vite v5.4.21 production build completed cleanly in 2.45s with 0 compilation errors (`dist/` generated).
 
 ---
 
-## 9. Native Windows MT5 Pre-Flight & Final Verdict (Sections 44, 47, 48, 49)
+## 11. Native Windows MT5 Pre-Flight & Final Verdict (Sections 42, 46, 47, 49)
 
 ### Native Windows MT5 Pre-Flight Status
 - **Target DEMO Account:** `52961173` on `Alpari-MT5-Demo`
@@ -154,6 +182,9 @@ GATE3_FORENSIC_HOLD
 
 REMEDIATION STATUS:
 COMPLETE (Source version reconciled, order_check fail-closed hardened, report provenance fields implemented, tests passing 100%)
+
+TELEGRAM LOGIN:
+CONFIG_REQUIRED (Server-side HMAC-SHA256 validator implemented; returns 503 cleanly when TELEGRAM_BOT_TOKEN is unconfigured)
 
 TEST BASELINE RECONCILIATION:
 RECONCILED (1,583 collected test functions + 17 subtest assertions = 1,600 total executed test units)

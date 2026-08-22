@@ -240,8 +240,21 @@ def test_fastapi_growth_endpoints():
     assert r3.json()["status"] == "Submitted to Approval Queue"
     content_id = r3.json()["items"][0]["content_id"]
 
-    # Approve item
-    r4 = client.post("/api/growth/content/approve", json={
+    # Approve item without token -> must be rejected with 401
+    r4_unauth = client.post("/api/growth/content/approve", json={
+        "content_id": content_id,
+        "approver": "Dr. Aras Noori"
+    })
+    assert r4_unauth.status_code == 401
+
+    # Approve item with valid ADMIN token -> 200 Success
+    from src.Application.Dashboard.auth_service import global_auth_service
+    admin_token = global_auth_service.create_session({
+        "email": "admin@yartrader.app",
+        "role": "ADMIN",
+        "name": "Dr. Aras Noori"
+    })
+    r4 = client.post(f"/api/growth/content/approve?token={admin_token}", json={
         "content_id": content_id,
         "approver": "Dr. Aras Noori"
     })

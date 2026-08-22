@@ -4772,6 +4772,66 @@ def register_user(payload: RegisterPayload):
         }
     }
 
+@app.post("/api/auth/telegram")
+def login_with_telegram(payload: Dict[str, Any], request: Request):
+    """
+    Telegram Web Login / Auth Callback.
+    Validates Telegram authentication data using bot token HMAC-SHA256 or returns 503 CONFIG_REQUIRED if unconfigured.
+    Never returns fake success.
+    """
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not bot_token:
+        raise HTTPException(
+            status_code=503,
+            detail="Telegram Web Login OIDC provider is currently unconfigured. Requires TELEGRAM_BOT_TOKEN environment variable."
+        )
+
+    import hmac
+    import hashlib
+    auth_data = payload.copy()
+    check_hash = auth_data.pop("hash", None)
+    if not check_hash:
+        raise HTTPException(status_code=400, detail="Missing required Telegram authentication hash.")
+
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(auth_data.items()))
+    secret_key = hashlib.sha256(bot_token.encode("utf-8")).digest()
+    calculated_hash = hmac.new(secret_key, data_check_string.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(calculated_hash, check_hash):
+        raise HTTPException(status_code=401, detail="Invalid Telegram authentication signature.")
+
+    # Check auth_date for replay protection (max 24h)
+    auth_date = int(auth_data.get("auth_date", 0))
+    if time.time() - auth_date > 86400:
+        raise HTTPException(status_code=401, detail="Telegram authentication data has expired.")
+
+    telegram_id = str(auth_data.get("id"))
+    first_name = auth_data.get("first_name", "")
+    username = auth_data.get("username", "")
+    email = f"telegram_{telegram_id}@yartrader.app"
+
+    user = global_auth_service.authenticate_social(
+        email=email,
+        provider="telegram",
+        provider_id=telegram_id,
+        name=first_name or username
+    )
+    client_host = request.client.host if request.client else None
+    forwarded_for = request.headers.get("x-forwarded-for")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
+    user_agent = request.headers.get("user-agent", "Unknown")
+
+    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
+    return {
+        "status": "Success",
+        "session_token": token,
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"]
+        }
+    }
+
 @app.post("/api/auth/login")
 def login_user(payload: LoginPayload, request: Request):
     """Secure credentials login returning an active session token."""
