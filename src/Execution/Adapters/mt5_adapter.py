@@ -161,6 +161,33 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             "volume": getattr(tick, "volume", 0),
         }
 
+    def _sanitize_comment(self, comment: Optional[str]) -> str:
+        """Sanitizes comment to safe short ASCII string (max 31 chars)."""
+        if not comment:
+            return "YarTrader DEMO"
+        ascii_str = "".join(c for c in str(comment) if ord(c) < 128)
+        clean_str = "".join(c for c in ascii_str if c.isalnum() or c in " -_.")
+        sanitized = clean_str[:31].strip()
+        return sanitized or "YarTrader DEMO"
+
+    def _resolve_filling_mode(self, mt5: Any, symbol: str, sym_info: Any) -> int:
+        """Deterministically resolves supported MT5 filling mode for symbol."""
+        fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)
+        ioc_code = getattr(mt5, "ORDER_FILLING_IOC", 1)
+        return_code = getattr(mt5, "ORDER_FILLING_RETURN", 2)
+
+        f_mode = getattr(sym_info, "filling_mode", None) if sym_info else None
+        if f_mode is not None and isinstance(f_mode, int):
+            if f_mode & 1:  # FOK supported
+                return fok_code
+            if f_mode & 2:  # IOC supported
+                return ioc_code
+            if f_mode & 4:  # RETURN supported
+                return return_code
+
+        # Default fallback preference: FOK -> IOC
+        return fok_code
+
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
         """
         Sends order to real MT5 terminal via mt5.order_send().
@@ -217,6 +244,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if vol_step > 0:
             volume = round(round(volume / vol_step) * vol_step, 4)
 
+        # Sanitize comment and resolve filling mode
+        sanitized_comment = self._sanitize_comment(request.Comment)
+        filling_mode = self._resolve_filling_mode(mt5, request.Symbol, sym_info)
+
         # Build MT5 order request structure
         trade_req = {
             "action": mt5.TRADE_ACTION_DEAL,
@@ -226,9 +257,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             "price": float(price),
             "deviation": request.Deviation,
             "magic": request.Magic,
-            "comment": request.Comment,
+            "comment": sanitized_comment,
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
+            "type_filling": filling_mode,
         }
 
         if request.OrderType.upper() == "CLOSE" and request.PositionTicket:

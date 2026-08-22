@@ -135,6 +135,33 @@ def test_order_check_fail_closed():
     assert mock_mt5.order_send.call_count == 0
 
 
+def test_comment_sanitization():
+    adapter = RealMT5BrokerAdapter(auto_initialize=False)
+    comment = "YarTrader DEMO XAUUSD — Very Long Comment Over 31 Chars! 🚀"
+    sanitized = adapter._sanitize_comment(comment)
+    assert len(sanitized) <= 31
+    assert "YarTrader DEMO XAUUSD" in sanitized
+    assert "🚀" not in sanitized
+
+
+def test_resolve_filling_mode():
+    adapter = RealMT5BrokerAdapter(auto_initialize=False)
+    mock_mt5 = MagicMock()
+    mock_mt5.ORDER_FILLING_FOK = 0
+    mock_mt5.ORDER_FILLING_IOC = 1
+    mock_mt5.ORDER_FILLING_RETURN = 2
+
+    # Case A: FOK supported (bitmask 1)
+    sym_info_fok = MagicMock(filling_mode=1)
+    mode_fok = adapter._resolve_filling_mode(mock_mt5, "BITCOIN", sym_info_fok)
+    assert mode_fok == 0
+
+    # Case B: IOC supported (bitmask 2)
+    sym_info_ioc = MagicMock(filling_mode=2)
+    mode_ioc = adapter._resolve_filling_mode(mock_mt5, "EURUSD", sym_info_ioc)
+    assert mode_ioc == 1
+
+
 def test_order_check_success_allows_order_send():
     adapter = RealMT5BrokerAdapter(auto_initialize=False)
     adapter._initialized = True

@@ -285,46 +285,11 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
     # Find matching journal record
     matched_journal = None
     for r in journal_records:
-        if str(r.order_ticket) == str(actual_pos_ticket) or str(r.symbol).upper() == actual_symbol.upper():
+        if str(r.order_ticket) == str(actual_pos_ticket) or (str(r.symbol).upper() == actual_symbol.upper() and str(r.trade_id) == f"TR-{actual_pos_ticket}"):
             matched_journal = r
             break
 
-    # If no journal record exists, create/update journal record for this DEMO execution facts to allow truthfulness audit
-    if not matched_journal:
-        matched_journal = TradeJournalRecord(
-            decision_id=f"DEC-DEMO-{actual_symbol}-{actual_pos_ticket}",
-            trade_id=f"TR-{actual_pos_ticket}",
-            cycle_id=f"cyc-DEMO-{actual_symbol}",
-            symbol=actual_symbol,
-            timeframe="M15",
-            direction="BUY",
-            planned_entry=actual_open_price,
-            planned_sl=actual_open_price * 0.99,
-            planned_tp=actual_open_price * 1.02,
-            planned_rr=2.0,
-            actual_entry=actual_open_price,
-            actual_exit=actual_close_price,
-            volume=actual_volume,
-            confidence=85.0,
-            reasoning=["Real MT5 DEMO Execution"],
-            evidence={"position_ticket": actual_pos_ticket},
-            order_ticket=actual_pos_ticket,
-            deal_ticket=str(open_deal.get("deal", "0")),
-            open_time=str(open_deal.get("time")),
-            close_time=str(close_deal.get("time")),
-            exit_reason="Position Closed",
-            pnl=net_pnl,
-            pnl_percent=round((net_pnl / 10000.0) * 100.0, 4),
-            mfe=abs(actual_close_price - actual_open_price),
-            mae=0.0,
-            duration=30.0,
-            market_regime="DEMO_EXECUTION",
-            result="WIN" if net_pnl >= 0 else "LOSS",
-            configuration_version="1.2.0"
-        )
-        journal_mgr.add_record(matched_journal)
-
-    # Reconcile field-by-field
+    # Truthful P&L Reconciliation: Requires EXISTING journal record without synthetic generation
     is_reconciled, recon_msg = reconcile_pnl(mt5_metrics, matched_journal)
     if is_reconciled:
         add_evidence("P&L Reconciliation", "PROVEN", recon_msg)
