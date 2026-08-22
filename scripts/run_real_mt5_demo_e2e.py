@@ -235,13 +235,14 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         actual_open_price = float(matched_pos.get("price_open", ask))
 
     # PHASE 2: REAL MT5 CLOSE
+    close_action_type = 1 if matched_pos.get("type", 0) == 0 else 0
     trade_request_data = {
-        "action": "TRADE_ACTION_DEAL",
+        "action": 1,
         "symbol": actual_symbol,
         "position": int(actual_pos_ticket),
-        "type": "SELL" if matched_pos.get("type", 0) == 0 else "BUY",
+        "type": close_action_type,
         "volume": actual_volume,
-        "type_filling": "FOK"
+        "comment": f"YarTrader Real DEMO Close {actual_symbol}"
     }
     save_artifact("14_trade_request.json", trade_request_data)
 
@@ -255,17 +256,20 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
 
     close_resp = adapter.send_order_to_broker(close_req)
     save_artifact("15_order_check.json", {
+        "status": close_resp.Status,
         "retcode": close_resp.Retcode,
         "comment": close_resp.Comment,
         "raw_response": close_resp.RawResponse
     })
     save_artifact("16_close_order_send.json", {
+        "status": close_resp.Status,
         "order_ticket": close_resp.OrderId,
         "deal_ticket": close_resp.DealTicket,
         "retcode": close_resp.Retcode,
         "price": close_resp.Price,
         "volume": close_resp.Volume,
-        "comment": close_resp.Comment
+        "comment": close_resp.Comment,
+        "raw_response": close_resp.RawResponse
     })
 
     if close_resp.Status != "Placed":

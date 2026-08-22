@@ -280,28 +280,47 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if request.TakeProfit and request.TakeProfit > 0:
             trade_req["tp"] = float(request.TakeProfit)
 
-        # Debug and forensic logging before order_check
-        pos_id = trade_req.get("position", None)
-        logger.info(f"[MT5 DEBUG] symbol={request.Symbol} symbol_filling_flags={getattr(sym_info, 'filling_mode', None)} resolved_filling={filling_mode}")
-        logger.info(
-            f"[MT5 CLOSE FORENSIC]\n"
-            f"symbol: {request.Symbol}\n"
-            f"position: {pos_id}\n"
-            f"type: {mt5_action_type}\n"
-            f"volume: {volume}\n"
-            f"price: {price}\n"
-            f"symbol.filling_mode: {getattr(sym_info, 'filling_mode', None)}\n"
-            f"resolved_filling: {filling_mode}\n"
-            f"trade_req: {trade_req}"
-        )
+        # Build candidate filling modes (preferred resolved mode first, then remaining)
+        fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)
+        ioc_code = getattr(mt5, "ORDER_FILLING_IOC", 1)
+        return_code = getattr(mt5, "ORDER_FILLING_RETURN", 2)
+        candidates = [filling_mode]
+        for mode_opt in [fok_code, ioc_code, return_code]:
+            if mode_opt not in candidates:
+                candidates.append(mode_opt)
 
-        # 4. Check Order with Fail-Closed Safety
-        check_res = mt5.order_check(trade_req)
-        check_retcode = getattr(check_res, "retcode", -1) if check_res is not None else -1
-        check_comment = getattr(check_res, "comment", "order_check returned None") if check_res is not None else "order_check returned None"
+        pos_id = trade_req.get("position", None)
+        import json
+        last_err_before = mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
+        logger.info(f"[MT5 CLOSE FORENSIC] trade_req={json.dumps(trade_req, default=str)}")
+        logger.info(f"[MT5 CLOSE FORENSIC] last_error_before_check={last_err_before}")
+
+        # 4. Check Order with Fail-Closed Safety across filling candidates
+        check_res = None
+        check_retcode = -1
+        check_comment = "order_check returned None"
+
+        for cand_filling in candidates:
+            trade_req["type_filling"] = cand_filling
+            res_cand = mt5.order_check(trade_req)
+            last_err_after = mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
+            logger.info(f"[MT5 CLOSE FORENSIC] filling_mode_candidate={cand_filling} order_check_result={res_cand} last_error_after_check={last_err_after}")
+
+            cand_retcode = getattr(res_cand, "retcode", -1) if res_cand is not None else -1
+            if res_cand is not None and cand_retcode in [0, 10009]:
+                check_res = res_cand
+                check_retcode = cand_retcode
+                check_comment = getattr(res_cand, "comment", "OK")
+                filling_mode = cand_filling
+                logger.info(f"[RealMT5BrokerAdapter] order_check PASSED with candidate filling_mode={cand_filling}")
+                break
+            else:
+                if res_cand is not None:
+                    check_res = res_cand
+                    check_retcode = cand_retcode
+                    check_comment = getattr(res_cand, "comment", f"retcode {cand_retcode}")
 
         # Valid order_check success retcodes: 0, 10009 (TRADE_RETCODE_DONE).
-        # Retcode 10013 (TRADE_RETCODE_INVALID) is treated as an order_check failure.
         if check_res is None or check_retcode not in [0, 10009]:
             logger.warning(
                 f"[RealMT5BrokerAdapter] order_check failed "
@@ -320,7 +339,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                     if check_res is not None and hasattr(check_res, "_asdict")
                     else {
                         "retcode": check_retcode,
-                        "comment": check_comment
+                        "comment": check_comment,
+                        "trade_req": trade_req,
+                        "last_error": mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
                     }
                 )
             )

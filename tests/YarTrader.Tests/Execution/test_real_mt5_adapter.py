@@ -568,7 +568,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_tick.ask = 2300.80
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
-        # order_check returns None
+        # order_check returns None for all candidate attempts
         mock_mt5.order_check.return_value = None
 
         self.adapter._mt5 = mock_mt5
@@ -585,6 +585,194 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertEqual(resp.Status, "Failed")
         self.assertEqual(resp.OrderId, "0")
         mock_mt5.order_send.assert_not_called()
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_close_order_filling_fallback(self, mock_verify):
+        mock_mt5 = MagicMock()
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TYPE_SELL = 1
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.ORDER_FILLING_IOC = 1
+        mock_mt5.ORDER_FILLING_RETURN = 2
+        mock_mt5.POSITION_TYPE_BUY = 0
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+
+        mock_sym = MagicMock()
+        mock_sym.visible = True
+        mock_sym.volume_min = 0.01
+        mock_sym.volume_step = 0.01
+        mock_sym.volume_max = 100.0
+        mock_sym.filling_mode = 1  # FOK preferred
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        mock_tick = MagicMock()
+        mock_tick.bid = 65000.0
+        mock_tick.ask = 65050.0
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        mock_pos = MagicMock()
+        mock_pos.type = 0  # BUY
+        mock_mt5.positions_get.return_value = [mock_pos]
+
+        # First candidate (FOK) returns 10030 (unsupported filling), second candidate (IOC) returns 0 (success)
+        fail_check = MagicMock()
+        fail_check.retcode = 10030
+        fail_check.comment = "Unsupported filling mode"
+
+        success_check = MagicMock()
+        success_check.retcode = 0
+        success_check.comment = "OK"
+
+        mock_mt5.order_check.side_effect = [fail_check, success_check]
+
+        mock_res = MagicMock()
+        mock_res.retcode = 10009
+        mock_res.order = 368555219
+        mock_res.deal = 888888
+        mock_res.price = 65000.0
+        mock_res.volume = 0.01
+        mock_res.comment = "Close success via fallback"
+        mock_res._asdict.return_value = {"retcode": 10009}
+        mock_mt5.order_send.return_value = mock_res
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        req = OrderRequest(
+            Symbol="BITCOIN",
+            OrderType="CLOSE",
+            Volume=0.01,
+            PositionTicket=368555219
+        )
+
+        resp = self.adapter.send_order_to_broker(req)
+
+        self.assertEqual(resp.Status, "Placed")
+        self.assertEqual(mock_mt5.order_check.call_count, 2)
+        sent_req = mock_mt5.order_send.call_args[0][0]
+        self.assertEqual(sent_req["type_filling"], 1)  # IOC fallback accepted
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_order_check_tries_multiple_fillings(self, mock_verify):
+        mock_mt5 = MagicMock()
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TYPE_BUY = 0
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.ORDER_FILLING_IOC = 1
+        mock_mt5.ORDER_FILLING_RETURN = 2
+
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+
+        mock_sym = MagicMock()
+        mock_sym.visible = True
+        mock_sym.volume_min = 0.01
+        mock_sym.volume_step = 0.01
+        mock_sym.volume_max = 100.0
+        mock_sym.filling_mode = 1
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        mock_tick = MagicMock()
+        mock_tick.bid = 2300.50
+        mock_tick.ask = 2300.80
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        fail_check = MagicMock()
+        fail_check.retcode = 10030
+        fail_check.comment = "Unsupported filling mode"
+
+        mock_mt5.order_check.side_effect = [fail_check, fail_check, fail_check]
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="Buy",
+            Volume=0.01
+        )
+
+        resp = self.adapter.send_order_to_broker(req)
+
+        self.assertEqual(resp.Status, "Failed")
+        self.assertEqual(mock_mt5.order_check.call_count, 3)
+        mock_mt5.order_send.assert_not_called()
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_close_request_contains_position_ticket(self, mock_verify):
+        mock_mt5 = MagicMock()
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TYPE_SELL = 1
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.POSITION_TYPE_BUY = 0
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+
+        mock_sym = MagicMock()
+        mock_sym.visible = True
+        mock_sym.volume_min = 0.01
+        mock_sym.volume_step = 0.01
+        mock_sym.volume_max = 100.0
+        mock_sym.filling_mode = 1
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        mock_tick = MagicMock()
+        mock_tick.bid = 65000.0
+        mock_tick.ask = 65050.0
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        mock_pos = MagicMock()
+        mock_pos.type = 0  # BUY
+        mock_mt5.positions_get.return_value = [mock_pos]
+
+        mock_check = MagicMock()
+        mock_check.retcode = 0
+        mock_mt5.order_check.return_value = mock_check
+
+        mock_res = MagicMock()
+        mock_res.retcode = 10009
+        mock_res.order = 368555219
+        mock_res.deal = 9999999
+        mock_res.price = 65000.0
+        mock_res.volume = 0.01
+        mock_res.comment = "Success"
+        mock_res._asdict.return_value = {"retcode": 10009, "order": 368555219}
+        mock_mt5.order_send.return_value = mock_res
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        req = OrderRequest(
+            Symbol="BITCOIN",
+            OrderType="CLOSE",
+            Volume=0.01,
+            PositionTicket=368555219
+        )
+
+        resp = self.adapter.send_order_to_broker(req)
+
+        self.assertEqual(resp.Status, "Placed")
+        self.assertEqual(resp.OrderId, "368555219")
+        trade_req_sent = mock_mt5.order_send.call_args[0][0]
+        self.assertIn("position", trade_req_sent)
+        self.assertEqual(trade_req_sent["position"], 368555219)
 
 
 if __name__ == "__main__":
