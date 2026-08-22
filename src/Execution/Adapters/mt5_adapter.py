@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from src.Execution.Interfaces.interfaces import IBrokerAdapter
-from src.Execution.Models.models import OrderRequest, OrderResponse, ExecutionResult
+from src.Execution.Models.models import OrderRequest, OrderResponse
 from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
 from src.Infrastructure.exceptions import ValidationException
 
@@ -102,7 +102,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         acc = self._mt5.account_info()
         if acc is None:
             return None
-        return acc._asdict() if hasattr(acc, "_asdict") else dict(acc._asdict()) if hasattr(acc, "_asdict") else {
+        if hasattr(acc, "_asdict"):
+            return acc._asdict()
+        return {
             "login": getattr(acc, "login", None),
             "trade_mode": getattr(acc, "trade_mode", None),
             "balance": getattr(acc, "balance", None),
@@ -275,7 +277,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         check_retcode = getattr(check_res, "retcode", -1) if check_res is not None else -1
         check_comment = getattr(check_res, "comment", "order_check returned None") if check_res is not None else "order_check returned None"
 
-        if check_res is None or check_retcode not in [0, 10009, 10013]:
+        # Valid order_check success retcodes: 0, 10009 (TRADE_RETCODE_DONE).
+        # Retcode 10013 (TRADE_RETCODE_INVALID) is treated as an order_check failure.
+        if check_res is None or check_retcode not in [0, 10009]:
             logger.warning(
                 f"[RealMT5BrokerAdapter] order_check failed "
                 f"(retcode={check_retcode}): {check_comment}. Halting order_send."

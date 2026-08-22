@@ -127,6 +127,67 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertEqual(len(positions), 1)
         self.assertEqual(positions[0]["ticket"], 12345)
 
+    def test_resolve_filling_mode(self):
+        mock_mt5 = MagicMock()
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.ORDER_FILLING_IOC = 1
+        mock_mt5.ORDER_FILLING_RETURN = 2
+
+        sym_info_fok = MagicMock()
+        sym_info_fok.filling_mode = 1
+        mode_fok = self.adapter._resolve_filling_mode(mock_mt5, "XAUUSD", sym_info_fok)
+        self.assertEqual(mode_fok, 0)
+
+        sym_info_ioc = MagicMock()
+        sym_info_ioc.filling_mode = 2
+        mode_ioc = self.adapter._resolve_filling_mode(mock_mt5, "XAUUSD", sym_info_ioc)
+        self.assertEqual(mode_ioc, 1)
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_order_check_invalid_retcode_10013_fails_closed(self, mock_verify):
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+
+        mock_sym = MagicMock()
+        mock_sym.visible = True
+        mock_sym.volume_min = 0.01
+        mock_sym.volume_step = 0.01
+        mock_sym.volume_max = 100.0
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        mock_tick = MagicMock()
+        mock_tick.bid = 2300.50
+        mock_tick.ask = 2300.80
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        # order_check returns 10013 (TRADE_RETCODE_INVALID)
+        mock_check = MagicMock()
+        mock_check.retcode = 10013
+        mock_check.comment = "Invalid stops or parameters"
+        mock_check._asdict.return_value = {"retcode": 10013, "comment": "Invalid stops"}
+        mock_mt5.order_check.return_value = mock_check
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="Buy",
+            Volume=0.01,
+            TargetWeight=0.01
+        )
+
+        resp = self.adapter.send_order_to_broker(req)
+
+        self.assertEqual(resp.Status, "Failed")
+        self.assertEqual(resp.OrderId, "0")
+        self.assertEqual(resp.Retcode, 10013)
+        mock_mt5.order_send.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
