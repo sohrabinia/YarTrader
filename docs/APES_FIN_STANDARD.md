@@ -1,1 +1,1 @@
-# APES-FIN Financial Intelligence Extension 
+# APES-FIN Financial Intelligence Extension

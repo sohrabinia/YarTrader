@@ -161,6 +161,33 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             "volume": getattr(tick, "volume", 0),
         }
 
+    def _sanitize_comment(self, comment: Optional[str]) -> str:
+        """Sanitizes comment to safe short ASCII string (max 31 chars)."""
+        if not comment:
+            return "YarTrader DEMO"
+        ascii_str = "".join(c for c in str(comment) if ord(c) < 128)
+        clean_str = "".join(c for c in ascii_str if c.isalnum() or c in " -_.")
+        sanitized = clean_str[:31].strip()
+        return sanitized or "YarTrader DEMO"
+
+    def _resolve_filling_mode(self, mt5: Any, symbol: str, sym_info: Any) -> int:
+        """Deterministically resolves supported MT5 filling mode for symbol."""
+        fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)
+        ioc_code = getattr(mt5, "ORDER_FILLING_IOC", 1)
+        return_code = getattr(mt5, "ORDER_FILLING_RETURN", 2)
+
+        f_mode = getattr(sym_info, "filling_mode", None) if sym_info else None
+        if f_mode is not None and isinstance(f_mode, int):
+            if f_mode & 1:  # FOK supported
+                return fok_code
+            if f_mode & 2:  # IOC supported
+                return ioc_code
+            if f_mode & 4:  # RETURN supported
+                return return_code
+
+        # Default fallback preference: FOK -> IOC
+        return fok_code
+
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
         """
         Sends order to real MT5 terminal via mt5.order_send().
@@ -217,6 +244,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if vol_step > 0:
             volume = round(round(volume / vol_step) * vol_step, 4)
 
+        # Sanitize comment and resolve filling mode
+        sanitized_comment = self._sanitize_comment(request.Comment)
+        filling_mode = self._resolve_filling_mode(mt5, request.Symbol, sym_info)
+
         # Build MT5 order request structure
         trade_req = {
             "action": mt5.TRADE_ACTION_DEAL,
@@ -226,9 +257,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             "price": float(price),
             "deviation": request.Deviation,
             "magic": request.Magic,
-            "comment": request.Comment,
+            "comment": sanitized_comment,
             "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": mt5.ORDER_FILLING_IOC,
+            "type_filling": filling_mode,
         }
 
         if request.OrderType.upper() == "CLOSE" and request.PositionTicket:
@@ -239,11 +270,23 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if request.TakeProfit and request.TakeProfit > 0:
             trade_req["tp"] = float(request.TakeProfit)
 
-        # 4. Check Order
+        # 4. Check Order with Fail-Closed Safety
         check_res = mt5.order_check(trade_req)
-        if check_res is not None and getattr(check_res, "retcode", 0) != 0 and getattr(check_res, "retcode", 0) != 10013:
-            # retcode 0 or 10013 (done/check ok)
-            logger.warning(f"[RealMT5BrokerAdapter] order_check returned retcode={getattr(check_res, 'retcode')}: {getattr(check_res, 'comment')}")
+        if check_res is not None:
+            check_retcode = getattr(check_res, "retcode", 0)
+            check_comment = getattr(check_res, "comment", "")
+            # Accepted order_check success retcodes: 0, 10009 (DONE), 10013 (INVALID_STOPS/CHECK_OK in check API)
+            if check_retcode not in [0, 10009, 10013]:
+                logger.error(f"[RealMT5BrokerAdapter] order_check validation failed: retcode={check_retcode}, comment={check_comment}")
+                return OrderResponse(
+                    OrderId="0",
+                    Symbol=request.Symbol,
+                    Status="Failed",
+                    SubmittedAt=datetime.now(timezone.utc),
+                    Retcode=check_retcode,
+                    Comment=f"order_check validation failed: ({check_retcode}) {check_comment}",
+                    RawResponse=check_res._asdict() if hasattr(check_res, "_asdict") else {"retcode": check_retcode, "comment": check_comment}
+                )
 
         # 5. Send Order
         res = mt5.order_send(trade_req)
@@ -268,7 +311,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         fill_price = float(getattr(res, "price", price))
         fill_volume = float(getattr(res, "volume", volume))
 
-        status = "Placed" if retcode in [mt5.TRADE_RETCODE_DONE, mt5.TRADE_RETCODE_PLACED] else "Failed"
+        done_code = getattr(mt5, "TRADE_RETCODE_DONE", 10009)
+        placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", 10008)
+        status = "Placed" if retcode in [done_code, placed_code, 0, 10009, 10008] else "Failed"
 
         logger.info(
             f"[RealMT5BrokerAdapter] Real mt5.order_send response: "
