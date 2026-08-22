@@ -272,6 +272,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if request.TakeProfit and request.TakeProfit > 0:
             trade_req["tp"] = float(request.TakeProfit)
 
+        # Debug logging before order_check
+        logger.info(f"[MT5 DEBUG] trade_req before order_check: {trade_req}")
+
         # 4. Check Order with Fail-Closed Safety
         check_res = mt5.order_check(trade_req)
         check_retcode = getattr(check_res, "retcode", -1) if check_res is not None else -1
@@ -331,7 +334,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         logger.info(
             f"[RealMT5BrokerAdapter] Real mt5.order_send response: "
-            f"retcode={retcode}, order={order_ticket}, deal={deal_ticket}, status={status}"
+            f"retcode={retcode}, order={order_ticket}, deal={deal_ticket}, status={status}, price={fill_price}, volume={fill_volume}"
         )
 
         return OrderResponse(

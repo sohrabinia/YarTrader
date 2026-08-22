@@ -18,6 +18,7 @@ from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
 from src.Execution.Models.models import OrderRequest, OrderResponse, ExecutionResult
 from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
 from src.Execution.Services.trade_journal import TradeJournalManager, TradeJournalRecord
+from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
 from src.Application.Deployment.storage import YarTraderStorageManager
 from src.Infrastructure.Configuration.config import ConfigurationManager
 from src.Infrastructure.exceptions import ValidationException
@@ -156,12 +157,19 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
 
     add_evidence("DEMO Account", "PROVEN", f"Logged into DEMO account {masked_login} on {server}")
 
+    # Active Symbols Query from SymbolRegistry
+    registry = SymbolRegistry.get_instance()
+    discovered_symbols = [s for s, t, ac, p in registry.get_active_matrix()]
+    save_artifact("05_symbol_discovery.json", {
+        "discovered": discovered_symbols,
+        "opportunities_count": len(discovered_symbols)
+    })
+
     # PHASE 1: Identify existing open position or execute a new position dynamically
     existing_positions = adapter.get_positions()
     matched_pos = None
 
     if existing_positions:
-        # Check if position 368555219 or any active position exists
         matched_pos = existing_positions[0]
         logger.info(f"[Phase 1] Identified existing open MT5 position: Ticket={matched_pos.get('ticket')}, Symbol={matched_pos.get('symbol')}")
 
@@ -173,8 +181,9 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
 
         add_evidence("Existing Position Discovery", "PROVEN", f"Found active DEMO position Ticket {actual_pos_ticket} on {actual_symbol} (Volume: {actual_volume}, Open Price: {actual_open_price})")
     else:
-        # Submit new order dynamically using live market tick for target_symbol
+        # Select target_symbol
         actual_symbol = target_symbol.upper()
+
         sym_info = adapter.get_symbol_info(actual_symbol)
         save_artifact("05_symbol_info.json", sym_info or {})
         if not sym_info:
