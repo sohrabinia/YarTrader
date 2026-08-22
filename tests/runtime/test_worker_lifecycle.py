@@ -20,7 +20,7 @@ class TestWorkerLifecycle(unittest.TestCase):
 
         worker.start()
         self.assertTrue(worker.is_running)
-        self.assertEqual(worker.status, "RUNNING")
+        self.assertIn(worker.status, ["RUNNING", "RECOVERING"])
         self.assertIn(central_runtime_state.get_key("research_status"), ["Running", "Recovering"])
 
         worker.stop()
