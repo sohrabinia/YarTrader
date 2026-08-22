@@ -85,6 +85,13 @@ def main():
     discovery = MTDataAcquisitionEngine.discover_environment()
     selection_report = MTDataAcquisitionEngine.select_data_source(discovery)
 
+    # Get current git commit hash for source_revision
+    import subprocess
+    try:
+        source_rev = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip()
+    except Exception:
+        source_rev = "UNKNOWN"
+
     if selection_report.get("quality_status") == "REAL_DATA_UNAVAILABLE":
         print("\n" + "!" * 70)
         print("FINAL VERDICT: REAL_DATA_UNAVAILABLE")
@@ -95,10 +102,20 @@ def main():
             "gate": 3,
             "gate_name": "Multi-Scale Base Detection",
             "verdict": "REAL_DATA_UNAVAILABLE",
-            "DATA_CLASSIFICATION": "REAL_DATA_UNAVAILABLE",
+            "algorithm_version": Gate3BaseDetectorEngine.ALGORITHM_VERSION,
+            "source_revision": source_rev,
+            "dataset_hash": None,
+            "dataset_record_count": 0,
+            "data_classification": "REAL_DATA_UNAVAILABLE",
+            "data_source": "NONE",
+            "broker": "UNKNOWN",
+            "symbol": "XAUUSD",
+            "timeframe": "M1",
             "message": "Gate 3 execution halted. Authentic MT4/MT5 historical market dataset unavailable."
         }
         with open(os.path.join(out_dir, "Gate3_BaseDetectionReport_REAL.json"), "w", encoding="utf-8") as f:
+            json.dump(report_halt, f, indent=2)
+        with open(os.path.join(out_dir, "BaseDetectionReport_REAL.json"), "w", encoding="utf-8") as f:
             json.dump(report_halt, f, indent=2)
         return
 
@@ -127,17 +144,26 @@ def main():
         "gate": 3,
         "gate_name": "Multi-Scale Base Detection",
         "verdict": verdict,
-        "DATA_CLASSIFICATION": "REAL_HISTORICAL",
+        "algorithm_version": Gate3BaseDetectorEngine.ALGORITHM_VERSION,
+        "source_revision": source_rev,
+        "dataset_hash": metadata.get("sha256_hash"),
+        "dataset_record_count": len(bars),
+        "data_classification": "REAL_HISTORICAL",
+        "data_source": metadata.get("source_platform", "MT5"),
+        "broker": metadata.get("broker", "Alpari-MT5-Demo"),
+        "symbol": metadata.get("symbol", "XAUUSD"),
+        "timeframe": metadata.get("timeframe", "M1"),
         "grand_total_bases_detected": grand_total_bases,
         "family_x4_results": gate3_x4,
-        "family_x3_results": gate3_x3,
-        "sha256_dataset_hash": metadata.get("sha256_hash")
+        "family_x3_results": gate3_x3
     }
 
     persian_report = generate_persian_forensic_report(selection_report, gate3_x4, gate3_x3)
 
     # Save reports
     with open(os.path.join(out_dir, "Gate3_BaseDetectionReport_REAL.json"), "w", encoding="utf-8") as f:
+        json.dump(combined_gate3_report, f, indent=2)
+    with open(os.path.join(out_dir, "BaseDetectionReport_REAL.json"), "w", encoding="utf-8") as f:
         json.dump(combined_gate3_report, f, indent=2)
     with open(os.path.join(out_dir, "Gate3_PersianForensicReport_REAL.json"), "w", encoding="utf-8") as f:
         json.dump(persian_report, f, ensure_ascii=False, indent=2)

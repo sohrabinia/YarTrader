@@ -13,7 +13,7 @@ class Gate3BaseDetectorEngine:
     Detects candidate market Bases independently at any scale level.
     """
 
-    ALGORITHM_VERSION = "base_detector_v1.0.0"
+    ALGORITHM_VERSION = "base_detector_v1.1.0"
 
     def __init__(
         self,
