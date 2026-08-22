@@ -14,7 +14,7 @@ It establishes complete provenance reconciliation between source code, test suit
 - **Git Branch:** `jules-6891381065580437406-43b76f4f`
 - **Worktree Status:** Clean baseline before remediation; 5 remediation files tracked and committed.
 - **Merge Conflicts:** `0` (`git diff --name-only --diff-filter=U` clean)
-- **Host OS Environment:** Linux 6.6.137+ (Sandbox Container)
+- **Host OS Environment:** Linux 6.8.0 (Sandbox Container)
 - **Python Runtime:** Python 3.12.13
 - **Remote Origin:** `https://github.com/sohrabinia/YarTrader`
 
@@ -112,9 +112,9 @@ It establishes complete provenance reconciliation between source code, test suit
 
 ### Phase 11 Pre-Flight Audit
 - **Execution Target:** Account `52961173` on Server `Alpari-MT5-Demo`
-- **Host OS:** Linux Container (Non-Windows)
+- **Host OS:** Linux Container (Non-Windows, Linux 6.8.0)
 - **Native Windows MT5 Process:** Not running / Not available
-- **Python MetaTrader5 Package:** Unavailable on Linux platform
+- **Python MetaTrader5 Package:** Unavailable on Linux platform (`No module named 'MetaTrader5'`)
 - **Python ↔ MT5 IPC:** Unavailable
 - **Pre-Flight Status:** `NATIVE_WINDOWS_MT5_UNAVAILABLE`
 
@@ -176,5 +176,5 @@ NATIVE WINDOWS MT5 PRE-FLIGHT:
 NOT EXECUTED (Linux Container Sandbox)
 
 FINAL RUNTIME GATE VERDICT:
-🔴 BLOCKED — Awaiting Native Windows MT5 DEMO Execution
+🔴 BLOCKED — REAL MT5 DEMO NOT PROVEN
 ```
