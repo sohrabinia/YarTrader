@@ -103,24 +103,49 @@ class DemoExecutionEngine:
             self._log_evidence(evidence)
             raise
 
-        # 3. Submit to broker adapter
+        # 3. Submit to broker adapter with pre-check and retcode classification
         logger.info(f"[DemoExecutionEngine] Submitting DEMO order request for {symbol} {direction} {volume} lot.")
-        response = self.adapter.send_order_to_broker(req)
+        try:
+            response = self.adapter.send_order_to_broker(req)
 
-        evidence["status"] = response.Status
-        evidence["order_send_retcode"] = response.Retcode
-        evidence["order_ticket"] = response.OrderId
-        evidence["deal_ticket"] = response.DealTicket
-        evidence["rejection_reason"] = response.Comment if response.Status == "Failed" else None
+            evidence["status"] = response.Status
+            evidence["order_send_retcode"] = response.Retcode
+            evidence["order_ticket"] = response.OrderId
+            evidence["deal_ticket"] = response.DealTicket
+            evidence["rejection_reason"] = response.Comment if response.Status == "Failed" else None
 
-        self._log_evidence(evidence)
+            # Retcode classification mapping
+            if response.Retcode == 10018:
+                evidence["retcode_classification"] = "MARKET_CLOSED"
+                evidence["rejection_reason"] = "Market is closed (10018 MARKET_CLOSED). Recovering safely."
+            elif response.Retcode == 10009:
+                evidence["retcode_classification"] = "SUCCESS"
+            elif response.Retcode == 10013:
+                evidence["retcode_classification"] = "INVALID_STOPS"
+            elif response.Retcode == 10014:
+                evidence["retcode_classification"] = "INVALID_VOLUME"
+            elif response.Retcode == 10019:
+                evidence["retcode_classification"] = "INSUFFICIENT_MARGIN"
+            elif response.Retcode == 10021:
+                evidence["retcode_classification"] = "NO_CONNECTION"
+            else:
+                evidence["retcode_classification"] = f"RETCODE_{response.Retcode}"
 
-        logger.info(
-            f"[DemoExecutionEngine] DEMO execution result: Status={response.Status}, "
-            f"OrderId={response.OrderId}, DealTicket={response.DealTicket}, Comment={response.Comment}"
-        )
+            self._log_evidence(evidence)
 
-        return response
+            logger.info(
+                f"[DemoExecutionEngine] DEMO execution result: Status={response.Status}, "
+                f"Retcode={response.Retcode} ({evidence.get('retcode_classification')}), "
+                f"OrderId={response.OrderId}, DealTicket={response.DealTicket}, Comment={response.Comment}"
+            )
+
+            return response
+        except ValidationException as ve:
+            evidence["status"] = "REJECTED"
+            evidence["rejection_reason"] = str(ve)
+            evidence["retcode_classification"] = "FAIL_CLOSED"
+            self._log_evidence(evidence)
+            raise
 
     def _log_evidence(self, evidence: Dict[str, Any]) -> None:
         """Writes execution telemetry safely to disk without exposing credentials."""

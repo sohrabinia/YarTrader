@@ -1,3 +1,4 @@
+import os
 import time
 import threading
 from datetime import datetime
@@ -118,58 +119,79 @@ class ResearchWorker:
                         print("Features: Generated")
                         print("Research: Completed\n")
 
-                        # DEMO Execution Bridge: Check for actionable signal setup with duplicate & cooldown protection
-                        signals = res.Findings.get("pipeline_outputs", {}).get("signals", {})
-                        if signals and isinstance(signals, dict) and signals.get("direction") in ["BUY", "SELL"]:
-                            sig_dir = signals.get("direction")
-                            sig_time = signals.get("timestamp", time.time())
+                        # DEMO Execution Bridge: Consume AutonomousTradingDecision with Kill Switch, RR, and Cooldown gates
+                        auto_dec = res.Findings.get("autonomous_decision", {})
+                        action = auto_dec.get("action", "WAIT")
+
+                        # 1. Kill Switch Enforcement
+                        kill_switch_enabled = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED", "true").lower() in ["true", "1", "yes"]
+                        if not kill_switch_enabled:
+                            print(f"[ResearchWorker] Kill Switch ACTIVE (AUTONOMOUS_DEMO_TRADING_ENABLED=False). Skipping execution dispatch for {symbol}.")
+                        elif action in ["BUY", "SELL"]:
+                            sig_dir = action
                             now_time = time.time()
+                            sig_time = now_time
 
-                            # Check duplicate / cooldown for this symbol
-                            last_exec = self.last_executed_signal.get(symbol.upper())
-                            if last_exec is not None:
-                                elapsed = now_time - last_exec.get("exec_time", 0)
-                                is_same_signal = (last_exec.get("direction") == sig_dir and last_exec.get("sig_time") == sig_time)
-                                if is_same_signal or elapsed < self.cooldown_sec:
-                                    print(f"[ResearchWorker] Signal for {symbol} {sig_dir} skipped (DEDUPLICATED / COOLDOWN active: {int(elapsed)}s < {int(self.cooldown_sec)}s).")
-                                    continue
+                            # 2. Risk & Confidence Threshold Gates
+                            min_rr = float(os.getenv("MINIMUM_RR", "1.5"))
+                            min_conf = float(os.getenv("MINIMUM_CONFIDENCE", "50.0"))
 
-                            try:
-                                from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
-                                if self.demo_engine is None:
-                                    self.demo_engine = DemoExecutionEngine(demo_mode=True)
+                            rr_val = float(auto_dec.get("risk_reward", 0.0))
+                            conf_val = float(auto_dec.get("confidence", 0.0))
 
-                                sig_price = signals.get("entry_price")
-                                sig_sl = signals.get("sl")
-                                sig_tp = signals.get("tp")
-                                sig_vol = signals.get("volume", 0.01)
+                            if rr_val < min_rr:
+                                print(f"[ResearchWorker] Decision for {symbol} {sig_dir} REJECTED by Risk Gate: RR {rr_val} < min_rr {min_rr}.")
+                            elif conf_val < min_conf:
+                                print(f"[ResearchWorker] Decision for {symbol} {sig_dir} REJECTED by Risk Gate: Confidence {conf_val} < min_conf {min_conf}.")
+                            else:
+                                # 3. Duplicate & Cooldown Gate
+                                last_exec = self.last_executed_signal.get(symbol.upper())
+                                is_cooldown = False
+                                if last_exec is not None:
+                                    elapsed = now_time - last_exec.get("exec_time", 0)
+                                    is_same_signal = (last_exec.get("direction") == sig_dir)
+                                    if is_same_signal and elapsed < self.cooldown_sec:
+                                        print(f"[ResearchWorker] Signal for {symbol} {sig_dir} skipped (DEDUPLICATED / COOLDOWN active: {int(elapsed)}s < {int(self.cooldown_sec)}s).")
+                                        is_cooldown = True
 
-                                decision_id = f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}"
+                                if not is_cooldown:
+                                    try:
+                                        from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
+                                        if self.demo_engine is None:
+                                            self.demo_engine = DemoExecutionEngine(demo_mode=True)
 
-                                print(f"[ResearchWorker] Actionable signal detected: {symbol} {sig_dir}. Dispatching to DemoExecutionEngine...")
-                                exec_resp = self.demo_engine.execute_demo_decision(
-                                    symbol=symbol,
-                                    direction=sig_dir,
-                                    volume=sig_vol,
-                                    price=sig_price,
-                                    sl=sig_sl,
-                                    tp=sig_tp,
-                                    comment=f"YarTrader DEMO {symbol}",
-                                    magic=143056,
-                                    decision_id=decision_id
-                                )
+                                        sig_price = auto_dec.get("entry")
+                                        sig_sl = auto_dec.get("stop_loss")
+                                        sig_tp = auto_dec.get("take_profit")
+                                        sig_vol = auto_dec.get("volume", 0.01)
+                                        decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
 
-                                # Record execution time for cooldown tracking
-                                self.last_executed_signal[symbol.upper()] = {
-                                    "direction": sig_dir,
-                                    "sig_time": sig_time,
-                                    "exec_time": now_time,
-                                    "decision_id": decision_id
-                                }
+                                        print(f"[ResearchWorker] Actionable decision detected: {symbol} {sig_dir}. Dispatching to DemoExecutionEngine...")
+                                        exec_resp = self.demo_engine.execute_demo_decision(
+                                            symbol=symbol,
+                                            direction=sig_dir,
+                                            volume=sig_vol,
+                                            price=sig_price,
+                                            sl=sig_sl,
+                                            tp=sig_tp,
+                                            comment=f"YarTrader DEMO {symbol}",
+                                            magic=143056,
+                                            decision_id=decision_id
+                                        )
 
-                                print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
-                            except Exception as exec_err:
-                                print(f"[ResearchWorker] DEMO Execution Gate / Fail-Closed: {exec_err}")
+                                        # Record execution time for cooldown tracking
+                                        self.last_executed_signal[symbol.upper()] = {
+                                            "direction": sig_dir,
+                                            "sig_time": sig_time,
+                                            "exec_time": now_time,
+                                            "decision_id": decision_id
+                                        }
+
+                                        print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+                                    except Exception as exec_err:
+                                        print(f"[ResearchWorker] DEMO Execution Gate / Fail-Closed: {exec_err}")
+                        else:
+                            print(f"[ResearchWorker] Symbol {symbol} decision is {action}. Continuation loop proceeding.")
 
                         central_runtime_state.update_multiple({
                             "research_status": "Running",

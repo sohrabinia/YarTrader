@@ -163,6 +163,78 @@ class ResearchRuntime:
             self._log_evidence(f"Features Generated: {str(features_generated).lower()}")
             self._log_evidence("Research Completed: true")
 
+            # 6b. Single Source of Truth: Evaluate via ExecutionIntelligenceCore & Planner
+            cycle_id = f"cyc-{self._symbol.upper()}-{self._timeframe.upper()}-{int(time.time())}"
+            candles_dicts = [
+                {
+                    "timestamp": p.Timestamp.isoformat() if hasattr(p.Timestamp, "isoformat") else str(p.Timestamp),
+                    "open": float(p.Open),
+                    "high": float(p.High),
+                    "low": float(p.Low),
+                    "close": float(p.Close),
+                    "volume": float(p.Volume)
+                }
+                for p in data_response.DataPoints
+            ]
+
+            try:
+                from src.Intelligence.Execution.core import ExecutionIntelligenceCore
+                from src.Decision.Models.models import AutonomousTradingDecision
+
+                intel_core = ExecutionIntelligenceCore.get_instance()
+                intel_res = intel_core.evaluate_context(
+                    symbol=self._symbol,
+                    timeframe=self._timeframe,
+                    candles=candles_dicts
+                )
+
+                plan = intel_res.get("plan", {})
+                action = str(plan.get("action", "WAIT")).upper()
+                if action not in ["BUY", "SELL", "WAIT", "AVOID"]:
+                    action = "WAIT"
+
+                entry = float(plan.get("entry", 0.0))
+                sl = float(plan.get("stop_loss", 0.0))
+                tp = float(plan.get("take_profit", 0.0))
+                rr = float(plan.get("risk_reward", 0.0))
+                confidence = float(plan.get("confidence", 0.0))
+                reasoning = plan.get("reasoning", ["Single source of truth evaluation"])
+
+                timestamp_now = datetime.now().isoformat()
+                decision_id = f"DEC-{self._symbol.upper()}-{self._timeframe.upper()}-{int(time.time())}"
+
+                auto_decision = AutonomousTradingDecision(
+                    decision_id=decision_id,
+                    cycle_id=cycle_id,
+                    action=action,
+                    symbol=self._symbol,
+                    timeframe=self._timeframe,
+                    entry=entry,
+                    stop_loss=sl,
+                    take_profit=tp,
+                    volume=0.01,
+                    risk_reward=rr,
+                    confidence=confidence,
+                    reasoning=reasoning,
+                    evidence={
+                        "narrative": intel_res.get("narrative", {}),
+                        "liquidity": intel_res.get("liquidity", {}),
+                        "zones": intel_res.get("zones", {}),
+                        "alignment": intel_res.get("alignment", {}),
+                        "similarity": intel_res.get("similarity", {}),
+                        "latest_price": candles_dicts[-1]["close"]
+                    },
+                    risk_status="APPROVED" if action in ["BUY", "SELL"] else "CHECKED",
+                    execution_status="PENDING" if action in ["BUY", "SELL"] else "SKIPPED",
+                    configuration_version="1.2.0",
+                    timestamp=timestamp_now
+                )
+
+                result.Findings["autonomous_decision"] = auto_decision.to_dict()
+                result.Findings["intel_summary"] = intel_res
+            except Exception as ie:
+                self._log_evidence(f"ExecutionIntelligence evaluation error: {str(ie)}")
+
             # Update Shadow Trading Engine with latest market price and decision
             try:
                 from src.ShadowTrading.Engine.ShadowTradingEngine import ShadowTradingEngine
@@ -173,18 +245,11 @@ class ResearchRuntime:
                 # Update open position prices first (recalculates floating PnL and handles SL/TP hits)
                 shadow_engine.update_market_price(self._symbol, latest_price, timeframe=self._timeframe)
 
-                po = result.Findings.get("pipeline_outputs", {})
-                smart = po.get("smart_interpretation", {})
-                bias = smart.get("bias", "Neutral")
-                confidence = smart.get("confidence", 50)
-                reasoning_list = smart.get("reasoning", [])
+                auto_dec_dict = result.Findings.get("autonomous_decision", {})
+                decision_action = auto_dec_dict.get("action", "WAIT")
+                confidence = auto_dec_dict.get("confidence", 50.0)
+                reasoning_list = auto_dec_dict.get("reasoning", [])
                 reason_text = " ".join(reasoning_list) if isinstance(reasoning_list, list) else str(reasoning_list)
-
-                decision_action = "WAIT"
-                if bias == "Bullish":
-                    decision_action = "BUY"
-                elif bias == "Bearish":
-                    decision_action = "SELL"
 
                 evidence_payload = {
                     "signature": [latest_price],
