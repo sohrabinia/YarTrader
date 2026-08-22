@@ -29,3 +29,21 @@ class IResearchRepository(ABC):
     def get_research_results(self, asset: str) -> List[ResearchResult]:
         """Retrieves historical research outputs corresponding to the specified asset."""
         pass
+
+
+class IFractalEngine(ABC):
+    """Standardized Interface for YarTrader Fractal Behavior Analysis Subsystem."""
+
+    @abstractmethod
+    def analyze_fractals(
+        self,
+        symbol: str,
+        primary_timeframe: str,
+        candles_by_tf: dict,
+        historical_patterns: list = None
+    ) -> dict:
+        """
+        Executes multi-timeframe fractal containment, pattern similarity matching,
+        and multi-scale self-similarity base detection.
+        """
+        pass
