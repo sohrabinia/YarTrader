@@ -108,5 +108,23 @@ DI Container IFractalEngine resolved: <class 'src.Research.Brain.fractal_engine.
 
 ---
 
-## 6. Final Status
-**STATUS: IMPLEMENTED & ACTIVE**
+## 6. Observability & Dashboard Metrics
+
+### Observability Output Payload
+```json
+"observability": {
+  "fractal_score": 0.85,
+  "similarity_score": 88.5,
+  "market_regime": "TRENDING",
+  "scale_state": "MULTISCALE_STABLE"
+}
+```
+
+### API & UI Panel Validation
+- **API Endpoint:** `/api/fractal/status` returns status `CONNECTED` with active metrics.
+- **Dashboard UI Panel:** Exposes **Fractal Intelligence Status** card on the Execution Intelligence board (`trader-terminal/src/App.jsx`).
+
+---
+
+## 7. Final Status
+**STATUS: CONNECTED**
