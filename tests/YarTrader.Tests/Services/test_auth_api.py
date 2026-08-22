@@ -19,11 +19,12 @@ class TestSaaSAuthAPI(unittest.TestCase):
         self.test_pass = "traderPass123!"
         self.test_name = "Testing Trader"
 
-        # Clear existing user if exists
+        # Clear existing user and active sessions if exist
         repo = global_auth_service.repo
         if self.test_email in repo.users:
             del repo.users[self.test_email]
-        repo.save_db()
+            repo.save_db()
+        global_auth_service.active_sessions = {k: v for k, v in global_auth_service.active_sessions.items() if v.get("email") != self.test_email}
 
     def test_user_registration_and_login_lifecycle(self) -> None:
         """Verifies full registration, PBKDF2-SHA256 password validation, and secure session allocation."""
