@@ -255,20 +255,20 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         # 4. Check Order
         check_res = mt5.order_check(trade_req)
-        if check_res is not None:
-            check_retcode = getattr(check_res, "retcode", -1)
-            check_comment = getattr(check_res, "comment", "")
-            if check_retcode not in [0, 10013]:
-                logger.warning(f"[RealMT5BrokerAdapter] order_check failed (retcode={check_retcode}): {check_comment}. Halting order_send.")
-                return OrderResponse(
-                    OrderId="0",
-                    Symbol=request.Symbol,
-                    Status="Failed",
-                    SubmittedAt=datetime.now(timezone.utc),
-                    Retcode=check_retcode,
-                    Comment=f"order_check failed: {check_comment}",
-                    RawResponse=check_res._asdict() if hasattr(check_res, "_asdict") else {"retcode": check_retcode, "comment": check_comment}
-                )
+        check_retcode = getattr(check_res, "retcode", -1) if check_res is not None else -1
+        check_comment = getattr(check_res, "comment", "order_check returned None") if check_res is not None else "order_check returned None"
+
+        if check_res is None or check_retcode not in [0, 10013]:
+            logger.warning(f"[RealMT5BrokerAdapter] order_check failed (retcode={check_retcode}): {check_comment}. Halting order_send.")
+            return OrderResponse(
+                OrderId="0",
+                Symbol=request.Symbol,
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=check_retcode,
+                Comment=f"order_check failed: {check_comment}",
+                RawResponse=check_res._asdict() if check_res is not None and hasattr(check_res, "_asdict") else {"retcode": check_retcode, "comment": check_comment}
+            )
 
         # 5. Send Order
         res = mt5.order_send(trade_req)
