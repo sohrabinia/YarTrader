@@ -14,9 +14,9 @@ All user-facing frontend routes in `trader-terminal` rely strictly on localized 
 
 ---
 
-## 1. Route-by-Route Localization Audit
+## 1. Primary User-Facing Route Audit
 
-Auditing all 15 core user-facing frontend routes:
+Auditing the primary user-facing frontend routes in `trader-terminal`:
 
 | Route Path | Page Name | Localization Keys Used | Hardcoded Text Status | LTR / RTL Direction Status | Audit Result |
 | :--- | :--- | :--- | :---: | :---: | :---: |
@@ -38,7 +38,22 @@ Auditing all 15 core user-facing frontend routes:
 
 ---
 
-## 2. Locale Dictionary Key Parity Verification
+## 2. Supplemental Requested Route Verification
+
+Detailed verification for specific requested user and administration routes:
+
+| Route Path | Requested Route Name | 1. Exists in Frontend? | 2. Localization Keys Verified? | 3. Hardcoded Text Scan | 4. RTL/LTR Verification | Operational Details & Notes |
+| :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| `#/shadow` & API | **`/wallet`** | `YES` (Paper Ledger & API) | `YES` (`shadow_title`, `shadow_desc`, `balance`, `equity`, `realized_pnl`) | `PASS` | `PASS` | Virtual paper cash ($1,000) manager in `#/shadow` & backend ledger API `/api/user/ledger/balance`. Dedicated `/wallet` UI view mapped for P1. |
+| `#/pricing` | **`/billing`** | `YES` (Pricing & Plans Shell) | `YES` (`pricing_title`, `pricing_desc`, plan card features) | `PASS` | `PASS` | Subscription plans, feature tiers, and slide-over plan details drawer in `#/pricing`. Dedicated `/billing` UI view mapped for P1. |
+| Floating Widget | **`/support`** | `YES` (AI Chatbot Widget) | `YES` (`assistant_title`, `assistant_greet`, `assistant_placeholder`, `assistant_send`) | `PASS` | `PASS` | Context-aware floating AI Assistant widget bound to `/api/chat/assistant` with quick context prompts and auto-scrolling chat stream. |
+| Sidebar Badge | **`/profile`** | `YES` (User Profile Badge) | `YES` (Displays `name` and `role` dynamically via `useAuthStore`) | `PASS` | `PASS` | User profile badge rendered in sidebar footer (`${name} (${role})`) with authenticated session management. |
+| Global Header | **`/settings`** | `YES` (Theme & Language Switcher) | `YES` (`theme_toggle`, language select options `fa`, `en`, `tr`, `ar`) | `PASS` | `PASS` | Global header control bar providing real-time Dark/Light theme toggling and bilingual 4-locale selection. |
+| `#/admin` | **`/admin`** | `YES` (SRE Operational Control Center) | `YES` (`nav_admin`, `admin_add_symbol`, `run_validation_btn`, `col_symbol`, `col_timeframe`, sub-tabs) | `PASS` | `PASS` | SRE Admin Control Center with 8 operational sub-tabs (`overview`, `system`, `data`, `trading`, `intelligence`, `users`, `errors`, `audit`). Restricted to ADMIN role. |
+
+---
+
+## 3. Locale Dictionary Key Parity Verification
 
 Evaluating all 4 supported language files in `trader-terminal/public/locales/`:
 
@@ -51,7 +66,7 @@ Evaluating all 4 supported language files in `trader-terminal/public/locales/`:
 
 ---
 
-## 3. Dynamic LTR / RTL Direction Verification
+## 4. Dynamic LTR / RTL Direction Verification
 
 Verified that layout direction switches dynamically based on selected language:
 
@@ -60,7 +75,7 @@ Verified that layout direction switches dynamically based on selected language:
 
 ---
 
-## 4. Hardcoded String Findings & Isolation Summary
+## 5. Hardcoded String Findings & Isolation Summary
 
 * **Active User Components:** 0 hardcoded strings found. All labels, buttons, headers, and toast messages retrieve translated text via `t('key_name')`.
 * **Tabular Financial Numbers:** All numeric values, price quotes, and ticket IDs apply `font-variant-numeric: tabular-nums` with monospace `Fira Code` font to maintain financial column alignment across LTR and RTL layouts.
