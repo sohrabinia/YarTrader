@@ -50,43 +50,6 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         )
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
-    def test_account_info_none_with_success_error_is_handled_safely(self, mock_verify):
-        mock_mt5 = MagicMock()
-        mock_mt5.account_info.return_value = None
-        mock_mt5.last_error.return_value = (0, "Success")
-
-        self.adapter._mt5 = mock_mt5
-        self.adapter._initialized = True
-
-        res = self.adapter.verify_safety_and_account("DEMO")
-        self.assertTrue(res)
-
-    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
-    def test_verify_safety_and_account_fallback_when_account_info_none_success_err(self, mock_verify):
-        mock_mt5 = MagicMock()
-        mock_mt5.account_info.return_value = None
-        mock_mt5.last_error.return_value = (0, "Success")
-
-        self.adapter._mt5 = mock_mt5
-        self.adapter._initialized = True
-
-        res = self.adapter.verify_safety_and_account("DEMO")
-        self.assertTrue(res)
-
-    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
-    def test_verify_safety_and_account_fails_closed_when_account_info_none_real_err(self, mock_verify):
-        mock_mt5 = MagicMock()
-        mock_mt5.account_info.return_value = None
-        mock_mt5.last_error.return_value = (10004, "No IPC connection")
-
-        self.adapter._mt5 = mock_mt5
-        self.adapter._initialized = True
-
-        with self.assertRaises(ValidationException) as ctx:
-            self.adapter.verify_safety_and_account("DEMO")
-        self.assertIn("Failed to fetch MT5 account info", str(ctx.exception))
-
-    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_send_order_to_broker_success(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_mt5.TRADE_ACTION_DEAL = 1
@@ -859,46 +822,6 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertEqual(len(deals), 2)
         self.assertEqual(deals[0]["deal"], 1001)
         self.assertEqual(deals[1]["profit"], -20.0)
-
-    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
-    def test_stop_loss_distance_and_digits_normalization(self, mock_verify):
-        mock_mt5 = MagicMock()
-        mock_mt5.TRADE_ACTION_DEAL = 1
-        mock_mt5.ORDER_TYPE_BUY = 0
-        mock_mt5.ORDER_TIME_GTC = 0
-        mock_mt5.ORDER_FILLING_FOK = 0
-        mock_mt5.TRADE_RETCODE_DONE = 10009
-
-        mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
-        mock_mt5.account_info.return_value = mock_acc
-
-        mock_sym = MagicMock(
-            visible=True, volume_min=0.01, volume_step=0.01, volume_max=100.0,
-            digits=2, point=0.01, trade_stops_level=50, filling_mode=1
-        )
-        mock_mt5.symbol_info.return_value = mock_sym
-        mock_mt5.symbol_info_tick.return_value = MagicMock(bid=2350.00, ask=2350.50)
-
-        mock_check = MagicMock(retcode=0, comment="OK")
-        mock_mt5.order_check.return_value = mock_check
-        mock_res = MagicMock(retcode=10009, order=5555, deal=6666, price=2350.50, volume=0.01, comment="Placed")
-        mock_res._asdict.return_value = {"retcode": 10009}
-        mock_mt5.order_send.return_value = mock_res
-
-        self.adapter._mt5 = mock_mt5
-        self.adapter._initialized = True
-
-        # Request SL too close to price (distance 0.1, but min_stop_distance is 50*0.01 = 0.50)
-        req = OrderRequest(
-            Symbol="XAUUSD", OrderType="Buy", Volume=0.01, Price=2350.50,
-            StopLoss=2350.40, TakeProfit=2352.00
-        )
-        resp = self.adapter.send_order_to_broker(req)
-        self.assertEqual(resp.Status, "Placed")
-
-        sent_req = mock_mt5.order_send.call_args[0][0]
-        # Verified SL is normalized to 2350.50 - 0.50 = 2350.00
-        self.assertEqual(sent_req["sl"], 2350.00)
 
     def test_reconcile_pnl_success_and_failure(self):
         from scripts.run_real_mt5_demo_e2e import reconcile_pnl

@@ -80,11 +80,6 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         acc_info = self._mt5.account_info()
         if acc_info is None:
             err = self._mt5.last_error()
-            if err and isinstance(err, (list, tuple)) and err[0] != 0:
-                raise ValidationException(f"Failed to fetch MT5 account info: {err}")
-            if not err or (isinstance(err, (list, tuple)) and err[0] == 0):
-                logger.info("[RealMT5BrokerAdapter] account_info() returned None with success last_error (test/mock mode).")
-                return True
             raise ValidationException(f"Failed to fetch MT5 account info: {err}")
 
         actual_login = str(getattr(acc_info, "login", ""))
@@ -225,19 +220,14 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if tick is None or getattr(tick, "bid", 0) <= 0 or getattr(tick, "ask", 0) <= 0:
             raise ValidationException(f"Real tick for symbol '{request.Symbol}' is unavailable or invalid.")
 
-        digits = int(getattr(sym_info, "digits", 2))
-        point = float(getattr(sym_info, "point", 0.01))
-        trade_stops_level = float(getattr(sym_info, "trade_stops_level", 0))
-        min_stop_distance = max(trade_stops_level * point, 10 * point if point > 0 else 0.1)
-
         # 3. Map Order Action and Price
         order_type_str = request.OrderType.upper()
         if order_type_str in ["BUY", "LONG"]:
             mt5_action_type = mt5.ORDER_TYPE_BUY
-            price = round(request.Price or getattr(tick, "ask"), digits)
+            price = request.Price or getattr(tick, "ask")
         elif order_type_str in ["SELL", "SHORT"]:
             mt5_action_type = mt5.ORDER_TYPE_SELL
-            price = round(request.Price or getattr(tick, "bid"), digits)
+            price = request.Price or getattr(tick, "bid")
         elif order_type_str == "CLOSE":
             # Position closing request
             if not request.PositionTicket:
@@ -249,10 +239,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             pos_type = getattr(pos, "type", 0)
             if pos_type == mt5.POSITION_TYPE_BUY:
                 mt5_action_type = mt5.ORDER_TYPE_SELL
-                price = round(getattr(tick, "bid"), digits)
+                price = getattr(tick, "bid")
             else:
                 mt5_action_type = mt5.ORDER_TYPE_BUY
-                price = round(getattr(tick, "ask"), digits)
+                price = getattr(tick, "ask")
         else:
             raise ValidationException(f"Unsupported OrderType: '{request.OrderType}'")
 
@@ -286,25 +276,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if request.OrderType.upper() == "CLOSE" and request.PositionTicket:
             trade_req["position"] = int(request.PositionTicket)
 
-        if request.StopLoss and request.StopLoss > 0 and request.OrderType.upper() != "CLOSE":
-            sl = round(request.StopLoss, digits)
-            if mt5_action_type == mt5.ORDER_TYPE_BUY:
-                if price - sl < min_stop_distance:
-                    sl = round(price - min_stop_distance, digits)
-            elif mt5_action_type == mt5.ORDER_TYPE_SELL:
-                if sl - price < min_stop_distance:
-                    sl = round(price + min_stop_distance, digits)
-            trade_req["sl"] = float(sl)
-
-        if request.TakeProfit and request.TakeProfit > 0 and request.OrderType.upper() != "CLOSE":
-            tp = round(request.TakeProfit, digits)
-            if mt5_action_type == mt5.ORDER_TYPE_BUY:
-                if tp - price < min_stop_distance:
-                    tp = round(price + min_stop_distance, digits)
-            elif mt5_action_type == mt5.ORDER_TYPE_SELL:
-                if price - tp < min_stop_distance:
-                    tp = round(price - min_stop_distance, digits)
-            trade_req["tp"] = float(tp)
+        if request.StopLoss and request.StopLoss > 0:
+            trade_req["sl"] = float(request.StopLoss)
+        if request.TakeProfit and request.TakeProfit > 0:
+            trade_req["tp"] = float(request.TakeProfit)
 
         # Build candidate filling modes (preferred resolved mode first, then remaining)
         fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)

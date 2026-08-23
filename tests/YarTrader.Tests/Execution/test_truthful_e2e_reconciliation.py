@@ -140,7 +140,7 @@ def test_comment_sanitization():
     comment = "YarTrader DEMO XAUUSD — Very Long Comment Over 31 Chars! 🚀"
     sanitized = adapter._sanitize_comment(comment)
     assert len(sanitized) <= 15
-    assert "YarTrader" in sanitized
+    assert "YarTraderDEMO" in sanitized
     assert "🚀" not in sanitized
 
 
