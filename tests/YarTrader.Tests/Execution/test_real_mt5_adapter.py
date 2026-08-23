@@ -50,6 +50,18 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         )
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_account_info_none_with_success_error_is_handled_safely(self, mock_verify):
+        mock_mt5 = MagicMock()
+        mock_mt5.account_info.return_value = None
+        mock_mt5.last_error.return_value = (0, "Success")
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        res = self.adapter.verify_safety_and_account("DEMO")
+        self.assertTrue(res)
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_verify_safety_and_account_fallback_when_account_info_none_success_err(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_mt5.account_info.return_value = None
