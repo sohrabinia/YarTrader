@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-23T08:11:19.588593+00:00",
+  "timestamp": "2026-08-23T08:13:19.934164+00:00",
   "runtime_duration_hours": 0.1,
   "signals_generated": 1,
   "signals_rejected": 1,
@@ -102,6 +102,6 @@
   },
   "learning_updates": 0,
   "timeframes_used": [
-    "M15"
+    "H4"
   ]
 }
