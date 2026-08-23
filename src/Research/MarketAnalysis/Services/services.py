@@ -276,6 +276,27 @@ class FeatureExtractionResearchEngine(IResearchEngine):
         if newborn_report:
             enriched_findings["newborn_brain_report"] = newborn_report.to_dict()
 
+        # I. Fractal Behavior Analysis Engine Integration
+        try:
+            from src.Infrastructure.DI.container import container_instance
+            from src.Research.MarketAnalysis.Interfaces.interfaces import IFractalEngine
+            fractal_engine = container_instance.resolve(IFractalEngine)
+        except Exception:
+            from src.Research.Brain.fractal_engine import FractalEngine
+            fractal_engine = FractalEngine()
+
+        try:
+            candles_by_tf = {timeframe: market_data_response.DataPoints}
+            fractal_res = fractal_engine.analyze_fractals(
+                symbol=request.Asset,
+                primary_timeframe=timeframe,
+                candles_by_tf=candles_by_tf
+            )
+            enriched_findings["fractal_analysis"] = fractal_res
+            enriched_findings["pipeline_outputs"]["fractal_analysis"] = fractal_res
+        except Exception as fe_err:
+            enriched_findings["fractal_analysis_error"] = str(fe_err)
+
         # Dynamically set the confidence score from smart interpretation (converted back to fraction [0, 1])
         conf_score = float(smart_results.get("confidence", 50.0)) / 100.0
 

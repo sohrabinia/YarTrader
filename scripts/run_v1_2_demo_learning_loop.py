@@ -1,8 +1,11 @@
 import os
+import sys
 import json
 import random
 from datetime import datetime, timedelta
 from dataclasses import asdict
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.Data.MarketData.Models.models import MarketDataPoint
 from src.Decision.Intelligence.professional_signal_engine import ProfessionalSignalEngine
@@ -82,7 +85,51 @@ def run_demo_learning_loop():
     with open(report_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
+    # Persist Learning Run Audit Record to runtime_logs/learning_history.json
+    import uuid
+    from datetime import timezone
+
+    history_file = "runtime_logs/learning_history.json"
+    os.makedirs(os.path.dirname(history_file), exist_ok=True)
+
+    existing_history = []
+    if os.path.exists(history_file):
+        try:
+            with open(history_file, "r", encoding="utf-8") as hf:
+                data = json.load(hf)
+                if isinstance(data, list):
+                    existing_history = data
+        except Exception as err:
+            print(f"Warning: Could not read existing learning history: {err}")
+
+    run_uuid = str(uuid.uuid4())[:8]
+    audit_record = {
+        "update_id": f"learning-run-{uuid.uuid4()}",
+        "type": "DEMO_LEARNING_RUN",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "run_id": f"RUN-{run_uuid}",
+        "total_signals": total_signals_evaluated,
+        "executed_demo_trades": trades_recorded,
+        "risk_gate_rejections": risk_gate_rejections,
+        "wins": wins,
+        "losses": losses,
+        "overall_win_rate_pct": win_rate,
+        "average_rr": avg_rr,
+        "profit_factor": profit_factor,
+        "max_drawdown_pct": max_drawdown,
+        "patterns_updated": patterns,
+        "learning_completed": True
+    }
+
+    existing_history.append(audit_record)
+
+    temp_history_file = history_file + ".tmp"
+    with open(temp_history_file, "w", encoding="utf-8") as hf:
+        json.dump(existing_history, hf, indent=2)
+    os.replace(temp_history_file, history_file)
+
     print(f"Demo Learning Loop completed cleanly. Report saved to {report_path}")
+    print(f"Learning Audit Trail updated cleanly in {history_file} (Total records: {len(existing_history)})")
 
 if __name__ == "__main__":
     run_demo_learning_loop()
