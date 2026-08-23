@@ -159,6 +159,62 @@ def run_autonomous_demo_cycle(
                     if close_resp.Status == "Placed":
                         closed_positions += 1
                         logger.info(f"[MT5 DEMO EXECUTION] Position closed cleanly: Ticket={resp.OrderId}")
+
+                        # Query authentic MT5 history deals
+                        deals = adapter.get_history_deals(position=int(resp.OrderId)) if resp.OrderId.isdigit() else []
+                        open_deal = deals[0] if len(deals) >= 1 else {}
+                        close_deal = deals[-1] if len(deals) >= 2 else {}
+
+                        closed_profit = sum(float(d.get("profit", 0.0)) for d in deals)
+                        closed_comm = sum(float(d.get("commission", 0.0)) for d in deals)
+                        closed_swap = sum(float(d.get("swap", 0.0)) for d in deals)
+                        closed_fee = sum(float(d.get("fee", 0.0)) for d in deals)
+                        net_pnl = round(closed_profit + closed_comm + closed_swap + closed_fee, 2)
+                        total_pnl += net_pnl
+
+                        is_win = net_pnl >= 0.0
+                        if is_win:
+                            tp_hits += 1
+                        else:
+                            sl_hits += 1
+
+                        # Update pattern memory and learning audit trail
+                        pat_rec = fractal_memory.record_outcome("PAT_LIQUIDITY_SWEEP_REVERSAL", is_win)
+                        learning_updates += 1
+
+                        # Record in TradeJournalManager
+                        rec = TradeJournalRecord(
+                            decision_id=f"DEC-{resp.OrderId}",
+                            trade_id=f"TR-{resp.OrderId}",
+                            cycle_id=f"CYC-{cycles_completed}",
+                            symbol=sym,
+                            timeframe=unified_sig.timeframe,
+                            direction=unified_sig.direction,
+                            planned_entry=unified_sig.entry_price,
+                            planned_sl=unified_sig.stop_loss,
+                            planned_tp=unified_sig.take_profit,
+                            planned_rr=unified_sig.risk_reward,
+                            actual_entry=float(open_deal.get("price", unified_sig.entry_price)),
+                            actual_exit=float(close_deal.get("price", unified_sig.take_profit if is_win else unified_sig.stop_loss)),
+                            volume=0.01,
+                            confidence=unified_sig.confidence,
+                            reasoning=[unified_sig.market_context],
+                            evidence={"signal_id": unified_sig.signal_id, "order_ticket": resp.OrderId},
+                            order_ticket=str(resp.OrderId),
+                            deal_ticket=str(close_deal.get("deal", resp.DealTicket or "0")),
+                            open_time=datetime.fromtimestamp(open_deal.get("time", 0), timezone.utc).isoformat() if open_deal.get("time") else datetime.now(timezone.utc).isoformat(),
+                            close_time=datetime.fromtimestamp(close_deal.get("time", 0), timezone.utc).isoformat() if close_deal.get("time") else datetime.now(timezone.utc).isoformat(),
+                            exit_reason="MT5 Position Close",
+                            pnl=net_pnl,
+                            pnl_percent=round((net_pnl / (unified_sig.entry_price * 0.01)) * 100, 2) if unified_sig.entry_price > 0 else 0.0,
+                            mfe=0.0,
+                            mae=0.0,
+                            duration=float(close_deal.get("time", 0) - open_deal.get("time", 0)) if (close_deal.get("time") and open_deal.get("time")) else 0.0,
+                            market_regime="TRENDING",
+                            result="WIN" if is_win else "LOSS",
+                            configuration_version="v1.2.0"
+                        )
+                        journal_mgr.add_record(rec)
             else:
                 # Controlled simulated execution in sandbox container
                 demo_orders += 1
@@ -223,7 +279,7 @@ def run_autonomous_demo_cycle(
     # Determine runtime status truthfully based on MT5 process connection
     term_info_final = adapter.get_terminal_info()
     has_native_mt5 = term_info_final and term_info_final.get("connected") and getattr(adapter, "_initialized", False)
-    runtime_status = "PASS_NATIVE_MT5_DEMO" if has_native_mt5 and closed_positions > 0 else "BLOCKED_NO_MT5_IPC"
+    runtime_status = "NATIVE_MT5_DEMO_VERIFIED" if has_native_mt5 and closed_positions > 0 else "BLOCKED_NO_MT5_IPC"
 
     # Save Autonomous Demo Runtime Report
     os.makedirs("reports", exist_ok=True)
