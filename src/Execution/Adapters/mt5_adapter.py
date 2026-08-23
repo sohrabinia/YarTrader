@@ -285,7 +285,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         if order_type_str == "CLOSE":
             trade_req["position"] = int(request.PositionTicket)
-            # CLOSE requests MUST NOT carry SL or TP
+            # Strictly pop SL and TP from CLOSE request payload
+            trade_req.pop("sl", None)
+            trade_req.pop("tp", None)
         else:
             # Dynamic SL/TP Normalization & Distance Enforcement for OPEN orders only
             if request.StopLoss and request.StopLoss > 0:
@@ -318,10 +320,18 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 candidates.append(mode_opt)
 
         pos_id = trade_req.get("position", None)
-        import json
-        last_err_before = mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
-        logger.info(f"[MT5 CLOSE FORENSIC] trade_req={json.dumps(trade_req, default=str)}")
-        logger.info(f"[MT5 CLOSE FORENSIC] last_error_before_check={last_err_before}")
+        sl_present = "sl" in trade_req
+        tp_present = "tp" in trade_req
+        if order_type_str == "CLOSE":
+            pos_type_str = "BUY" if mt5_action_type == mt5.ORDER_TYPE_SELL else "SELL"
+            close_type_str = "SELL" if mt5_action_type == mt5.ORDER_TYPE_SELL else "BUY"
+            price_src_str = "BID" if mt5_action_type == mt5.ORDER_TYPE_SELL else "ASK"
+            logger.info(
+                f"[MT5 CLOSE FORENSIC] position_ticket={pos_id} position_type={pos_type_str} "
+                f"close_type={close_type_str} close_price_source={price_src_str} "
+                f"close_price={price} volume={volume} position={pos_id} "
+                f"sl_present={sl_present} tp_present={tp_present} filling_mode={filling_mode}"
+            )
 
         # 4. Check Order with Fail-Closed Safety across filling candidates
         check_res = None

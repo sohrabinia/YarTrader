@@ -84,9 +84,27 @@ During initial forward execution testing on native MT5 terminals, order candidat
 * **Root Cause 2 (10030):** Candidate filling modes (`ORDER_FILLING_FOK` vs `ORDER_FILLING_IOC` vs `ORDER_FILLING_RETURN`) were probed sequentially when the symbol `filling_mode` bitmask mandated a specific mode.
 * **Remediation Applied:**
   1. `BrokerConstraintNormalizer` and `RealMT5BrokerAdapter.send_order_to_broker` were updated to calculate `min_stop_distance = max(max(stops_level, freeze_level) * point, 10 * point)` and enforce distance rules on OPEN orders.
-  2. CLOSE requests were refactored to strictly strip `sl` and `tp` keys, enforce `PositionTicket > 0`, and set `position = int(PositionTicket)`.
+  2. CLOSE requests were refactored to strictly strip `sl` and `tp` keys, enforce `PositionTicket > 0`, set `position = int(PositionTicket)`, determine opposite trade action (`BUY` -> `SELL` at Bid, `SELL` -> `BUY` at Ask), and log `[MT5 CLOSE FORENSIC]`.
   3. Filling mode resolution evaluates symbol `filling_mode` bitmask prior to candidate selection.
   4. Regression unit tests added in `tests/YarTrader.Tests/Execution/test_autonomous_execution_lifecycle.py`.
+
+### B. Forensic CLOSE Contract Evidence Invariants
+```json
+{
+  "close_position_ticket": "> 0",
+  "close_direction_is_opposite": true,
+  "close_price_source": "BID_OR_ASK",
+  "close_contains_sl": false,
+  "close_contains_tp": false,
+  "close_order_check": "SUCCESS",
+  "close_order_send": "SUCCESS",
+  "position_verified_open": true,
+  "position_verified_closed": true,
+  "mt5_history_verified": true,
+  "journal_pnl_reconciled": true,
+  "live_trading_enabled": false
+}
+```
 
 ---
 
