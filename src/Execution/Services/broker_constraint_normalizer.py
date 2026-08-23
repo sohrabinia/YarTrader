@@ -24,10 +24,15 @@ class BrokerConstraintNormalizer:
         Normalizes price, SL, TP, and volume to adhere strictly to broker requirements.
         Returns: (norm_price, norm_sl, norm_tp, norm_volume, constraints_meta)
         """
-        digits = int(symbol_info.get("digits", 2))
-        point = float(symbol_info.get("point", 0.01))
-        trade_stops_level = float(symbol_info.get("trade_stops_level", 0))
-        trade_freeze_level = float(symbol_info.get("trade_freeze_level", 0))
+        def _get_val(obj: Any, key: str, default: Any) -> Any:
+            if isinstance(obj, dict):
+                return obj.get(key, default)
+            return getattr(obj, key, default)
+
+        digits = int(_get_val(symbol_info, "digits", 2))
+        point = float(_get_val(symbol_info, "point", 0.01))
+        trade_stops_level = float(_get_val(symbol_info, "trade_stops_level", 0))
+        trade_freeze_level = float(_get_val(symbol_info, "trade_freeze_level", 0))
 
         # Minimum stop distance in price terms
         stop_level_pts = max(trade_stops_level, trade_freeze_level)
@@ -57,9 +62,9 @@ class BrokerConstraintNormalizer:
                     norm_tp = round(norm_price - min_stop_distance, digits)
 
         # 3. Volume Normalization & Step Alignment
-        vol_min = float(symbol_info.get("volume_min", 0.01))
-        vol_step = float(symbol_info.get("volume_step", 0.01))
-        vol_max = float(symbol_info.get("volume_max", 100.0))
+        vol_min = float(_get_val(symbol_info, "volume_min", 0.01))
+        vol_step = float(_get_val(symbol_info, "volume_step", 0.01))
+        vol_max = float(_get_val(symbol_info, "volume_max", 100.0))
 
         norm_vol = max(vol_min, min(raw_volume, vol_max))
         if vol_step > 0:
