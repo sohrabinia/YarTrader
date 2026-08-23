@@ -254,8 +254,12 @@ def run_autonomous_demo_cycle(
     has_native_mt5 = term_info_final and term_info_final.get("connected") and getattr(adapter, "_initialized", False)
     runtime_status = "AUTONOMOUS_DEMO_EXECUTED" if has_native_mt5 and closed_positions > 0 else "BLOCKED_NO_MT5_IPC"
 
-    # Save Autonomous Demo Runtime Report
+    # Resolve reports directory via Storage Root
+    storage_root = YarTraderStorageManager.get_manager().storage_root
+    reports_dir = os.path.join(storage_root, "Reports")
+    os.makedirs(reports_dir, exist_ok=True)
     os.makedirs("reports", exist_ok=True)
+
     report_data = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "runtime_status": runtime_status,
@@ -274,6 +278,10 @@ def run_autonomous_demo_cycle(
         "timeframes_used": sorted(list(timeframes_used))
     }
 
+    daily_report_file = os.path.join(reports_dir, "demo_operation_daily_report.json")
+    with open(daily_report_file, "w", encoding="utf-8") as f:
+        json.dump(report_data, f, indent=2)
+
     report_file = "reports/autonomous_demo_runtime_report.json"
     with open(report_file, "w", encoding="utf-8") as f:
         json.dump(report_data, f, indent=2)
@@ -291,6 +299,7 @@ def run_autonomous_demo_cycle(
         "learning_events": learning_updates,
         "memory_updates": len(fractal_memory.memory),
         "evidence_paths": [
+            daily_report_file,
             report_file,
             "runtime_logs/learning_history.json",
             journal_mgr.journal_file
