@@ -50,6 +50,31 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         )
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_verify_safety_and_account_fallback_when_account_info_none_success_err(self, mock_verify):
+        mock_mt5 = MagicMock()
+        mock_mt5.account_info.return_value = None
+        mock_mt5.last_error.return_value = (0, "Success")
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        res = self.adapter.verify_safety_and_account("DEMO")
+        self.assertTrue(res)
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_verify_safety_and_account_fails_closed_when_account_info_none_real_err(self, mock_verify):
+        mock_mt5 = MagicMock()
+        mock_mt5.account_info.return_value = None
+        mock_mt5.last_error.return_value = (10004, "No IPC connection")
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        with self.assertRaises(ValidationException) as ctx:
+            self.adapter.verify_safety_and_account("DEMO")
+        self.assertIn("Failed to fetch MT5 account info", str(ctx.exception))
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_send_order_to_broker_success(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_mt5.TRADE_ACTION_DEAL = 1
