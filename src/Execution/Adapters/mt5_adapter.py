@@ -336,18 +336,25 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             assert pos_id is not None and int(pos_id) > 0, "CLOSE request MUST contain valid position_ticket > 0"
             assert not sl_present, "CLOSE trade_req MUST NOT contain 'sl'"
             assert not tp_present, "CLOSE trade_req MUST NOT contain 'tp'"
+        else:
+            logger.info(
+                f"[MT5 OPEN FORENSIC] symbol={request.Symbol} order_type={order_type_str} "
+                f"price={price} sl={trade_req.get('sl')} tp={trade_req.get('tp')} "
+                f"volume={volume} filling_mode={filling_mode}"
+            )
 
         # 4. Check Order with Fail-Closed Safety across filling candidates
         check_res = None
         check_retcode = -1
         check_comment = "order_check returned None"
         first_non_filling_error = None
+        check_tag = "[MT5 CLOSE CHECK]" if order_type_str == "CLOSE" else "[MT5 OPEN CHECK]"
 
         for cand_filling in candidates:
             trade_req["type_filling"] = cand_filling
             res_cand = mt5.order_check(trade_req)
             last_err_after = mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
-            logger.info(f"[MT5 CLOSE FORENSIC] filling_mode_candidate={cand_filling} order_check_result={res_cand} last_error_after_check={last_err_after}")
+            logger.info(f"{check_tag} filling_mode_candidate={cand_filling} order_check_result={res_cand} last_error_after_check={last_err_after}")
 
             cand_retcode = getattr(res_cand, "retcode", -1) if res_cand is not None else -1
             if res_cand is not None and cand_retcode in [0, 10009]:

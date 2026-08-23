@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-23T22:23:36.143989",
+  "timestamp": "2026-08-23T22:45:51.413963",
   "total_signals": 5000,
   "executed_demo_trades": 4375,
   "risk_gate_rejections": 625,
@@ -14,41 +14,41 @@
       "pattern_id": "PAT_LIQUIDITY_SWEEP_REVERSAL",
       "timeframe": "M15",
       "market_context": "TRENDING_UP",
-      "frequency": 35583,
-      "wins": 25142,
-      "losses": 10441,
-      "success_rate": 0.7066,
-      "confidence_weight": 0.7533
+      "frequency": 3273,
+      "wins": 2312,
+      "losses": 961,
+      "success_rate": 0.7064,
+      "confidence_weight": 0.7532
     },
     "PAT_MSS_BREAKOUT": {
       "pattern_id": "PAT_MSS_BREAKOUT",
       "timeframe": "H1",
       "market_context": "TRENDING_UP",
-      "frequency": 34883,
-      "wins": 23785,
-      "losses": 11098,
-      "success_rate": 0.6819,
-      "confidence_weight": 0.7409
+      "frequency": 3203,
+      "wins": 2185,
+      "losses": 1018,
+      "success_rate": 0.6822,
+      "confidence_weight": 0.7411
     },
     "PAT_RANGE_COMPRESSION_EXPANSION": {
       "pattern_id": "PAT_RANGE_COMPRESSION_EXPANSION",
       "timeframe": "H4",
       "market_context": "RANGE_BOUND",
-      "frequency": 36988,
-      "wins": 24735,
-      "losses": 12253,
-      "success_rate": 0.6687,
-      "confidence_weight": 0.7344
+      "frequency": 3388,
+      "wins": 2265,
+      "losses": 1123,
+      "success_rate": 0.6685,
+      "confidence_weight": 0.7343
     },
     "PAT_FALSE_BREAKOUT_TRAP": {
       "pattern_id": "PAT_FALSE_BREAKOUT_TRAP",
       "timeframe": "M5",
       "market_context": "RANGE_BOUND",
-      "frequency": 37081,
-      "wins": 24392,
-      "losses": 12689,
-      "success_rate": 0.6578,
-      "confidence_weight": 0.7289
+      "frequency": 3421,
+      "wins": 2252,
+      "losses": 1169,
+      "success_rate": 0.6583,
+      "confidence_weight": 0.7291
     }
   },
   "updated_memory_snapshot": {
@@ -56,41 +56,41 @@
       "pattern_id": "PAT_LIQUIDITY_SWEEP_REVERSAL",
       "timeframe": "M15",
       "market_context": "TRENDING_UP",
-      "frequency": 36660,
-      "wins": 25903,
-      "losses": 10757,
-      "success_rate": 0.7066,
-      "confidence_weight": 0.7533
+      "frequency": 4350,
+      "wins": 3073,
+      "losses": 1277,
+      "success_rate": 0.7064,
+      "confidence_weight": 0.7532
     },
     "PAT_MSS_BREAKOUT": {
       "pattern_id": "PAT_MSS_BREAKOUT",
       "timeframe": "H1",
       "market_context": "TRENDING_UP",
-      "frequency": 35939,
-      "wins": 24505,
-      "losses": 11434,
-      "success_rate": 0.6818,
-      "confidence_weight": 0.7409
+      "frequency": 4259,
+      "wins": 2905,
+      "losses": 1354,
+      "success_rate": 0.6821,
+      "confidence_weight": 0.741
     },
     "PAT_RANGE_COMPRESSION_EXPANSION": {
       "pattern_id": "PAT_RANGE_COMPRESSION_EXPANSION",
       "timeframe": "H4",
       "market_context": "RANGE_BOUND",
-      "frequency": 38108,
-      "wins": 25484,
-      "losses": 12624,
-      "success_rate": 0.6687,
-      "confidence_weight": 0.7344
+      "frequency": 4508,
+      "wins": 3014,
+      "losses": 1494,
+      "success_rate": 0.6686,
+      "confidence_weight": 0.7343
     },
     "PAT_FALSE_BREAKOUT_TRAP": {
       "pattern_id": "PAT_FALSE_BREAKOUT_TRAP",
       "timeframe": "M5",
       "market_context": "RANGE_BOUND",
-      "frequency": 38203,
-      "wins": 25130,
-      "losses": 13073,
-      "success_rate": 0.6578,
-      "confidence_weight": 0.7289
+      "frequency": 4543,
+      "wins": 2990,
+      "losses": 1553,
+      "success_rate": 0.6582,
+      "confidence_weight": 0.7291
     }
   }
 }
