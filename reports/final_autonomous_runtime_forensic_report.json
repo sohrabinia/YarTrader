@@ -1,0 +1,17 @@
+{
+  "runtime_status": "BLOCKED_NO_MT5_IPC",
+  "executed_trades": 0,
+  "closed_trades": 0,
+  "win_rate": 67.68,
+  "average_rr": 2.12,
+  "profit_factor": 3.55,
+  "expectancy": 14.58,
+  "max_drawdown": 108.14,
+  "learning_events": 0,
+  "memory_updates": 4,
+  "evidence_paths": [
+    "reports/autonomous_demo_runtime_report.json",
+    "runtime_logs/learning_history.json",
+    "/tmp/YarTraderAI/Logs/trade_journal.json"
+  ]
+}

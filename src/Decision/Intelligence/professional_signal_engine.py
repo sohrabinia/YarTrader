@@ -2,11 +2,13 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
+import uuid
 from src.Data.MarketData.Models.models import MarketDataPoint
 from src.Research.Brain.trading_style import TradingStyleSelector
 from src.Research.Brain.multi_timeframe_context import MultiTimeframeContextEngine
 from src.Research.Brain.fractal_memory import FractalPatternMemory
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+from src.Decision.Intelligence.timeframe_selector import AutomaticTimeframeSelector, UnifiedSignalContract
 
 @dataclass
 class ProfessionalSignal:
@@ -42,6 +44,41 @@ class ProfessionalSignalEngine:
         self.mtf_engine = MultiTimeframeContextEngine()
         self.fractal_memory = FractalPatternMemory()
         self.risk_engine = ProfessionalRiskEngine()
+        self.tf_selector = AutomaticTimeframeSelector()
+
+    def generate_unified_signal(
+        self,
+        symbol: str,
+        candles_by_tf: Dict[str, List[MarketDataPoint]],
+        spread_pip: float = 1.0,
+        account_balance: float = 10000.0
+    ) -> UnifiedSignalContract:
+        # Automatic Timeframe Selection
+        tf_res = self.tf_selector.select_best_timeframe(symbol, candles_by_tf)
+        chosen_tf = tf_res.selected_timeframe
+
+        sig = self.generate_signal(
+            symbol=symbol,
+            timeframe=chosen_tf,
+            candles_by_tf=candles_by_tf,
+            spread_pip=spread_pip,
+            account_balance=account_balance
+        )
+
+        return UnifiedSignalContract(
+            signal_id=f"SIG-{uuid.uuid4().hex[:8]}",
+            symbol=sig.symbol,
+            timeframe=chosen_tf,
+            direction=sig.direction,
+            entry_price=float(sig.entry_zone.split(" - ")[0].replace("$", "")) if sig.entry_zone != "N/A" else 0.0,
+            stop_loss=sig.stop_loss,
+            take_profit=sig.take_profit,
+            risk_reward=sig.real_rr,
+            confidence=float(sig.confidence_pct) / 100.0,
+            pattern_id=sig.trading_style,
+            market_context=f"MTF Selection: {tf_res.reason}",
+            created_at=sig.timestamp
+        )
 
     def generate_signal(
         self,
