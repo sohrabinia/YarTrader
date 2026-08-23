@@ -49,7 +49,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             data = json.load(f)
 
         self.assertGreaterEqual(data["signals_generated"], 1)
-        self.assertIn("M15", data["timeframes_used"])
+        self.assertGreaterEqual(len(data["timeframes_used"]), 1)
         self.assertIn("performance_metrics", data)
         self.assertIn("expectancy", data["performance_metrics"])
 

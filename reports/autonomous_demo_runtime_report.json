@@ -1,24 +1,24 @@
 {
-  "timestamp": "2026-08-23T07:58:31.444285+00:00",
+  "timestamp": "2026-08-23T08:04:37.091590+00:00",
   "runtime_duration_hours": 0.1,
-  "signals_generated": 3,
-  "signals_rejected": 2,
-  "demo_orders": 1,
-  "closed_positions": 1,
-  "tp_hits": 1,
+  "signals_generated": 1,
+  "signals_rejected": 1,
+  "demo_orders": 0,
+  "closed_positions": 0,
+  "tp_hits": 0,
   "sl_hits": 0,
-  "total_pnl": 31.81,
+  "total_pnl": 0.0,
   "performance_metrics": {
-    "total_trades": 3,
-    "wins": 2,
-    "losses": 1,
-    "win_rate": 66.67,
-    "average_rr": 2.07,
-    "average_win": 31.62,
-    "average_loss": 17.13,
-    "profit_factor": 3.69,
+    "total_trades": 5,
+    "wins": 3,
+    "losses": 2,
+    "win_rate": 60.0,
+    "average_rr": 2.09,
+    "average_win": 31.04,
+    "average_loss": 16.88,
+    "profit_factor": 2.76,
     "max_drawdown": 17.13,
-    "expectancy": 15.37
+    "expectancy": 11.87
   },
   "breakdowns": {
     "by_pattern": {
@@ -35,75 +35,73 @@
         "expectancy": -17.13
       },
       "MTF Selection: Highest structural alignment score (0.85) on M15.": {
-        "total_trades": 1,
-        "wins": 1,
-        "losses": 0,
-        "win_rate": 100.0,
-        "average_rr": 2.08,
-        "average_win": 31.44,
-        "average_loss": 0.0,
-        "profit_factor": 99.0,
-        "max_drawdown": 0.0,
-        "expectancy": 31.44
-      },
-      "MTF Selection: Highest structural alignment score (0.9) on M5.": {
-        "total_trades": 1,
-        "wins": 1,
-        "losses": 0,
-        "win_rate": 100.0,
-        "average_rr": 1.93,
-        "average_win": 31.81,
-        "average_loss": 0.0,
-        "profit_factor": 99.0,
-        "max_drawdown": 0.0,
-        "expectancy": 31.81
-      }
-    },
-    "by_timeframe": {
-      "M15": {
         "total_trades": 2,
         "wins": 1,
         "losses": 1,
         "win_rate": 50.0,
-        "average_rr": 2.14,
+        "average_rr": 2.09,
         "average_win": 31.44,
-        "average_loss": 17.13,
-        "profit_factor": 1.84,
-        "max_drawdown": 17.13,
-        "expectancy": 7.16
+        "average_loss": 16.63,
+        "profit_factor": 1.89,
+        "max_drawdown": 16.63,
+        "expectancy": 7.41
       },
-      "M5": {
-        "total_trades": 1,
-        "wins": 1,
+      "MTF Selection: Highest structural alignment score (0.9) on M5.": {
+        "total_trades": 2,
+        "wins": 2,
         "losses": 0,
         "win_rate": 100.0,
-        "average_rr": 1.93,
-        "average_win": 31.81,
+        "average_rr": 2.02,
+        "average_win": 30.84,
         "average_loss": 0.0,
         "profit_factor": 99.0,
         "max_drawdown": 0.0,
-        "expectancy": 31.81
+        "expectancy": 30.84
+      }
+    },
+    "by_timeframe": {
+      "M15": {
+        "total_trades": 3,
+        "wins": 1,
+        "losses": 2,
+        "win_rate": 33.33,
+        "average_rr": 2.13,
+        "average_win": 31.44,
+        "average_loss": 16.88,
+        "profit_factor": 0.93,
+        "max_drawdown": 17.13,
+        "expectancy": -0.77
+      },
+      "M5": {
+        "total_trades": 2,
+        "wins": 2,
+        "losses": 0,
+        "win_rate": 100.0,
+        "average_rr": 2.02,
+        "average_win": 30.84,
+        "average_loss": 0.0,
+        "profit_factor": 99.0,
+        "max_drawdown": 0.0,
+        "expectancy": 30.84
       }
     },
     "by_direction": {
       "BUY": {
-        "total_trades": 3,
-        "wins": 2,
-        "losses": 1,
-        "win_rate": 66.67,
-        "average_rr": 2.07,
-        "average_win": 31.62,
-        "average_loss": 17.13,
-        "profit_factor": 3.69,
+        "total_trades": 5,
+        "wins": 3,
+        "losses": 2,
+        "win_rate": 60.0,
+        "average_rr": 2.09,
+        "average_win": 31.04,
+        "average_loss": 16.88,
+        "profit_factor": 2.76,
         "max_drawdown": 17.13,
-        "expectancy": 15.37
+        "expectancy": 11.87
       }
     }
   },
-  "learning_updates": 1,
+  "learning_updates": 0,
   "timeframes_used": [
-    "H4",
-    "M15",
-    "M5"
+    "M15"
   ]
 }

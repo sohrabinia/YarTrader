@@ -220,6 +220,11 @@ def run_autonomous_demo_cycle(
     perf_metrics = analytics_engine.calculate_metrics(journal_records)
     breakdowns = analytics_engine.calculate_breakdowns(journal_records)
 
+    # Determine runtime status truthfully based on MT5 process connection
+    term_info_final = adapter.get_terminal_info()
+    has_native_mt5 = term_info_final and term_info_final.get("connected") and getattr(adapter, "_initialized", False)
+    runtime_status = "PASS" if has_native_mt5 and closed_positions > 0 else "BLOCKED_NO_MT5_IPC"
+
     # Save Autonomous Demo Runtime Report
     os.makedirs("reports", exist_ok=True)
     report_data = {
@@ -242,8 +247,32 @@ def run_autonomous_demo_cycle(
     with open(report_file, "w", encoding="utf-8") as f:
         json.dump(report_data, f, indent=2)
 
+    # Save Final Forensic Verification Report
+    forensic_report = {
+        "runtime_status": runtime_status,
+        "executed_trades": demo_orders,
+        "closed_trades": closed_positions,
+        "win_rate": perf_metrics.win_rate,
+        "average_rr": perf_metrics.average_rr,
+        "profit_factor": perf_metrics.profit_factor,
+        "expectancy": perf_metrics.expectancy,
+        "max_drawdown": perf_metrics.max_drawdown,
+        "learning_events": learning_updates,
+        "memory_updates": len(fractal_memory.memory),
+        "evidence_paths": [
+            report_file,
+            "runtime_logs/learning_history.json",
+            journal_mgr.journal_file
+        ]
+    }
+
+    forensic_file = "reports/final_autonomous_runtime_forensic_report.json"
+    with open(forensic_file, "w", encoding="utf-8") as f:
+        json.dump(forensic_report, f, indent=2)
+
     logger.info("==================================================")
     logger.info(f"AUTONOMOUS DEMO RUNTIME REPORT SAVED TO {report_file}")
+    logger.info(f"FINAL FORENSIC REPORT SAVED TO {forensic_file} (Status: {runtime_status})")
     logger.info("==================================================")
 
 
