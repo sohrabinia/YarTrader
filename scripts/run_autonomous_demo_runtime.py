@@ -135,33 +135,36 @@ def run_autonomous_demo_cycle(
             # Check if MT5 process is connected on Windows host
             term_info = adapter.get_terminal_info()
             if term_info and term_info.get("connected") and getattr(adapter, "_initialized", False):
-                # Fetch live symbol tick for exact market price alignment
-                live_tick = adapter.get_symbol_tick(sym)
-                sym_info = adapter.get_symbol_info(sym)
-                digits = int(sym_info.get("digits", 2)) if sym_info else 2
-                point = float(sym_info.get("point", 0.01)) if sym_info else 0.01
-                stops_level = float(sym_info.get("trade_stops_level", 0)) if sym_info else 0
-                min_dist = max(stops_level * point, 10.0 * point if point > 0 else 0.1)
+                from src.Execution.Services.risk_price_validator import RiskPriceValidator
+                sym_info = adapter.get_symbol_info(sym) or {}
+                live_tick = adapter.get_symbol_tick(sym) or {}
 
-                bid = float(live_tick.get("bid", base)) if live_tick else base
-                ask = float(live_tick.get("ask", base)) if live_tick else base
+                bid = float(live_tick.get("bid", base))
+                ask = float(live_tick.get("ask", base))
+                entry_p = ask if unified_sig.direction == "BUY" else bid
 
-                if unified_sig.direction == "BUY":
-                    entry_p = ask
-                    sl_p = round(entry_p - max(min_dist * 2, abs(unified_sig.entry_price - unified_sig.stop_loss)), digits)
-                    tp_p = round(entry_p + max(min_dist * 3, abs(unified_sig.take_profit - unified_sig.entry_price)), digits)
-                else:
-                    entry_p = bid
-                    sl_p = round(entry_p + max(min_dist * 2, abs(unified_sig.stop_loss - unified_sig.entry_price)), digits)
-                    tp_p = round(entry_p - max(min_dist * 3, abs(unified_sig.entry_price - unified_sig.take_profit)), digits)
+                is_val, val_reason, norm_entry, norm_sl, norm_tp, norm_vol, meta = RiskPriceValidator.validate_and_normalize(
+                    symbol=sym,
+                    direction=unified_sig.direction,
+                    entry_price=entry_p,
+                    stop_loss=unified_sig.stop_loss,
+                    take_profit=unified_sig.take_profit,
+                    volume=0.01,
+                    symbol_info=sym_info
+                )
+
+                if not is_val:
+                    logger.warning(f"[AUTONOMOUS RISK REJECTION] {sym}: {val_reason}")
+                    signals_rejected += 1
+                    continue
 
                 req = OrderRequest(
                     Symbol=sym,
                     OrderType=unified_sig.direction.title(),
-                    Volume=0.01,
-                    Price=entry_p,
-                    StopLoss=sl_p,
-                    TakeProfit=tp_p,
+                    Volume=norm_vol,
+                    Price=norm_entry,
+                    StopLoss=norm_sl,
+                    TakeProfit=norm_tp,
                     Comment="YarClose"
                 )
                 resp = adapter.send_order_to_broker(req)
@@ -169,18 +172,22 @@ def run_autonomous_demo_cycle(
                     demo_orders += 1
                     logger.info(f"[MT5 DEMO EXECUTION] Real order submitted: Ticket={resp.OrderId}, Status={resp.Status}")
 
-                    # Attempt real position close
-                    close_req = OrderRequest(
-                        Symbol=sym,
-                        OrderType="CLOSE",
-                        Volume=0.01,
-                        PositionTicket=int(resp.OrderId) if resp.OrderId.isdigit() else None,
-                        Comment="YarClose"
-                    )
-                    close_resp = adapter.send_order_to_broker(close_req)
-                    if close_resp.Status == "Placed":
-                        closed_positions += 1
-                        logger.info(f"[MT5 DEMO EXECUTION] Position closed cleanly: Ticket={resp.OrderId}")
+                    # Verify open position exists before attempting close
+                    open_positions = adapter.get_positions(ticket=int(resp.OrderId)) if resp.OrderId.isdigit() else []
+                    if open_positions:
+                        close_req = OrderRequest(
+                            Symbol=sym,
+                            OrderType="CLOSE",
+                            Volume=norm_vol,
+                            PositionTicket=int(resp.OrderId),
+                            Comment="YarClose"
+                        )
+                        close_resp = adapter.send_order_to_broker(close_req)
+                        if close_resp.Status == "Placed":
+                            closed_positions += 1
+                            logger.info(f"[MT5 DEMO EXECUTION] Position closed cleanly: Ticket={resp.OrderId}")
+                    else:
+                        logger.info(f"[MT5 DEMO EXECUTION] NO_POSITION_TO_CLOSE for ticket {resp.OrderId}")
             else:
                 # Controlled simulated execution in sandbox container
                 demo_orders += 1
