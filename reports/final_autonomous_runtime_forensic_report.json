@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-08-23T18:42:33.920241+00:00",
+    "timestamp": "2026-08-23T19:11:03.832449+00:00",
     "environment": "sandbox",
     "mt5_account": "52961173",
     "mode": "DEMO",
@@ -8,13 +8,13 @@
     "result": "BLOCKED_NO_MT5_IPC"
   },
   "runtime_status": "BLOCKED_NO_MT5_IPC",
-  "executed_trades": 1,
-  "closed_trades": 1,
-  "win_rate": 67.94,
+  "executed_trades": 0,
+  "closed_trades": 0,
+  "win_rate": 67.93,
   "average_rr": 2.12,
   "profit_factor": 3.66,
-  "expectancy": 14.73,
+  "expectancy": 14.75,
   "max_drawdown": 108.14,
-  "learning_events": 1,
+  "learning_events": 0,
   "memory_updates": 4
 }
