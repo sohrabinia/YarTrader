@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-08-23T21:45:00Z",
+  "evidence_version": "v1.0",
+  "status": "NATIVE_WINDOWS_MT5_UNAVAILABLE",
+  "live_trading_enabled": false,
+  "artifacts": [
+    {
+      "filename": "runtime_environment.json",
+      "sha256": "4b971a812e3e606a591244fa734b4c74f51e0657b9ddfeeb94541bf7fb59f0f9",
+      "evidence_type": "environment_preflight",
+      "stage": "PREFLIGHT"
+    }
+  ]
+}

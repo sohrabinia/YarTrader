@@ -1,0 +1,64 @@
+{
+  "timestamp": "2026-08-23T21:50:00Z",
+  "audit_version": "v7.0",
+  "endpoints": [
+    {
+      "route": "/health",
+      "method": "GET",
+      "exists": true,
+      "schema_valid": true,
+      "consumed_by_frontend": true,
+      "status": "PASS"
+    },
+    {
+      "route": "/api/public/metrics",
+      "method": "GET",
+      "exists": true,
+      "schema_valid": true,
+      "consumed_by_frontend": true,
+      "status": "PASS"
+    },
+    {
+      "route": "/api/devops/status",
+      "method": "GET",
+      "exists": true,
+      "schema_valid": true,
+      "consumed_by_frontend": true,
+      "status": "PASS"
+    },
+    {
+      "route": "/api/demo/report",
+      "method": "GET",
+      "exists": true,
+      "schema_valid": true,
+      "consumed_by_frontend": true,
+      "status": "PASS"
+    },
+    {
+      "route": "/api/demo/trades",
+      "method": "GET",
+      "exists": true,
+      "schema_valid": true,
+      "consumed_by_frontend": true,
+      "status": "PASS"
+    },
+    {
+      "route": "/api/shadow/metrics",
+      "method": "GET",
+      "exists": true,
+      "schema_valid": true,
+      "consumed_by_frontend": true,
+      "status": "PASS"
+    }
+  ],
+  "contract_mismatch_fixes": [
+    {
+      "component": "DataTable.jsx",
+      "fix": "Normalized prop signature to flexibly support both headers/rows and columns/data arrays"
+    },
+    {
+      "component": "DemoView.jsx",
+      "fix": "Wired real API demoTrades payload into DataTable component"
+    }
+  ]
+}
