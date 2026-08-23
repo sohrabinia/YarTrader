@@ -789,6 +789,102 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertLessEqual(len(sanitized_clean), 15)
         self.assertEqual(sanitized_clean, "Close")
 
+    def test_get_history_deals_mapping(self):
+        mock_mt5 = MagicMock()
+        mock_deal1 = MagicMock()
+        mock_deal1._asdict.return_value = {
+            "deal": 1001,
+            "order": 368555219,
+            "position_id": 368555219,
+            "symbol": "BITCOIN",
+            "volume": 0.01,
+            "price": 78311.0,
+            "profit": 0.0,
+            "entry": 0  # ENTRY_IN
+        }
+        mock_deal2 = MagicMock()
+        mock_deal2._asdict.return_value = {
+            "deal": 1002,
+            "order": 368555220,
+            "position_id": 368555219,
+            "symbol": "BITCOIN",
+            "volume": 0.01,
+            "price": 76311.5,
+            "profit": -20.0,
+            "entry": 1  # ENTRY_OUT
+        }
+        mock_mt5.history_deals_get.return_value = [mock_deal1, mock_deal2]
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        deals = self.adapter.get_history_deals(position=368555219)
+        self.assertEqual(len(deals), 2)
+        self.assertEqual(deals[0]["deal"], 1001)
+        self.assertEqual(deals[1]["profit"], -20.0)
+
+    def test_reconcile_pnl_success_and_failure(self):
+        from scripts.run_real_mt5_demo_e2e import reconcile_pnl
+        from src.Execution.Services.trade_journal import TradeJournalRecord
+
+        journal = TradeJournalRecord(
+            decision_id="DEC-368555219",
+            trade_id="TR-368555219",
+            cycle_id="CYC-368555219",
+            symbol="BITCOIN",
+            timeframe="M15",
+            direction="BUY",
+            planned_entry=78311.0,
+            planned_sl=0.0,
+            planned_tp=0.0,
+            planned_rr=1.5,
+            actual_entry=78311.0,
+            actual_exit=76311.5,
+            volume=0.01,
+            confidence=0.85,
+            reasoning=["Real MT5 DEMO Execution"],
+            evidence={},
+            order_ticket="368555219",
+            deal_ticket="1002",
+            open_time="2026-08-23T10:00:00Z",
+            close_time="2026-08-23T10:05:00Z",
+            exit_reason="MT5 Position Close",
+            pnl=-19.99,
+            pnl_percent=-2.55,
+            mfe=0.0,
+            mae=0.0,
+            duration=300.0,
+            market_regime="TRENDING",
+            result="LOSS",
+            configuration_version="v1.2.0"
+        )
+
+        matching_mt5 = {
+            "symbol": "BITCOIN",
+            "volume": 0.01,
+            "position_ticket": "368555219",
+            "open_price": 78311.0,
+            "close_price": 76311.5,
+            "net_pnl": -19.99
+        }
+
+        success, msg = reconcile_pnl(matching_mt5, journal)
+        self.assertTrue(success)
+        self.assertIn("P&L Reconciled", msg)
+
+        mismatched_mt5 = {
+            "symbol": "BITCOIN",
+            "volume": 0.01,
+            "position_ticket": "368555219",
+            "open_price": 78311.0,
+            "close_price": 76311.5,
+            "net_pnl": 100.0  # Discrepancy
+        }
+
+        fail, fail_msg = reconcile_pnl(mismatched_mt5, journal)
+        self.assertFalse(fail)
+        self.assertIn("Net PnL mismatch", fail_msg)
+
 
 if __name__ == "__main__":
     unittest.main()
