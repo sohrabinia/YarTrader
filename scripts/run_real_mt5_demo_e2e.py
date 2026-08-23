@@ -242,7 +242,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         "position": int(actual_pos_ticket),
         "type": close_action_type,
         "volume": actual_volume,
-        "comment": f"YarTrader Real DEMO Close {actual_symbol}"
+        "comment": "YarClose"
     }
     save_artifact("14_trade_request.json", trade_request_data)
 
@@ -251,7 +251,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         OrderType="CLOSE",
         Volume=actual_volume,
         PositionTicket=int(actual_pos_ticket),
-        Comment=f"YarTrader Real DEMO Close {actual_symbol}"
+        Comment="YarClose"
     )
 
     close_resp = adapter.send_order_to_broker(close_req)

@@ -173,13 +173,13 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         }
 
     def _sanitize_comment(self, comment: Optional[str]) -> str:
-        """Sanitizes comment to safe short ASCII string (max 31 chars)."""
+        """Sanitizes comment to safe short ASCII string (max 15 chars, alphanumeric/underscore)."""
         if not comment:
-            return "YarTrader DEMO"
+            return "YarClose"
         ascii_str = "".join(c for c in str(comment) if ord(c) < 128)
-        clean_str = "".join(c for c in ascii_str if c.isalnum() or c in " -_.")
-        sanitized = clean_str[:31].strip()
-        return sanitized or "YarTrader DEMO"
+        clean_str = "".join(c for c in ascii_str if c.isalnum() or c in "_-")
+        sanitized = clean_str[:15].strip()
+        return sanitized or "YarClose"
 
     def _resolve_filling_mode(self, mt5: Any, symbol: str, sym_info: Any) -> int:
         """Deterministically resolves supported MT5 filling mode for symbol."""

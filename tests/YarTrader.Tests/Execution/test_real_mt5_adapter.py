@@ -774,6 +774,21 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertIn("position", trade_req_sent)
         self.assertEqual(trade_req_sent["position"], 368555219)
 
+    def test_close_request_comment_is_mt5_safe(self):
+        sanitized_default = self.adapter._sanitize_comment(None)
+        self.assertEqual(sanitized_default, "YarClose")
+        self.assertLessEqual(len(sanitized_default), 15)
+
+        long_comment = "YarTrader Real DEMO Close BITCOIN 12345"
+        sanitized_long = self.adapter._sanitize_comment(long_comment)
+        self.assertLessEqual(len(sanitized_long), 15)
+        self.assertTrue(sanitized_long.isalnum())
+
+        invalid_char_comment = "Close!! @#$ %^& *"
+        sanitized_clean = self.adapter._sanitize_comment(invalid_char_comment)
+        self.assertLessEqual(len(sanitized_clean), 15)
+        self.assertEqual(sanitized_clean, "Close")
+
 
 if __name__ == "__main__":
     unittest.main()

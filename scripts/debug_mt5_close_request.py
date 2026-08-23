@@ -68,7 +68,7 @@ def debug_close_request(target_ticket: int = 368555219):
         "price": float(close_price),
         "deviation": 20,
         "magic": 0,
-        "comment": "Debug Close Request",
+        "comment": "YarClose",
         "type_time": mt5.ORDER_TIME_GTC,
     }
 
