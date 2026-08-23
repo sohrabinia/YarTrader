@@ -276,10 +276,16 @@ def run_autonomous_demo_cycle(
     perf_metrics = analytics_engine.calculate_metrics(journal_records)
     breakdowns = analytics_engine.calculate_breakdowns(journal_records)
 
-    # Determine runtime status truthfully based on MT5 process connection
+    # Determine runtime status truthfully based on MT5 process connection and execution evidence
     term_info_final = adapter.get_terminal_info()
     has_native_mt5 = term_info_final and term_info_final.get("connected") and getattr(adapter, "_initialized", False)
-    runtime_status = "NATIVE_MT5_DEMO_VERIFIED" if has_native_mt5 and closed_positions > 0 else "BLOCKED_NO_MT5_IPC"
+
+    if not has_native_mt5:
+        runtime_status = "BLOCKED_NO_MT5_IPC"
+    elif closed_positions > 0 and demo_orders > 0:
+        runtime_status = "NATIVE_MT5_DEMO_VERIFIED"
+    else:
+        runtime_status = "TRUTHFUL_ORDER_REJECTED"
 
     # Save Autonomous Demo Runtime Report
     os.makedirs("reports", exist_ok=True)

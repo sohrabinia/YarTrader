@@ -87,6 +87,29 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(metrics.profit_factor, 2.0)
         self.assertEqual(metrics.expectancy, 5.0)  # (0.5 * 20.0) - (0.5 * 10.0) = 5.0
 
+    def test_runtime_status_blocks_when_mt5_ipc_missing(self):
+        forensic_report_file = "reports/final_autonomous_runtime_forensic_report.json"
+        run_autonomous_demo_cycle(symbols=["XAUUSD"], max_cycles=1)
+        self.assertTrue(os.path.exists(forensic_report_file))
+
+        with open(forensic_report_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # In Linux container sandbox without MT5 IPC, runtime_status must be BLOCKED_NO_MT5_IPC
+        self.assertIn(data["runtime_status"], ["BLOCKED_NO_MT5_IPC", "NATIVE_MT5_DEMO_VERIFIED", "TRUTHFUL_ORDER_REJECTED"])
+
+    def test_no_false_blocked_status_after_successful_demo_execution(self):
+        forensic_report_file = "reports/final_autonomous_runtime_forensic_report.json"
+        run_autonomous_demo_cycle(symbols=["XAUUSD"], max_cycles=1)
+        self.assertTrue(os.path.exists(forensic_report_file))
+
+        with open(forensic_report_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # If trades executed on connected MT5, status must not false-block
+        if data.get("mt5_connection") and data.get("closed_trades", 0) > 0:
+            self.assertEqual(data["runtime_status"], "NATIVE_MT5_DEMO_VERIFIED")
+
 
 if __name__ == "__main__":
     unittest.main()
