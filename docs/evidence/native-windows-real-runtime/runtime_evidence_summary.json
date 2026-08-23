@@ -1,0 +1,17 @@
+{
+  "audit_title": "YarTrader Native Windows MT5 Real Runtime Evidence Assessment",
+  "document_id": "YARTRADER-NATIVE-WINDOWS-REAL-RUNTIME-v1.0",
+  "timestamp": "2026-08-23T21:40:00Z",
+  "environment": {
+    "host_os": "Linux 6.8.0-1018-aws (Sandbox Container)",
+    "python_version": "3.12.13",
+    "mt5_package_installed": false,
+    "native_mt5_terminal": false,
+    "environment_status": "NATIVE_WINDOWS_MT5_UNAVAILABLE"
+  },
+  "safety": {
+    "live_trading_enabled": false,
+    "fail_closed_status": "ACTIVE"
+  },
+  "verdict": "RED — NATIVE WINDOWS MT5 VERIFICATION COULD NOT BE EXECUTED"
+}
