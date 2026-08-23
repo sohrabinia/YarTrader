@@ -143,14 +143,32 @@ def run_autonomous_demo_cycle(
 
                 bid = float(live_tick.get("bid", base))
                 ask = float(live_tick.get("ask", base))
+                if bid <= 0 or ask <= 0:
+                    logger.warning(f"[AUTONOMOUS RUNTIME] Invalid live tick quote for {sym}: Bid={bid}, Ask={ask}. Skipping.")
+                    signals_rejected += 1
+                    continue
+
                 entry_p = ask if unified_sig.direction == "BUY" else bid
+
+                # Calculate proportional SL/TP relative to actual live quote
+                sl_pct = abs(unified_sig.entry_price - unified_sig.stop_loss) / max(unified_sig.entry_price, 0.0001)
+                tp_pct = abs(unified_sig.take_profit - unified_sig.entry_price) / max(unified_sig.entry_price, 0.0001)
+                sl_pct = max(sl_pct, 0.002)
+                tp_pct = max(tp_pct, 0.004)
+
+                if unified_sig.direction == "BUY":
+                    raw_sl = entry_p * (1.0 - sl_pct)
+                    raw_tp = entry_p * (1.0 + tp_pct)
+                else:
+                    raw_sl = entry_p * (1.0 + sl_pct)
+                    raw_tp = entry_p * (1.0 - tp_pct)
 
                 is_val, val_reason, norm_entry, norm_sl, norm_tp, norm_vol, meta = RiskPriceValidator.validate_and_normalize(
                     symbol=sym,
                     direction=unified_sig.direction,
                     entry_price=entry_p,
-                    stop_loss=unified_sig.stop_loss,
-                    take_profit=unified_sig.take_profit,
+                    stop_loss=raw_sl,
+                    take_profit=raw_tp,
                     volume=0.01,
                     symbol_info=sym_info
                 )

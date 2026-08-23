@@ -332,11 +332,16 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 f"close_price={price} volume={volume} position={pos_id} "
                 f"sl_present={sl_present} tp_present={tp_present} filling_mode={filling_mode}"
             )
+            # Mandatory Invariant Assertions before order_check/order_send
+            assert pos_id is not None and int(pos_id) > 0, "CLOSE request MUST contain valid position_ticket > 0"
+            assert not sl_present, "CLOSE trade_req MUST NOT contain 'sl'"
+            assert not tp_present, "CLOSE trade_req MUST NOT contain 'tp'"
 
         # 4. Check Order with Fail-Closed Safety across filling candidates
         check_res = None
         check_retcode = -1
         check_comment = "order_check returned None"
+        first_non_filling_error = None
 
         for cand_filling in candidates:
             trade_req["type_filling"] = cand_filling
@@ -354,9 +359,17 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 break
             else:
                 if res_cand is not None:
-                    check_res = res_cand
-                    check_retcode = cand_retcode
-                    check_comment = getattr(res_cand, "comment", f"retcode {cand_retcode}")
+                    # Record non-filling error (e.g. 10016 Invalid Stops) as primary if encountered
+                    if cand_retcode != 10030 and first_non_filling_error is None:
+                        first_non_filling_error = (res_cand, cand_retcode, getattr(res_cand, "comment", f"retcode {cand_retcode}"))
+                    if check_res is None or check_retcode == -1 or check_retcode == 10030:
+                        check_res = res_cand
+                        check_retcode = cand_retcode
+                        check_comment = getattr(res_cand, "comment", f"retcode {cand_retcode}")
+
+        # If any candidate failed with a specific parameter error (e.g., 10016), prioritize that error message over generic 10030
+        if check_retcode != 10009 and check_retcode != 0 and first_non_filling_error is not None:
+            check_res, check_retcode, check_comment = first_non_filling_error
 
         # Valid order_check success retcodes: 0, 10009 (TRADE_RETCODE_DONE).
         if check_res is None or check_retcode not in [0, 10009]:

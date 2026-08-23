@@ -206,3 +206,28 @@ def test_close_does_not_send_after_failed_order_check():
     assert resp.Status == "Failed"
     assert resp.Retcode == 10016
     mock_mt5.order_send.assert_not_called()
+
+
+def test_candidate_probing_preserves_non_filling_error_retcode():
+    adapter = RealMT5BrokerAdapter(auto_initialize=False)
+    adapter._initialized = True
+    mock_mt5 = MagicMock()
+    mock_mt5.symbol_info.return_value = MagicMock(visible=True, digits=5, point=0.00001, volume_min=0.01, volume_step=0.01, volume_max=100.0, filling_mode=0)
+    mock_mt5.symbol_info_tick.return_value = MagicMock(bid=1.08500, ask=1.08520)
+
+    # Candidate 0 returns 10016 (Invalid stops), candidate 1 returns 10030 (Unsupported filling)
+    mock_mt5.order_check.side_effect = [
+        MagicMock(retcode=10016, comment="Invalid stops"),
+        MagicMock(retcode=10030, comment="Unsupported filling mode"),
+        MagicMock(retcode=10030, comment="Unsupported filling mode"),
+    ]
+
+    adapter._mt5 = mock_mt5
+    adapter.verify_safety_and_account = MagicMock(return_value=True)
+
+    req = OrderRequest(Symbol="EURUSD", OrderType="BUY", Volume=0.01, Price=1.08520, StopLoss=1.0800, TakeProfit=1.0900)
+    resp = adapter.send_order_to_broker(req)
+
+    assert resp.Status == "Failed"
+    assert resp.Retcode == 10016
+    assert "Invalid stops" in resp.Comment

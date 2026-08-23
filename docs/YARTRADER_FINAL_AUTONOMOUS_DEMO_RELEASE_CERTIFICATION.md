@@ -65,9 +65,9 @@ Post-Trade Pattern Memory Learning Update
 ## 4. Test Suite Regression Baseline
 
 - **Pytest Configuration:** `pytest.ini` (`pythonpath = . app`)
-- **Passed Test Functions:** `1,631`
+- **Passed Test Functions:** `1,634`
 - **Subtest Assertions Passed:** `17`
-- **Total Test Units Executed:** `1,648`
+- **Total Test Units Executed:** `1,651`
 - **Failures / Errors:** `0`
 - **Success Rate:** `100%`
 
@@ -83,10 +83,11 @@ During initial forward execution testing on native MT5 terminals, order candidat
 * **Root Cause 1 (10016):** OPEN/CLOSE requests contained SL/TP values that did not respect symbol `trade_stops_level` or `trade_freeze_level` distance requirements, or carried SL/TP keys on CLOSE requests.
 * **Root Cause 2 (10030):** Candidate filling modes (`ORDER_FILLING_FOK` vs `ORDER_FILLING_IOC` vs `ORDER_FILLING_RETURN`) were probed sequentially when the symbol `filling_mode` bitmask mandated a specific mode.
 * **Remediation Applied:**
-  1. `BrokerConstraintNormalizer` and `RealMT5BrokerAdapter.send_order_to_broker` were updated to calculate `min_stop_distance = max(max(stops_level, freeze_level) * point, 10 * point)` and enforce distance rules on OPEN orders.
+  1. `BrokerConstraintNormalizer` and `RealMT5BrokerAdapter.send_order_to_broker` were updated to calculate `min_stop_distance = max(max(stops_level, freeze_level) * point, 10 * point)` and enforce distance rules on OPEN orders relative to live Ask/Bid quotes.
   2. CLOSE requests were refactored to strictly strip `sl` and `tp` keys, enforce `PositionTicket > 0`, set `position = int(PositionTicket)`, determine opposite trade action (`BUY` -> `SELL` at Bid, `SELL` -> `BUY` at Ask), and log `[MT5 CLOSE FORENSIC]`.
-  3. Filling mode resolution evaluates symbol `filling_mode` bitmask prior to candidate selection.
-  4. Regression unit tests added in `tests/YarTrader.Tests/Execution/test_autonomous_execution_lifecycle.py`.
+  3. Filling mode candidate probing error prioritization was updated so non-filling parameter rejections (such as `10016 Invalid stops`) are preserved as primary errors rather than being overwritten by generic `10030` filling rejections.
+  4. Hard runtime assertions added in `RealMT5BrokerAdapter.send_order_to_broker` for CLOSE requests: `pos_id > 0`, `"sl" not in trade_req`, `"tp" not in trade_req`.
+  5. Regression unit tests added in `tests/YarTrader.Tests/Execution/test_autonomous_execution_lifecycle.py`.
 
 ### B. Forensic CLOSE Contract Evidence Invariants
 ```json
