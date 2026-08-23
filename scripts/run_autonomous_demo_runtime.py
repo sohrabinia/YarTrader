@@ -35,18 +35,20 @@ def generate_simulated_candles(asset_id: str, base_price: float, count: int = 50
     candles = []
     current_time = datetime.now(timezone.utc)
     price = base_price
+    digits = 5 if base_price < 50 else 2
     for i in range(count):
-        delta = random.uniform(-2.0, 2.5)
-        close_p = price + delta
-        high_p = max(price, close_p) + random.uniform(0.5, 1.5)
-        low_p = min(price, close_p) - random.uniform(0.5, 1.5)
+        pct = random.uniform(-0.0015, 0.0020)
+        close_p = max(0.0001, price * (1.0 + pct))
+        spread_amt = max(0.0001, price * random.uniform(0.0002, 0.0008))
+        high_p = max(price, close_p) + spread_amt
+        low_p = max(0.0001, min(price, close_p) - spread_amt)
         candles.append(MarketDataPoint(
             AssetId=asset_id,
             Timestamp=current_time,
-            Open=round(price, 2),
-            High=round(high_p, 2),
-            Low=round(low_p, 2),
-            Close=round(close_p, 2),
+            Open=round(price, digits),
+            High=round(high_p, digits),
+            Low=round(low_p, digits),
+            Close=round(close_p, digits),
             Volume=float(random.uniform(100, 500))
         ))
         price = close_p
@@ -133,13 +135,33 @@ def run_autonomous_demo_cycle(
             # Check if MT5 process is connected on Windows host
             term_info = adapter.get_terminal_info()
             if term_info and term_info.get("connected") and getattr(adapter, "_initialized", False):
+                # Fetch live symbol tick for exact market price alignment
+                live_tick = adapter.get_symbol_tick(sym)
+                sym_info = adapter.get_symbol_info(sym)
+                digits = int(sym_info.get("digits", 2)) if sym_info else 2
+                point = float(sym_info.get("point", 0.01)) if sym_info else 0.01
+                stops_level = float(sym_info.get("trade_stops_level", 0)) if sym_info else 0
+                min_dist = max(stops_level * point, 10.0 * point if point > 0 else 0.1)
+
+                bid = float(live_tick.get("bid", base)) if live_tick else base
+                ask = float(live_tick.get("ask", base)) if live_tick else base
+
+                if unified_sig.direction == "BUY":
+                    entry_p = ask
+                    sl_p = round(entry_p - max(min_dist * 2, abs(unified_sig.entry_price - unified_sig.stop_loss)), digits)
+                    tp_p = round(entry_p + max(min_dist * 3, abs(unified_sig.take_profit - unified_sig.entry_price)), digits)
+                else:
+                    entry_p = bid
+                    sl_p = round(entry_p + max(min_dist * 2, abs(unified_sig.stop_loss - unified_sig.entry_price)), digits)
+                    tp_p = round(entry_p - max(min_dist * 3, abs(unified_sig.entry_price - unified_sig.take_profit)), digits)
+
                 req = OrderRequest(
                     Symbol=sym,
                     OrderType=unified_sig.direction.title(),
                     Volume=0.01,
-                    Price=unified_sig.entry_price,
-                    StopLoss=unified_sig.stop_loss,
-                    TakeProfit=unified_sig.take_profit,
+                    Price=entry_p,
+                    StopLoss=sl_p,
+                    TakeProfit=tp_p,
                     Comment="YarClose"
                 )
                 resp = adapter.send_order_to_broker(req)
@@ -223,12 +245,14 @@ def run_autonomous_demo_cycle(
     # Determine runtime status truthfully based on MT5 process connection
     term_info_final = adapter.get_terminal_info()
     has_native_mt5 = term_info_final and term_info_final.get("connected") and getattr(adapter, "_initialized", False)
-    runtime_status = "PASS_NATIVE_MT5_DEMO" if has_native_mt5 and closed_positions > 0 else "BLOCKED_NO_MT5_IPC"
+    runtime_status = "AUTONOMOUS_DEMO_EXECUTED" if has_native_mt5 and closed_positions > 0 else "BLOCKED_NO_MT5_IPC"
 
     # Save Autonomous Demo Runtime Report
     os.makedirs("reports", exist_ok=True)
     report_data = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "runtime_status": runtime_status,
+        "execution_verified": has_native_mt5 and closed_positions > 0,
         "runtime_duration_hours": round(cycles_completed * 0.1, 2),
         "signals_generated": signals_generated,
         "signals_rejected": signals_rejected,
