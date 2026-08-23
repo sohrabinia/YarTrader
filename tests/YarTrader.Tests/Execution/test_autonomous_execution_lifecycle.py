@@ -231,3 +231,40 @@ def test_candidate_probing_preserves_non_filling_error_retcode():
     assert resp.Status == "Failed"
     assert resp.Retcode == 10016
     assert "Invalid stops" in resp.Comment
+
+
+def test_open_request_and_close_request_are_independent():
+    adapter = RealMT5BrokerAdapter(auto_initialize=False)
+    adapter._initialized = True
+    mock_mt5 = MagicMock()
+    mock_mt5.POSITION_TYPE_BUY = 0
+    mock_mt5.ORDER_TYPE_BUY = 0
+    mock_mt5.ORDER_TYPE_SELL = 1
+    mock_mt5.symbol_info.return_value = MagicMock(visible=True, digits=5, point=0.00001, volume_min=0.01, volume_step=0.01, volume_max=100.0)
+    mock_mt5.symbol_info_tick.return_value = MagicMock(bid=1.08500, ask=1.08520)
+    mock_mt5.positions_get.return_value = [MagicMock(ticket=888, type=0)]
+    mock_mt5.order_check.return_value = MagicMock(retcode=10009, comment="OK")
+    mock_mt5.order_send.return_value = MagicMock(retcode=10009, order=888, deal=999, price=1.08520, volume=0.01)
+
+    adapter._mt5 = mock_mt5
+    adapter.verify_safety_and_account = MagicMock(return_value=True)
+
+    # 1. Open request
+    open_req = OrderRequest(Symbol="EURUSD", OrderType="BUY", Volume=0.01, Price=1.08520, StopLoss=1.0800, TakeProfit=1.0900)
+    open_resp = adapter.send_order_to_broker(open_req)
+    assert open_resp.Status == "Placed"
+
+    open_payload = mock_mt5.order_send.call_args[0][0]
+    assert "position" not in open_payload
+    assert "sl" in open_payload
+    assert "tp" in open_payload
+
+    # 2. Close request
+    close_req = OrderRequest(Symbol="EURUSD", OrderType="CLOSE", Volume=0.01, PositionTicket=888)
+    close_resp = adapter.send_order_to_broker(close_req)
+    assert close_resp.Status == "Placed"
+
+    close_payload = mock_mt5.order_send.call_args[0][0]
+    assert close_payload["position"] == 888
+    assert "sl" not in close_payload
+    assert "tp" not in close_payload

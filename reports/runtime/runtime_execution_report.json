@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": "2026-08-23T23:01:41.973823+00:00",
+    "timestamp": "2026-08-23T23:38:34.054351+00:00",
     "environment": "sandbox",
     "mt5_account": "52961173",
     "mode": "DEMO",
@@ -8,10 +8,10 @@
     "result": "BLOCKED_NO_MT5_IPC"
   },
   "signals_generated": 1,
-  "signals_rejected": 1,
+  "signals_rejected": 0,
   "demo_orders": 0,
   "closed_positions": 0,
   "timeframes_used": [
-    "M15"
+    "H1"
   ]
 }

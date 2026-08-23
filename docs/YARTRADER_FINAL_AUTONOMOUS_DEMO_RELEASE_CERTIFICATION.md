@@ -65,9 +65,9 @@ Post-Trade Pattern Memory Learning Update
 ## 4. Test Suite Regression Baseline
 
 - **Pytest Configuration:** `pytest.ini` (`pythonpath = . app`)
-- **Passed Test Functions:** `1,634`
+- **Passed Test Functions:** `1,635`
 - **Subtest Assertions Passed:** `17`
-- **Total Test Units Executed:** `1,651`
+- **Total Test Units Executed:** `1,652`
 - **Failures / Errors:** `0`
 - **Success Rate:** `100%`
 
@@ -84,8 +84,8 @@ During initial forward execution testing on native MT5 terminals, order candidat
 * **Root Cause 2 (10030):** Candidate filling modes (`ORDER_FILLING_FOK` vs `ORDER_FILLING_IOC` vs `ORDER_FILLING_RETURN`) were probed sequentially when the symbol `filling_mode` bitmask mandated a specific mode.
 * **Remediation Applied:**
   1. `BrokerConstraintNormalizer` and `RealMT5BrokerAdapter.send_order_to_broker` were updated to calculate `min_stop_distance = max(max(stops_level, freeze_level) * point, 10 * point)` and enforce distance rules on OPEN orders relative to live Ask/Bid quotes.
-  2. CLOSE requests were refactored to strictly strip `sl` and `tp` keys, enforce `PositionTicket > 0`, set `position = int(PositionTicket)`, determine opposite trade action (`BUY` -> `SELL` at Bid, `SELL` -> `BUY` at Ask), and log `[MT5 CLOSE FORENSIC]`.
-  3. Forensic logging tags were explicitly disambiguated: OPEN order checks log as `[MT5 OPEN FORENSIC]` and `[MT5 OPEN CHECK]`, while CLOSE order checks log as `[MT5 CLOSE FORENSIC]` and `[MT5 CLOSE CHECK]`.
+  2. CLOSE requests were refactored into a dedicated request builder (`_build_close_trade_request`) to strictly exclude `sl` and `tp` keys, enforce `PositionTicket > 0`, query active MT5 positions, set `position = int(PositionTicket)`, determine opposite trade action (`BUY` -> `SELL` at Bid, `SELL` -> `BUY` at Ask), and log `[MT5 CLOSE REQUEST]`. OPEN requests are built via dedicated `_build_open_trade_request`.
+  3. Forensic logging tags were explicitly disambiguated: OPEN order checks log as `[MT5 OPEN FORENSIC]` and `[MT5 OPEN CHECK]`, while CLOSE order checks log as `[MT5 CLOSE REQUEST]` and `[MT5 CLOSE CHECK]`.
   3. Filling mode candidate probing error prioritization was updated so non-filling parameter rejections (such as `10016 Invalid stops`) are preserved as primary errors rather than being overwritten by generic `10030` filling rejections.
   4. Hard runtime assertions added in `RealMT5BrokerAdapter.send_order_to_broker` for CLOSE requests: `pos_id > 0`, `"sl" not in trade_req`, `"tp" not in trade_req`.
   5. Regression unit tests added in `tests/YarTrader.Tests/Execution/test_autonomous_execution_lifecycle.py`.
