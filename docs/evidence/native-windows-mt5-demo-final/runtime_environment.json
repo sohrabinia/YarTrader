@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-08-23T21:45:00Z",
+  "host_os": "Linux 6.8.0-1018-aws (Container Sandbox)",
+  "python_version": "3.12.13",
+  "native_windows": false,
+  "mt5_terminal_running": false,
+  "mt5_python_package": false,
+  "account_id": "52961173",
+  "server": "Alpari-MT5-Demo",
+  "status": "NATIVE_WINDOWS_MT5_UNAVAILABLE"
+}
