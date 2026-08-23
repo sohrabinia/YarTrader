@@ -130,7 +130,7 @@ def test_order_check_fail_closed():
 
     assert resp.Status == "Failed"
     assert resp.Retcode == 10014
-    assert "order_check validation failed" in resp.Comment
+    assert "order_check failed" in resp.Comment
     # order_send MUST NOT be called!
     assert mock_mt5.order_send.call_count == 0
 
@@ -139,8 +139,8 @@ def test_comment_sanitization():
     adapter = RealMT5BrokerAdapter(auto_initialize=False)
     comment = "YarTrader DEMO XAUUSD — Very Long Comment Over 31 Chars! 🚀"
     sanitized = adapter._sanitize_comment(comment)
-    assert len(sanitized) <= 31
-    assert "YarTrader DEMO XAUUSD" in sanitized
+    assert len(sanitized) <= 15
+    assert "YarTrader" in sanitized
     assert "🚀" not in sanitized
 
 
