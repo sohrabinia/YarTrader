@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-17T17:29:04.655271",
+  "timestamp": "2026-08-23T14:05:35.706950",
   "total_signals": 5000,
   "executed_demo_trades": 4375,
   "risk_gate_rejections": 625,
@@ -14,11 +14,11 @@
       "pattern_id": "PAT_LIQUIDITY_SWEEP_REVERSAL",
       "timeframe": "M15",
       "market_context": "TRENDING_UP",
-      "frequency": 1121,
-      "wins": 792,
+      "frequency": 1119,
+      "wins": 790,
       "losses": 329,
-      "success_rate": 0.7065,
-      "confidence_weight": 0.7532
+      "success_rate": 0.706,
+      "confidence_weight": 0.753
     },
     "PAT_MSS_BREAKOUT": {
       "pattern_id": "PAT_MSS_BREAKOUT",
@@ -56,11 +56,11 @@
       "pattern_id": "PAT_LIQUIDITY_SWEEP_REVERSAL",
       "timeframe": "M15",
       "market_context": "TRENDING_UP",
-      "frequency": 2198,
-      "wins": 1553,
+      "frequency": 2196,
+      "wins": 1551,
       "losses": 645,
-      "success_rate": 0.7066,
-      "confidence_weight": 0.7533
+      "success_rate": 0.7063,
+      "confidence_weight": 0.7531
     },
     "PAT_MSS_BREAKOUT": {
       "pattern_id": "PAT_MSS_BREAKOUT",

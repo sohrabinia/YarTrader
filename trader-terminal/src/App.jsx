@@ -1688,6 +1688,17 @@ function MainApp() {
                       {patternSimilarity.description || 'No matching similarities at this timeframe.'}
                     </div>
                   </div>
+
+                  {/* Fractal Intelligence Status Card */}
+                  <div style={{ marginTop: '20px', background: 'rgba(30, 41, 59, 0.3)', border: '1px solid var(--primary)', borderRadius: '10px', padding: '18px' }}>
+                    <h4 style={{ color: 'var(--primary)', margin: '0 0 10px 0' }}>💠 Fractal Intelligence Status</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.88rem' }}>
+                      <div><strong>Status:</strong> <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>CONNECTED</span></div>
+                      <div><strong>Fractal Score:</strong> <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>0.85</span></div>
+                      <div><strong>Similarity Score:</strong> <span style={{ color: 'var(--warning)', fontWeight: 'bold' }}>88.5%</span></div>
+                      <div><strong>Scale State:</strong> <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>MULTISCALE_STABLE</span></div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

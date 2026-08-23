@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from src.Execution.Interfaces.interfaces import IBrokerAdapter
-from src.Execution.Models.models import OrderRequest, OrderResponse, ExecutionResult
+from src.Execution.Models.models import OrderRequest, OrderResponse
 from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
 from src.Infrastructure.exceptions import ValidationException
 
@@ -26,6 +26,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
     TARGET_SERVER = "Alpari-MT5-Demo"
 
     def __init__(self, auto_initialize: bool = True):
+        logger.info("[MT5 ADAPTER VERSION] CLOSE FORENSIC REMEDIATION ACTIVE")
         self._mt5 = None
         self._initialized = False
         if auto_initialize:
@@ -36,14 +37,22 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         try:
             import MetaTrader5 as mt5
             self._mt5 = mt5
-            if self._mt5.initialize():
+            if self._mt5.initialize() and self._mt5.account_info() is not None:
                 self._initialized = True
                 logger.info("[RealMT5BrokerAdapter] MetaTrader5 initialized successfully.")
                 return True
-            else:
-                err = self._mt5.last_error()
-                logger.warning(f"[RealMT5BrokerAdapter] MT5 initialize failed: {err}")
-                return False
+
+            # Fallback to explicit terminal path if standard initialize has no IPC connection
+            import os
+            default_path = r"C:\Program Files\MetaTrader 5\terminal64.exe"
+            if os.path.exists(default_path) and self._mt5.initialize(default_path):
+                self._initialized = True
+                logger.info(f"[RealMT5BrokerAdapter] MetaTrader5 initialized via path: {default_path}")
+                return True
+
+            err = self._mt5.last_error()
+            logger.warning(f"[RealMT5BrokerAdapter] MT5 initialize failed: {err}")
+            return False
         except ImportError:
             logger.warning("[RealMT5BrokerAdapter] MetaTrader5 Python package not available.")
             return False
@@ -102,7 +111,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         acc = self._mt5.account_info()
         if acc is None:
             return None
-        return acc._asdict() if hasattr(acc, "_asdict") else dict(acc._asdict()) if hasattr(acc, "_asdict") else {
+        if hasattr(acc, "_asdict"):
+            return acc._asdict()
+        return {
             "login": getattr(acc, "login", None),
             "trade_mode": getattr(acc, "trade_mode", None),
             "balance": getattr(acc, "balance", None),
@@ -162,13 +173,13 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         }
 
     def _sanitize_comment(self, comment: Optional[str]) -> str:
-        """Sanitizes comment to safe short ASCII string (max 31 chars)."""
+        """Sanitizes comment to safe short ASCII string (max 15 chars, alphanumeric/underscore)."""
         if not comment:
-            return "YarTrader DEMO"
+            return "YarClose"
         ascii_str = "".join(c for c in str(comment) if ord(c) < 128)
-        clean_str = "".join(c for c in ascii_str if c.isalnum() or c in " -_.")
-        sanitized = clean_str[:31].strip()
-        return sanitized or "YarTrader DEMO"
+        clean_str = "".join(c for c in ascii_str if c.isalnum() or c in "_-")
+        sanitized = clean_str[:15].strip()
+        return sanitized or "YarClose"
 
     def _resolve_filling_mode(self, mt5: Any, symbol: str, sym_info: Any) -> int:
         """Deterministically resolves supported MT5 filling mode for symbol."""
@@ -178,11 +189,11 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         f_mode = getattr(sym_info, "filling_mode", None) if sym_info else None
         if f_mode is not None and isinstance(f_mode, int):
-            if f_mode & 1:  # FOK supported
+            if f_mode & 1:  # SYMBOL_FILLING_FOK bit 0 set (1) -> ORDER_FILLING_FOK (0)
                 return fok_code
-            if f_mode & 2:  # IOC supported
+            if f_mode & 2:  # SYMBOL_FILLING_IOC bit 1 set (2) -> ORDER_FILLING_IOC (1)
                 return ioc_code
-            if f_mode & 4:  # RETURN supported
+            if f_mode & 4:  # SYMBOL_FILLING_RETURN bit 2 set (4) -> ORDER_FILLING_RETURN (2)
                 return return_code
 
         # Default fallback preference: FOK -> IOC
@@ -209,14 +220,23 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if tick is None or getattr(tick, "bid", 0) <= 0 or getattr(tick, "ask", 0) <= 0:
             raise ValidationException(f"Real tick for symbol '{request.Symbol}' is unavailable or invalid.")
 
+        digits = int(getattr(sym_info, "digits", 2))
+        point = float(getattr(sym_info, "point", 0.01))
+        trade_stops_level = float(getattr(sym_info, "trade_stops_level", 0))
+        trade_freeze_level = float(getattr(sym_info, "trade_freeze_level", 0))
+
+        # Dynamic stop distance calculation (respecting trade_stops_level and trade_freeze_level)
+        stop_level_pts = max(trade_stops_level, trade_freeze_level)
+        min_stop_distance = max(stop_level_pts * point, 10.0 * point if point > 0 else 0.1)
+
         # 3. Map Order Action and Price
         order_type_str = request.OrderType.upper()
         if order_type_str in ["BUY", "LONG"]:
             mt5_action_type = mt5.ORDER_TYPE_BUY
-            price = request.Price or getattr(tick, "ask")
+            price = round(request.Price or getattr(tick, "ask"), digits)
         elif order_type_str in ["SELL", "SHORT"]:
             mt5_action_type = mt5.ORDER_TYPE_SELL
-            price = request.Price or getattr(tick, "bid")
+            price = round(request.Price or getattr(tick, "bid"), digits)
         elif order_type_str == "CLOSE":
             # Position closing request
             if not request.PositionTicket:
@@ -228,10 +248,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             pos_type = getattr(pos, "type", 0)
             if pos_type == mt5.POSITION_TYPE_BUY:
                 mt5_action_type = mt5.ORDER_TYPE_SELL
-                price = getattr(tick, "bid")
+                price = round(getattr(tick, "bid"), digits)
             else:
                 mt5_action_type = mt5.ORDER_TYPE_BUY
-                price = getattr(tick, "ask")
+                price = round(getattr(tick, "ask"), digits)
         else:
             raise ValidationException(f"Unsupported OrderType: '{request.OrderType}'")
 
@@ -265,28 +285,92 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if request.OrderType.upper() == "CLOSE" and request.PositionTicket:
             trade_req["position"] = int(request.PositionTicket)
 
-        if request.StopLoss and request.StopLoss > 0:
-            trade_req["sl"] = float(request.StopLoss)
-        if request.TakeProfit and request.TakeProfit > 0:
-            trade_req["tp"] = float(request.TakeProfit)
+        # Dynamic SL/TP Normalization & Distance Enforcement
+        if request.StopLoss and request.StopLoss > 0 and request.OrderType.upper() != "CLOSE":
+            sl = round(request.StopLoss, digits)
+            if mt5_action_type == mt5.ORDER_TYPE_BUY:
+                if price - sl < min_stop_distance:
+                    sl = round(price - min_stop_distance, digits)
+            elif mt5_action_type == mt5.ORDER_TYPE_SELL:
+                if sl - price < min_stop_distance:
+                    sl = round(price + min_stop_distance, digits)
+            trade_req["sl"] = float(sl)
 
-        # 4. Check Order with Fail-Closed Safety
-        check_res = mt5.order_check(trade_req)
-        if check_res is not None:
-            check_retcode = getattr(check_res, "retcode", 0)
-            check_comment = getattr(check_res, "comment", "")
-            # Accepted order_check success retcodes: 0, 10009 (DONE), 10013 (INVALID_STOPS/CHECK_OK in check API)
-            if check_retcode not in [0, 10009, 10013]:
-                logger.error(f"[RealMT5BrokerAdapter] order_check validation failed: retcode={check_retcode}, comment={check_comment}")
-                return OrderResponse(
-                    OrderId="0",
-                    Symbol=request.Symbol,
-                    Status="Failed",
-                    SubmittedAt=datetime.now(timezone.utc),
-                    Retcode=check_retcode,
-                    Comment=f"order_check validation failed: ({check_retcode}) {check_comment}",
-                    RawResponse=check_res._asdict() if hasattr(check_res, "_asdict") else {"retcode": check_retcode, "comment": check_comment}
+        if request.TakeProfit and request.TakeProfit > 0 and request.OrderType.upper() != "CLOSE":
+            tp = round(request.TakeProfit, digits)
+            if mt5_action_type == mt5.ORDER_TYPE_BUY:
+                if tp - price < min_stop_distance:
+                    tp = round(price + min_stop_distance, digits)
+            elif mt5_action_type == mt5.ORDER_TYPE_SELL:
+                if price - tp < min_stop_distance:
+                    tp = round(price - min_stop_distance, digits)
+            trade_req["tp"] = float(tp)
+
+        # Build candidate filling modes (preferred resolved mode first, then remaining)
+        fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)
+        ioc_code = getattr(mt5, "ORDER_FILLING_IOC", 1)
+        return_code = getattr(mt5, "ORDER_FILLING_RETURN", 2)
+        candidates = [filling_mode]
+        for mode_opt in [fok_code, ioc_code, return_code]:
+            if mode_opt not in candidates:
+                candidates.append(mode_opt)
+
+        pos_id = trade_req.get("position", None)
+        import json
+        last_err_before = mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
+        logger.info(f"[MT5 CLOSE FORENSIC] trade_req={json.dumps(trade_req, default=str)}")
+        logger.info(f"[MT5 CLOSE FORENSIC] last_error_before_check={last_err_before}")
+
+        # 4. Check Order with Fail-Closed Safety across filling candidates
+        check_res = None
+        check_retcode = -1
+        check_comment = "order_check returned None"
+
+        for cand_filling in candidates:
+            trade_req["type_filling"] = cand_filling
+            res_cand = mt5.order_check(trade_req)
+            last_err_after = mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
+            logger.info(f"[MT5 CLOSE FORENSIC] filling_mode_candidate={cand_filling} order_check_result={res_cand} last_error_after_check={last_err_after}")
+
+            cand_retcode = getattr(res_cand, "retcode", -1) if res_cand is not None else -1
+            if res_cand is not None and cand_retcode in [0, 10009]:
+                check_res = res_cand
+                check_retcode = cand_retcode
+                check_comment = getattr(res_cand, "comment", "OK")
+                filling_mode = cand_filling
+                logger.info(f"[RealMT5BrokerAdapter] order_check PASSED with candidate filling_mode={cand_filling}")
+                break
+            else:
+                if res_cand is not None:
+                    check_res = res_cand
+                    check_retcode = cand_retcode
+                    check_comment = getattr(res_cand, "comment", f"retcode {cand_retcode}")
+
+        # Valid order_check success retcodes: 0, 10009 (TRADE_RETCODE_DONE).
+        if check_res is None or check_retcode not in [0, 10009]:
+            logger.warning(
+                f"[RealMT5BrokerAdapter] order_check failed "
+                f"(retcode={check_retcode}): {check_comment}. Halting order_send."
+            )
+
+            return OrderResponse(
+                OrderId="0",
+                Symbol=request.Symbol,
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=check_retcode,
+                Comment=f"order_check failed: {check_comment}",
+                RawResponse=(
+                    check_res._asdict()
+                    if check_res is not None and hasattr(check_res, "_asdict")
+                    else {
+                        "retcode": check_retcode,
+                        "comment": check_comment,
+                        "trade_req": trade_req,
+                        "last_error": mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
+                    }
                 )
+            )
 
         # 5. Send Order
         res = mt5.order_send(trade_req)
@@ -317,7 +401,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         logger.info(
             f"[RealMT5BrokerAdapter] Real mt5.order_send response: "
-            f"retcode={retcode}, order={order_ticket}, deal={deal_ticket}, status={status}"
+            f"retcode={retcode}, order={order_ticket}, deal={deal_ticket}, status={status}, price={fill_price}, volume={fill_volume}"
         )
 
         return OrderResponse(
