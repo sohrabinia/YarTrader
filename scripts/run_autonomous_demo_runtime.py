@@ -223,7 +223,7 @@ def run_autonomous_demo_cycle(
     # Determine runtime status truthfully based on MT5 process connection
     term_info_final = adapter.get_terminal_info()
     has_native_mt5 = term_info_final and term_info_final.get("connected") and getattr(adapter, "_initialized", False)
-    runtime_status = "PASS" if has_native_mt5 and closed_positions > 0 else "BLOCKED_NO_MT5_IPC"
+    runtime_status = "PASS_NATIVE_MT5_DEMO" if has_native_mt5 and closed_positions > 0 else "BLOCKED_NO_MT5_IPC"
 
     # Save Autonomous Demo Runtime Report
     os.makedirs("reports", exist_ok=True)
