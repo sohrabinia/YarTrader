@@ -1,0 +1,7 @@
+{
+  "gate": "LEARNING_CYCLE",
+  "status": "PROVEN",
+  "open_position_learning": "DISABLED",
+  "closed_trade_learning": "ENABLED",
+  "pattern_memory_updates": 4
+}

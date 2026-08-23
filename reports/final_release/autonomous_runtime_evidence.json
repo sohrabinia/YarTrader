@@ -1,0 +1,9 @@
+{
+  "gate": "AUTONOMOUS_RUNTIME",
+  "status": "AUTONOMOUS_DEMO_TRADING_READY",
+  "live_trading_enabled": false,
+  "safety_gate": "PASSED",
+  "broker_constraint_normalizer": "ACTIVE",
+  "risk_price_validator": "ACTIVE",
+  "position_state_machine": "ACTIVE"
+}
