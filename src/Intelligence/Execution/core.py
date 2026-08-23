@@ -103,7 +103,7 @@ class ExecutionIntelligenceCore:
         alignment_res = self.alignment_engine.align_structures(symbol, alignment_narratives)
         state["alignment"] = alignment_res
 
-        # 5. Pattern Similarity Search
+        # 5. Pattern Similarity & Unified Fractal Analysis
         # Current structural signature: last 4 swing heights
         swings = narrative_res.get("swings", [])
         sig = [s["price"] for s in swings[-4:]] if len(swings) >= 4 else [float(c["close"]) for c in candles[-4:]]
@@ -112,6 +112,30 @@ class ExecutionIntelligenceCore:
         historical_patterns = self._load_historical_pattern_memory()
         similarity_res = self.similarity_engine.find_similar_structures(sig, historical_patterns)
         state["similarity"] = similarity_res
+
+        # Unified Fractal Engine Subsystem execution
+        try:
+            from src.Infrastructure.DI.container import container_instance
+            from src.Research.MarketAnalysis.Interfaces.interfaces import IFractalEngine
+            fractal_engine = container_instance.resolve(IFractalEngine)
+        except Exception:
+            from src.Research.Brain.fractal_engine import FractalEngine
+            fractal_engine = FractalEngine()
+
+        try:
+            tf_candles = {timeframe: candles}
+            if all_timeframe_candles:
+                tf_candles.update(all_timeframe_candles)
+
+            fractal_res = fractal_engine.analyze_fractals(
+                symbol=symbol,
+                primary_timeframe=timeframe,
+                candles_by_tf=tf_candles,
+                historical_patterns=historical_patterns
+            )
+            state["fractal"] = fractal_res
+        except Exception as f_err:
+            state["fractal_error"] = str(f_err)
 
         # 6. Portfolio Risk evaluation
         active_trades = active_portfolio_trades or []
