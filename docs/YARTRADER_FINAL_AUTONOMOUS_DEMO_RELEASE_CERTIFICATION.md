@@ -73,5 +73,22 @@ Post-Trade Pattern Memory Learning Update
 
 ---
 
+---
+
+## 5. Historical Execution & Forensic Blocker Remediation Audit Trail
+
+### A. Historical Order Execution Analysis (Retcodes 10016 / 10030)
+During initial forward execution testing on native MT5 terminals, order candidate probing encountered retcodes `10016` (`TRADE_RETCODE_INVALID_STOPS`) and `10030` (`TRADE_RETCODE_INVALID_FILLING`).
+
+* **Root Cause 1 (10016):** OPEN/CLOSE requests contained SL/TP values that did not respect symbol `trade_stops_level` or `trade_freeze_level` distance requirements, or carried SL/TP keys on CLOSE requests.
+* **Root Cause 2 (10030):** Candidate filling modes (`ORDER_FILLING_FOK` vs `ORDER_FILLING_IOC` vs `ORDER_FILLING_RETURN`) were probed sequentially when the symbol `filling_mode` bitmask mandated a specific mode.
+* **Remediation Applied:**
+  1. `BrokerConstraintNormalizer` and `RealMT5BrokerAdapter.send_order_to_broker` were updated to calculate `min_stop_distance = max(max(stops_level, freeze_level) * point, 10 * point)` and enforce distance rules on OPEN orders.
+  2. CLOSE requests were refactored to strictly strip `sl` and `tp` keys, enforce `PositionTicket > 0`, and set `position = int(PositionTicket)`.
+  3. Filling mode resolution evaluates symbol `filling_mode` bitmask prior to candidate selection.
+  4. Regression unit tests added in `tests/YarTrader.Tests/Execution/test_autonomous_execution_lifecycle.py`.
+
+---
+
 ## Final Management Release Verdict
 `🟢 FINAL AUTONOMOUS DEMO TRADING RELEASE APPROVED`

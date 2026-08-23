@@ -238,12 +238,13 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             mt5_action_type = mt5.ORDER_TYPE_SELL
             price = round(request.Price or getattr(tick, "bid"), digits)
         elif order_type_str == "CLOSE":
-            # Position closing request
-            if not request.PositionTicket:
-                raise ValidationException("PositionTicket is required for CLOSE order type.")
-            positions = mt5.positions_get(ticket=int(request.PositionTicket))
+            # Position closing request contract invariant enforcement
+            pos_ticket = int(request.PositionTicket) if request.PositionTicket else 0
+            if pos_ticket <= 0:
+                raise ValidationException(f"Valid non-zero PositionTicket is required for CLOSE order type, got {pos_ticket}.")
+            positions = mt5.positions_get(ticket=pos_ticket)
             if not positions or len(positions) == 0:
-                raise ValidationException(f"No open MT5 position found for ticket {request.PositionTicket}")
+                raise ValidationException(f"No open MT5 position found for ticket {pos_ticket}")
             pos = positions[0]
             pos_type = getattr(pos, "type", 0)
             if pos_type == mt5.POSITION_TYPE_BUY:
@@ -256,9 +257,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             raise ValidationException(f"Unsupported OrderType: '{request.OrderType}'")
 
         # Validate minimum volume safe bounds
-        vol_min = getattr(sym_info, "volume_min", 0.01)
-        vol_step = getattr(sym_info, "volume_step", 0.01)
-        vol_max = getattr(sym_info, "volume_max", 100.0)
+        vol_min = getattr(sym_info, "volume_min", 0.01) if hasattr(sym_info, "volume_min") else (sym_info.get("volume_min", 0.01) if isinstance(sym_info, dict) else 0.01)
+        vol_step = getattr(sym_info, "volume_step", 0.01) if hasattr(sym_info, "volume_step") else (sym_info.get("volume_step", 0.01) if isinstance(sym_info, dict) else 0.01)
+        vol_max = getattr(sym_info, "volume_max", 100.0) if hasattr(sym_info, "volume_max") else (sym_info.get("volume_max", 100.0) if isinstance(sym_info, dict) else 100.0)
         volume = max(vol_min, min(request.Volume, vol_max))
         # Align to step
         if vol_step > 0:
@@ -282,29 +283,30 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             "type_filling": filling_mode,
         }
 
-        if request.OrderType.upper() == "CLOSE" and request.PositionTicket:
+        if order_type_str == "CLOSE":
             trade_req["position"] = int(request.PositionTicket)
+            # CLOSE requests MUST NOT carry SL or TP
+        else:
+            # Dynamic SL/TP Normalization & Distance Enforcement for OPEN orders only
+            if request.StopLoss and request.StopLoss > 0:
+                sl = round(request.StopLoss, digits)
+                if mt5_action_type == mt5.ORDER_TYPE_BUY:
+                    if price - sl < min_stop_distance:
+                        sl = round(price - min_stop_distance, digits)
+                elif mt5_action_type == mt5.ORDER_TYPE_SELL:
+                    if sl - price < min_stop_distance:
+                        sl = round(price + min_stop_distance, digits)
+                trade_req["sl"] = float(sl)
 
-        # Dynamic SL/TP Normalization & Distance Enforcement
-        if request.StopLoss and request.StopLoss > 0 and request.OrderType.upper() != "CLOSE":
-            sl = round(request.StopLoss, digits)
-            if mt5_action_type == mt5.ORDER_TYPE_BUY:
-                if price - sl < min_stop_distance:
-                    sl = round(price - min_stop_distance, digits)
-            elif mt5_action_type == mt5.ORDER_TYPE_SELL:
-                if sl - price < min_stop_distance:
-                    sl = round(price + min_stop_distance, digits)
-            trade_req["sl"] = float(sl)
-
-        if request.TakeProfit and request.TakeProfit > 0 and request.OrderType.upper() != "CLOSE":
-            tp = round(request.TakeProfit, digits)
-            if mt5_action_type == mt5.ORDER_TYPE_BUY:
-                if tp - price < min_stop_distance:
-                    tp = round(price + min_stop_distance, digits)
-            elif mt5_action_type == mt5.ORDER_TYPE_SELL:
-                if price - tp < min_stop_distance:
-                    tp = round(price - min_stop_distance, digits)
-            trade_req["tp"] = float(tp)
+            if request.TakeProfit and request.TakeProfit > 0:
+                tp = round(request.TakeProfit, digits)
+                if mt5_action_type == mt5.ORDER_TYPE_BUY:
+                    if tp - price < min_stop_distance:
+                        tp = round(price + min_stop_distance, digits)
+                elif mt5_action_type == mt5.ORDER_TYPE_SELL:
+                    if price - tp < min_stop_distance:
+                        tp = round(price - min_stop_distance, digits)
+                trade_req["tp"] = float(tp)
 
         # Build candidate filling modes (preferred resolved mode first, then remaining)
         fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)

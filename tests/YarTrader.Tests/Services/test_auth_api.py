@@ -1,7 +1,6 @@
 import unittest
 from fastapi.testclient import TestClient
-from src.Application.Services.web_dashboard import app
-from src.Application.Dashboard.auth_service import global_auth_service
+from src.Application.Services.web_dashboard import app, global_auth_service
 
 class TestSaaSAuthAPI(unittest.TestCase):
     """

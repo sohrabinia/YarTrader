@@ -244,10 +244,18 @@ def run_autonomous_demo_cycle(
     perf_metrics = analytics_engine.calculate_metrics(journal_records)
     breakdowns = analytics_engine.calculate_breakdowns(journal_records)
 
-    # Determine runtime status truthfully based on MT5 process connection
+    # Determine runtime status truthfully based on MT5 process connection and execution results
     term_info_final = adapter.get_terminal_info()
     has_native_mt5 = term_info_final and term_info_final.get("connected") and getattr(adapter, "_initialized", False)
-    runtime_status = "AUTONOMOUS_DEMO_EXECUTED" if has_native_mt5 and closed_positions > 0 else "BLOCKED_NO_MT5_IPC"
+
+    if not has_native_mt5:
+        runtime_status = "BLOCKED_NO_MT5_IPC"
+    elif closed_positions > 0:
+        runtime_status = "SUCCESS"
+    elif demo_orders > 0:
+        runtime_status = "POSITION_VERIFICATION_OR_CLOSE_FAILED"
+    else:
+        runtime_status = "ORDER_CHECK_OR_SEND_FAILED"
 
     # Resolve reports directory via Storage Root
     storage_root = YarTraderStorageManager.get_manager().storage_root
