@@ -261,11 +261,8 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         # Invariant Assertions for OPEN Request
         assert "position" not in trade_req or trade_req.get("position") is None, "OPEN request MUST NOT contain position ticket"
 
-        logger.info(
-            f"[MT5 OPEN FORENSIC] symbol={request.Symbol} order_type={order_type_str} "
-            f"price={price} sl={trade_req.get('sl')} tp={trade_req.get('tp')} "
-            f"volume={volume} filling_mode={filling_mode}"
-        )
+        import json
+        logger.info(f"[MT5 OPEN REQUEST FINAL] trade_req={json.dumps(trade_req, default=str)}")
         return trade_req
 
     def _build_close_trade_request(self, request: OrderRequest, mt5: Any, sym_info: Any, tick: Any, digits: int) -> Dict[str, Any]:
@@ -334,12 +331,14 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         assert "sl" not in trade_req, "CLOSE trade_req MUST NOT contain 'sl' key"
         assert "tp" not in trade_req, "CLOSE trade_req MUST NOT contain 'tp' key"
 
+        import json
         logger.info(
-            f"[MT5 CLOSE REQUEST] position_ticket={pos_ticket} position_exists=True "
+            f"[MT5 CLOSE REQUEST FINAL] position_ticket={pos_ticket} position_exists=True "
             f"position_type={pos_type_str} close_type={close_type_str} "
             f"close_price_source={price_src_str} close_price={close_price} "
             f"volume={volume} position={trade_req['position']} "
-            f"sl=ABSENT tp=ABSENT filling_mode={filling_mode}"
+            f"sl=ABSENT tp=ABSENT filling_mode={filling_mode} "
+            f"trade_req={json.dumps(trade_req, default=str)}"
         )
 
         return trade_req

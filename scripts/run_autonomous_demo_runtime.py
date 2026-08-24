@@ -185,7 +185,7 @@ def run_autonomous_demo_cycle(
                     Price=norm_entry,
                     StopLoss=norm_sl,
                     TakeProfit=norm_tp,
-                    Comment="YarClose"
+                    Comment="YarOpen"
                 )
                 resp = adapter.send_order_to_broker(req)
                 if resp.Status == "Placed":

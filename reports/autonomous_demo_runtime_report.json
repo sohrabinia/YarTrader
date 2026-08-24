@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-23T23:38:34.053027+00:00",
+  "timestamp": "2026-08-24T00:20:22.924855+00:00",
   "runtime_status": "BLOCKED_NO_MT5_IPC",
   "execution_verified": false,
   "runtime_duration_hours": 0.1,
@@ -176,6 +176,6 @@
   },
   "learning_updates": 0,
   "timeframes_used": [
-    "H1"
+    "M15"
   ]
 }
