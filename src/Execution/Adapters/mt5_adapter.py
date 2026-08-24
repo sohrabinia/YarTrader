@@ -274,8 +274,12 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if vol_step > 0:
             volume = round(round(volume / vol_step) * vol_step, 4)
 
-        # Sanitize comment and resolve filling mode
-        sanitized_comment = self._sanitize_comment(request.Comment)
+        # Enforce comment invariants: OPEN orders must be 'YarOpen', CLOSE orders must be 'YarClose'
+        if order_type_str == "CLOSE":
+            sanitized_comment = "YarClose"
+        else:
+            sanitized_comment = "YarOpen"
+
         filling_mode = self._resolve_filling_mode(mt5, request.Symbol, sym_info)
 
         # Build MT5 order request structure
@@ -306,7 +310,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             assert int(trade_req["position"]) > 0, f"CLOSE trade_req position must be > 0, got {trade_req.get('position')}"
             assert "sl" not in trade_req, "CLOSE trade_req MUST NOT contain 'sl' key"
             assert "tp" not in trade_req, "CLOSE trade_req MUST NOT contain 'tp' key"
-            assert trade_req["comment"] and len(trade_req["comment"]) > 0, "CLOSE trade_req comment must be non-empty"
+            assert trade_req["comment"] == "YarClose", f"CLOSE trade_req comment must be 'YarClose', got {trade_req.get('comment')}"
+        else:
+            assert "position" not in trade_req or trade_req.get("position") is None, "OPEN trade_req MUST NOT contain 'position' key"
+            assert trade_req["comment"] == "YarOpen", f"OPEN trade_req comment must be 'YarOpen', got {trade_req.get('comment')}"
 
         # Build candidate filling modes (preferred resolved mode first, then remaining)
         fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)

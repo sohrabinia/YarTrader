@@ -962,6 +962,138 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertNotIn("tp", checked_trade_req)
         self.assertEqual(checked_trade_req["comment"], "YarClose")
 
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_open_order_comment_normalization(self, mock_verify):
+        """
+        Regression test proving BUY/OPEN order requests with caller-supplied Comment='YarClose'
+        are normalized to trade_req['comment'] == 'YarOpen'.
+        """
+        mock_mt5 = MagicMock()
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TYPE_BUY = 0
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_IOC = 1
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+
+        mock_sym = MagicMock()
+        mock_sym.visible = True
+        mock_sym.volume_min = 0.01
+        mock_sym.volume_step = 0.01
+        mock_sym.volume_max = 100.0
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        mock_tick = MagicMock()
+        mock_tick.bid = 2300.50
+        mock_tick.ask = 2300.80
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        mock_check = MagicMock()
+        mock_check.retcode = 0
+        mock_mt5.order_check.return_value = mock_check
+
+        mock_res = MagicMock()
+        mock_res.retcode = 10009
+        mock_res.order = 123456
+        mock_res.deal = 654321
+        mock_res.price = 2300.80
+        mock_res.volume = 0.01
+        mock_res.comment = "YarOpen"
+        mock_res._asdict.return_value = {"retcode": 10009}
+        mock_mt5.order_send.return_value = mock_res
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        # Pass a BUY request with caller-supplied Comment="YarClose"
+        buy_req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="Buy",
+            Volume=0.01,
+            Comment="YarClose"
+        )
+        resp = self.adapter.send_order_to_broker(buy_req)
+        self.assertEqual(resp.Status, "Placed")
+
+        checked_trade_req = mock_mt5.order_check.call_args[0][0]
+        self.assertEqual(checked_trade_req["comment"], "YarOpen")
+        self.assertNotIn("position", checked_trade_req)
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_close_order_comment_normalization(self, mock_verify):
+        """
+        Regression test proving CLOSE order requests with caller-supplied Comment='YarOpen'
+        are normalized to trade_req['comment'] == 'YarClose'.
+        """
+        mock_mt5 = MagicMock()
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TYPE_SELL = 1
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.POSITION_TYPE_BUY = 0
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+
+        mock_sym = MagicMock()
+        mock_sym.visible = True
+        mock_sym.volume_min = 0.01
+        mock_sym.volume_step = 0.01
+        mock_sym.volume_max = 100.0
+        mock_sym.filling_mode = 1
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        mock_tick = MagicMock()
+        mock_tick.bid = 2300.50
+        mock_tick.ask = 2300.80
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        mock_pos = MagicMock()
+        mock_pos.type = 0
+        mock_pos.volume = 0.01
+        mock_mt5.positions_get.return_value = [mock_pos]
+
+        mock_check = MagicMock()
+        mock_check.retcode = 0
+        mock_mt5.order_check.return_value = mock_check
+
+        mock_res = MagicMock()
+        mock_res.retcode = 10009
+        mock_res.order = 999111
+        mock_res.deal = 111999
+        mock_res.price = 2300.50
+        mock_res.volume = 0.01
+        mock_res.comment = "YarClose"
+        mock_res._asdict.return_value = {"retcode": 10009}
+        mock_mt5.order_send.return_value = mock_res
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        # Pass a CLOSE request with caller-supplied Comment="YarOpen"
+        close_req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="CLOSE",
+            Volume=0.01,
+            PositionTicket=999111,
+            Comment="YarOpen"
+        )
+        resp = self.adapter.send_order_to_broker(close_req)
+        self.assertEqual(resp.Status, "Placed")
+
+        checked_trade_req = mock_mt5.order_check.call_args[0][0]
+        self.assertEqual(checked_trade_req["comment"], "YarClose")
+        self.assertEqual(checked_trade_req["position"], 999111)
+
 
 if __name__ == "__main__":
     unittest.main()
