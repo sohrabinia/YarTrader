@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-24T22:16:34.075525+00:00",
+  "timestamp": "2026-08-24T23:11:33.648148+00:00",
   "runtime_duration_hours": 0.1,
   "signals_generated": 1,
   "signals_rejected": 1,
@@ -9,16 +9,16 @@
   "sl_hits": 0,
   "total_pnl": 0.0,
   "performance_metrics": {
-    "total_trades": 47,
-    "wins": 28,
-    "losses": 19,
-    "win_rate": 59.57,
+    "total_trades": 53,
+    "wins": 31,
+    "losses": 22,
+    "win_rate": 58.49,
     "average_rr": 2.1,
-    "average_win": 32.5,
-    "average_loss": 16.53,
-    "profit_factor": 2.9,
+    "average_win": 32.47,
+    "average_loss": 16.23,
+    "profit_factor": 2.82,
     "max_drawdown": 73.15,
-    "expectancy": 12.68
+    "expectancy": 12.25
   },
   "breakdowns": {
     "by_pattern": {
@@ -35,16 +35,16 @@
         "expectancy": 7.38
       },
       "MTF Selection: Highest structural alignment score (0.85) on M15.": {
-        "total_trades": 24,
-        "wins": 15,
-        "losses": 9,
-        "win_rate": 62.5,
+        "total_trades": 29,
+        "wins": 17,
+        "losses": 12,
+        "win_rate": 58.62,
         "average_rr": 2.1,
-        "average_win": 30.8,
-        "average_loss": 16.86,
-        "profit_factor": 3.04,
+        "average_win": 31.04,
+        "average_loss": 16.22,
+        "profit_factor": 2.71,
         "max_drawdown": 54.06,
-        "expectancy": 12.93
+        "expectancy": 11.48
       },
       "MTF Selection: Highest structural alignment score (0.85) on M5.": {
         "total_trades": 3,
@@ -59,16 +59,16 @@
         "expectancy": 0.55
       },
       "MTF Selection: Highest structural alignment score (0.9) on M5.": {
-        "total_trades": 5,
-        "wins": 4,
+        "total_trades": 6,
+        "wins": 5,
         "losses": 1,
-        "win_rate": 80.0,
-        "average_rr": 2.08,
-        "average_win": 38.1,
+        "win_rate": 83.33,
+        "average_rr": 2.09,
+        "average_win": 36.67,
         "average_loss": 18.33,
-        "profit_factor": 8.31,
+        "profit_factor": 10.0,
         "max_drawdown": 18.33,
-        "expectancy": 26.81
+        "expectancy": 27.5
       },
       "MTF Selection: Highest structural alignment score (0.9) on H4.": {
         "total_trades": 5,
@@ -97,28 +97,28 @@
     },
     "by_timeframe": {
       "M15": {
-        "total_trades": 33,
-        "wins": 19,
-        "losses": 14,
-        "win_rate": 57.58,
+        "total_trades": 38,
+        "wins": 21,
+        "losses": 17,
+        "win_rate": 55.26,
         "average_rr": 2.1,
-        "average_win": 32.08,
-        "average_loss": 16.64,
-        "profit_factor": 2.62,
+        "average_win": 32.16,
+        "average_loss": 16.23,
+        "profit_factor": 2.45,
         "max_drawdown": 67.06,
-        "expectancy": 11.41
+        "expectancy": 10.51
       },
       "M5": {
-        "total_trades": 8,
-        "wins": 5,
+        "total_trades": 9,
+        "wins": 6,
         "losses": 3,
-        "win_rate": 62.5,
+        "win_rate": 66.67,
         "average_rr": 2.1,
-        "average_win": 37.94,
+        "average_win": 36.77,
         "average_loss": 17.99,
-        "profit_factor": 3.52,
+        "profit_factor": 4.09,
         "max_drawdown": 20.73,
-        "expectancy": 16.97
+        "expectancy": 18.52
       },
       "H4": {
         "total_trades": 5,
@@ -147,16 +147,16 @@
     },
     "by_direction": {
       "BUY": {
-        "total_trades": 46,
-        "wins": 28,
-        "losses": 18,
-        "win_rate": 60.87,
+        "total_trades": 52,
+        "wins": 31,
+        "losses": 21,
+        "win_rate": 59.62,
         "average_rr": 2.11,
-        "average_win": 32.5,
-        "average_loss": 16.43,
-        "profit_factor": 3.08,
+        "average_win": 32.47,
+        "average_loss": 16.13,
+        "profit_factor": 2.97,
         "max_drawdown": 73.15,
-        "expectancy": 13.35
+        "expectancy": 12.84
       },
       "SELL": {
         "total_trades": 1,
@@ -174,6 +174,6 @@
   },
   "learning_updates": 0,
   "timeframes_used": [
-    "M15"
+    "H1"
   ]
 }
