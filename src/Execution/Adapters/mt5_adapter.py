@@ -174,7 +174,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
     def _sanitize_comment(self, comment: Optional[str]) -> str:
         """Sanitizes comment to safe short ASCII string (max 15 chars, alphanumeric/underscore)."""
-        if not comment:
+        if not comment or comment == "YarTrader Execution":
             return "YarClose"
         ascii_str = "".join(c for c in str(comment) if ord(c) < 128)
         clean_str = "".join(c for c in ascii_str if c.isalnum() or c in "_-")
@@ -383,10 +383,20 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         # 3. Dedicated OPEN vs CLOSE Order Payload Builders
         if order_type_str == "CLOSE":
+            pos_ticket = int(request.PositionTicket) if request.PositionTicket else 0
+            if pos_ticket <= 0:
+                raise ValidationException("Valid non-zero PositionTicket is required for CLOSE order request.")
             trade_req = self._build_close_trade_request(request, mt5, sym_info, tick, digits)
             filling_mode = trade_req["type_filling"]
             price = trade_req["price"]
             volume = trade_req["volume"]
+
+        # Forensic Runtime Assertions
+        if order_type_str == "CLOSE":
+            assert int(trade_req["position"]) > 0, f"CLOSE trade_req position must be > 0, got {trade_req.get('position')}"
+            assert "sl" not in trade_req, "CLOSE trade_req MUST NOT contain 'sl' key"
+            assert "tp" not in trade_req, "CLOSE trade_req MUST NOT contain 'tp' key"
+            assert trade_req["comment"] and len(trade_req["comment"]) > 0, "CLOSE trade_req comment must be non-empty"
         else:
             trade_req = self._build_open_trade_request(request, mt5, sym_info, tick, digits, min_stop_distance)
             filling_mode = trade_req["type_filling"]

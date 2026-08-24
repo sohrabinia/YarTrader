@@ -235,17 +235,6 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         actual_open_price = float(matched_pos.get("price_open", ask))
 
     # PHASE 2: REAL MT5 CLOSE
-    close_action_type = 1 if matched_pos.get("type", 0) == 0 else 0
-    trade_request_data = {
-        "action": 1,
-        "symbol": actual_symbol,
-        "position": int(actual_pos_ticket),
-        "type": close_action_type,
-        "volume": actual_volume,
-        "comment": "YarClose"
-    }
-    save_artifact("14_trade_request.json", trade_request_data)
-
     close_req = OrderRequest(
         Symbol=actual_symbol,
         OrderType="CLOSE",
@@ -253,6 +242,15 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         PositionTicket=int(actual_pos_ticket),
         Comment="YarClose"
     )
+
+    sym_info_close = adapter.get_symbol_info(actual_symbol) or {}
+    tick_close = adapter.get_symbol_tick(actual_symbol) or {}
+    digits_close = int(sym_info_close.get("digits", 2))
+
+    trade_request_data = adapter._build_close_trade_request(
+        close_req, adapter._mt5, sym_info_close, tick_close, digits_close
+    )
+    save_artifact("14_trade_request.json", trade_request_data)
 
     close_resp = adapter.send_order_to_broker(close_req)
     save_artifact("15_order_check.json", {

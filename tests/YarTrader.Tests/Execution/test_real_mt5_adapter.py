@@ -885,6 +885,95 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertFalse(fail)
         self.assertIn("Net PnL mismatch", fail_msg)
 
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_close_trade_request_payload_invariants(self, mock_verify):
+        """
+        Integration regression test verifying that OrderType='CLOSE' enforces valid PositionTicket > 0,
+        strips sl/tp keys, sets comment to 'YarClose', and raises ValidationException if PositionTicket <= 0.
+        """
+        mock_mt5 = MagicMock()
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TYPE_SELL = 1
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.POSITION_TYPE_BUY = 0
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+
+        mock_sym = MagicMock()
+        mock_sym.visible = True
+        mock_sym.volume_min = 0.01
+        mock_sym.volume_step = 0.01
+        mock_sym.volume_max = 100.0
+        mock_sym.filling_mode = 1
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        mock_tick = MagicMock()
+        mock_tick.bid = 2300.50
+        mock_tick.ask = 2300.80
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        mock_pos = MagicMock()
+        mock_pos.type = 0  # BUY position
+        mock_pos.volume = 0.01
+        mock_mt5.positions_get.return_value = [mock_pos]
+
+        mock_check = MagicMock()
+        mock_check.retcode = 0
+        mock_mt5.order_check.return_value = mock_check
+
+        mock_res = MagicMock()
+        mock_res.retcode = 10009
+        mock_res.order = 999888777
+        mock_res.deal = 111222333
+        mock_res.price = 2300.50
+        mock_res.volume = 0.01
+        mock_res.comment = "YarClose"
+        mock_res._asdict.return_value = {"retcode": 10009}
+        mock_mt5.order_send.return_value = mock_res
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        # 1. Invalid PositionTicket <= 0 MUST raise ValidationException
+        invalid_req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="CLOSE",
+            Volume=0.01,
+            PositionTicket=0,
+            StopLoss=2200.0,
+            TakeProfit=2400.0
+        )
+        with self.assertRaises(ValidationException) as ctx:
+            self.adapter.send_order_to_broker(invalid_req)
+        self.assertIn("Valid non-zero PositionTicket is required", str(ctx.exception))
+
+        # 2. Valid PositionTicket > 0 MUST generate clean close payload satisfying all invariants
+        valid_req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="CLOSE",
+            Volume=0.01,
+            PositionTicket=999888777,
+            StopLoss=2200.0,
+            TakeProfit=2400.0,
+            Comment="YarClose"
+        )
+        resp = self.adapter.send_order_to_broker(valid_req)
+        self.assertEqual(resp.Status, "Placed")
+
+        mock_mt5.order_check.assert_called_once()
+        checked_trade_req = mock_mt5.order_check.call_args[0][0]
+
+        self.assertEqual(checked_trade_req["position"], 999888777)
+        self.assertNotIn("sl", checked_trade_req)
+        self.assertNotIn("tp", checked_trade_req)
+        self.assertEqual(checked_trade_req["comment"], "YarClose")
+
 
 if __name__ == "__main__":
     unittest.main()

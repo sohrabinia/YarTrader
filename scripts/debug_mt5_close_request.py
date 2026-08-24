@@ -56,21 +56,18 @@ def debug_close_request(target_ticket: int = 368555219):
     logger.info(f"[DEBUG MT5 CLOSE] Tick Bid: {getattr(tick, 'bid', None)}, Ask: {getattr(tick, 'ask', None)}")
     logger.info(f"[DEBUG MT5 CLOSE] symbol.filling_mode flags: {filling_mode_flags}")
 
-    close_type = mt5.ORDER_TYPE_SELL if pos_type == 0 else mt5.ORDER_TYPE_BUY
-    close_price = getattr(tick, "bid") if pos_type == 0 else getattr(tick, "ask")
+    from src.Execution.Models.models import OrderRequest
 
-    base_trade_req = {
-        "action": mt5.TRADE_ACTION_DEAL,
-        "symbol": symbol,
-        "position": int(pos_ticket),
-        "type": close_type,
-        "volume": float(volume),
-        "price": float(close_price),
-        "deviation": 20,
-        "magic": 0,
-        "comment": "YarClose",
-        "type_time": mt5.ORDER_TIME_GTC,
-    }
+    close_req = OrderRequest(
+        Symbol=symbol,
+        OrderType="CLOSE",
+        Volume=volume,
+        PositionTicket=int(pos_ticket),
+        Comment="YarClose"
+    )
+
+    digits = int(getattr(sym_info, "digits", 2))
+    base_trade_req = adapter._build_close_trade_request(close_req, mt5, sym_info, tick, digits)
 
     filling_modes = {
         "ORDER_FILLING_FOK": getattr(mt5, "ORDER_FILLING_FOK", 0),
