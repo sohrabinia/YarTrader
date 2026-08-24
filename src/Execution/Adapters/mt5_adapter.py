@@ -174,7 +174,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
     def _sanitize_comment(self, comment: Optional[str]) -> str:
         """Sanitizes comment to safe short ASCII string (max 15 chars, alphanumeric/underscore)."""
-        if not comment or comment == "YarTrader Execution":
+        if not comment:
             return "YarClose"
         ascii_str = "".join(c for c in str(comment) if ord(c) < 128)
         clean_str = "".join(c for c in ascii_str if c.isalnum() or c in "_-")
@@ -199,150 +199,6 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         # Default fallback preference: FOK -> IOC
         return fok_code
 
-    def _build_open_trade_request(self, request: OrderRequest, mt5: Any, sym_info: Any, tick: Any, digits: int, min_stop_distance: float) -> Dict[str, Any]:
-        """
-        Builds a dedicated OPEN order request payload (BUY/SELL).
-        Allowed keys: action, symbol, volume, type, price, sl, tp, deviation, magic, comment, type_time, type_filling.
-        FORBIDDEN key: position.
-        """
-        order_type_str = request.OrderType.upper()
-        if order_type_str in ["BUY", "LONG"]:
-            mt5_action_type = mt5.ORDER_TYPE_BUY
-            price = round(request.Price or getattr(tick, "ask"), digits)
-        elif order_type_str in ["SELL", "SHORT"]:
-            mt5_action_type = mt5.ORDER_TYPE_SELL
-            price = round(request.Price or getattr(tick, "bid"), digits)
-        else:
-            raise ValidationException(f"Unsupported OPEN OrderType: '{request.OrderType}'")
-
-        vol_min = getattr(sym_info, "volume_min", 0.01) if hasattr(sym_info, "volume_min") else (sym_info.get("volume_min", 0.01) if isinstance(sym_info, dict) else 0.01)
-        vol_step = getattr(sym_info, "volume_step", 0.01) if hasattr(sym_info, "volume_step") else (sym_info.get("volume_step", 0.01) if isinstance(sym_info, dict) else 0.01)
-        vol_max = getattr(sym_info, "volume_max", 100.0) if hasattr(sym_info, "volume_max") else (sym_info.get("volume_max", 100.0) if isinstance(sym_info, dict) else 100.0)
-        volume = max(vol_min, min(request.Volume, vol_max))
-        if vol_step > 0:
-            volume = round(round(volume / vol_step) * vol_step, 4)
-
-        sanitized_comment = self._sanitize_comment(request.Comment)
-        filling_mode = self._resolve_filling_mode(mt5, request.Symbol, sym_info)
-
-        trade_req = {
-            "action": mt5.TRADE_ACTION_DEAL,
-            "symbol": request.Symbol,
-            "volume": float(volume),
-            "type": mt5_action_type,
-            "price": float(price),
-            "deviation": request.Deviation,
-            "magic": request.Magic,
-            "comment": sanitized_comment,
-            "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": filling_mode,
-        }
-
-        if request.StopLoss and request.StopLoss > 0:
-            sl = round(request.StopLoss, digits)
-            if mt5_action_type == mt5.ORDER_TYPE_BUY:
-                if price - sl < min_stop_distance:
-                    sl = round(price - min_stop_distance, digits)
-            elif mt5_action_type == mt5.ORDER_TYPE_SELL:
-                if sl - price < min_stop_distance:
-                    sl = round(price + min_stop_distance, digits)
-            trade_req["sl"] = float(sl)
-
-        if request.TakeProfit and request.TakeProfit > 0:
-            tp = round(request.TakeProfit, digits)
-            if mt5_action_type == mt5.ORDER_TYPE_BUY:
-                if tp - price < min_stop_distance:
-                    tp = round(price + min_stop_distance, digits)
-            elif mt5_action_type == mt5.ORDER_TYPE_SELL:
-                if price - tp < min_stop_distance:
-                    tp = round(price - min_stop_distance, digits)
-            trade_req["tp"] = float(tp)
-
-        # Invariant Assertions for OPEN Request
-        assert "position" not in trade_req or trade_req.get("position") is None, "OPEN request MUST NOT contain position ticket"
-
-        import json
-        logger.info(f"[MT5 OPEN REQUEST FINAL] trade_req={json.dumps(trade_req, default=str)}")
-        return trade_req
-
-    def _build_close_trade_request(self, request: OrderRequest, mt5: Any, sym_info: Any, tick: Any, digits: int) -> Dict[str, Any]:
-        """
-        Builds a dedicated CLOSE order request payload.
-        Requires valid PositionTicket > 0 and verifies active position existence in MT5.
-        Reads actual position direction from MT5 and uses opposite order type at live Bid/Ask quote.
-        Required keys: action, symbol, volume, type, price, position, deviation, magic, comment, type_time, type_filling.
-        FORBIDDEN keys: sl, tp.
-        """
-        pos_ticket = int(request.PositionTicket) if request.PositionTicket else 0
-        if pos_ticket <= 0:
-            raise ValidationException(f"Valid non-zero PositionTicket is required for CLOSE order request, got {pos_ticket}.")
-
-        positions = mt5.positions_get(ticket=pos_ticket)
-        if not positions or len(positions) == 0:
-            raise ValidationException(f"No open MT5 position found for ticket {pos_ticket}. Cannot close nonexistent position.")
-
-        pos = positions[0]
-        pos_type = getattr(pos, "type", 0)
-        pos_volume = float(getattr(pos, "volume", request.Volume))
-
-        if pos_type == mt5.POSITION_TYPE_BUY:
-            close_action_type = mt5.ORDER_TYPE_SELL
-            close_price = round(getattr(tick, "bid"), digits)
-            pos_type_str = "BUY"
-            close_type_str = "SELL"
-            price_src_str = "BID"
-        else:
-            close_action_type = mt5.ORDER_TYPE_BUY
-            close_price = round(getattr(tick, "ask"), digits)
-            pos_type_str = "SELL"
-            close_type_str = "BUY"
-            price_src_str = "ASK"
-
-        vol_min = getattr(sym_info, "volume_min", 0.01) if hasattr(sym_info, "volume_min") else (sym_info.get("volume_min", 0.01) if isinstance(sym_info, dict) else 0.01)
-        vol_step = getattr(sym_info, "volume_step", 0.01) if hasattr(sym_info, "volume_step") else (sym_info.get("volume_step", 0.01) if isinstance(sym_info, dict) else 0.01)
-        vol_max = getattr(sym_info, "volume_max", 100.0) if hasattr(sym_info, "volume_max") else (sym_info.get("volume_max", 100.0) if isinstance(sym_info, dict) else 100.0)
-        volume = max(vol_min, min(pos_volume, vol_max))
-        if vol_step > 0:
-            volume = round(round(volume / vol_step) * vol_step, 4)
-
-        sanitized_comment = self._sanitize_comment(request.Comment)
-        filling_mode = self._resolve_filling_mode(mt5, request.Symbol, sym_info)
-
-        trade_req = {
-            "action": mt5.TRADE_ACTION_DEAL,
-            "symbol": request.Symbol,
-            "volume": float(volume),
-            "type": close_action_type,
-            "price": float(close_price),
-            "position": int(pos_ticket),
-            "deviation": request.Deviation,
-            "magic": request.Magic,
-            "comment": sanitized_comment,
-            "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": filling_mode,
-        }
-
-        # Explicitly pop sl and tp from CLOSE request dictionary
-        trade_req.pop("sl", None)
-        trade_req.pop("tp", None)
-
-        # Mandatory Hard Assertions for CLOSE Request Contract
-        assert int(trade_req["position"]) > 0, f"CLOSE trade_req position must be > 0, got {trade_req.get('position')}"
-        assert "sl" not in trade_req, "CLOSE trade_req MUST NOT contain 'sl' key"
-        assert "tp" not in trade_req, "CLOSE trade_req MUST NOT contain 'tp' key"
-
-        import json
-        logger.info(
-            f"[MT5 CLOSE REQUEST FINAL] position_ticket={pos_ticket} position_exists=True "
-            f"position_type={pos_type_str} close_type={close_type_str} "
-            f"close_price_source={price_src_str} close_price={close_price} "
-            f"volume={volume} position={trade_req['position']} "
-            f"sl=ABSENT tp=ABSENT filling_mode={filling_mode} "
-            f"trade_req={json.dumps(trade_req, default=str)}"
-        )
-
-        return trade_req
-
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
         """
         Sends order to real MT5 terminal via mt5.order_send().
@@ -364,32 +220,86 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if tick is None or getattr(tick, "bid", 0) <= 0 or getattr(tick, "ask", 0) <= 0:
             raise ValidationException(f"Real tick for symbol '{request.Symbol}' is unavailable or invalid.")
 
-        digits = int(getattr(sym_info, "digits", 2))
-        point = float(getattr(sym_info, "point", 0.01))
-        trade_stops_level = float(getattr(sym_info, "trade_stops_level", 0))
-        trade_freeze_level = float(getattr(sym_info, "trade_freeze_level", 0))
+        # 3. Map Order Action and Price
+        order_type_str = request.OrderType.upper()
+        if order_type_str in ["BUY", "LONG"]:
+            mt5_action_type = mt5.ORDER_TYPE_BUY
+            price = request.Price or getattr(tick, "ask")
+        elif order_type_str in ["SELL", "SHORT"]:
+            mt5_action_type = mt5.ORDER_TYPE_SELL
+            price = request.Price or getattr(tick, "bid")
+        elif order_type_str == "CLOSE":
+            # Position closing request
+            if not request.PositionTicket:
+                raise ValidationException("PositionTicket is required for CLOSE order type.")
+            positions = mt5.positions_get(ticket=int(request.PositionTicket))
+            if not positions or len(positions) == 0:
+                raise ValidationException(f"No open MT5 position found for ticket {request.PositionTicket}")
+            pos = positions[0]
+            pos_type = getattr(pos, "type", 0)
+            if pos_type == mt5.POSITION_TYPE_BUY:
+                mt5_action_type = mt5.ORDER_TYPE_SELL
+                price = getattr(tick, "bid")
+            else:
+                mt5_action_type = mt5.ORDER_TYPE_BUY
+                price = getattr(tick, "ask")
+        else:
+            raise ValidationException(f"Unsupported OrderType: '{request.OrderType}'")
 
-        # Dynamic stop distance calculation (respecting trade_stops_level and trade_freeze_level)
-        stop_level_pts = max(trade_stops_level, trade_freeze_level)
-        min_stop_distance = max(stop_level_pts * point, 10.0 * point if point > 0 else 0.1)
-
-        # [REQUEST BUILDER TRACE]
+        # [MT5 ROUTE TRACE]
         order_type_str = request.OrderType.upper()
         logger.info(
-            f"[REQUEST BUILDER TRACE] file=src/Execution/Adapters/mt5_adapter.py "
-            f"function=send_order_to_broker request_type={order_type_str} "
-            f"symbol={request.Symbol} pos_ticket={request.PositionTicket}"
+            f"[MT5 ROUTE TRACE] order_type={order_type_str} "
+            f"position_ticket={request.PositionTicket} comment={request.Comment}"
         )
 
-        # 3. Dedicated OPEN vs CLOSE Order Payload Builders
+        # Hard assertion for CLOSE orders prior to MT5 interaction
         if order_type_str == "CLOSE":
             pos_ticket = int(request.PositionTicket) if request.PositionTicket else 0
             if pos_ticket <= 0:
                 raise ValidationException("Valid non-zero PositionTicket is required for CLOSE order request.")
-            trade_req = self._build_close_trade_request(request, mt5, sym_info, tick, digits)
-            filling_mode = trade_req["type_filling"]
-            price = trade_req["price"]
-            volume = trade_req["volume"]
+            assert pos_ticket > 0, f"CLOSE request requires PositionTicket > 0, got {pos_ticket}"
+
+        if order_type_str == "CLOSE":
+            logger.info("[MT5 CLOSE BUILDER ENTERED]")
+        else:
+            logger.info("[MT5 OPEN BUILDER ENTERED]")
+
+        # Validate minimum volume safe bounds
+        vol_min = getattr(sym_info, "volume_min", 0.01)
+        vol_step = getattr(sym_info, "volume_step", 0.01)
+        vol_max = getattr(sym_info, "volume_max", 100.0)
+        volume = max(vol_min, min(request.Volume, vol_max))
+        # Align to step
+        if vol_step > 0:
+            volume = round(round(volume / vol_step) * vol_step, 4)
+
+        # Sanitize comment and resolve filling mode
+        sanitized_comment = self._sanitize_comment(request.Comment)
+        filling_mode = self._resolve_filling_mode(mt5, request.Symbol, sym_info)
+
+        # Build MT5 order request structure
+        trade_req = {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": request.Symbol,
+            "volume": float(volume),
+            "type": mt5_action_type,
+            "price": float(price),
+            "deviation": request.Deviation,
+            "magic": request.Magic,
+            "comment": sanitized_comment,
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": filling_mode,
+        }
+
+        if request.OrderType.upper() == "CLOSE" and request.PositionTicket:
+            trade_req["position"] = int(request.PositionTicket)
+
+        if request.OrderType.upper() != "CLOSE":
+            if request.StopLoss and request.StopLoss > 0:
+                trade_req["sl"] = float(request.StopLoss)
+            if request.TakeProfit and request.TakeProfit > 0:
+                trade_req["tp"] = float(request.TakeProfit)
 
         # Forensic Runtime Assertions
         if order_type_str == "CLOSE":
@@ -397,11 +307,6 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             assert "sl" not in trade_req, "CLOSE trade_req MUST NOT contain 'sl' key"
             assert "tp" not in trade_req, "CLOSE trade_req MUST NOT contain 'tp' key"
             assert trade_req["comment"] and len(trade_req["comment"]) > 0, "CLOSE trade_req comment must be non-empty"
-        else:
-            trade_req = self._build_open_trade_request(request, mt5, sym_info, tick, digits, min_stop_distance)
-            filling_mode = trade_req["type_filling"]
-            price = trade_req["price"]
-            volume = trade_req["volume"]
 
         # Build candidate filling modes (preferred resolved mode first, then remaining)
         fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)
@@ -412,11 +317,18 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             if mode_opt not in candidates:
                 candidates.append(mode_opt)
 
+        pos_id = trade_req.get("position", None)
+        import json
+        last_err_before = mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
+        if order_type_str == "CLOSE":
+            logger.info(f"[MT5 CLOSE REQUEST FINAL] position={trade_req.get('position')} comment={trade_req.get('comment')} trade_req={json.dumps(trade_req, default=str)}")
+        else:
+            logger.info(f"[MT5 OPEN REQUEST FINAL] comment={trade_req.get('comment')} trade_req={json.dumps(trade_req, default=str)}")
+
         # 4. Check Order with Fail-Closed Safety across filling candidates
         check_res = None
         check_retcode = -1
         check_comment = "order_check returned None"
-        first_non_filling_error = None
         check_tag = "[MT5 CLOSE CHECK]" if order_type_str == "CLOSE" else "[MT5 OPEN CHECK]"
 
         for cand_filling in candidates:
@@ -435,17 +347,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 break
             else:
                 if res_cand is not None:
-                    # Record non-filling error (e.g. 10016 Invalid Stops) as primary if encountered
-                    if cand_retcode != 10030 and first_non_filling_error is None:
-                        first_non_filling_error = (res_cand, cand_retcode, getattr(res_cand, "comment", f"retcode {cand_retcode}"))
-                    if check_res is None or check_retcode == -1 or check_retcode == 10030:
-                        check_res = res_cand
-                        check_retcode = cand_retcode
-                        check_comment = getattr(res_cand, "comment", f"retcode {cand_retcode}")
-
-        # If any candidate failed with a specific parameter error (e.g., 10016), prioritize that error message over generic 10030
-        if check_retcode != 10009 and check_retcode != 0 and first_non_filling_error is not None:
-            check_res, check_retcode, check_comment = first_non_filling_error
+                    check_res = res_cand
+                    check_retcode = cand_retcode
+                    check_comment = getattr(res_cand, "comment", f"retcode {cand_retcode}")
 
         # Valid order_check success retcodes: 0, 10009 (TRADE_RETCODE_DONE).
         if check_res is None or check_retcode not in [0, 10009]:

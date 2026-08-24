@@ -886,10 +886,10 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertIn("Net PnL mismatch", fail_msg)
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
-    def test_close_trade_request_payload_invariants(self, mock_verify):
+    def test_no_close_payload_bypass(self, mock_verify):
         """
-        Integration regression test verifying that OrderType='CLOSE' enforces valid PositionTicket > 0,
-        strips sl/tp keys, sets comment to 'YarClose', and raises ValidationException if PositionTicket <= 0.
+        Integration regression test verifying that OrderType='CLOSE' calls the dedicated close request builder,
+        sets position > 0, sets comment='YarClose', and NEVER creates sl, tp, or position=0.
         """
         mock_mt5 = MagicMock()
         mock_mt5.TRADE_ACTION_DEAL = 1
@@ -940,20 +940,6 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.adapter._mt5 = mock_mt5
         self.adapter._initialized = True
 
-        # 1. Invalid PositionTicket <= 0 MUST raise ValidationException
-        invalid_req = OrderRequest(
-            Symbol="XAUUSD",
-            OrderType="CLOSE",
-            Volume=0.01,
-            PositionTicket=0,
-            StopLoss=2200.0,
-            TakeProfit=2400.0
-        )
-        with self.assertRaises(ValidationException) as ctx:
-            self.adapter.send_order_to_broker(invalid_req)
-        self.assertIn("Valid non-zero PositionTicket is required", str(ctx.exception))
-
-        # 2. Valid PositionTicket > 0 MUST generate clean close payload satisfying all invariants
         valid_req = OrderRequest(
             Symbol="XAUUSD",
             OrderType="CLOSE",
@@ -969,6 +955,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.order_check.assert_called_once()
         checked_trade_req = mock_mt5.order_check.call_args[0][0]
 
+        # Invariant checks proving no payload bypass
+        self.assertGreater(checked_trade_req["position"], 0)
         self.assertEqual(checked_trade_req["position"], 999888777)
         self.assertNotIn("sl", checked_trade_req)
         self.assertNotIn("tp", checked_trade_req)

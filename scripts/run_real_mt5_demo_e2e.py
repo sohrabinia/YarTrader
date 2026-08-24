@@ -243,16 +243,8 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         Comment="YarClose"
     )
 
-    sym_info_close = adapter.get_symbol_info(actual_symbol) or {}
-    tick_close = adapter.get_symbol_tick(actual_symbol) or {}
-    digits_close = int(sym_info_close.get("digits", 2))
-
-    trade_request_data = adapter._build_close_trade_request(
-        close_req, adapter._mt5, sym_info_close, tick_close, digits_close
-    )
-    save_artifact("14_trade_request.json", trade_request_data)
-
     close_resp = adapter.send_order_to_broker(close_req)
+    save_artifact("14_trade_request.json", close_resp.RawResponse or {})
     save_artifact("15_order_check.json", {
         "status": close_resp.Status,
         "retcode": close_resp.Retcode,
@@ -272,8 +264,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
 
     if close_resp.Status != "Placed":
         logger.error(
-            f"\n[MT5 CLOSE E2E ERROR]\n"
-            f"REQUEST: {trade_request_data}\n"
+            f"\n[MT5 CLOSE ERROR]\n"
             f"CHECK: retcode={close_resp.Retcode}, comment={close_resp.Comment}\n"
             f"SEND: raw_response={close_resp.RawResponse}\n"
             f"LAST_ERROR: {close_resp.Comment}\n"
