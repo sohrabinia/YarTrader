@@ -32,11 +32,16 @@ app = FastAPI(
 
 from fastapi.middleware.cors import CORSMiddleware
 
-# Enable CORS for cross-origin requests
+# Enable explicit developer CORS origins for Windows local runtime
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -4387,18 +4392,22 @@ def get_scorecard():
     }
 
 
+@app.get("/api/runtime/frontend-status")
 @app.get("/api/system/frontend-status")
 def get_system_frontend_status():
-    """Exposes frontend build diagnostics status to the dashboard client."""
+    """Exposes frontend runtime connection and build diagnostics status to the dashboard client."""
     react_index = "trader-terminal/dist/index.html"
     build_status = "available" if os.path.exists(react_index) else "unavailable"
     assets_status = "available" if os.path.exists("trader-terminal/dist/assets") else "unavailable"
     return {
+        "frontend_expected": "localhost:5173",
+        "backend": "online",
+        "api": "connected",
+        "environment": "windows-dev",
         "frontend": "React",
         "build": build_status,
         "assets": assets_status,
-        "api": "connected",
-        "mode": "production"
+        "timestamp": datetime.now().isoformat()
     }
 
 

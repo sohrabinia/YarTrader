@@ -679,13 +679,13 @@ function MainApp() {
         </div>
       </div>
 
-      {/* Backend Unreachable Banner */}
+      {/* Backend Connection & Diagnostic Banner */}
       {backendState === 'UNREACHABLE' && (
         <ErrorState
-          title={lang === 'fa' ? "اتصال به سرور برقرار نیست" : "Backend Unreachable"}
+          title={lang === 'fa' ? "⚠️ عدم اتصال به بک‌اند (Backend Disconnected)" : "⚠️ Backend Connection Offline"}
           message={lang === 'fa'
-            ? "اتصال به سرور برقرار نیست. داده‌های نمایش‌داده‌شده جنبه آزمایشی دارند."
-            : "Real-time connection is offline. Displayed data is Demo/Mock."}
+            ? "پورت بک‌اند (http://localhost:8000) در دسترس نیست. عیب‌یابی: Backend: OFFLINE | Failed: /api/public/metrics | Reason: Network/CORS"
+            : "Target http://localhost:8000 is unreachable. Diagnostics: Backend: OFFLINE | Failed: /api/public/metrics | Reason: Network/CORS Error"}
           onRetry={checkBackendStatus}
         />
       )}

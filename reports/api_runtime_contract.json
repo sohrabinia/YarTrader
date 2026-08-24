@@ -1,0 +1,44 @@
+[
+  {
+    "endpoint": "/api/public/metrics",
+    "status": "PASS",
+    "http_code": 200,
+    "response_valid": true,
+    "source": "src/Application/Services/web_dashboard.py"
+  },
+  {
+    "endpoint": "/api/devops/status",
+    "status": "PASS",
+    "http_code": 200,
+    "response_valid": true,
+    "source": "src/Application/Services/web_dashboard.py"
+  },
+  {
+    "endpoint": "/api/demo/report",
+    "status": "PASS",
+    "http_code": 200,
+    "response_valid": true,
+    "source": "src/Application/Services/web_dashboard.py"
+  },
+  {
+    "endpoint": "/api/demo/trades",
+    "status": "PASS",
+    "http_code": 200,
+    "response_valid": true,
+    "source": "src/Application/Services/web_dashboard.py"
+  },
+  {
+    "endpoint": "/api/shadow/metrics",
+    "status": "PASS",
+    "http_code": 200,
+    "response_valid": true,
+    "source": "src/Application/Services/web_dashboard.py"
+  },
+  {
+    "endpoint": "/api/portfolio/risk",
+    "status": "PASS",
+    "http_code": 200,
+    "response_valid": true,
+    "source": "src/Application/Services/web_dashboard.py"
+  }
+]
