@@ -36,14 +36,24 @@ function MainApp() {
 
   const checkBackendStatus = async () => {
     try {
+      const statusRes = await apiService.get('/api/runtime/frontend-status');
+      if (statusRes && statusRes.api === 'connected') {
+        setBackendState('LIVE');
+        return;
+      }
+    } catch (statusErr) {
+      console.warn("Primary runtime status endpoint unreachable, checking public metrics fallback:", statusErr);
+    }
+
+    try {
       const res = await apiService.get('/api/public/metrics');
-      if (res && res.active_markets_count !== undefined) {
+      if (res && (res.active_markets_count !== undefined || res.platform_uptime_pct !== undefined)) {
         setBackendState('LIVE');
       } else {
         setBackendState('DEMO');
       }
     } catch (err) {
-      console.error("Backend health check failed, falling back to UNREACHABLE:", err);
+      console.error("Backend connection check failed - server unreachable:", err);
       setBackendState('UNREACHABLE');
     }
   };
