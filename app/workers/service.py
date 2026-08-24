@@ -18,6 +18,7 @@ if os.path.isdir(venv_site_packages):
     site.addsitedir(venv_site_packages)
 
 import time
+import socket
 import signal
 import threading
 import uvicorn
@@ -82,6 +83,8 @@ class YarTraderServiceHost:
     def __init__(self, config: Optional[ProductionConfig] = None) -> None:
         self.config = config or ProductionConfig()
         self.is_running = False
+        self.fastapi_ready = False
+        self.last_error: Optional[str] = None
         self.uvicorn_server: Optional[uvicorn.Server] = None
         self.uvicorn_thread: Optional[threading.Thread] = None
 
@@ -98,6 +101,7 @@ class YarTraderServiceHost:
         if self.is_running:
             return
         self.is_running = True
+        self.fastapi_ready = False
 
         log_service_message("Service Started")
         central_runtime_state.update_state("worker_status", "Running")
@@ -115,6 +119,7 @@ class YarTraderServiceHost:
             log_service_message("Workers Started — Shadow Trading Worker")
             self.shadow_worker.start()
         except Exception as e:
+            self.last_error = f"Worker startup exception: {str(e)}"
             log_service_message(f"Exception during worker startup: {str(e)}")
 
         # 2. Start Uvicorn FastAPI Server on background thread
@@ -127,21 +132,68 @@ class YarTraderServiceHost:
                 loop="asyncio"
             )
             self.uvicorn_server = uvicorn.Server(uvicorn_config)
+
+            def _run_uvicorn():
+                try:
+                    self.uvicorn_server.run()
+                except BaseException as crash_err:
+                    self.fastapi_ready = False
+                    self.last_error = f"Uvicorn server crashed: {str(crash_err)}"
+                    log_service_message(f"Uvicorn Thread Exception: {str(crash_err)}")
+
             self.uvicorn_thread = threading.Thread(
-                target=self.uvicorn_server.run,
+                target=_run_uvicorn,
                 daemon=True,
                 name="FastAPIServer"
             )
             self.uvicorn_thread.start()
-            log_service_message(f"FastAPI Started at http://{self.config.api_host}:{self.config.api_port}")
+
+            # Confirm socket binding readiness
+            self._verify_uvicorn_readiness()
         except Exception as e:
+            self.fastapi_ready = False
+            self.last_error = f"FastAPI startup exception: {str(e)}"
             log_service_message(f"Exception during FastAPI startup: {str(e)}")
+
+    def _verify_uvicorn_readiness(self, timeout_sec: float = 5.0) -> bool:
+        """Polls server state or socket availability before declaring FastAPI started."""
+        start_time = time.time()
+        host = self.config.api_host
+        port = self.config.api_port
+
+        while time.time() - start_time < timeout_sec:
+            if self.uvicorn_server and getattr(self.uvicorn_server, "started", False):
+                self.fastapi_ready = True
+                log_service_message(f"FastAPI Started and Listening at http://{host}:{port}")
+                return True
+
+            # Fallback socket connectivity probe
+            try:
+                with socket.create_connection((host, port), timeout=0.2):
+                    self.fastapi_ready = True
+                    log_service_message(f"FastAPI Started and Verified Listening at http://{host}:{port}")
+                    return True
+            except (OSError, ConnectionRefusedError):
+                pass
+
+            time.sleep(0.1)
+
+        # Timeout reached
+        if self.uvicorn_server and getattr(self.uvicorn_server, "started", False):
+            self.fastapi_ready = True
+            log_service_message(f"FastAPI Started at http://{host}:{port}")
+            return True
+
+        self.fastapi_ready = False
+        log_service_message(f"FastAPI socket listener probe failed on http://{host}:{port}")
+        return False
 
     def stop(self) -> None:
         """Stops all background processes and API server gracefully."""
         if not self.is_running:
             return
         self.is_running = False
+        self.fastapi_ready = False
 
         log_service_message("Shutdown Requested")
         central_runtime_state.update_state("worker_status", "Stopped")
@@ -149,8 +201,6 @@ class YarTraderServiceHost:
         # 1. Stop workers
         try:
             self.research_worker.stop()
-            # Continuous IntelligenceWorker is deprecated and removed from active shutdown.
-            # self.intelligence_worker.stop()
             self.shadow_worker.stop()
         except Exception as e:
             log_service_message(f"Exception during worker shutdown: {str(e)}")
@@ -159,7 +209,7 @@ class YarTraderServiceHost:
         try:
             if self.uvicorn_server:
                 self.uvicorn_server.should_exit = True
-                if self.uvicorn_thread:
+                if self.uvicorn_thread and self.uvicorn_thread.is_alive():
                     self.uvicorn_thread.join(timeout=5.0)
         except Exception as e:
             log_service_message(f"Exception during FastAPI shutdown: {str(e)}")
