@@ -18,7 +18,7 @@ The YarTrader Fractal Intelligence Engine underwent extensive multi-timeframe va
 - **Validated Cases:** 43
 - **Failed Cases:** 7
 - **Validation Accuracy Rate:** 86.0%
-- **Demo Validation Status:** Pre-trade detection verified cleanly (`DEMO_VAL_da11e08e`)
+- **Demo Validation Status:** Pre-trade detection verified cleanly (`DEMO_VAL_29caa06d`)
 
 ---
 
