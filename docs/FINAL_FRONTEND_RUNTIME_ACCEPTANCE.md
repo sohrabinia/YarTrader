@@ -9,6 +9,15 @@ This document certifies the complete verification and closure of the **YarTrader
 * **Tagged Release Gate**: `YarTrader-Gate3-MT5-DEMO-PASS`
 * **Remote Origin**: `https://github.com/sohrabinia/YarTrader`
 
+## Target Environment Details
+* **Target Workspace Path**: `C:\Projects\YarTrader` (Windows Host)
+* **Execution / Sandbox Context**: Linux Container Sandbox (`/app`)
+* **Python Environment**: Python 3.12.3 (pytest 9.0.2)
+* **Node.js Runtime**: v22.22.1
+* **Vite Version**: v5.4.21
+* **Backend Target Port**: `http://localhost:8000` (FastAPI Web Dashboard)
+* **Frontend Target Port**: `http://localhost:5173` (Vite Dev Server)
+
 ---
 
 ## 1. Runtime Integration Matrix
