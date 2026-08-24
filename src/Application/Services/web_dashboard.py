@@ -32,10 +32,19 @@ app = FastAPI(
 
 from fastapi.middleware.cors import CORSMiddleware
 
-# Enable CORS for cross-origin requests
+# Enable CORS for production domain and local developer tools
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://yartrader.com",
+        "https://www.yartrader.com",
+        "http://yartrader.com",
+        "http://www.yartrader.com",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
