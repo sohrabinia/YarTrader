@@ -585,16 +585,19 @@ def get_fractal_status(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str
 
 
 @app.get("/api/fractal/gold/summary")
-def get_gold_fractal_summary(symbol: str = "XAUUSD"):
+def get_gold_fractal_summary(symbol: str = "XAUUSD", scale_family: str = "STANDARD_MT5"):
     """Returns active XAUUSD fractal status, dominant scale, market phase, base status, and target zone."""
     db_file = "data/research/gold_fractal_database.json"
     if os.path.exists(db_file):
         with open(db_file, "r", encoding="utf-8") as f:
             db_data = json.load(f)
-            report = db_data.get("active_fractal_report", {})
+            families = db_data.get("scale_families_summary", {})
+            fam_info = families.get(scale_family, {})
+            report = fam_info.get("active_report", db_data.get("active_fractal_report", {}))
             return {
                 "status": "SUCCESS",
                 "symbol": symbol.upper(),
+                "scale_family": scale_family,
                 "active_fractal": report,
                 "dominant_timeframe": report.get("Dominant_Scale", "H1"),
                 "market_phase": report.get("Phase", "Expansion Preparation"),
@@ -689,27 +692,43 @@ def get_gold_fractal_structures(
 
 
 @app.get("/api/fractal/gold/hierarchy")
-def get_gold_fractal_hierarchy(symbol: str = "XAUUSD"):
-    """Returns nested Monthly -> Weekly -> Daily -> H4 -> H1 -> M15 -> M5 fractal hierarchy tree."""
+def get_gold_fractal_hierarchy(symbol: str = "XAUUSD", scale_family: str = "STANDARD_MT5"):
+    """Returns nested fractal hierarchy tree across STANDARD_MT5, POWER_OF_2, or POWER_OF_3 families."""
     db_file = "data/research/gold_fractal_database.json"
     if os.path.exists(db_file):
         with open(db_file, "r", encoding="utf-8") as f:
             db_data = json.load(f)
             bases = db_data.get("bases_db", [])
+
+            if scale_family == "POWER_OF_2":
+                scales = ["1m", "4m", "16m", "64m", "256m", "1024m", "4096m", "16384m"]
+            elif scale_family == "POWER_OF_3":
+                scales = ["1m", "3m", "9m", "27m", "81m", "243m", "729m", "2187m"]
+            else:
+                scales = ["MN1", "W1", "D1", "H4", "H1", "M15", "M5", "M1"]
+
             hierarchy = {}
-            for tf in ["Monthly", "Weekly", "Daily", "H4", "H1", "M15", "M5"]:
-                tf_bases = [b for b in bases if b.get("Timeframe") == tf]
-                hierarchy[tf] = {
-                    "timeframe": tf,
-                    "total_bases": len(tf_bases),
-                    "active_base": tf_bases[-1] if tf_bases else None,
-                    "status": "ACTIVE_BASE" if tf_bases else "EXPANSION_PHASE",
-                    "nested_child_count": max(1, len(tf_bases) // 4)
+            for sc in scales:
+                sc_bases = [b for b in bases if b.get("Timeframe") in [sc, sc.upper(), {"MN1": "Monthly", "W1": "Weekly", "D1": "Daily"}.get(sc, sc)]]
+                entry = {
+                    "timeframe": sc,
+                    "total_bases": len(sc_bases),
+                    "active_base": sc_bases[-1] if sc_bases else None,
+                    "status": "ACTIVE_BASE" if sc_bases else "EXPANSION_PHASE",
+                    "nested_child_count": max(1, len(sc_bases) // 4)
                 }
+                hierarchy[sc] = entry
+
+                if scale_family == "STANDARD_MT5":
+                    if sc == "MN1": hierarchy["Monthly"] = entry
+                    elif sc == "W1": hierarchy["Weekly"] = entry
+                    elif sc == "D1": hierarchy["Daily"] = entry
+
             return {
                 "status": "SUCCESS",
                 "symbol": symbol.upper(),
-                "dominant_scale": "H1",
+                "scale_family": scale_family,
+                "dominant_scale": scales[min(4, len(scales)-1)],
                 "hierarchy": hierarchy
             }
     from src.Research.Brain.gold_fractal_intelligence_engine import GoldFractalIntelligenceEngine

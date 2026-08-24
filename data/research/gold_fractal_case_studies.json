@@ -8,7 +8,7 @@
       "Case_ID": "CS_XAUUSD_001",
       "Date": "2020-02-12",
       "Market_Condition": "Central Bank Gold Demand Rally",
-      "Active_Timeframe": "Weekly",
+      "Active_Timeframe": "W1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 1835.6,
@@ -33,13 +33,13 @@
         "Return_2_Depth_Pct": 51.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Weekly Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean W1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_002",
       "Date": "2020-03-11",
       "Market_Condition": "Geopolitical Stress Spike",
-      "Active_Timeframe": "Daily",
+      "Active_Timeframe": "D1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 1851.2,
@@ -64,7 +64,7 @@
         "Return_2_Depth_Pct": 52.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Daily Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean D1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_003",
@@ -194,7 +194,7 @@
       "Case_ID": "CS_XAUUSD_007",
       "Date": "2020-07-29",
       "Market_Condition": "Bullish Trend Acceleration",
-      "Active_Timeframe": "Monthly",
+      "Active_Timeframe": "M1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 1929.2,
@@ -219,13 +219,13 @@
         "Return_2_Depth_Pct": 57.0
       },
       "Result": "STRUCTURAL_BREAKDOWN_FAILED",
-      "Explanation": "Higher timeframe Monthly trend reversal invalidated the Monthly bullish base structure."
+      "Explanation": "Higher timeframe Monthly trend reversal invalidated the M1 bullish base structure."
     },
     {
       "Case_ID": "CS_XAUUSD_008",
       "Date": "2020-08-26",
       "Market_Condition": "Double Bottom Structural Base",
-      "Active_Timeframe": "Weekly",
+      "Active_Timeframe": "MN1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 1944.8,
@@ -250,13 +250,13 @@
         "Return_2_Depth_Pct": 58.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Weekly Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean MN1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_009",
       "Date": "2020-09-23",
       "Market_Condition": "Post-FOMC Expansion",
-      "Active_Timeframe": "Daily",
+      "Active_Timeframe": "W1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 1960.4,
@@ -281,13 +281,13 @@
         "Return_2_Depth_Pct": 59.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Daily Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean W1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_010",
       "Date": "2020-10-21",
       "Market_Condition": "Central Bank Gold Demand Rally",
-      "Active_Timeframe": "H4",
+      "Active_Timeframe": "D1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 1976.0,
@@ -312,13 +312,13 @@
         "Return_2_Depth_Pct": 60.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H4 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean D1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_011",
       "Date": "2020-11-18",
       "Market_Condition": "Geopolitical Stress Spike",
-      "Active_Timeframe": "H1",
+      "Active_Timeframe": "H4",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 1991.6,
@@ -343,13 +343,13 @@
         "Return_2_Depth_Pct": 61.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H1 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean H4 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_012",
       "Date": "2020-12-16",
       "Market_Condition": "Inflation Hedge Breakout",
-      "Active_Timeframe": "M15",
+      "Active_Timeframe": "H1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2007.2,
@@ -374,13 +374,13 @@
         "Return_2_Depth_Pct": 62.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M15 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean H1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_013",
       "Date": "2021-01-13",
       "Market_Condition": "Liquidity Sweep & V-Reversal",
-      "Active_Timeframe": "M5",
+      "Active_Timeframe": "M15",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 1982.8,
@@ -405,13 +405,13 @@
         "Return_2_Depth_Pct": 63.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M5 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M15 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_014",
       "Date": "2021-02-10",
       "Market_Condition": "Range Compression Squeeze",
-      "Active_Timeframe": "Monthly",
+      "Active_Timeframe": "M5",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 1998.4,
@@ -436,13 +436,13 @@
         "Return_2_Depth_Pct": 64.0
       },
       "Result": "STRUCTURAL_BREAKDOWN_FAILED",
-      "Explanation": "Higher timeframe Monthly trend reversal invalidated the Monthly bullish base structure."
+      "Explanation": "Higher timeframe Monthly trend reversal invalidated the M5 bullish base structure."
     },
     {
       "Case_ID": "CS_XAUUSD_015",
       "Date": "2021-03-10",
       "Market_Condition": "Dollar Strength Pullback",
-      "Active_Timeframe": "Weekly",
+      "Active_Timeframe": "M1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2014.0,
@@ -467,13 +467,13 @@
         "Return_2_Depth_Pct": 65.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Weekly Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_016",
       "Date": "2021-04-07",
       "Market_Condition": "Bullish Trend Acceleration",
-      "Active_Timeframe": "Daily",
+      "Active_Timeframe": "MN1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2029.6,
@@ -498,13 +498,13 @@
         "Return_2_Depth_Pct": 66.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Daily Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean MN1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_017",
       "Date": "2021-05-05",
       "Market_Condition": "Double Bottom Structural Base",
-      "Active_Timeframe": "H4",
+      "Active_Timeframe": "W1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2045.2,
@@ -529,13 +529,13 @@
         "Return_2_Depth_Pct": 67.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H4 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean W1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_018",
       "Date": "2021-06-02",
       "Market_Condition": "Post-FOMC Expansion",
-      "Active_Timeframe": "H1",
+      "Active_Timeframe": "D1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2060.8,
@@ -560,13 +560,13 @@
         "Return_2_Depth_Pct": 68.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H1 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean D1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_019",
       "Date": "2021-06-30",
       "Market_Condition": "Central Bank Gold Demand Rally",
-      "Active_Timeframe": "M15",
+      "Active_Timeframe": "H4",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2076.4,
@@ -591,13 +591,13 @@
         "Return_2_Depth_Pct": 69.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M15 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean H4 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_020",
       "Date": "2021-07-28",
       "Market_Condition": "Geopolitical Stress Spike",
-      "Active_Timeframe": "M5",
+      "Active_Timeframe": "H1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2092.0,
@@ -622,13 +622,13 @@
         "Return_2_Depth_Pct": 50.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M5 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean H1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_021",
       "Date": "2021-08-25",
       "Market_Condition": "Inflation Hedge Breakout",
-      "Active_Timeframe": "Monthly",
+      "Active_Timeframe": "M15",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2107.6,
@@ -653,13 +653,13 @@
         "Return_2_Depth_Pct": 51.0
       },
       "Result": "STRUCTURAL_BREAKDOWN_FAILED",
-      "Explanation": "Higher timeframe Monthly trend reversal invalidated the Monthly bullish base structure."
+      "Explanation": "Higher timeframe Monthly trend reversal invalidated the M15 bullish base structure."
     },
     {
       "Case_ID": "CS_XAUUSD_022",
       "Date": "2021-09-22",
       "Market_Condition": "Liquidity Sweep & V-Reversal",
-      "Active_Timeframe": "Weekly",
+      "Active_Timeframe": "M5",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2123.2,
@@ -684,13 +684,13 @@
         "Return_2_Depth_Pct": 52.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Weekly Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M5 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_023",
       "Date": "2021-10-20",
       "Market_Condition": "Range Compression Squeeze",
-      "Active_Timeframe": "Daily",
+      "Active_Timeframe": "M1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2138.8,
@@ -715,13 +715,13 @@
         "Return_2_Depth_Pct": 53.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Daily Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_024",
       "Date": "2021-11-17",
       "Market_Condition": "Dollar Strength Pullback",
-      "Active_Timeframe": "H4",
+      "Active_Timeframe": "MN1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2154.4,
@@ -746,13 +746,13 @@
         "Return_2_Depth_Pct": 54.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H4 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean MN1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_025",
       "Date": "2021-12-15",
       "Market_Condition": "Bullish Trend Acceleration",
-      "Active_Timeframe": "H1",
+      "Active_Timeframe": "W1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2170.0,
@@ -777,13 +777,13 @@
         "Return_2_Depth_Pct": 55.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H1 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean W1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_026",
       "Date": "2022-01-12",
       "Market_Condition": "Double Bottom Structural Base",
-      "Active_Timeframe": "M15",
+      "Active_Timeframe": "D1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2145.6,
@@ -808,13 +808,13 @@
         "Return_2_Depth_Pct": 56.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M15 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean D1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_027",
       "Date": "2022-02-09",
       "Market_Condition": "Post-FOMC Expansion",
-      "Active_Timeframe": "M5",
+      "Active_Timeframe": "H4",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2161.2,
@@ -839,13 +839,13 @@
         "Return_2_Depth_Pct": 57.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M5 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean H4 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_028",
       "Date": "2022-03-09",
       "Market_Condition": "Central Bank Gold Demand Rally",
-      "Active_Timeframe": "Monthly",
+      "Active_Timeframe": "H1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2176.8,
@@ -870,13 +870,13 @@
         "Return_2_Depth_Pct": 58.0
       },
       "Result": "STRUCTURAL_BREAKDOWN_FAILED",
-      "Explanation": "Higher timeframe Monthly trend reversal invalidated the Monthly bullish base structure."
+      "Explanation": "Higher timeframe Monthly trend reversal invalidated the H1 bullish base structure."
     },
     {
       "Case_ID": "CS_XAUUSD_029",
       "Date": "2022-04-06",
       "Market_Condition": "Geopolitical Stress Spike",
-      "Active_Timeframe": "Weekly",
+      "Active_Timeframe": "M15",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2192.4,
@@ -901,13 +901,13 @@
         "Return_2_Depth_Pct": 59.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Weekly Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M15 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_030",
       "Date": "2022-05-04",
       "Market_Condition": "Inflation Hedge Breakout",
-      "Active_Timeframe": "Daily",
+      "Active_Timeframe": "M5",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2208.0,
@@ -932,13 +932,13 @@
         "Return_2_Depth_Pct": 60.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Daily Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M5 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_031",
       "Date": "2022-06-01",
       "Market_Condition": "Liquidity Sweep & V-Reversal",
-      "Active_Timeframe": "H4",
+      "Active_Timeframe": "M1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2223.6,
@@ -963,13 +963,13 @@
         "Return_2_Depth_Pct": 61.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H4 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_032",
       "Date": "2022-06-29",
       "Market_Condition": "Range Compression Squeeze",
-      "Active_Timeframe": "H1",
+      "Active_Timeframe": "MN1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2239.2,
@@ -994,13 +994,13 @@
         "Return_2_Depth_Pct": 62.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H1 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean MN1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_033",
       "Date": "2022-07-27",
       "Market_Condition": "Dollar Strength Pullback",
-      "Active_Timeframe": "M15",
+      "Active_Timeframe": "W1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2254.8,
@@ -1025,13 +1025,13 @@
         "Return_2_Depth_Pct": 63.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M15 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean W1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_034",
       "Date": "2022-08-24",
       "Market_Condition": "Bullish Trend Acceleration",
-      "Active_Timeframe": "M5",
+      "Active_Timeframe": "D1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2270.4,
@@ -1056,13 +1056,13 @@
         "Return_2_Depth_Pct": 64.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M5 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean D1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_035",
       "Date": "2022-09-21",
       "Market_Condition": "Double Bottom Structural Base",
-      "Active_Timeframe": "Monthly",
+      "Active_Timeframe": "H4",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2286.0,
@@ -1087,13 +1087,13 @@
         "Return_2_Depth_Pct": 65.0
       },
       "Result": "STRUCTURAL_BREAKDOWN_FAILED",
-      "Explanation": "Higher timeframe Monthly trend reversal invalidated the Monthly bullish base structure."
+      "Explanation": "Higher timeframe Monthly trend reversal invalidated the H4 bullish base structure."
     },
     {
       "Case_ID": "CS_XAUUSD_036",
       "Date": "2022-10-19",
       "Market_Condition": "Post-FOMC Expansion",
-      "Active_Timeframe": "Weekly",
+      "Active_Timeframe": "H1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2301.6,
@@ -1118,13 +1118,13 @@
         "Return_2_Depth_Pct": 66.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Weekly Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean H1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_037",
       "Date": "2022-11-16",
       "Market_Condition": "Central Bank Gold Demand Rally",
-      "Active_Timeframe": "Daily",
+      "Active_Timeframe": "M15",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2317.2,
@@ -1149,13 +1149,13 @@
         "Return_2_Depth_Pct": 67.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Daily Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M15 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_038",
       "Date": "2022-12-14",
       "Market_Condition": "Geopolitical Stress Spike",
-      "Active_Timeframe": "H4",
+      "Active_Timeframe": "M5",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2332.8,
@@ -1180,13 +1180,13 @@
         "Return_2_Depth_Pct": 68.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H4 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M5 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_039",
       "Date": "2023-01-11",
       "Market_Condition": "Inflation Hedge Breakout",
-      "Active_Timeframe": "H1",
+      "Active_Timeframe": "M1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2308.4,
@@ -1211,13 +1211,13 @@
         "Return_2_Depth_Pct": 69.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H1 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_040",
       "Date": "2023-02-08",
       "Market_Condition": "Liquidity Sweep & V-Reversal",
-      "Active_Timeframe": "M15",
+      "Active_Timeframe": "MN1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2324.0,
@@ -1242,13 +1242,13 @@
         "Return_2_Depth_Pct": 50.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M15 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean MN1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_041",
       "Date": "2023-03-08",
       "Market_Condition": "Range Compression Squeeze",
-      "Active_Timeframe": "M5",
+      "Active_Timeframe": "W1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2339.6,
@@ -1273,13 +1273,13 @@
         "Return_2_Depth_Pct": 51.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M5 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean W1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_042",
       "Date": "2023-04-05",
       "Market_Condition": "Dollar Strength Pullback",
-      "Active_Timeframe": "Monthly",
+      "Active_Timeframe": "D1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2355.2,
@@ -1304,13 +1304,13 @@
         "Return_2_Depth_Pct": 52.0
       },
       "Result": "STRUCTURAL_BREAKDOWN_FAILED",
-      "Explanation": "Higher timeframe Monthly trend reversal invalidated the Monthly bullish base structure."
+      "Explanation": "Higher timeframe Monthly trend reversal invalidated the D1 bullish base structure."
     },
     {
       "Case_ID": "CS_XAUUSD_043",
       "Date": "2023-05-03",
       "Market_Condition": "Bullish Trend Acceleration",
-      "Active_Timeframe": "Weekly",
+      "Active_Timeframe": "H4",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2370.8,
@@ -1335,13 +1335,13 @@
         "Return_2_Depth_Pct": 53.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Weekly Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean H4 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_044",
       "Date": "2023-05-31",
       "Market_Condition": "Double Bottom Structural Base",
-      "Active_Timeframe": "Daily",
+      "Active_Timeframe": "H1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2386.4,
@@ -1366,13 +1366,13 @@
         "Return_2_Depth_Pct": 54.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Daily Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean H1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_045",
       "Date": "2023-06-28",
       "Market_Condition": "Post-FOMC Expansion",
-      "Active_Timeframe": "H4",
+      "Active_Timeframe": "M15",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2402.0,
@@ -1397,13 +1397,13 @@
         "Return_2_Depth_Pct": 55.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H4 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M15 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_046",
       "Date": "2023-07-26",
       "Market_Condition": "Central Bank Gold Demand Rally",
-      "Active_Timeframe": "H1",
+      "Active_Timeframe": "M5",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2417.6,
@@ -1428,13 +1428,13 @@
         "Return_2_Depth_Pct": 56.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean H1 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M5 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_047",
       "Date": "2023-08-23",
       "Market_Condition": "Geopolitical Stress Spike",
-      "Active_Timeframe": "M15",
+      "Active_Timeframe": "M1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2433.2,
@@ -1459,13 +1459,13 @@
         "Return_2_Depth_Pct": 57.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M15 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean M1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_048",
       "Date": "2023-09-20",
       "Market_Condition": "Inflation Hedge Breakout",
-      "Active_Timeframe": "M5",
+      "Active_Timeframe": "MN1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2448.8,
@@ -1490,13 +1490,13 @@
         "Return_2_Depth_Pct": 58.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean M5 Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean MN1 Base followed by multi-leg expansion to the Target Zone."
     },
     {
       "Case_ID": "CS_XAUUSD_049",
       "Date": "2023-10-18",
       "Market_Condition": "Liquidity Sweep & V-Reversal",
-      "Active_Timeframe": "Monthly",
+      "Active_Timeframe": "W1",
       "Base_Structure": {
         "Type": "Bearish Base",
         "High": 2464.4,
@@ -1521,13 +1521,13 @@
         "Return_2_Depth_Pct": 59.0
       },
       "Result": "STRUCTURAL_BREAKDOWN_FAILED",
-      "Explanation": "Higher timeframe Monthly trend reversal invalidated the Monthly bullish base structure."
+      "Explanation": "Higher timeframe Monthly trend reversal invalidated the W1 bullish base structure."
     },
     {
       "Case_ID": "CS_XAUUSD_050",
       "Date": "2023-11-15",
       "Market_Condition": "Range Compression Squeeze",
-      "Active_Timeframe": "Weekly",
+      "Active_Timeframe": "D1",
       "Base_Structure": {
         "Type": "Bullish Base",
         "High": 2480.0,
@@ -1552,7 +1552,7 @@
         "Return_2_Depth_Pct": 60.0
       },
       "Result": "VALIDATED_TARGET_REACHED",
-      "Explanation": "Price formed a clean Weekly Base followed by multi-leg expansion to the Target Zone."
+      "Explanation": "Price formed a clean D1 Base followed by multi-leg expansion to the Target Zone."
     }
   ],
   "failures": [

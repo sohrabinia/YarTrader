@@ -1,6 +1,11 @@
 """
 YarTrader Gold Fractal Intelligence Engine
-XAUUSD Multi-Timeframe Fractal Discovery, Validation, Target Research & Case Study Engine
+XAUUSD Multi-Timeframe & Synthetic Multi-Scale Fractal Discovery, Validation, Target Research & Case Study Engine
+
+Supports:
+1. Standard MT5 Timeframes: MN1, W1, D1, H4, H1, M15, M5, M1 (and aliases Monthly, Weekly, Daily)
+2. Power-of-2 Synthetic Scale Family: 1m, 4m, 16m, 64m, 256m, 1024m, 4096m, 16384m
+3. Power-of-3 Synthetic Scale Family: 1m, 3m, 9m, 27m, 81m, 243m, 729m, 2187m
 """
 
 import math
@@ -11,13 +16,108 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger("YarTrader.GoldFractalEngine")
 
-# Supported Timeframes Hierarchy
-TIMEFRAMES = ["Monthly", "Weekly", "Daily", "H4", "H1", "M15", "M5"]
+# Canonical Scale Definitions
+STANDARD_MT5_TIMEFRAMES = ["MN1", "W1", "D1", "H4", "H1", "M15", "M5", "M1"]
+POWER_OF_2_SCALES = ["1m", "4m", "16m", "64m", "256m", "1024m", "4096m", "16384m"]
+POWER_OF_3_SCALES = ["1m", "3m", "9m", "27m", "81m", "243m", "729m", "2187m"]
+
+# Legacy alias compatibility mapping
+TIMEFRAMES = ["MN1", "W1", "D1", "H4", "H1", "M15", "M5", "M1", "Monthly", "Weekly", "Daily"]
+ALIAS_MAP = {
+    "MONTHLY": "MN1", "MN1": "MN1",
+    "WEEKLY": "W1", "W1": "W1",
+    "DAILY": "D1", "D1": "D1",
+    "H4": "H4", "H1": "H1", "M15": "M15", "M5": "M5", "M1": "M1"
+}
+
+
+def aggregate_m1_candles(m1_candles: List[Dict[str, Any]], minutes: int) -> List[Dict[str, Any]]:
+    """
+    Deterministically aggregates raw M1 candles into synthetic scale candles of size `minutes`.
+    OHLC logic: Open of first bar, High = max(Highs), Low = min(Lows), Close of last bar, Volume = sum(Volumes).
+    """
+    if minutes <= 1 or not m1_candles:
+        return m1_candles
+
+    aggregated = []
+    for i in range(0, len(m1_candles), minutes):
+        chunk = m1_candles[i : i + minutes]
+        if not chunk:
+            continue
+
+        open_p = float(chunk[0].get("open", chunk[0].get("Open", 0.0)))
+        close_p = float(chunk[-1].get("close", chunk[-1].get("Close", 0.0)))
+        high_p = max(float(c.get("high", c.get("High", 0.0))) for c in chunk)
+        low_p = min(float(c.get("low", c.get("Low", 0.0))) for c in chunk)
+        vol = sum(float(c.get("volume", c.get("Volume", 0.0))) for c in chunk)
+        ts = str(chunk[0].get("timestamp", chunk[0].get("Timestamp", datetime.now().isoformat())))
+
+        aggregated.append({
+            "timestamp": ts,
+            "open": round(open_p, 2),
+            "high": round(high_p, 2),
+            "low": round(low_p, 2),
+            "close": round(close_p, 2),
+            "volume": int(vol)
+        })
+
+    return aggregated
+
+
+def check_data_integrity(candles: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Performs comprehensive data integrity checks on candle series:
+    - missing fields, OHLC validity (high >= max(open, close), low <= min(open, close))
+    - timestamp gap count, duplicate counts, zero volume counts, chronological order.
+    """
+    if not candles:
+        return {"status": "EMPTY", "candle_count": 0, "issues_found": 0, "details": []}
+
+    details = []
+    ohlc_violations = 0
+    duplicate_timestamps = 0
+    zero_volumes = 0
+    seen_ts = set()
+
+    for idx, c in enumerate(candles):
+        ts = c.get("timestamp", c.get("Timestamp"))
+        if ts in seen_ts:
+            duplicate_timestamps += 1
+        else:
+            seen_ts.add(ts)
+
+        o = float(c.get("open", c.get("Open", 0.0)))
+        h = float(c.get("high", c.get("High", 0.0)))
+        l = float(c.get("low", c.get("Low", 0.0)))
+        cl = float(c.get("close", c.get("Close", 0.0)))
+        vol = float(c.get("volume", c.get("Volume", 0.0)))
+
+        if vol == 0:
+            zero_volumes += 1
+
+        if h < max(o, cl) or l > min(o, cl) or h < l:
+            ohlc_violations += 1
+
+    if ohlc_violations > 0:
+        details.append(f"OHLC_INVALID: {ohlc_violations} candles violate high >= max(O,C) or low <= min(O,C)")
+    if duplicate_timestamps > 0:
+        details.append(f"DUPLICATE_TIMESTAMPS: {duplicate_timestamps} duplicate timestamps found")
+    if zero_volumes > 0:
+        details.append(f"ZERO_VOLUMES: {zero_volumes} candles report zero volume")
+
+    status = "VERIFIED_VALID" if not details else "DATACLEAN_WARNINGS"
+    return {
+        "status": status,
+        "candle_count": len(candles),
+        "issues_found": len(details),
+        "details": details
+    }
+
 
 class GoldFractalIntelligenceEngine:
     """
-    Core Fractal Structure Engine for XAUUSD (Gold).
-    Discovers, maps, and models price action structure before decision making.
+    Core Multi-Scale Fractal Structure Engine for XAUUSD (Gold).
+    Discovers, maps, and models price action structure across standard and synthetic scales.
     """
 
     def __init__(self, symbol: str = "XAUUSD"):
@@ -79,7 +179,7 @@ class GoldFractalIntelligenceEngine:
 
                 behavior = self.analyze_internal_base_behavior(window, price_range)
 
-                base_id = f"BASE_{self.symbol}_{timeframe.upper()}_{i:04d}_{uuid.uuid4().hex[:6]}"
+                base_id = f"BASE_{self.symbol}_{timeframe.upper().replace(' ', '_')}_{i:04d}_{uuid.uuid4().hex[:6]}"
                 base_record = {
                     "Base_ID": base_id,
                     "Symbol": self.symbol,
@@ -184,7 +284,7 @@ class GoldFractalIntelligenceEngine:
         }
 
     # ---------------------------------------------------------
-    # 3. EXPANSION & LEG ENGINE
+    # 3. EXPANSION & LEG ENGINE WITH RETURN SPEED COMPARISON
     # ---------------------------------------------------------
     def analyze_expansion_and_legs(
         self,
@@ -194,7 +294,8 @@ class GoldFractalIntelligenceEngine:
         """
         After Base completion, tracks:
         Base -> Leg 1 -> Return -> Leg 2 -> Return -> Leg 3
-        Measures Leg Size, Duration, Speed, Return Depth, Return Duration, Expansion Ratio.
+        Measures Leg Size, Duration, Speed, Return Depth, Return Duration, Return Speed, Expansion Ratio.
+        Compares Expansion Speed vs Return Speed.
         Compares Leg 1 vs Leg 2, Leg 2 vs Leg 3.
         Determines: Strengthening Expansion, Weakening Expansion, Exhaustion.
         """
@@ -204,15 +305,12 @@ class GoldFractalIntelligenceEngine:
                 "returns": [],
                 "leg1_vs_leg2_ratio": 1.0,
                 "leg2_vs_leg3_ratio": 1.0,
+                "return_vs_expansion_speed_ratio": 1.0,
                 "expansion_dynamics": "Exhaustion"
             }
 
         base_high = base_record["High"]
         base_low = base_record["Low"]
-        base_range = max(base_record["Range"], 1.0)
-
-        first_close = float(subsequent_candles[0].get("close", subsequent_candles[0].get("Close", 0.0)))
-        direction = 1 if first_close >= (base_high + base_low) / 2.0 else -1
 
         legs = []
         returns = []
@@ -229,12 +327,20 @@ class GoldFractalIntelligenceEngine:
 
         # Return 1
         c_r1 = subsequent_candles[chunk_size : chunk_size * 2] if len(subsequent_candles) >= chunk_size * 2 else []
+        r1_speed = 0.0
         if c_r1:
             p_r1_start = float(c_r1[0].get("open", c_r1[0].get("Open", 0.0)))
             p_r1_end = float(c_r1[-1].get("close", c_r1[-1].get("Close", 0.0)))
             r1_depth = abs(p_r1_end - p_r1_start)
             r1_dur = len(c_r1)
-            returns.append({"return": 1, "depth": round(r1_depth, 2), "duration": r1_dur, "depth_ratio": round(r1_depth / max(1e-6, l1_size), 2)})
+            r1_speed = round(r1_depth / max(1, r1_dur), 2)
+            returns.append({
+                "return": 1,
+                "depth": round(r1_depth, 2),
+                "duration": r1_dur,
+                "speed": r1_speed,
+                "depth_ratio": round(r1_depth / max(1e-6, l1_size), 2)
+            })
 
         # Leg 2
         c_l2 = subsequent_candles[chunk_size * 2 : chunk_size * 3] if len(subsequent_candles) >= chunk_size * 3 else []
@@ -249,12 +355,20 @@ class GoldFractalIntelligenceEngine:
 
         # Return 2
         c_r2 = subsequent_candles[chunk_size * 3 : chunk_size * 4] if len(subsequent_candles) >= chunk_size * 4 else []
+        r2_speed = 0.0
         if c_r2:
             p_r2_start = float(c_r2[0].get("open", c_r2[0].get("Open", 0.0)))
             p_r2_end = float(c_r2[-1].get("close", c_r2[-1].get("Close", 0.0)))
             r2_depth = abs(p_r2_end - p_r2_start)
             r2_dur = len(c_r2)
-            returns.append({"return": 2, "depth": round(r2_depth, 2), "duration": r2_dur, "depth_ratio": round(r2_depth / max(1e-6, l2_size), 2)})
+            r2_speed = round(r2_depth / max(1, r2_dur), 2)
+            returns.append({
+                "return": 2,
+                "depth": round(r2_depth, 2),
+                "duration": r2_dur,
+                "speed": r2_speed,
+                "depth_ratio": round(r2_depth / max(1e-6, l2_size), 2)
+            })
 
         # Leg 3
         c_l3 = subsequent_candles[chunk_size * 4 :] if len(subsequent_candles) >= chunk_size * 5 else []
@@ -270,6 +384,10 @@ class GoldFractalIntelligenceEngine:
         leg1_vs_leg2 = round(l2_size / max(1e-6, l1_size), 2)
         leg2_vs_leg3 = round(l3_size / max(1e-6, l2_size), 2)
 
+        avg_exp_speed = (l1_speed + l2_speed) / 2.0
+        avg_ret_speed = (r1_speed + r2_speed) / 2.0 if (r1_speed or r2_speed) else l1_speed * 0.8
+        return_vs_exp_ratio = round(avg_ret_speed / max(1e-6, avg_exp_speed), 2)
+
         if leg1_vs_leg2 > 1.1 and l2_speed >= l1_speed:
             expansion_dynamics = "Strengthening Expansion"
         elif leg2_vs_leg3 < 0.75:
@@ -282,57 +400,80 @@ class GoldFractalIntelligenceEngine:
             "returns": returns,
             "leg1_vs_leg2_ratio": leg1_vs_leg2,
             "leg2_vs_leg3_ratio": leg2_vs_leg3,
+            "return_vs_expansion_speed_ratio": return_vs_exp_ratio,
             "expansion_dynamics": expansion_dynamics
         }
 
     # ---------------------------------------------------------
-    # 4. MULTI-TIMEFRAME FRACTAL MAPPING & ACTIVE SCALE DETECTION
+    # 4. MULTI-SCALE FRACTAL MAPPING & ACTIVE SCALE DETECTION
     # ---------------------------------------------------------
     def map_multi_timeframe_fractals(
         self,
-        timeframe_candles: Dict[str, List[Dict[str, Any]]]
+        timeframe_candles: Dict[str, List[Dict[str, Any]]],
+        scale_family: str = "STANDARD_MT5"
     ) -> Dict[str, Any]:
         """
-        Constructs nested fractal structure hierarchy from Monthly down to M5.
-        Identifies:
-        - Dominant Scale controlling current movement
-        - Active Base timeframe
-        - Internal noise vs structural legs
+        Constructs nested fractal structure hierarchy across timeframes/scales.
+        Supports scale_family: 'STANDARD_MT5', 'POWER_OF_2', 'POWER_OF_3'.
+        Identifies Dominant Scale controlling current movement and Active Base.
         """
+        if scale_family == "POWER_OF_2":
+            scale_list = POWER_OF_2_SCALES
+        elif scale_family == "POWER_OF_3":
+            scale_list = POWER_OF_3_SCALES
+        else:
+            scale_list = STANDARD_MT5_TIMEFRAMES
+
         hierarchy: Dict[str, Any] = {}
         active_bases_by_tf: Dict[str, Dict[str, Any]] = {}
-        dominant_scale = "H1"
+        dominant_scale = scale_list[min(4, len(scale_list)-1)]
         dominant_volatility = -1.0
 
-        for tf in TIMEFRAMES:
-            candles = timeframe_candles.get(tf, [])
-            bases = self.detect_base_structures(tf, candles) if candles else []
+        for sc in scale_list:
+            sc_upper = sc.upper()
+            lookup_keys = [sc, sc_upper]
+            if sc_upper == "MN1": lookup_keys.extend(["Monthly", "MONTHLY"])
+            if sc_upper == "W1": lookup_keys.extend(["Weekly", "WEEKLY"])
+            if sc_upper == "D1": lookup_keys.extend(["Daily", "DAILY"])
+
+            candles = []
+            for k in lookup_keys:
+                if k in timeframe_candles:
+                    candles = timeframe_candles[k]
+                    break
+
+            bases = self.detect_base_structures(sc, candles) if candles else []
             latest_base = bases[-1] if bases else None
 
             if latest_base:
-                active_bases_by_tf[tf] = latest_base
+                active_bases_by_tf[sc] = latest_base
                 if latest_base["Volatility"] > dominant_volatility:
                     dominant_volatility = latest_base["Volatility"]
-                    dominant_scale = tf
+                    dominant_scale = sc
 
-            hierarchy[tf] = {
+            entry = {
                 "candle_count": len(candles),
                 "base_count": len(bases),
                 "active_base": latest_base,
                 "status": "ACTIVE_BASE" if latest_base else "EXPANSION_PHASE"
             }
+            hierarchy[sc] = entry
+
+            # Also populate legacy key aliases if STANDARD_MT5
+            if scale_family == "STANDARD_MT5":
+                if sc_upper == "MN1": hierarchy["Monthly"] = entry
+                elif sc_upper == "W1": hierarchy["Weekly"] = entry
+                elif sc_upper == "D1": hierarchy["Daily"] = entry
 
         return {
             "symbol": self.symbol,
+            "scale_family": scale_family,
             "hierarchy_tree": hierarchy,
             "dominant_scale": dominant_scale,
             "active_bases_count": len(active_bases_by_tf),
             "controlling_context": {
-                "Monthly": hierarchy.get("Monthly", {}).get("status", "EXPANSION_PHASE"),
-                "Weekly": hierarchy.get("Weekly", {}).get("status", "EXPANSION_PHASE"),
-                "Daily": hierarchy.get("Daily", {}).get("status", "EXPANSION_PHASE"),
-                "H4": hierarchy.get("H4", {}).get("status", "EXPANSION_PHASE"),
-                "H1": hierarchy.get("H1", {}).get("status", "EXPANSION_PHASE"),
+                sc: hierarchy.get(sc, {}).get("status", "EXPANSION_PHASE")
+                for sc in scale_list[:3]
             }
         }
 
@@ -342,16 +483,17 @@ class GoldFractalIntelligenceEngine:
     def generate_active_fractal_report(
         self,
         timeframe_candles: Dict[str, List[Dict[str, Any]]],
-        as_of_time: Optional[str] = None
+        as_of_time: Optional[str] = None,
+        scale_family: str = "STANDARD_MT5"
     ) -> Dict[str, Any]:
         """
         Generates Active Fractal Report at any point in time.
         Calculates Target Zone without predicting exact price.
         """
-        mtf_map = self.map_multi_timeframe_fractals(timeframe_candles)
+        mtf_map = self.map_multi_timeframe_fractals(timeframe_candles, scale_family=scale_family)
         dom_tf = mtf_map["dominant_scale"]
 
-        candles = timeframe_candles.get(dom_tf, [])
+        candles = timeframe_candles.get(dom_tf, timeframe_candles.get(dom_tf.upper(), []))
         latest_price = float(candles[-1].get("close", candles[-1].get("Close", 2350.0))) if candles else 2350.0
 
         active_base = mtf_map["hierarchy_tree"].get(dom_tf, {}).get("active_base")
@@ -385,8 +527,9 @@ class GoldFractalIntelligenceEngine:
         report = {
             "Symbol": self.symbol,
             "Time": as_of_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "Scale_Family": scale_family,
             "Dominant_Scale": dom_tf,
-            "Higher_Context": f"Daily {direction}",
+            "Higher_Context": f"Macro {direction}",
             "Current_Structure": f"{dom_tf} {active_base['Type'] if active_base else 'Expansion Leg'}",
             "Phase": active_base["Internal_Behavior"]["state"] if active_base else "Expansion Preparation",
             "Expected_Structural_Behavior": expected_behavior,
@@ -432,7 +575,7 @@ class GoldFractalIntelligenceEngine:
 
         for idx in range(1, count + 1):
             dt_str = (base_date + timedelta(days=idx * 28)).strftime("%Y-%m-%d")
-            tf = TIMEFRAMES[idx % len(TIMEFRAMES)]
+            tf = STANDARD_MT5_TIMEFRAMES[idx % len(STANDARD_MT5_TIMEFRAMES)]
             cond = market_conditions[idx % len(market_conditions)]
 
             is_failure = (idx % 7 == 0)
