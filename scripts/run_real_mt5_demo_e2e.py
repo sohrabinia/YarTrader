@@ -274,7 +274,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
 
     if close_resp.Status != "Placed":
         logger.error(
-            f"\n[MT5 CLOSE FORENSIC]\n"
+            f"\n[MT5 CLOSE E2E ERROR]\n"
             f"REQUEST: {trade_request_data}\n"
             f"CHECK: retcode={close_resp.Retcode}, comment={close_resp.Comment}\n"
             f"SEND: raw_response={close_resp.RawResponse}\n"
