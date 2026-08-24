@@ -232,7 +232,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
-        mock_sym.filling_mode = 1
+        mock_sym.filling_mode = 7  # SYMBOL_FILLING_FOK (1) + IOC (2) + RETURN (4) = 7
         mock_mt5.symbol_info.return_value = mock_sym
 
         mock_tick = MagicMock()
@@ -445,7 +445,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
-        mock_sym.filling_mode = 1
+        mock_sym.filling_mode = 7  # FOK (1) + IOC (2) + RETURN (4) = 7
         mock_mt5.symbol_info.return_value = mock_sym
 
         mock_tick = MagicMock()
@@ -609,7 +609,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
-        mock_sym.filling_mode = 1  # FOK preferred
+        mock_sym.filling_mode = 3  # SYMBOL_FILLING_FOK (1) + SYMBOL_FILLING_IOC (2)
         mock_mt5.symbol_info.return_value = mock_sym
 
         mock_tick = MagicMock()
@@ -680,7 +680,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
-        mock_sym.filling_mode = 1
+        mock_sym.filling_mode = 7  # SYMBOL_FILLING_FOK (1) + IOC (2) + RETURN (4) = 7
         mock_mt5.symbol_info.return_value = mock_sym
 
         mock_tick = MagicMock()
@@ -1093,6 +1093,101 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         checked_trade_req = mock_mt5.order_check.call_args[0][0]
         self.assertEqual(checked_trade_req["comment"], "YarClose")
         self.assertEqual(checked_trade_req["position"], 999111)
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_stop_distance_normalization_using_trade_stops_level(self, mock_verify):
+        """
+        Unit test verifying that SL/TP distances are automatically normalized using
+        trade_stops_level * point for OPEN orders.
+        """
+        mock_mt5 = MagicMock()
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TYPE_BUY = 0
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+
+        mock_sym = MagicMock()
+        mock_sym.visible = True
+        mock_sym.volume_min = 0.01
+        mock_sym.volume_step = 0.01
+        mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
+        mock_sym.point = 0.01
+        mock_sym.trade_stops_level = 500  # Minimum stop distance = 500 * 0.01 = $5.00
+        mock_sym.filling_mode = 1
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        mock_tick = MagicMock()
+        mock_tick.bid = 2350.00
+        mock_tick.ask = 2350.00
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        mock_check = MagicMock()
+        mock_check.retcode = 0
+        mock_mt5.order_check.return_value = mock_check
+
+        mock_res = MagicMock()
+        mock_res.retcode = 10009
+        mock_res.order = 10101
+        mock_res.deal = 20202
+        mock_res.price = 2350.00
+        mock_res.volume = 0.01
+        mock_res.comment = "YarOpen"
+        mock_res._asdict.return_value = {"retcode": 10009}
+        mock_mt5.order_send.return_value = mock_res
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        # Request with invalid tight SL ($1 below entry, whereas min required is $5)
+        tight_req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="Buy",
+            Price=2350.00,
+            StopLoss=2349.00,
+            TakeProfit=2351.00,
+            Volume=0.01
+        )
+        resp = self.adapter.send_order_to_broker(tight_req)
+        self.assertEqual(resp.Status, "Placed")
+
+        checked_trade_req = mock_mt5.order_check.call_args[0][0]
+        # Verified SL adjusted to 2350 - 5.00 = 2345.00
+        self.assertEqual(checked_trade_req["sl"], 2345.00)
+        # Verified TP adjusted to 2350 + 5.00 = 2355.00
+        self.assertEqual(checked_trade_req["tp"], 2355.00)
+
+    def test_resolve_supported_filling_modes_bitmask(self):
+        """
+        Unit test verifying that _resolve_supported_filling_modes inspects the filling_mode
+        bitmask and returns ONLY supported modes.
+        """
+        mock_mt5 = MagicMock()
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.ORDER_FILLING_IOC = 1
+        mock_mt5.ORDER_FILLING_RETURN = 2
+
+        # Bitmask = 1 (FOK only)
+        sym_fok = MagicMock(filling_mode=1)
+        modes_fok = self.adapter._resolve_supported_filling_modes(mock_mt5, "XAUUSD", sym_fok)
+        self.assertEqual(modes_fok, [0])
+
+        # Bitmask = 2 (IOC only)
+        sym_ioc = MagicMock(filling_mode=2)
+        modes_ioc = self.adapter._resolve_supported_filling_modes(mock_mt5, "EURUSD", sym_ioc)
+        self.assertEqual(modes_ioc, [1])
+
+        # Bitmask = 3 (FOK + IOC)
+        sym_both = MagicMock(filling_mode=3)
+        modes_both = self.adapter._resolve_supported_filling_modes(mock_mt5, "BITCOIN", sym_both)
+        self.assertEqual(modes_both, [0, 1])
 
 
 if __name__ == "__main__":

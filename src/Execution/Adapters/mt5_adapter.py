@@ -199,6 +199,32 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         # Default fallback preference: FOK -> IOC
         return fok_code
 
+    def _resolve_supported_filling_modes(self, mt5: Any, symbol: str, sym_info: Any) -> List[int]:
+        """
+        Queries symbol_info.filling_mode bitmask and returns ONLY supported filling modes.
+        Bits: 1 = SYMBOL_FILLING_FOK (0), 2 = SYMBOL_FILLING_IOC (1), 4 = SYMBOL_FILLING_RETURN (2).
+        If bitmask is unavailable, returns [ORDER_FILLING_FOK, ORDER_FILLING_IOC].
+        """
+        fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)
+        ioc_code = getattr(mt5, "ORDER_FILLING_IOC", 1)
+        return_code = getattr(mt5, "ORDER_FILLING_RETURN", 2)
+
+        f_mode = getattr(sym_info, "filling_mode", None) if sym_info else None
+        supported = []
+
+        if f_mode is not None and isinstance(f_mode, int) and f_mode > 0:
+            if f_mode & 1:  # Bit 0: FOK
+                supported.append(fok_code)
+            if f_mode & 2:  # Bit 1: IOC
+                supported.append(ioc_code)
+            if f_mode & 4:  # Bit 2: RETURN
+                supported.append(return_code)
+
+        if not supported:
+            supported = [fok_code, ioc_code]
+
+        return supported
+
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
         """
         Sends order to real MT5 terminal via mt5.order_send().
@@ -282,6 +308,36 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         filling_mode = self._resolve_filling_mode(mt5, request.Symbol, sym_info)
 
+        # Normalize SL/TP distances using trade_stops_level * point for OPEN orders
+        digits = int(getattr(sym_info, "digits", 2))
+        point = float(getattr(sym_info, "point", 0.01))
+        trade_stops_level = float(getattr(sym_info, "trade_stops_level", 0))
+        min_stop_dist = max(trade_stops_level * point, point) if point > 0 else 0.01
+
+        sl_val = None
+        tp_val = None
+
+        if request.OrderType.upper() != "CLOSE":
+            if request.StopLoss and request.StopLoss > 0:
+                raw_sl = round(request.StopLoss, digits)
+                if mt5_action_type == mt5.ORDER_TYPE_BUY:
+                    if price - raw_sl < min_stop_dist:
+                        raw_sl = round(price - min_stop_dist, digits)
+                elif mt5_action_type == mt5.ORDER_TYPE_SELL:
+                    if raw_sl - price < min_stop_dist:
+                        raw_sl = round(price + min_stop_dist, digits)
+                sl_val = float(raw_sl)
+
+            if request.TakeProfit and request.TakeProfit > 0:
+                raw_tp = round(request.TakeProfit, digits)
+                if mt5_action_type == mt5.ORDER_TYPE_BUY:
+                    if raw_tp - price < min_stop_dist:
+                        raw_tp = round(price + min_stop_dist, digits)
+                elif mt5_action_type == mt5.ORDER_TYPE_SELL:
+                    if price - raw_tp < min_stop_dist:
+                        raw_tp = round(price - min_stop_dist, digits)
+                tp_val = float(raw_tp)
+
         # Build MT5 order request structure
         trade_req = {
             "action": mt5.TRADE_ACTION_DEAL,
@@ -299,11 +355,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if request.OrderType.upper() == "CLOSE" and request.PositionTicket:
             trade_req["position"] = int(request.PositionTicket)
 
-        if request.OrderType.upper() != "CLOSE":
-            if request.StopLoss and request.StopLoss > 0:
-                trade_req["sl"] = float(request.StopLoss)
-            if request.TakeProfit and request.TakeProfit > 0:
-                trade_req["tp"] = float(request.TakeProfit)
+        if sl_val is not None:
+            trade_req["sl"] = sl_val
+        if tp_val is not None:
+            trade_req["tp"] = tp_val
 
         # Forensic Runtime Assertions
         if order_type_str == "CLOSE":
@@ -315,14 +370,8 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             assert "position" not in trade_req or trade_req.get("position") is None, "OPEN trade_req MUST NOT contain 'position' key"
             assert trade_req["comment"] == "YarOpen", f"OPEN trade_req comment must be 'YarOpen', got {trade_req.get('comment')}"
 
-        # Build candidate filling modes (preferred resolved mode first, then remaining)
-        fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)
-        ioc_code = getattr(mt5, "ORDER_FILLING_IOC", 1)
-        return_code = getattr(mt5, "ORDER_FILLING_RETURN", 2)
-        candidates = [filling_mode]
-        for mode_opt in [fok_code, ioc_code, return_code]:
-            if mode_opt not in candidates:
-                candidates.append(mode_opt)
+        # Select candidates strictly from supported filling modes defined in symbol_info.filling_mode bitmask
+        candidates = self._resolve_supported_filling_modes(mt5, request.Symbol, sym_info)
 
         pos_id = trade_req.get("position", None)
         import json
