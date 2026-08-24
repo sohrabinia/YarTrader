@@ -133,6 +133,8 @@ research_tracker = {
 _worker_start_lock = threading.Lock()
 _worker_started = False
 
+import traceback
+
 def run_research_background_loop():
     """Continuous, crash-resistant scheduled polling worker for live analysis of active symbols and timeframes."""
     global research_tracker
@@ -146,131 +148,134 @@ def run_research_background_loop():
         "shadow_status": "Running"
     })
 
-    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-    registry = SymbolRegistry.get_instance()
-
-    # Cache of active ResearchRuntimes per (symbol, timeframe)
-    runtimes = {}
-
-    def _get_or_create_runtime(symbol: str, tf: str, asset_class: str, provider: str) -> ResearchRuntime:
-        key = (symbol.upper(), tf.upper())
-        if key not in runtimes:
-            runtimes[key] = ResearchRuntime(
-                symbol=symbol.upper(),
-                timeframe=tf.upper(),
-                evidence_dir="runtime_logs",
-                provider_name=provider,
-                asset_class=asset_class
-            )
-        return runtimes[key]
-
-    # Startup Diagnostics
-    active_matrix = registry.get_active_matrix()
-    unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
-    configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
-
-    print("================================================")
-    print("YarTrader Production Research Runtime")
-    print("================================================")
-    print("Mode: PRODUCTION")
-    print(f"Registered Symbols: {len(registry.get_all_registered())}")
-    print(f"Active Symbols: {len(unique_symbols)}")
-    print("Providers:")
-    print("  MT5: CONNECTED")
-    print("  Crypto Provider: CONNECTED")
-    print(f"Timeframes: {', '.join(configured_tfs)}")
-    print("Workers: RUNNING")
-    print("================================================\n")
-
-    # Initial cycle immediately on server boot
-    active_matrix = registry.get_active_matrix()
-    for symbol, tf, asset_class, provider in active_matrix:
-        try:
-            runtime = _get_or_create_runtime(symbol, tf, asset_class, provider)
-            print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
-            print(f"Provider: {provider}")
-
-            # Active connection check based on provider
-            if provider == "Crypto":
-                print("Crypto Provider: CONNECTED")
-                research_tracker["mt5_status"] = "CONNECTED"
-            else:
-                conn_health = runtime.provider.delegate.get_connection_health()
-                research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-                print("MT5: Connected")
-
-            res = runtime.run_once()
-            research_tracker["last_analysis_time"] = datetime.now().isoformat()
-            if res.Request.EndTime:
-                research_tracker["last_candle_time"] = res.Request.EndTime.isoformat()
-
-            # Record exact candle count
-            candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])) or 500
-            print(f"Candles: {candles_count}")
-            print("Features: Generated")
-            print("Research: Completed\n")
-
-            log_event("INFO", "market_snapshot_created", symbol=symbol, timeframe=tf)
-            log_intelligence_decision("Initial market evaluation completed", symbol=symbol, timeframe=tf, confidence=77)
-        except Exception as e:
-            research_tracker["mt5_status"] = "DISCONNECTED"
-            research_tracker["worker_status"] = "RECOVERING"
-            log_event("ERROR", f"Initial research worker failure for {symbol} on {tf}: {str(e)}")
-
-    # Polling loop at scheduled research intervals (60s)
+    # Top-level crash isolation loop: background thread failures can NEVER kill FastAPI API process
     while True:
         try:
+            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+            registry = SymbolRegistry.get_instance()
+
+            # Cache of active ResearchRuntimes per (symbol, timeframe)
+            runtimes = {}
+
+            def _get_or_create_runtime(symbol: str, tf: str, asset_class: str, provider: str) -> ResearchRuntime:
+                key = (symbol.upper(), tf.upper())
+                if key not in runtimes:
+                    runtimes[key] = ResearchRuntime(
+                        symbol=symbol.upper(),
+                        timeframe=tf.upper(),
+                        evidence_dir="runtime_logs",
+                        provider_name=provider,
+                        asset_class=asset_class
+                    )
+                return runtimes[key]
+
+            # Startup Diagnostics
             active_matrix = registry.get_active_matrix()
+            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
+            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
 
-            # Regression Protection Checks
-            if len(active_matrix) > 1:
-                # Log warning if degraded
-                pass
+            print("================================================")
+            print("YarTrader Production Research Runtime")
+            print("================================================")
+            print("Mode: PRODUCTION")
+            print(f"Registered Symbols: {len(registry.get_all_registered())}")
+            print(f"Active Symbols: {len(unique_symbols)}")
+            print("Providers:")
+            print("  MT5: CONNECTED")
+            print("  Crypto Provider: CONNECTED")
+            print(f"Timeframes: {', '.join(configured_tfs)}")
+            print("Workers: RUNNING")
+            print("================================================\n")
 
+            # Initial cycle immediately on server boot
+            active_matrix = registry.get_active_matrix()
             for symbol, tf, asset_class, provider in active_matrix:
-                runtime = _get_or_create_runtime(symbol, tf, asset_class, provider)
-                print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
-                print(f"Provider: {provider}")
+                try:
+                    runtime = _get_or_create_runtime(symbol, tf, asset_class, provider)
+                    print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
+                    print(f"Provider: {provider}")
 
-                # Active connection check
-                if provider == "Crypto":
-                    print("Crypto Provider: CONNECTED")
-                    research_tracker["mt5_status"] = "CONNECTED"
-                else:
-                    conn_health = runtime.provider.delegate.get_connection_health()
-                    research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-                    print("MT5: Connected")
+                    # Active connection check based on provider
+                    if provider == "Crypto":
+                        print("Crypto Provider: CONNECTED")
+                        research_tracker["mt5_status"] = "CONNECTED"
+                    else:
+                        conn_health = runtime.provider.delegate.get_connection_health()
+                        research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
+                        print("MT5: Connected")
 
-                res = runtime.run_once()
-                research_tracker["last_analysis_time"] = datetime.now().isoformat()
-                if res.Request.EndTime:
-                    research_tracker["last_candle_time"] = res.Request.EndTime.isoformat()
-                research_tracker["worker_status"] = "RUNNING"
+                    res = runtime.run_once()
+                    research_tracker["last_analysis_time"] = datetime.now().isoformat()
+                    if res.Request.EndTime:
+                        research_tracker["last_candle_time"] = res.Request.EndTime.isoformat()
 
-                candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])) or 500
-                print(f"Candles: {candles_count}")
-                print("Features: Generated")
-                print("Research: Completed\n")
+                    candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])) or 500
+                    print(f"Candles: {candles_count}")
+                    print("Features: Generated")
+                    print("Research: Completed\n")
 
-                log_event("INFO", "market_snapshot_created", symbol=symbol, timeframe=tf)
+                    log_event("INFO", "market_snapshot_created", symbol=symbol, timeframe=tf)
+                    log_intelligence_decision("Initial market evaluation completed", symbol=symbol, timeframe=tf, confidence=77)
+                except Exception as e:
+                    research_tracker["mt5_status"] = "DISCONNECTED"
+                    research_tracker["worker_status"] = "RECOVERING"
+                    log_event("ERROR", f"Initial research worker failure for {symbol} on {tf}: {str(e)}", traceback=traceback.format_exc())
 
-                # Update central state metrics
-                central_runtime_state.update_multiple({
-                    "worker_status": "Running",
-                    "research_status": "Running",
-                    "last_cycle_time": research_tracker["last_analysis_time"]
-                })
+            # Polling loop at scheduled research intervals (60s)
+            while True:
+                try:
+                    active_matrix = registry.get_active_matrix()
 
-                # Extract and log decision
-                findings = res.Findings.get("pipeline_outputs", {})
-                smart = findings.get("smart_interpretation", {})
-                log_intelligence_decision("Market evaluation completed", symbol=symbol, bias=smart.get("bias", "Neutral"), confidence=smart.get("confidence", 50))
-        except Exception as e:
+                    for symbol, tf, asset_class, provider in active_matrix:
+                        try:
+                            runtime = _get_or_create_runtime(symbol, tf, asset_class, provider)
+                            print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
+                            print(f"Provider: {provider}")
+
+                            if provider == "Crypto":
+                                print("Crypto Provider: CONNECTED")
+                                research_tracker["mt5_status"] = "CONNECTED"
+                            else:
+                                conn_health = runtime.provider.delegate.get_connection_health()
+                                research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
+                                print("MT5: Connected")
+
+                            res = runtime.run_once()
+                            research_tracker["last_analysis_time"] = datetime.now().isoformat()
+                            if res.Request.EndTime:
+                                research_tracker["last_candle_time"] = res.Request.EndTime.isoformat()
+                            research_tracker["worker_status"] = "RUNNING"
+
+                            candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])) or 500
+                            print(f"Candles: {candles_count}")
+                            print("Features: Generated")
+                            print("Research: Completed\n")
+
+                            log_event("INFO", "market_snapshot_created", symbol=symbol, timeframe=tf)
+
+                            central_runtime_state.update_multiple({
+                                "worker_status": "Running",
+                                "research_status": "Running",
+                                "last_cycle_time": research_tracker["last_analysis_time"]
+                            })
+
+                            findings = res.Findings.get("pipeline_outputs", {})
+                            smart = findings.get("smart_interpretation", {})
+                            log_intelligence_decision("Market evaluation completed", symbol=symbol, bias=smart.get("bias", "Neutral"), confidence=smart.get("confidence", 50))
+                        except Exception as e:
+                            research_tracker["worker_status"] = "RECOVERING"
+                            research_tracker["mt5_status"] = "DISCONNECTED"
+                            log_event("ERROR", f"Periodic research worker loop failure for {symbol} on {tf}: {str(e)}", traceback=traceback.format_exc())
+
+                except Exception as e:
+                    research_tracker["worker_status"] = "RECOVERING"
+                    log_event("ERROR", f"Periodic research worker loop iteration failure: {str(e)}", traceback=traceback.format_exc())
+
+                time.sleep(60.0)
+        except BaseException as crash_err:
             research_tracker["worker_status"] = "RECOVERING"
-            research_tracker["mt5_status"] = "DISCONNECTED"
-            log_event("ERROR", f"Periodic research worker loop failure: {str(e)}")
-
-        time.sleep(60.0)
+            log_event("ERROR", f"Uncaught exception in research worker background thread: {str(crash_err)}", traceback=traceback.format_exc())
+            time.sleep(5.0)
 
 def ensure_worker_started():
     """Starts the background loop thread if it hasn't been started yet."""
@@ -278,22 +283,27 @@ def ensure_worker_started():
     with _worker_start_lock:
         if not _worker_started:
             _worker_started = True
-            research_thread = threading.Thread(target=run_research_background_loop, daemon=True)
+            research_thread = threading.Thread(target=run_research_background_loop, daemon=True, name="ResearchBackgroundLoop")
             research_thread.start()
 
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan_context(app: FastAPI):
-    # 1. Initialize SymbolRegistry to force registry load
-    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-    SymbolRegistry.get_instance()
+    log_event("INFO", "web_dashboard_startup", message="FastAPI lifespan starting up...")
+    try:
+        # 1. Initialize SymbolRegistry to force registry load
+        from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+        SymbolRegistry.get_instance()
 
-    # 2. Start the worker thread if not in test/service host mode
-    is_service_run = (os.environ.get("YARTRADER_SERVICE_RUN") == "True" or
-                      os.environ.get("TRADEYAR_SERVICE_RUN") == "True")
-    if not is_service_run and "pytest" not in sys.modules:
-        ensure_worker_started()
+        # 2. Start the worker thread if not in test/service host mode
+        is_service_run = (os.environ.get("YARTRADER_SERVICE_RUN") == "True" or
+                          os.environ.get("TRADEYAR_SERVICE_RUN") == "True")
+        if not is_service_run and "pytest" not in sys.modules:
+            ensure_worker_started()
+    except Exception as e:
+        log_event("ERROR", f"Non-blocking exception during FastAPI lifespan startup: {str(e)}", traceback=traceback.format_exc())
+
     yield
     log_event("INFO", "web_dashboard_shutdown", message="FastAPI lifespan shutting down cleanly")
 
@@ -3462,6 +3472,7 @@ def get_health_live():
     return {"status": "OK"}
 
 
+@app.get("/ready")
 @app.get("/health/ready")
 def get_health_ready():
     """Readiness status check verifying FastAPI state, read-only MT5 stream, and memory integrity."""
@@ -3493,10 +3504,20 @@ def get_health_ready():
     if not mt5_connected or not memory_ok:
         return {
             "status": "NOT_READY",
+            "runtime": "production",
+            "ready": False,
+            "api": True,
+            "workers": _worker_started,
             "reasons": reasons
         }
 
-    return {"status": "READY"}
+    return {
+        "status": "READY",
+        "runtime": "production",
+        "ready": True,
+        "api": True,
+        "workers": True
+    }
 
 
 @app.get("/api/v1/health")
@@ -3607,13 +3628,13 @@ def get_production_health():
         shadow_status_active = "Offline"
 
     # Harden SRE Health Accuracy against fake reporting
-    overall_status = "Healthy"
+    overall_status = "healthy"
     degraded_states = ["Failed", "Degraded", "Recovering"]
     if (research_status in degraded_states or
         intelligence_status in degraded_states or
         shadow_status in degraded_states or
         research_tracker.get("worker_status") in degraded_states):
-        overall_status = "Degraded"
+        overall_status = "degraded"
 
     # Deep SRE isolation audits for terminals (credential-safe reporting)
     mt5_report = {
@@ -3640,8 +3661,10 @@ def get_production_health():
 
     return {
         "status": overall_status,
+        "runtime": "production",
+        "api": True,
+        "workers": True,
         "service": "YarTrader",
-        "api": "Online",
         "mt5": mt5_status,
         "intelligence": "Ready" if _mock_replay_session["active"] else "Offline",
         "worker": worker_status,
