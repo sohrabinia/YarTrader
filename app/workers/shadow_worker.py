@@ -65,7 +65,12 @@ class ShadowWorker:
 
                 # Write to dedicated service log file
                 try:
-                    with open("logs/service/service.log", "a", encoding="utf-8") as f:
+                    from src.Application.Deployment.storage import YarTraderStorageManager
+                    storage_mgr = YarTraderStorageManager.get_manager()
+                    service_log_dir = os.path.join(storage_mgr.get_logs_dir(), "service")
+                    os.makedirs(service_log_dir, exist_ok=True)
+                    log_file = os.path.join(service_log_dir, "service.log")
+                    with open(log_file, "a", encoding="utf-8") as f:
                         f.write(error_msg)
                 except Exception:
                     pass
