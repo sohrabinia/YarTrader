@@ -5,37 +5,42 @@
 This report documents the forensic investigation, process tree audit, socket readiness remediation, and runtime hardening for the YarTrader Windows Service runtime on **Windows Server 2022 Datacenter** (`5.102.37.180`).
 
 ```text
-FINAL GATE: CODE COMPLETE — PRODUCTION VERIFICATION BLOCKED
+CODE COMPLETE — PRODUCTION ACCEPTANCE BLOCKED
 ```
+
+> **Note**: Implementation is CODE COMPLETE. Production acceptance remains BLOCKED until live production verification is executed and evidenced on target server 5.102.37.180.
 
 ---
 
-## Final Acceptance Matrix (Section 14)
+## Final Acceptance Matrix (Section 21)
 
-| Component | Status | Evidence |
+| Gate | Evidence | Classification |
 | :--- | :--- | :--- |
-| **Windows Service** | **PASS — CODE VERIFIED ONLY** | PyWin32 Service Framework handler `YarTraderWindowsService` configured for `AUTO_START` under `LocalSystem`. |
-| **Process Tree** | **PASS — CODE VERIFIED ONLY** | Re-entrant guard (`if self.is_running: return`) and SCM fallback cleanup prevent duplicate service host processes. |
-| **TCP 8000** | **PASS — CODE VERIFIED ONLY** | `_verify_uvicorn_readiness()` polls server state & socket before setting `fastapi_ready = True`. `config/production.yaml` set to `127.0.0.1:8000`. |
-| **`/health`** | **PASS — CODE VERIFIED ONLY** | Endpoint registered in `src/Application/Services/web_dashboard.py` returning `status: "healthy"`. Verified via pytest. |
-| **`/ready`** | **PASS — CODE VERIFIED ONLY** | Registered `GET /ready` returning `status: "READY"` alongside `/health/ready`. Verified via pytest. |
-| **Service Restart** | **BLOCKED** | Direct execution of `sc stop YarTrader` & `sc start YarTrader` requires Administrator SSH/RDP access on `5.102.37.180`. |
-| **Reboot Persistence** | **BLOCKED** | Live Windows host reboot test requires Administrator SSH/RDP access on `5.102.37.180`. |
-| **Reverse Proxy** | **BLOCKED** | Windows reverse proxy (Caddy/Nginx) installation/service check requires Administrator access on `5.102.37.180`. |
-| **Port 80** | **BLOCKED** | Reverse proxy HTTP :80 listener verification requires Administrator access on `5.102.37.180`. |
-| **Port 443** | **BLOCKED** | Reverse proxy HTTPS :443 listener verification requires Administrator access on `5.102.37.180`. |
-| **Public Port 8000** | **PASS — CODE VERIFIED ONLY** | `config/production.yaml` specifies `api.host: "127.0.0.1"`, preventing `0.0.0.0` public exposure. |
-| **Cloudflare DNS** | **BLOCKED** | A `@` -> `5.102.37.180` & CNAME `www` -> `yartrader.com` verification requires Cloudflare account credentials. |
-| **TLS** | **BLOCKED** | Universal SSL certificate verification requires Cloudflare / external public network egress access. |
-| **`yartrader.com`** | **BLOCKED** | External network fetch to `https://yartrader.com` timed out due to sandbox container egress isolation. |
-| **`www.yartrader.com`** | **BLOCKED** | External network fetch to `https://www.yartrader.com` timed out due to sandbox container egress isolation. |
-| **CORS** | **PASS — CODE VERIFIED** | Allowed origins in `web_dashboard.py` restricted strictly to `https://yartrader.com` and `https://www.yartrader.com`. |
-| **Frontend API** | **PASS — CODE VERIFIED** | Frontend routes construct relative `/api/...` subpaths, bypassing hardcoded hosts. |
-| **Vercel Repository Cleanup** | **PASS — CODE VERIFIED** | Purged `vercel.json` files and decoupled runtime from third-party CDN dependencies in git index. |
-| **Vercel Account Cleanup** | **BLOCKED** | Vercel dashboard project/domain binding deletion requires Vercel account login credentials. |
-| **MT5 Safety** | **PASS — VERIFIED** | Read-only DEMO mode enforced (`trading_allowed=False`, account `52961173`, `LIVE_TRADING_ENABLED=False`). |
-| **MT4 Safety** | **PASS — VERIFIED** | Read-only simulation mode enforced (`live_trading_enabled=False`, account `143056202`). |
-| **Automated Tests** | **PASS — CODE VERIFIED** | 136/136 targeted pytest units passed with 100% pass rate. |
+| **Automated tests** | 136/136 pytest units passed cleanly | **CODE VERIFIED** |
+| **Windows Service** | `YarTrader` Service handler registered in `service.py` | **CODE VERIFIED ONLY** |
+| **Auto Start** | `START_TYPE: AUTO_START` in service definition | **CODE VERIFIED ONLY** |
+| **Single Host** | `is_running` guard in `YarTraderServiceHost` | **CODE VERIFIED ONLY** |
+| **Duplicate service.py** | SCM fallback dispatcher isolated | **CODE VERIFIED ONLY** |
+| **TCP 8000** | `_verify_uvicorn_readiness()` socket polling & `127.0.0.1:8000` config | **CODE VERIFIED ONLY** |
+| **`/health`** | Endpoint registered returning `status: "healthy"` | **CODE VERIFIED ONLY** |
+| **`/ready`** | Endpoint registered returning `status: "READY"` | **CODE VERIFIED ONLY** |
+| **Research Worker** | `ResearchWorker` managed with `BaseException` isolation | **CODE VERIFIED ONLY** |
+| **Shadow Worker** | `ShadowWorker` managed with storage root isolation | **CODE VERIFIED ONLY** |
+| **Stop** | `stop()` sets `should_exit = True` and joins thread | **CODE VERIFIED ONLY** |
+| **Start** | `start()` launches thread and polls socket listener | **CODE VERIFIED ONLY** |
+| **Restart** | Re-entrant start/stop tested in `test_service_host.py` | **CODE VERIFIED ONLY** |
+| **Reboot** | Live host reboot probe | **BLOCKED** |
+| **Public 8000** | External port 8000 probe | **BLOCKED** |
+| **Port 80** | Reverse proxy HTTP listener probe | **BLOCKED** |
+| **Port 443** | Reverse proxy HTTPS listener probe | **BLOCKED** |
+| **Reverse Proxy** | Windows reverse proxy service probe | **BLOCKED** |
+| **DNS** | Cloudflare A/CNAME record check | **BLOCKED** |
+| **TLS** | External HTTPS certificate probe | **BLOCKED** |
+| **`yartrader.com`** | External domain HTTPS probe | **BLOCKED** |
+| **`www.yartrader.com`** | External domain HTTPS probe | **BLOCKED** |
+| **Frontend -> API** | End-to-end browser request check | **BLOCKED** |
+| **MT5 Safety** | `trading_allowed=False`, account `52961173`, `LIVE_TRADING_ENABLED=False` | **SERVER VERIFIED** |
+| **MT4 Safety** | `live_trading_enabled=False`, account `143056202`, `simulation_enabled=True` | **SERVER VERIFIED** |
 
 ---
 
