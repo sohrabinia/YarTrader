@@ -185,6 +185,29 @@ class MTDataAcquisitionEngine:
             json.dump(manifest, f, indent=2)
 
     @classmethod
+    def load_authentic_dataset(cls, filepath: str) -> Tuple[Optional[List[Dict[str, Any]]], Optional[Dict[str, Any]]]:
+        """
+        Loads dataset from filepath, verifies non-synthetic metadata, and returns (records, metadata).
+        """
+        if not filepath or not os.path.exists(filepath):
+            return None, None
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        metadata = data.get("dataset_metadata", {})
+        records = data.get("records", [])
+
+        if metadata.get("is_synthetic", False) or metadata.get("DATA_CLASSIFICATION") == "SYNTHETIC":
+            return None, None
+
+        dataset_hash = cls.compute_dataset_sha256(records)
+        metadata["sha256_hash"] = dataset_hash
+        metadata["DATA_CLASSIFICATION"] = "REAL_HISTORICAL"
+
+        return records, metadata
+
+    @classmethod
     def _try_direct_mt5_acquisition(cls, symbol: str = "XAUUSD", max_count: int = 99999) -> Optional[Dict[str, Any]]:
         """
         Read-only acquisition from native MT5 IPC when MetaTrader5 library and terminal are accessible.

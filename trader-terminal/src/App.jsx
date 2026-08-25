@@ -51,11 +51,11 @@ function MainApp() {
 
   const [token, setToken] = useState(() => {
     const t = localStorage.getItem('yartrader_token') || localStorage.getItem('tradeyar_token');
-    return (t && t !== 'null' && t !== 'undefined') ? t : 'demo_sre_token';
+    return (t && t !== 'null' && t !== 'undefined') ? t : null;
   });
   const [role, setRole] = useState(() => {
     const r = localStorage.getItem('yartrader_role') || localStorage.getItem('tradeyar_role');
-    return (r && r !== 'null' && r !== 'undefined') ? r : 'ADMIN';
+    return (r && r !== 'null' && r !== 'undefined') ? r : 'GUEST';
   });
   const [name, setName] = useState(() => {
     const n = localStorage.getItem('yartrader_name') || localStorage.getItem('tradeyar_name');
