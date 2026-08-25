@@ -4419,17 +4419,19 @@ def get_scorecard():
     }
 
 
+@app.get("/api/runtime/frontend-status")
 @app.get("/api/system/frontend-status")
 def get_system_frontend_status():
-    """Exposes frontend build diagnostics status to the dashboard client."""
+    """Exposes frontend build diagnostics status to the dashboard client and runtime gate."""
     react_index = "trader-terminal/dist/index.html"
     build_status = "available" if os.path.exists(react_index) else "unavailable"
     assets_status = "available" if os.path.exists("trader-terminal/dist/assets") else "unavailable"
     return {
-        "frontend": "React",
+        "frontend": "online",
+        "backend": "online",
+        "api": "connected",
         "build": build_status,
         "assets": assets_status,
-        "api": "connected",
         "mode": "production"
     }
 
