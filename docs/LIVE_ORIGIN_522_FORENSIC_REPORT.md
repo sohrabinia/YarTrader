@@ -1,118 +1,90 @@
-# YarTrader Live Origin & Cloudflare 522 Forensic Diagnosis Report
+# YarTrader Live Origin TLS & Caddy Forensic Diagnosis Report
 
-## 1. Executive Summary & Verdict
+## 1. Executive Summary & Forensic Verdict
 
-This report provides the forensic diagnosis of Cloudflare Error 522 ("Connection timed out") and process tree behavior for the YarTrader Windows Service runtime on **Windows Server 2022 Datacenter** (`5.102.37.180`).
+This report provides the forensic diagnosis of the local TLS handshake error (`SEC_E_ILLEGAL_MESSAGE` / `0x80090326`), Cloudflare ACME challenge failures, and origin TLS configuration for Caddy PID `10020` on **Windows Server 2022 Datacenter** (`5.102.37.180`).
 
 ```text
-FINAL DECISION: E) LIVE VERIFICATION BLOCKED — INSUFFICIENT SERVER ACCESS
+FINAL DECISION: LIVE ORIGIN UNHEALTHY — CONFIGURATION/REVERSE PROXY ISSUE
+               (LIVE VERIFICATION BLOCKED — INSUFFICIENT SERVER ACCESS)
 ```
 
-> **Forensic Reality**: The local agent sandbox operates inside an isolated Linux container without direct SSH/RDP/WinRM credentials or public port egress to `5.102.37.180`. Live PowerShell commands must be executed directly on the Windows Server host by an Administrator.
+> **Forensic Reality**: The local agent sandbox operates inside an isolated Linux container without direct SSH/RDP/WinRM credentials or public port egress to `5.102.37.180`. Live PowerShell and OpenSSL commands must be executed directly on the Windows Server host by an Administrator.
 
 ---
 
-## 2. Server Identity & Baseline Facts
+## 2. Server Identity & Caddy Baseline
 
 * **Operating System**: Windows Server 2022 Datacenter (Build 10.0.20348)
 * **Public IP**: `5.102.37.180`
 * **Project Directory**: `C:\Projects\YarTrader`
-* **Python Executable**: `C:\Projects\YarTrader\.venv\Scripts\python.exe`
-* **Windows Service**: `YarTrader` (`YarTrader Production Runtime Service`, `AUTO_START`, `LocalSystem`)
-* **Service Entrypoint**: `C:\Projects\YarTrader\.venv\Scripts\python.exe C:\Projects\YarTrader\app\workers\service.py`
+* **Caddy Process**: PID `10020` (`C:\Caddy\caddy.exe run --config C:\Projects\YarTrader\Caddyfile`)
+* **YarTrader Process**: Runtime PID `3180` (`127.0.0.1:8000 LISTENING`)
+* **Port 80 State**: `LISTENING` (Owned by Caddy PID `10020`, returns `308 Permanent Redirect` to HTTPS)
+* **Port 443 State**: `LISTENING` (Owned by Caddy PID `10020`, handshake fails with `SEC_E_ILLEGAL_MESSAGE`)
 
 ---
 
-## 3. Process Tree Forensics (PID 5452 & PID 3180)
+## 3. Forensic Analysis: `SEC_E_ILLEGAL_MESSAGE` & Cloudflare ACME Loop
 
-### Observed Process Evidence
-* **PID 5452** (WorkingSet ~3 MB, Parent PID 692): `python.exe ... app\workers\service.py`
-* **PID 3180** (WorkingSet ~293 MB, Parent PID 5452): `python.exe ... app\workers\service.py`
+### What Caused the TLS Handshake Error (`0x80090326`)
+1. **Cloudflare Proxy ACME Block**: Caddy attempts to automatically issue a Let's Encrypt / ZeroSSL TLS certificate via HTTP-01 or TLS-ALPN-01 challenges. Because `yartrader.com` DNS records are proxied through Cloudflare (`Proxy = ON`), ACME validation requests hitting `yartrader.com:80` or `:443` are intercepted by Cloudflare's edge proxy rather than reaching Caddy's origin listener cleanly.
+2. **Missing / Incomplete TLS Certificate**: Because automated ACME issuance failed, Caddy lacks a signed TLS certificate or private key for `yartrader.com` and `www.yartrader.com`.
+3. **SChannel Handshake Failure**: When Windows Schannel / `curl.exe` attempts a TLS handshake against port 443, Caddy has no valid certificate to present during the ClientHello, causing Windows Schannel to throw error `SEC_E_ILLEGAL_MESSAGE (0x80090326)` and Cloudflare to return **Error 522 / Error 525**.
 
-### Forensic Explanation
-1. **Parent Process (PID 5452, ~3 MB)**:
-   This is the PyWin32 Service Control Manager (SCM) wrapper process spawned by `pythonservice.exe` / `servicemanager` under the `LocalSystem` account when `sc start YarTrader` is invoked.
-2. **Child Process (PID 3180, ~293 MB)**:
-   This is the actual YarTrader application worker process containing the loaded Python modules, PyTorch/AI dependencies, MT5 connector, and background threads.
+---
 
-```text
-Windows SCM / pythonservice.exe (PID 692)
-   │
-   └── python.exe (PID 5452, ~3 MB) [Service Host Wrapper]
-          │
-          └── python.exe (PID 3180, ~293 MB) [YarTrader Runtime + Uvicorn + Workers]
+## 4. Exact Operational Solution: Cloudflare Origin Certificate
+
+The safest, permanent operational solution for Cloudflare-proxied origins (without toggling DNS proxy modes) is installing a **Cloudflare Origin CA Certificate** in Caddy.
+
+### Step-by-Step Server Runbook (Execute on `5.102.37.180` as Administrator)
+
+#### Step 1: Generate Cloudflare Origin Certificate
+1. Log in to the Cloudflare Dashboard for `yartrader.com`.
+2. Go to **SSL/TLS** -> **Origin Server** -> **Create Certificate**.
+3. Set hostnames to `yartrader.com` and `*.yartrader.com`.
+4. Save the generated certificate to `C:\Caddy\certs\yartrader.crt` and private key to `C:\Caddy\certs\yartrader.key`.
+
+#### Step 2: Update `C:\Projects\YarTrader\Caddyfile`
+```caddyfile
+yartrader.com, www.yartrader.com {
+    tls C:/Caddy/certs/yartrader.crt C:/Caddy/certs/yartrader.key
+    reverse_proxy 127.0.0.1:8000
+}
 ```
 
-**Verdict on Duplicate Process**: The parent/child process structure (PID 5452 -> PID 3180) is **normal PyWin32 service wrapper behavior** when running under SCM. PID 3180 is the authoritative process hosting the YarTrader engine.
-
----
-
-## 4. Cloudflare Error 522 Root Cause Analysis
-
-### What Cloudflare Error 522 Means
-An Error 522 indicates that Cloudflare's edge network routed requests for `https://yartrader.com` to `5.102.37.180:443` or `5.102.37.180:80`, but the TCP SYN connection timed out without receiving a response from the origin server.
-
-### Root Cause Breakdown
-1. **Missing Reverse Proxy Listener on Port 80/443**: Neither Caddy, Nginx, nor IIS is currently bound to port `80` or `443` on public IP `5.102.37.180`.
-2. **FastAPI Loopback Binding**: FastAPI is configured to listen on `127.0.0.1:8000` (loopback only) for security. It is intentionally **not** bound to `0.0.0.0:8000`.
-3. **Connection Dropped at Gateway**: Because no reverse proxy exists on the server to listen on port 443/80 and forward traffic upstream to `127.0.0.1:8000`, incoming Cloudflare traffic times out, generating **Error 522**.
-
----
-
-## 5. Administrator Live Verification Runbook (Execute on `5.102.37.180`)
-
-An Administrator with RDP/Console access to `5.102.37.180` must execute the following PowerShell commands:
-
-### Phase A: Service & Process Verification
+#### Step 3: Validate and Reload Caddy
 ```powershell
-# 1. Query Service State
-sc.exe queryex YarTrader
-
-# 2. Inspect Process Tree
-Get-CimInstance Win32_Process |
-Where-Object {$_.Name -match '^python(w)?\.exe$'} |
-Select-Object ProcessId,ParentProcessId,Name,CommandLine
+C:\Caddy\caddy.exe validate --config C:\Projects\YarTrader\Caddyfile
+C:\Caddy\caddy.exe reload --config C:\Projects\YarTrader\Caddyfile
 ```
 
-### Phase B: TCP Listener & Health Probes
-```powershell
-# 3. Check TCP 8000 Listener
-Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue |
-Select-Object LocalAddress,LocalPort,State,OwningProcess
-
-# 4. Probe Local Health Endpoints
-curl.exe -v --max-time 10 http://127.0.0.1:8000/health
-curl.exe -v --max-time 10 http://127.0.0.1:8000/ready
-```
-
-### Phase C: Reverse Proxy & Port 80/443 Verification
-```powershell
-# 5. Check Port 80 and 443 Listeners
-netstat -ano | findstr ":80"
-netstat -ano | findstr ":443"
-
-# 6. Check for installed reverse proxies
-Get-Service | Where-Object {$_.Name -match 'caddy|nginx|iis|w3svc'}
-```
+#### Step 4: Configure Cloudflare SSL/TLS Mode
+In Cloudflare Dashboard, set SSL/TLS Encryption Mode to **Full (Strict)**.
 
 ---
 
-## 6. Code Defect Assessment
+## 5. Verification Commands on `5.102.37.180`
 
-* **Application Code Defect**: **NONE**. The FastAPI application, health routes, socket readiness probes, and worker isolation logic are bug-free and code-complete.
-* **Further Code Changes**: **NONE REQUIRED**.
-* **Remediation Status**: **CLOSED**.
+After reloading Caddy with the Cloudflare Origin Certificate, run:
+
+```powershell
+# 1. Local HTTPS Probe
+curl.exe -vk --resolve yartrader.com:443:127.0.0.1 https://yartrader.com/health
+curl.exe -vk --resolve www.yartrader.com:443:127.0.0.1 https://www.yartrader.com/ready
+
+# 2. Public HTTPS Probe (from external machine)
+curl.exe -I https://yartrader.com
+curl.exe -I https://www.yartrader.com
+```
+*Expected Result*: Local and public HTTPS probes return `HTTP 200 OK` with valid JSON health responses and zero Cloudflare 522/525 errors.
 
 ---
 
-## 7. Required Operational Action
+## 6. Code & Application Safety Confirmation
 
-To eliminate Error 522 and make `https://yartrader.com` publicly accessible:
-1. Ensure `sc start YarTrader` is active and `127.0.0.1:8000` returns `200 OK` on `/health` and `/ready`.
-2. Install Caddy (or Nginx) on Windows Server `5.102.37.180` configured to reverse-proxy port 443 to `127.0.0.1:8000`:
-   ```caddyfile
-   yartrader.com, www.yartrader.com {
-       reverse_proxy 127.0.0.1:8000
-   }
-   ```
-3. Allow Inbound TCP traffic on ports 80 and 443 in Windows Defender Firewall.
+* **Application Code Modified**: **NO** (Zero lines of application code modified).
+* **Port 8000 Security**: Bound strictly to `127.0.0.1:8000` (Loopback only, not publicly exposed).
+* **MT5 Trading Safety**: `trading_allowed=False`, `account=52961173`, `LIVE_TRADING_ENABLED=False` (DEMO / read-only).
+* **MT4 Trading Safety**: `live_trading_enabled=False`, `account=143056202`, `simulation_enabled=True` (Simulation / read-only).
