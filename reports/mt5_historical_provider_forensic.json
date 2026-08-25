@@ -1,0 +1,70 @@
+{
+  "timestamp": "2026-08-25T14:30:00Z",
+  "environment": {
+    "os": "win32",
+    "terminal_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe",
+    "data_path": "C:\\Users\\Administrator\\AppData\\Roaming\\MetaQuotes\\Terminal\\D0E8209F77C8CF37AD8BF550E51FF075",
+    "build": 6140,
+    "server": "Alpari-MT5-Demo",
+    "login": 52961173,
+    "account_trade_mode": 0,
+    "maxbars": 3000000
+  },
+  "test_1_pos_probes": [
+    {"request": 100000, "count": 100000, "first": "2026-05-14T03:12:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]},
+    {"request": 200000, "count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]},
+    {"request": 500000, "count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]},
+    {"request": 1000000, "count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]},
+    {"request": 2000000, "count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]},
+    {"request": 3000000, "count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]}
+  ],
+  "test_2_range_probes": [
+    {"range": "2026-05-14 -> 2026-08-25", "count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]},
+    {"range": "2026-05-01 -> 2026-05-14", "count": 0, "first": null, "last": null, "error": [1, "Success"]},
+    {"range": "2026-04-01 -> 2026-05-01", "count": 0, "first": null, "last": null, "error": [1, "Success"]},
+    {"range": "2026-01-01 -> 2026-02-01", "count": 0, "first": null, "last": null, "error": [1, "Success"]},
+    {"range": "2025-01-01 -> 2025-02-01", "count": 0, "first": null, "last": null, "error": [1, "Success"]},
+    {"range": "2024-01-01 -> 2024-02-01", "count": 0, "first": null, "last": null, "error": [1, "Success"]},
+    {"range": "2023-01-01 -> 2023-02-01", "count": 0, "first": null, "last": null, "error": [1, "Success"]},
+    {"range": "2022-01-01 -> 2022-02-01", "count": 0, "first": null, "last": null, "error": [1, "Success"]},
+    {"range": "2021-01-01 -> 2021-02-01", "count": 0, "first": null, "last": null, "error": [1, "Success"]}
+  ],
+  "test_3_symbol_differential": {
+    "EURUSD": {"count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]},
+    "GBPUSD": {"count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]},
+    "USDJPY": {"count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]},
+    "XAGUSD": {"count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]},
+    "XAUUSD": {"count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z", "error": [1, "Success"]}
+  },
+  "test_4_timeframe_differential": {
+    "M1": {"count": 100032, "first": "2026-05-14T02:40:00Z", "last": "2026-08-25T13:16:00Z"},
+    "M5": {"count": 100032, "first": "2025-08-10T11:20:00Z", "last": "2026-08-25T13:15:00Z"},
+    "M15": {"count": 100032, "first": "2023-11-04T08:15:00Z", "last": "2026-08-25T13:15:00Z"},
+    "H1": {"count": 100032, "first": "2010-02-18T14:00:00Z", "last": "2026-08-25T13:00:00Z"},
+    "H4": {"count": 35000, "first": "2001-01-03T00:00:00Z", "last": "2026-08-25T12:00:00Z"},
+    "D1": {"count": 6500, "first": "1999-01-04T00:00:00Z", "last": "2026-08-25T00:00:00Z"}
+  },
+  "test_5_alternative_provider": {
+    "status": "BLOCKED_BY_ENVIRONMENT",
+    "reason": "No secondary authenticated MT5 trade server account (e.g. MetaQuotes-Demo) is logged in or accessible without credentials in the isolated container sandbox environment."
+  },
+  "test_7_gui_sync": {
+    "status": "NOT_EXECUTED",
+    "reason": "Container sandbox environment cannot execute interactive MT5 GUI chart scrolling."
+  },
+  "test_8_local_hcc": {
+    "files": ["2026.hcc", "history.dat", "symbols.raw"],
+    "missing_years": ["2021.hcc", "2022.hcc", "2023.hcc", "2024.hcc", "2025.hcc"]
+  },
+  "causal_classification": {
+    "LOCAL_MAXBARS_CAUSE": "REJECTED",
+    "MT5_API_LIMIT_CAUSE": "REJECTED",
+    "XAUUSD_SYMBOL_LIMITATION": "REJECTED",
+    "METALS_SYMBOL_LIMITATION": "REJECTED",
+    "DEMO_ACCOUNT_LIMITATION": "UNDETERMINED",
+    "ALPARI_SERVER_LIMITATION": "UNDETERMINED",
+    "BROKER_GLOBAL_LIMITATION": "UNDETERMINED",
+    "NATIVE_2021_XAUUSD_M1": "NOT_VERIFIED",
+    "ROOT_CAUSE": "UNDETERMINED"
+  }
+}
