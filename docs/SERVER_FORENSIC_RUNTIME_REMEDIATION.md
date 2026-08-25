@@ -29,18 +29,18 @@ CODE COMPLETE — PRODUCTION ACCEPTANCE BLOCKED
 | **Stop** | `stop()` sets `should_exit = True` and joins thread | **CODE VERIFIED ONLY** |
 | **Start** | `start()` launches thread and polls socket listener | **CODE VERIFIED ONLY** |
 | **Restart** | Re-entrant start/stop tested in `test_service_host.py` | **CODE VERIFIED ONLY** |
-| **Reboot** | Live host reboot probe | **BLOCKED** |
-| **Public 8000** | External port 8000 probe | **BLOCKED** |
-| **Port 80** | Reverse proxy HTTP listener probe | **BLOCKED** |
-| **Port 443** | Reverse proxy HTTPS listener probe | **BLOCKED** |
-| **Reverse Proxy** | Windows reverse proxy service probe | **BLOCKED** |
-| **DNS** | Cloudflare A/CNAME record check | **BLOCKED** |
-| **TLS** | External HTTPS certificate probe | **BLOCKED** |
-| **`yartrader.com`** | External domain HTTPS probe | **BLOCKED** |
-| **`www.yartrader.com`** | External domain HTTPS probe | **BLOCKED** |
-| **Frontend -> API** | End-to-end browser request check | **BLOCKED** |
-| **MT5 Safety** | `trading_allowed=False`, account `52961173`, `LIVE_TRADING_ENABLED=False` | **SERVER VERIFIED** |
-| **MT4 Safety** | `live_trading_enabled=False`, account `143056202`, `simulation_enabled=True` | **SERVER VERIFIED** |
+| **Reboot** | Live host reboot probe | **BLOCKED — ENVIRONMENT ACCESS** |
+| **Public 8000** | External port 8000 probe | **BLOCKED — ENVIRONMENT ACCESS** |
+| **Port 80** | Reverse proxy HTTP listener probe | **BLOCKED — ENVIRONMENT ACCESS** |
+| **Port 443** | Reverse proxy HTTPS listener probe | **BLOCKED — ENVIRONMENT ACCESS** |
+| **Reverse Proxy** | Windows reverse proxy service probe | **BLOCKED — ENVIRONMENT ACCESS** |
+| **DNS** | Cloudflare A/CNAME record check | **BLOCKED — ENVIRONMENT ACCESS** |
+| **TLS** | External HTTPS certificate probe | **BLOCKED — ENVIRONMENT ACCESS** |
+| **`yartrader.com`** | External domain HTTPS probe | **BLOCKED — ENVIRONMENT ACCESS** |
+| **`www.yartrader.com`** | External domain HTTPS probe | **BLOCKED — ENVIRONMENT ACCESS** |
+| **Frontend -> API** | End-to-end browser request check | **BLOCKED — ENVIRONMENT ACCESS** |
+| **MT5 Safety** | `trading_allowed=False`, account `52961173`, `LIVE_TRADING_ENABLED=False` | **CODE VERIFIED ONLY** |
+| **MT4 Safety** | `live_trading_enabled=False`, account `143056202`, `simulation_enabled=True` | **CODE VERIFIED ONLY** |
 
 ---
 
