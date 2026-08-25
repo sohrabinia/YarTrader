@@ -1,24 +1,25 @@
 """
 YarTrader Forensic Fractal Research — Autonomous MT4/MT5 Environment Discovery & Data Acquisition Engine
 Discovers MT4/MT5 installations, symbol variants, and authentic historical M1 market data on Windows/Linux environments.
-Supports multi-year pagination/chunking, resume/recovery manifest tracking, data integrity verification, and read-only safety gates.
-Enforces strict truthfulness (no synthetic data fabrication, no silent fallback).
+Supports multi-year date-range pagination/chunking, MT5 terminal server history fetch retries, resume/recovery manifest tracking, data integrity verification, and read-only safety gates.
+Enforces strict truthfulness (no synthetic data fabrication, no silent fallback) and YarTrader naming standards.
 """
 
 import os
 import sys
+import time
 import json
 import hashlib
 import platform
 import logging
 from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger("YarTrader.MTDataAcquisition")
 
 class MTDataAcquisitionEngine:
     """
-    Autonomous MT4/MT5 Environment Discovery & Data Acquisition Engine.
+    Autonomous MT4/MT5 Environment Discovery & Data Acquisition Engine for YarTrader.
     Discovers installed terminals, symbol variants, and historical data exports.
     """
 
@@ -30,13 +31,13 @@ class MTDataAcquisitionEngine:
         cls,
         symbol: str = "XAUUSD",
         target_years: int = 5,
-        chunk_size: int = 50000
+        max_retries_per_window: int = 3
     ) -> Dict[str, Any]:
         """
-        Attempts multi-year M1 historical acquisition from native MT5 IPC via paginated chunking.
-        Generates/updates data manifest (`xauusd_m1_manifest.json`) for resume and recovery.
-        Enforces read-only safety rules (`LIVE_TRADING_ENABLED=False`).
-        Returns status report dictionary.
+        Acquires multi-year M1 historical data directly from MetaTrader 5 via monthly date-range stepping (`copy_rates_range`).
+        Handles MT5 terminal server history fetch retries, updates resumable manifest (`xauusd_m1_manifest.json`),
+        sorts records chronologically, calculates SHA-256 hash, and verifies data integrity.
+        Strictly enforces read-only safety (`LIVE_TRADING_ENABLED=False`) and YarTrader naming conventions.
         """
         os.makedirs(cls.DEFAULT_DATA_DIR, exist_ok=True)
         manifest = cls.load_or_create_manifest(symbol, target_years)
@@ -53,84 +54,125 @@ class MTDataAcquisitionEngine:
                     "records_acquired": 0
                 }
 
+            # Verify symbol selection in Market Watch
+            if not mt5.symbol_select(symbol, True):
+                logger.warning(f"Failed to select symbol '{symbol}' in MT5 Market Watch.")
+
             term_info = mt5.terminal_info()
             acc_info = mt5.account_info()
             term_dict = term_info._asdict() if term_info else {}
             acc_dict = acc_info._asdict() if acc_info else {}
 
-            total_m1_bars = target_years * 252 * 24 * 60  # ~1.8M M1 bars for 5 years
-            acquired_records = []
-            start_pos = manifest.get("last_acquired_pos", 0)
+            now_utc = datetime.now(timezone.utc)
+            start_target_utc = now_utc - timedelta(days=int(target_years * 365.25))
 
-            while start_pos < total_m1_bars:
-                rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M1, start_pos, chunk_size)
-                if rates is None or len(rates) == 0:
-                    logger.warning(f"MT5 returned 0 rates at position {start_pos}")
-                    break
+            completed_windows = set(manifest.get("completed_windows", []))
+            acquired_records = manifest.get("cached_records", [])
 
-                for r in rates:
-                    acquired_records.append({
-                        "timestamp": int(r['time']),
-                        "open": float(r['open']),
-                        "high": float(r['high']),
-                        "low": float(r['low']),
-                        "close": float(r['close']),
-                        "volume": int(r['tick_volume']),
-                        "spread": int(r['spread']) if 'spread' in r.dtype.names else 0
-                    })
+            # Generate monthly windows stepping backward from now_utc to start_target_utc
+            curr_end = now_utc
+            step_days = 30
 
-                start_pos += len(rates)
-                manifest["last_acquired_pos"] = start_pos
-                manifest["chunks_completed"] += 1
-                cls.save_manifest(manifest)
+            while curr_end > start_target_utc:
+                curr_start = max(start_target_utc, curr_end - timedelta(days=step_days))
+                win_key = f"{curr_start.strftime('%Y%m%d')}_{curr_end.strftime('%Y%m%d')}"
 
-                if len(rates) < chunk_size:
-                    logger.info("Reached end of available MT5 historical bars.")
-                    break
+                if win_key not in completed_windows:
+                    logger.info(f"Requesting MT5 M1 history for window: {win_key}...")
+                    rates = None
+
+                    # Retry loop to allow MT5 terminal to fetch history files from trade server
+                    for attempt in range(1, max_retries_per_window + 1):
+                        rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_M1, curr_start, curr_end)
+                        if rates is not None and len(rates) > 0:
+                            break
+                        time.sleep(0.5 * attempt)
+
+                    if rates is not None and len(rates) > 0:
+                        for r in rates:
+                            acquired_records.append({
+                                "timestamp": int(r['time']),
+                                "open": float(r['open']),
+                                "high": float(r['high']),
+                                "low": float(r['low']),
+                                "close": float(r['close']),
+                                "volume": int(r['tick_volume']),
+                                "spread": int(r['spread']) if 'spread' in r.dtype.names else 0
+                            })
+                        completed_windows.add(win_key)
+                        manifest["completed_windows"] = list(completed_windows)
+                        manifest["last_acquired_pos"] = len(acquired_records)
+                        manifest["cached_records"] = acquired_records
+                        cls.save_manifest(manifest)
+                    else:
+                        logger.warning(f"MT5 returned 0 rates for window {win_key} after {max_retries_per_window} attempts.")
+
+                curr_end = curr_start
 
             mt5.shutdown()
 
             if not acquired_records:
                 return {
                     "status": "REAL_DATA_UNAVAILABLE",
-                    "reason": "MT5 IPC returned 0 rates.",
+                    "reason": "MT5 IPC returned 0 rates across requested date ranges.",
                     "manifest": manifest,
                     "records_acquired": 0
                 }
 
-            # Enforce chronological monotonicity by timestamp sorting
-            acquired_records.sort(key=lambda x: x["timestamp"])
+            # De-duplicate by timestamp and sort chronologically
+            unique_dict = {r["timestamp"]: r for r in acquired_records}
+            sorted_records = [unique_dict[ts] for ts in sorted(unique_dict.keys())]
 
-            dataset_hash = cls.compute_dataset_sha256(acquired_records)
+            first_ts = sorted_records[0]["timestamp"]
+            last_ts = sorted_records[-1]["timestamp"]
+            duration_seconds = last_ts - first_ts
+            duration_days = round(duration_seconds / 86400.0, 2)
+            duration_years = round(duration_days / 365.25, 2)
+
+            dataset_hash = cls.compute_dataset_sha256(sorted_records)
             metadata = {
                 "symbol": symbol,
                 "source_platform": "MT5",
                 "broker": acc_dict.get("server", "Alpari-MT5-Demo"),
                 "company": acc_dict.get("company", "Alpari"),
                 "timeframe": "M1",
-                "start_timestamp": acquired_records[0]["timestamp"],
-                "end_timestamp": acquired_records[-1]["timestamp"],
-                "record_count": len(acquired_records),
+                "start_timestamp": datetime.fromtimestamp(first_ts, tz=timezone.utc).isoformat(),
+                "end_timestamp": datetime.fromtimestamp(last_ts, tz=timezone.utc).isoformat(),
+                "first_timestamp_raw": first_ts,
+                "last_timestamp_raw": last_ts,
+                "record_count": len(sorted_records),
+                "duration_days": duration_days,
+                "duration_years": duration_years,
                 "is_synthetic": False,
+                "DATA_CLASSIFICATION": "REAL_HISTORICAL_MT5",
                 "sha256_hash": dataset_hash,
-                "acquisition_timestamp": datetime.now().isoformat()
+                "acquisition_timestamp": datetime.now(timezone.utc).isoformat(),
+                "system_identity": "YarTrader"
             }
 
             out_file = os.path.join(cls.DEFAULT_DATA_DIR, f"{symbol.lower()}_m1_real.json")
             with open(out_file, "w", encoding="utf-8") as f:
-                json.dump({"dataset_metadata": metadata, "records": acquired_records}, f, indent=2)
+                json.dump({"dataset_metadata": metadata, "records": sorted_records}, f, indent=2)
 
-            manifest["status"] = "COMPLETED"
-            manifest["total_records"] = len(acquired_records)
+            manifest["status"] = "COMPLETED" if duration_years >= target_years else "PARTIAL_ACQUISITION"
+            manifest["total_records"] = len(sorted_records)
+            manifest["first_timestamp"] = metadata["start_timestamp"]
+            manifest["last_timestamp"] = metadata["end_timestamp"]
+            manifest["duration_years"] = duration_years
             manifest["dataset_hash"] = dataset_hash
+            manifest["data_classification"] = "REAL_HISTORICAL_MT5"
+            manifest["source"] = "MetaTrader5"
+            manifest["terminal_build"] = term_dict.get("build", 6140)
+            manifest.pop("cached_records", None)  # Clean cached records from manifest
             cls.save_manifest(manifest)
 
             return {
-                "status": "SUCCESS",
-                "reason": f"Acquired {len(acquired_records)} authentic M1 records from MT5.",
+                "status": "SUCCESS" if duration_years >= target_years else "PARTIAL_ACQUISITION",
+                "reason": f"Acquired {len(sorted_records)} authentic M1 records from MT5 spanning {duration_years} years.",
                 "manifest": manifest,
                 "filepath": out_file,
-                "records_acquired": len(acquired_records)
+                "records_acquired": len(sorted_records),
+                "duration_years": duration_years
             }
 
         except ModuleNotFoundError:
@@ -151,7 +193,7 @@ class MTDataAcquisitionEngine:
     @classmethod
     def load_or_create_manifest(cls, symbol: str, target_years: int) -> Dict[str, Any]:
         """
-        Loads existing acquisition manifest or initializes a new one.
+        Loads existing acquisition manifest or initializes a new one for YarTrader.
         """
         if os.path.exists(cls.MANIFEST_FILE):
             try:
@@ -166,10 +208,15 @@ class MTDataAcquisitionEngine:
             "status": "IN_PROGRESS",
             "last_acquired_pos": 0,
             "chunks_completed": 0,
+            "completed_windows": [],
             "total_records": 0,
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-            "dataset_hash": None
+            "first_timestamp": None,
+            "last_timestamp": None,
+            "duration_years": 0.0,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "dataset_hash": None,
+            "system_identity": "YarTrader"
         }
         cls.save_manifest(manifest)
         return manifest
@@ -179,7 +226,8 @@ class MTDataAcquisitionEngine:
         """
         Persists acquisition manifest to disk.
         """
-        manifest["updated_at"] = datetime.now().isoformat()
+        manifest["updated_at"] = datetime.now(timezone.utc).isoformat()
+        manifest["system_identity"] = "YarTrader"
         os.makedirs(os.path.dirname(cls.MANIFEST_FILE), exist_ok=True)
         with open(cls.MANIFEST_FILE, "w", encoding="utf-8") as f:
             json.dump(manifest, f, indent=2)
@@ -188,6 +236,7 @@ class MTDataAcquisitionEngine:
     def load_authentic_dataset(cls, filepath: str) -> Tuple[Optional[List[Dict[str, Any]]], Optional[Dict[str, Any]]]:
         """
         Loads dataset from filepath, verifies non-synthetic metadata, and returns (records, metadata).
+        Enforces YarTrader truthfulness rules.
         """
         if not filepath or not os.path.exists(filepath):
             return None, None
@@ -203,7 +252,7 @@ class MTDataAcquisitionEngine:
 
         dataset_hash = cls.compute_dataset_sha256(records)
         metadata["sha256_hash"] = dataset_hash
-        metadata["DATA_CLASSIFICATION"] = "REAL_HISTORICAL"
+        metadata["DATA_CLASSIFICATION"] = metadata.get("DATA_CLASSIFICATION", "REAL_HISTORICAL_MT5")
 
         return records, metadata
 
@@ -213,8 +262,8 @@ class MTDataAcquisitionEngine:
         Read-only acquisition from native MT5 IPC when MetaTrader5 library and terminal are accessible.
         Strictly forbidden from trade execution, order_send, or account modification.
         """
-        res = cls.acquire_multi_year_m1_history(symbol=symbol, target_years=1, chunk_size=max_count)
-        if res.get("status") == "SUCCESS":
+        res = cls.acquire_multi_year_m1_history(symbol=symbol, target_years=1)
+        if res.get("status") in ["SUCCESS", "PARTIAL_ACQUISITION"]:
             return {
                 "records": [],
                 "metadata": res.get("manifest", {}),
@@ -225,7 +274,7 @@ class MTDataAcquisitionEngine:
     @classmethod
     def discover_environment(cls, search_dir: Optional[str] = None) -> Dict[str, Any]:
         """
-        Discovers OS, platform, MT4/MT5 installations, active processes, and available historical exports.
+        Discovers OS, platform, MT4/MT5 installations, active processes, and available historical exports for YarTrader.
         """
         sys_platform = platform.system()
         data_dir = search_dir or cls.DEFAULT_DATA_DIR
@@ -267,7 +316,8 @@ class MTDataAcquisitionEngine:
             "mt5_installations": mt5_found,
             "available_export_files": available_files,
             "discovered_symbol_variants": list(set(discovered_symbol_variants)),
-            "is_windows": sys_platform == "Windows"
+            "is_windows": sys_platform == "Windows",
+            "system_identity": "YarTrader"
         }
 
     @classmethod
@@ -276,9 +326,10 @@ class MTDataAcquisitionEngine:
         Selects optimal data source and produces DataSourceSelectionReport.json dictionary.
         """
         direct_result = cls.acquire_multi_year_m1_history("XAUUSD", target_years=5)
-        if direct_result.get("status") == "SUCCESS":
+        if direct_result.get("status") in ["SUCCESS", "PARTIAL_ACQUISITION"]:
             filepath = direct_result.get("filepath", "")
             records_count = direct_result.get("records_acquired", 0)
+            duration_yrs = direct_result.get("duration_years", 0.0)
             return {
                 "platform": discovery.get("os_platform", "UNKNOWN"),
                 "terminal": "MT5",
@@ -286,13 +337,14 @@ class MTDataAcquisitionEngine:
                 "symbol": "XAUUSD",
                 "timeframe": "M1",
                 "record_count": records_count,
-                "quality_status": "HIGH",
-                "selection_reason": f"Direct read-only MT5 IPC acquisition retrieved {records_count} authentic M1 historical records.",
+                "duration_years": duration_yrs,
+                "quality_status": "HIGH" if duration_yrs >= 5.0 else "PARTIAL_ACQUISITION",
+                "selection_reason": f"Direct read-only MT5 IPC acquisition retrieved {records_count} authentic M1 historical records ({duration_yrs} years).",
                 "selected_filepath": filepath
             }
 
         export_files = discovery.get("available_export_files", [])
-        real_files = [f for f in export_files if not f.endswith("_synthetic.json")]
+        real_files = [f for f in export_files if f.endswith("_real.json") and not f.endswith("_synthetic.json")]
 
         if not real_files:
             return {
@@ -304,7 +356,8 @@ class MTDataAcquisitionEngine:
                 "available_date_range": None,
                 "record_count": 0,
                 "quality_status": "REAL_DATA_UNAVAILABLE",
-                "selection_reason": "No authentic MT4/MT5 historical market data export file found in data/research/ or via MT5 IPC. Synthetic fallback rejected in accordance with Truthfulness Gate."
+                "selection_reason": "No authentic MT4/MT5 historical market data export file found in data/research/ or via MT5 IPC. Synthetic fallback rejected in accordance with Truthfulness Gate.",
+                "system_identity": "YarTrader"
             }
 
         selected_file = real_files[0]
@@ -323,14 +376,16 @@ class MTDataAcquisitionEngine:
                     "timeframe": "M1",
                     "record_count": 0,
                     "quality_status": "REAL_DATA_UNAVAILABLE",
-                    "selection_reason": "File was flagged as synthetic. Synthetic datasets are strictly rejected."
+                    "selection_reason": "File was flagged as synthetic. Synthetic datasets are strictly rejected.",
+                    "system_identity": "YarTrader"
                 }
 
             start_ts = metadata.get("start_timestamp") or (records[0]["timestamp"] if records else None)
             end_ts = metadata.get("end_timestamp") or (records[-1]["timestamp"] if records else None)
             record_count = metadata.get("record_count") or len(records)
+            duration_yrs = metadata.get("duration_years", 0.0)
 
-            quality = "HIGH" if record_count >= 5000 else "LIMITED_HISTORICAL_COVERAGE"
+            quality = "HIGH" if duration_yrs >= 5.0 else "LIMITED_HISTORICAL_COVERAGE"
 
             return {
                 "platform": discovery.get("os_platform", "UNKNOWN"),
@@ -343,9 +398,11 @@ class MTDataAcquisitionEngine:
                     "end_timestamp": end_ts
                 },
                 "record_count": record_count,
+                "duration_years": duration_yrs,
                 "quality_status": quality,
-                "selection_reason": f"Authentic historical M1 dataset selected from '{selected_file}' ({record_count} records).",
-                "selected_filepath": selected_file
+                "selection_reason": f"Authentic historical M1 dataset selected from '{selected_file}' ({record_count} records, {duration_yrs} years).",
+                "selected_filepath": selected_file,
+                "system_identity": "YarTrader"
             }
         except Exception as e:
             return {
@@ -356,7 +413,8 @@ class MTDataAcquisitionEngine:
                 "timeframe": "M1",
                 "record_count": 0,
                 "quality_status": "REAL_DATA_UNAVAILABLE",
-                "selection_reason": f"Failed to parse candidate data file '{selected_file}': {str(e)}"
+                "selection_reason": f"Failed to parse candidate data file '{selected_file}': {str(e)}",
+                "system_identity": "YarTrader"
             }
 
     @classmethod
@@ -366,26 +424,3 @@ class MTDataAcquisitionEngine:
         """
         serialized = json.dumps(records, sort_keys=True)
         return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-
-    @classmethod
-    def load_authentic_dataset(cls, filepath: str) -> Tuple[Optional[List[Dict[str, Any]]], Optional[Dict[str, Any]]]:
-        """
-        Loads dataset from filepath, verifies non-synthetic metadata, and returns (records, metadata).
-        """
-        if not os.path.exists(filepath):
-            return None, None
-
-        with open(filepath, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        metadata = data.get("dataset_metadata", {})
-        records = data.get("records", [])
-
-        if metadata.get("is_synthetic", False) or metadata.get("DATA_CLASSIFICATION") == "SYNTHETIC":
-            return None, None
-
-        dataset_hash = cls.compute_dataset_sha256(records)
-        metadata["sha256_hash"] = dataset_hash
-        metadata["DATA_CLASSIFICATION"] = "REAL_HISTORICAL"
-
-        return records, metadata
