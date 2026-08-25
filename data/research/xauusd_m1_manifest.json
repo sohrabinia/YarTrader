@@ -1,0 +1,11 @@
+{
+  "symbol": "XAUUSD",
+  "target_years": 5,
+  "status": "IN_PROGRESS",
+  "last_acquired_pos": 0,
+  "chunks_completed": 0,
+  "total_records": 0,
+  "created_at": "2026-08-24T23:50:15.427155",
+  "updated_at": "2026-08-24T23:50:15.427178",
+  "dataset_hash": null
+}
