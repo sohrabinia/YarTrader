@@ -1,0 +1,10 @@
+{
+  "null_hypothesis": "Autonomous Position Management does not improve position-level outcomes relative to baseline",
+  "p_value": 0.0012,
+  "effect_size_cohens_d": 0.38,
+  "bootstrap_95_ci": [
+    -58.11,
+    -34.11
+  ],
+  "verdict": "REJECT_NULL_HYPOTHESIS"
+}

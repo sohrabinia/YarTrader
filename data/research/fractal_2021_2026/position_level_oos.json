@@ -1,0 +1,15 @@
+{
+  "oos_period": "2025-01-01 to 2026-08-25",
+  "autonomous_oos_metrics": {
+    "total_positions": 503,
+    "wins": 146,
+    "losses": 357,
+    "win_rate": 0.2903,
+    "expectancy_usd": -10.92,
+    "profit_factor": 0.56,
+    "total_pnl_usd": -5495.2,
+    "avg_mfe": 5.17,
+    "avg_mae": 3.98,
+    "avg_holding_bars": 315.9
+  }
+}
