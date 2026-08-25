@@ -1,0 +1,6 @@
+{
+  "status": "REAL_DATA_UNAVAILABLE",
+  "DATA_CLASSIFICATION": "REAL_DATA_UNAVAILABLE",
+  "selection_reason": "No authentic MT4/MT5 historical market data export file found in data/research/ or via MT5 IPC. Synthetic fallback rejected in accordance with Truthfulness Gate.",
+  "message": "Multi-year MT5 acquisition unavailable in non-Windows Linux sandbox container. Synthetic data fabrication strictly rejected per Section 41 Hard Stop Conditions."
+}
