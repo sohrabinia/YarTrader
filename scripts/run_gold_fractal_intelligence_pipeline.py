@@ -129,7 +129,7 @@ def run_pipeline():
 
     # 6. Execute 50 Historical Case Studies & Failure Catalog
     logger.info("Executing 50 Historical Case Studies and Failure Catalog...")
-    case_studies, failures = engine.run_historical_case_studies(count=50)
+    case_studies, failures = engine.run_historical_case_studies(count=50, timeframe_candles=families_candles["STANDARD_MT5"])
 
     # 7. Prospective Demo Trade Validation
     logger.info("Recording Live Prospective Demo Validation...")

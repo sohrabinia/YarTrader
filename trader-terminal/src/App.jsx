@@ -22,7 +22,6 @@ import ErrorState from './design-system/ErrorState.jsx';
 import PublicLandingView from './views/PublicLandingView.jsx';
 import DashboardView from './views/DashboardView.jsx';
 import IntelligenceView from './views/IntelligenceView.jsx';
-import FractalIntelligenceView from './views/FractalIntelligenceView.jsx';
 import DemoView from './views/DemoView.jsx';
 import AdminView from './views/AdminView.jsx';
 
@@ -49,18 +48,9 @@ function MainApp() {
     }
   };
 
-  const [token, setToken] = useState(() => {
-    const t = localStorage.getItem('yartrader_token') || localStorage.getItem('tradeyar_token');
-    return (t && t !== 'null' && t !== 'undefined') ? t : null;
-  });
-  const [role, setRole] = useState(() => {
-    const r = localStorage.getItem('yartrader_role') || localStorage.getItem('tradeyar_role');
-    return (r && r !== 'null' && r !== 'undefined') ? r : 'GUEST';
-  });
-  const [name, setName] = useState(() => {
-    const n = localStorage.getItem('yartrader_name') || localStorage.getItem('tradeyar_name');
-    return (n && n !== 'null' && n !== 'undefined') ? n : 'SRE Admin';
-  });
+  const [token, setToken] = useState(() => localStorage.getItem('yartrader_token'));
+  const [role, setRole] = useState(() => localStorage.getItem('yartrader_role'));
+  const [name, setName] = useState(() => localStorage.getItem('yartrader_name'));
 
   // Toast Notification state
   const [notif, setNotif] = useState({ show: false, msg: '', type: 'success' });
@@ -194,7 +184,7 @@ function MainApp() {
 
   // Auth & Routing Guard
   useEffect(() => {
-    const isRestrictedRoute = hash === '#/dashboard' || hash === '#/execution-intel' || hash === '#/fractal-intel' || hash === '#/admin' || hash === '#/learning';
+    const isRestrictedRoute = hash === '#/dashboard' || hash === '#/execution-intel' || hash === '#/admin' || hash === '#/learning';
     if (isRestrictedRoute && !token) {
       window.location.hash = '#/login';
       showNotification(
@@ -725,7 +715,6 @@ function MainApp() {
 
           {token && <a href="#/signals" className={`sidebar-link ${hash === '#/signals' ? 'active' : ''}`}>{t('nav_signals')}</a>}
           {token && <a href="#/execution-intel" className={`sidebar-link ${hash === '#/execution-intel' ? 'active' : ''}`}>{t('nav_execution_intel')}</a>}
-          {token && <a href="#/fractal-intel" className={`sidebar-link ${hash === '#/fractal-intel' ? 'active' : ''}`}>{t('nav_fractal_intel')}</a>}
           {token && <a href="#/learning" className={`sidebar-link ${hash.startsWith('#/learning') ? 'active' : ''}`}>{t('nav_learning')}</a>}
           {token && role === 'ADMIN' && <a href="#/admin" className={`sidebar-link ${hash === '#/admin' ? 'active' : ''}`}>{t('nav_admin')}</a>}
 
@@ -1204,11 +1193,6 @@ function MainApp() {
                 </div>
               </div>
             </div>
-          )}
-
-          {/* FRACTAL INTELLIGENCE ZONE */}
-          {hash === '#/fractal-intel' && (
-            <FractalIntelligenceView t={t} lang={lang} />
           )}
 
           {/* EXECUTION INTELLIGENCE ZONE */}

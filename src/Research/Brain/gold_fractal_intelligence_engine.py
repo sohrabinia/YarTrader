@@ -459,7 +459,6 @@ class GoldFractalIntelligenceEngine:
             }
             hierarchy[sc] = entry
 
-            # Also populate legacy key aliases if STANDARD_MT5
             if scale_family == "STANDARD_MT5":
                 if sc_upper == "MN1": hierarchy["Monthly"] = entry
                 elif sc_upper == "W1": hierarchy["Weekly"] = entry
@@ -569,7 +568,6 @@ class GoldFractalIntelligenceEngine:
         failures = []
 
         if timeframe_candles:
-            # Algorithmic extraction from real detected bases
             idx = 1
             for tf, candles in timeframe_candles.items():
                 if idx > count:

@@ -19,6 +19,7 @@ class TestMTDataAcquisitionPipeline:
         assert manifest["symbol"] == "XAUUSD"
         assert manifest["target_years"] == 5
         assert manifest["status"] == "IN_PROGRESS"
+        assert manifest["system_identity"] == "YarTrader"
         assert os.path.exists(manifest_file)
 
         manifest["chunks_completed"] += 1
