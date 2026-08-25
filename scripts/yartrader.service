@@ -1,0 +1,29 @@
+[Unit]
+Description=YarTrader Production Runtime & Cognitive Management API Service
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yartrader
+Group=yartrader
+WorkingDirectory=/var/www/yartrader
+Environment="PATH=/var/www/yartrader/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONPATH=/var/www/yartrader"
+Environment="YARTRADER_ENV=production"
+Environment="TRADEYAR_ENV=production"
+Environment="LIVE_TRADING_ENABLED=False"
+Environment="PORT=8000"
+ExecStart=/var/www/yartrader/.venv/bin/uvicorn src.Application.Services.web_dashboard:app --host 127.0.0.1 --port 8000 --workers 2 --log-level info
+Restart=always
+RestartSec=5s
+LimitNOFILE=65536
+
+# Hardening / Isolation Security Options
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
