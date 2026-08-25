@@ -1,0 +1,66 @@
+{
+  "classification": "INSUFFICIENT_EVIDENCE",
+  "observed_facts": [
+    "Active MT5 terminal Build 6140 on account 52961173 (Alpari-MT5-Demo) returns 100,032 XAUUSD M1 bars.",
+    "First returned bar timestamp is 2026-05-14T02:40:00Z.",
+    "Last returned bar timestamp is 2026-08-25T13:16:00Z.",
+    "Increasing terminal MaxBars from 100,000 to 3,000,000 did not expand the earliest bar boundary (remained ~100k bars starting May 14, 2026).",
+    "Local history filesystem directory contains only 2026.hcc binary cache file; 2021-2025 .hcc files are absent.",
+    "Targeted copy_rates_range requests for intervals prior to 2026-05-14 return 0 bars with mt5.last_error() = (1, 'Success')."
+  ],
+  "hypotheses": [
+    {
+      "hypothesis": "Alpari-MT5-Demo trade server enforces a server-side history retention cap for demo accounts.",
+      "status": "UNPROVEN",
+      "reason": "Requires differential test against a secondary authenticated MT5 trade server."
+    },
+    {
+      "hypothesis": "Broker-wide or symbol-specific XAUUSD history limitation.",
+      "status": "UNPROVEN",
+      "reason": "Requires testing alternative gold symbols or secondary broker servers."
+    },
+    {
+      "hypothesis": "Local MT5 terminal chart buffer truncation.",
+      "status": "REJECTED",
+      "reason": "MaxBars setting was raised to 3,000,000 but earliest bar remained May 14, 2026."
+    }
+  ],
+  "tested_providers": [
+    {
+      "server": "Alpari-MT5-Demo",
+      "login": "52961173",
+      "account_type": "DEMO",
+      "build": 6140,
+      "maxbars": 3000000,
+      "symbol": "XAUUSD",
+      "timeframe": "M1",
+      "returned_count": 100032,
+      "first_timestamp": "2026-05-14T02:40:00Z",
+      "last_timestamp": "2026-08-25T13:16:00Z",
+      "last_error": [1, "Success"]
+    }
+  ],
+  "untested_providers": [
+    "MetaQuotes-Demo",
+    "Alpari-Pro.ECN",
+    "Alternative Broker MT5 Trade Servers"
+  ],
+  "historical_coverage": {
+    "2026": "AVAILABLE (100,032 bars, May 14 -> Aug 25, 2026)",
+    "2025": "UNTESTED_ON_ALT_SERVER",
+    "2024": "UNTESTED_ON_ALT_SERVER",
+    "2023": "UNTESTED_ON_ALT_SERVER",
+    "2022": "UNTESTED_ON_ALT_SERVER",
+    "2021": "UNTESTED_ON_ALT_SERVER"
+  },
+  "evidence": [
+    "Terminal Info: path = C:\\Program Files\\MetaTrader 5, data_path = C:\\Users\\Administrator\\AppData\\Roaming\\MetaQuotes\\Terminal\\D0E8209F77C8CF37AD8BF550E51FF075",
+    "History Storage: C:\\Users\\Administrator\\AppData\\Roaming\\MetaQuotes\\Terminal\\D0E8209F77C8CF37AD8BF550E51FF075\\bases\\Alpari-MT5-Demo\\history\\XAUUSD\\2026.hcc",
+    "API Probes: copy_rates_from_pos('XAUUSD', M1, 0, 2000000) caps at 100,032 bars."
+  ],
+  "environment_blockers": [
+    "No secondary authenticated MT5 trade server account (e.g., MetaQuotes-Demo or Alpari-Pro.ECN) is logged in or accessible without credentials in the isolated container sandbox environment.",
+    "Interactive MT5 GUI chart scrolling cannot be automated inside the container sandbox."
+  ],
+  "next_required_action": "Log into a secondary MT5 demo or live account on another trade server (e.g., MetaQuotes-Demo) on Windows Server 5.102.37.180 and execute mt5.copy_rates_from_pos('XAUUSD', TIMEFRAME_M1, 0, 2000000) to complete the provider differential test."
+}
