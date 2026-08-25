@@ -5,44 +5,45 @@
 This report documents the forensic investigation, process tree audit, socket readiness remediation, and runtime hardening for the YarTrader Windows Service runtime on **Windows Server 2022 Datacenter** (`5.102.37.180`).
 
 ```text
-FINAL GATE VERDICT: PASS WITH DOCUMENTED ENVIRONMENT LIMITATION (BLOCKED — Remote Server SSH Access)
+FINAL RESULT: PARTIAL — CODE VERIFIED; LIVE SERVER VERIFICATION BLOCKED
 ```
 
 ---
 
-## Final Acceptance Matrix (Section 29)
+## Acceptance Matrix (CODE-VERIFIED vs SERVER-UNVERIFIED vs EXTERNALLY-BLOCKED)
 
-| Gate | Status | Evidence |
+| Item / Gate | Verification Status | Forensic Evidence / Operational Finding |
 | :--- | :--- | :--- |
-| **Windows Server** | **PASS** | Windows Server 2022 Datacenter Build 20348 verified on IP 5.102.37.180. |
-| **Windows Service** | **PASS** | `YarTrader` Service registered under PyWin32 framework as AUTO_START under LocalSystem. |
-| **Process Tree** | **PASS** | Single-host architecture enforced in `app/workers/service.py` with `is_running` guard. |
-| **Duplicate service.py** | **PASS** | SCM dispatcher fallback isolated to prevent duplicate interactive process spawning. |
-| **Uvicorn** | **PASS** | Bound to `127.0.0.1:8000` inside background daemon thread in `YarTraderServiceHost`. |
-| **TCP 8000** | **PASS** | `_verify_uvicorn_readiness()` socket polling enforces active listening before readiness flag set. |
-| **`/health`** | **PASS** | Mapped on `src/Application/Services/web_dashboard.py` returning `status: "healthy"`. |
-| **Readiness** | **PASS** | Mapped `GET /ready` returning `status: "READY"` alongside `/health/ready`. |
-| **Research Worker** | **PASS** | Managed by `YarTraderServiceHost` with top-level `BaseException` crash isolation. |
-| **Shadow Worker** | **PASS** | Managed by `YarTraderServiceHost` with storage root isolation. |
-| **Service Stop** | **PASS** | `stop()` sets `should_exit = True`, halts workers, and joins Uvicorn thread cleanly. |
-| **Service Start** | **PASS** | `start()` initializes workers, launches Uvicorn thread, and verifies TCP binding. |
-| **Auto Start** | **PASS** | Configured as `AUTO_START` in Windows Service Control Manager. |
-| **Reboot** | **BLOCKED** | Live Windows host reboot test requires SSH / RDP Administrator access on 5.102.37.180. |
-| **Reverse Proxy** | **PASS** | Reverse proxy architecture specified for HTTPS :443 -> `127.0.0.1:8000` (Caddy/Nginx). |
-| **Port 80** | **BLOCKED** | Reverse proxy HTTP :80 binding requires Windows Administrator access. |
-| **Port 443** | **BLOCKED** | Reverse proxy HTTPS :443 binding requires Windows Administrator access. |
-| **Port 8000 Public Exposure** | **PASS** | `config/production.yaml` binds to `127.0.0.1:8000`, preventing `0.0.0.0` public exposure. |
-| **Cloudflare DNS** | **BLOCKED** | A `@` -> `5.102.37.180` & CNAME `www` -> `yartrader.com` proxy verification requires Cloudflare access. |
-| **TLS** | **BLOCKED** | Universal SSL certificate verification requires Cloudflare / external public egress access. |
-| **`yartrader.com`** | **BLOCKED** | External network fetch to `https://yartrader.com` timed out in container sandbox. |
-| **`www.yartrader.com`** | **BLOCKED** | External network fetch to `https://www.yartrader.com` timed out in container sandbox. |
-| **CORS** | **PASS** | CORS allowed origins in `web_dashboard.py` restricted to `https://yartrader.com` and `https://www.yartrader.com`. |
-| **Frontend API** | **PASS** | Frontend routes construct relative `/api/...` subpaths, bypassing hardcoded hosts. |
-| **Vercel Cleanup** | **PASS** | Purged `vercel.json` files and decoupled runtime from third-party CDN dependencies. |
-| **MT5 Safety** | **PASS** | Read-only DEMO mode enforced (`trading_allowed=False`, account `52961173`). |
-| **MT4 Safety** | **PASS** | Read-only simulation mode enforced (`live_trading_enabled=False`, account `143056202`). |
-| **Automated Tests** | **PASS** | 136/136 targeted pytest units passed with 100% pass rate. |
-| **Documentation** | **PASS** | `docs/SERVER_FORENSIC_RUNTIME_REMEDIATION.md` and `docs/DOMAIN_MIGRATION_ACCEPTANCE.md` published. |
+| **Windows Server (2022 Datacenter)** | **SERVER-VERIFIED** | Confirmed Windows Server 2022 Datacenter Build 20348 on `5.102.37.180`. |
+| **Windows Service (`YarTrader`)** | **CODE-VERIFIED** | PyWin32 Service Framework handler `YarTraderWindowsService` configured for `AUTO_START`. |
+| **Process Tree (Single Host)** | **CODE-VERIFIED** | Re-entrant guard (`if self.is_running: return`) prevents duplicate host/thread execution. |
+| **Duplicate `service.py` Prevention** | **CODE-VERIFIED** | SCM dispatcher fallback isolated in `app/workers/service.py` to prevent nested process spawning. |
+| **Uvicorn Daemon Thread** | **CODE-VERIFIED** | Uvicorn thread execution wrapped with outer `try...except BaseException` crash isolation. |
+| **TCP 8000 Listener Probe** | **CODE-VERIFIED** | `_verify_uvicorn_readiness()` polls server state and socket before declaring `fastapi_ready = True`. |
+| **`GET /health` Endpoint** | **CODE-VERIFIED** | Endpoint registered in `src/Application/Services/web_dashboard.py` returning `status: "healthy"`. |
+| **`GET /ready` Endpoint** | **CODE-VERIFIED** | Registered `GET /ready` returning `status: "READY"` alongside `/health/ready`. |
+| **Research Worker** | **CODE-VERIFIED** | Managed by `YarTraderServiceHost` with top-level `BaseException` crash isolation. |
+| **Shadow Worker** | **CODE-VERIFIED** | Managed by `YarTraderServiceHost` with storage root isolation. |
+| **Service Stop** | **CODE-VERIFIED** | `stop()` sets `should_exit = True`, halts workers, and joins Uvicorn thread cleanly within 5s. |
+| **Service Start** | **CODE-VERIFIED** | `start()` initializes workers, launches Uvicorn thread, and verifies socket readiness. |
+| **Auto Start** | **CODE-VERIFIED** | Configured `START_TYPE: AUTO_START` in Windows Service Control Manager. |
+| **Reboot Persistence** | **SERVER-UNVERIFIED** | Live Windows host reboot test requires Administrator SSH/RDP access on `5.102.37.180`. |
+| **Reverse Proxy (Caddy / Nginx)** | **SERVER-UNVERIFIED** | Reverse proxy architecture specified for HTTPS :443 -> `127.0.0.1:8000`. |
+| **Port 80 Listener** | **SERVER-UNVERIFIED** | Reverse proxy HTTP :80 binding requires Windows Administrator access on `5.102.37.180`. |
+| **Port 443 Listener** | **SERVER-UNVERIFIED** | Reverse proxy HTTPS :443 binding requires Windows Administrator access on `5.102.37.180`. |
+| **Port 8000 Public Exposure** | **CODE-VERIFIED** | `config/production.yaml` specifies `api.host: "127.0.0.1"`, preventing `0.0.0.0` public exposure. |
+| **Cloudflare DNS** | **EXTERNALLY-BLOCKED** | A `@` -> `5.102.37.180` & CNAME `www` -> `yartrader.com` verification requires Cloudflare account. |
+| **TLS / SSL Certificate** | **EXTERNALLY-BLOCKED** | Universal SSL certificate verification requires Cloudflare / public network egress access. |
+| **`https://yartrader.com`** | **EXTERNALLY-BLOCKED** | External network fetch to `https://yartrader.com` timed out in container sandbox. |
+| **`https://www.yartrader.com`** | **EXTERNALLY-BLOCKED** | External network fetch to `https://www.yartrader.com` timed out in container sandbox. |
+| **CORS Restriction** | **CODE-VERIFIED** | Allowed origins in `web_dashboard.py` restricted to `https://yartrader.com` and `https://www.yartrader.com`. |
+| **Frontend API Routing** | **CODE-VERIFIED** | Frontend routes construct relative `/api/...` subpaths, bypassing hardcoded hosts. |
+| **Vercel Cleanup** | **CODE-VERIFIED** | Purged `vercel.json` files and decoupled runtime from third-party CDN dependencies. |
+| **MT5 Safety Rules** | **CODE-VERIFIED** | Read-only DEMO mode enforced (`trading_allowed=False`, account `52961173`). |
+| **MT4 Safety Rules** | **CODE-VERIFIED** | Read-only simulation mode enforced (`live_trading_enabled=False`, account `143056202`). |
+| **Automated Tests** | **CODE-VERIFIED** | 136/136 targeted pytest units passed with 100% pass rate. |
+| **Systemd Scripts** | **NOT APPLICABLE** | Marked as non-production reference artifacts (Windows Server uses native Windows Service `YarTrader`). |
+| **Documentation** | **CODE-VERIFIED** | Published master documentation reports with explicit verification distinctions. |
 
 ---
 
