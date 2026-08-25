@@ -1,0 +1,9 @@
+{
+  "total_sample_size": 31728,
+  "observed_success_rate": 0.1445,
+  "p_value": 0.9999,
+  "confidence_interval_95": [
+    0.1245,
+    0.1645
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "research_title": "YarTrader XAUUSD Fractal Intelligence Engine 2021-2026 Empirical Revalidation",
+  "system_identity": "YarTrader",
+  "raw_file_sha256": "7adaf622f4513e0e5509c57d6adaa1404f43067174760269eb86a3cda25e85d7",
+  "dataset_content_sha256": "a2fb0c2cfe8307cb5385a402490006a3b0717ad2e69fe1aa69caf586d086ddd7",
+  "total_input_records": 2460951,
+  "safety_locks": {
+    "LIVE_TRADING_ENABLED": false,
+    "orders_executed": 0
+  }
+}

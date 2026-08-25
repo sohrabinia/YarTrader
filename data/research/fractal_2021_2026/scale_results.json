@@ -1,0 +1,22 @@
+{
+  "D1": {
+    "total_cases": 257,
+    "validated_cases": 52,
+    "success_rate": 0.2023
+  },
+  "H4": {
+    "total_cases": 1700,
+    "validated_cases": 261,
+    "success_rate": 0.1535
+  },
+  "H1": {
+    "total_cases": 6243,
+    "validated_cases": 942,
+    "success_rate": 0.1509
+  },
+  "M15": {
+    "total_cases": 23528,
+    "validated_cases": 3330,
+    "success_rate": 0.1415
+  }
+}

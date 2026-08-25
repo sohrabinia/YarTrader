@@ -1,0 +1,7 @@
+{
+  "previous_dataset": "Alpari MT5 Server Export (15,000 bars / ~10 calendar days)",
+  "previous_verdict": "PARTIALLY_SUPPORTED",
+  "new_dataset": "Dukascopy Bank SA (2,460,951 bars / 5.64 calendar years)",
+  "new_verdict": "PARTIALLY_SUPPORTED",
+  "empirical_change": "EXPANDED_HORIZON_FULLY_EVALUATED"
+}

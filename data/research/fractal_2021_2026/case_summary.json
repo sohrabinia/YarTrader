@@ -1,0 +1,8 @@
+{
+  "total_input_records": 2460951,
+  "total_cases_evaluated": 31728,
+  "total_validated_cases": 4585,
+  "total_failed_cases": 27143,
+  "overall_success_rate": 0.1445,
+  "verdict": "PARTIALLY_SUPPORTED"
+}

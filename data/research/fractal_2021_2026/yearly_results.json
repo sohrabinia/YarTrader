@@ -1,0 +1,38 @@
+{
+  "2021": {
+    "total_cases": 5599,
+    "validated_cases": 769,
+    "failed_cases": 4830,
+    "success_rate": 0.1373
+  },
+  "2022": {
+    "total_cases": 5722,
+    "validated_cases": 802,
+    "failed_cases": 4920,
+    "success_rate": 0.1402
+  },
+  "2023": {
+    "total_cases": 5646,
+    "validated_cases": 816,
+    "failed_cases": 4830,
+    "success_rate": 0.1445
+  },
+  "2024": {
+    "total_cases": 5600,
+    "validated_cases": 833,
+    "failed_cases": 4767,
+    "success_rate": 0.1487
+  },
+  "2025": {
+    "total_cases": 5599,
+    "validated_cases": 855,
+    "failed_cases": 4744,
+    "success_rate": 0.1527
+  },
+  "2026": {
+    "total_cases": 3562,
+    "validated_cases": 510,
+    "failed_cases": 3052,
+    "success_rate": 0.1432
+  }
+}

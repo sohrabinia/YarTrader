@@ -1,0 +1,6 @@
+{
+  "canonical_threshold_1.5x": 0.1445,
+  "threshold_1.0x": 0.234,
+  "threshold_2.0x": 0.0921,
+  "threshold_2.5x": 0.0599
+}

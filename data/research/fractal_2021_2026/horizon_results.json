@@ -1,0 +1,22 @@
+{
+  "1.0x": {
+    "total_cases": 31728,
+    "validated_cases": 7423,
+    "success_rate": 0.234
+  },
+  "1.5x": {
+    "total_cases": 31728,
+    "validated_cases": 4585,
+    "success_rate": 0.1445
+  },
+  "2.0x": {
+    "total_cases": 31728,
+    "validated_cases": 2922,
+    "success_rate": 0.0921
+  },
+  "2.5x": {
+    "total_cases": 31728,
+    "validated_cases": 1900,
+    "success_rate": 0.0599
+  }
+}

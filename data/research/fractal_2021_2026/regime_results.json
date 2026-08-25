@@ -1,0 +1,14 @@
+{
+  "TREND": {
+    "total": 12691,
+    "success_rate": 0.1734
+  },
+  "RANGE": {
+    "total": 12691,
+    "success_rate": 0.1156
+  },
+  "HIGH_VOLATILITY": {
+    "total": 6345,
+    "success_rate": 0.1301
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "naive_baseline": 0.5,
+  "random_directional_baseline": 0.5,
+  "observed_rate": 0.1445,
+  "lift": -0.3555
+}
