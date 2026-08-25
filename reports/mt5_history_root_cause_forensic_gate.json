@@ -1,0 +1,64 @@
+{
+  "root_cause": "UNDETERMINED",
+  "classification": "INSUFFICIENT_EVIDENCE",
+  "observed_facts": [
+    "Active MT5 connection on Account 52961173 (Alpari-MT5-Demo) returns 100,032 XAUUSD M1 bars spanning 2026-05-14T02:40:00Z to 2026-08-25T13:16:00Z.",
+    "MaxBars setting in terminal configuration is 3,000,000.",
+    "All tested major symbols on Alpari-MT5-Demo (EURUSD, GBPUSD, USDJPY, XAGUSD, XAUUSD) return exactly 100,032 M1 bars starting on 2026-05-14T02:40:00Z.",
+    "Timeframe differential shows higher timeframes provide deeper historical coverage: M5 (2025-08-10), M15 (2023-11-04), H1 (2010-02-18), H4 (2001-01-03), D1 (1999-01-04).",
+    "Local history filesystem directory contains only 2026.hcc; binary cache files 2021.hcc through 2025.hcc do not exist.",
+    "copy_rates_range() requests for intervals prior to 2026-05-14 return 0 bars with mt5.last_error() = (1, 'Success')."
+  ],
+  "hypotheses": [
+    {
+      "hypothesis": "Alpari-MT5-Demo trade server enforces a server-side history retention cap for demo accounts.",
+      "status": "UNPROVEN",
+      "reason": "Requires differential test against a secondary authenticated MT5 trade server."
+    },
+    {
+      "hypothesis": "Broker-wide or symbol-specific XAUUSD history limitation.",
+      "status": "UNPROVEN",
+      "reason": "Requires testing alternative gold symbols or secondary broker servers."
+    },
+    {
+      "hypothesis": "MaxBars=100,000 configuration alone caused the 100k bar boundary.",
+      "status": "REJECTED",
+      "reason": "MaxBars setting was raised to 3,000,000 but earliest bar remained 2026-05-14T02:40:00Z."
+    }
+  ],
+  "blocked_experiments": [
+    {
+      "experiment": "Provider Differential Test",
+      "block_reason": "No independently authenticated secondary MT5 trade-server/account is available in the current Windows MT5 environment."
+    }
+  ],
+  "tested_providers": [
+    {
+      "server": "Alpari-MT5-Demo",
+      "login": "52961173",
+      "account_type": "DEMO",
+      "build": 6140,
+      "maxbars": 3000000,
+      "symbol": "XAUUSD",
+      "timeframe": "M1",
+      "returned_count": 100032,
+      "first_timestamp": "2026-05-14T02:40:00Z",
+      "last_timestamp": "2026-08-25T13:16:00Z",
+      "last_error": [1, "Success"]
+    }
+  ],
+  "historical_coverage": {
+    "2026": "AVAILABLE (100,032 bars, May 14 -> Aug 25, 2026)",
+    "2025": "UNTESTED_ON_ALT_SERVER",
+    "2024": "UNTESTED_ON_ALT_SERVER",
+    "2023": "UNTESTED_ON_ALT_SERVER",
+    "2022": "UNTESTED_ON_ALT_SERVER",
+    "2021": "UNTESTED_ON_ALT_SERVER"
+  },
+  "evidence": [
+    "Terminal Info: path = C:\\Program Files\\MetaTrader 5, data_path = C:\\Users\\Administrator\\AppData\\Roaming\\MetaQuotes\\Terminal\\D0E8209F77C8CF37AD8BF550E51FF075",
+    "History Storage: C:\\Users\\Administrator\\AppData\\Roaming\\MetaQuotes\\Terminal\\D0E8209F77C8CF37AD8BF550E51FF075\\bases\\Alpari-MT5-Demo\\history\\XAUUSD\\2026.hcc",
+    "API Probes: copy_rates_from_pos('XAUUSD', M1, 0, 3000000) caps at 100,032 bars."
+  ],
+  "next_required_experiment": "Log into a secondary MT5 demo or live account on another trade server (e.g. MetaQuotes-Demo) on Windows Server 5.102.37.180 and execute mt5.copy_rates_from_pos('XAUUSD', TIMEFRAME_M1, 0, 2000000) to complete the provider differential test."
+}
