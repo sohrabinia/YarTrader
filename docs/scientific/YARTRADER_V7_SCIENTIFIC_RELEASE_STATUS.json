@@ -1,0 +1,35 @@
+{
+  "version": "7.0",
+  "system_identity": "YarTrader",
+  "website_completion": "PASS",
+  "scientific_trading_release": "BLOCKED",
+  "live_trading_enabled": false,
+  "real_orders": 0,
+  "canonical_metrics": {
+    "win_rate_pct": 30.73,
+    "expectancy_usd_per_oz": -4.60,
+    "profit_factor": 0.86,
+    "net_pnl_usd": -2066.52,
+    "mae_usd_per_oz": 5.07,
+    "holding_time_m1_bars": 417.9
+  },
+  "critical_blockers": [
+    {
+      "id": "BLK-01",
+      "component": "Strategy Profitability",
+      "severity": "CRITICAL",
+      "description": "Standalone Base breakout strategy expectancy is economically negative (-$4.60/oz)."
+    }
+  ],
+  "high_blockers": [
+    {
+      "id": "BLK-02",
+      "component": "Native MT5 IPC",
+      "severity": "HIGH",
+      "description": "Non-Windows Linux container environment lacks native Windows MT5 terminal process IPC."
+    }
+  ],
+  "evidence_complete": true,
+  "git_sha": "4895e9ec94769fcd3c081faf890e33a3594589d3",
+  "validated_at_utc": "2026-08-26T09:30:00Z"
+}

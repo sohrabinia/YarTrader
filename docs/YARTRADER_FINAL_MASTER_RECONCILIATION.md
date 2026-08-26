@@ -87,6 +87,8 @@ All 9 public cryptocurrency receive addresses supplied for subscription payments
 - **MAE:** $5.07 / oz (vs $13.71 / oz baseline)
 - **Hold Time:** 417.9 M1 bars (vs 1788.1 M1 bars baseline)
 - **Scientific Release Decision:** `SCIENTIFIC_TRADING_RELEASE = BLOCKED`
+- **Scientific Forensic Report:** `docs/scientific/YARTRADER_V7_SCIENTIFIC_RELEASE_FORENSIC_REPORT.md`
+- **Machine-Readable Status:** `docs/scientific/YARTRADER_V7_SCIENTIFIC_RELEASE_STATUS.json`
 - **Live Trading Safety Gate:** `LIVE_TRADING_ENABLED = FALSE`
 
 ---
