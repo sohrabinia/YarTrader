@@ -42,6 +42,21 @@ REAL_ORDERS = 0
 
 ---
 
+## 1.1 EXPECTANCY MATHEMATICAL RECONCILIATION
+
+The mathematical formula for standalone strategy expectancy is:
+$$\text{Expectancy} = \frac{\text{Total Net PnL}}{\text{Total Trade Count}} = \frac{-\$2,066.52}{449 \text{ trades}} = -\$4.6025/\text{oz} \approx -\$4.60/\text{oz}$$
+
+- **Total Trades Evaluated:** 449
+- **Winning Trades:** 138 (30.73% Win Rate)
+- **Losing Trades:** 311 (69.27% Loss Rate)
+- **Average Win:** +$16.42 / oz
+- **Average Loss:** -$13.93 / oz
+- **Commissions & Spread:** Included ($0.10/oz - $0.50/oz stress test)
+- **Mathematical Verdict:** Verified exact. Expectancy remains economically negative (-$4.60/oz).
+
+---
+
 ## 2. BLOCKER REGISTER
 
 | Blocker ID | Severity | Component | Root Cause Description | Status / Remediation Roadmap |

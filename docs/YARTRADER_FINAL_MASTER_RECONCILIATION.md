@@ -89,6 +89,7 @@ All 9 public cryptocurrency receive addresses supplied for subscription payments
 - **Scientific Release Decision:** `SCIENTIFIC_TRADING_RELEASE = BLOCKED`
 - **Scientific Forensic Report:** `docs/scientific/YARTRADER_V7_SCIENTIFIC_RELEASE_FORENSIC_REPORT.md`
 - **Machine-Readable Status:** `docs/scientific/YARTRADER_V7_SCIENTIFIC_RELEASE_STATUS.json`
+- **Scientific Unit Test Verification:** `tests/YarTrader.Tests/Research/test_scientific_release_verification.py`
 - **Live Trading Safety Gate:** `LIVE_TRADING_ENABLED = FALSE`
 
 ---
