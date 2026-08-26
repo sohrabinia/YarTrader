@@ -816,18 +816,57 @@ def get_portfolio_exposure(virtual_balance: float = 10000.0):
 
 
 # ==============================================================================
+# 0. SEO & ROBOTS / SITEMAP ENDPOINTS
+# ==============================================================================
+@app.get("/sitemap.xml")
+def get_sitemap():
+    sitemap_path = "trader-terminal/dist/sitemap.xml"
+    if not os.path.exists(sitemap_path):
+        sitemap_path = "trader-terminal/public/sitemap.xml"
+    if os.path.exists(sitemap_path):
+        return FileResponse(sitemap_path, media_type="application/xml")
+    return Response(
+        content='<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://yartrader.com/fa</loc></url></urlset>',
+        media_type="application/xml"
+    )
+
+@app.get("/robots.txt")
+def get_robots():
+    robots_path = "trader-terminal/dist/robots.txt"
+    if not os.path.exists(robots_path):
+        robots_path = "trader-terminal/public/robots.txt"
+    if os.path.exists(robots_path):
+        return FileResponse(robots_path, media_type="text/plain")
+    return Response(
+        content="User-agent: *\nAllow: /\nSitemap: https://yartrader.com/sitemap.xml\n",
+        media_type="text/plain"
+    )
+
+
+# ==============================================================================
 # 1. WEB MANAGEMENT DASHBOARD & SPA PAGE
 # ==============================================================================
 @app.get("/", response_class=HTMLResponse)
+@app.get("/fa", response_class=HTMLResponse)
+@app.get("/en", response_class=HTMLResponse)
+@app.get("/tr", response_class=HTMLResponse)
+@app.get("/ar", response_class=HTMLResponse)
+@app.get("/fa/{path:path}", response_class=HTMLResponse)
+@app.get("/en/{path:path}", response_class=HTMLResponse)
+@app.get("/tr/{path:path}", response_class=HTMLResponse)
+@app.get("/ar/{path:path}", response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
 @app.get("/pricing", response_class=HTMLResponse)
 @app.get("/features", response_class=HTMLResponse)
+@app.get("/guide", response_class=HTMLResponse)
+@app.get("/faq", response_class=HTMLResponse)
+@app.get("/blog", response_class=HTMLResponse)
 @app.get("/login", response_class=HTMLResponse)
 @app.get("/register", response_class=HTMLResponse)
 @app.get("/forgot-password", response_class=HTMLResponse)
 @app.get("/execution-intel", response_class=HTMLResponse)
 @app.get("/admin", response_class=HTMLResponse)
-def get_dashboard_spa():
+def get_dashboard_spa(path: str = None):
     """Serves the rich, production-grade System Validation Center SPA page with full bilingual RTL/LTR support."""
     react_index = "trader-terminal/dist/index.html"
     if os.path.exists(react_index):
