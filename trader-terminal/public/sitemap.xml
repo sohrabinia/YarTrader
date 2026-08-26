@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://yartrader.com/</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/?lang=fa" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/?lang=en" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/?lang=tr" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/?lang=ar" />
+  </url>
+  <url>
+    <loc>https://yartrader.com/features</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://yartrader.com/pricing</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://yartrader.com/blog</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+</urlset>
