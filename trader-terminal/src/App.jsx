@@ -24,13 +24,54 @@ import DashboardView from './views/DashboardView.jsx';
 import IntelligenceView from './views/IntelligenceView.jsx';
 import DemoView from './views/DemoView.jsx';
 import AdminView from './views/AdminView.jsx';
+import GuideView from './views/GuideView.jsx';
+import FaqView from './views/FaqView.jsx';
 
 // Import Global Functional Command Palette Component
 import CommandPalette from './components/common/CommandPalette.jsx';
 
+function getRouteFromLocation() {
+  const path = window.location.pathname || '/';
+  const hash = window.location.hash || '';
+
+  const pathParts = path.split('/').filter(Boolean);
+  let langFromUrl = null;
+  let cleanPath = path;
+
+  if (pathParts.length > 0 && ['fa', 'en', 'tr', 'ar'].includes(pathParts[0].toLowerCase())) {
+    langFromUrl = pathParts[0].toLowerCase();
+    cleanPath = '/' + pathParts.slice(1).join('/');
+  }
+
+  if ((cleanPath === '/' || cleanPath === '') && hash) {
+    cleanPath = hash.replace(/^#/, '');
+  }
+
+  if (!cleanPath || cleanPath === '') cleanPath = '/';
+
+  return {
+    langFromUrl,
+    cleanPath
+  };
+}
+
 function MainApp() {
   const { lang, changeLanguage, t, locales, loading } = useTranslation();
-  const [hash, setHash] = useState(() => window.location.hash || '#/');
+  const [routePath, setRoutePath] = useState(() => {
+    const { cleanPath } = getRouteFromLocation();
+    return cleanPath;
+  });
+  const hash = '#' + (routePath === '/' ? '/' : routePath);
+
+  const navigateTo = (targetPath, targetLang = lang) => {
+    const normPath = targetPath.startsWith('/') ? targetPath : '/' + targetPath;
+    const targetUrl = `/${targetLang}${normPath === '/' ? '' : normPath}`;
+    if (window.history && window.history.pushState) {
+      window.history.pushState({}, '', targetUrl);
+    }
+    window.location.hash = `#${normPath}`;
+    setRoutePath(normPath);
+  };
   const [theme, setTheme] = useState(() => localStorage.getItem('yartrader_theme') || 'dark');
   const [backendState, setBackendState] = useState('CHECKING'); // 'LIVE', 'DEMO', 'UNREACHABLE', 'CHECKING'
 
@@ -764,11 +805,13 @@ function MainApp() {
       <div className="container">
         {/* Navigation Sidebar */}
         <div className="sidebar">
-          <a href="#/" className={`sidebar-link ${hash === '#/' ? 'active' : ''}`}>{t('nav_public')}</a>
-          <a href="#/features" className={`sidebar-link ${hash === '#/features' ? 'active' : ''}`}>{t('nav_features')}</a>
-          <a href="#/pricing" className={`sidebar-link ${hash === '#/pricing' ? 'active' : ''}`}>{t('nav_pricing')}</a>
-          <a href="#/blog" className={`sidebar-link ${hash === '#/blog' ? 'active' : ''}`}>{t('nav_blog')}</a>
-          {token && <a href="#/dashboard" className={`sidebar-link ${hash === '#/dashboard' ? 'active' : ''}`}>{t('nav_terminal')}</a>}
+          <a href={`/${lang}/`} className={`sidebar-link ${routePath === '/' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/'); }}>{t('nav_public')}</a>
+          <a href={`/${lang}/features`} className={`sidebar-link ${routePath === '/features' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/features'); }}>{t('nav_features')}</a>
+          <a href={`/${lang}/pricing`} className={`sidebar-link ${routePath === '/pricing' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/pricing'); }}>{t('nav_pricing')}</a>
+          <a href={`/${lang}/blog`} className={`sidebar-link ${routePath === '/blog' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/blog'); }}>{t('nav_blog')}</a>
+          <a href={`/${lang}/guide`} className={`sidebar-link ${routePath === '/guide' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/guide'); }}>{t('nav_guide') || (lang === 'fa' ? '📚 راهنما' : '📚 Guide')}</a>
+          <a href={`/${lang}/faq`} className={`sidebar-link ${routePath === '/faq' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/faq'); }}>{t('nav_faq') || (lang === 'fa' ? '❓ سوالات متداول' : '❓ FAQ')}</a>
+          {token && <a href={`/${lang}/dashboard`} className={`sidebar-link ${routePath === '/dashboard' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/dashboard'); }}>{t('nav_terminal')}</a>}
 
           {/* Trading Modes Section */}
           {token && (
@@ -776,17 +819,17 @@ function MainApp() {
               <div style={{ fontSize: '0.75em', textTransform: 'uppercase', color: 'var(--text-muted)', paddingLeft: '10px', marginBottom: '5px', fontWeight: 'bold' }}>
                 {lang === 'fa' ? 'حالت‌های معاملاتی' : lang === 'tr' ? 'İşlem Modları' : lang === 'ar' ? 'أنماط التداول' : 'TRADING MODES'}
               </div>
-              <a href="#/backtest" className={`sidebar-link ${hash.startsWith('#/backtest') ? 'active' : ''}`}>{t('nav_backtest')}</a>
-              <a href="#/demo" className={`sidebar-link ${hash === '#/demo' ? 'active' : ''}`}>{t('nav_demo')}</a>
-              <a href="#/shadow" className={`sidebar-link ${hash === '#/shadow' ? 'active' : ''}`}>{t('nav_shadow')}</a>
-              <a href="#/live" className={`sidebar-link ${hash === '#/live' ? 'active' : ''}`} style={{ color: 'var(--danger)' }}>{t('nav_live')}</a>
+              <a href={`/${lang}/backtest`} className={`sidebar-link ${routePath.startsWith('/backtest') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/backtest'); }}>{t('nav_backtest')}</a>
+              <a href={`/${lang}/demo`} className={`sidebar-link ${routePath === '/demo' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/demo'); }}>{t('nav_demo')}</a>
+              <a href={`/${lang}/shadow`} className={`sidebar-link ${routePath === '/shadow' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/shadow'); }}>{t('nav_shadow')}</a>
+              <a href={`/${lang}/live`} className={`sidebar-link ${routePath === '/live' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/live'); }} style={{ color: 'var(--danger)' }}>{t('nav_live')}</a>
             </div>
           )}
 
-          {token && <a href="#/signals" className={`sidebar-link ${hash === '#/signals' ? 'active' : ''}`}>{t('nav_signals')}</a>}
-          {token && <a href="#/execution-intel" className={`sidebar-link ${hash === '#/execution-intel' ? 'active' : ''}`}>{t('nav_execution_intel')}</a>}
-          {token && <a href="#/learning" className={`sidebar-link ${hash.startsWith('#/learning') ? 'active' : ''}`}>{t('nav_learning')}</a>}
-          {token && role === 'ADMIN' && <a href="#/admin" className={`sidebar-link ${hash === '#/admin' ? 'active' : ''}`}>{t('nav_admin')}</a>}
+          {token && <a href={`/${lang}/signals`} className={`sidebar-link ${routePath === '/signals' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/signals'); }}>{t('nav_signals')}</a>}
+          {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
+          {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
+          {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {token && (
@@ -1043,7 +1086,7 @@ function MainApp() {
           )}
 
           {/* RESEARCH BLOG */}
-          {hash === '#/blog' && (
+          {(routePath === '/blog' || hash === '#/blog') && (
             <div id="shell-blog">
               <div className="card">
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('nav_blog')}</h2>
@@ -1067,6 +1110,16 @@ function MainApp() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* USER GUIDE PAGE */}
+          {(routePath === '/guide' || hash === '#/guide') && (
+            <GuideView lang={lang} t={t} />
+          )}
+
+          {/* FAQ PAGE */}
+          {(routePath === '/faq' || hash === '#/faq') && (
+            <FaqView lang={lang} t={t} />
           )}
 
           {/* DEDICATED TRADING MODE 1: BACKTEST PAGE */}
