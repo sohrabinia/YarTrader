@@ -24,13 +24,54 @@ import DashboardView from './views/DashboardView.jsx';
 import IntelligenceView from './views/IntelligenceView.jsx';
 import DemoView from './views/DemoView.jsx';
 import AdminView from './views/AdminView.jsx';
+import GuideView from './views/GuideView.jsx';
+import FaqView from './views/FaqView.jsx';
 
 // Import Global Functional Command Palette Component
 import CommandPalette from './components/common/CommandPalette.jsx';
 
+function getRouteFromLocation() {
+  const path = window.location.pathname || '/';
+  const hash = window.location.hash || '';
+
+  const pathParts = path.split('/').filter(Boolean);
+  let langFromUrl = null;
+  let cleanPath = path;
+
+  if (pathParts.length > 0 && ['fa', 'en', 'tr', 'ar'].includes(pathParts[0].toLowerCase())) {
+    langFromUrl = pathParts[0].toLowerCase();
+    cleanPath = '/' + pathParts.slice(1).join('/');
+  }
+
+  if ((cleanPath === '/' || cleanPath === '') && hash) {
+    cleanPath = hash.replace(/^#/, '');
+  }
+
+  if (!cleanPath || cleanPath === '') cleanPath = '/';
+
+  return {
+    langFromUrl,
+    cleanPath
+  };
+}
+
 function MainApp() {
   const { lang, changeLanguage, t, locales, loading } = useTranslation();
-  const [hash, setHash] = useState(() => window.location.hash || '#/');
+  const [routePath, setRoutePath] = useState(() => {
+    const { cleanPath } = getRouteFromLocation();
+    return cleanPath;
+  });
+  const hash = '#' + (routePath === '/' ? '/' : routePath);
+
+  const navigateTo = (targetPath, targetLang = lang) => {
+    const normPath = targetPath.startsWith('/') ? targetPath : '/' + targetPath;
+    const targetUrl = `/${targetLang}${normPath === '/' ? '' : normPath}`;
+    if (window.history && window.history.pushState) {
+      window.history.pushState({}, '', targetUrl);
+    }
+    window.location.hash = `#${normPath}`;
+    setRoutePath(normPath);
+  };
   const [theme, setTheme] = useState(() => localStorage.getItem('yartrader_theme') || 'dark');
   const [backendState, setBackendState] = useState('CHECKING'); // 'LIVE', 'DEMO', 'UNREACHABLE', 'CHECKING'
 
@@ -68,6 +109,7 @@ function MainApp() {
   // Core Data States
   const [markets, setMarkets] = useState([]);
   const [signals, setSignals] = useState([]);
+  const [signalPipeline, setSignalPipeline] = useState(null);
   const [compounding, setCompounding] = useState({
     simBalance: '10000',
     simYield: '8.5',
@@ -76,7 +118,58 @@ function MainApp() {
     final: '$16,310',
     growth: '+63.1%'
   });
-  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
+  const DEFAULT_SUBSCRIPTION_PLANS = [
+    {
+      tier_id: 'free',
+      name: lang === 'fa' ? 'Free Researcher (تحلیل‌گر پایه)' : 'Free Researcher',
+      price_usd: lang === 'fa' ? 'رایگان' : 'Free',
+      max_symbols: 3,
+      enabled_timeframes: ['Short'],
+      features: [
+        '3 Active Concurrent Symbols',
+        'Short Horizon Signals',
+        'Read-only custom frames'
+      ]
+    },
+    {
+      tier_id: 'daily',
+      name: 'Daily Pulse Plan',
+      price_usd: '$29/mo',
+      max_symbols: 10,
+      enabled_timeframes: ['Short', 'Medium'],
+      features: [
+        '10 Active Concurrent Symbols',
+        'Daily intelligence updates',
+        'Cognitive market insights'
+      ]
+    },
+    {
+      tier_id: 'pro',
+      name: lang === 'fa' ? 'Professional Analyst (حرفه‌ای)' : 'Professional Analyst',
+      price_usd: '$79/mo',
+      max_symbols: 15,
+      enabled_timeframes: ['Short', 'Medium'],
+      features: [
+        '15 Active Concurrent Symbols',
+        'Short & Medium Horizon Signals',
+        'Conversational AI Assistant'
+      ]
+    },
+    {
+      tier_id: 'institutional',
+      name: lang === 'fa' ? 'Institutional SCM Terminal (سازمانی)' : 'Institutional SCM Terminal',
+      price_usd: '$299/mo',
+      max_symbols: 50,
+      enabled_timeframes: ['Micro', 'Short', 'Medium', 'Macro'],
+      features: [
+        '50 Active Concurrent Symbols',
+        'All Horizon Signals (Micro to Macro)',
+        'Priority SRE support & dedicated server access'
+      ]
+    }
+  ];
+
+  const [subscriptionPlans, setSubscriptionPlans] = useState(DEFAULT_SUBSCRIPTION_PLANS);
   const [blogArticles, setBlogArticles] = useState([]);
   const [publicMetrics, setPublicMetrics] = useState({
     activeMarketsCount: '30',
@@ -409,9 +502,15 @@ function MainApp() {
   const fetchSubscriptionPlans = async () => {
     try {
       const res = await apiService.get('/api/subscription/plans');
-      setSubscriptionPlans(res);
+      if (Array.isArray(res) && res.length > 0) {
+        setSubscriptionPlans(res);
+      } else {
+        setSubscriptionPlans(DEFAULT_SUBSCRIPTION_PLANS);
+      }
+      fetchPropChallengeStatus();
     } catch (err) {
       console.error(err);
+      setSubscriptionPlans(DEFAULT_SUBSCRIPTION_PLANS);
     }
   };
 
@@ -431,6 +530,8 @@ function MainApp() {
       setMarkets(Array.isArray(mkts) ? mkts : []);
       const sigs = await apiService.get(`/api/user/signals?horizon=${activeHorizon}`);
       setSignals(Array.isArray(sigs) ? sigs : []);
+      const pipe = await apiService.get('/api/signals');
+      setSignalPipeline(pipe);
     } catch (err) {
       console.error(err);
       setSignals([]);
@@ -704,11 +805,13 @@ function MainApp() {
       <div className="container">
         {/* Navigation Sidebar */}
         <div className="sidebar">
-          <a href="#/" className={`sidebar-link ${hash === '#/' ? 'active' : ''}`}>{t('nav_public')}</a>
-          <a href="#/features" className={`sidebar-link ${hash === '#/features' ? 'active' : ''}`}>{t('nav_features')}</a>
-          <a href="#/pricing" className={`sidebar-link ${hash === '#/pricing' ? 'active' : ''}`}>{t('nav_pricing')}</a>
-          <a href="#/blog" className={`sidebar-link ${hash === '#/blog' ? 'active' : ''}`}>{t('nav_blog')}</a>
-          {token && <a href="#/dashboard" className={`sidebar-link ${hash === '#/dashboard' ? 'active' : ''}`}>{t('nav_terminal')}</a>}
+          <a href={`/${lang}/`} className={`sidebar-link ${routePath === '/' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/'); }}>{t('nav_public')}</a>
+          <a href={`/${lang}/features`} className={`sidebar-link ${routePath === '/features' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/features'); }}>{t('nav_features')}</a>
+          <a href={`/${lang}/pricing`} className={`sidebar-link ${routePath === '/pricing' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/pricing'); }}>{t('nav_pricing')}</a>
+          <a href={`/${lang}/blog`} className={`sidebar-link ${routePath === '/blog' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/blog'); }}>{t('nav_blog')}</a>
+          <a href={`/${lang}/guide`} className={`sidebar-link ${routePath === '/guide' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/guide'); }}>{t('nav_guide') || (lang === 'fa' ? '📚 راهنما' : '📚 Guide')}</a>
+          <a href={`/${lang}/faq`} className={`sidebar-link ${routePath === '/faq' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/faq'); }}>{t('nav_faq') || (lang === 'fa' ? '❓ سوالات متداول' : '❓ FAQ')}</a>
+          {token && <a href={`/${lang}/dashboard`} className={`sidebar-link ${routePath === '/dashboard' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/dashboard'); }}>{t('nav_terminal')}</a>}
 
           {/* Trading Modes Section */}
           {token && (
@@ -716,17 +819,17 @@ function MainApp() {
               <div style={{ fontSize: '0.75em', textTransform: 'uppercase', color: 'var(--text-muted)', paddingLeft: '10px', marginBottom: '5px', fontWeight: 'bold' }}>
                 {lang === 'fa' ? 'حالت‌های معاملاتی' : lang === 'tr' ? 'İşlem Modları' : lang === 'ar' ? 'أنماط التداول' : 'TRADING MODES'}
               </div>
-              <a href="#/backtest" className={`sidebar-link ${hash.startsWith('#/backtest') ? 'active' : ''}`}>{t('nav_backtest')}</a>
-              <a href="#/demo" className={`sidebar-link ${hash === '#/demo' ? 'active' : ''}`}>{t('nav_demo')}</a>
-              <a href="#/shadow" className={`sidebar-link ${hash === '#/shadow' ? 'active' : ''}`}>{t('nav_shadow')}</a>
-              <a href="#/live" className={`sidebar-link ${hash === '#/live' ? 'active' : ''}`} style={{ color: 'var(--danger)' }}>{t('nav_live')}</a>
+              <a href={`/${lang}/backtest`} className={`sidebar-link ${routePath.startsWith('/backtest') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/backtest'); }}>{t('nav_backtest')}</a>
+              <a href={`/${lang}/demo`} className={`sidebar-link ${routePath === '/demo' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/demo'); }}>{t('nav_demo')}</a>
+              <a href={`/${lang}/shadow`} className={`sidebar-link ${routePath === '/shadow' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/shadow'); }}>{t('nav_shadow')}</a>
+              <a href={`/${lang}/live`} className={`sidebar-link ${routePath === '/live' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/live'); }} style={{ color: 'var(--danger)' }}>{t('nav_live')}</a>
             </div>
           )}
 
-          {token && <a href="#/signals" className={`sidebar-link ${hash === '#/signals' ? 'active' : ''}`}>{t('nav_signals')}</a>}
-          {token && <a href="#/execution-intel" className={`sidebar-link ${hash === '#/execution-intel' ? 'active' : ''}`}>{t('nav_execution_intel')}</a>}
-          {token && <a href="#/learning" className={`sidebar-link ${hash.startsWith('#/learning') ? 'active' : ''}`}>{t('nav_learning')}</a>}
-          {token && role === 'ADMIN' && <a href="#/admin" className={`sidebar-link ${hash === '#/admin' ? 'active' : ''}`}>{t('nav_admin')}</a>}
+          {token && <a href={`/${lang}/signals`} className={`sidebar-link ${routePath === '/signals' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/signals'); }}>{t('nav_signals')}</a>}
+          {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
+          {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
+          {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {token && (
@@ -858,7 +961,7 @@ function MainApp() {
                     {selectedPlan.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
                   </ul>
                   <div style={{ display: 'flex', gap: '15px', marginTop: '25px' }}>
-                    <button className="btn" style={{ flex: 1 }} onClick={() => { showNotification(lang === 'fa' ? 'درخواست ارتقای پلن ثبت شد.' : 'Plan upgrade requested.', 'success'); setSelectedPlan(null); }}>
+                    <button className="btn" style={{ flex: 1 }} onClick={() => { setNotif({ show: true, msg: lang === 'fa' ? 'درخواست ارتقای پلن ثبت شد.' : 'Plan upgrade requested.', type: 'success' }); setSelectedPlan(null); }}>
                       {lang === 'fa' ? 'انتخاب و ارتقا به این پلن' : 'Choose Plan'}
                     </button>
                     <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setSelectedPlan(null)}>
@@ -867,11 +970,123 @@ function MainApp() {
                   </div>
                 </div>
               )}
+
+              {/* PROP FIRM CHALLENGE PLAN SECTION */}
+              <div className="card" style={{ marginTop: '25px', borderTop: '4px solid var(--accent)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+                  <h3 style={{ margin: 0, color: 'var(--primary)' }}>
+                    🎯 {lang === 'fa' ? 'پلن مدیریت ریسک چالش پراپ (Prop Firm Challenge Plan)' : lang === 'tr' ? 'Prop Firm Challenge & Risk Gate' : lang === 'ar' ? 'خطة تحدي شركات التداول (Prop Firm)' : 'Prop Firm Challenge Plan & Risk Gate'}
+                  </h3>
+                  <StatusBadge
+                    status={propChallengeData && propChallengeData.is_configured ? "passed" : "neutral"}
+                    label={propChallengeData && propChallengeData.is_configured ? (propChallengeData.status || "CONFIGURED") : "PROP ACCOUNT NOT CONFIGURED"}
+                  />
+                </div>
+
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px', lineHeight: '1.6' }}>
+                  {lang === 'fa'
+                    ? 'چارچوب ارزیابی قوانین، حد ضرر روزانه و حداکثر افت سرمایه (Drawdown) مطابق با استانداردهای شرکت‌های پراپ. این سیستم صرفاً گیت ریسک و مدیریت تعهدات است.'
+                    : 'Configurable risk limits, daily loss boundaries, and drawdown protection framework built directly into the YarTrader Risk Engine.'}
+                </p>
+
+                {/* Status or Unconfigured Alert */}
+                {(!propChallengeData || !propChallengeData.is_configured) ? (
+                  <div className="status-item" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                    <div style={{ fontWeight: 'bold', color: 'var(--danger)', marginBottom: '5px' }}>
+                      ⚠️ {lang === 'fa' ? 'حساب پراپ تنظیم نشده است (PROP ACCOUNT NOT CONFIGURED)' : 'PROP ACCOUNT NOT CONFIGURED'}
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-dark)' }}>
+                      {lang === 'fa'
+                        ? 'برای فعال‌سازی و ارزیابی زنده ریسک چالش، قوانین پارامتریک زیر را تنظیم و ذخیره نمایید.'
+                        : 'To activate live risk rules evaluation, please configure your prop firm parameters below.'}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="status-board" style={{ marginBottom: '20px' }}>
+                    <MetricCard title="Account Equity" value={`$${(propChallengeData.metrics?.current_equity || 0).toLocaleString()}`} status="passed" />
+                    <MetricCard title="Daily P/L" value={`$${(propChallengeData.metrics?.daily_pl || 0).toLocaleString()}`} status={propChallengeData.metrics?.daily_pl >= 0 ? "passed" : "failed"} />
+                    <MetricCard title="Remaining Daily Loss" value={`$${(propChallengeData.metrics?.remaining_daily_loss || 0).toLocaleString()}`} status="primary" />
+                    <MetricCard title="Remaining Drawdown" value={`$${(propChallengeData.metrics?.remaining_drawdown || 0).toLocaleString()}`} status="neutral" />
+                    <MetricCard title="Challenge Progress" value={`${propChallengeData.metrics?.challenge_progress_pct || 0}%`} status="passed" />
+                  </div>
+                )}
+
+                {/* Rules Configuration Form */}
+                <form onSubmit={handleSavePropConfig} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop: '15px' }}>
+                  <div>
+                    <label className="form-label">{lang === 'fa' ? 'نام شرکت پراپ / اکانت' : 'Prop Firm Designation'}</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={propConfigForm.prop_firm_name}
+                      onChange={(e) => setPropConfigForm({ ...propConfigForm, prop_firm_name: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">{lang === 'fa' ? 'سرمایه اولیه ($)' : 'Account Size ($)'}</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={propConfigForm.account_size}
+                      onChange={(e) => setPropConfigForm({ ...propConfigForm, account_size: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">{lang === 'fa' ? 'حد ضرر روزانه (%)' : 'Daily Loss Limit (%)'}</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="form-control"
+                      value={propConfigForm.daily_loss_limit_pct}
+                      onChange={(e) => setPropConfigForm({ ...propConfigForm, daily_loss_limit_pct: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">{lang === 'fa' ? 'حداکثر افت سرمایه (%)' : 'Max Drawdown (%)'}</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="form-control"
+                      value={propConfigForm.max_drawdown_pct}
+                      onChange={(e) => setPropConfigForm({ ...propConfigForm, max_drawdown_pct: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">{lang === 'fa' ? 'ریسک در هر معامله (%)' : 'Risk Per Trade (%)'}</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      className="form-control"
+                      value={propConfigForm.risk_per_trade_pct}
+                      onChange={(e) => setPropConfigForm({ ...propConfigForm, risk_per_trade_pct: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">{lang === 'fa' ? 'حداکثر پوزیشن همزمان' : 'Max Concurrent Positions'}</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={propConfigForm.max_concurrent_positions}
+                      onChange={(e) => setPropConfigForm({ ...propConfigForm, max_concurrent_positions: parseInt(e.target.value) || 1 })}
+                    />
+                  </div>
+                  <div style={{ gridColumn: '1 / -1', marginTop: '10px' }}>
+                    <button type="submit" className="btn" style={{ width: '100%' }}>
+                      {lang === 'fa' ? 'ذخیره قوانین چالش و به روزرسانی گیت ریسک' : 'Save Challenge Rules & Activate Risk Gate'}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Safety & Compliance Disclaimer */}
+                <div style={{ marginTop: '20px', padding: '12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: '1.5', fontStyle: 'italic' }}>
+                  🛡️ {propChallengeData?.disclaimer || 'The YarTrader Prop Firm Challenge Plan provides objective risk control monitoring and compliance gates. It strictly does NOT guarantee passing prop firm evaluations, profits, approvals, or financial returns.'}
+                </div>
+              </div>
             </div>
           )}
 
           {/* RESEARCH BLOG */}
-          {hash === '#/blog' && (
+          {(routePath === '/blog' || hash === '#/blog') && (
             <div id="shell-blog">
               <div className="card">
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('nav_blog')}</h2>
@@ -895,6 +1110,16 @@ function MainApp() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* USER GUIDE PAGE */}
+          {(routePath === '/guide' || hash === '#/guide') && (
+            <GuideView lang={lang} t={t} />
+          )}
+
+          {/* FAQ PAGE */}
+          {(routePath === '/faq' || hash === '#/faq') && (
+            <FaqView lang={lang} t={t} />
           )}
 
           {/* DEDICATED TRADING MODE 1: BACKTEST PAGE */}
@@ -987,23 +1212,23 @@ function MainApp() {
                 <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('shadow_desc')}</p>
 
                 <div className="status-board" style={{ marginBottom: '25px' }}>
-                  <MetricCard title={lang === 'fa' ? 'حساب مجازی (Paper)' : 'Virtual Account ID'} value={shadowReport.account_id || 'DATA UNAVAILABLE'} status="primary" />
-                  <MetricCard title={lang === 'fa' ? 'موجودی (Balance)' : 'Virtual Cash'} value={`$${shadowReport.balance !== undefined ? shadowReport.balance.toLocaleString() : '1,000.00'}`} status="passed" />
-                  <MetricCard title={lang === 'fa' ? 'ارزش ویژه (Equity)' : 'Virtual Equity'} value={`$${shadowReport.equity !== undefined ? shadowReport.equity.toLocaleString() : '1,000.00'}`} status="passed" />
-                  <MetricCard title={lang === 'fa' ? 'سود/زیان محقق‌شده' : 'Realized PnL'} value={`$${shadowReport.realized_pnl !== undefined ? shadowReport.realized_pnl.toFixed(2) : '0.00'}`} status={(shadowReport.realized_pnl || 0) >= 0 ? 'passed' : 'failed'} />
+                  <MetricCard title={lang === 'fa' ? 'حساب مجازی (Paper)' : 'Virtual Account ID'} value={shadowReport.account_id || 'vaccount-shadow-1'} status="primary" />
+                  <MetricCard title={lang === 'fa' ? 'موجودی (Balance)' : 'Virtual Cash'} value={shadowReport.balance != null ? `$${shadowReport.balance.toLocaleString()}` : 'DATA UNAVAILABLE'} status="passed" />
+                  <MetricCard title={lang === 'fa' ? 'ارزش ویژه (Equity)' : 'Virtual Equity'} value={shadowReport.equity != null ? `$${shadowReport.equity.toLocaleString()}` : 'DATA UNAVAILABLE'} status="passed" />
+                  <MetricCard title={lang === 'fa' ? 'سود/زیان محقق‌شده' : 'Realized PnL'} value={shadowReport.realized_pnl != null ? `$${shadowReport.realized_pnl.toFixed(2)}` : 'DATA UNAVAILABLE'} status={(shadowReport.realized_pnl || 0) >= 0 ? 'passed' : 'failed'} />
                 </div>
 
                 <h3 style={{ color: '#4FB6C7', marginTop: 0 }}>{lang === 'fa' ? 'موقعیت‌های مجازی سایه (Virtual Positions)' : 'Virtual Position Manager'}</h3>
                 <DataTable
                   headers={['VPOS ID', 'Symbol', 'Side', 'Entry Price', 'Stop Loss', 'Take Profit', 'Unrealized PnL', 'Paper Status']}
                   rows={shadowTradesList.map((st, idx) => [
-                    st.vpos_id || st.id || `vpos-${idx+1}`,
-                    <strong>{st.symbol}</strong>,
+                    st.vpos_id || st.position_id || st.id || `vpos-${st.symbol ? st.symbol.toLowerCase() : idx+1}`,
+                    <strong>{st.symbol || 'N/A'}</strong>,
                     <span style={{ color: st.side === 'BUY' ? 'var(--accent)' : 'var(--danger)' }}>{st.side || 'DATA UNAVAILABLE'}</span>,
-                    st.entry_price,
-                    <span style={{ color: 'var(--danger)' }}>{st.stop_loss || '-'}</span>,
-                    <span style={{ color: 'var(--accent)' }}>{st.take_profit || '-'}</span>,
-                    <span className={(st.unrealized_pnl || 0) >= 0 ? 'status-passed' : 'status-failed'}>${st.unrealized_pnl || '0.00'}</span>,
+                    st.entry_price != null ? st.entry_price : 'DATA UNAVAILABLE',
+                    <span style={{ color: 'var(--danger)' }}>{st.stop_loss != null ? st.stop_loss : '-'}</span>,
+                    <span style={{ color: 'var(--accent)' }}>{st.take_profit != null ? st.take_profit : '-'}</span>,
+                    <span className={(st.unrealized_pnl || 0) >= 0 ? 'status-passed' : 'status-failed'}>${st.unrealized_pnl != null ? st.unrealized_pnl.toFixed(2) : '0.00'}</span>,
                     <StatusBadge status="neutral" label="SIMULATED PAPER" />
                   ])}
                   emptyMessage={lang === 'fa' ? 'هیچ پوزیشن سایه‌ای در حال حاضر باز نیست.' : 'No virtual shadow positions currently open.'}
@@ -1346,6 +1571,17 @@ function MainApp() {
               <div className="card" style={{ borderTop: '4px solid var(--primary)' }}>
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('signals_title')}</h2>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('signals_desc')}</p>
+
+                {/* Signals Diagnostic Pipeline Board */}
+                {signalPipeline && signalPipeline.diagnostic_counts && (
+                  <div className="status-board" style={{ marginBottom: '20px' }}>
+                    <MetricCard title="Candidates Evaluated" value={signalPipeline.diagnostic_counts.candidates_evaluated} status="neutral" />
+                    <MetricCard title="Rejected by Macro" value={signalPipeline.diagnostic_counts.rejected_by_macro} status="failed" />
+                    <MetricCard title="Rejected by Structure" value={signalPipeline.diagnostic_counts.rejected_by_structure} status="failed" />
+                    <MetricCard title="Rejected by Risk" value={signalPipeline.diagnostic_counts.rejected_by_risk} status="failed" />
+                    <MetricCard title="Accepted Signals" value={signalPipeline.diagnostic_counts.accepted_signals} status="passed" />
+                  </div>
+                )}
 
                 {/* Signal Category Tabs */}
                 <div className="sub-nav-tabs">

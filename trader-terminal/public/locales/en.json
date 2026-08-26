@@ -159,5 +159,11 @@
   "learning_title": "🧠 Cognitive Learning Matrix",
   "learning_desc": "Evidence-backed cognitive knowledgebase evaluating structural price patterns with Out-of-Sample metrics.",
   "pattern_details_title": "Pattern Evidence & Intelligence Details",
-  "no_pattern_selected": "Select a pattern from the matrix to inspect statistical evidence and audit details."
+  "no_pattern_selected": "Select a pattern from the matrix to inspect statistical evidence and audit details.",
+  "nav_guide": "📚 User Guide",
+  "nav_faq": "❓ FAQ",
+  "guide_title": "YarTrader Financial Intelligence Platform User Guide",
+  "guide_subtitle": "Step-by-step guide to platform architecture, trading modes, prop firm risk controls, and fractal structures.",
+  "faq_title": "Frequently Asked Questions (FAQ)",
+  "faq_subtitle": "Answers to common questions regarding platform capabilities, risk limits, trading modes, and prop rules."
 }
