@@ -1,0 +1,95 @@
+import React, { useState } from 'react';
+
+export default function FaqView({ lang, t }) {
+  const isFa = lang === 'fa';
+  const isAr = lang === 'ar';
+  const isTr = lang === 'tr';
+
+  const [openIndex, setOpenIndex] = useState(null);
+
+  const faqItems = [
+    {
+      q: isFa ? 'پلتفرم YarTrader چیست؟' : isTr ? 'YarTrader Nedir?' : isAr ? 'ما هي منصة YarTrader؟' : 'What is YarTrader?',
+      a: isFa
+        ? 'پلتفرم YarTrader یک سامانه هوش مالی خودکار برای تحلیل ساختارهای غیرخطی قیمت و مدیریت ریسک معامله‌گران است.'
+        : 'YarTrader is an autonomous financial intelligence platform for non-linear price structure analysis and risk management.'
+    },
+    {
+      q: isFa ? 'آیا YarTrader یک کارگزار (Broker) است؟' : isTr ? 'YarTrader Bir Broker Mıdır?' : isAr ? 'هل YarTrader شركة وساطة؟' : 'Is YarTrader a Broker?',
+      a: isFa
+        ? 'خیر، YarTrader کارگزار نیست و هیچ‌گونه سپرده مالی یا وجه سرمایه‌گذاران را نگهداری نمی‌کند.'
+        : 'No, YarTrader is not a broker and does not hold user deposits or investor funds.'
+    },
+    {
+      q: isFa ? 'آیا YarTrader کسب سود را تضمین می‌کند؟' : isTr ? 'YarTrader Kar Garantisi Verir Mi?' : isAr ? 'هل تضمن YarTrader الأرباح؟' : 'Does YarTrader Guarantee Profit?',
+      a: isFa
+        ? 'خیر، بر اساس قوانین مدیریت ریسک و تعهدات اخلاقی، هیچ‌گونه تضمین سود یا قبولی در چالش‌های پراپ ارائه نمی‌شود.'
+        : 'No. Strictly no profit or prop challenge passing guarantees are promised or implied.'
+    },
+    {
+      q: isFa ? 'تفاوت حالت‌های Backtest، Demo و Shadow چیست؟' : isTr ? 'Backtest, Demo ve Shadow Mod Farkı Nedir?' : isAr ? 'ما الفرق بين Backtest و Demo و Shadow؟' : 'What is the Difference Between Backtest, Demo, and Shadow Modes?',
+      a: isFa
+        ? 'حالت Backtest شبیه‌سازی تاریخچه گذشته است؛ Demo اجرای آزمایشی روی سرور متاتریدر ۵ آلپاری است؛ و Shadow ثبت پوزیشن‌های مجازی در دفترچه معاملات سایه بدون ریسک مالی است.'
+        : 'Backtest runs historical simulation; Demo executes orders on Alpari MT5 demo account; Shadow tracks virtual paper positions in a shadow journal.'
+    },
+    {
+      q: isFa ? 'چرا در برخی مواقع هیچ سیگنال فعالی وجود ندارد؟' : isTr ? 'Neden Bazen Sinyal Bulunmaz?' : isAr ? 'لماذا لا توجد إشارات أحياناً؟' : 'Why Can There Be No Valid Signals?',
+      a: isFa
+        ? 'زیرا کلیه کندل‌ها و موقعیت‌ها از ۳ گیت پالایش کلان (Macro)، ساختاری (Structural) و ریسک (Risk) عبور می‌کنند. اگر چیدمانی از هر سه گیت عبور نکند، جهت سیگنال WAIT اعلام می‌شود.'
+        : 'Because candidates pass through strict Macro, Structural, and Risk qualification gates. If no setup passes all three, direction remains WAIT.'
+    },
+    {
+      q: isFa ? 'پلن چالش پراپ (Prop Firm Challenge Plan) چگونه کار می‌کند؟' : isTr ? 'Prop Challenge Plan Nasıl Çalışır?' : isAr ? 'كيف تعمل خطة تحدي شركات التداول؟' : 'How Does the Prop Firm Challenge Plan Work?',
+      a: isFa
+        ? 'این پلن به معامله‌گر اجازه می‌دهد قوانین شرکت پراپ (حد ضرر روزانه، حداکثر افت سرمایه، حجم پوزیشن) را تعریف و هشدارهای زنده ریسک دریافت کند.'
+        : 'It allows traders to configure firm evaluation rules (daily loss limit, max drawdown, exposure) and receive live risk compliance alerts.'
+    },
+    {
+      q: isFa ? 'چگونه داده‌های بازار و وضعیت سیستم پایش می‌شوند؟' : isTr ? 'Sistem Durumu Nasıl İzlenir?' : isAr ? 'كيف يتم مراقبة حالة النظام؟' : 'How is System Status Monitored?',
+      a: isFa
+        ? 'از طریق بخش SRE Console و تب‌های آنلاین Ingestion، MT5 Stream و APES Compliance در مسیر /admin.'
+        : 'Via SRE Console monitoring live Ingestion, MT5 Stream, and APES Compliance status in the /admin dashboard.'
+    }
+  ];
+
+  return (
+    <div id="shell-faq" className="card" style={{ borderTop: '4px solid var(--accent)' }}>
+      <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>
+        ❓ {t('faq_title') || (isFa ? 'سوالات متداول (FAQ)' : isTr ? 'Sıkça Sorulan Sorular' : isAr ? 'الأسئلة الشائعة' : 'Frequently Asked Questions')}
+      </h2>
+      <p style={{ color: 'var(--text-muted)', marginBottom: '25px', lineHeight: '1.6' }}>
+        {t('faq_subtitle') || (isFa ? 'پاسخ به رایج‌ترین پرسش‌های کاربران درباره کارکرد پلتفرم، مدیریت ریسک، حالت‌های معاملاتی و چالش پراپ.' : 'Answers to common questions regarding platform capabilities, risk limits, trading modes, and prop rules.')}
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        {faqItems.map((item, idx) => {
+          const isOpen = openIndex === idx;
+          return (
+            <div
+              key={idx}
+              className="status-item"
+              style={{
+                padding: '18px',
+                borderLeft: isOpen ? '4px solid var(--primary)' : '4px solid var(--border-dark)',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                textAlign: 'inherit'
+              }}
+              onClick={() => setOpenIndex(isOpen ? null : idx)}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', color: isOpen ? 'var(--primary)' : 'var(--text-dark)' }}>
+                <span>{item.q}</span>
+                <span style={{ fontSize: '1.2em' }}>{isOpen ? '−' : '+'}</span>
+              </div>
+              {isOpen && (
+                <div style={{ marginTop: '12px', fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.7', borderTop: '1px solid var(--border-dark)', paddingTop: '10px' }}>
+                  {item.a}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

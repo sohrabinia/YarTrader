@@ -159,5 +159,11 @@
   "live_mode": "CANLI",
   "demo_mode": "DEMO / SİMÜLASYON",
   "checking_mode": "BAĞLANTI KONTROL EDİLİYOR...",
-  "unreachable_mode": "ARKA PLANA ULAŞILAMIYOR"
+  "unreachable_mode": "ARKA PLANA ULAŞILAMIYOR",
+  "nav_guide": "📚 Kullanıcı Rehberi",
+  "nav_faq": "❓ S.S.S.",
+  "guide_title": "YarTrader Finansal Zeka Platformu Kullanıcı Rehberi",
+  "guide_subtitle": "Platform mimarisi, işlem modları, prop firması risk kontrolleri ve fraktal yapılar için adım adım rehber.",
+  "faq_title": "Sıkça Sorulan Sorular (S.S.S.)",
+  "faq_subtitle": "Platform yetenekleri, risk limitleri, işlem modları ve prop kuralları hakkında sık sorulan soruların yanıtları."
 }
