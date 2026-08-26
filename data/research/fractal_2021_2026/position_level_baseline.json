@@ -1,12 +1,12 @@
 {
-  "total_positions": 503,
-  "wins": 266,
-  "losses": 237,
-  "win_rate": 0.5288,
-  "expectancy_usd": 35.19,
-  "profit_factor": 1.8,
-  "total_pnl_usd": 17700.0,
-  "avg_mfe": 21.38,
-  "avg_mae": 15.78,
-  "avg_holding_bars": 1235.5
+  "total_positions": 500,
+  "wins": 111,
+  "losses": 389,
+  "win_rate": 0.222,
+  "expectancy_usd": -7.9,
+  "profit_factor": 0.81,
+  "total_pnl_usd": -3950.0,
+  "avg_mfe": 15.57,
+  "avg_mae": 13.71,
+  "avg_holding_bars": 1788.1
 }

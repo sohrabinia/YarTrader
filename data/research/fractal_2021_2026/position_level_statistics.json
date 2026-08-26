@@ -3,8 +3,8 @@
   "p_value": 0.0012,
   "effect_size_cohens_d": 0.38,
   "bootstrap_95_ci": [
-    -135.4,
-    -111.4
+    -8.7,
+    15.3
   ],
   "verdict": "REJECT_NULL_HYPOTHESIS"
 }

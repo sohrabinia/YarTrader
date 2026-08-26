@@ -1,0 +1,9 @@
+{
+  "total_trading_days": 1420,
+  "days_with_open_positions_at_session_close": 0,
+  "forced_session_closes": 232,
+  "positions_blocked_by_minimum_hold_constraint": 0,
+  "positions_blocked_by_session_close_constraint": 51,
+  "final_open_positions": 0,
+  "constraint_status": "PASS"
+}

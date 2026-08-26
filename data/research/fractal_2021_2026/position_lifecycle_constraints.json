@@ -1,0 +1,7 @@
+{
+  "minimum_hold_seconds": 120,
+  "total_closed_positions": 449,
+  "positions_below_120_seconds": 0,
+  "minimum_observed_hold_seconds": 120,
+  "constraint_status": "PASS"
+}

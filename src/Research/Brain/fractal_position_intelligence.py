@@ -51,12 +51,33 @@ def _get_price(candle: Dict[str, Any], key: str, default: float = 0.0) -> float:
         return default
 
 
-def parse_iso_timestamp(ts_str: str) -> Optional[datetime]:
-    """Helper to parse ISO timestamp string into UTC datetime."""
+def parse_iso_timestamp(ts_val: Any) -> Optional[datetime]:
+    """
+    Helper to parse timestamp into UTC datetime.
+    Supports ISO-8601 strings, numeric Epoch timestamps (seconds or milliseconds), and datetime objects.
+    """
+    if ts_val is None:
+        return None
+    if isinstance(ts_val, datetime):
+        return ts_val if ts_val.tzinfo else ts_val.replace(tzinfo=timezone.utc)
+
+    ts_str = str(ts_val).strip()
     if not ts_str:
         return None
+
+    # Check for numeric Epoch timestamp (seconds or milliseconds)
     try:
-        clean_ts = str(ts_str).replace("Z", "+00:00")
+        val_float = float(ts_str)
+        if val_float > 1e11:  # Milliseconds
+            val_float = val_float / 1000.0
+        if val_float > 0:
+            return datetime.fromtimestamp(val_float, tz=timezone.utc)
+    except (ValueError, OverflowError):
+        pass
+
+    # Fallback to ISO string parsing
+    try:
+        clean_ts = ts_str.replace("Z", "+00:00")
         dt = datetime.fromisoformat(clean_ts)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
@@ -74,7 +95,7 @@ class FractalPositionThesis:
         symbol: str,
         direction: str,
         entry_price: float,
-        entry_time: str,
+        entry_time: Any,
         entry_scale: str = "H1",
         parent_scale: str = "H4",
         macro_scale: str = "D1",
@@ -88,7 +109,7 @@ class FractalPositionThesis:
         self.direction = direction.upper()  # 'BUY' or 'SELL'
         self.entry_price = float(entry_price)
         self.entry_time = str(entry_time)
-        self.entry_dt = parse_iso_timestamp(self.entry_time) or datetime.now(timezone.utc)
+        self.entry_dt = parse_iso_timestamp(entry_time) or datetime.now(timezone.utc)
         self.entry_scale = str(entry_scale)
         self.parent_scale = str(parent_scale)
         self.macro_scale = str(macro_scale)
@@ -150,9 +171,9 @@ class FractalPositionThesis:
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
-    def get_age_seconds(self, current_time_str: str) -> float:
-        """Calculates age in seconds relative to current_time_str."""
-        c_dt = parse_iso_timestamp(current_time_str)
+    def get_age_seconds(self, current_time_val: Any) -> float:
+        """Calculates age in seconds relative to current_time_val."""
+        c_dt = parse_iso_timestamp(current_time_val)
         if not c_dt or not self.entry_dt:
             return 0.0
         return max(0.0, (c_dt - self.entry_dt).total_seconds())
@@ -237,12 +258,12 @@ class FractalPositionLifecycleManager:
         self.reentry_candidates: List[Dict[str, Any]] = []
         self.direction_transition_candidates: List[Dict[str, Any]] = []
 
-    def evaluate_session_state(self, current_time_str: str) -> str:
+    def evaluate_session_state(self, current_time_val: Any) -> str:
         """
         Evaluates session state deterministically based on hour/minute:
         NORMAL_SESSION -> SESSION_APPROACHING_CUTOFF -> ENTRY_RESTRICTED -> POSITION_UNWIND -> SESSION_FLAT
         """
-        dt = parse_iso_timestamp(current_time_str)
+        dt = parse_iso_timestamp(current_time_val)
         if not dt:
             self.session_state = "NORMAL_SESSION"
             return self.session_state
@@ -317,7 +338,7 @@ class FractalPositionLifecycleManager:
         self,
         direction: str,
         entry_price: float,
-        entry_time: str,
+        entry_time: Any,
         entry_scale: str = "H1",
         parent_scale: str = "H4",
         macro_scale: str = "D1",
@@ -338,7 +359,7 @@ class FractalPositionLifecycleManager:
             symbol=self.symbol,
             direction=direction,
             entry_price=entry_price,
-            entry_time=entry_time,
+            entry_time=str(entry_time),
             entry_scale=entry_scale,
             parent_scale=parent_scale,
             macro_scale=macro_scale,
@@ -364,7 +385,7 @@ class FractalPositionLifecycleManager:
         high = _get_price(current_candle, "high", 0.0)
         low = _get_price(current_candle, "low", 0.0)
         close = _get_price(current_candle, "close", 0.0)
-        ts = str(current_candle.get("timestamp", current_candle.get("Timestamp", "")))
+        ts = current_candle.get("timestamp", current_candle.get("Timestamp", ""))
 
         session_st = self.evaluate_session_state(ts)
         actions_taken = []
@@ -378,7 +399,7 @@ class FractalPositionLifecycleManager:
             if session_st in ["POSITION_UNWIND", "SESSION_FLAT"]:
                 pos.thesis_status = "VALID"
                 pos.exit_price = close
-                pos.exit_time = ts
+                pos.exit_time = str(ts)
                 pos.exit_reason = "SESSION_UNWIND"
                 pos.pnl_usd = (pos.exit_price - pos.entry_price) * pos.position_size_oz if pos.direction == "BUY" else (pos.entry_price - pos.exit_price) * pos.position_size_oz
                 pos.record_state_change("SESSION_UNWIND_EXIT", f"Session cutoff reached ({session_st}); forcing flat position")
@@ -398,7 +419,7 @@ class FractalPositionLifecycleManager:
             if hard_risk_breached:
                 pos.thesis_status = "INVALIDATED"
                 pos.exit_price = catastrophic_stop
-                pos.exit_time = ts
+                pos.exit_time = str(ts)
                 pos.exit_reason = "HARD_RISK_EMERGENCY"
                 pos.pnl_usd = (pos.exit_price - pos.entry_price) * pos.position_size_oz if pos.direction == "BUY" else (pos.entry_price - pos.exit_price) * pos.position_size_oz
                 pos.record_state_change("EXITED", "Hard risk emergency breach executed")
@@ -430,7 +451,7 @@ class FractalPositionLifecycleManager:
             if invalidated:
                 pos.thesis_status = "INVALIDATED"
                 pos.exit_price = exit_price
-                pos.exit_time = ts
+                pos.exit_time = str(ts)
                 pos.exit_reason = "STRUCTURAL_INVALIDATION"
                 pos.pnl_usd = (pos.exit_price - pos.entry_price) * pos.position_size_oz if pos.direction == "BUY" else (pos.entry_price - pos.exit_price) * pos.position_size_oz
                 pos.reentry_eligible = True
@@ -446,7 +467,7 @@ class FractalPositionLifecycleManager:
                     "symbol": pos.symbol,
                     "original_direction": pos.direction,
                     "exited_at_price": exit_price,
-                    "exited_at_time": ts,
+                    "exited_at_time": str(ts),
                     "status": "AWAITING_PULLBACK_COMPLETION"
                 })
                 self.direction_transition_candidates.append({
@@ -470,7 +491,7 @@ class FractalPositionLifecycleManager:
             if target_hit:
                 pos.thesis_status = "VALID"
                 pos.exit_price = exit_price
-                pos.exit_time = ts
+                pos.exit_time = str(ts)
                 pos.exit_reason = "TARGET_COMPLETION"
                 pos.pnl_usd = (pos.exit_price - pos.entry_price) * pos.position_size_oz if pos.direction == "BUY" else (pos.entry_price - pos.exit_price) * pos.position_size_oz
                 pos.record_state_change("EXITED", "Target zone reached successfully")
@@ -518,7 +539,7 @@ class FractalPositionLifecycleManager:
                     new_pos = self.execute_direction_transition(
                         candidate_idx=i,
                         entry_price=close,
-                        entry_time=ts,
+                        entry_time=str(ts),
                         invalidation_price=close + 20.0,
                         target_price=close - 35.0
                     )
@@ -529,7 +550,7 @@ class FractalPositionLifecycleManager:
                     new_pos = self.execute_direction_transition(
                         candidate_idx=i,
                         entry_price=close,
-                        entry_time=ts,
+                        entry_time=str(ts),
                         invalidation_price=close - 20.0,
                         target_price=close + 35.0
                     )
@@ -543,7 +564,7 @@ class FractalPositionLifecycleManager:
         self,
         candidate_idx: int,
         entry_price: float,
-        entry_time: str,
+        entry_time: Any,
         invalidation_price: float,
         target_price: float
     ) -> Optional[FractalPositionThesis]:
@@ -561,7 +582,7 @@ class FractalPositionLifecycleManager:
         pos = self.open_position(
             direction=cand["original_direction"],
             entry_price=entry_price,
-            entry_time=entry_time,
+            entry_time=str(entry_time),
             invalidation_price=invalidation_price,
             target_price=target_price
         )
@@ -573,7 +594,7 @@ class FractalPositionLifecycleManager:
         self,
         candidate_idx: int,
         entry_price: float,
-        entry_time: str,
+        entry_time: Any,
         invalidation_price: float,
         target_price: float
     ) -> Optional[FractalPositionThesis]:
@@ -591,7 +612,7 @@ class FractalPositionLifecycleManager:
         pos = self.open_position(
             direction=cand["to_direction"],
             entry_price=entry_price,
-            entry_time=entry_time,
+            entry_time=str(entry_time),
             invalidation_price=invalidation_price,
             target_price=target_price
         )
