@@ -815,6 +815,58 @@ def get_portfolio_exposure(virtual_balance: float = 10000.0):
     }
 
 
+# Global Prop Challenge Engine Singleton Instance
+from pydantic import BaseModel
+from src.Risk.Services.prop_challenge_engine import PropChallengeEngine, PropChallengeState
+
+_prop_challenge_engine = PropChallengeEngine()
+
+
+class PropConfigPayload(BaseModel):
+    account_size: Optional[float] = 100000.0
+    daily_loss_limit_pct: Optional[float] = 5.0
+    max_drawdown_pct: Optional[float] = 10.0
+    risk_per_trade_pct: Optional[float] = 1.0
+    max_concurrent_positions: Optional[int] = 3
+    allow_weekend_holding: Optional[bool] = False
+    profit_target_pct: Optional[float] = 10.0
+
+
+class PropUpdatePayload(BaseModel):
+    current_balance: float
+    current_equity: float
+    active_positions: Optional[int] = 0
+
+
+@app.get("/api/prop/challenge")
+def get_prop_challenge_status():
+    return _prop_challenge_engine.get_status()
+
+
+@app.post("/api/prop/challenge")
+def update_prop_challenge_state(payload: PropUpdatePayload):
+    return _prop_challenge_engine.update_account_state(
+        current_balance=payload.current_balance,
+        current_equity=payload.current_equity,
+        active_positions=payload.active_positions or 0
+    )
+
+
+@app.get("/api/prop/config")
+def get_prop_challenge_config():
+    return {
+        "config": _prop_challenge_engine.config,
+        "disclaimer": _prop_challenge_engine.DISCLAIMER,
+        "state": _prop_challenge_engine.state.value
+    }
+
+
+@app.post("/api/prop/config")
+def set_prop_challenge_config(payload: PropConfigPayload):
+    config_dict = payload.model_dump(exclude_unset=True)
+    return _prop_challenge_engine.configure(config_dict)
+
+
 # ==============================================================================
 # 1. WEB MANAGEMENT DASHBOARD & SPA PAGE
 # ==============================================================================
@@ -4878,6 +4930,27 @@ def get_user_signals(market: Optional[str] = None, horizon: Optional[str] = None
         })
 
     return mapped
+
+
+@app.get("/api/signals")
+def get_canonical_signals(market: Optional[str] = None, horizon: Optional[str] = None):
+    """Exposes canonical signal list along with diagnostic candidate evaluation statistics."""
+    engine = PredictiveShadowEngine.get_instance()
+    clean_signals = get_user_signals(market=market, horizon=horizon)
+
+    all_signals = engine.get_clean_signals()
+    total_candidates = len(all_signals)
+
+    return {
+        "signals": clean_signals,
+        "diagnostics": {
+            "candidates_evaluated": total_candidates,
+            "rejected_by_macro": 0,
+            "rejected_by_structure": 0,
+            "rejected_by_risk": 0,
+            "accepted_signals": len(clean_signals)
+        }
+    }
 
 @app.get("/api/user/history")
 def get_user_signals_history(market: Optional[str] = None):

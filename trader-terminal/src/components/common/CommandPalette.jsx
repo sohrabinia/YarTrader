@@ -15,6 +15,7 @@ export default function CommandPalette({ lang = 'fa', t = (k) => k }) {
   const routes = [
     { label: t('nav_public') || 'Home Platform', hash: '#/', icon: '🌐', group: 'Portal' },
     { label: t('nav_features') || 'Features', hash: '#/features', icon: '⚡', group: 'Portal' },
+    { label: t('nav_prop_challenge') || 'Prop Firm Challenge', hash: '#/prop-challenge', icon: '🏆', group: 'Risk' },
     { label: t('nav_pricing') || 'Pricing & Plans', hash: '#/pricing', icon: '💎', group: 'Portal' },
     { label: t('nav_blog') || 'Research Blog', hash: '#/blog', icon: '📰', group: 'Portal' },
     { label: t('nav_terminal') || 'Command Center Dashboard', hash: '#/dashboard', icon: '🏛️', group: 'Platform' },

@@ -159,5 +159,7 @@
   "live_mode": "CANLI",
   "demo_mode": "DEMO / SİMÜLASYON",
   "checking_mode": "BAĞLANTI KONTROL EDİLİYOR...",
-  "unreachable_mode": "ARKA PLANA ULAŞILAMIYOR"
+  "unreachable_mode": "ARKA PLANA ULAŞILAMIYOR",
+  "nav_prop_challenge": "Prop Meydan Okuması",
+  "prop_challenge_title": "Prop Firm Risk Yönetimi"
 }

@@ -65,6 +65,9 @@ function MainApp() {
   // Toast Notification state
   const [notif, setNotif] = useState({ show: false, msg: '', type: 'success' });
 
+  // Prop Challenge State
+  const [propStatus, setPropStatus] = useState({});
+
   // Core Data States
   const [markets, setMarkets] = useState([]);
   const [signals, setSignals] = useState([]);
@@ -277,6 +280,8 @@ function MainApp() {
       fetchDemoData();
     } else if (hash === '#/shadow') {
       fetchShadowData();
+    } else if (hash === '#/prop-challenge') {
+      fetchPropChallengeData();
     } else if (hash === '#/signals') {
       fetchUserSignals();
     } else if (hash === '#/execution-intel') {
@@ -412,6 +417,15 @@ function MainApp() {
       setSubscriptionPlans(res);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchPropChallengeData = async () => {
+    try {
+      const res = await apiService.get('/api/prop/challenge');
+      setPropStatus(res || {});
+    } catch (err) {
+      console.error('Prop challenge error:', err);
     }
   };
 
@@ -723,6 +737,7 @@ function MainApp() {
             </div>
           )}
 
+          {token && <a href="#/prop-challenge" className={`sidebar-link ${hash === '#/prop-challenge' ? 'active' : ''}`}>{t('nav_prop_challenge') || (lang === 'fa' ? 'چالش پروپ فیرم' : 'Prop Challenge')}</a>}
           {token && <a href="#/signals" className={`sidebar-link ${hash === '#/signals' ? 'active' : ''}`}>{t('nav_signals')}</a>}
           {token && <a href="#/execution-intel" className={`sidebar-link ${hash === '#/execution-intel' ? 'active' : ''}`}>{t('nav_execution_intel')}</a>}
           {token && <a href="#/learning" className={`sidebar-link ${hash.startsWith('#/learning') ? 'active' : ''}`}>{t('nav_learning')}</a>}
@@ -997,7 +1012,7 @@ function MainApp() {
                 <DataTable
                   headers={['VPOS ID', 'Symbol', 'Side', 'Entry Price', 'Stop Loss', 'Take Profit', 'Unrealized PnL', 'Paper Status']}
                   rows={shadowTradesList.map((st, idx) => [
-                    st.vpos_id || st.id || `vpos-${idx+1}`,
+                    st.vpos_id || st.trade_id || st.id,
                     <strong>{st.symbol}</strong>,
                     <span style={{ color: st.side === 'BUY' ? 'var(--accent)' : 'var(--danger)' }}>{st.side || 'DATA UNAVAILABLE'}</span>,
                     st.entry_price,
@@ -1008,6 +1023,76 @@ function MainApp() {
                   ])}
                   emptyMessage={lang === 'fa' ? 'هیچ پوزیشن سایه‌ای در حال حاضر باز نیست.' : 'No virtual shadow positions currently open.'}
                 />
+              </div>
+            </div>
+          )}
+
+          {/* PROP CHALLENGE RISK ENGINE UI PAGE */}
+          {hash === '#/prop-challenge' && (
+            <div id="shell-prop-challenge">
+              <div className="card" style={{ borderTop: '4px solid var(--primary)' }}>
+                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>🏆 {lang === 'fa' ? 'مدیریت چالش پروپ فیرم (Prop Challenge)' : 'Prop Firm Challenge Risk Engine'}</h2>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
+                  {lang === 'fa'
+                    ? 'پایش زنده و هوشمند حد ضرر روزانه، حداکثر دروداون و سقف ریسک معامله بر اساس قانون پروپ فیرم‌ها.'
+                    : 'Institutional live tracking for daily loss limits, maximum drawdown, and per-trade risk budgets.'}
+                </p>
+
+                {/* Disclaimer Banner */}
+                <div style={{ background: 'rgba(227, 168, 59, 0.1)', border: '1px solid var(--primary)', borderRadius: '8px', padding: '15px', marginBottom: '20px', fontSize: '0.88em', lineHeight: '1.6' }}>
+                  <strong>⚠️ {lang === 'fa' ? 'سلب مسئولیت و بیانیه ایمنی:' : 'Safety Disclaimer:'}</strong>{' '}
+                  {propStatus.disclaimer || (lang === 'fa'
+                    ? 'سامانه YarTrader ابزار تحلیل و مدیریت ریسک بوده و هیچ‌گونه تضمینی جهت قبولی در چالش‌ها یا سودآوری ارائه نمی‌دهد.'
+                    : 'YarTrader provides risk modeling tools for analytical purposes and makes zero guarantees regarding challenge passing or profit.')}
+                </div>
+
+                {/* Status Cards */}
+                <div className="status-board" style={{ marginBottom: '25px' }}>
+                  <MetricCard
+                    title={lang === 'fa' ? 'وضعیت چالش' : 'Challenge State'}
+                    value={propStatus.state || 'NOT_CONFIGURED'}
+                    status={propStatus.state === 'NORMAL' || propStatus.state === 'CHALLENGE_READY' ? 'passed' : propStatus.state === 'TRADING_HALTED' ? 'failed' : 'warn'}
+                  />
+                  <MetricCard
+                    title={lang === 'fa' ? 'حداکثر ضرر روزانه' : 'Daily Loss'}
+                    value={propStatus.metrics ? `$${propStatus.metrics.daily_loss_amount} (${propStatus.metrics.daily_loss_pct}%)` : 'DATA UNAVAILABLE'}
+                    status={propStatus.metrics && propStatus.metrics.daily_loss_pct < 4 ? 'passed' : 'warn'}
+                  />
+                  <MetricCard
+                    title={lang === 'fa' ? 'دروداون کل' : 'Total Drawdown'}
+                    value={propStatus.metrics ? `$${propStatus.metrics.total_drawdown_amount} (${propStatus.metrics.total_drawdown_pct}%)` : 'DATA UNAVAILABLE'}
+                    status={propStatus.metrics && propStatus.metrics.total_drawdown_pct < 8 ? 'passed' : 'warn'}
+                  />
+                  <MetricCard
+                    title={lang === 'fa' ? 'سود محقق‌شده' : 'Total Profit'}
+                    value={propStatus.metrics ? `$${propStatus.metrics.profit_amount} (${propStatus.metrics.profit_pct}%)` : 'DATA UNAVAILABLE'}
+                    status={propStatus.metrics && propStatus.metrics.profit_amount >= 0 ? 'passed' : 'failed'}
+                  />
+                </div>
+
+                {/* Configuration / Action Panel */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div className="card" style={{ background: 'rgba(30, 41, 59, 0.3)' }}>
+                    <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>⚙️ {lang === 'fa' ? 'تنظیمات چالش' : 'Challenge Rules Config'}</h3>
+                    <div style={{ lineHeight: '2', fontSize: '0.9em' }}>
+                      <div><strong>{lang === 'fa' ? 'حجم حساب:' : 'Account Size:'}</strong> ${propStatus.config ? propStatus.config.account_size.toLocaleString() : '100,000'}</div>
+                      <div><strong>{lang === 'fa' ? 'حد ضرر روزانه:' : 'Daily Loss Limit:'}</strong> {propStatus.config ? propStatus.config.daily_loss_limit_pct : '5'}%</div>
+                      <div><strong>{lang === 'fa' ? 'حداکثر دروداون:' : 'Max Drawdown:'}</strong> {propStatus.config ? propStatus.config.max_drawdown_pct : '10'}%</div>
+                      <div><strong>{lang === 'fa' ? 'ریسک هر معامله:' : 'Risk per Trade:'}</strong> {propStatus.config ? propStatus.config.risk_per_trade_pct : '1'}%</div>
+                      <div><strong>{lang === 'fa' ? 'سقف پوزیشن همزمان:' : 'Max Concurrent Positions:'}</strong> {propStatus.config ? propStatus.config.max_concurrent_positions : '3'}</div>
+                    </div>
+                  </div>
+
+                  <div className="card" style={{ background: 'rgba(30, 41, 59, 0.3)' }}>
+                    <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🛡️ {lang === 'fa' ? 'حدود مجاز ریسک' : 'Allowed Risk Limits'}</h3>
+                    <div style={{ lineHeight: '2', fontSize: '0.9em' }}>
+                      <div><strong>{lang === 'fa' ? 'سقف ضرر روزانه مجاز:' : 'Max Daily Loss Allowed:'}</strong> ${propStatus.limits ? propStatus.limits.max_daily_loss_allowed : '5,000'}</div>
+                      <div><strong>{lang === 'fa' ? 'سقف دروداون کل مجاز:' : 'Max Total DD Allowed:'}</strong> ${propStatus.limits ? propStatus.limits.max_total_drawdown_allowed : '10,000'}</div>
+                      <div><strong>{lang === 'fa' ? 'سقف ریسک معامله بعدی:' : 'Max Next Trade Risk:'}</strong> ${propStatus.limits ? propStatus.limits.max_trade_risk_allowed : '1,000'}</div>
+                      <div><strong>{lang === 'fa' ? 'پوزیشن‌های فعال فعلی:' : 'Current Active Positions:'}</strong> {propStatus.metrics ? propStatus.metrics.active_positions : '0'} / {propStatus.config ? propStatus.config.max_concurrent_positions : '3'}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}

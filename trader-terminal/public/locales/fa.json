@@ -159,5 +159,7 @@
   "learning_title": "🧠 ماتریس یادگیری هوش شناختی بازار (Cognitive Learning Matrix)",
   "learning_desc": "پایگاه دانش ارزیابی‌شده الگوهای ساختار قیمت بر اساس شواهد آماری و سنجش Out-of-Sample.",
   "pattern_details_title": "تفصیلات و شواهد الگوی شناختی",
-  "no_pattern_selected": "برای مشاهده شواهد و تحلیل آماری کامل، یک الگو را انتخاب کنید."
+  "no_pattern_selected": "برای مشاهده شواهد و تحلیل آماری کامل، یک الگو را انتخاب کنید.",
+  "nav_prop_challenge": "چالش پروپ فیرم",
+  "prop_challenge_title": "مدیریت چالش پروپ فیرم"
 }

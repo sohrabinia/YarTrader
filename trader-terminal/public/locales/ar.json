@@ -159,5 +159,7 @@
   "live_mode": "مباشر",
   "demo_mode": "تجريبي / محاكاة",
   "checking_mode": "جاري التحقق من الاتصال...",
-  "unreachable_mode": "الخلفية غير متصلة"
+  "unreachable_mode": "الخلفية غير متصلة",
+  "nav_prop_challenge": "تحدي التمويل",
+  "prop_challenge_title": "إدارة مخاطر تحديات التمويل"
 }

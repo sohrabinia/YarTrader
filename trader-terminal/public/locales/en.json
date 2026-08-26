@@ -159,5 +159,7 @@
   "learning_title": "🧠 Cognitive Learning Matrix",
   "learning_desc": "Evidence-backed cognitive knowledgebase evaluating structural price patterns with Out-of-Sample metrics.",
   "pattern_details_title": "Pattern Evidence & Intelligence Details",
-  "no_pattern_selected": "Select a pattern from the matrix to inspect statistical evidence and audit details."
+  "no_pattern_selected": "Select a pattern from the matrix to inspect statistical evidence and audit details.",
+  "nav_prop_challenge": "Prop Challenge",
+  "prop_challenge_title": "Prop Firm Challenge Risk Engine"
 }
