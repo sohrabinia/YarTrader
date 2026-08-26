@@ -260,7 +260,7 @@ class FractalPositionLifecycleManager:
 
     def evaluate_session_state(self, current_time_val: Any) -> str:
         """
-        Evaluates session state deterministically based on hour/minute:
+        Evaluates session state deterministically based on remaining time until session cutoff (21:45 UTC):
         NORMAL_SESSION -> SESSION_APPROACHING_CUTOFF -> ENTRY_RESTRICTED -> POSITION_UNWIND -> SESSION_FLAT
         """
         dt = parse_iso_timestamp(current_time_val)
@@ -268,16 +268,17 @@ class FractalPositionLifecycleManager:
             self.session_state = "NORMAL_SESSION"
             return self.session_state
 
-        hour, minute = dt.hour, dt.minute
+        cutoff_minutes = self.session_cutoff_hour * 60 + self.session_cutoff_minute
+        current_minutes = dt.hour * 60 + dt.minute
+        remaining_minutes = cutoff_minutes - current_minutes
 
-        # Cutoff occurs at session_cutoff_hour:session_cutoff_minute (e.g. 21:45 UTC)
-        if hour > self.session_cutoff_hour or (hour == self.session_cutoff_hour and minute >= self.session_cutoff_minute):
+        if remaining_minutes <= 0 or dt.hour > self.session_cutoff_hour:
             self.session_state = "SESSION_FLAT"
-        elif hour == self.session_cutoff_hour and minute >= self.session_cutoff_minute - 15:
+        elif remaining_minutes <= 15:
             self.session_state = "POSITION_UNWIND"
-        elif hour == self.session_cutoff_hour and minute >= self.session_cutoff_minute - 30:
+        elif remaining_minutes <= 30:
             self.session_state = "ENTRY_RESTRICTED"
-        elif hour == self.session_cutoff_hour - 1:
+        elif remaining_minutes <= 60:
             self.session_state = "SESSION_APPROACHING_CUTOFF"
         else:
             self.session_state = "NORMAL_SESSION"

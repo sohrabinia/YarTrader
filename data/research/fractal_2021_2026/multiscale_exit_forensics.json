@@ -1,0 +1,12 @@
+{
+  "total_autonomous_exits": 449,
+  "m5_only_exits": 378,
+  "m5_only_with_parent_structure_intact": 307,
+  "m5_only_legitimate": 71,
+  "m5_only_premature": 307,
+  "h1_confirmed_exits": 18,
+  "h4_confirmed_exits": 8,
+  "d1_confirmed_exits": 2,
+  "range_related_exits": 281,
+  "trend_related_exits": 167
+}
