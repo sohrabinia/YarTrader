@@ -35,11 +35,12 @@ def generate_simulated_candles(asset_id: str, base_price: float, count: int = 50
     candles = []
     current_time = datetime.now(timezone.utc)
     price = base_price
+    scale = base_price / 2000.0 if base_price > 10.0 else base_price / 1000.0
     for i in range(count):
-        delta = random.uniform(-2.0, 2.5)
-        close_p = price + delta
-        high_p = max(price, close_p) + random.uniform(0.5, 1.5)
-        low_p = min(price, close_p) - random.uniform(0.5, 1.5)
+        delta = random.uniform(-2.0, 2.5) * scale
+        close_p = max(0.0001, price + delta)
+        high_p = max(price, close_p) + random.uniform(0.5, 1.5) * scale
+        low_p = max(0.0001, min(price, close_p) - random.uniform(0.5, 1.5) * scale)
         candles.append(MarketDataPoint(
             AssetId=asset_id,
             Timestamp=current_time,
