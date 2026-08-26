@@ -797,6 +797,11 @@ function MainApp() {
                   </div>
                 </div>
               </div>
+
+              {/* Dedicated Multi-Timeframe Gold Fractal Intelligence Engine Dashboard */}
+              <div style={{ marginTop: '30px' }}>
+                <IntelligenceView t={t} lang={lang} />
+              </div>
             </div>
           )}
 
