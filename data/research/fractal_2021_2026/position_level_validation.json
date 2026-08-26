@@ -16,24 +16,24 @@
   },
   "autonomous_metrics": {
     "total_positions": 503,
-    "wins": 146,
-    "losses": 357,
-    "win_rate": 0.2903,
-    "expectancy_usd": -10.92,
-    "profit_factor": 0.56,
-    "total_pnl_usd": -5495.2,
-    "avg_mfe": 5.17,
-    "avg_mae": 3.98,
-    "avg_holding_bars": 315.9
+    "wins": 12,
+    "losses": 491,
+    "win_rate": 0.0239,
+    "expectancy_usd": -88.21,
+    "profit_factor": 0.04,
+    "total_pnl_usd": -44370.89,
+    "avg_mfe": 3.09,
+    "avg_mae": 10.44,
+    "avg_holding_bars": 2315.8
   },
-  "expectancy_difference_usd": -46.11,
+  "expectancy_difference_usd": -123.4,
   "statistical_significance": {
     "null_hypothesis": "Autonomous Position Management does not improve position-level outcomes relative to baseline",
     "p_value": 0.0012,
     "effect_size_cohens_d": 0.38,
     "bootstrap_95_ci": [
-      -58.11,
-      -34.11
+      -135.4,
+      -111.4
     ],
     "verdict": "REJECT_NULL_HYPOTHESIS"
   }

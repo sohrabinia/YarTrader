@@ -1,8 +1,7 @@
 """
-YarTrader Autonomous Multi-Scale Position Intelligence & Lifecycle Management Module
+YarTrader Autonomous Multi-Scale Position Intelligence & Session Lifecycle Management Module
 Manages individual position lifecycles using multi-scale fractal perception, movement states, thesis tracking,
-adaptive structural invalidation exits, structural trailing stops, risk-budget sizing, re-entry eligibility,
-and symmetric direction transitions under strict read-only execution constraints (LIVE_TRADING_ENABLED=False).
+120-second minimum normal exit lifetime enforcement, session-aware state machine (NORMAL_SESSION, SESSION_APPROACHING_CUTOFF, ENTRY_RESTRICTED, POSITION_UNWIND, SESSION_FLAT), zero overnight open positions guarantee, adaptive structural invalidation exits, risk-budget sizing, re-entry eligibility, and symmetric direction transitions under strict read-only execution constraints (LIVE_TRADING_ENABLED=False).
 """
 
 import uuid
@@ -11,6 +10,8 @@ from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timezone
 
 logger = logging.getLogger("YarTrader.FractalPositionIntelligence")
+
+POSITION_MINIMUM_NORMAL_LIFETIME_SECONDS = 120  # 120-second normal intelligent exit floor
 
 VALID_LIFECYCLE_STATES = [
     "FLAT",
@@ -28,7 +29,16 @@ VALID_LIFECYCLE_STATES = [
     "REASSESSMENT",
     "REENTRY_CANDIDATE",
     "REENTRY",
-    "OPPOSITE_ENTRY_CANDIDATE"
+    "OPPOSITE_ENTRY_CANDIDATE",
+    "SESSION_UNWIND_EXIT"
+]
+
+VALID_SESSION_STATES = [
+    "NORMAL_SESSION",
+    "SESSION_APPROACHING_CUTOFF",
+    "ENTRY_RESTRICTED",
+    "POSITION_UNWIND",
+    "SESSION_FLAT"
 ]
 
 
@@ -39,6 +49,20 @@ def _get_price(candle: Dict[str, Any], key: str, default: float = 0.0) -> float:
         return float(val)
     except (ValueError, TypeError):
         return default
+
+
+def parse_iso_timestamp(ts_str: str) -> Optional[datetime]:
+    """Helper to parse ISO timestamp string into UTC datetime."""
+    if not ts_str:
+        return None
+    try:
+        clean_ts = str(ts_str).replace("Z", "+00:00")
+        dt = datetime.fromisoformat(clean_ts)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
 
 
 class FractalPositionThesis:
@@ -64,6 +88,7 @@ class FractalPositionThesis:
         self.direction = direction.upper()  # 'BUY' or 'SELL'
         self.entry_price = float(entry_price)
         self.entry_time = str(entry_time)
+        self.entry_dt = parse_iso_timestamp(self.entry_time) or datetime.now(timezone.utc)
         self.entry_scale = str(entry_scale)
         self.parent_scale = str(parent_scale)
         self.macro_scale = str(macro_scale)
@@ -124,6 +149,13 @@ class FractalPositionThesis:
             "reason": reason,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
+
+    def get_age_seconds(self, current_time_str: str) -> float:
+        """Calculates age in seconds relative to current_time_str."""
+        c_dt = parse_iso_timestamp(current_time_str)
+        if not c_dt or not self.entry_dt:
+            return 0.0
+        return max(0.0, (c_dt - self.entry_dt).total_seconds())
 
     def update_excursion(self, current_high: float, current_low: float, current_close: float):
         """Updates MFE, MAE, peak, and trough prices."""
@@ -190,15 +222,46 @@ class FractalPositionThesis:
 
 class FractalPositionLifecycleManager:
     """
-    Manages individual position lifecycles, structural thesis, exits, re-entries, and symmetric direction transitions.
+    Manages individual position lifecycles, structural thesis, exits, re-entries, session-aware state management,
+    and 120-second normal intelligent exit lifetime enforcement.
     """
-    def __init__(self, symbol: str = "XAUUSD", default_risk_budget_usd: float = 100.0):
+    def __init__(self, symbol: str = "XAUUSD", default_risk_budget_usd: float = 100.0, session_cutoff_hour: int = 21, session_cutoff_minute: int = 45):
         self.symbol = symbol.upper()
         self.default_risk_budget_usd = default_risk_budget_usd
+        self.session_cutoff_hour = session_cutoff_hour
+        self.session_cutoff_minute = session_cutoff_minute
+        self.session_state = "NORMAL_SESSION"
+
         self.active_positions: List[FractalPositionThesis] = []
         self.history_positions: List[FractalPositionThesis] = []
         self.reentry_candidates: List[Dict[str, Any]] = []
         self.direction_transition_candidates: List[Dict[str, Any]] = []
+
+    def evaluate_session_state(self, current_time_str: str) -> str:
+        """
+        Evaluates session state deterministically based on hour/minute:
+        NORMAL_SESSION -> SESSION_APPROACHING_CUTOFF -> ENTRY_RESTRICTED -> POSITION_UNWIND -> SESSION_FLAT
+        """
+        dt = parse_iso_timestamp(current_time_str)
+        if not dt:
+            self.session_state = "NORMAL_SESSION"
+            return self.session_state
+
+        hour, minute = dt.hour, dt.minute
+
+        # Cutoff occurs at session_cutoff_hour:session_cutoff_minute (e.g. 21:45 UTC)
+        if hour > self.session_cutoff_hour or (hour == self.session_cutoff_hour and minute >= self.session_cutoff_minute):
+            self.session_state = "SESSION_FLAT"
+        elif hour == self.session_cutoff_hour and minute >= self.session_cutoff_minute - 15:
+            self.session_state = "POSITION_UNWIND"
+        elif hour == self.session_cutoff_hour and minute >= self.session_cutoff_minute - 30:
+            self.session_state = "ENTRY_RESTRICTED"
+        elif hour == self.session_cutoff_hour - 1:
+            self.session_state = "SESSION_APPROACHING_CUTOFF"
+        else:
+            self.session_state = "NORMAL_SESSION"
+
+        return self.session_state
 
     def evaluate_market_movement_state(
         self,
@@ -206,7 +269,7 @@ class FractalPositionLifecycleManager:
     ) -> Dict[str, Any]:
         """
         Evaluates multi-scale market movement state across D1, H4, H1, M15, M5.
-        Classifies movement states into EXPANSION, HEALTHY_PULLBACK, DANGEROUS_PULLBACK, EXHAUSTION, REVERSAL.
+        Enforces macro/micro scale arbitration to prevent M5 noise from invalidating parent (H4/D1) thesis.
         """
         d1 = timeframe_candles.get("D1", timeframe_candles.get("Daily", []))
         h4 = timeframe_candles.get("H4", [])
@@ -224,7 +287,7 @@ class FractalPositionLifecycleManager:
         m5_open = _get_price(m5[-1], "open", m5_close) if m5 else m5_close
         local_direction = "BULLISH" if m5_close >= m5_open else "BEARISH"
 
-        # Multi-scale alignment & Pullback Quality
+        # Multi-scale arbitration: Lower scale counter-movement inside intact parent trend is a HEALTHY_PULLBACK
         is_pullback = (macro_direction != local_direction)
 
         if is_pullback:
@@ -261,10 +324,16 @@ class FractalPositionLifecycleManager:
         invalidation_price: float = 0.0,
         target_price: float = 0.0,
         parent_structure_id: Optional[str] = None
-    ) -> FractalPositionThesis:
+    ) -> Optional[FractalPositionThesis]:
         """
-        Opens a new position with structural thesis, risk-aware sizing, and initial invalidation levels.
+        Opens a new position with structural thesis and risk-aware sizing.
+        Rejects entry if current session state restricts new entries.
         """
+        session_st = self.evaluate_session_state(entry_time)
+        if session_st in ["ENTRY_RESTRICTED", "POSITION_UNWIND", "SESSION_FLAT"]:
+            logger.warning(f"Position entry rejected for {self.symbol} due to session state {session_st}")
+            return None
+
         pos = FractalPositionThesis(
             symbol=self.symbol,
             direction=direction,
@@ -288,27 +357,73 @@ class FractalPositionLifecycleManager:
         market_state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
-        Evaluates and manages all active positions on every candle.
-        Executes structural invalidations, target completions, thesis weakening, structural trailing stop updates, or holds.
-        Also automatically evaluates and triggers pending re-entry or direction transition candidates when structural conditions align.
+        Evaluates and manages active positions on every candle.
+        Enforces 120-second minimum normal intelligent exit lifetime floor.
+        Executes session unwinds to guarantee zero overnight open positions.
         """
         high = _get_price(current_candle, "high", 0.0)
         low = _get_price(current_candle, "low", 0.0)
         close = _get_price(current_candle, "close", 0.0)
         ts = str(current_candle.get("timestamp", current_candle.get("Timestamp", "")))
 
+        session_st = self.evaluate_session_state(ts)
         actions_taken = []
         remaining_positions = []
 
         for pos in self.active_positions:
             pos.update_excursion(high, low, close)
+            pos_age = pos.get_age_seconds(ts)
 
-            # Check 1: Structural Invalidation Exit
+            # Check 1: Mandatory Session Unwind (At or near session cutoff, force close all positions to achieve ZERO overnight positions)
+            if session_st in ["POSITION_UNWIND", "SESSION_FLAT"]:
+                pos.thesis_status = "VALID"
+                pos.exit_price = close
+                pos.exit_time = ts
+                pos.exit_reason = "SESSION_UNWIND"
+                pos.pnl_usd = (pos.exit_price - pos.entry_price) * pos.position_size_oz if pos.direction == "BUY" else (pos.entry_price - pos.exit_price) * pos.position_size_oz
+                pos.record_state_change("SESSION_UNWIND_EXIT", f"Session cutoff reached ({session_st}); forcing flat position")
+
+                self.history_positions.append(pos)
+                actions_taken.append({"action": "SESSION_UNWIND_EXIT", "reason": "SESSION_UNWIND", "position": pos.to_dict()})
+                continue
+
+            # Check 2: Hard-Risk Emergency Protection (Bypasses 120s floor for catastrophic risk breaches > 3x initial risk distance)
+            hard_risk_breached = False
+            catastrophic_stop = pos.entry_price - (3.0 * pos.risk_distance) if pos.direction == "BUY" else pos.entry_price + (3.0 * pos.risk_distance)
+            if pos.direction == "BUY" and low <= catastrophic_stop:
+                hard_risk_breached = True
+            elif pos.direction == "SELL" and high >= catastrophic_stop:
+                hard_risk_breached = True
+
+            if hard_risk_breached:
+                pos.thesis_status = "INVALIDATED"
+                pos.exit_price = catastrophic_stop
+                pos.exit_time = ts
+                pos.exit_reason = "HARD_RISK_EMERGENCY"
+                pos.pnl_usd = (pos.exit_price - pos.entry_price) * pos.position_size_oz if pos.direction == "BUY" else (pos.entry_price - pos.exit_price) * pos.position_size_oz
+                pos.record_state_change("EXITED", "Hard risk emergency breach executed")
+                self.history_positions.append(pos)
+                actions_taken.append({"action": "HARD_RISK_EXIT", "reason": "HARD_RISK_EMERGENCY", "position": pos.to_dict()})
+                continue
+
+            # Check 3: Normal Intelligent Exit Rules (Enforce 120-second minimum lifetime floor)
+            if pos_age < POSITION_MINIMUM_NORMAL_LIFETIME_SECONDS:
+                # Normal intelligent exits are BLOCKED before 120 seconds
+                pos.record_state_change("ACTIVE", f"Normal intelligent exit blocked: age {pos_age:.0f}s < 120s floor")
+                remaining_positions.append(pos)
+                actions_taken.append({"action": "HOLD", "reason": "AGE_BELOW_120S_FLOOR", "position": pos.to_dict()})
+                continue
+
+            # Check 4: Structural Invalidation Exit (Allowed after 120s)
             invalidated = False
-            if pos.direction == "BUY" and low <= pos.structural_invalidation_price:
+            macro_dir = market_state.get("macro_direction", pos.macro_direction)
+            parent_dir = market_state.get("parent_direction", pos.macro_direction)
+
+            # Structural invalidation requires local invalidation AND parent scale divergence
+            if pos.direction == "BUY" and low <= pos.structural_invalidation_price and parent_dir != "BULLISH":
                 invalidated = True
                 exit_price = pos.structural_invalidation_price
-            elif pos.direction == "SELL" and high >= pos.structural_invalidation_price:
+            elif pos.direction == "SELL" and high >= pos.structural_invalidation_price and parent_dir != "BEARISH":
                 invalidated = True
                 exit_price = pos.structural_invalidation_price
 
@@ -320,7 +435,7 @@ class FractalPositionLifecycleManager:
                 pos.pnl_usd = (pos.exit_price - pos.entry_price) * pos.position_size_oz if pos.direction == "BUY" else (pos.entry_price - pos.exit_price) * pos.position_size_oz
                 pos.reentry_eligible = True
                 pos.direction_transition_eligible = True
-                pos.record_state_change("EXITED", "Structural invalidation price hit")
+                pos.record_state_change("EXITED", "Structural invalidation price hit with parent scale confirmation")
 
                 self.history_positions.append(pos)
                 actions_taken.append({"action": "EXIT", "reason": "STRUCTURAL_INVALIDATION", "position": pos.to_dict()})
@@ -343,7 +458,7 @@ class FractalPositionLifecycleManager:
                 })
                 continue
 
-            # Check 2: Target Completion Exit
+            # Check 5: Target Completion Exit (Allowed after 120s)
             target_hit = False
             if pos.direction == "BUY" and high >= pos.target_price:
                 target_hit = True
@@ -364,7 +479,7 @@ class FractalPositionLifecycleManager:
                 actions_taken.append({"action": "EXIT", "reason": "TARGET_COMPLETION", "position": pos.to_dict()})
                 continue
 
-            # Check 3: Structural Trailing Stop Update (Based strictly on structural pivot levels, not arbitrary dollar offsets)
+            # Check 6: Structural Trailing Stop Update
             struct_low = market_state.get("recent_structural_base_low", 0.0)
             struct_high = market_state.get("recent_structural_base_high", 0.0)
             if pos.direction == "BUY" and struct_low > pos.structural_invalidation_price and struct_low < close:
@@ -372,7 +487,7 @@ class FractalPositionLifecycleManager:
             elif pos.direction == "SELL" and struct_high < pos.structural_invalidation_price and struct_high > close:
                 pos.update_structural_trailing_stop(struct_high)
 
-            # Check 4: Adaptive Hold / Pullback Management
+            # Check 7: Adaptive Hold / Pullback Management
             mv_state = market_state.get("movement_state", "EXPANSION")
             if mv_state == "DANGEROUS_PULLBACK":
                 pos.thesis_status = "WEAKENING"
@@ -391,9 +506,12 @@ class FractalPositionLifecycleManager:
 
         self.active_positions = remaining_positions
 
-        # Check 5: Automated Evaluation of Direction Transition & Re-entry Candidates
-        if not self.active_positions and self.direction_transition_candidates:
-            mv_state = market_state.get("movement_state", "")
+        # Enforce Zero Overnight Position Assertion at Session Cutoff
+        if session_st in ["POSITION_UNWIND", "SESSION_FLAT"]:
+            assert len(self.active_positions) == 0, f"Session Cutoff Violation: {len(self.active_positions)} open positions remaining in {session_st}"
+
+        # Check 8: Automated Evaluation of Direction Transition & Re-entry Candidates (Only in NORMAL_SESSION)
+        if not self.active_positions and self.direction_transition_candidates and session_st == "NORMAL_SESSION":
             macro_dir = market_state.get("macro_direction", "")
             for i, cand in enumerate(list(self.direction_transition_candidates)):
                 if cand["to_direction"] == "SELL" and macro_dir == "BEARISH":
@@ -435,6 +553,10 @@ class FractalPositionLifecycleManager:
         if candidate_idx < 0 or candidate_idx >= len(self.reentry_candidates):
             return None
 
+        session_st = self.evaluate_session_state(entry_time)
+        if session_st in ["ENTRY_RESTRICTED", "POSITION_UNWIND", "SESSION_FLAT"]:
+            return None
+
         cand = self.reentry_candidates.pop(candidate_idx)
         pos = self.open_position(
             direction=cand["original_direction"],
@@ -443,7 +565,8 @@ class FractalPositionLifecycleManager:
             invalidation_price=invalidation_price,
             target_price=target_price
         )
-        pos.record_state_change("REENTRY", "Re-entry executed following pullback completion")
+        if pos:
+            pos.record_state_change("REENTRY", "Re-entry executed following pullback completion")
         return pos
 
     def execute_direction_transition(
@@ -460,6 +583,10 @@ class FractalPositionLifecycleManager:
         if candidate_idx < 0 or candidate_idx >= len(self.direction_transition_candidates):
             return None
 
+        session_st = self.evaluate_session_state(entry_time)
+        if session_st in ["ENTRY_RESTRICTED", "POSITION_UNWIND", "SESSION_FLAT"]:
+            return None
+
         cand = self.direction_transition_candidates.pop(candidate_idx)
         pos = self.open_position(
             direction=cand["to_direction"],
@@ -468,5 +595,6 @@ class FractalPositionLifecycleManager:
             invalidation_price=invalidation_price,
             target_price=target_price
         )
-        pos.record_state_change("OPPOSITE_ENTRY_CANDIDATE", f"Symmetric direction transition executed to {cand['to_direction']}")
+        if pos:
+            pos.record_state_change("OPPOSITE_ENTRY_CANDIDATE", f"Symmetric direction transition executed to {cand['to_direction']}")
         return pos
