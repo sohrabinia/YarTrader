@@ -818,7 +818,7 @@ def get_portfolio_exposure(virtual_balance: float = 10000.0):
 # ==============================================================================
 # 0. SEO & ROBOTS / SITEMAP ENDPOINTS
 # ==============================================================================
-@app.get("/sitemap.xml")
+@app.api_route("/sitemap.xml", methods=["GET", "HEAD"])
 def get_sitemap():
     sitemap_path = "trader-terminal/dist/sitemap.xml"
     if not os.path.exists(sitemap_path):
@@ -830,7 +830,7 @@ def get_sitemap():
         media_type="application/xml"
     )
 
-@app.get("/robots.txt")
+@app.api_route("/robots.txt", methods=["GET", "HEAD"])
 def get_robots():
     robots_path = "trader-terminal/dist/robots.txt"
     if not os.path.exists(robots_path):
@@ -846,26 +846,26 @@ def get_robots():
 # ==============================================================================
 # 1. WEB MANAGEMENT DASHBOARD & SPA PAGE
 # ==============================================================================
-@app.get("/", response_class=HTMLResponse)
-@app.get("/fa", response_class=HTMLResponse)
-@app.get("/en", response_class=HTMLResponse)
-@app.get("/tr", response_class=HTMLResponse)
-@app.get("/ar", response_class=HTMLResponse)
-@app.get("/fa/{path:path}", response_class=HTMLResponse)
-@app.get("/en/{path:path}", response_class=HTMLResponse)
-@app.get("/tr/{path:path}", response_class=HTMLResponse)
-@app.get("/ar/{path:path}", response_class=HTMLResponse)
-@app.get("/dashboard", response_class=HTMLResponse)
-@app.get("/pricing", response_class=HTMLResponse)
-@app.get("/features", response_class=HTMLResponse)
-@app.get("/guide", response_class=HTMLResponse)
-@app.get("/faq", response_class=HTMLResponse)
-@app.get("/blog", response_class=HTMLResponse)
-@app.get("/login", response_class=HTMLResponse)
-@app.get("/register", response_class=HTMLResponse)
-@app.get("/forgot-password", response_class=HTMLResponse)
-@app.get("/execution-intel", response_class=HTMLResponse)
-@app.get("/admin", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/fa", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/en", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/tr", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/ar", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/fa/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/en/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/tr/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/ar/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/dashboard", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/pricing", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/features", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/guide", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/faq", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/blog", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/login", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/register", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/forgot-password", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/execution-intel", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/admin", methods=["GET", "HEAD"], response_class=HTMLResponse)
 def get_dashboard_spa(path: str = None):
     """Serves the rich, production-grade System Validation Center SPA page with full bilingual RTL/LTR support."""
     react_index = "trader-terminal/dist/index.html"
