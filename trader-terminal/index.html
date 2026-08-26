@@ -9,6 +9,13 @@
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://yartrader.com/" />
 
+    <!-- Language Alternate hreflang Links -->
+    <link rel="alternate" hreflang="fa" href="https://yartrader.com/fa" />
+    <link rel="alternate" hreflang="en" href="https://yartrader.com/en" />
+    <link rel="alternate" hreflang="tr" href="https://yartrader.com/tr" />
+    <link rel="alternate" hreflang="ar" href="https://yartrader.com/ar" />
+    <link rel="alternate" hreflang="x-default" href="https://yartrader.com/" />
+
     <!-- Open Graph / Social Meta Tags -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="YarTrader — Cognitive Financial Intelligence Platform" />
@@ -28,21 +35,54 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "YarTrader",
-      "operatingSystem": "All",
-      "applicationCategory": "FinanceApplication",
-      "description": "Autonomous cognitive financial intelligence platform providing non-linear market structure analysis and Prop Firm Challenge risk monitoring.",
-      "url": "https://yartrader.com",
-      "author": {
-        "@type": "Organization",
-        "name": "YarTrader Financial Intelligence Labs"
-      },
-      "offers": {
-        "@type": "Offer",
-        "price": "0.00",
-        "priceCurrency": "USD"
-      }
+      "@graph": [
+        {
+          "@type": "SoftwareApplication",
+          "name": "YarTrader",
+          "operatingSystem": "All",
+          "applicationCategory": "FinanceApplication",
+          "description": "Autonomous cognitive financial intelligence platform providing non-linear market structure analysis and Prop Firm Challenge risk monitoring.",
+          "url": "https://yartrader.com",
+          "author": {
+            "@type": "Organization",
+            "name": "YarTrader Financial Intelligence Labs"
+          },
+          "offers": {
+            "@type": "Offer",
+            "price": "0.00",
+            "priceCurrency": "USD"
+          }
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is YarTrader?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "YarTrader is an autonomous cognitive financial intelligence platform providing non-linear market structure research, multi-horizon signals, and Prop Challenge risk monitoring."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does YarTrader perform live real-money trading?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. Real-money live trading is hard-disabled (LIVE_TRADING_ENABLED=False) repository-wide. All execution occurs in Demo or Paper modes."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is profit or Prop Firm Challenge passing guaranteed?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. YarTrader makes zero profit guarantees or challenge passing promises. All risk frameworks are provided for evaluation purposes only."
+              }
+            }
+          ]
+        }
+      ]
     }
     </script>
   </head>
@@ -50,9 +90,15 @@
     <!-- Crawlable SEO Anchor Container for Search Engine Bots -->
     <nav style="display:none;" aria-label="Sitemap Quick Navigation">
       <a href="/">Home</a>
+      <a href="/fa">Persian Home</a>
+      <a href="/en">English Home</a>
+      <a href="/tr">Turkish Home</a>
+      <a href="/ar">Arabic Home</a>
       <a href="/features">Features</a>
       <a href="/pricing">Pricing Plans</a>
       <a href="/blog">Research Blog</a>
+      <a href="/guide">User Guide</a>
+      <a href="/faq">FAQ</a>
       <a href="/dashboard">Trader Terminal</a>
       <a href="/signals">Signal Hub</a>
       <a href="/prop-challenge">Prop Firm Challenge Risk</a>

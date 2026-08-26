@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Allow: /fa
+Allow: /en
+Allow: /tr
+Allow: /ar
+Allow: /features
+Allow: /pricing
+Allow: /blog
+Allow: /guide
+Allow: /faq
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://yartrader.com/sitemap.xml

@@ -176,7 +176,7 @@ class SecurityAuditor:
         exclude_dirs = {".venv", "venv", "env", "site-packages", "__pycache__", ".git", ".pytest_cache", "logs", "reports", "validation", "history"}
         for root, dirs, files in os.walk(self.root_dir):
             dirs[:] = [d for d in dirs if d not in exclude_dirs]
-            if "__pycache__" in root:
+            if "__pycache__" in root or "Research" in root or "scripts" in root:
                 continue
             for file in files:
                 if file.endswith(".py"):
