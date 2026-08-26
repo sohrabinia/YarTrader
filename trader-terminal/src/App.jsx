@@ -98,6 +98,14 @@ function MainApp() {
   const [demoReport, setDemoReport] = useState({});
   const [shadowReport, setShadowReport] = useState({});
   const [shadowTradesList, setShadowTradesList] = useState([]);
+  const [propStatus, setPropStatus] = useState({});
+  const [propForm, setPropForm] = useState({
+    account_size: "100000",
+    daily_loss_limit_percent: "5.0",
+    max_drawdown_percent: "10.0",
+    risk_per_trade_percent: "1.0",
+    max_concurrent_positions: "3"
+  });
 
   // Pattern detail and Pricing detail modal state
   const [selectedPattern, setSelectedPattern] = useState(null);
@@ -137,14 +145,32 @@ function MainApp() {
   ]);
   const chatMessagesEndRef = useRef(null);
 
-  // Sync hash state with window.location
+  // Normalize route path supporting both HTML5 History pushState clean URLs (/pricing) and legacy hash URLs (#/pricing)
+  const getNormalizedPath = () => {
+    if (window.location.hash && window.location.hash.startsWith('#/')) {
+      return window.location.hash;
+    }
+    const path = window.location.pathname;
+    return path === '/' ? '#/' : `#${path}`;
+  };
+
+  const navigateTo = (path) => {
+    const cleanPath = path.startsWith('#') ? path.slice(1) : path;
+    const hashPath = path.startsWith('#') ? path : `#${path}`;
+    window.history.pushState({}, '', cleanPath);
+    setHash(hashPath);
+  };
+
   useEffect(() => {
-    const handleHashChange = () => {
-      const currentHash = window.location.hash || '#/';
-      setHash(currentHash);
+    const handleLocationChange = () => {
+      setHash(getNormalizedPath());
     };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
   }, []);
 
   // Check backend connectivity on mount
@@ -184,7 +210,7 @@ function MainApp() {
 
   // Auth & Routing Guard
   useEffect(() => {
-    const isRestrictedRoute = hash === '#/dashboard' || hash === '#/execution-intel' || hash === '#/admin' || hash === '#/learning';
+    const isRestrictedRoute = hash === '#/dashboard' || hash === '#/execution-intel' || hash === '#/admin' || hash === '#/learning' || hash.startsWith('#/prop-challenge');
     if (isRestrictedRoute && !token) {
       window.location.hash = '#/login';
       showNotification(
@@ -218,6 +244,33 @@ function MainApp() {
       setDemoReport(rep || {});
     } catch (err) {
       console.error('Demo data error:', err);
+    }
+  };
+
+  const fetchPropChallengeData = async () => {
+    try {
+      const res = await apiService.get("/api/prop/challenge");
+      setPropStatus(res || {});
+    } catch (err) {
+      console.error("Prop challenge error:", err);
+    }
+  };
+
+  const handleConfigureProp = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        account_size: parseFloat(propForm.account_size),
+        daily_loss_limit_percent: parseFloat(propForm.daily_loss_limit_percent),
+        max_drawdown_percent: parseFloat(propForm.max_drawdown_percent),
+        risk_per_trade_percent: parseFloat(propForm.risk_per_trade_percent),
+        max_concurrent_positions: parseInt(propForm.max_concurrent_positions)
+      };
+      const res = await apiService.post("/api/prop/config", payload);
+      setPropStatus(res || {});
+      showNotification(lang === "fa" ? "تنظیمات چالش پراپ ثبت شد." : "Prop challenge configured.", "success");
+    } catch (err) {
+      showNotification(err.message, "failed");
     }
   };
 
@@ -267,6 +320,8 @@ function MainApp() {
       fetchDemoData();
     } else if (hash === '#/shadow') {
       fetchShadowData();
+    } else if (hash.startsWith('#/prop-challenge')) {
+      fetchPropChallengeData();
     } else if (hash === '#/signals') {
       fetchUserSignals();
     } else if (hash === '#/execution-intel') {
@@ -709,6 +764,7 @@ function MainApp() {
               <a href="#/backtest" className={`sidebar-link ${hash.startsWith('#/backtest') ? 'active' : ''}`}>{t('nav_backtest')}</a>
               <a href="#/demo" className={`sidebar-link ${hash === '#/demo' ? 'active' : ''}`}>{t('nav_demo')}</a>
               <a href="#/shadow" className={`sidebar-link ${hash === '#/shadow' ? 'active' : ''}`}>{t('nav_shadow')}</a>
+              <a href="#/prop-challenge" className={`sidebar-link ${hash.startsWith('#/prop-challenge') ? 'active' : ''}`}>{t('nav_prop_challenge')}</a>
               <a href="#/live" className={`sidebar-link ${hash === '#/live' ? 'active' : ''}`} style={{ color: 'var(--danger)' }}>{t('nav_live')}</a>
             </div>
           )}
@@ -1003,6 +1059,72 @@ function MainApp() {
                   ])}
                   emptyMessage={lang === 'fa' ? 'هیچ پوزیشن سایه‌ای در حال حاضر باز نیست.' : 'No virtual shadow positions currently open.'}
                 />
+              </div>
+            </div>
+          )}
+
+          {/* DEDICATED TRADING MODE: PROP CHALLENGE PAGE */}
+          {hash.startsWith('#/prop-challenge') && (
+            <div id="shell-prop-challenge">
+              <div className="card" style={{ borderTop: '4px solid var(--accent)' }}>
+                <h2 style={{ marginTop: 0, color: 'var(--accent)' }}>{t('prop_challenge_title')}</h2>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('prop_challenge_desc')}</p>
+
+                <div className="status-board" style={{ marginBottom: '25px' }}>
+                  <MetricCard
+                    title={t('prop_account_size')}
+                    value={propStatus.metrics ? `$${propStatus.metrics.account_size.toLocaleString()}` : 'NOT CONFIGURED'}
+                    status="primary"
+                  />
+                  <MetricCard
+                    title={t('prop_daily_loss_limit')}
+                    value={propStatus.metrics ? `$${propStatus.metrics.daily_loss_limit.toLocaleString()} ($${propStatus.metrics.remaining_daily_loss.toLocaleString()} left)` : 'NOT CONFIGURED'}
+                    status="warn"
+                  />
+                  <MetricCard
+                    title={t('prop_max_drawdown')}
+                    value={propStatus.metrics ? `$${propStatus.metrics.max_drawdown_limit.toLocaleString()} ($${propStatus.metrics.remaining_drawdown.toLocaleString()} left)` : 'NOT CONFIGURED'}
+                    status="failed"
+                  />
+                  <MetricCard
+                    title={lang === 'fa' ? 'وضعیت چالش' : 'Challenge Status'}
+                    value={propStatus.status || 'NOT CONFIGURED'}
+                    status={propStatus.status === 'NORMAL' || propStatus.status === 'CHALLENGE_READY' ? 'passed' : propStatus.status === 'TRADING_HALTED' ? 'failed' : 'warn'}
+                  />
+                </div>
+
+                <form onSubmit={handleConfigureProp} style={{ background: 'rgba(30, 41, 59, 0.4)', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
+                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>{lang === 'fa' ? 'تنظیم پارامترهای چالش' : 'Configure Challenge Parameters'}</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '15px' }}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">{t('prop_account_size')}</label>
+                      <input className="input-field" type="number" value={propForm.account_size} onChange={(e) => setPropForm({ ...propForm, account_size: e.target.value })} />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">{t('prop_daily_loss_limit')} %</label>
+                      <input className="input-field" type="number" step="0.1" value={propForm.daily_loss_limit_percent} onChange={(e) => setPropForm({ ...propForm, daily_loss_limit_percent: e.target.value })} />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">{t('prop_max_drawdown')} %</label>
+                      <input className="input-field" type="number" step="0.1" value={propForm.max_drawdown_percent} onChange={(e) => setPropForm({ ...propForm, max_drawdown_percent: e.target.value })} />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">{t('prop_risk_per_trade')} %</label>
+                      <input className="input-field" type="number" step="0.1" value={propForm.risk_per_trade_percent} onChange={(e) => setPropForm({ ...propForm, risk_per_trade_percent: e.target.value })} />
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">{lang === 'fa' ? 'حداکثر پوزیشن همزمان' : 'Max Positions'}</label>
+                      <input className="input-field" type="number" value={propForm.max_concurrent_positions} onChange={(e) => setPropForm({ ...propForm, max_concurrent_positions: e.target.value })} />
+                    </div>
+                  </div>
+                  <button type="submit" className="btn" style={{ width: '100%' }}>
+                    {lang === 'fa' ? 'ذخیره و اعمال پارامترها' : 'Save & Apply Parameters'}
+                  </button>
+                </form>
+
+                <div style={{ padding: '15px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid var(--warning)', borderRadius: '8px', fontSize: '0.88rem', color: 'var(--warning)', lineHeight: '1.6' }}>
+                  {propStatus.disclaimer || t('prop_disclaimer')}
+                </div>
               </div>
             </div>
           )}

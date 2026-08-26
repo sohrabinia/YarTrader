@@ -136,7 +136,8 @@ export default function IntelligenceView({ t, lang = 'fa' }) {
           <MetricCard title="Expectancy" value="-$4.60 / trade" status="failed" />
           <MetricCard title="Profit Factor" value="0.86" status="failed" />
           <MetricCard title="Net P&L" value="-$2,066.52" status="failed" />
-          <MetricCard title="Average MAE / MFE" value="5.07 / 5.42" status="passed" />
+          <MetricCard title="Average MAE" value="$5.07 / oz" status="passed" />
+          <MetricCard title="Average MFE" value="$5.42 / oz" status="passed" />
           <MetricCard title="Avg Holding Time" value="417.9 M1 bars" status="neutral" />
           <MetricCard title="Min Hold Floor" value="120s Floor Guard" status="passed" />
           <MetricCard title="Holding Floor Exits (<120s)" value="0 Violations" status="passed" />
@@ -154,7 +155,7 @@ export default function IntelligenceView({ t, lang = 'fa' }) {
           📈 HISTORICAL RESEARCH COMPARISON
         </h3>
         <p className="text-xs text-[var(--text-dark)] mb-4">
-          Direct comparative evaluation between unconstrained baseline and autonomous position lifecycle intelligence.
+          Direct comparative evaluation between unconstrained baseline and autonomous position lifecycle intelligence across 500 paired Base breakout opportunities (2021–2026).
         </p>
 
         <DataTable
@@ -163,7 +164,9 @@ export default function IntelligenceView({ t, lang = 'fa' }) {
             ['Win Rate', '22.20%', '30.73%', <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>+8.53%</span>],
             ['Expectancy', '-$7.90 / trade', '-$4.60 / trade', <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>+$3.30 / trade</span>],
             ['Profit Factor', '0.81', '0.86', <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>+0.05</span>],
-            ['Net P&L', '-$3,950.00', '-$2,066.52', <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>+$1,883.48</span>]
+            ['Net P&L', '-$3,950.00', '-$2,066.52', <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>+$1,883.48</span>],
+            ['Average MAE', '$13.71 / oz', '$5.07 / oz', <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>-$8.64 / oz (-63% Risk)</span>],
+            ['Avg Holding Time', '1,788.1 M1 bars', '417.9 M1 bars', <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>-1,370.2 bars (-76.6% Exposure)</span>]
           ]}
         />
       </div>

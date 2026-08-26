@@ -128,5 +128,13 @@
   "dl_html": "HTML Raporu",
   "dl_json": "JSON Raporu",
   "dl_markdown": "Markdown Raporu",
-  "enter_symbol_prompt": "Yeni bir sembol ismi girin (Örn: SOLUSD):"
+  "enter_symbol_prompt": "Yeni bir sembol ismi girin (Örn: SOLUSD):",
+  "nav_prop_challenge": "🏆 Prop Challenge Riski",
+  "prop_challenge_title": "Prop Firm Challenge Risk Motoru",
+  "prop_challenge_desc": "Garantili geçme veya kâr sözü vermeden günlük kayıp limitlerini ve çekilmeleri izler.",
+  "prop_account_size": "Hesap Büyüklüğü",
+  "prop_daily_loss_limit": "Günlük Kayıp Limiti",
+  "prop_max_drawdown": "Maksimum Çekilme",
+  "prop_risk_per_trade": "İşlem Başına Risk",
+  "prop_disclaimer": "Sorumluluk Reddi: Prop Challenge izleme sistemi yalnızca risk değerlendirmesi içindir. Başarı garantisi verilmez."
 }

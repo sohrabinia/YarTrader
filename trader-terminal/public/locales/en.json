@@ -159,5 +159,13 @@
   "learning_title": "🧠 Cognitive Learning Matrix",
   "learning_desc": "Evidence-backed cognitive knowledgebase evaluating structural price patterns with Out-of-Sample metrics.",
   "pattern_details_title": "Pattern Evidence & Intelligence Details",
-  "no_pattern_selected": "Select a pattern from the matrix to inspect statistical evidence and audit details."
+  "no_pattern_selected": "Select a pattern from the matrix to inspect statistical evidence and audit details.",
+  "nav_prop_challenge": "🏆 Prop Challenge Risk",
+  "prop_challenge_title": "Prop Firm Challenge Risk Engine",
+  "prop_challenge_desc": "Monitors challenge drawdowns, daily loss limits, and position exposure without offering guaranteed passing promises or profit promises.",
+  "prop_account_size": "Account Size",
+  "prop_daily_loss_limit": "Daily Loss Limit",
+  "prop_max_drawdown": "Max Drawdown",
+  "prop_risk_per_trade": "Risk Per Trade",
+  "prop_disclaimer": "Disclaimer: Prop Firm Challenge monitoring framework is provided for risk evaluation only. Positive challenge outcome is not guaranteed."
 }

@@ -128,5 +128,13 @@
   "dl_html": "HTML Report",
   "dl_json": "JSON Report",
   "dl_markdown": "Markdown Report",
-  "enter_symbol_prompt": "Enter new symbol context (e.g. SOLUSD):"
+  "enter_symbol_prompt": "Enter new symbol context (e.g. SOLUSD):",
+  "nav_prop_challenge": "🏆 Prop Challenge Risk",
+  "prop_challenge_title": "Prop Firm Challenge Risk Engine",
+  "prop_challenge_desc": "Monitors challenge drawdowns, daily loss limits, and position exposure without offering guaranteed passing promises or profit promises.",
+  "prop_account_size": "Account Size",
+  "prop_daily_loss_limit": "Daily Loss Limit",
+  "prop_max_drawdown": "Max Drawdown",
+  "prop_risk_per_trade": "Risk Per Trade",
+  "prop_disclaimer": "Disclaimer: Prop Firm Challenge monitoring framework is provided for risk evaluation only. Positive challenge outcome is not guaranteed."
 }

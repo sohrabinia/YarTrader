@@ -159,5 +159,13 @@
   "live_mode": "CANLI",
   "demo_mode": "DEMO / SİMÜLASYON",
   "checking_mode": "BAĞLANTI KONTROL EDİLİYOR...",
-  "unreachable_mode": "ARKA PLANA ULAŞILAMIYOR"
+  "unreachable_mode": "ARKA PLANA ULAŞILAMIYOR",
+  "nav_prop_challenge": "🏆 Prop Challenge Riski",
+  "prop_challenge_title": "Prop Firm Challenge Risk Motoru",
+  "prop_challenge_desc": "Garantili geçme veya kâr sözü vermeden günlük kayıp limitlerini ve çekilmeleri izler.",
+  "prop_account_size": "Hesap Büyüklüğü",
+  "prop_daily_loss_limit": "Günlük Kayıp Limiti",
+  "prop_max_drawdown": "Maksimum Çekilme",
+  "prop_risk_per_trade": "İşlem Başına Risk",
+  "prop_disclaimer": "Sorumluluk Reddi: Prop Challenge izleme sistemi yalnızca risk değerlendirmesi içindir. Başarı garantisi verilmez."
 }

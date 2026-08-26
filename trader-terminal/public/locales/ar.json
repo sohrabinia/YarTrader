@@ -159,5 +159,13 @@
   "live_mode": "مباشر",
   "demo_mode": "تجريبي / محاكاة",
   "checking_mode": "جاري التحقق من الاتصال...",
-  "unreachable_mode": "الخلفية غير متصلة"
+  "unreachable_mode": "الخلفية غير متصلة",
+  "nav_prop_challenge": "🏆 مخاطر تحدي البروب",
+  "prop_challenge_title": "محرك مخاطر تحدي شركات البروب",
+  "prop_challenge_desc": "مراقبة حد الخسارة اليومي والتراجع ومخاطر الصفقات دون تقديم وعود بالنجاح المضمون أو الأرباح.",
+  "prop_account_size": "حجم الحساب",
+  "prop_daily_loss_limit": "حد الخسارة اليومي",
+  "prop_max_drawdown": "أقصى تراجع",
+  "prop_risk_per_trade": "المخاطرة لكل صفقة",
+  "prop_disclaimer": "إخلاء مسؤولية: إطار مراقبة تحدي البروب مقدم لتقييم المخاطر فقط. النجاح غير مضمون."
 }

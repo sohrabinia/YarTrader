@@ -128,5 +128,13 @@
   "dl_html": "دانلود گزارش HTML",
   "dl_json": "دانلود گزارش JSON",
   "dl_markdown": "دانلود گزارش Markdown",
-  "enter_symbol_prompt": "نام نماد جدید را وارد کنید (مانند SOLUSD):"
+  "enter_symbol_prompt": "نام نماد جدید را وارد کنید (مانند SOLUSD):",
+  "nav_prop_challenge": "🏆 ریسک چالش پراپ",
+  "prop_challenge_title": "موتور پایش ریسک چالش شرکت‌های پراپ",
+  "prop_challenge_desc": "پایش حد ضرر روزانه، افت سرمایه و ریسک پوزیشن‌ها بدون ارائه وعده قبولی تضمینی یا سود تضمین شده.",
+  "prop_account_size": "حجم حساب",
+  "prop_daily_loss_limit": "حد ضرر روزانه",
+  "prop_max_drawdown": "حداکثر افت سرمایه (Drawdown)",
+  "prop_risk_per_trade": "ریسک در هر معامله",
+  "prop_disclaimer": "هشدار: چارچوب پایش چالش پراپ صرفاً جهت ارزیابی ریسک ارائه شده و قبولی یا سود در چالش به هیچ وجه تضمین نمی‌شود."
 }

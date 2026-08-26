@@ -61,11 +61,13 @@ from src.Application.Services.public_api_router import router as public_api_rout
 from src.Application.Services.user_api_router import router as user_api_router
 from src.Application.Services.admin_api_router import router as admin_api_router
 from src.Application.Services.growth_api_router import router as growth_api_router
+from src.Application.Services.prop_api_router import router as prop_api_router
 
 app.include_router(public_api_router)
 app.include_router(user_api_router)
 app.include_router(admin_api_router)
 app.include_router(growth_api_router)
+app.include_router(prop_api_router)
 
 # -----------------------------------------------------------------------------
 # LIVE MARKET RESEARCH WORKER & PIPELINE COUPLING (APES-FIN Read-Only Compliance)
