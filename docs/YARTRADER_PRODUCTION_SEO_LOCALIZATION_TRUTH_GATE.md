@@ -21,7 +21,7 @@ Remediation was executed safely in `src/Application/Services/web_dashboard.py` w
 
 ---
 
-## 3. Production URL Verification Matrix
+## 3. Local Runtime Verification Matrix (127.0.0.1:8000)
 
 | URL | Method | HTTP Status | Media Type | Content Verification | Final Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -38,14 +38,30 @@ Remediation was executed safely in `src/Application/Services/web_dashboard.py` w
 
 ---
 
+## 3.1 Live Remote Production HTTPS Deployment Status (yartrader.com)
+
+| URL | Current HTTP Status | Target Status Post-Merge & Restart | Deployment Requirement |
+| :--- | :--- | :--- | :--- |
+| `https://yartrader.com/` | 200 | 200 | Active on live host |
+| `https://yartrader.com/fa` | 404 (on main `8f698f4`) | 200 | **PENDING MERGE & RESTART ON REMOTE WINDOWS HOST** |
+| `https://yartrader.com/en` | 404 (on main `8f698f4`) | 200 | **PENDING MERGE & RESTART ON REMOTE WINDOWS HOST** |
+| `https://yartrader.com/tr` | 404 (on main `8f698f4`) | 200 | **PENDING MERGE & RESTART ON REMOTE WINDOWS HOST** |
+| `https://yartrader.com/ar` | 404 (on main `8f698f4`) | 200 | **PENDING MERGE & RESTART ON REMOTE WINDOWS HOST** |
+| `https://yartrader.com/robots.txt` | 200 | 200 | Active on live host |
+| `https://yartrader.com/sitemap.xml` | 404 (on main `8f698f4`) | 200 | **PENDING MERGE & RESTART ON REMOTE WINDOWS HOST** |
+
+*Note per Non-Negotiable Truth Policy: Until this PR branch (`jules-...`) is merged to `main` and pulled/restarted on the live Windows host, public requests to `https://yartrader.com/fa` will continue to evaluate against the legacy commit `8f698f4`.*
+
+---
+
 ## 4. Canonical & Hreflang Matrix
 
-| Route | Canonical Tag | Hreflang Alternates Exposed | Valid Route? |
+| Route | Canonical Tag | Hreflang Alternates Exposed | Local Route Status |
 | :--- | :--- | :--- | :--- |
-| `/fa` | `https://yartrader.com/fa` | `fa`, `en`, `tr`, `ar`, `x-default` | **YES (HTTP 200)** |
-| `/en` | `https://yartrader.com/en` | `fa`, `en`, `tr`, `ar`, `x-default` | **YES (HTTP 200)** |
-| `/tr` | `https://yartrader.com/tr` | `fa`, `en`, `tr`, `ar`, `x-default` | **YES (HTTP 200)** |
-| `/ar` | `https://yartrader.com/ar` | `fa`, `en`, `tr`, `ar`, `x-default` | **YES (HTTP 200)** |
+| `/fa` | `https://yartrader.com/fa` | `fa`, `en`, `tr`, `ar`, `x-default` | **VERIFIED (HTTP 200)** |
+| `/en` | `https://yartrader.com/en` | `fa`, `en`, `tr`, `ar`, `x-default` | **VERIFIED (HTTP 200)** |
+| `/tr` | `https://yartrader.com/tr` | `fa`, `en`, `tr`, `ar`, `x-default` | **VERIFIED (HTTP 200)** |
+| `/ar` | `https://yartrader.com/ar` | `fa`, `en`, `tr`, `ar`, `x-default` | **VERIFIED (HTTP 200)** |
 
 ---
 
@@ -59,10 +75,11 @@ Remediation was executed safely in `src/Application/Services/web_dashboard.py` w
 
 ## 6. Final Acceptance Verdict
 
-* `FINAL_WEBSITE_COMPLETION = PASS`
-* `SEO_LOCALIZATION_ROUTING = PASS`
+* `CODE_VERIFICATION = PASS`
+* `SEO_LOCALIZATION_ROUTING_CODE = PASS`
 * `HEAD_METHOD_SUPPORT = PASS`
-* `SITEMAP_ROBOTS_VERIFICATION = PASS`
+* `SITEMAP_ROBOTS_VERIFICATION_CODE = PASS`
 * `API_404_ISOLATION = PASS`
+* `REMOTE_PRODUCTION_DEPLOYMENT = PENDING_MERGE_AND_RESTART`
 * `LIVE_TRADING_ENABLED = FALSE` (Hard-locked)
 * `REAL_ORDERS = 0`
