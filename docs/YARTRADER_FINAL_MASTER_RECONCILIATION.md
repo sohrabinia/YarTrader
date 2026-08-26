@@ -90,6 +90,7 @@ All 9 public cryptocurrency receive addresses supplied for subscription payments
 - **Scientific Forensic Report:** `docs/scientific/YARTRADER_V7_SCIENTIFIC_RELEASE_FORENSIC_REPORT.md`
 - **Machine-Readable Status:** `docs/scientific/YARTRADER_V7_SCIENTIFIC_RELEASE_STATUS.json`
 - **Scientific Unit Test Verification:** `tests/YarTrader.Tests/Research/test_scientific_release_verification.py`
+- **Financial Admin API Verification:** `tests/YarTrader.Tests/Services/test_financial_admin_api.py`
 - **Live Trading Safety Gate:** `LIVE_TRADING_ENABLED = FALSE`
 
 ---

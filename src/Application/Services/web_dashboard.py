@@ -3970,6 +3970,80 @@ def get_verified_billing_wallets():
     return WalletVerifierService.get_pricing_wallet_matrix()
 
 
+@app.get("/api/admin/financial/summary")
+def get_admin_financial_summary(token: Optional[str] = None):
+    """Exposes truthful SaaS subscription financial summary for admin control center."""
+    check_admin_guard(token)
+    from src.Application.Dashboard.billing_manager import BillingManager
+    bm = BillingManager()
+    data = bm._load()
+    invoices = data.get("invoices", [])
+    total_rev = sum(inv.get("amount_cents", 0) for inv in invoices) / 100.0
+
+    return {
+        "financial_status": "REAL_VERIFIED_DATA",
+        "currency": "USD",
+        "gross_revenue_usd": round(total_rev, 2),
+        "total_invoices_count": len(invoices),
+        "active_subscriptions_count": len([s for s in data.get("subscriptions", {}).values() if s.get("status") == "ACTIVE"]),
+        "invoices": invoices[-20:],
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.get("/api/admin/financial/revenue")
+def get_admin_financial_revenue(token: Optional[str] = None):
+    """Exposes breakdown of revenue by subscription plan tier."""
+    check_admin_guard(token)
+    from src.Application.Dashboard.billing_manager import BillingManager
+    bm = BillingManager()
+    data = bm._load()
+    invoices = data.get("invoices", [])
+
+    tier_revenue = {"FREE": 0.0, "DAILY": 0.0, "PRO": 0.0, "INSTITUTIONAL": 0.0}
+    for inv in invoices:
+        tier = inv.get("tier_id", "FREE").upper()
+        amt = inv.get("amount_cents", 0) / 100.0
+        tier_revenue[tier] = tier_revenue.get(tier, 0.0) + amt
+
+    return {
+        "revenue_by_tier": tier_revenue,
+        "timestamp": datetime.now().isoformat()
+    }
+
+
+@app.get("/api/admin/financial/transactions")
+def get_admin_financial_transactions(token: Optional[str] = None):
+    """Exposes immutable payment transaction ledger for admin audit."""
+    check_admin_guard(token)
+    from src.Application.Dashboard.billing_manager import BillingManager
+    bm = BillingManager()
+    data = bm._load()
+    return {
+        "transactions": data.get("invoices", []),
+        "total": len(data.get("invoices", []))
+    }
+
+
+@app.get("/api/user/financial/reports")
+def get_user_financial_reports(token: Optional[str] = None):
+    """Exposes user's personal subscription invoices and payment history."""
+    session = global_auth_service.validate_session(token) if token else None
+    email = session.get("email") if session else "guest@yartrader.app"
+
+    from src.Application.Dashboard.billing_manager import BillingManager
+    bm = BillingManager()
+    sub = bm.get_subscription(email)
+    data = bm._load()
+    user_invoices = [inv for inv in data.get("invoices", []) if inv.get("email", "").lower() == email.lower()]
+
+    return {
+        "email": email,
+        "subscription": sub,
+        "payment_history": user_invoices
+    }
+
+
 from pydantic import BaseModel
 
 class PropConfigPayload(BaseModel):
