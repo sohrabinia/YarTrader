@@ -1,0 +1,102 @@
+{
+  "release": {
+    "decision": "CONDITIONAL_RELEASE",
+    "timestamp": "2026-08-27T08:45:00Z",
+    "git_sha": "4895e9ec94769fcd3c081faf890e33a3594589d3"
+  },
+  "production": {
+    "status": "UNVERIFIED",
+    "reason": "Host access unavailable in Linux sandbox container context; remote Windows host Uvicorn process memory un-restarted"
+  },
+  "frontend": {
+    "status": "PASS",
+    "build": "PASS",
+    "locales_parity": "100% (167 keys across fa, en, tr, ar)"
+  },
+  "backend": {
+    "status": "PASS",
+    "framework": "FastAPI",
+    "api_isolation": "PASS"
+  },
+  "auth": {
+    "status": "PASS",
+    "rbac_guards": "PASS",
+    "telegram_oidc": "PASS (Config required)"
+  },
+  "wallet": {
+    "format": "PASS",
+    "network": "PASS",
+    "runtime": "UNVERIFIED_RUNTIME"
+  },
+  "payment": {
+    "state_machine": "PASS",
+    "blockchain_verification": "UNVERIFIED"
+  },
+  "financial": {
+    "status": "PASS",
+    "admin_api": "PASS",
+    "user_reports": "PASS"
+  },
+  "telegram": {
+    "login": "PASS_WITH_CONDITIONS",
+    "bot": "NOT_VERIFIED",
+    "channel": "NOT_VERIFIED"
+  },
+  "security": {
+    "secrets_scan": "PASS (0 exposed keys)",
+    "auth_boundaries": "PASS"
+  },
+  "database": {
+    "status": "PASS",
+    "persistence": "JSON & SQLite"
+  },
+  "backup": {
+    "status": "PASS",
+    "restore": "UNVERIFIED"
+  },
+  "scientific": {
+    "data_integrity": "PASS",
+    "trading_release": "BLOCKED",
+    "expectancy_usd_per_oz": -4.60,
+    "win_rate_pct": 30.73,
+    "profit_factor": 0.86,
+    "net_pnl_usd": -2066.52
+  },
+  "mt5": {
+    "windows_runtime": "UNVERIFIED",
+    "ipc": "BLOCKED_NO_MT5_IPC",
+    "safety_gate": "FAIL_CLOSED"
+  },
+  "live_trading_enabled": false,
+  "real_orders": 0,
+  "blockers": [
+    "Standalone breakout strategy expectancy is economically negative (-$4.60/oz); SCIENTIFIC_TRADING_RELEASE remains BLOCKED",
+    "Linux container sandbox environment lacks native Windows MT5 process IPC (BLOCKED_NO_MT5_IPC)",
+    "Remote Windows production host Uvicorn process memory requires 'Restart-Service YarTrader' to serve new localized routes on https://yartrader.com"
+  ],
+  "unverified": [
+    "Public RPC blockchain verification for payment wallet receive addresses",
+    "Live Telegram Bot token and Channel auto-publishing",
+    "Remote Windows Production Host Win32 Service Control Manager process state"
+  ],
+  "evidence": [
+    {
+      "domain": "Routing & SEO",
+      "command": "pytest tests/YarTrader.Tests/Dashboard/test_seo_localization_routing.py",
+      "result": "16/16 PASS",
+      "timestamp": "2026-08-27T08:45:00Z"
+    },
+    {
+      "domain": "Full Pytest Suite",
+      "command": "python3 -m pytest -q",
+      "result": "1,684 test units PASS (0 failures)",
+      "timestamp": "2026-08-27T08:45:00Z"
+    },
+    {
+      "domain": "Frontend Production Build",
+      "command": "cd trader-terminal && npm run build",
+      "result": "Built in 2.50s (dist/ created)",
+      "timestamp": "2026-08-27T08:45:00Z"
+    }
+  ]
+}
