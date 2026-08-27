@@ -1,0 +1,85 @@
+{
+  "certification_version": "1.0.0",
+  "timestamp_utc": "2026-08-27T17:00:00Z",
+  "commit": {
+    "head": "8f698f4305996681950ffd09c390b92256746d51",
+    "origin_main": "8f698f4305996681950ffd09c390b92256746d51",
+    "merge_base": "8f698f4305996681950ffd09c390b92256746d51",
+    "worktree": "STAGED_FINAL_CERTIFICATION"
+  },
+  "deployment": {
+    "model": "SELF_HOSTED",
+    "canonical_domain": "https://yartrader.com",
+    "public_production": "CONDITIONAL_PASS_UNVERIFIED",
+    "windows_server": "BLOCKED_REMOTE_ACCESS",
+    "mt5": "BLOCKED_NO_MT5_IPC"
+  },
+  "vercel": {
+    "active_references": 0,
+    "runtime_dependency": false,
+    "build_dependency": false,
+    "deployment_dependency": false,
+    "serverless_dependency": false,
+    "historical_references": 22
+  },
+  "frontend": {
+    "build": "PASS",
+    "build_time_seconds": 3.40,
+    "routes": 125
+  },
+  "backend": {
+    "status": "PASS",
+    "routes": 125,
+    "local_runtime": "PASS"
+  },
+  "api": {
+    "contract_status": "PASS"
+  },
+  "database": {
+    "storage_isolation": "PASS"
+  },
+  "seo": {
+    "status": "PASS",
+    "canonical": "https://yartrader.com"
+  },
+  "i18n": {
+    "locales": ["fa", "en", "tr", "ar"],
+    "key_parity": 167
+  },
+  "security": {
+    "secrets_exposed": 0,
+    "wallet_verification": "PASS"
+  },
+  "browser_e2e": {
+    "status": "LOCAL_VERIFIED"
+  },
+  "trading_safety": {
+    "live_trading_enabled": false,
+    "real_orders": 0,
+    "risk_veto": "PASS",
+    "eod_flatten": "PASS"
+  },
+  "scientific": {
+    "validation": "PASS",
+    "profitability": "FAIL",
+    "release": "BLOCKED"
+  },
+  "tests": {
+    "collected_functions": 1665,
+    "subtests": 17,
+    "total_units": 1682,
+    "passed": 1682,
+    "failed": 0
+  },
+  "blockers": {
+    "P0": [],
+    "P1": [],
+    "P2": [],
+    "P3": [],
+    "P4": [
+      "Remote Windows Server SCM RPC inaccessible from Linux container",
+      "Native MT5 terminal IPC process unavailable in Linux container sandbox"
+    ]
+  },
+  "final_release_status": "CONDITIONAL_RELEASE"
+}
