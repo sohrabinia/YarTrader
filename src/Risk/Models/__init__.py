@@ -4,3 +4,13 @@ from src.Risk.Models.models import (
     PortfolioRisk,
     RiskAssessment
 )
+from src.Risk.Models.campaign import CampaignLeg, TradeCampaign
+
+__all__ = [
+    "RiskProfile",
+    "ExposureModel",
+    "PortfolioRisk",
+    "RiskAssessment",
+    "CampaignLeg",
+    "TradeCampaign"
+]
