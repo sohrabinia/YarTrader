@@ -52,3 +52,10 @@ class TestConfigLoading(unittest.TestCase):
         os.environ["TRADEYAR_AI_CONFIDENCE_THRESHOLD"] = "150"
         with self.assertRaises(ConfigurationException):
             ProductionConfig()
+
+    def test_production_has_no_vercel_dependency(self):
+        """Negative test confirming zero production Vercel configuration files or active deployment code."""
+        import os
+        self.assertFalse(os.path.exists("vercel.json"), "vercel.json must not exist in production repository")
+        self.assertFalse(os.path.exists("trader-terminal/vercel.json"), "trader-terminal/vercel.json must not exist")
+        self.assertFalse(os.path.exists("api/proxy.js"), "api/proxy.js serverless function must not exist")

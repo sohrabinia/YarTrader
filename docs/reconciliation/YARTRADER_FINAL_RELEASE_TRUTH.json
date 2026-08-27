@@ -1,0 +1,40 @@
+{
+  "architecture": {
+    "deployment_model": "SELF_HOSTED",
+    "production_domain": "https://yartrader.com",
+    "dns_owner": "SELF_MANAGED",
+    "vercel_used_for_production": false,
+    "active_vercel_dependencies": 0,
+    "production_vercel_urls": 0
+  },
+  "repository": {
+    "sha": "4895e9ec94769fcd3c081faf890e33a3594589d3",
+    "branch": "jules-14975269337046365248-2c55d464",
+    "version": "1.0.0",
+    "worktree": "CLEAN"
+  },
+  "tests": {
+    "total_units": 1684,
+    "passed": 1684,
+    "failed": 0,
+    "skipped": 0
+  },
+  "safety": {
+    "live_trading_enabled": false,
+    "real_orders": 0,
+    "risk_veto_supreme": true,
+    "eod_flatten_invariant": true,
+    "open_positions_after_eod": 0
+  },
+  "scientific": {
+    "expectancy_usd_per_oz": -4.60,
+    "scientific_trading_status": "BLOCKED"
+  },
+  "release": {
+    "software_release_status": "CONDITIONAL_RELEASE",
+    "scientific_trading_status": "BLOCKED",
+    "public_production_status": "UNVERIFIED",
+    "live_execution_status": "OFF",
+    "final_verdict": "CONDITIONAL RELEASE"
+  }
+}
