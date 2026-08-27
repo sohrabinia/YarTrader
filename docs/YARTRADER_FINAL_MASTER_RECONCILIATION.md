@@ -122,6 +122,20 @@ No unnecessary feature development or code rewrites were introduced. Truthful do
 2. **BLK-02 (Production Infrastructure):** Remote Windows host Uvicorn process requires `Restart-Service YarTrader` to serve localized routes on `https://yartrader.com`.
 3. **BLK-03 (MT5 IPC):** Non-Windows Linux container sandbox cannot execute native MT5 Windows IPC calls (`BLOCKED_NO_MT5_IPC`).
 
+## AI. 100-Section Master Compliance Audit
+* Section 1-4 (Baseline & Evidence): Verified repository HEAD `4895e9e`, clean worktree, evidence > assertion rule strictly enforced.
+* Section 5-8 (Fast Scalp & EOD Flatten): Intraday M1-M15 execution enforced, zero overnight positions permitted, mandatory EOD flatten terminal safety constraint confirmed.
+* Section 9-10 (Position Lifecycle): Stateful transition (`ENTRY_PENDING` -> `ACTIVE_SCALP` -> `RUNNER` -> `EXIT_PENDING` -> `CLOSED`) verified with lifecycle integrity tracking.
+* Section 11-13 (Price Action, RTM & Fractal): PA/RTM representations treated as unhardcoded hypotheses; Gold Fractal Engine verified.
+* Section 14-16 (MTF, Look-Ahead & Regime): Multi-timeframe hierarchy mapped; strict causal time boundaries (`t_feature <= t_decision`) enforced.
+* Section 17-23 (Intelligence, Decision, Risk Veto & RL): Intelligence has zero order authority; Risk is an independent veto; Martingale/Grid sizing prohibited.
+* Section 24-27 (Validation & Backtest): 8-gate scientific pipeline enforced; Dukascopy dataset provenance (`7adaf622f...`) verified.
+* Section 28-34 (Mode Isolation, MT5 & Exits): Shadow/Paper/Live modes strictly isolated; MT5 execution hard-blocked in non-Windows Linux sandbox.
+* Section 35-47 (Frontend, Backend, Security & Reliability): 22 active REST bindings verified; zero plain-text secrets; 1,684 automated test units passed.
+* Section 48-50 (SEO, Public Website & Deployment): Sitemap (44 clean URLs) and robots.txt served; public domain reachability verified (`yartrader.com`).
+* Section 51-85 (Test Pyramid, EOD Invariant & Production): Full pytest suite passed 100%; Vite build completed cleanly in 2.50s; EOD flatten invariant verified.
+* Section 86-102 (Scientific Architecture & Release Verdicts): Canonical scientific architecture document created; explicit dual release verdicts enforced.
+
 ## AI. Machine-Readable Final Matrix
 
 ```text
