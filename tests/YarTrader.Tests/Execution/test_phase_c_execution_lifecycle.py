@@ -51,17 +51,69 @@ class TestPhaseCExecutionLifecycle:
         assert res30["allowed"] is False
         assert res30["rejection_reason"] == "EARLY_EXIT_BLOCKED_MIN_HOLD_120S"
 
+        # Exit attempt at 60 seconds -> REJECTED
+        res60 = manager.evaluate_exit_permission(holding_duration_seconds=60.0, exit_reason="STOP_LOSS")
+        assert res60["allowed"] is False
+        assert res60["rejection_reason"] == "EARLY_EXIT_BLOCKED_MIN_HOLD_120S"
+
         # Exit attempt at 119 seconds -> REJECTED
         res119 = manager.evaluate_exit_permission(holding_duration_seconds=119.0, exit_reason="TAKE_PROFIT")
         assert res119["allowed"] is False
 
-        # Exit attempt at 120 seconds -> ALLOWED
+        # Exit attempt at 120 seconds -> REJECTED (Strictly > 120s required; 120s is NOT allowed)
         res120 = manager.evaluate_exit_permission(holding_duration_seconds=120.0, exit_reason="TAKE_PROFIT")
-        assert res120["allowed"] is True
+        assert res120["allowed"] is False
+        assert res120["rejection_reason"] == "EARLY_EXIT_BLOCKED_MIN_HOLD_120S"
 
-        # Emergency exit before 120 seconds -> ALLOWED
-        res_eod = manager.evaluate_exit_permission(holding_duration_seconds=10.0, exit_reason="EOD_FLATTEN")
-        assert res_eod["allowed"] is True
+        # Exit attempt at 120.001 seconds -> ALLOWED
+        res120_001 = manager.evaluate_exit_permission(holding_duration_seconds=120.001, exit_reason="TAKE_PROFIT")
+        assert res120_001["allowed"] is True
+        assert res120_001["exit_type"] == "NORMAL_EXIT"
+
+        # Exit attempt at 121 seconds -> ALLOWED
+        res121 = manager.evaluate_exit_permission(holding_duration_seconds=121.0, exit_reason="TAKE_PROFIT")
+        assert res121["allowed"] is True
+        assert res121["exit_type"] == "NORMAL_EXIT"
+
+        # Genuine forced safety liquidation before 120 seconds -> ALLOWED and classified as FORCED_SAFETY_EXIT
+        res_forced = manager.evaluate_exit_permission(holding_duration_seconds=10.0, exit_reason="FORCED_SAFETY_EXIT")
+        assert res_forced["allowed"] is True
+        assert res_forced["exit_type"] == "FORCED_SAFETY_EXIT"
+
+    def test_all_normal_exit_paths_rejected_before_120_seconds(self):
+        manager = SessionExecutionManager()
+        normal_exit_paths = [
+            "TAKE_PROFIT", "STOP_LOSS", "MANUAL_CLOSE", "API_CLOSE",
+            "ADMIN_CLOSE", "REVERSAL_EXIT", "CAMPAIGN_EXIT", "WORKER_EXIT",
+            "SIGNAL_EXIT", "STRUCTURAL_INVALIDATION"
+        ]
+        for exit_reason in normal_exit_paths:
+            res = manager.evaluate_exit_permission(holding_duration_seconds=60.0, exit_reason=exit_reason)
+            assert res["allowed"] is False, f"Exit path '{exit_reason}' improperly allowed at 60s"
+            assert res["rejection_reason"] == "EARLY_EXIT_BLOCKED_MIN_HOLD_120S"
+
+    def test_forced_safety_exit_paths_permitted_anytime(self):
+        manager = SessionExecutionManager()
+        forced_safety_paths = [
+            "FORCED_SAFETY_EXIT", "BROKER_LIQUIDATION", "MARGIN_LIQUIDATION",
+            "CATASTROPHIC_ACCOUNT_PROTECTION", "SYSTEM_SHUTDOWN", "EMERGENCY_STOP"
+        ]
+        for exit_reason in forced_safety_paths:
+            res = manager.evaluate_exit_permission(holding_duration_seconds=15.0, exit_reason=exit_reason)
+            assert res["allowed"] is True, f"Forced safety path '{exit_reason}' improperly blocked"
+            assert res["exit_type"] == "FORCED_SAFETY_EXIT"
+
+    def test_eod_entry_cutoff_prevents_insufficient_hold_time(self):
+        manager = SessionExecutionManager()
+
+        # Remaining session time <= 121s -> REJECTED
+        res_121s = manager.evaluate_entry_permission(trading_style="SCALP", remaining_session_seconds=121.0)
+        assert res_121s["allowed"] is False
+        assert res_121s["rejection_reason"] == "INSUFFICIENT_REMAINING_SESSION_TIME"
+
+        # Remaining session time = 122s -> ALLOWED
+        res_122s = manager.evaluate_entry_permission(trading_style="SCALP", remaining_session_seconds=122.0)
+        assert res_122s["allowed"] is True
 
     def test_forbidden_trading_style_rejection(self):
         manager = SessionExecutionManager()
