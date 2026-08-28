@@ -89,7 +89,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         self.assertIn("unauthorized server", str(ctx.exception))
 
     def test_health_endpoint_details_isolation(self) -> None:
-        """Verifies that the /health API endpoint reports correct segregated MT5/MT4 schemas without credential leakage."""
+        """Verifies that the /health API endpoint reports correct segregated MT5/MT4 schemas without credential leakage or account/broker disclosure."""
         resp = self.client.get("/health")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
@@ -98,18 +98,21 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         self.assertIn("mt4_details", data)
 
         mt5_det = data["mt5_details"]
-        self.assertEqual(mt5_det["account"], "52961173")
-        self.assertEqual(mt5_det["server"], "Alpari-MT5-Demo")
+        self.assertNotIn("account", mt5_det)
+        self.assertNotIn("server", mt5_det)
         self.assertEqual(mt5_det["trading_allowed"], False)
         self.assertEqual(mt5_det["role"], "DEMO")
 
         mt4_det = data["mt4_details"]
-        self.assertEqual(mt4_det["account"], "143056202")
-        self.assertEqual(mt4_det["server"], "Alpari-Pro.ECN")
+        self.assertNotIn("account", mt4_det)
+        self.assertNotIn("server", mt4_det)
         self.assertEqual(mt4_det["live_trading_enabled"], False)
         self.assertEqual(mt4_det["role"], "LIVE_SIMULATION")
 
-        # Confirm no passwords or raw credentials are leaked
+        # Confirm sensitive details, account numbers, and servers are not exposed publicly
+        self.assertNotIn("52961173", str(data))
+        self.assertNotIn("143056202", str(data))
+        self.assertNotIn("Alpari", str(data))
         self.assertNotIn("password", str(data))
         self.assertNotIn("token", str(data))
         self.assertNotIn("secret", str(data))
