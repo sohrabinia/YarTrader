@@ -45,11 +45,17 @@ class SessionExecutionManager:
         """
         forced_safety_reasons = {
             "FORCED_SAFETY_EXIT",
+            "PROTECTIVE_STOP_LOSS",
+            "HARD_SL_HIT",
+            "HARD_TP_HIT",
             "BROKER_LIQUIDATION",
             "MARGIN_LIQUIDATION",
             "CATASTROPHIC_ACCOUNT_PROTECTION",
             "SYSTEM_SHUTDOWN",
-            "EMERGENCY_STOP"
+            "EMERGENCY_STOP",
+            "BROKER_FORCED_CLOSE",
+            "EOD_FLATTEN",
+            "EOD_FORCED_EXIT"
         }
         reason_upper = exit_reason.upper()
         is_forced_safety = reason_upper in forced_safety_reasons
