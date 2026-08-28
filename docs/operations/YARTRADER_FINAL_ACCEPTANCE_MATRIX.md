@@ -32,9 +32,14 @@ This document provides the final, single-source-of-truth forensic release gate r
 | **CAMPAIGN** | `PASS` | `TradeCampaign` manages multi-leg lifecycles and Node/Base settlement. |
 | **MARGIN / FREE_MARGIN** | `PASS` | Free margin capacity checks enforced before order entry. |
 | **CORRELATION** | `PASS` | Portfolio exposure limits respected across correlated instruments. |
-| **POSITION_LIFECYCLE** | `PASS` | Concurrent position management with 120s hold floor enforced. |
+| **POSITION_LIFECYCLE** | `PASS` | Concurrent position management with strictly >120s hold floor enforced. |
 | **ORDER_LIFECYCLE** | `PASS` | Supports Market, Limit, Stop, Stop-Limit with request deduplication. |
-| **MIN_HOLD_120_SECONDS** | `PASS` | Enforced floor for normal positions; overridden only by EOD flattening. |
+| **MIN_HOLD_STRICTLY_GREATER_THAN_120_SECONDS** | `PASS` | Enforced floor requiring duration > 120s; 120.0s is strictly rejected for normal strategy exits. |
+| **MIN_HOLD_119_SECONDS_REJECT** | `PASS` | 119s normal exit attempts are strictly rejected. |
+| **MIN_HOLD_120_SECONDS_REJECT** | `PASS` | 120s normal exit attempts are strictly rejected (120s is not allowed). |
+| **MIN_HOLD_121_SECONDS_ACCEPT** | `PASS` | 121s (and >120.0s) normal exit attempts are accepted. |
+| **EOD_ENTRY_CUTOFF** | `PASS` | Session cutoff blocks entries when remaining session time <= 121s to guarantee >120s hold duration before EOD. |
+| **FORCED_SAFETY_EXIT_AUDIT** | `PASS` | Genuine broker/system/emergency liquidations recorded separately as FORCED_SAFETY_EXIT. |
 | **EOD_FLATTENING** | `PASS` | Session cutoff forces `OPEN_POSITIONS = 0` and cancels pending orders. |
 | **REVERSAL_HANDOFF** | `PASS` | Structural exit level evaluated as opposite-direction candidate. |
 | **DAILY_ANALYSIS** | `PASS` | Temporal dynamics analyzed using causal past data only. |

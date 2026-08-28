@@ -20,14 +20,15 @@ class SessionExecutionManager:
     """
     Session Execution & EOD Lifecycle Manager for YarTrader Master Roadmap Phase C.
     Enforces:
-    1. Mandatory 120-second minimum normal holding lifetime floor (`POSITION_MINIMUM_NORMAL_LIFETIME = 120`).
+    1. Mandatory strictly >120-second minimum normal holding lifetime floor (`POSITION_MINIMUM_NORMAL_LIFETIME = 120.0`).
     2. Forbidden trading styles rejection (SWING, POSITION, OVERNIGHT).
-    3. Session cutoff enforcement blocking entries when remaining session time < 120s.
+    3. Session EOD Entry Cutoff blocking entries when remaining session time <= 121s to guarantee >120s holding time before EOD.
     4. Deterministic EOD Flattening sequence:
        STOP ENTRIES -> CANCEL PENDING -> FLATTEN POSITIONS -> VERIFY ZERO STATE.
+    5. Forced safety exit isolation recording FORCED_SAFETY_EXIT separately from normal strategy behavior.
     """
 
-    POSITION_MINIMUM_NORMAL_LIFETIME: int = 120  # 120 seconds
+    POSITION_MINIMUM_NORMAL_LIFETIME: float = 120.0  # Must be strictly > 120.0 seconds
 
     def __init__(self):
         self.session_state: str = "OPEN"  # "OPEN", "CLOSING_APPROACH", "SESSION_CLOSED"
@@ -38,26 +39,43 @@ class SessionExecutionManager:
         exit_reason: str = "NORMAL_TAKE_PROFIT"
     ) -> Dict[str, Any]:
         """
-        Enforces the 120-second minimum hold constraint.
-        Normal early exit attempts before 120 seconds are strictly BLOCKED.
-        Safety/Emergency exits (EOD_FLATTEN, EMERGENCY_STOP, HARD_SL_HIT, HARD_TP_HIT) override minimum hold.
+        Enforces the strictly > 120-second minimum hold constraint.
+        Holding duration <= 120 seconds (including 120.0s) is strictly BLOCKED for normal strategy exits.
+        Genuine forced safety liquidations override minimum hold and are recorded separately as FORCED_SAFETY_EXIT.
         """
-        emergency_reasons = ["EOD_FLATTEN", "EMERGENCY_STOP", "HARD_SL_HIT", "HARD_TP_HIT", "STRUCTURAL_INVALIDATION"]
+        forced_safety_reasons = {
+            "FORCED_SAFETY_EXIT",
+            "BROKER_LIQUIDATION",
+            "MARGIN_LIQUIDATION",
+            "CATASTROPHIC_ACCOUNT_PROTECTION",
+            "SYSTEM_SHUTDOWN",
+            "EMERGENCY_STOP"
+        }
         reason_upper = exit_reason.upper()
+        is_forced_safety = reason_upper in forced_safety_reasons
 
-        if holding_duration_seconds < self.POSITION_MINIMUM_NORMAL_LIFETIME and reason_upper not in emergency_reasons:
-            msg = f"Normal exit rejected: position holding duration ({holding_duration_seconds:.1f}s) < minimum 120s threshold."
+        # Strict rule: holding_duration_seconds MUST be strictly > 120.0
+        if holding_duration_seconds <= self.POSITION_MINIMUM_NORMAL_LIFETIME and not is_forced_safety:
+            msg = (
+                f"Normal exit rejected: position holding duration ({holding_duration_seconds:.3f}s) "
+                f"<= minimum 120.0s threshold (strictly > 120s required)."
+            )
             logger.warning(f"[SessionExecutionManager] {msg}")
             return {
                 "allowed": False,
                 "rejection_reason": "EARLY_EXIT_BLOCKED_MIN_HOLD_120S",
-                "message": msg
+                "message": msg,
+                "actual_duration": holding_duration_seconds,
+                "required_duration": self.POSITION_MINIMUM_NORMAL_LIFETIME + 0.001,
+                "exit_type": "BLOCKED"
             }
 
         return {
             "allowed": True,
             "rejection_reason": None,
-            "message": "Exit permitted."
+            "message": "Exit permitted.",
+            "actual_duration": holding_duration_seconds,
+            "exit_type": "FORCED_SAFETY_EXIT" if is_forced_safety else "NORMAL_EXIT"
         }
 
     def evaluate_entry_permission(
@@ -68,7 +86,8 @@ class SessionExecutionManager:
         """
         Evaluates session entry constraints.
         - Rejects forbidden trading styles (SWING, POSITION, OVERNIGHT).
-        - Rejects new entries if session is closed or remaining session time < 120s to prevent overnight holding.
+        - Enforces EOD Entry Cutoff: rejects new entries if remaining session time <= 121s (120s + buffer),
+          guaranteeing every opened ordinary position can safely reach >120s before EOD cutoff.
         """
         allowed_styles = ["FAST_SCALP", "SCALP", "DAY_TRADING"]
         style_upper = trading_style.upper()
@@ -85,7 +104,8 @@ class SessionExecutionManager:
                 "rejection_reason": "SESSION_CLOSED"
             }
 
-        if remaining_session_seconds < self.POSITION_MINIMUM_NORMAL_LIFETIME:
+        # Cutoff: remaining_session_seconds must be > 121 seconds
+        if remaining_session_seconds <= (self.POSITION_MINIMUM_NORMAL_LIFETIME + 1.0):
             return {
                 "allowed": False,
                 "rejection_reason": "INSUFFICIENT_REMAINING_SESSION_TIME"

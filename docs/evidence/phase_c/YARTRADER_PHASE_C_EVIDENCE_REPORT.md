@@ -13,7 +13,7 @@
 
 Formally implement and verify Phase C requirements:
 - **Executable Trading Contract**: `ExecutableTradingContract` in `src/Decision/Models/models.py` with validation enforcing M5 execution timeframe, Fast Scalp / Scalp / Day Trading styles, and SL/TP orientation.
-- **Session Execution & 120s Hold**: `SessionExecutionManager` in `src/Execution/Services/session_execution_manager.py` enforcing `POSITION_MINIMUM_NORMAL_LIFETIME = 120` seconds, blocking early normal exits while allowing EOD/emergency exits.
+- **Session Execution & Strictly >120s Hold**: `SessionExecutionManager` in `src/Execution/Services/session_execution_manager.py` enforcing `POSITION_MINIMUM_NORMAL_LIFETIME = 120.0` seconds (duration must be strictly > 120s; 120.0s is rejected), EOD entry cutoff (remaining session time <= 121s rejected), and FORCED_SAFETY_EXIT categorization.
 - **Forbidden Styles Rejection**: Explicit rejection of SWING, POSITION, and OVERNIGHT styles.
 - **Deterministic EOD Flattening Sequence**: 4-step sequence (Stop entries -> Cancel pending -> Flatten open positions -> Verify zero state) resulting in `OPEN_POSITIONS = 0` and `PENDING_ORDERS = 0`.
 - **Order Lifecycle & Idempotency Manager**: `OrderLifecycleManager` in `src/Execution/Services/order_lifecycle_manager.py` enforcing request hash deduplication (`DUPLICATE_ORDER_REJECTED`), 6 order types support, and restart reconciliation.
