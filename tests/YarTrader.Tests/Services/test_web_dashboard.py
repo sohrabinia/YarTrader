@@ -32,6 +32,18 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertEqual(data["status"], "Healthy")
         self.assertTrue(data["apes_fin_compliant"])
 
+    def test_get_live_research_degraded_fallback(self):
+        """Verifies /v1/dashboard/live-research returns HTTP 200 degraded payload instead of 503 error."""
+        resp = self.client.get("/v1/dashboard/live-research?symbol=XAUUSD&timeframe=H1")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["symbol"], "XAUUSD")
+        self.assertEqual(data["timeframe"], "H1")
+        self.assertIn("bias", data)
+        self.assertIn("confidence", data)
+        self.assertIn("reasoning", data)
+        self.assertIn("timestamp", data)
+
     def test_get_runtime_status(self):
         """Verifies runtime status API."""
         resp = self.client.get("/v1/runtime")
