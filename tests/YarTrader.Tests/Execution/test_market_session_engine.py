@@ -269,3 +269,31 @@ class TestMarketSessionEngine:
 
         assert perm["allowed"] is True
         assert perm["rejection_reason"] is None
+
+    def test_session_execution_manager_exit_permission_strict_120s(self):
+        manager = SessionExecutionManager(market_session_engine=self.engine)
+
+        # 120.000s -> REJECT
+        res_120 = manager.evaluate_exit_permission(holding_duration_seconds=120.000, exit_reason="NORMAL_TAKE_PROFIT")
+        assert res_120["allowed"] is False
+        assert res_120["rejection_reason"] == "EARLY_EXIT_BLOCKED_MIN_HOLD_120S"
+
+        # 120.001s -> ACCEPT
+        res_120_1 = manager.evaluate_exit_permission(holding_duration_seconds=120.001, exit_reason="NORMAL_TAKE_PROFIT")
+        assert res_120_1["allowed"] is True
+        assert res_120_1["rejection_reason"] is None
+
+    def test_session_interval_provenance_hash(self):
+        interval = SessionInterval(
+            session_id="XAUUSD_HASH_TEST",
+            broker="ALPARI",
+            symbol="XAUUSD",
+            market="FOREX",
+            date_str="2026-03-23",
+            weekday=0,
+            session_start=time(0, 0),
+            session_end=time(23, 59, 59)
+        )
+        h = interval.compute_hash()
+        assert isinstance(h, str)
+        assert len(h) == 64  # SHA256 length

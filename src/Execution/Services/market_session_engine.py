@@ -37,6 +37,7 @@ class SessionInterval:
     weekday: int  # 0=Monday, 6=Sunday
     session_start: time
     session_end: time
+    account: str = "ALL"
     tz_name: str = "UTC"
     utc_start: Optional[datetime] = None
     utc_end: Optional[datetime] = None
@@ -44,10 +45,17 @@ class SessionInterval:
     source_version: str = "v1.0.0"
     retrieved_at: Optional[datetime] = None
     special_session: bool = False
+    special_session_flag: bool = False
     holiday_override: bool = False
+    holiday_flag: bool = False
     early_close: bool = False
     late_open: bool = False
     confidence: float = 1.0
+
+    def compute_hash(self) -> str:
+        """Generates SHA256 provenance hash of the session interval."""
+        payload = f"{self.session_id}:{self.broker}:{self.account}:{self.symbol}:{self.date_str}:{self.weekday}:{self.session_start}:{self.session_end}:{self.tz_name}:{self.source_version}"
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def contains_time(self, dt: datetime) -> bool:
         """Check if datetime dt falls within this interval."""

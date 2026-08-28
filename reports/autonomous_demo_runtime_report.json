@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-08-28T22:13:22.175016+00:00",
+  "timestamp": "2026-08-28T22:23:24.289179+00:00",
   "runtime_duration_hours": 0.1,
   "signals_generated": 1,
-  "signals_rejected": 0,
-  "demo_orders": 1,
-  "closed_positions": 1,
+  "signals_rejected": 1,
+  "demo_orders": 0,
+  "closed_positions": 0,
   "tp_hits": 0,
-  "sl_hits": 1,
-  "total_pnl": -20.37,
+  "sl_hits": 0,
+  "total_pnl": 0.0,
   "performance_metrics": {
     "total_trades": 1,
     "wins": 0,
@@ -64,7 +64,7 @@
       }
     }
   },
-  "learning_updates": 1,
+  "learning_updates": 0,
   "timeframes_used": [
     "M5"
   ]
