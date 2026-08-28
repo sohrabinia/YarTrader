@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Dict, Any
+from datetime import datetime, timezone
+from typing import Dict, Any, List, Optional
 
 class DecisionState:
     """Standardized valid decision status states."""
@@ -55,6 +55,67 @@ class DecisionResult:
     Reason: DecisionReason
     CreatedAt: datetime
     TradeSchema: TradeDecisionSchema | None = None
+
+
+@dataclass(frozen=True)
+class ExecutableTradingContract:
+    """
+    Formal Phase C Executable Trading Contract governing execution parameters,
+    style boundaries, timeframe constraints, and risk context.
+    """
+    trade_id: str
+    symbol: str
+    direction: str  # "BUY" or "SELL"
+    entry_price: float
+    stop_loss: float
+    take_profit: float
+    volume_lots: float
+    account_equity: float
+    free_margin: float
+    execution_timeframe: str = "M5"
+    trading_style: str = "FAST_SCALP"  # "FAST_SCALP", "SCALP", "DAY_TRADING"
+    campaign_id: Optional[str] = None
+    leg_id: Optional[str] = None
+    risk_pct: float = 2.0
+    is_add_on: bool = False
+    reason_codes: List[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    invalidation_condition: str = "STRUCTURAL_INVALIDATION"
+
+    def validate_contract_rules(self) -> Dict[str, Any]:
+        rejection_reasons = []
+
+        if self.execution_timeframe.upper() != "M5":
+            rejection_reasons.append(f"Execution timeframe '{self.execution_timeframe}' violates primary M5 contract.")
+
+        allowed_styles = ["FAST_SCALP", "SCALP", "DAY_TRADING"]
+        if self.trading_style.upper() not in allowed_styles:
+            rejection_reasons.append(f"Trading style '{self.trading_style}' is forbidden. Allowed: {allowed_styles}.")
+
+        if self.direction.upper() not in ["BUY", "SELL"]:
+            rejection_reasons.append(f"Invalid direction '{self.direction}'. Must be BUY or SELL.")
+
+        if self.account_equity <= 0:
+            rejection_reasons.append("Account equity must be greater than zero.")
+
+        if self.volume_lots < 0.01:
+            rejection_reasons.append(f"Volume lots {self.volume_lots} below minimum bound 0.01.")
+
+        if self.direction.upper() == "BUY":
+            if self.stop_loss >= self.entry_price:
+                rejection_reasons.append(f"Buy SL ({self.stop_loss}) must be below entry price ({self.entry_price}).")
+            if self.take_profit <= self.entry_price:
+                rejection_reasons.append(f"Buy TP ({self.take_profit}) must be above entry price ({self.entry_price}).")
+        elif self.direction.upper() == "SELL":
+            if self.stop_loss <= self.entry_price:
+                rejection_reasons.append(f"Sell SL ({self.stop_loss}) must be above entry price ({self.entry_price}).")
+            if self.take_profit >= self.entry_price:
+                rejection_reasons.append(f"Sell TP ({self.take_profit}) must be below entry price ({self.entry_price}).")
+
+        return {
+            "is_valid": len(rejection_reasons) == 0,
+            "rejection_reasons": rejection_reasons
+        }
 
 
 @dataclass(frozen=True)

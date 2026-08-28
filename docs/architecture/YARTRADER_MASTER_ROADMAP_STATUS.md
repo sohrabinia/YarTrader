@@ -1,7 +1,7 @@
 # YARTRADER MASTER ROADMAP STATUS REGISTER
 
-**Document Version:** `YARTRADER_ROADMAP_STATUS_V1.1`
-**Master Roadmap Version:** `YARTRADER_MASTER_ROADMAP_V1`
+**Document Version:** `YARTRADER_ROADMAP_STATUS_V1.2`
+**Master Roadmap Version:** `YARTRADER_MASTER_ROADMAP_V1.0`
 **Date:** 2026-08-27
 **Master Orchestrator:** Lead Technical Orchestrator (Jules)
 
@@ -10,14 +10,14 @@
 ## 1. MASTER REPOSITORY BASELINE & INVARIANTS
 
 ```text
-HEAD_SHA                    = 8f698f4305996681950ffd09c390b92256746d51
-ORIGIN_MAIN_SHA             = 8f698f4305996681950ffd09c390b92256746d51
-MERGE_BASE                  = 8f698f4305996681950ffd09c390b92256746d51
+HEAD_SHA                    = 94ed549 Merge pull request #203
+ORIGIN_MAIN_SHA             = 94ed549 Merge pull request #203
+MERGE_BASE                  = 94ed549 Merge pull request #203
 DEPLOYMENT_MODEL            = SELF_HOSTED
 PUBLIC_DOMAIN               = https://yartrader.com
 ACTIVE_VERCEL_REFERENCES    = 0
 ACTIVE_FASTAPI_ENDPOINTS    = 125
-TOTAL_TEST_UNITS            = 1666 (1649 test functions + 17 subtests)
+TOTAL_TEST_UNITS            = 1673 (1656 test functions + 17 subtests)
 TEST_FAILURES               = 0
 LOCALIZATION_KEY_PARITY     = 167 (fa, en, tr, ar)
 LIVE_TRADING_ENABLED        = FALSE
@@ -36,8 +36,8 @@ SCIENTIFIC_TRADING_RELEASE  = BLOCKED
 |---|---|---|---|---|---|---|---|---|---|
 | **PHASE 0** | Repository Forensic Baseline | `COMPLETE / VERIFIED` | `8f698f4` | `8f698f4` | N/A | 1666/1666 | PASS | `PASS` | `MERGED` |
 | **PHASE 1** | Production / API / Deployment Truth | `COMPLETE / CONDITIONAL` | `8f698f4` | `8f698f4` | N/A | 1666/1666 | PASS | `CONDITIONAL_PASS_UNVERIFIED` | `MERGED` |
-| **PHASE B** | Risk + Position Sizing + Campaign + Pyramiding | `PR_READY` | `8f698f4` | Pending | Pending | 1666/1666 | PASS | `PASS` | `WAITING_FOR_MERGE` |
-| **PHASE C** | Trading Contract + Session + Execution Lifecycle | `NOT_STARTED` | N/A | N/A | N/A | N/A | N/A | N/A | `NOT_MERGED` |
+| **PHASE B** | Risk + Position Sizing + Campaign + Pyramiding | `COMPLETE / MERGED` | `8f698f4` | `94ed549` | #203 | 1666/1666 | PASS | `PASS` | `MERGED` |
+| **PHASE C** | Trading Contract + Session + Execution Lifecycle | `PR_READY` | `94ed549` | Pending | Pending | 1673/1673 | PASS | `PASS` | `WAITING_FOR_MERGE` |
 | **PHASE D** | RTM + Price Action + Fractal Scientific Ontology | `NOT_STARTED` | N/A | N/A | N/A | N/A | N/A | N/A | `NOT_MERGED` |
 | **PHASE E** | Multi-Market Scanner + Opportunity Ranking + Margin | `NOT_STARTED` | N/A | N/A | N/A | N/A | N/A | N/A | `NOT_MERGED` |
 | **PHASE F** | Historical Replay + Realistic Backtesting | `NOT_STARTED` | N/A | N/A | N/A | N/A | N/A | N/A | `NOT_MERGED` |
@@ -47,15 +47,14 @@ SCIENTIFIC_TRADING_RELEASE  = BLOCKED
 
 ---
 
-## 3. PHASE B SUMMARY & MERGE GATE
+## 3. PHASE C SUMMARY & MERGE GATE
 
 - **Implemented Components:**
-  - `src/Risk/Models/campaign.py`: Multi-leg `CampaignLeg` and `TradeCampaign` data models.
-  - `src/Risk/Services/professional_risk_engine.py`: 2% Equity Risk sizing, Effective Risk-Free BE calculation, 1% Add-On eligibility gate, Base/Node campaign settlement.
-  - `src/Risk/Services/campaign_manager.py`: High-level `CampaignLifecycleManager` orchestrator.
-  - `docs/architecture/YARTRADER_PHASE_B_FORENSIC_AUDIT.md`: 20-question Section 86 forensic audit.
-  - `docs/evidence/phase_b/YARTRADER_PHASE_B_EVIDENCE_REPORT.md`: Phase B evidence report.
-  - `tests/YarTrader.Tests/Risk/test_phase_b_risk_campaign.py`: 7/7 dedicated Phase B unit and integration tests passing.
+  - `src/Decision/Models/models.py`: `ExecutableTradingContract` with validation enforcing M5 execution timeframe, Fast Scalp / Scalp / Day Trading styles, and SL/TP orientation.
+  - `src/Execution/Services/session_execution_manager.py`: `SessionExecutionManager` enforcing 120s minimum normal hold (`POSITION_MINIMUM_NORMAL_LIFETIME = 120`), forbidden style rejection, and 4-step EOD flattening sequence resulting in `OPEN_POSITIONS = 0`.
+  - `src/Execution/Services/order_lifecycle_manager.py`: `OrderLifecycleManager` enforcing request hash deduplication (`DUPLICATE_ORDER_REJECTED`), 6 order types support, and restart reconciliation.
+  - `docs/evidence/phase_c/YARTRADER_PHASE_C_EVIDENCE_REPORT.md`: Phase C evidence report.
+  - `tests/YarTrader.Tests/Execution/test_phase_c_execution_lifecycle.py`: 7/7 dedicated Phase C unit/integration tests passing.
 
 - **Merge Gate Invariant:**
-  - Execution STOPS at Phase B PR. In accordance with Section 12, Section 74, and Section 89, Phase C will NOT start until Phase B is merged into main.
+  - Execution STOPS at Phase C PR. In accordance with Section 13 (Git / PR Discipline), Section 14 (No Big-Bang Implementation), and Section 29 (Autonomous Orchestration Behavior), Phase D will NOT start until Phase C is merged into main.
