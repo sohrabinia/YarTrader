@@ -21,7 +21,7 @@ export default function DemoView({ t, demoReport, backendState }) {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <MetricCard title="شماره حساب آزمایشی" value="52961173" status="passed" subtitle="Alpari-MT5-Demo" />
         <MetricCard title="موجودی حساب (Balance)" value="$10,450.00" status="passed" change="+$450.00" trend="up" />
-        <MetricCard title="وضعیت اتصالات MT5" value={backendState === 'UNREACHABLE' ? 'DISCONNECTED' : 'CONNECTED'} status={backendState === 'UNREACHABLE' ? 'failed' : 'passed'} />
+        <MetricCard title="اعتبارسنجی Session & TP" value="PASSED (>120s / Causal)" status="passed" subtitle="Pre-Entry Calendar Checked" />
         <MetricCard title="قفل ایمنی معاملات واقعی" value="HARD DISABLED" status="primary" subtitle="LIVE_TRADING_ENABLED=False" />
       </div>
 

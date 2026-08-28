@@ -30,8 +30,9 @@ class SessionExecutionManager:
 
     POSITION_MINIMUM_NORMAL_LIFETIME: float = 120.0  # Must be strictly > 120.0 seconds
 
-    def __init__(self):
+    def __init__(self, market_session_engine: Optional[Any] = None):
         self.session_state: str = "OPEN"  # "OPEN", "CLOSING_APPROACH", "SESSION_CLOSED"
+        self.market_session_engine = market_session_engine
 
     def evaluate_exit_permission(
         self,
@@ -81,11 +82,18 @@ class SessionExecutionManager:
     def evaluate_entry_permission(
         self,
         trading_style: str,
-        remaining_session_seconds: float
+        remaining_session_seconds: float,
+        symbol: Optional[str] = None,
+        broker: str = "DEFAULT",
+        distance_to_tp: Optional[float] = None,
+        current_volatility_atr: Optional[float] = None,
+        historical_mfe_speed: float = 1.0,
+        current_time: Optional[datetime] = None
     ) -> Dict[str, Any]:
         """
         Evaluates session entry constraints.
         - Rejects forbidden trading styles (SWING, POSITION, OVERNIGHT).
+        - Delegates to MarketSessionEngine if available for authoritative session/calendar and TP-time feasibility gate.
         - Enforces EOD Entry Cutoff: rejects new entries if remaining session time <= 121s (120s + buffer),
           guaranteeing every opened ordinary position can safely reach >120s before EOD cutoff.
         """
@@ -104,7 +112,25 @@ class SessionExecutionManager:
                 "rejection_reason": "SESSION_CLOSED"
             }
 
-        # Cutoff: remaining_session_seconds must be > 121 seconds
+        # If MarketSessionEngine is provided and symbol is specified, evaluate unified session & TP feasibility
+        if self.market_session_engine and symbol:
+            res = self.market_session_engine.validate_pre_entry(
+                symbol=symbol,
+                broker=broker,
+                distance_to_tp=distance_to_tp,
+                current_volatility_atr=current_volatility_atr,
+                historical_mfe_speed=historical_mfe_speed,
+                current_time=current_time
+            )
+            if not res.allowed:
+                return {
+                    "allowed": False,
+                    "rejection_reason": res.rejection_reason,
+                    "message": res.message,
+                    "remaining_session_seconds": res.remaining_session_seconds
+                }
+
+        # Standalone Cutoff fallback: remaining_session_seconds must be > 121 seconds
         if remaining_session_seconds <= (self.POSITION_MINIMUM_NORMAL_LIFETIME + 1.0):
             return {
                 "allowed": False,
