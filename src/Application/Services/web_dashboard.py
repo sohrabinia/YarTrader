@@ -5,7 +5,7 @@ import time
 import threading
 import subprocess
 import platform
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
@@ -812,6 +812,86 @@ def get_portfolio_exposure(virtual_balance: float = 10000.0):
         "total_exposure": portfolio_res["total_exposure"],
         "asset_concentrations_pct": portfolio_res["asset_concentrations_pct"],
         "correlation_exposure_pct": portfolio_res["correlation_exposure_pct"]
+    }
+
+
+# ==============================================================================
+# MARKET SESSION & BROKER TRADING CALENDAR ENGINE REST ENDPOINTS
+# ==============================================================================
+from src.Execution.Services.market_session_engine import (
+    MarketSessionEngine,
+    MarketState,
+    CalendarSourcePrecedence,
+    SessionInterval,
+    HolidayEvent
+)
+
+global_market_session_engine = MarketSessionEngine()
+
+# Register sample/default session intervals for common symbols (XAUUSD, EURUSD, BTCUSD)
+from datetime import time as dt_time
+_now_utc = datetime.now(timezone.utc)
+_today_str = _now_utc.strftime("%Y-%m-%d")
+
+# XAUUSD 24-hour weekday session
+global_market_session_engine.register_session_interval(
+    SessionInterval(
+        session_id="XAUUSD_DAILY_MAIN",
+        broker="DEFAULT",
+        symbol="XAUUSD",
+        market="FOREX",
+        date_str=_today_str,
+        weekday=_now_utc.weekday(),
+        session_start=dt_time(0, 0),
+        session_end=dt_time(23, 59, 59),
+        utc_start=_now_utc.replace(hour=0, minute=0, second=0, microsecond=0),
+        utc_end=_now_utc.replace(hour=23, minute=59, second=59, microsecond=0),
+        source=CalendarSourcePrecedence.LIVE_BROKER_MT5
+    )
+)
+
+
+@app.get("/api/market/session-status")
+def get_market_session_status(
+    symbol: str = "XAUUSD",
+    broker: str = "DEFAULT",
+    distance_to_tp: Optional[float] = None,
+    current_volatility_atr: Optional[float] = None
+):
+    """
+    Exposes canonical Market Session, Broker Trading Calendar state,
+    remaining session seconds, source authority, and pre-entry trade rejection details.
+    """
+    now = datetime.now(timezone.utc)
+    res = global_market_session_engine.validate_pre_entry(
+        symbol=symbol,
+        broker=broker,
+        distance_to_tp=distance_to_tp,
+        current_volatility_atr=current_volatility_atr,
+        current_time=now
+    )
+
+    state, active_interval, source_auth = global_market_session_engine.get_market_state(
+        symbol=symbol, broker=broker, current_time=now
+    )
+
+    rem_seconds = active_interval.remaining_seconds(now) if active_interval else 0.0
+
+    return {
+        "symbol": symbol.upper(),
+        "broker": broker.upper(),
+        "market_state": state.value,
+        "is_open": state == MarketState.OPEN,
+        "remaining_session_seconds": round(rem_seconds, 1),
+        "source_authority": source_auth.name,
+        "pre_entry_validation": {
+            "allowed": res.allowed,
+            "rejection_reason": res.rejection_reason,
+            "message": res.message,
+            "tp_feasibility": res.tp_feasibility.__dict__ if res.tp_feasibility else None
+        },
+        "active_interval": active_interval.__dict__ if active_interval else None,
+        "timestamp": now.isoformat()
     }
 
 

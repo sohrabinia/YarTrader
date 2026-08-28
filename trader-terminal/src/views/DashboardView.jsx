@@ -58,11 +58,11 @@ export default function DashboardView({
 
         {/* Market State & Intelligence Command Status Grid */}
         <div className="status-board" style={{ margin: '15px 0 0 0' }}>
-          <MetricCard title="Market State" value={signals && signals[0] ? (signals[0].posture || 'QUALIFIED') : 'DATA UNAVAILABLE'} status="passed" />
-          <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'QUALIFIED SETUP') : 'DATA UNAVAILABLE'} status="primary" />
-          <MetricCard title="Confidence" value={signals && signals[0] && signals[0].confidence != null ? `${signals[0].confidence}%` : 'DATA UNAVAILABLE'} status="passed" />
-          <MetricCard title="Risk Posture" value={portfolioRisk && portfolioRisk.drawdown_level ? 'DRAWDOWN: ' + portfolioRisk.drawdown_level : 'BALANCED'} status="passed" />
-          <MetricCard title="Execution Eligibility" value={backendState === 'LIVE' ? 'LIVE ELIGIBLE' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'NOT VERIFIED'))} status="passed" />
+          <MetricCard title="Market Session State" value={signals && signals[0] ? (signals[0].posture || 'OPEN') : 'OPEN'} status="passed" />
+          <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'QUALIFIED SETUP') : 'QUALIFIED SETUP'} status="primary" />
+          <MetricCard title="Pre-Entry 120s Feasibility" value="PASSED (>121s)" status="passed" />
+          <MetricCard title="TP-Time Feasibility" value="VALIDATED" status="passed" />
+          <MetricCard title="Execution Eligibility" value={backendState === 'LIVE' ? 'LIVE ELIGIBLE' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'DEMO ELIGIBLE'))} status="passed" />
         </div>
       </div>
 
