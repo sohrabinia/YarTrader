@@ -116,3 +116,20 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         self.assertNotIn("password", str(data))
         self.assertNotIn("token", str(data))
         self.assertNotIn("secret", str(data))
+
+    def test_mt5_provider_bridge_fallback(self) -> None:
+        """Verifies MT5DataProvider queries local User-Session bridge when direct MT5 initialization fails."""
+        from src.Data.Providers.MT5.mt5 import MT5DataProvider
+        provider = MT5DataProvider(provider_id="test-bridge-provider")
+
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_resp = MagicMock()
+            mock_resp.status = 200
+            mock_resp.read.return_value = b'{"status": "healthy", "connected": true, "bridge": "active"}'
+            mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+            # Force provider._initialized to False to trigger fallback
+            provider._initialized = False
+            health = provider.get_connection_health()
+            self.assertTrue(health.connected)
+            self.assertIsNone(health.last_error)

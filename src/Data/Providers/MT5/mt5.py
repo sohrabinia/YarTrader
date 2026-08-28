@@ -233,7 +233,10 @@ class MT5DataProvider(IDataProvider):
         # Attempt initialization if MT5 is available
         if MT5_AVAILABLE and mt5 is not None:
             try:
-                if mt5.initialize():
+                term_path = os.getenv("YARTRADER_MT5_TERMINAL_PATH") or os.getenv("TRADEYAR_MT5_TERMINAL_PATH") or r"C:\Program Files\MetaTrader 5\terminal64.exe"
+                if os.path.exists(term_path) and mt5.initialize(path=term_path):
+                    self._initialized = True
+                elif mt5.initialize():
                     self._initialized = True
             except Exception:
                 self._initialized = False
@@ -291,25 +294,38 @@ class MT5DataProvider(IDataProvider):
 
         try:
             if not self._initialized:
-                if mt5.initialize():
+                term_path = os.getenv("YARTRADER_MT5_TERMINAL_PATH") or os.getenv("TRADEYAR_MT5_TERMINAL_PATH") or r"C:\Program Files\MetaTrader 5\terminal64.exe"
+                if os.path.exists(term_path) and mt5.initialize(path=term_path):
                     self._initialized = True
-                else:
-                    err_code, err_msg = mt5.last_error()
-                    return MT5ConnectionHealth(
-                        connected=False,
-                        server=self._server,
-                        ping_ms=0.0,
-                        last_error=f"MT5 initialization failed: {err_msg} (code {err_code})"
-                    )
+                elif mt5.initialize():
+                    self._initialized = True
 
-            term_info = mt5.terminal_info()
+            # If direct Session 0 initialize/terminal_info failed, attempt User-Session local bridge fallback
+            term_info = mt5.terminal_info() if self._initialized else None
             if term_info is None:
                 err_code, err_msg = mt5.last_error()
+                # Check local User-Session Bridge (127.0.0.1:8001)
+                try:
+                    import urllib.request
+                    req = urllib.request.Request("http://127.0.0.1:8001/health", headers={"User-Agent": "YarTrader-Service"})
+                    with urllib.request.urlopen(req, timeout=1.0) as resp:
+                        if resp.status == 200:
+                            bridge_data = json.loads(resp.read().decode("utf-8"))
+                            if bridge_data.get("connected", False):
+                                return MT5ConnectionHealth(
+                                    connected=True,
+                                    server=self._server,
+                                    ping_ms=self._ping,
+                                    last_error=None
+                                )
+                except Exception:
+                    pass
+
                 return MT5ConnectionHealth(
                     connected=False,
                     server=self._server,
                     ping_ms=0.0,
-                    last_error=f"Failed to get terminal info: {err_msg} (code {err_code})"
+                    last_error=f"MT5 initialization/terminal_info failed: {err_msg} (code {err_code})"
                 )
 
             if not getattr(term_info, "connected", False):

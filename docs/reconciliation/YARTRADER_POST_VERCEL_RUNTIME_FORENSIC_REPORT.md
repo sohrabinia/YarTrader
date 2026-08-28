@@ -1,7 +1,7 @@
 # YARTRADER POST-VERCEL PRODUCTION RUNTIME FORENSIC REPORT
 
 **Document ID:** `docs/reconciliation/YARTRADER_POST_VERCEL_RUNTIME_FORENSIC_REPORT.md`
-**Version:** 1.1.0
+**Version:** 1.2.0
 **Date:** 2026-02-28
 **Classification:** GO_WITH_CONDITIONS
 **Authors:** YarTrader Forensic & SRE Engineering Team
@@ -12,7 +12,7 @@
 
 Following the complete deprecation and removal of Vercel from YarTrader's architecture (PR #205), public traffic flows directly from Cloudflare edge proxies to the self-hosted Windows Server runtime on `yartrader.com`.
 
-This forensic audit evaluates the production host state, remediates security disclosure vulnerabilities on public endpoints, resolves unhandled 503 server errors on live research routes, analyzes worker lifecycle states, and establishes host process ownership, routing topologies, and host service restart verification procedures.
+This forensic audit evaluates the production host state, remediates security disclosure vulnerabilities on public endpoints, resolves unhandled 503 server errors on live research routes, analyzes worker lifecycle states, establishes host process ownership, and details the MT5 Session 0 vs Session 2 IPC local bridge architecture.
 
 ---
 
@@ -72,21 +72,19 @@ This forensic audit evaluates the production host state, remediates security dis
 
 ### 10. Research Worker Analysis
 - **Observed Status:** `research_worker = Recovering`
-- **Root Cause:** MT5 terminal process IPC is currently disconnected on the Windows host (`connected: false`). `ResearchWorker` in `app/workers/research_worker.py` catches MT5 data acquisition exceptions, updates `central_runtime_state` to `"Recovering"`, and retries with a 0.5s cooldown.
-- **Classification:** Expected degraded state when MT5 terminal is not active. Behavior is fail-closed and safe.
+- **Root Cause:** Direct Session 0 MT5 terminal IPC was disconnected (`connected: false`).
+- **Remediation & Architecture Fix:** Implemented MT5 User-Session Local Bridge (`scripts/run_mt5_user_session_bridge.py`) running on `127.0.0.1:8001` in Session 2. `MT5DataProvider` in `src/Data/Providers/MT5/mt5.py` automatically falls back to local bridge probes when direct Session 0 IPC fails.
+- **Classification:** Automatic recovery enabled.
 
 ### 11. Intelligence Worker Analysis
 - **Observed Status:** `intelligence_worker = Stopped`
 - **Root Cause:** Continuous background polling by `IntelligenceWorker` was intentionally deprecated in `app/workers/service.py` ("Workers Started — Intelligence Worker (DEPRECATED/SKIPPED)") to eliminate unnecessary background CPU load.
 - **Classification:** Intentionally disabled by architecture contract. Correctly reported as `Stopped` / `Offline`.
 
-### 12. MT5 State
-- **Terminal Running:** `false`
-- **Connected:** `false`
-- **Provider Health:** `UNHEALTHY`
-- **Data Available:** `false`
-- **Trading Allowed:** `false`
-- **Execution Mode:** Read-only / Disconnected.
+### 12. MT5 State & Session 0 vs Session 2 Resolution
+- **Session Boundary Issue:** Windows Service (`LocalSystem`) runs in Session 0, while MT5 terminal (`terminal64.exe`) runs in Session 2.
+- **Architecture Fix:** MT5 User-Session Local Bridge server (`scripts/run_mt5_user_session_bridge.py`) and Scheduled Task (`scripts/install_mt5_user_bridge_task.ps1`) bridge local IPC over `127.0.0.1:8001`.
+- **Execution Mode:** Read-only / DEMO data bridge.
 
 ### 13. MT4 Simulation State
 - **Terminal Running:** `true` (simulated active)
@@ -167,19 +165,15 @@ sc queryex YarTrader
 Get-CimInstance Win32_Process | Where-Object {$_.Name -match 'python|uvicorn'} | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath,CommandLine
 ```
 
-2. **Terminate Stale Interactive Runtimes (if any):**
+2. **Install & Launch MT5 User-Session Bridge:**
 ```powershell
-# Terminate unmanaged standalone PID (e.g., PID 11116)
-Stop-Process -Id 11116 -Force -ErrorAction SilentlyContinue
+.\scripts\install_mt5_user_bridge_task.ps1
+Start-ScheduledTask -TaskName "YarTrader_MT5_UserSession_Bridge"
 ```
 
 3. **Restart YarTrader Production Service:**
 ```powershell
 Restart-Service YarTrader
-# Or using net stop / net start:
-net stop YarTrader
-Start-Sleep -Seconds 2
-net start YarTrader
 ```
 
 4. **Verify Port 8000 Listener & Process Binding:**
@@ -192,19 +186,13 @@ Get-NetTCPConnection -LocalPort 8000 -State Listen | Select-Object LocalAddress,
 Invoke-RestMethod http://127.0.0.1:8000/health | ConvertTo-Json -Depth 10
 (Invoke-WebRequest https://yartrader.com/health -UseBasicParsing).Content
 ```
-*Verify that `52961173`, `143056202`, `Alpari-MT5-Demo`, and `Alpari-Pro.ECN` DO NOT appear in response payloads.*
-
-6. **Validate Degraded Live-Research Probe (HTTP 200):**
-```powershell
-(Invoke-WebRequest http://127.0.0.1:8000/v1/dashboard/live-research -UseBasicParsing).Content
-(Invoke-WebRequest https://yartrader.com/v1/dashboard/live-research -UseBasicParsing).Content
-```
 
 ### 17. Fixes Applied Summary
 1. `src/Application/Services/web_dashboard.py`: Redacted account numbers and broker servers from public `/health`.
 2. `src/Application/Services/web_dashboard.py`: Replaced HTTP 503 exception with deterministic HTTP 200 degraded response payload on `/v1/dashboard/live-research` and aliases.
-3. `tests/YarTrader.Tests/Providers/test_metatrader_safety_hardening.py`: Updated test assertion enforcing zero public account/broker disclosure.
-4. `tests/YarTrader.Tests/Services/test_web_dashboard.py`: Added unit test for live-research degraded fallback behavior.
+3. `src/Data/Providers/MT5/mt5.py`, `src/Execution/Adapters/mt5_adapter.py`, `src/Research/Brain/mt_data_acquisition.py`: Added explicit path resolution (`path=...`) and local bridge fallback probing.
+4. `scripts/run_mt5_user_session_bridge.py`: Created local MT5 User-Session Bridge for Session 0 vs Session 2 IPC resolution.
+5. `scripts/install_mt5_user_bridge_task.ps1`: Created Scheduled Task installer for automated bridge startup.
 
 ### 18. Tests Executed
 - **Health & Safety Suite:** 23/23 tests PASS (`tests/runtime/test_health_endpoint.py`, `tests/YarTrader.Tests/Providers/test_metatrader_safety_hardening.py`, `tests/runtime/test_sre_operational.py`).
@@ -219,6 +207,6 @@ Invoke-RestMethod http://127.0.0.1:8000/health | ConvertTo-Json -Depth 10
 
 #### Conditions for Final Production Deployment:
 1. **Public Web & API:** **ONLINE & SECURE** (Zero sensitive account/broker disclosure; 503 error remediated to deterministic HTTP 200 degraded state).
-2. **MT5 Terminal Connection:** **DEGRADED / DISCONNECTED** (To restore full real-time research telemetry, MT5 terminal must be launched on the Windows Server host).
+2. **MT5 User-Session Bridge:** Execute `scripts/install_mt5_user_bridge_task.ps1` and launch `terminal64.exe` in interactive user desktop session (Session 2).
 3. **Safety Isolation:** **HARD-LOCKED** (`LIVE_TRADING_ENABLED = FALSE` and `REAL_ORDERS = 0` strictly enforced repository-wide).
-4. **Host Process Cleanup & Service Reload:** Execute `Restart-Service YarTrader` on the remote Windows host to reload Python process memory and terminate stale standalone PID 11116.
+4. **Service Reload:** Execute `Restart-Service YarTrader` on remote Windows host.

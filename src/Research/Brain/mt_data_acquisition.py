@@ -44,7 +44,14 @@ class MTDataAcquisitionEngine:
 
         try:
             import MetaTrader5 as mt5  # type: ignore
-            if not mt5.initialize():
+            term_path = os.getenv("YARTRADER_MT5_TERMINAL_PATH") or os.getenv("TRADEYAR_MT5_TERMINAL_PATH") or r"C:\Program Files\MetaTrader 5\terminal64.exe"
+            init_ok = False
+            if os.path.exists(term_path):
+                init_ok = mt5.initialize(path=term_path)
+            if not init_ok:
+                init_ok = mt5.initialize()
+
+            if not init_ok:
                 err = mt5.last_error()
                 mt5.shutdown()
                 return {

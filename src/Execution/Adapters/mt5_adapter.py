@@ -35,19 +35,22 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
     def _try_import_and_init(self) -> bool:
         """Attempts to import MetaTrader5 and initialize terminal connection."""
         try:
+            import os
             import MetaTrader5 as mt5
             self._mt5 = mt5
-            if self._mt5.initialize() and self._mt5.account_info() is not None:
+
+            env_path = os.getenv("YARTRADER_MT5_TERMINAL_PATH") or os.getenv("TRADEYAR_MT5_TERMINAL_PATH")
+            default_path = r"C:\Program Files\MetaTrader 5\terminal64.exe"
+            target_path = env_path or default_path
+
+            if os.path.exists(target_path) and self._mt5.initialize(path=target_path) and self._mt5.account_info() is not None:
                 self._initialized = True
-                logger.info("[RealMT5BrokerAdapter] MetaTrader5 initialized successfully.")
+                logger.info(f"[RealMT5BrokerAdapter] MetaTrader5 initialized via path: {target_path}")
                 return True
 
-            # Fallback to explicit terminal path if standard initialize has no IPC connection
-            import os
-            default_path = r"C:\Program Files\MetaTrader 5\terminal64.exe"
-            if os.path.exists(default_path) and self._mt5.initialize(default_path):
+            if self._mt5.initialize() and self._mt5.account_info() is not None:
                 self._initialized = True
-                logger.info(f"[RealMT5BrokerAdapter] MetaTrader5 initialized via path: {default_path}")
+                logger.info("[RealMT5BrokerAdapter] MetaTrader5 initialized successfully via default IPC.")
                 return True
 
             err = self._mt5.last_error()
