@@ -3554,7 +3554,23 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
             res = global_research_runtime.run_once()
             history = [res]
         except Exception as e:
-            raise HTTPException(status_code=503, detail=f"No analysis generated yet. Error: {str(e)}")
+            # Deterministic degraded response fallback when MT5/data provider is offline
+            sym_fallback = search_symbol.upper()
+            tf_fallback = (timeframe or "H1").upper()
+            return {
+                "symbol": sym_fallback,
+                "timeframe": tf_fallback,
+                "bias": "Neutral",
+                "confidence": 50,
+                "status": "degraded",
+                "reasoning": [
+                    "Live research worker is operating in degraded mode.",
+                    "Market data connection unavailable or MT5 terminal disconnected.",
+                    f"Error detail: {str(e)}"
+                ],
+                "timestamp": datetime.now().isoformat(),
+                "indicators": {}
+            }
 
     latest = history[-1]
     po = latest.Findings.get("pipeline_outputs", {})
@@ -3833,24 +3849,20 @@ def get_production_health():
         research_tracker.get("worker_status") in degraded_states):
         overall_status = "degraded"
 
-    # Deep SRE isolation audits for terminals (credential-safe reporting)
+    # Redacted public terminal operational health summary (no accounts, servers, or internal topology)
     mt5_report = {
         "terminal_running": mt5_connected,
         "connected": mt5_connected,
-        "account": "52961173",
-        "server": "Alpari-MT5-Demo",
         "provider_health": "HEALTHY" if mt5_connected else "UNHEALTHY",
         "data_available": mt5_connected,
         "trading_allowed": False,  # Strict read-only isolation lock
         "role": "DEMO"
     }
 
-    # MT4 is strictly simulated live simulation
+    # MT4 operational health summary (no accounts, servers, or internal topology)
     mt4_report = {
         "terminal_running": True,  # Simulated as always active
         "connected": True,
-        "account": "143056202",
-        "server": "Alpari-Pro.ECN",
         "role": "LIVE_SIMULATION",
         "simulation_enabled": True,
         "live_trading_enabled": False  # Hard safety gate lock
