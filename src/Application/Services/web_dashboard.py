@@ -818,7 +818,17 @@ def get_portfolio_exposure(virtual_balance: float = 10000.0):
 # ==============================================================================
 # 1. WEB MANAGEMENT DASHBOARD & SPA PAGE
 # ==============================================================================
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/fa", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/en", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/tr", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/ar", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/de", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/fa/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/en/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/tr/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/ar/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/de/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.get("/dashboard", response_class=HTMLResponse)
 @app.get("/pricing", response_class=HTMLResponse)
 @app.get("/features", response_class=HTMLResponse)

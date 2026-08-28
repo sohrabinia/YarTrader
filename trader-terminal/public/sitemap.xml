@@ -11,6 +11,7 @@
     <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en" />
     <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr" />
     <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar" />
+    <xhtml:link rel="alternate" hreflang="de" href="https://yartrader.com/de" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en" />
   </url>
   <url>
@@ -21,6 +22,12 @@
   </url>
   <url>
     <loc>https://yartrader.com/tr</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://yartrader.com/de</loc>
     <lastmod>2026-03-30</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>

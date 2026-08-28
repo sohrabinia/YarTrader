@@ -38,7 +38,7 @@ function getRouteFromLocation() {
   let langFromUrl = null;
   let cleanPath = path;
 
-  if (pathParts.length > 0 && ['fa', 'en', 'tr', 'ar'].includes(pathParts[0].toLowerCase())) {
+  if (pathParts.length > 0 && ['fa', 'en', 'tr', 'ar', 'de'].includes(pathParts[0].toLowerCase())) {
     langFromUrl = pathParts[0].toLowerCase();
     cleanPath = '/' + pathParts.slice(1).join('/');
   }
@@ -786,6 +786,7 @@ function MainApp() {
             <option value="en">English</option>
             <option value="tr">Türkçe</option>
             <option value="ar">العربية</option>
+            <option value="de">Deutsch</option>
           </select>
         </div>
       </div>

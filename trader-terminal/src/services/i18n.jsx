@@ -16,7 +16,7 @@ export function I18nProvider({ children }) {
       const data = await resp.json();
       setLocales(data);
 
-      // Update body dir and styling exactly as in web_dashboard.py
+      // Update body dir and styling
       const isRTL = targetLang === 'fa' || targetLang === 'ar';
       document.body.dir = isRTL ? 'rtl' : 'ltr';
       document.body.style.fontFamily = isRTL ? "'Vazirmatn', sans-serif" : "'Segoe UI', Roboto, sans-serif";
