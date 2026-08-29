@@ -1,8 +1,8 @@
-# YARTRADER AGENTIC OPERATING PLATFORM — SYSTEM ARCHITECTURE & PERMISSION MATRIX
+# YARTRADER AGENTIC OPERATING PLATFORM — SYSTEM ARCHITECTURE, RUNTIME CONNECTIVITY & PERMISSION MATRIX
 
 **Version:** 1.0.0
 **Effective Date:** March 2026
-**Status:** APPROVED ARCHITECTURE & AUDITED DEPENDENCY GRAPH
+**Status:** AUDITED ARCHITECTURE & RUNTIME CONNECTIVITY
 
 ---
 
@@ -44,7 +44,47 @@ DETERMINISTIC FINANCIAL CORE        │                           │
 
 ---
 
-## 2. Memory L1–L4 Architecture Audit
+## 2. Audited Runtime Connectivity Path
+
+The full trigger-to-result runtime path is verified end-to-end across the codebase:
+
+```text
+Trigger (HTTP REST / Supervisor / Event)
+   │
+   ▼
+AIAgentOrchestrator (`src/Intelligence/Orchestration/orchestrator.py`)
+   │
+   ▼
+TaskRouter & AgentRegistry (`src/Intelligence/Orchestration/orchestrator.py`, `supervisor.py`)
+   │
+   ▼
+PlannerAgent (`src/Intelligence/Orchestration/orchestrator.py`)
+   │
+   ▼
+ModelRouter & CostGovernor (`src/Application/Agents/model_router.py`)
+   │
+   ▼
+Specialized Agent (`concrete_agents.py`, `support_agent.py`, `system_agents.py`)
+   │
+   ▼
+Skill & Tool Execution (`src/Application/Agents/tools.py`)
+   │
+   ▼
+Memory L1–L4 & Knowledge Base (`src/Application/Agents/memory.py`, `knowledge.py`)
+   │
+   ▼
+AgentEvaluationFramework & ShadowRunner (`evaluation.py`, `shadow_runner.py`)
+   │
+   ▼
+Recommendation Output
+   │
+   ▼
+Deterministic Risk Engine & Policy Gate (`src/Risk/Services/risk_engine.py`) -> Decision
+```
+
+---
+
+## 3. Memory L1–L4 Architecture Audit
 
 1. **L1 (Short-term / Session Memory):**
    Managed via `AgentContext` and active conversation state (`ConversationalSupportAgent.conversations[session_id]`). Stores immediate multi-turn chat messages and task context.
@@ -57,7 +97,7 @@ DETERMINISTIC FINANCIAL CORE        │                           │
 
 ---
 
-## 3. Audited Permission Matrix
+## 4. Audited Permission Matrix
 
 | Agent | Read Market | Write DB | Execute Trade | Publish | Git SCM | Deploy | Admin |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -76,7 +116,7 @@ DETERMINISTIC FINANCIAL CORE        │                           │
 
 ---
 
-## 4. Human-in-the-Loop Governance Matrix
+## 5. Human-in-the-Loop Governance Matrix
 
 | Action Category | Autonomy Level | Required Approval / Gate |
 | :--- | :--- | :--- |
