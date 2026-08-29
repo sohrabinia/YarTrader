@@ -8,7 +8,7 @@ import platform
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from src.Research.Brain.memory import MarketMemorySystem
@@ -23,6 +23,13 @@ HISTORY_DIR = "history"
 # Import production logging functions
 from app.core.logging import log_event, log_audit, log_intelligence_decision
 from src.Application.Runtime.runtime_state import central_runtime_state
+from src.Infrastructure.version import get_application_version_info
+from src.Application.Services.telegram_auth import verify_telegram_authorization
+from src.Application.Dashboard.content_manager import ContentManager
+from src.Application.Dashboard.ticket_manager import TicketManager
+
+global_content_manager = ContentManager()
+global_ticket_manager = TicketManager()
 
 app = FastAPI(
     title="YarTrader Autonomous Management & Acceptance Portal",
@@ -51,7 +58,8 @@ app.add_middleware(
 )
 
 # Mount three isolated production-grade SaaS routers
-app.mount("/locales", StaticFiles(directory="locales"), name="locales")
+locales_dir = "trader-terminal/dist/locales" if os.path.exists("trader-terminal/dist/locales") else ("trader-terminal/public/locales" if os.path.exists("trader-terminal/public/locales") else "locales")
+app.mount("/locales", StaticFiles(directory=locales_dir), name="locales")
 
 # Mount compiled React/Vite assets
 os.makedirs("trader-terminal/dist/assets", exist_ok=True)
@@ -896,7 +904,36 @@ def get_market_session_status(
 
 
 # ==============================================================================
-# 1. WEB MANAGEMENT DASHBOARD & SPA PAGE
+# 1. SEO & ROBOTS / SITEMAP ENDPOINTS
+# ==============================================================================
+@app.api_route("/sitemap.xml", methods=["GET", "HEAD"])
+def get_sitemap_xml():
+    """Serves production sitemap.xml with application/xml media type."""
+    dist_sitemap = "trader-terminal/dist/sitemap.xml"
+    public_sitemap = "trader-terminal/public/sitemap.xml"
+    target_path = dist_sitemap if os.path.exists(dist_sitemap) else public_sitemap
+    if os.path.exists(target_path):
+        with open(target_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return Response(content=content, media_type="application/xml")
+    raise HTTPException(status_code=404, detail="Sitemap not found")
+
+
+@app.api_route("/robots.txt", methods=["GET", "HEAD"])
+def get_robots_txt():
+    """Serves production robots.txt with text/plain media type."""
+    dist_robots = "trader-terminal/dist/robots.txt"
+    public_robots = "trader-terminal/public/robots.txt"
+    target_path = dist_robots if os.path.exists(dist_robots) else public_robots
+    if os.path.exists(target_path):
+        with open(target_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return Response(content=content, media_type="text/plain; charset=utf-8")
+    raise HTTPException(status_code=404, detail="Robots file not found")
+
+
+# ==============================================================================
+# 2. WEB MANAGEMENT DASHBOARD & SPA PAGE
 # ==============================================================================
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/fa", methods=["GET", "HEAD"], response_class=HTMLResponse)
@@ -909,14 +946,21 @@ def get_market_session_status(
 @app.api_route("/tr/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/ar/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/de/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
-@app.get("/dashboard", response_class=HTMLResponse)
-@app.get("/pricing", response_class=HTMLResponse)
-@app.get("/features", response_class=HTMLResponse)
-@app.get("/login", response_class=HTMLResponse)
-@app.get("/register", response_class=HTMLResponse)
-@app.get("/forgot-password", response_class=HTMLResponse)
-@app.get("/execution-intel", response_class=HTMLResponse)
-@app.get("/admin", response_class=HTMLResponse)
+@app.api_route("/dashboard", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/pricing", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/features", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/login", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/register", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/forgot-password", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/execution-intel", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/admin", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/blog", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/news", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/faq", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/guide", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/about", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/contact", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/support", methods=["GET", "HEAD"], response_class=HTMLResponse)
 def get_dashboard_spa():
     """Serves the rich, production-grade System Validation Center SPA page with full bilingual RTL/LTR support."""
     react_index = "trader-terminal/dist/index.html"
@@ -3885,6 +3929,14 @@ def get_api_v1_health():
     }
 
 
+@app.get("/api/version")
+@app.get("/api/system/version")
+@app.get("/v1/version")
+def get_version_endpoint():
+    """Returns single authoritative application version metadata."""
+    return JSONResponse(status_code=200, content=get_application_version_info())
+
+
 @app.get("/v1/health")
 def get_health_diagnostics():
     """Health diagnostics API."""
@@ -5442,18 +5494,265 @@ def login_with_apple(payload: SocialLoginPayload, request: Request):
         }
     }
 
+
+class TelegramAuthPayload(BaseModel):
+    id: int
+    first_name: Optional[str] = ""
+    last_name: Optional[str] = ""
+    username: Optional[str] = ""
+    photo_url: Optional[str] = ""
+    auth_date: int
+    hash: str
+    email: Optional[str] = None
+
+
+class TelegramLinkPayload(BaseModel):
+    id: int
+    first_name: Optional[str] = ""
+    last_name: Optional[str] = ""
+    username: Optional[str] = ""
+    photo_url: Optional[str] = ""
+    auth_date: int
+    hash: str
+
+
+@app.post("/api/auth/telegram")
+def login_with_telegram(payload: TelegramAuthPayload, request: Request):
+    """
+    Cryptographically verifies Telegram sign-in payload server-side and maps to session.
+    Secrets are kept server-side; signatures are verified using HMAC-SHA256.
+    """
+    payload_dict = payload.model_dump()
+    is_valid, err_msg = verify_telegram_authorization(payload_dict)
+    if not is_valid:
+        raise HTTPException(status_code=401, detail=f"Telegram authentication failed: {err_msg}")
+
+    telegram_id_str = str(payload.id)
+    repo = global_auth_service.repo
+
+    # Check if user already exists by telegram_id
+    user = repo.get_user_by_telegram_id(telegram_id_str)
+
+    client_host = request.client.host if request.client else None
+    forwarded_for = request.headers.get("x-forwarded-for")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
+    user_agent = request.headers.get("user-agent", "Unknown")
+
+    if not user:
+        # Determine email or create default telegram email
+        if payload.email:
+            target_email = payload.email.lower()
+            existing_user = repo.get_user_by_email(target_email)
+            if existing_user:
+                # Attempting to map to existing user
+                success, link_err, linked_user = repo.link_telegram_account(
+                    email=target_email,
+                    telegram_id=telegram_id_str,
+                    telegram_meta=payload_dict
+                )
+                if not success:
+                    raise HTTPException(status_code=400, detail=link_err)
+                user = linked_user
+
+        if not user:
+            # Create new user for Telegram identity
+            tg_name = (f"{payload.first_name or ''} {payload.last_name or ''}").strip() or payload.username or f"Telegram User {telegram_id_str}"
+            tg_email = f"telegram_{telegram_id_str}@yartrader.app"
+            user = repo.create_user(email=tg_email, password_hash="", role="USER", name=tg_name)
+            repo.link_telegram_account(email=tg_email, telegram_id=telegram_id_str, telegram_meta=payload_dict)
+
+    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
+
+    return {
+        "status": "Success",
+        "session_token": token,
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"],
+            "telegram_id": telegram_id_str
+        }
+    }
+
+
+@app.post("/api/user/link-telegram")
+def link_telegram_account(payload: TelegramLinkPayload, request: Request):
+    """
+    Links a verified Telegram identity to an active authenticated user session.
+    Rejects linking if Telegram ID is already linked to another account.
+    """
+    payload_dict = payload.model_dump()
+    is_valid, err_msg = verify_telegram_authorization(payload_dict)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"Telegram verification failed: {err_msg}")
+
+    # Extract user session token from Authorization header or param
+    auth_header = request.headers.get("authorization")
+    token = None
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+    if not token:
+        token = request.query_params.get("session_token")
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication session token is required.")
+
+    session_user = global_auth_service.get_session_user(token)
+    if not session_user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+
+    email = session_user["email"]
+    telegram_id_str = str(payload.id)
+
+    success, link_msg, updated_user = global_auth_service.repo.link_telegram_account(
+        email=email,
+        telegram_id=telegram_id_str,
+        telegram_meta=payload_dict
+    )
+
+    if not success:
+        raise HTTPException(status_code=400, detail=link_msg)
+
+    return {
+        "status": "Success",
+        "message": link_msg,
+        "telegram_id": telegram_id_str
+    }
+
+
 @app.get("/api/blog")
 def list_blog_articles():
     """Lists published long-form algorithmic insights and platform governance research papers."""
-    return MOCK_BLOG_ARTICLES
+    return global_content_manager.get_blog_articles()
+
 
 @app.get("/api/blog/{article_id}")
 def get_blog_article(article_id: str):
     """Retrieves full body content of a specific research paper article."""
-    for article in MOCK_BLOG_ARTICLES:
-        if article["id"] == article_id:
+    articles = global_content_manager.get_blog_articles()
+    for article in articles:
+        if article.get("id") == article_id or article.get("slug") == article_id:
             return article
     raise HTTPException(status_code=404, detail="Research article not found.")
+
+
+@app.get("/api/news")
+def list_news_articles():
+    """Lists authoritative system and market news publications."""
+    return global_content_manager.get_news()
+
+
+@app.get("/api/news/{news_id}")
+def get_news_article(news_id: str):
+    """Retrieves single news article detail."""
+    for item in global_content_manager.get_news():
+        if item.get("id") == news_id or item.get("slug") == news_id:
+            return item
+    raise HTTPException(status_code=404, detail="News publication not found.")
+
+
+@app.get("/api/faq")
+def list_faq_items():
+    """Lists FAQ categories and answered questions."""
+    return global_content_manager.get_faqs()
+
+
+@app.get("/api/guide")
+def list_guide_articles():
+    """Lists platform help guides and documentation articles."""
+    return global_content_manager.get_guides()
+
+
+@app.get("/api/guide/{guide_id}")
+def get_guide_article(guide_id: str):
+    """Retrieves help guide article detail."""
+    for g in global_content_manager.get_guides():
+        if g.get("id") == guide_id or g.get("slug") == guide_id:
+            return g
+    raise HTTPException(status_code=404, detail="Guide article not found.")
+
+
+class AdminContentPayload(BaseModel):
+    domain: str  # "blog", "news", "faq", "guide"
+    item: Dict[str, Any]
+
+
+@app.post("/api/admin/content")
+def admin_manage_content(payload: AdminContentPayload):
+    """SRE Admin content publishing endpoint."""
+    if payload.domain not in ("blog", "news", "faq", "guide"):
+        raise HTTPException(status_code=400, detail="Invalid content domain.")
+    created = global_content_manager.add_content_item(payload.domain, payload.item)
+    return {"status": "Success", "domain": payload.domain, "item": created}
+
+
+class CreateTicketPayload(BaseModel):
+    subject: str
+    category: str
+    priority: str = "MEDIUM"
+    message: str
+
+
+class ReplyTicketPayload(BaseModel):
+    message: str
+
+
+@app.get("/api/user/tickets")
+def list_user_tickets(email: str = "trader@yartrader.app", page: int = 1, limit: int = 10):
+    """Retrieves user support tickets."""
+    return global_ticket_manager.list_user_tickets(email=email, page=page, limit=limit)
+
+
+@app.post("/api/user/tickets")
+def create_user_ticket(payload: CreateTicketPayload, email: str = "trader@yartrader.app"):
+    """Creates a new support ticket."""
+    try:
+        ticket = global_ticket_manager.create_ticket(
+            email=email,
+            subject=payload.subject,
+            category=payload.category,
+            priority=payload.priority,
+            message=payload.message
+        )
+        return {"status": "Success", "ticket": ticket}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/user/tickets/{ticket_id}/reply")
+def reply_user_ticket(ticket_id: str, payload: ReplyTicketPayload, email: str = "trader@yartrader.app", is_admin: bool = False):
+    """Replies to an existing support ticket."""
+    try:
+        updated = global_ticket_manager.add_reply(
+            ticket_id=ticket_id,
+            email=email,
+            message=payload.message,
+            is_admin=is_admin
+        )
+        return {"status": "Success", "ticket": updated}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/admin/tickets")
+def admin_list_all_tickets(page: int = 1, limit: int = 20):
+    """Lists all support tickets for administrative response."""
+    return global_ticket_manager.list_all_tickets_admin(page=page, limit=limit)
+
+
+class AdminTicketStatusPayload(BaseModel):
+    status: str
+    priority: Optional[str] = None
+
+
+@app.post("/api/admin/tickets/{ticket_id}/status")
+def admin_update_ticket_status(ticket_id: str, payload: AdminTicketStatusPayload):
+    """Updates ticket status/priority for administrative operations."""
+    try:
+        updated = global_ticket_manager.update_status(ticket_id=ticket_id, status=payload.status, priority=payload.priority)
+        return {"status": "Success", "ticket": updated}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 class ChatPrompt(BaseModel):

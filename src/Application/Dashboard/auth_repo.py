@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from src.Infrastructure.exceptions import ValidationException
 
 logger = logging.getLogger("AuthRepository")
@@ -88,6 +88,38 @@ class AuthRepository:
 
     def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         return self.users.get(email.lower())
+
+    def get_user_by_telegram_id(self, telegram_id: str) -> Optional[Dict[str, Any]]:
+        target_id = str(telegram_id)
+        for email, user in self.users.items():
+            providers = user.get("social_providers", {})
+            if str(providers.get("telegram")) == target_id or str(user.get("telegram_id")) == target_id:
+                return user
+        return None
+
+    def link_telegram_account(self, email: str, telegram_id: str, telegram_meta: Optional[Dict[str, Any]] = None) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        email_clean = email.lower()
+        target_id = str(telegram_id)
+
+        # Rejection check: Ensure telegram_id is not already linked to another user
+        existing_owner = self.get_user_by_telegram_id(target_id)
+        if existing_owner and existing_owner.get("email", "").lower() != email_clean:
+            return False, "Telegram identity is already linked to another account.", None
+
+        user = self.get_user_by_email(email_clean)
+        if not user:
+            user = self.create_user(email_clean, password_hash="", name="")
+
+        if "social_providers" not in user:
+            user["social_providers"] = {}
+
+        user["social_providers"]["telegram"] = target_id
+        user["telegram_id"] = target_id
+        if telegram_meta:
+            user["telegram_meta"] = telegram_meta
+
+        self.save_db()
+        return True, "Telegram account linked successfully.", user
 
     def create_user(self, email: str, password_hash: str, role: str = "USER", name: str = "") -> Dict[str, Any]:
         email_clean = email.lower()

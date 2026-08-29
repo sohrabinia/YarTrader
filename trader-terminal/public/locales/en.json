@@ -15,7 +15,7 @@
   "nav_login": "🔑 Sign In",
   "nav_register": "📝 Register",
   "nav_logout": "🚪 Sign Out",
-  "welcome_title": "Welcome to YarTrader v7.0",
+  "welcome_title": "Welcome to YarTrader v{{version}}",
   "welcome_desc": "Discover non-linear market patterns through multi-asset raw data, advanced cognitive AI models, and autonomous research across multiple horizons—bypassing delayed technical indicators.",
   "pub_markets_title": "Supported Active Markets",
   "pub_trades_title": "Simulated Historical Trades",

@@ -1,7 +1,10 @@
 import React from 'react';
 import MetricCard from '../design-system/MetricCard';
 
-export default function PublicLandingView({ t, setRoute }) {
+export default function PublicLandingView({ t, setRoute, appVersion = "7.0" }) {
+  const versionStr = appVersion || "7.0";
+  const welcomeText = t ? t('welcome_title', { version: versionStr }) : `به سامانه YarTrader v${versionStr} خوش آمدید`;
+
   return (
     <div className="space-y-8 py-6">
       {/* Hero Section */}
@@ -9,10 +12,10 @@ export default function PublicLandingView({ t, setRoute }) {
         <div className="max-w-3xl space-y-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 text-sm font-medium border border-amber-500/30">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-            YarTrader v1.2 — Autonomous Financial Intelligence Platform
+            YarTrader v{versionStr} — Autonomous Financial Intelligence Platform
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight">
-            سامانه خودکار و هوشمند مدیریت معاملات مالی و تحلیل فرکتال
+            {welcomeText}
           </h1>
           <p className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
             پلتفرم پردازش هوشمند ساختار بازار، تحلیل رژیم‌های قیمتی، ارزیابی ریسک و اجرای شبیه‌سازی‌شده معاملات سایه (Shadow Trading) بدون ریسک سرمایه.
