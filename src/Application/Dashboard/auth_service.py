@@ -273,7 +273,8 @@ class AuthService:
             "email": user["email"],
             "role": user.get("role", "USER"),
             "name": user.get("name", ""),
-            "tier": user.get("tier", "FREE")
+            "tier": user.get("tier", "FREE"),
+            "user_id": user.get("user_id", user["email"])
         }
 
         # Persistently record active session login
