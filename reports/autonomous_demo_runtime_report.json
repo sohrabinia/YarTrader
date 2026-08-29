@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-29T09:17:37.070128+00:00",
+  "timestamp": "2026-08-29T09:22:38.652387+00:00",
   "runtime_duration_hours": 0.1,
   "signals_generated": 1,
   "signals_rejected": 1,
@@ -9,30 +9,30 @@
   "sl_hits": 0,
   "total_pnl": 0.0,
   "performance_metrics": {
-    "total_trades": 29,
+    "total_trades": 31,
     "wins": 20,
-    "losses": 9,
-    "win_rate": 68.97,
+    "losses": 11,
+    "win_rate": 64.52,
     "average_rr": 2.09,
     "average_win": 28.33,
     "average_loss": 17.63,
-    "profit_factor": 3.57,
+    "profit_factor": 2.92,
     "max_drawdown": 59.01,
-    "expectancy": 14.07
+    "expectancy": 12.02
   },
   "breakdowns": {
     "by_pattern": {
       "MTF Selection: Highest structural alignment score (0.85) on M15.": {
-        "total_trades": 12,
+        "total_trades": 13,
         "wins": 11,
-        "losses": 1,
-        "win_rate": 91.67,
+        "losses": 2,
+        "win_rate": 84.62,
         "average_rr": 2.1,
         "average_win": 26.78,
-        "average_loss": 11.52,
-        "profit_factor": 25.57,
-        "max_drawdown": 11.52,
-        "expectancy": 23.59
+        "average_loss": 15.03,
+        "profit_factor": 9.8,
+        "max_drawdown": 18.54,
+        "expectancy": 20.35
       },
       "MTF Selection: Highest structural alignment score (0.9) on H4.": {
         "total_trades": 3,
@@ -59,16 +59,16 @@
         "expectancy": 11.68
       },
       "MTF Selection: Highest structural alignment score (0.9) on M15.": {
-        "total_trades": 3,
+        "total_trades": 4,
         "wins": 2,
-        "losses": 1,
-        "win_rate": 66.67,
-        "average_rr": 2.06,
+        "losses": 2,
+        "win_rate": 50.0,
+        "average_rr": 2.08,
         "average_win": 32.22,
-        "average_loss": 17.16,
-        "profit_factor": 3.76,
-        "max_drawdown": 17.16,
-        "expectancy": 15.76
+        "average_loss": 16.92,
+        "profit_factor": 1.9,
+        "max_drawdown": 33.84,
+        "expectancy": 7.65
       },
       "MTF Selection: Highest structural alignment score (0.9) on M5.": {
         "total_trades": 6,
@@ -109,16 +109,16 @@
     },
     "by_timeframe": {
       "M15": {
-        "total_trades": 15,
+        "total_trades": 17,
         "wins": 13,
-        "losses": 2,
-        "win_rate": 86.67,
+        "losses": 4,
+        "win_rate": 76.47,
         "average_rr": 2.09,
         "average_win": 27.62,
-        "average_loss": 14.34,
-        "profit_factor": 12.52,
-        "max_drawdown": 17.16,
-        "expectancy": 22.03
+        "average_loss": 15.97,
+        "profit_factor": 5.62,
+        "max_drawdown": 35.22,
+        "expectancy": 17.36
       },
       "H4": {
         "total_trades": 3,
@@ -159,16 +159,16 @@
     },
     "by_direction": {
       "BUY": {
-        "total_trades": 24,
+        "total_trades": 26,
         "wins": 18,
-        "losses": 6,
-        "win_rate": 75.0,
+        "losses": 8,
+        "win_rate": 69.23,
         "average_rr": 2.1,
         "average_win": 26.78,
-        "average_loss": 17.94,
-        "profit_factor": 4.48,
+        "average_loss": 17.86,
+        "profit_factor": 3.37,
         "max_drawdown": 36.45,
-        "expectancy": 15.6
+        "expectancy": 13.04
       },
       "SELL": {
         "total_trades": 5,
