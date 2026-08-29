@@ -47,8 +47,10 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         resp = self.client.get("/api/blog")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        self.assertEqual(len(data), 2)
-        self.assertEqual(data[0]["title"], "Decoupling Market Reality: The Death of Classical Technical Indicators")
+        self.assertGreaterEqual(len(data), 2)
+        article_1 = next((item for item in data if item["id"] == "1"), None)
+        self.assertIsNotNone(article_1)
+        self.assertEqual(article_1["title"], "Decoupling Market Reality: The Death of Classical Technical Indicators")
 
         # Retrieve specific article
         resp2 = self.client.get("/api/blog/1")

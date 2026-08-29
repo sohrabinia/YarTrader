@@ -287,6 +287,9 @@ class AuthService:
         return token
 
     def validate_session(self, token: str) -> Optional[Dict[str, Any]]:
+        return self.get_session_user(token)
+
+    def get_session_user(self, token: str) -> Optional[Dict[str, Any]]:
         try:
             from src.Application.Dashboard.device_tracker import DeviceTracker
             tracker = DeviceTracker()
