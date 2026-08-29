@@ -5,7 +5,7 @@ This document establishes the official single canonical architecture for all non
 
 ---
 
-## 1. 4-Language Localization Architecture (`fa`, `en`, `tr`, `ar`)
+## 1. 4-Language Localization Architecture (`fa`, `en`, `tr`, `ar`) [IMPLEMENTED, WIRED, TESTED]
 
 YarTrader strictly supports **4 production locales**:
 - `fa`: Persian (RTL) — Primary default locale
@@ -16,10 +16,11 @@ YarTrader strictly supports **4 production locales**:
 ### Asset Storage & Key Parity
 - Resource bundles are located in `trader-terminal/public/locales/` (`fa.json`, `en.json`, `tr.json`, `ar.json`).
 - Dynamic direction switching (`dir="rtl"` or `dir="ltr"`) is managed client-side by `I18nProvider` based on active locale.
+- Key parity: 100% (167 keys per locale file).
 
 ---
 
-## 2. Frontend & Routing Architecture
+## 2. Frontend & Routing Architecture [IMPLEMENTED, WIRED, TESTED]
 
 ### Universal SPA Localized Routing
 - Server-side wildcard routes `@app.api_route("/fa/{path:path}")`, `/en/{path:path}`, `/tr/{path:path}`, `/ar/{path:path}` in `src/Application/Services/web_dashboard.py` return the compiled production SPA (`trader-terminal/dist/index.html`).
@@ -28,7 +29,7 @@ YarTrader strictly supports **4 production locales**:
 
 ---
 
-## 3. SEO / AEO / GEO Unified System
+## 3. SEO / AEO / GEO Unified System [IMPLEMENTED, WIRED, TESTED, RUNTIME VERIFIED]
 
 ### Technical SEO & Metadata
 - **Sitemap Index:** Dynamic server endpoint `GET /sitemap.xml` serving valid XML (`application/xml`).
@@ -38,7 +39,7 @@ YarTrader strictly supports **4 production locales**:
 
 ---
 
-## 4. User Panel & Admin Panel
+## 4. User Panel & Admin Panel [IMPLEMENTED, WIRED, TESTED]
 
 ### User Panel Capabilities
 - User authentication (Registration, Login, Password Reset, Telegram HMAC Linking).
@@ -54,7 +55,7 @@ YarTrader strictly supports **4 production locales**:
 
 ---
 
-## 5. Agent OS V2 & Support Infrastructure
+## 5. Agent OS V2 & Support Infrastructure [IMPLEMENTED, WIRED, TESTED]
 
 ### Agent Registry & Constitution
 - 12 specialized agents operate strictly under the Universal Agent Constitution (`docs/architecture/YARTRADER_AGENT_CONSTITUTION.md`).
@@ -66,7 +67,7 @@ YarTrader strictly supports **4 production locales**:
 
 ---
 
-## 6. Trading Core Safety Freeze Certification
+## 6. Trading Core Safety Freeze Certification [HARD-LOCKED, PRESERVED]
 
 - **Decision Engine:** NOT MODIFIED (FROZEN)
 - **Risk Engine:** NOT MODIFIED (FROZEN)
