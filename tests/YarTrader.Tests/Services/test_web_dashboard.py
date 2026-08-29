@@ -177,3 +177,22 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         resp_dl = self.client.get("/api/validation/reports/download?type=html")
         self.assertEqual(resp_dl.status_code, 200)
         self.assertIn("text/html", resp_dl.headers["content-type"])
+
+    def test_user_and_admin_statements(self):
+        """Verifies formal account financial statement endpoints for user and admin."""
+        resp_user = self.client.get("/api/user/statements?period=30d&account_id=DEMO-1234")
+        self.assertEqual(resp_user.status_code, 200)
+        data_user = resp_user.json()
+        self.assertEqual(data_user["account_id"], "DEMO-1234")
+        self.assertIn("opening_balance", data_user)
+        self.assertIn("closing_balance", data_user)
+        self.assertIn("realized_pnl", data_user)
+        self.assertIn("fees", data_user)
+        self.assertIn("risk_summary", data_user)
+        self.assertIn("trade_ledger", data_user)
+
+        resp_admin = self.client.get("/api/admin/statements?period=30d")
+        self.assertEqual(resp_admin.status_code, 200)
+        data_admin = resp_admin.json()
+        self.assertEqual(data_admin["account_id"], "SYSTEM-AGGREGATE")
+        self.assertEqual(data_admin["audit_status"], "VERIFIED")
