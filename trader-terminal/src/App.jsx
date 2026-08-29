@@ -74,6 +74,19 @@ function MainApp() {
   };
   const [theme, setTheme] = useState(() => localStorage.getItem('yartrader_theme') || 'dark');
   const [backendState, setBackendState] = useState('CHECKING'); // 'LIVE', 'DEMO', 'UNREACHABLE', 'CHECKING'
+  const [appVersion, setAppVersion] = useState('7.0');
+
+  useEffect(() => {
+    apiService.get('/api/version')
+      .then(res => {
+        if (res && res.version) {
+          setAppVersion(res.version);
+        }
+      })
+      .catch(err => {
+        console.warn("Version endpoint fallback to default 7.0:", err);
+      });
+  }, []);
 
   const checkBackendStatus = async () => {
     try {
@@ -854,7 +867,7 @@ function MainApp() {
           {hash === '#/' && (
             <div id="shell-marketing">
               <div className="card" style={{ borderRight: '6px solid var(--primary)', borderLeft: '6px solid var(--primary)' }}>
-                <h2 style={{ margin: '0 0 10px 0', color: 'var(--primary)' }}>{t('welcome_title')}</h2>
+                <h2 style={{ margin: '0 0 10px 0', color: 'var(--primary)' }}>{t('welcome_title', { version: appVersion })}</h2>
                 <p style={{ fontSize: '1.05em', lineHeight: '1.7', color: 'var(--text-dark)' }}>
                   {t('welcome_desc')}
                 </p>
@@ -1921,6 +1934,7 @@ function MainApp() {
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
                   <button type="button" className="social-btn social-google" style={{ flex: 1 }} onClick={() => handleSocialLogin('Google')}>Google</button>
                   <button type="button" className="social-btn social-apple" style={{ flex: 1 }} onClick={() => handleSocialLogin('Apple')}>Apple</button>
+                  <button type="button" className="social-btn social-telegram" style={{ flex: 1, backgroundColor: '#0088cc', color: '#ffffff' }} onClick={() => handleSocialLogin('Telegram')}>Telegram</button>
                 </div>
 
                 <div className="form-group">

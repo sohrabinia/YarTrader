@@ -37,7 +37,16 @@ export function I18nProvider({ children }) {
     setLang(newLang);
   };
 
-  const t = (key) => locales[key] || key;
+  const t = (key, params) => {
+    let val = locales[key] || key;
+    if (params && typeof params === 'object') {
+      Object.keys(params).forEach(p => {
+        val = val.replace(new RegExp(`{{\\s*${p}\\s*}}`, 'g'), params[p]);
+        val = val.replace(new RegExp(`{\\s*${p}\\s*}`, 'g'), params[p]);
+      });
+    }
+    return val;
+  };
 
   return (
     <I18nContext.Provider value={{ lang, changeLanguage, t, locales, loading }}>

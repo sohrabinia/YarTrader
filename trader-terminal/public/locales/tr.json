@@ -14,7 +14,7 @@
   "nav_learning": "🧠 Öğrenme Matrisi",
   "nav_register": "📝 Kayıt Ol",
   "nav_logout": "🚪 Çıkış Yap",
-  "welcome_title": "YarTrader v7.0'a Hoş Geldiniz",
+  "welcome_title": "YarTrader v{{version}}'a Hoş Geldiniz",
   "welcome_desc": "Seçkin, kurumsal düzeyde işlem yapmayan finansal araştırma ve bilişsel zeka terminali. Gecikmeli teknik göstergeleri (RSI, EMA vb.) tamamen devre dışı bırakarak, çoklu varlık ham tik veri dizilerinden doğrusal olmayan pazar yapılarını doğrudan keşfedin.",
   "pub_markets_title": "Desteklenen Aktif Pazarlar",
   "pub_trades_title": "Simüle Edilmiş Geçmiş İşlemler",
