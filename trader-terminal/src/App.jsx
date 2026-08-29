@@ -799,7 +799,6 @@ function MainApp() {
             <option value="en">English</option>
             <option value="tr">Türkçe</option>
             <option value="ar">العربية</option>
-            <option value="de">Deutsch</option>
           </select>
         </div>
       </div>
