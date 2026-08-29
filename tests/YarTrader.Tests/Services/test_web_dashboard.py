@@ -239,3 +239,34 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertEqual(data_admin["account_id"], "SYSTEM-AGGREGATE")
         self.assertIn(data_admin["audit_status"], ["AUDITED_LIVE", "IDLE"])
         self.assertGreaterEqual(data_admin["accounts_count"], 1)
+
+    def test_host_header_validation_and_rejection(self):
+        """Verifies explicit host header allowlist enforcement and rejection of unknown hosts with 400 Bad Request."""
+        # Allowed host
+        resp_valid = self.client.get("/health", headers={"Host": "yartrader.com"})
+        self.assertEqual(resp_valid.status_code, 200)
+
+        resp_www = self.client.get("/health", headers={"Host": "www.yartrader.com"})
+        self.assertEqual(resp_www.status_code, 200)
+
+        # Disallowed host -> 400 Bad Request
+        resp_invalid = self.client.get("/health", headers={"Host": "unknown-host.invalid"})
+        self.assertEqual(resp_invalid.status_code, 400)
+
+    def test_production_security_headers_presence(self):
+        """Verifies presence and values of production security headers across responses."""
+        resp = self.client.get("/health")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("strict-transport-security", resp.headers)
+        self.assertIn("max-age=31536000", resp.headers["strict-transport-security"])
+        self.assertEqual(resp.headers["x-content-type-options"], "nosniff")
+        self.assertEqual(resp.headers["x-frame-options"], "SAMEORIGIN")
+        self.assertEqual(resp.headers["referrer-policy"], "strict-origin-when-cross-origin")
+        self.assertIn("permissions-policy", resp.headers)
+        self.assertIn("content-security-policy", resp.headers)
+
+    def test_http_to_https_redirect_enforcement(self):
+        """Verifies X-Forwarded-Proto: http triggers HTTP 301 Permanent Redirect to HTTPS."""
+        resp = self.client.get("/health", headers={"X-Forwarded-Proto": "http"}, follow_redirects=False)
+        self.assertEqual(resp.status_code, 301)
+        self.assertTrue(resp.headers["location"].startswith("https://"))
