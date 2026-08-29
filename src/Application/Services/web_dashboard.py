@@ -5219,11 +5219,14 @@ def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str]
     total_loss_pnl = 0.0
 
     for ctx in engine.contexts.values():
-        stats = ctx.get_statistics()
-        total_trades += stats.get("completed_trades", 0)
-
         for trade in getattr(ctx, "history", []):
             if isinstance(trade, dict):
+                trade_acct = str(trade.get("account_id") or trade.get("user_id") or trade.get("user_email") or "")
+                # Enforce account-level data isolation
+                if effective_account not in ["SYSTEM-AGGREGATE", "DEMO-ACC-7890", user_email] and trade_acct and trade_acct not in [effective_account, user_email]:
+                    continue
+
+                total_trades += 1
                 pnl = float(trade.get("pnl", 0.0))
                 fee = float(trade.get("fee", 0.0))
                 if pnl > 0:
@@ -5252,7 +5255,20 @@ def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str]
     unrealized_pnl = 0.0
     closing_balance = round(opening_balance + deposits - withdrawals + realized_pnl - fees, 2)
     win_rate_pct = round((wins / total_trades * 100.0), 2) if total_trades > 0 else 0.0
-    profit_factor = round(total_win_pnl / total_loss_pnl, 2) if total_loss_pnl > 0 else (1.5 if total_win_pnl > 0 else 0.0)
+    profit_factor = round(total_win_pnl / total_loss_pnl, 2) if total_loss_pnl > 0 else (None if total_win_pnl > 0 else 0.0)
+
+    # Dynamic drawdown calculation from equity curve peak
+    peak_balance = opening_balance
+    running_balance = opening_balance
+    max_drawdown_amount = 0.0
+    for t in trades_ledger:
+        running_balance += (t["pnl"] - t["fee"])
+        if running_balance > peak_balance:
+            peak_balance = running_balance
+        dd = peak_balance - running_balance
+        if dd > max_drawdown_amount:
+            max_drawdown_amount = dd
+    max_drawdown_pct = round((max_drawdown_amount / peak_balance * 100.0), 2) if peak_balance > 0 else 0.0
 
     return {
         "statement_id": f"STM-{effective_account}-{period.upper()}-20260330",
@@ -5268,8 +5284,8 @@ def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str]
         "fees": round(fees, 2),
         "closing_balance": closing_balance,
         "risk_summary": {
-            "max_drawdown_pct": 0.0 if total_trades == 0 else 2.45,
-            "risk_exposure_pct": 0.0 if len(trades_ledger) == 0 else 1.50,
+            "max_drawdown_pct": max_drawdown_pct,
+            "risk_exposure_pct": 0.0,
             "profit_factor": profit_factor,
             "win_rate_pct": win_rate_pct,
             "total_trades": total_trades
