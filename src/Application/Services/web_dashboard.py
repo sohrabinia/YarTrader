@@ -896,6 +896,34 @@ def get_market_session_status(
 
 
 # ==============================================================================
+# 0. SEO & STATIC ASSET ENDPOINTS (SITEMAP & ROBOTS)
+# ==============================================================================
+@app.api_route("/sitemap.xml", methods=["GET", "HEAD"])
+def get_sitemap():
+    """Serves the canonical XML sitemap for search engine crawlers."""
+    sitemap_paths = [
+        "trader-terminal/dist/sitemap.xml",
+        "trader-terminal/public/sitemap.xml"
+    ]
+    for path in sitemap_paths:
+        if os.path.exists(path):
+            return FileResponse(path, media_type="application/xml")
+    raise HTTPException(status_code=404, detail="Sitemap not found")
+
+@app.api_route("/robots.txt", methods=["GET", "HEAD"])
+def get_robots():
+    """Serves the production robots.txt file for search engine crawlers."""
+    robots_paths = [
+        "trader-terminal/dist/robots.txt",
+        "trader-terminal/public/robots.txt"
+    ]
+    for path in robots_paths:
+        if os.path.exists(path):
+            return FileResponse(path, media_type="text/plain")
+    raise HTTPException(status_code=404, detail="Robots file not found")
+
+
+# ==============================================================================
 # 1. WEB MANAGEMENT DASHBOARD & SPA PAGE
 # ==============================================================================
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
@@ -917,6 +945,13 @@ def get_market_session_status(
 @app.get("/forgot-password", response_class=HTMLResponse)
 @app.get("/execution-intel", response_class=HTMLResponse)
 @app.get("/admin", response_class=HTMLResponse)
+@app.get("/blog", response_class=HTMLResponse)
+@app.get("/news", response_class=HTMLResponse)
+@app.get("/faq", response_class=HTMLResponse)
+@app.get("/guide", response_class=HTMLResponse)
+@app.get("/about", response_class=HTMLResponse)
+@app.get("/contact", response_class=HTMLResponse)
+@app.get("/support", response_class=HTMLResponse)
 def get_dashboard_spa():
     """Serves the rich, production-grade System Validation Center SPA page with full bilingual RTL/LTR support."""
     react_index = "trader-terminal/dist/index.html"

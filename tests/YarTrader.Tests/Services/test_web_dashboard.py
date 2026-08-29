@@ -13,16 +13,66 @@ class TestWebDashboardFastAPI(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.client = TestClient(app)
 
-    def test_get_dashboard_spa(self):
-        """Verifies SPA root pages render successfully with HTML contents."""
-        resp1 = self.client.get("/")
-        self.assertEqual(resp1.status_code, 200)
-        self.assertIn("text/html", resp1.headers["content-type"])
-        self.assertIn("YarTrader", resp1.text)
+    def test_get_sitemap_and_robots(self):
+        """Verifies /sitemap.xml and /robots.txt return HTTP 200 with proper media types."""
+        sitemap_resp = self.client.get("/sitemap.xml")
+        self.assertEqual(sitemap_resp.status_code, 200)
+        self.assertIn("application/xml", sitemap_resp.headers["content-type"])
 
-        resp2 = self.client.get("/dashboard")
-        self.assertEqual(resp2.status_code, 200)
-        self.assertIn("text/html", resp2.headers["content-type"])
+        robots_resp = self.client.get("/robots.txt")
+        self.assertEqual(robots_resp.status_code, 200)
+        self.assertIn("text/plain", robots_resp.headers["content-type"])
+
+    def test_get_dashboard_spa(self):
+        """Verifies SPA root pages render successfully with HTML contents across localized and static paths."""
+        for path in [
+            "/",
+            "/dashboard",
+            "/pricing",
+            "/features",
+            "/login",
+            "/register",
+            "/forgot-password",
+            "/execution-intel",
+            "/admin",
+            "/blog",
+            "/news",
+            "/faq",
+            "/guide",
+            "/about",
+            "/contact",
+            "/support",
+            "/fa",
+            "/en",
+            "/tr",
+            "/ar",
+            "/de",
+            "/fa/admin",
+            "/fa/login",
+            "/fa/dashboard",
+            "/fa/blog",
+            "/fa/news",
+            "/fa/guide",
+            "/fa/faq",
+            "/fa/about",
+            "/fa/contact",
+            "/fa/support",
+            "/en/admin",
+            "/tr/admin",
+            "/ar/admin",
+            "/de/admin",
+        ]:
+            resp = self.client.get(path)
+            self.assertEqual(resp.status_code, 200, f"Failed for path: {path}")
+            self.assertIn("text/html", resp.headers["content-type"], f"Wrong content type for path: {path}")
+            self.assertIn("YarTrader", resp.text, f"Missing YarTrader brand in path: {path}")
+
+    def test_api_404_isolation(self):
+        """Verifies unregistered API endpoints return 404 JSON detail rather than HTML SPA fallback."""
+        resp = self.client.get("/api/nonexistent_endpoint_xyz")
+        self.assertEqual(resp.status_code, 404)
+        self.assertIn("application/json", resp.headers["content-type"])
+        self.assertEqual(resp.json(), {"detail": "Not Found"})
 
     def test_get_health_diagnostics(self):
         """Verifies health diagnostics API returns successful schema."""
