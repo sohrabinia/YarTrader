@@ -5247,6 +5247,38 @@ def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str]
                     "timestamp": str(trade.get("timestamp", datetime.now().isoformat() + "Z"))
                 })
 
+    # Filter trade ledger by period if timestamps exist
+    now_ts = time.time()
+    period_lower = (period or "30d").lower()
+    period_seconds = 30 * 86400.0
+    if "24h" in period_lower or "1d" in period_lower:
+        period_seconds = 86400.0
+    elif "7d" in period_lower:
+        period_seconds = 7 * 86400.0
+    elif "90d" in period_lower:
+        period_seconds = 90 * 86400.0
+    elif "1y" in period_lower:
+        period_seconds = 365 * 86400.0
+    elif "all" in period_lower:
+        period_seconds = 3650 * 86400.0
+
+    filtered_ledger = []
+    for t in trades_ledger:
+        ts_str = t.get("timestamp", "")
+        try:
+            trade_dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            if (now_ts - trade_dt.timestamp()) <= period_seconds:
+                filtered_ledger.append(t)
+        except Exception:
+            filtered_ledger.append(t)
+
+    trades_ledger = filtered_ledger
+    total_trades = len(trades_ledger)
+    wins = sum(1 for t in trades_ledger if t["pnl"] > 0)
+    losses = sum(1 for t in trades_ledger if t["pnl"] < 0)
+    total_win_pnl = sum(t["pnl"] for t in trades_ledger if t["pnl"] > 0)
+    total_loss_pnl = sum(abs(t["pnl"]) for t in trades_ledger if t["pnl"] < 0)
+
     opening_balance = float(engine.get_virtual_capital_initial_balance())
     deposits = 0.0
     withdrawals = 0.0
