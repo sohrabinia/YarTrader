@@ -69,7 +69,7 @@
   "assistant_title": "Talk to YarTrader",
   "assistant_placeholder": "Ask anything or query explainability criteria...",
   "assistant_send": "Send",
-  "assistant_greet": "Hello! I am your intelligent cognitive market intelligence assistant. Ask me about historical patterns, trade explanations, mistakes, or what our brain has learned.",
+  "assistant_greet": "Hello! I am your YarTrader analytical assistant. You can ask me about market structure, decision context, price action setups, or risk parameters.",
   "compounding_title": "Compound Equity Growth Projection",
   "compounding_initial": "Starting Principal",
   "compounding_projected": "Projected Compounding Balance",

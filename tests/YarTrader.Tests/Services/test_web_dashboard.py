@@ -177,3 +177,42 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         resp_dl = self.client.get("/api/validation/reports/download?type=html")
         self.assertEqual(resp_dl.status_code, 200)
         self.assertIn("text/html", resp_dl.headers["content-type"])
+
+    def test_user_and_admin_statements(self):
+        """Verifies formal account financial statement endpoints for user and admin with RBAC & source of truth."""
+        from src.Application.Dashboard.auth_service import global_auth_service
+
+        # Create normal user session & admin session
+        user_model = {"email": "statement_user@yartrader.app", "role": "USER", "user_id": "usr_stmt_01"}
+        user_token = global_auth_service.create_session(user_model)
+
+        admin_model = {"email": "statement_admin@yartrader.app", "role": "ADMIN", "user_id": "usr_admin_01"}
+        admin_token = global_auth_service.create_session(admin_model)
+
+        # 1. User accessing own statement -> 200 OK
+        resp_user = self.client.get(f"/api/user/statements?period=30d&account_id=usr_stmt_01&token={user_token}")
+        self.assertEqual(resp_user.status_code, 200)
+        data_user = resp_user.json()
+        self.assertEqual(data_user["account_id"], "usr_stmt_01")
+        self.assertIn("opening_balance", data_user)
+        self.assertIn("closing_balance", data_user)
+        self.assertIn("realized_pnl", data_user)
+        self.assertIn("fees", data_user)
+        self.assertIn("risk_summary", data_user)
+        self.assertIn("trade_ledger", data_user)
+
+        # 2. User A accessing User B statement -> 403 Forbidden
+        resp_cross = self.client.get(f"/api/user/statements?period=30d&account_id=other_user_id&token={user_token}")
+        self.assertEqual(resp_cross.status_code, 403)
+
+        # 3. Normal user accessing admin statements -> 403 Forbidden
+        resp_admin_denied = self.client.get(f"/api/admin/statements?period=30d&token={user_token}")
+        self.assertEqual(resp_admin_denied.status_code, 403)
+
+        # 4. Admin accessing admin statements -> 200 OK
+        resp_admin = self.client.get(f"/api/admin/statements?period=30d&token={admin_token}")
+        self.assertEqual(resp_admin.status_code, 200)
+        data_admin = resp_admin.json()
+        self.assertEqual(data_admin["account_id"], "SYSTEM-AGGREGATE")
+        self.assertIn(data_admin["audit_status"], ["AUDITED_LIVE", "IDLE"])
+        self.assertGreaterEqual(data_admin["accounts_count"], 1)

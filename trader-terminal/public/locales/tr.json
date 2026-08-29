@@ -68,7 +68,7 @@
   "assistant_title": "YarTrader ile Sohbet Et",
   "assistant_placeholder": "Herhangi bir şey sorun veya karar açıklamalarını sorgulayın...",
   "assistant_send": "Gönder",
-  "assistant_greet": "Merhaba! Ben sizin kurumsal finansal yapay zeka asistanınızım. Bana geçmiş modeller, işlem kararlarının açıklamaları, hatalar veya bilişsel hafızamız hakkında her şeyi sorabilirsiniz.",
+  "assistant_greet": "Merhaba! Ben YarTrader analitik asistanınızım. Piyasa yapısı, karar bağlamı, fiyat hareketi veya risk parametreleri hakkında soru sorabilirsiniz.",
   "compounding_title": "Sanal Bileşik Büyüme Projeksiyonu",
   "compounding_initial": "Sanal Başlangıç Sermayesi",
   "compounding_projected": "Projelendirilen Sanal Bakiye",
