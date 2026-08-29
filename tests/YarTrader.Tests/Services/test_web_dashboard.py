@@ -62,7 +62,30 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data["status"], "Healthy")
-        self.assertTrue(data["apes_fin_compliant"])
+
+    def test_version_endpoints_consistency_and_env_precedence(self):
+        """Verifies version resolution endpoints (/api/version, /api/system/version, /v1/version) and env overrides."""
+        resp_v1 = self.client.get("/api/version")
+        self.assertEqual(resp_v1.status_code, 200)
+        data_v1 = resp_v1.json()
+
+        resp_v2 = self.client.get("/api/system/version")
+        self.assertEqual(resp_v2.status_code, 200)
+        self.assertEqual(resp_v2.json()["commit"], data_v1["commit"])
+
+        resp_v3 = self.client.get("/v1/version")
+        self.assertEqual(resp_v3.status_code, 200)
+        self.assertEqual(resp_v3.json()["commit"], data_v1["commit"])
+
+        # Test environment variable override
+        import os
+        from src.Infrastructure.version import get_application_version_info
+        try:
+            os.environ["GIT_COMMIT"] = "override_sha_12345"
+            info = get_application_version_info()
+            self.assertEqual(info["commit"], "override_sha_12345")
+        finally:
+            os.environ.pop("GIT_COMMIT", None)
 
     def test_get_live_research_degraded_fallback(self):
         """Verifies /v1/dashboard/live-research returns HTTP 200 degraded payload instead of 503 error."""

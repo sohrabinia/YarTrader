@@ -52,37 +52,28 @@ if ($existingService) {
     Start-Sleep -Seconds 2
 }
 
-# Register service using sc.exe (Native Windows Service Controller)
-# SCM runs Python with service script path argument
-$BinPath = """$PythonPath"" ""$ScriptPath"""
-Write-Host "Registering service natively via sc.exe..." -ForegroundColor Yellow
+# Check for NSSM first to guarantee 1:1 process identity and avoid pywin32 pythonservice.exe process-switching (Event ID 7039)
+$nssm = (Get-Command nssm.exe -ErrorAction SilentlyContinue).Source
 
-sc.exe create $ServiceName binPath= $BinPath start= auto DisplayName= "$ServiceDisplayName" | Out-Null
+if ($nssm) {
+    Write-Host "Registering service via NSSM for deterministic process identity..." -ForegroundColor Yellow
+    & $nssm install $ServiceName "$PythonPath" """$ScriptPath"""
+    & $nssm set $ServiceName AppDirectory "$WorkDir"
+    & $nssm set $ServiceName Description "$ServiceDescription"
+    & $nssm set $ServiceName Start SERVICE_AUTO_START
+    Write-Host "Successfully registered via NSSM!" -ForegroundColor Green
+} else {
+    Write-Host "Registering service natively via sc.exe..." -ForegroundColor Yellow
+    $BinPath = """$PythonPath"" ""$ScriptPath"""
+    sc.exe create $ServiceName binPath= $BinPath start= auto DisplayName= "$ServiceDisplayName" | Out-Null
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Native sc.exe creation failed. Checking for NSSM..." -ForegroundColor Yellow
-    $nssm = (Get-Command nssm.exe -ErrorAction SilentlyContinue).Source
-    if ($nssm) {
-        & $nssm install $ServiceName "$PythonPath" """$ScriptPath"""
-        & $nssm set $ServiceName AppDirectory "$WorkDir"
-        & $nssm set $ServiceName Description "$ServiceDescription"
-        & $nssm set $ServiceName Start SERVICE_AUTO_START
-        Write-Host "Successfully registered via NSSM!" -ForegroundColor Green
-    } else {
+    if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to install service natively and nssm.exe was not found in PATH."
-        Write-Host "Please download NSSM and place it in your system PATH, or ensure win32service is installed." -ForegroundColor Yellow
         Exit 1
     }
-} else {
-    # Set service description natively
+
     sc.exe description $ServiceName "$ServiceDescription" | Out-Null
-
-    # Configure recovery options: Automatic restart on failure
-    # 1st Failure: Restart Service (5s delay -> 5000ms)
-    # 2nd Failure: Restart Service (10s delay -> 10000ms)
-    # Subsequent Failures: Restart Service (30s delay -> 30000ms)
     sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
-
     Write-Host "Successfully registered YarTrader Windows Service natively!" -ForegroundColor Green
 }
 

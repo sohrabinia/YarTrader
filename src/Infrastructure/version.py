@@ -4,15 +4,40 @@ from typing import Dict, Any
 
 _VERSION_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "version.json")
 
+import subprocess
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def _get_git_commit_sha() -> str:
+    """Attempts to resolve the current Git repository HEAD commit SHA (memoized)."""
+    try:
+        repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        res = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=3
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        pass
+    return ""
+
 def get_application_version_info() -> Dict[str, Any]:
     """
     Returns single authoritative application version metadata.
-    Reads from config/version.json with environment variable overrides.
+    Canonical precedence order:
+    1. Explicit environment variable (GIT_COMMIT or COMMIT_SHA)
+    2. Dynamic Git repository HEAD resolution
+    3. config/version.json fallback
     """
     version_data = {
         "application": "YarTrader",
         "version": "7.0",
-        "commit": "ac2d3ec98232c098be8a445934b8222aca711a34",
+        "commit": "49546b10db0964da145df24e1d35365f4833d340",
         "environment": "production"
     }
 
@@ -23,6 +48,11 @@ def get_application_version_info() -> Dict[str, Any]:
                 version_data.update(file_data)
         except Exception:
             pass
+
+    # Dynamic Git resolution if available
+    git_sha = _get_git_commit_sha()
+    if git_sha:
+        version_data["commit"] = git_sha
 
     # Environment variable overrides if present
     env_version = os.environ.get("APP_VERSION") or os.environ.get("YARTRADER_VERSION")
