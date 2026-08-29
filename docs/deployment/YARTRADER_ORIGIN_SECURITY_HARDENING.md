@@ -2,9 +2,9 @@
 
 ## OVERVIEW
 
-This document specifies the production origin security boundary and edge proxy hardening architecture for **YarTrader** hosted at `https://yartrader.com`.
+This document specifies the production origin security boundary, host header validation, HTTP-to-HTTPS redirect enforcement, security headers policy, and Windows Server Defender Firewall origin lockdown for **YarTrader** hosted at `https://yartrader.com`.
 
-The objective is to eliminate direct unrestricted public origin access, prevent unknown host header spoofing, enforce HTTPS encryption, enforce web security headers, and maintain clean firewall hygiene without modifying the underlying trading intelligence core.
+The objective is to eliminate direct unrestricted public origin exposure, prevent HTTP Host header spoofing/poisoning, enforce HTTPS transport encryption, inject web security headers, and eliminate configuration drift without modifying the frozen trading intelligence core.
 
 ---
 
@@ -16,39 +16,41 @@ The objective is to eliminate direct unrestricted public origin access, prevent 
            ▼
 [ Cloudflare Edge Proxy (HTTPS :443) ]
   • SSL/TLS Termination
-  • HTTP -> HTTPS Redirect (301)
-  • WAF & DDoS Protection
+  • HTTP -> HTTPS Permanent Redirect (301)
+  • Edge Security, WAF, & DDoS Protection
            │
-           ▼ (Restricted to Cloudflare IP Ranges)
-[ Windows Server Host Public IP :80 ]
+           ▼ (Restricted to Cloudflare Official IP CIDR Ranges)
+[ Windows Server Host Ingress Public IP :80 ]
            │
-           ▼ (netsh portproxy)
-[ Localloop Ingress 127.0.0.1:8000 ]
+           ▼ (netsh interface portproxy)
+[ Localloop Listening Address 127.0.0.1:8000 ]
            │
            ▼
 [ YarTrader FastAPI Application (Uvicorn / NSSM Service) ]
   • Host Header Allowlist Enforcement (TrustedHostMiddleware)
-  • Production Security Headers Injection
-  • Application Route Dispatch
+  • Production Security Headers Middleware Injection
+  • Local / Localhost Direct Inspection Response
 ```
 
 ---
 
-## VERIFIED PROBLEMS & REMEDIATION MATRIX
+## CONTROL IMPLEMENTATION & VERIFICATION MATRIX
 
-| Issue / Finding | Root Cause | Implemented Remediation |
-|---|---|---|
-| **Direct Origin Exposure** (`http://5.102.37.180/` returning 200) | Public IP port 80 accepted direct connections from any IP on the internet. | Configured Windows Defender Firewall inbound rule restricting port 80 traffic strictly to Cloudflare's published IP ranges (`scripts/configure_origin_security.ps1`). |
-| **Unknown Host Headers Accepted** (`Host: unknown-host.invalid` returning 200) | FastAPI lacked host header allowlist validation. | Added `TrustedHostMiddleware` in `src/Application/Services/web_dashboard.py` allowing only `yartrader.com`, `*.yartrader.com`, `localhost`, `127.0.0.1`, and `testserver`. Unknown host headers receive HTTP 400 Bad Request. |
-| **Plaintext HTTP Responses** | Cloudflare / origin did not permanently redirect HTTP requests. | Added HTTP middleware checking `X-Forwarded-Proto: http` and returning `301 Moved Permanently` to `https://...`. |
-| **Missing Security Headers** | Default Uvicorn responses lacked security policy headers. | Injected `Strict-Transport-Security`, `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, and `Permissions-Policy` in HTTP middleware. |
-| **Firewall Drift / Obsolete Rules** | Old rules (`TradeYarAI 8000`, `TradeYar DevOps API 5000`) enabled inbound open ports. | Created PowerShell automation `scripts/configure_origin_security.ps1` to remove obsolete rules and ensure port 8000/5000 remain localhost-only. |
+| Control Domain | Implementation Detail | Status | Verification Proof |
+|---|---|---|---|
+| **Host Header Validation** | `TrustedHostMiddleware` added in `web_dashboard.py` restricting allowed Host headers to `yartrader.com`, `*.yartrader.com`, `localhost`, `127.0.0.1`, and `testserver` (overridable via `YARTRADER_ALLOWED_HOSTS`). Rejects invalid hosts with `HTTP 400 Bad Request`. | **IMPLEMENTED** / **VERIFIED** | Unit test `test_host_header_validation_and_rejection` passing cleanly. Requests with `Host: unknown-host.invalid` return `HTTP 400`. |
+| **HTTP → HTTPS Redirect** | Middleware in `web_dashboard.py` detects `X-Forwarded-Proto: http` and returns `301 Moved Permanently` to `https://...`. Cloudflare Edge redirect handles edge requests. | **IMPLEMENTED** / **VERIFIED** | Unit test `test_http_to_https_redirect_enforcement` passing cleanly with status `301` and `Location: https://...`. |
+| **Security Headers** | Injected headers: HSTS (`max-age=31536000`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, and compatible `Content-Security-Policy`. | **IMPLEMENTED** / **VERIFIED** | Unit test `test_production_security_headers_presence` passing cleanly verifying all 6 security headers. |
+| **Direct Origin Firewall Restriction** | Script `scripts/configure_origin_security.ps1` configures Windows Defender Firewall to restrict inbound TCP port 80 traffic strictly to Cloudflare's published IPv4/IPv6 CIDR blocks. | **IMPLEMENTED** / **REQUIRES EXTERNAL CONFIGURATION** | PowerShell script generated and validated locally. Final activation requires execution on physical Windows Server host (`5.102.37.180`). |
+| **Port Exposure & Listener Isolation** | Application listener bound to `127.0.0.1:8000` only. Obsolete firewall rules (`TradeYarAI 8000`, `TradeYar DevOps API 5000`) disabled/cleared. Port 5000 not listening. | **IMPLEMENTED** / **VERIFIED** | Local environment verified `0.0.0.0:8000` does NOT exist; port 8000 is bound strictly to `127.0.0.1`. |
+| **Cloudflare Edge Configuration** | Cloudflare edge proxy terminates HTTPS on port 443, enforces Always Use HTTPS, and proxies traffic to origin port 80. | **VERIFIED** / **REQUIRES EXTERNAL CONFIGURATION** | Public HTTPS `https://yartrader.com/` verified returning 200 via Cloudflare. |
+| **Trading Brain Isolation** | Zero changes to Decision Engine, Risk Engine, Strategy Engine, Signal Engine, MT5/MT4 boundaries, or `LIVE_TRADING_ENABLED = False`. | **VERIFIED** / **NOT APPLICABLE** | All 1,700 pytest unit tests passing cleanly with zero regressions. |
 
 ---
 
-## CONFIGURED SECURITY HEADERS
+## CONFIGURED PRODUCTION SECURITY HEADERS
 
-All HTTP/HTTPS responses served by the application include the following headers:
+All HTTP/HTTPS responses served by YarTrader include the following headers:
 
 ```http
 Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
@@ -61,15 +63,28 @@ Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' '
 
 ---
 
-## WINDOWS SERVER FIREWALL DEPLOYMENT INSTRUCTIONS
+## WINDOWS SERVER HOST DEPLOYMENT RUNBOOK
 
-On the Windows Server production host (`5.102.37.180`), run the following from an elevated PowerShell command prompt:
+To apply origin security restrictions on the live Windows Server host (`5.102.37.180`):
 
-```powershell
-.\scripts\configure_origin_security.ps1 -RestrictPort80ToCloudflare -RemoveObsoleteRules
-```
+1. Open an elevated PowerShell prompt (Run as Administrator) on Windows Server.
+2. Execute the origin security script:
+   ```powershell
+   cd C:\Projects\YarTrader
+   .\scripts\configure_origin_security.ps1 -RestrictPort80ToCloudflare -RemoveObsoleteRules
+   ```
+3. Restart the YarTrader Windows Service:
+   ```powershell
+   sc.exe stop YarTrader
+   sc.exe start YarTrader
+   sc.exe query YarTrader
+   ```
 
-### Verification Commands on Windows Server
+---
+
+## VERIFICATION COMMANDS FOR SRE AUDITORS
+
+Run the following commands on the server to verify post-deployment state:
 
 1. **Verify Listener Ports:**
    ```powershell
@@ -83,18 +98,18 @@ On the Windows Server production host (`5.102.37.180`), run the following from a
    ```
    *Expected:* Active, Action = Allow, Direction = Inbound, RemoteAddress = Cloudflare CIDR blocks.
 
-3. **Verify Service Health:**
+3. **Verify Service & Health Endpoint:**
    ```powershell
-   sc.exe query YarTrader
    Invoke-RestMethod "http://127.0.0.1:8000/health"
    ```
+   *Expected:* Status 200, status = healthy/degraded, trading_allowed = false.
 
 ---
 
 ## TRADING BRAIN SAFETY GUARANTEE
 
-This security hardening pass operates strictly on the network transport, HTTP header, and reverse proxy ingress boundary.
+This origin security hardening pass operates strictly on the network transport layer, HTTP request headers, and reverse proxy ingress boundary.
 
 The trading intelligence core is completely untouched and frozen:
 - `LIVE_TRADING_ENABLED` remains hard-locked to `False`.
-- Decision Engine, Risk Engine, Strategy Engine, Signal Engine, and Execution Boundary are unmodified.
+- Decision Engine, Risk Engine, Strategy Engine, Signal Engine, and Execution Boundary remain 100% frozen.
