@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-30T14:47:22.934982",
+  "timestamp": "2026-08-30T15:05:22.960806",
   "total_signals": 5000,
   "executed_demo_trades": 4375,
   "risk_gate_rejections": 625,
@@ -15,10 +15,10 @@
       "timeframe": "M15",
       "market_context": "TRENDING_UP",
       "frequency": 4351,
-      "wins": 3073,
-      "losses": 1278,
-      "success_rate": 0.7063,
-      "confidence_weight": 0.7531
+      "wins": 3074,
+      "losses": 1277,
+      "success_rate": 0.7065,
+      "confidence_weight": 0.7532
     },
     "PAT_MSS_BREAKOUT": {
       "pattern_id": "PAT_MSS_BREAKOUT",
@@ -57,10 +57,10 @@
       "timeframe": "M15",
       "market_context": "TRENDING_UP",
       "frequency": 5428,
-      "wins": 3834,
-      "losses": 1594,
-      "success_rate": 0.7063,
-      "confidence_weight": 0.7531
+      "wins": 3835,
+      "losses": 1593,
+      "success_rate": 0.7065,
+      "confidence_weight": 0.7532
     },
     "PAT_MSS_BREAKOUT": {
       "pattern_id": "PAT_MSS_BREAKOUT",
