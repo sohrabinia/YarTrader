@@ -888,7 +888,6 @@ function MainApp() {
               </div>
               <a href={`/${lang}/backtest`} className={`sidebar-link ${routePath.startsWith('/backtest') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/backtest'); }}>{t('nav_backtest')}</a>
               <a href={`/${lang}/demo`} className={`sidebar-link ${routePath === '/demo' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/demo'); }}>{t('nav_demo')}</a>
-              <a href={`/${lang}/shadow`} className={`sidebar-link ${routePath === '/shadow' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/shadow'); }}>{t('nav_shadow')}</a>
               <a href={`/${lang}/live`} className={`sidebar-link ${routePath === '/live' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/live'); }} style={{ color: 'var(--danger)' }}>{t('nav_live')}</a>
             </div>
           )}
@@ -1271,38 +1270,6 @@ function MainApp() {
             <DemoView t={t} demoReport={demoReport} backendState={backendState} />
           )}
 
-          {/* DEDICATED TRADING MODE 3: SHADOW / PAPER TRADING PAGE */}
-          {hash === '#/shadow' && (
-            <div id="shell-shadow">
-              <div className="card" style={{ borderTop: '4px solid #4FB6C7' }}>
-                <h2 style={{ marginTop: 0, color: '#4FB6C7' }}>{t('shadow_title')}</h2>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('shadow_desc')}</p>
-
-                <div className="status-board" style={{ marginBottom: '25px' }}>
-                  <MetricCard title={lang === 'fa' ? 'حساب مجازی (Paper)' : 'Virtual Account ID'} value={shadowReport.account_id || 'vaccount-shadow-1'} status="primary" />
-                  <MetricCard title={lang === 'fa' ? 'موجودی (Balance)' : 'Virtual Cash'} value={shadowReport.balance != null ? `$${shadowReport.balance.toLocaleString()}` : 'DATA UNAVAILABLE'} status="passed" />
-                  <MetricCard title={lang === 'fa' ? 'ارزش ویژه (Equity)' : 'Virtual Equity'} value={shadowReport.equity != null ? `$${shadowReport.equity.toLocaleString()}` : 'DATA UNAVAILABLE'} status="passed" />
-                  <MetricCard title={lang === 'fa' ? 'سود/زیان محقق‌شده' : 'Realized PnL'} value={shadowReport.realized_pnl != null ? `$${shadowReport.realized_pnl.toFixed(2)}` : 'DATA UNAVAILABLE'} status={(shadowReport.realized_pnl || 0) >= 0 ? 'passed' : 'failed'} />
-                </div>
-
-                <h3 style={{ color: '#4FB6C7', marginTop: 0 }}>{lang === 'fa' ? 'موقعیت‌های مجازی سایه (Virtual Positions)' : 'Virtual Position Manager'}</h3>
-                <DataTable
-                  headers={['VPOS ID', 'Symbol', 'Side', 'Entry Price', 'Stop Loss', 'Take Profit', 'Unrealized PnL', 'Paper Status']}
-                  rows={shadowTradesList.map((st, idx) => [
-                    st.vpos_id || st.position_id || st.id || `vpos-${st.symbol ? st.symbol.toLowerCase() : idx+1}`,
-                    <strong>{st.symbol || 'N/A'}</strong>,
-                    <span style={{ color: st.side === 'BUY' ? 'var(--accent)' : 'var(--danger)' }}>{st.side || 'DATA UNAVAILABLE'}</span>,
-                    st.entry_price != null ? st.entry_price : 'DATA UNAVAILABLE',
-                    <span style={{ color: 'var(--danger)' }}>{st.stop_loss != null ? st.stop_loss : '-'}</span>,
-                    <span style={{ color: 'var(--accent)' }}>{st.take_profit != null ? st.take_profit : '-'}</span>,
-                    <span className={(st.unrealized_pnl || 0) >= 0 ? 'status-passed' : 'status-failed'}>${st.unrealized_pnl != null ? st.unrealized_pnl.toFixed(2) : '0.00'}</span>,
-                    <StatusBadge status="neutral" label="SIMULATED PAPER" />
-                  ])}
-                  emptyMessage={lang === 'fa' ? 'هیچ پوزیشن سایه‌ای در حال حاضر باز نیست.' : 'No virtual shadow positions currently open.'}
-                />
-              </div>
-            </div>
-          )}
 
           {/* DEDICATED TRADING MODE 4: LIVE TRADING PAGE (HARD BLOCKED) */}
           {hash === '#/live' && (
@@ -1653,7 +1620,6 @@ function MainApp() {
                 {/* Signal Category Tabs */}
                 <div className="sub-nav-tabs">
                   <div className={`sub-tab ${signalTab === 'live' ? 'active' : ''}`} onClick={() => setSignalTab('live')}>{t('tab_live_signals')}</div>
-                  <div className={`sub-tab ${signalTab === 'shadow' ? 'active' : ''}`} onClick={() => setSignalTab('shadow')}>{t('tab_shadow_signals')}</div>
                   <div className={`sub-tab ${signalTab === 'backtest' ? 'active' : ''}`} onClick={() => setSignalTab('backtest')}>{t('tab_backtest_signals')}</div>
                   <div className={`sub-tab ${signalTab === 'historical' ? 'active' : ''}`} onClick={() => setSignalTab('historical')}>{t('tab_historical_signals')}</div>
                 </div>

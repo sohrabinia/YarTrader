@@ -21,8 +21,6 @@ export default function DashboardView({
   marketAnalysis,
   structureAnalysis,
   liquidityAnalysis,
-  shadowTrades,
-  shadowMetrics,
   postureFilter,
   setPostureFilter,
   activeHorizonFilter,
@@ -45,7 +43,7 @@ export default function DashboardView({
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', fontWeight: 'bold' }}>
-              ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'SHADOW / DEMO PAPER')}
+              ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'DEMO PAPER')}
             </span>
             <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
               SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE ACTIVE' : 'FAIL-CLOSED (LIVE DISABLED)')}
@@ -89,25 +87,6 @@ export default function DashboardView({
         <PositionTimelineStepper currentStage="OPENED" />
       </div>
 
-      {/* Shadow Trades Table */}
-      <div className="card">
-        <h3 className="text-sm font-bold text-[var(--primary)] uppercase tracking-wider mb-3">Active Shadow Execution Journal</h3>
-        <DataTable
-          columns={[
-            { key: 'id', title: 'Ticket ID' },
-            { key: 'symbol', title: 'Symbol' },
-            { key: 'type', title: 'Type' },
-            { key: 'volume', title: 'Volume' },
-            { key: 'entry_price', title: 'Entry Price' },
-            { key: 'pnl', title: 'Floating P&L' },
-            { key: 'status', title: 'Status' }
-          ]}
-          data={shadowTrades && shadowTrades.length > 0 ? shadowTrades : [
-            { id: '#SHADOW-8801', symbol: 'XAUUSD', type: 'BUY', volume: '0.10', entry_price: '2450.50', pnl: '+$142.50', status: 'ACTIVE' },
-            { id: '#SHADOW-8802', symbol: 'EURUSD', type: 'SELL', volume: '0.25', entry_price: '1.0875', pnl: '+$68.00', status: 'ACTIVE' }
-          ]}
-        />
-      </div>
     </div>
   );
 }

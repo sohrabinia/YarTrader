@@ -22,7 +22,6 @@ export default function CommandPalette({ lang = 'fa', t = (k) => k }) {
     { label: t('nav_execution_intel') || 'Execution Intelligence & XAI', hash: '#/execution-intel', icon: '⚡', group: 'Platform' },
     { label: t('nav_backtest') || 'Backtest Simulation Lab', hash: '#/backtest', icon: '📊', group: 'Trading' },
     { label: t('nav_demo') || 'MT5 Demo Terminal (#52961173)', hash: '#/demo', icon: '🎮', group: 'Trading' },
-    { label: t('nav_shadow') || 'Paper Execution Manager ($1,000)', hash: '#/shadow', icon: '👻', group: 'Trading' },
     { label: t('nav_learning') || 'Pattern Memory & Learning Matrix', hash: '#/learning', icon: '🧠', group: 'Intelligence' },
     { label: t('nav_admin') || 'SRE Admin Operational Control Center', hash: '#/admin', icon: '🛡️', group: 'Administration' },
     { label: t('nav_login') || 'Sign In', hash: '#/login', icon: '🔑', group: 'Auth' },

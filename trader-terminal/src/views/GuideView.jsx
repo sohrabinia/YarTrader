@@ -33,7 +33,6 @@ export default function GuideView({ lang, t }) {
           <ul style={{ fontSize: '0.85em', lineHeight: '1.8', color: 'var(--text-dark)', paddingLeft: '15px' }}>
             <li><strong>Backtest:</strong> {isFa ? 'شبیه‌سازی تاریخچه گذشته بدون ریسک' : 'Historical market simulations'}</li>
             <li><strong>Demo:</strong> {isFa ? 'معاملات آزمایشی در سرور آلپاری (#52961173)' : 'Simulated broker demo execution'}</li>
-            <li><strong>Shadow (Paper):</strong> {isFa ? 'رهگیری پوزیشن‌های مجازی در حساب سایه' : 'Virtual shadow trade journaling'}</li>
             <li><strong>Live Mode:</strong> <span style={{ color: 'var(--danger)' }}>{isFa ? 'قفل ایمنی غیرفعال (LIVE_TRADING_ENABLED=False)' : 'HARD BLOCKED (LIVE_TRADING_ENABLED=False)'}</span></li>
           </ul>
         </div>

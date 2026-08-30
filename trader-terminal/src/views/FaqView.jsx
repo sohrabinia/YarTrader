@@ -27,10 +27,10 @@ export default function FaqView({ lang, t }) {
         : 'No. Strictly no profit or prop challenge passing guarantees are promised or implied.'
     },
     {
-      q: isFa ? 'تفاوت حالت‌های Backtest، Demo و Shadow چیست؟' : isTr ? 'Backtest, Demo ve Shadow Mod Farkı Nedir?' : isAr ? 'ما الفرق بين Backtest و Demo و Shadow؟' : 'What is the Difference Between Backtest, Demo, and Shadow Modes?',
+      q: isFa ? 'تفاوت حالت‌های Backtest و Demo چیست؟' : isTr ? 'Backtest ve Demo Mod Farkı Nedir?' : isAr ? 'ما الفرق بين Backtest و Demo؟' : 'What is the Difference Between Backtest and Demo Modes?',
       a: isFa
-        ? 'حالت Backtest شبیه‌سازی تاریخچه گذشته است؛ Demo اجرای آزمایشی روی سرور متاتریدر ۵ آلپاری است؛ و Shadow ثبت پوزیشن‌های مجازی در دفترچه معاملات سایه بدون ریسک مالی است.'
-        : 'Backtest runs historical simulation; Demo executes orders on Alpari MT5 demo account; Shadow tracks virtual paper positions in a shadow journal.'
+        ? 'حالت Backtest شبیه‌سازی تاریخچه گذشته بازار است، در حالی که Demo اجرای آزمایشی سفارشات زنده روی سرور متاتریدر ۵ بدون ریسک مالی می‌باشد.'
+        : 'Backtest runs historical simulation on past market feeds, while Demo executes orders on live MT5 demo accounts with zero financial risk.'
     },
     {
       q: isFa ? 'چرا در برخی مواقع هیچ سیگنال فعالی وجود ندارد؟' : isTr ? 'Neden Bazen Sinyal Bulunmaz?' : isAr ? 'لماذا لا توجد إشارات أحياناً؟' : 'Why Can There Be No Valid Signals?',
