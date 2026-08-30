@@ -391,25 +391,23 @@ class StrategyOrchestrator:
         reasoning = []
 
         fvgs = zones.get("fair_value_gaps", [])
-        bullish_fvgs = [f for f in fvgs if f.get("type") == "BULLISH_FVG"]
-        bearish_fvgs = [f for f in fvgs if f.get("type") == "BEARISH_FVG"]
+        bullish_fvgs = [f for f in fvgs if f.get("type") == "BULLISH_FVG" and f.get("bottom", 0) <= current_price <= f.get("top", 0)]
+        bearish_fvgs = [f for f in fvgs if f.get("type") == "BEARISH_FVG" and f.get("bottom", 0) <= current_price <= f.get("top", 0)]
 
         if bullish_fvgs:
             fvg = bullish_fvgs[0]
-            if fvg.get("bottom", 0) <= current_price <= fvg.get("top", 0):
-                direction = "BUY"
-                sl = fvg["bottom"] - (10 * pip_factor)
-                tp = current_price + ((current_price - sl) * 2.2)
-                confidence = 80.0
-                reasoning.append("PRICE_ACTION_RTM: Retesting Bullish Fair Value Gap (FVG) / Demand Node.")
+            direction = "BUY"
+            sl = fvg["bottom"] - (10 * pip_factor)
+            tp = current_price + ((current_price - sl) * 2.2)
+            confidence = 80.0
+            reasoning.append("PRICE_ACTION_RTM: Retesting Bullish Fair Value Gap (FVG) / Demand Node.")
         elif bearish_fvgs:
             fvg = bearish_fvgs[0]
-            if fvg.get("bottom", 0) <= current_price <= fvg.get("top", 0):
-                direction = "SELL"
-                sl = fvg["top"] + (10 * pip_factor)
-                tp = current_price - ((sl - current_price) * 2.2)
-                confidence = 80.0
-                reasoning.append("PRICE_ACTION_RTM: Retesting Bearish Fair Value Gap (FVG) / Supply Node.")
+            direction = "SELL"
+            sl = fvg["top"] + (10 * pip_factor)
+            tp = current_price - ((sl - current_price) * 2.2)
+            confidence = 80.0
+            reasoning.append("PRICE_ACTION_RTM: Retesting Bearish Fair Value Gap (FVG) / Supply Node.")
 
         risk_dist = abs(current_price - sl)
         reward_dist = abs(tp - current_price)
