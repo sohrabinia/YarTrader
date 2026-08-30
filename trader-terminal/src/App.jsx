@@ -212,8 +212,6 @@ function MainApp() {
   const [backtestForm, setBacktestForm] = useState({ symbol: 'XAUUSD', timeframe: '64', bars: '1000' });
   const [demoTrades, setDemoTrades] = useState([]);
   const [demoReport, setDemoReport] = useState({});
-  const [shadowReport, setShadowReport] = useState({});
-  const [shadowTradesList, setShadowTradesList] = useState([]);
 
   // Pattern detail and Pricing detail modal state
   const [selectedPattern, setSelectedPattern] = useState(null);
@@ -229,7 +227,6 @@ function MainApp() {
   const [devopsMetrics, setDevopsMetrics] = useState({});
   const [validationHistory, setValidationHistory] = useState([]);
   const [validationStatus, setValidationStatus] = useState({});
-  const [shadowMetrics, setShadowMetrics] = useState({});
   const [validationPhase, setValidationPhase] = useState('IDLE');
   const [validationComponent, setValidationComponent] = useState('N/A');
   const [validationTrace, setValidationTrace] = useState('N/A');
@@ -391,17 +388,6 @@ function MainApp() {
     }
   };
 
-  const fetchShadowData = async () => {
-    try {
-      const rep = await apiService.get('/api/shadow/report');
-      setShadowReport(rep || {});
-      const currentToken = localStorage.getItem('yartrader_token') || token || '';
-      const trades = await apiService.get(`/api/admin/shadow-trades?token=${encodeURIComponent(currentToken)}`);
-      setShadowTradesList(Array.isArray(trades) ? trades : (trades.shadow_trades || []));
-    } catch (err) {
-      console.error('Shadow data error:', err);
-    }
-  };
 
   const runBacktestExecution = async () => {
     setBacktestRunning(true);
@@ -435,8 +421,6 @@ function MainApp() {
       fetchBacktestHistory();
     } else if (hash === '#/demo') {
       fetchDemoData();
-    } else if (hash === '#/shadow') {
-      fetchShadowData();
     } else if (hash === '#/signals') {
       fetchUserSignals();
     } else if (hash === '#/execution-intel') {
@@ -681,8 +665,6 @@ function MainApp() {
       setValidationHistory(valHistory);
       const valStatus = await apiService.get('/api/validation/status');
       setValidationStatus(valStatus);
-      const shadow = await apiService.get('/api/shadow/metrics');
-      setShadowMetrics(shadow);
     } catch (err) {
       console.error(err);
     }
@@ -1322,7 +1304,7 @@ function MainApp() {
                   </div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', fontWeight: 'bold' }}>
-                      ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'SHADOW / DEMO PAPER')}
+                      ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'DEMO PAPER')}
                     </span>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
                       SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE ACTIVE' : 'FAIL-CLOSED (LIVE DISABLED)')}
@@ -1781,7 +1763,6 @@ function MainApp() {
                       <div style={{ lineHeight: '2', fontSize: '0.9rem' }}>
                         <div><strong>Backtest Engine:</strong> {backtestRuns.length} historical simulations recorded</div>
                         <div><strong>Broker Demo Trades:</strong> {demoTrades.length} orders executed (Account #52961173)</div>
-                        <div><strong>Shadow Paper Positions:</strong> {shadowTradesList.length} virtual trades open</div>
                         <div><strong>Live Money Trading:</strong> <span style={{ color: 'var(--danger)' }}>HARD BLOCKED (Zero Risk)</span></div>
                       </div>
                     </div>
@@ -1855,7 +1836,7 @@ function MainApp() {
                     <h4 style={{ margin: 0, color: 'var(--danger)' }}>🛑 LIVE TRADING HARD ISOLATION GATE</h4>
                     <p style={{ fontSize: '0.9rem', marginTop: '8px', lineHeight: '1.6' }}>
                       The SRE Safety Gate prevents real-money order routing under all conditions (`LIVE_TRADING_ENABLED=False`).
-                      Execution is strictly restricted to MT5 Demo (#52961173) and Paper Shadow ($1,000).
+                      Execution is strictly restricted to MT5 Demo (#52961173).
                     </p>
                   </div>
                 </div>
@@ -1866,7 +1847,7 @@ function MainApp() {
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🧠 Intelligence Engine & SCM Reports</h3>
                   <DataTable
-                    headers={[t('col_symbol'), t('col_timeframe'), t('col_shadow_cycles'), t('col_wins_losses'), t('col_win_rate'), t('col_avg_confidence')]}
+                    headers={[t('col_symbol'), t('col_timeframe'), 'Evaluation Cycles', t('col_wins_losses'), t('col_win_rate'), t('col_avg_confidence')]}
                     rows={adminReports.map(rep => [
                       rep.symbol,
                       rep.timeframe,
