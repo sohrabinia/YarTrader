@@ -1,0 +1,111 @@
+{
+  "inventory_version": "2.0",
+  "canonical_domain": "https://yartrader.com",
+  "public_locales": ["fa", "en", "tr", "ar"],
+  "forbidden_locales": ["de"],
+  "total_discovered_routes": 30,
+  "total_public_indexable_urls": 24,
+  "routes": [
+    {
+      "route": "/",
+      "public": true,
+      "indexable": true,
+      "page_name": "Homepage",
+      "canonical_urls": {
+        "fa": "https://yartrader.com/fa",
+        "en": "https://yartrader.com/en",
+        "tr": "https://yartrader.com/tr",
+        "ar": "https://yartrader.com/ar"
+      }
+    },
+    {
+      "route": "/features",
+      "public": true,
+      "indexable": true,
+      "page_name": "Features",
+      "canonical_urls": {
+        "fa": "https://yartrader.com/fa/features",
+        "en": "https://yartrader.com/en/features",
+        "tr": "https://yartrader.com/tr/features",
+        "ar": "https://yartrader.com/ar/features"
+      }
+    },
+    {
+      "route": "/pricing",
+      "public": true,
+      "indexable": true,
+      "page_name": "Pricing",
+      "canonical_urls": {
+        "fa": "https://yartrader.com/fa/pricing",
+        "en": "https://yartrader.com/en/pricing",
+        "tr": "https://yartrader.com/tr/pricing",
+        "ar": "https://yartrader.com/ar/pricing"
+      }
+    },
+    {
+      "route": "/guide",
+      "public": true,
+      "indexable": true,
+      "page_name": "User Guide",
+      "canonical_urls": {
+        "fa": "https://yartrader.com/fa/guide",
+        "en": "https://yartrader.com/en/guide",
+        "tr": "https://yartrader.com/tr/guide",
+        "ar": "https://yartrader.com/ar/guide"
+      }
+    },
+    {
+      "route": "/faq",
+      "public": true,
+      "indexable": true,
+      "page_name": "FAQ",
+      "canonical_urls": {
+        "fa": "https://yartrader.com/fa/faq",
+        "en": "https://yartrader.com/en/faq",
+        "tr": "https://yartrader.com/tr/faq",
+        "ar": "https://yartrader.com/ar/faq"
+      }
+    },
+    {
+      "route": "/blog",
+      "public": true,
+      "indexable": true,
+      "page_name": "Research Blog",
+      "canonical_urls": {
+        "fa": "https://yartrader.com/fa/blog",
+        "en": "https://yartrader.com/en/blog",
+        "tr": "https://yartrader.com/tr/blog",
+        "ar": "https://yartrader.com/ar/blog"
+      }
+    },
+    {
+      "route": "/dashboard",
+      "public": false,
+      "indexable": false,
+      "page_name": "Trader Terminal",
+      "type": "private_authenticated"
+    },
+    {
+      "route": "/admin",
+      "public": false,
+      "indexable": false,
+      "page_name": "SRE Admin Control Center",
+      "type": "private_authenticated"
+    },
+    {
+      "route": "/live",
+      "public": false,
+      "indexable": false,
+      "page_name": "Live Execution Gate",
+      "type": "hard_blocked_safety_isolation"
+    },
+    {
+      "route": "/de",
+      "public": false,
+      "indexable": false,
+      "page_name": "Legacy German Route",
+      "http_status": 404,
+      "type": "purged"
+    }
+  ]
+}
