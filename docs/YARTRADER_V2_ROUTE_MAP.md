@@ -9,7 +9,7 @@
 ## 1. Absolute SEO & Route Protection Directives
 
 1. **URL Preservation:** All existing valid public, authenticated, blog, guide, FAQ, and admin URLs across all 4 production locales are strictly frozen.
-2. **Shadow Trading Retirement:** `/{lang}/shadow` is retired from active product navigation and removed from sitemap.xml. Unauthenticated or direct requests return HTTP 410 Gone / 301 Redirect to `/{lang}/dashboard`.
+2. **Shadow Trading Retirement:** `/{lang}/shadow` is retired from active product navigation and removed from sitemap.xml. Direct requests redirect via 301 to `/{lang}/dashboard`.
 3. **Dynamic Locale Prefix Routing:** Every public route is accessible both un-prefixed (defaulting to Persian `fa` or user preference) and explicitly prefixed with `/{lang}/` where `lang` is in `['fa', 'en', 'tr', 'ar']`.
 4. **No Soft 404s:** Unknown public subpaths return a strict HTTP 404 response in API contexts or structured localized fallback in SPA routing.
 5. **Static SEO Endpoints:**
@@ -35,7 +35,7 @@
 | `/{lang}/dashboard` | User Financial Intelligence Terminal | Authenticated | `https://yartrader.com/{lang}/dashboard` | `NOINDEX, NOFOLLOW` |
 | `/{lang}/backtest` | Backtest Execution Hub | Authenticated | `https://yartrader.com/{lang}/backtest` | `NOINDEX, NOFOLLOW` |
 | `/{lang}/demo` | Demo Broker Order Monitor | Authenticated | `https://yartrader.com/{lang}/demo` | `NOINDEX, NOFOLLOW` |
-| `/{lang}/shadow` | **RETIRED PRODUCT ROUTE** (301 to Dashboard) | Retired | `https://yartrader.com/{lang}/dashboard` | `NOINDEX, NOFOLLOW` |
+| `/{lang}/shadow` | **RETIRED PRODUCT ROUTE** (301 Redirect -> Dashboard) | Retired | `https://yartrader.com/{lang}/dashboard` | `NOINDEX, NOFOLLOW` |
 | `/{lang}/live` | Live Order Safety Boundary (Fail-Closed) | Authenticated | `https://yartrader.com/{lang}/live` | `NOINDEX, NOFOLLOW` |
 | `/{lang}/signals` | Cognitive Signals Feed | Authenticated | `https://yartrader.com/{lang}/signals` | `NOINDEX, NOFOLLOW` |
 | `/{lang}/execution-intel` | 5-Stage Execution Cascade | Authenticated | `https://yartrader.com/{lang}/execution-intel` | `NOINDEX, NOFOLLOW` |

@@ -16,7 +16,7 @@ This forensic audit evaluates all data stores, seed scripts, fixtures, and API r
 2. `SYSTEM_REQUIRED`: System configuration, canonical subscription tiers, default RBAC roles (`ADMIN`, `USER`), and version metadata (`config/version.json`).
 3. `DEMO`: Demo account data and order execution on MT5 Demo servers.
 4. `JULES_TEST`: Temporary test fixtures or synthetic data created during sandbox testing.
-5. `RETIRED_SHADOW`: Retired paper execution data removed from active product UI paths.
+5. `RETIRED_SHADOW`: Retired paper execution data completely removed from active product UI paths.
 
 ---
 
@@ -31,7 +31,7 @@ This forensic audit evaluates all data stores, seed scripts, fixtures, and API r
 | **Version Metadata** | `SYSTEM_REQUIRED` | Yes | Dynamic version resolution (`YarTrader v7.0`). |
 | **UI Mock Fallbacks** | `JULES_TEST` | **REMOVED** | Removed fake data generators. Unavailable APIs display clean `DATA UNAVAILABLE` states. |
 | **Demo MT5 Orders** | `DEMO` | Yes (Demo Mode) | Real order placement on Alpari MT5 Demo account. |
-| **Shadow Paper Account** | `RETIRED_SHADOW` | **REMOVED FROM UI** | Removed from active frontend UI paths, navigation, and API contracts. |
+| **Shadow Paper Account** | `RETIRED_SHADOW` | **REMOVED FROM UI** | Retired from product experience and UI. Preserved only if required for backend historical compatibility. |
 
 ---
 
