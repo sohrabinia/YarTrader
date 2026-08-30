@@ -214,16 +214,30 @@ class MarketMemorySystem:
             ]
 
         for exp in validated_exps:
+            # Idempotency check: Skip if experience has already been promoted to pattern memory
+            if exp.meta.get("is_promoted_to_pattern") is True:
+                continue
+
             sig = exp.situation_signature
             if not sig:
+                continue
+
+            # Check if experience_id already exists in any pattern outcomes
+            already_promoted = False
+            with self._lock:
+                patterns_list = list(self.patterns.values())
+                for p in patterns_list:
+                    if any(out.get("experience_id") == exp.experience_id for out in p.outcomes):
+                        already_promoted = True
+                        break
+
+            if already_promoted:
+                exp.meta["is_promoted_to_pattern"] = True
                 continue
 
             # Look for matching pattern in current patterns
             matched_pattern = None
             best_similarity = 0.0
-
-            with self._lock:
-                patterns_list = list(self.patterns.values())
 
             for pat in patterns_list:
                 pat_sig = pat.sequence_signature
@@ -243,6 +257,8 @@ class MarketMemorySystem:
             judge_score = exp.meta.get("judge_reasoning_score", 1.0)
             adjusted_confidence = decay_weight * judge_score
 
+            exp_timestamp_str = exp.timestamp.isoformat() if hasattr(exp.timestamp, "isoformat") else str(exp.timestamp)
+
             if matched_pattern and best_similarity >= 0.85:
                 # Update pattern
                 with self._lock:
@@ -254,12 +270,18 @@ class MarketMemorySystem:
                     # Append outcome detail linked with adjusted confidence and judge accuracy metrics
                     matched_pattern.outcomes.append({
                         "experience_id": exp.experience_id,
-                        "timestamp": exp.timestamp.isoformat(),
+                        "timestamp": exp_timestamp_str,
                         "outcome": exp.outcome_result,
                         "adjusted_confidence": round(adjusted_confidence, 4),
                         "judge_vetted_accuracy": exp.meta.get("judge_accuracy", 1.0)
                     })
+                    # Keep outcomes bounded to 100 entries to prevent unbounded growth
+                    if len(matched_pattern.outcomes) > 100:
+                        matched_pattern.outcomes = matched_pattern.outcomes[-100:]
+
+                    exp.meta["is_promoted_to_pattern"] = True
                     self._save_layer("patterns")
+                    self._save_layer("experiences")
                     promoted_patterns.append(matched_pattern)
             else:
                 # Create a new pattern with occurrences count and linked metrics
@@ -272,7 +294,7 @@ class MarketMemorySystem:
                     reversal_count=0 if is_success else 1,
                     outcomes=[{
                         "experience_id": exp.experience_id,
-                        "timestamp": exp.timestamp.isoformat(),
+                        "timestamp": exp_timestamp_str,
                         "outcome": exp.outcome_result,
                         "adjusted_confidence": round(adjusted_confidence, 4),
                         "judge_vetted_accuracy": exp.meta.get("judge_accuracy", 1.0)
@@ -281,7 +303,9 @@ class MarketMemorySystem:
                 )
                 with self._lock:
                     self.patterns[pid] = new_pat
+                    exp.meta["is_promoted_to_pattern"] = True
                     self._save_layer("patterns")
+                    self._save_layer("experiences")
                     promoted_patterns.append(new_pat)
 
         return promoted_patterns
