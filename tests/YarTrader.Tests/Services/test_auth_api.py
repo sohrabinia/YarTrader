@@ -15,7 +15,7 @@ class TestSaaSAuthAPI(unittest.TestCase):
 
     def setUp(self) -> None:
         # Register a unique user for credentials testing
-        self.test_email = "trader-test-auth@tradeyar.ai"
+        self.test_email = "trader-test-auth@yartrader.app"
         self.test_pass = "traderPass123!"
         self.test_name = "Testing Trader"
 

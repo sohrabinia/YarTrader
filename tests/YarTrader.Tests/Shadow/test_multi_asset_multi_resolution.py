@@ -8,7 +8,7 @@ from src.Application.Services.web_dashboard import app, global_auth_service
 
 class TestMultiAssetMultiResolutionCognitive(unittest.TestCase):
     """
-    Enterprise-grade test cases for TradeYar AI v3.3.
+    Enterprise-grade test cases for YarTrader v3.3.
     Enforces strict Multi-Asset & Multi-Resolution isolated cognitive context rules.
     """
 
@@ -129,7 +129,7 @@ class TestMultiAssetMultiResolutionCognitive(unittest.TestCase):
 
         # Query Admin Symbols without token (fails in real settings, but check check_admin_guard block)
         # Create regular user token
-        user_token = global_auth_service.create_session({"email": "trader@tradeyar.ai", "role": "USER"})
+        user_token = global_auth_service.create_session({"email": "trader@yartrader.app", "role": "USER"})
         admin_resp = self.client.get(f"/api/admin/symbols?token={user_token}")
         self.assertEqual(admin_resp.status_code, 403)
 

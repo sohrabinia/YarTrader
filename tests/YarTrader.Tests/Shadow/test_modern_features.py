@@ -5,7 +5,7 @@ from src.Application.Services.web_dashboard import app, global_auth_service
 
 class TestModernFeaturesIntegration(unittest.TestCase):
     """
-    Standard Engineering integration tests for TradeYar AI v3.2 new features.
+    Standard Engineering integration tests for YarTrader v3.2 new features.
     Verifies Social Auth callbacks, Role-based route guards, and AI chatbot reasoning.
     """
 
@@ -17,7 +17,7 @@ class TestModernFeaturesIntegration(unittest.TestCase):
     def test_social_login_google_and_apple(self) -> None:
         # Test Google Auth
         google_payload = {
-            "email": "test-google@tradeyar.ai",
+            "email": "test-google@yartrader.app",
             "provider_id": "google-12345",
             "name": "Google User"
         }
@@ -26,12 +26,12 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         data = resp.json()
         self.assertEqual(data["status"], "Success")
         self.assertIn("session_token", data)
-        self.assertEqual(data["user"]["email"], "test-google@tradeyar.ai")
+        self.assertEqual(data["user"]["email"], "test-google@yartrader.app")
         self.assertEqual(data["user"]["role"], "USER")
 
         # Test Apple Auth
         apple_payload = {
-            "email": "test-apple@tradeyar.ai",
+            "email": "test-apple@yartrader.app",
             "provider_id": "apple-67890",
             "name": "Apple User"
         }
@@ -40,7 +40,7 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         data2 = resp2.json()
         self.assertEqual(data2["status"], "Success")
         self.assertIn("session_token", data2)
-        self.assertEqual(data2["user"]["email"], "test-apple@tradeyar.ai")
+        self.assertEqual(data2["user"]["email"], "test-apple@yartrader.app")
 
     def test_pristine_blog_endpoints(self) -> None:
         # List blog articles
@@ -69,7 +69,7 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         resp1 = self.client.post("/api/chat/assistant", json=prompt1)
         self.assertEqual(resp1.status_code, 200)
         data1 = resp1.json()
-        self.assertTrue("TradeYar" in data1["status"] or "YarTrader" in data1["status"])
+        self.assertTrue("YarTrader" in data1["status"])
         self.assertIn("تصمیم", data1["response"])
 
         # Test learn/cognitive prompt in English
@@ -82,7 +82,7 @@ class TestModernFeaturesIntegration(unittest.TestCase):
     def test_jwt_admin_route_guards(self) -> None:
         # 1. Create a regular USER session
         user_data = {
-            "email": "user@tradeyar.ai",
+            "email": "user@yartrader.app",
             "password_hash": "",
             "role": "USER",
             "name": "Standard Trader"
@@ -96,7 +96,7 @@ class TestModernFeaturesIntegration(unittest.TestCase):
 
         # 3. Create an ADMIN session
         admin_data = {
-            "email": "admin@tradeyar.ai",
+            "email": "admin@yartrader.app",
             "password_hash": "",
             "role": "ADMIN",
             "name": "Super Admin"

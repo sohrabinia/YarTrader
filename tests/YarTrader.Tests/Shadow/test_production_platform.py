@@ -7,7 +7,7 @@ from src.Application.Services.web_dashboard import app, global_auth_service
 
 class TestProductionPlatformSaaS(unittest.TestCase):
     """
-    Final SRE SaaS platform validation test suite for TradeYar AI v7.0.
+    Final SRE SaaS platform validation test suite for YarTrader v7.0.
     Ensures absolute three-tier route isolation, limits, and pricing compliance.
     """
 
@@ -66,7 +66,7 @@ class TestProductionPlatformSaaS(unittest.TestCase):
 
     def test_admin_symbols_registration_limit(self) -> None:
         # Admin SRE token
-        admin_token = global_auth_service.create_session({"email": "admin@tradeyar.ai", "role": "ADMIN"})
+        admin_token = global_auth_service.create_session({"email": "admin@yartrader.app", "role": "ADMIN"})
 
         # Create contexts for 30 symbols
         for i in range(1, 31):
@@ -81,7 +81,7 @@ class TestProductionPlatformSaaS(unittest.TestCase):
 
     def test_strict_role_based_security_guards(self) -> None:
         # Register a standard User session token
-        user_token = global_auth_service.create_session({"email": "trader@tradeyar.ai", "role": "USER"})
+        user_token = global_auth_service.create_session({"email": "trader@yartrader.app", "role": "USER"})
 
         # Normal users attempting SRE admin actions MUST be blocked with 403 Forbidden
         resp1 = self.client.get(f"/api/admin/symbols?token={user_token}")
@@ -93,7 +93,7 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         self.assertEqual(resp2.status_code, 403)
 
     def test_independent_per_timeframe_analytics(self) -> None:
-        admin_token = global_auth_service.create_session({"email": "admin@tradeyar.ai", "role": "ADMIN"})
+        admin_token = global_auth_service.create_session({"email": "admin@yartrader.app", "role": "ADMIN"})
 
         # Gold Frame 1 (Micro) with target hit (wins)
         t1 = self.engine.create_predictive_order("XAUUSD", "LONG", 2000.0, 1990.0, 2020.0, 80.0, custom_time_structure=1)
