@@ -7,15 +7,15 @@
 
 ## 1. Executive Summary
 
-This contract audit maps every user interface component and view in `trader-terminal` to its corresponding backend REST API endpoint, HTTP method, authentication level, DTO schema, and status response.
+This contract audit maps every active user interface component and view in `trader-terminal` to its corresponding backend REST API endpoint, HTTP method, authentication level, DTO schema, and status response. Shadow Trading presentation contracts have been retired from active UI dependencies.
 
 ---
 
-## 2. Comprehensive API Contract Matrix
+## 2. Active Product API Contract Matrix
 
 | UI Component / View | Target REST Endpoint | Method | Auth Level | Request DTO | Response DTO / Payload | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Public Landing** | `/api/public/metrics` | GET | Public | None | `{ active_markets_count, historical_simulated_trades, platform_uptime_pct }` | **VERIFIED** |
+| **Public Landing** | `/api/public/metrics` | GET | Public | None | `{ active_markets_count, platform_uptime_pct }` | **VERIFIED** |
 | **Version Banner** | `/api/version` | GET | Public | None | `{ application: "YarTrader", version: "7.0", commit, environment }` | **VERIFIED** |
 | **Pricing View** | `/api/subscription/plans` | GET | Public | None | List of plan objects (`tier_id`, `name`, `price_usd`, `max_symbols`, `features`) | **VERIFIED** |
 | **Blog View** | `/api/blog` | GET | Public | None | List of blog article objects (`id`, `title`, `date`, `author`, `summary`, `tags`) | **VERIFIED** |
@@ -29,9 +29,7 @@ This contract audit maps every user interface component and view in `trader-term
 | **Learning Matrix** | `/api/intelligence/learning-matrix` | GET | User Token | None | Array of pattern objects (`pattern_key`, `pattern_name`, `sample_count`, `win_rate_pct`) | **VERIFIED** |
 | **Backtest History** | `/api/backtest/history` | GET | User Token | None | List of backtest run objects (`run_id`, `symbol`, `timeframe`, `total_trades`, `win_rate_pct`) | **VERIFIED** |
 | **Backtest Run** | `/api/backtest/run` | POST | User Token | `{ symbol, timeframe, bars }` | `{ job_id, message, status }` | **VERIFIED** |
-| **Demo Trades** | `/api/demo/trades` | GET | User Token | None | List of demo trade objects from MT5 Demo Account #52961173 | **VERIFIED** |
-| **Shadow Report** | `/api/shadow/report` | GET | User Token | None | `{ account_id, balance, equity, realized_pnl, open_positions_count }` | **VERIFIED** |
-| **Prop Challenge Gate**| `/api/subscription/prop-challenge` | GET/POST | User Token | `{ prop_firm_name, account_size, daily_loss_limit_pct, max_drawdown_pct }` | `{ is_configured, status, metrics: { daily_pl, remaining_daily_loss } }` | **VERIFIED** |
+| **Demo Trades** | `/api/demo/trades` | GET | User Token | None | List of demo trade objects from MT5 Demo Account | **VERIFIED** |
 | **User Statements** | `/api/user/statements` | GET | User RBAC | Query `account_id, period, token` | Statement DTO (`account_id`, `opening_balance`, `trade_ledger`, `risk_summary`) | **VERIFIED** |
 | **Admin Statements** | `/api/admin/statements` | GET | Admin RBAC | Query `period, token` | Admin aggregate statement DTO (`account_id: "SYSTEM-AGGREGATE"`, `accounts_count`) | **VERIFIED** |
 | **Admin Symbols** | `/api/admin/symbols` | GET/POST | Admin RBAC | Query `token`, JSON `{ symbol, timeframe }` | `{ registered_symbols: [...] }` | **VERIFIED** |
