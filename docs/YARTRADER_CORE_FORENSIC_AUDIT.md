@@ -34,10 +34,11 @@ This comprehensive forensic report delivers an absolute, read-only architectural
 5. **Global Cooldown / Deduplication Scope**:
    - In `app/workers/research_worker.py:150`, `cooldown_sec = 300.0` is evaluated **per symbol** (`self.last_executed_signal.get(symbol.upper())`). It does not apply across different symbols, but within a single symbol it acts as a global 5-minute execution lock.
 6. **Multi-Strategy Reconnection Blueprint Specification**:
-   - Above the frozen Trading Core (`ExecutionIntelligenceCore`), a **Strategy Orchestrator Layer** will be reconnected to independently evaluate 6 strategy profiles: `FAST_SCALP` (M1/M5), `SCALP` (M5/M15), `DAY_TRADING` (M15/H1), `JUMP` (explosive pattern), `PRICE_ACTION_RTM` (sweeps & zones), and `FRACTAL` (similarity).
-   - Each strategy allocation is assigned a strict **0.5% equity risk limit** (3.0% maximum total exposure ceiling across 6 strategies), with `DAY_TRADING` enforcing an absolute **15% daily loss circuit breaker**.
+   - Above the frozen Trading Core (`ExecutionIntelligenceCore`), a **Strategy Orchestrator Layer** will be reconnected to independently evaluate 6 strategy profiles: `FAST_SCALP` (M1/M5), `SCALP` (M5/M15), `DAY_TRADING` (M15/H1/H4), `JUMP` (explosive pattern), `PRICE_ACTION_RTM` (sweeps & zones), and `FRACTAL` (similarity).
+   - Each strategy allocation is assigned a strict **0.5% equity risk limit** (3.0% maximum total exposure ceiling across 6 strategies), with `DAY_TRADING` enforcing an absolute **10% daily loss circuit breaker**.
    - Lower-timeframe strategies (`FAST_SCALP`, `SCALP`) are isolated from global H1 `RANGE` -> `WAIT` suppression.
-7. **Learning & Memory Truth**: `MarketMemorySystem` (`src/Research/Brain/memory.py:9`) and `experiences_memory.json` (~54.9 MB) write situational logs and past outcomes. `JudgeBrain` (`src/Research/Brain/judge.py:5`) evaluates trade decisions post-mortem. Neither `JudgeBrain` nor `MarketMemorySystem` mutates decision logic or parameters dynamically during execution; learning operates as **RETRIEVAL-BASED ADAPTATION & PASSIVE LOGGING**.
+7. **Per-Trade WIN / LOSS / BREAKEVEN Learning Loop**:
+   - Every completed trade (`WIN`, `LOSS`, or `BREAKEVEN`) must trigger `TradeEvaluator.evaluate_trade()`, updating `JudgeBrain` scoring, `MarketMemorySystem` experience memory, and `FractalPatternMemory` success rates and confidence weights. Learning occurs on all three outcomes.
 8. **Critical Error Path Defect**: `app/workers/shadow_worker.py:73` references `os.path.join()` inside its exception recovery block, but `import os` is missing from module imports. Recorded for remediation during Shadow removal.
 9. **Shadow Trading Elimination Directive**: Shadow Trading will be completely removed across runtime, workers, backend APIs, frontend UI, `/health` endpoints, configuration, and data models. Learning and evaluation systems (`TradeEvaluator` -> `JudgeBrain` -> `MarketMemorySystem` -> `FractalPatternMemory`) will be decoupled and reconnected to receive canonical Demo/Simulation trade outcomes directly. Global `SHADOW = ZERO`.
 10. **Live Trading Safety**: `LIVE_TRADING_ENABLED = False` and `REAL_ORDERS = 0` are hard-locked across all execution boundaries (`MetaTrader5Provider`, `DemoExecutionEngine`, `RealMT5BrokerAdapter`).
@@ -132,7 +133,7 @@ To restore the multi-strategy trading runtime without modifying the frozen Tradi
 A `StrategyOrchestrator` layer will be introduced above `ExecutionIntelligenceCore`. It will maintain 6 independent strategy evaluation contexts:
 - **`FAST_SCALP`**: M1/M5 resolution; targets micro-liquidity imbalances. Isolated from H1 RANGE filter.
 - **`SCALP`**: M5/M15 resolution; targets order block retests & liquidity sweeps. Isolated from H1 RANGE filter.
-- **`DAY_TRADING`**: M15/H1 resolution; evaluates intraday structural alignment. Subject to 15% daily loss circuit breaker.
+- **`DAY_TRADING`**: M15/H1/H4 resolution; evaluates intraday structural alignment. Subject to 10% daily loss circuit breaker.
 - **`JUMP`**: Impulse/explosive breakout pattern detection.
 - **`PRICE_ACTION_RTM`**: Core Order Block, Fair Value Gap, and BSL/SSL sweep setups.
 - **`FRACTAL`**: Multi-scale structural similarity matching.
@@ -140,7 +141,7 @@ A `StrategyOrchestrator` layer will be introduced above `ExecutionIntelligenceCo
 ### 2. Portfolio Exposure & Risk Ceiling:
 - Each active strategy position is allocated exactly **0.5% account equity risk**.
 - **Combined Risk Ceiling**: Maximum total exposure across all 6 strategies = **3.0% equity**.
-- **Day Trading Daily Loss Circuit Breaker**: If total cumulative losses for `DAY_TRADING` exceed **15% of daily balance**, `DAY_TRADING` is locked for the remainder of the trading day.
+- **Daily Loss Circuit Breaker**: If total cumulative losses exceed **10% of daily starting equity**, Demo trading is locked for the remainder of the trading day.
 
 ---
 
@@ -324,7 +325,7 @@ JUDGE_STATUS:
 EVALUATOR
 
 LEARNING_STATUS:
-PASSIVE
+PASSIVE (WIN, LOSS, and BREAKEVEN outcomes trigger TradeEvaluator -> JudgeBrain -> MarketMemorySystem)
 
 SHADOW_STATUS:
 REMOVAL_MANDATED (Global SHADOW = ZERO across product, runtime, UI, backend, and health)
