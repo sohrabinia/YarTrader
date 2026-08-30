@@ -104,6 +104,9 @@ body.light-theme {
     background-color: #F9FBFC;
     color: #1E2530;
 }
+body.light-theme p {
+    color: #334155 !important;
+}
 body.light-theme .header {
     background-color: #FFFFFF;
     border-bottom: 1px solid #E2E8F0;

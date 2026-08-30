@@ -935,6 +935,12 @@ def get_robots_txt():
 # ==============================================================================
 # 2. WEB MANAGEMENT DASHBOARD & SPA PAGE
 # ==============================================================================
+VALID_PUBLIC_SUBPATHS = {
+    "", "features", "pricing", "guide", "faq", "blog", "news", "about", "contact",
+    "support", "dashboard", "admin", "live", "demo", "shadow", "backtest",
+    "signals", "execution-intel", "learning", "login", "register", "forgot-password"
+}
+
 @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/fa", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/en", methods=["GET", "HEAD"], response_class=HTMLResponse)
@@ -959,8 +965,14 @@ def get_robots_txt():
 @app.api_route("/about", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/contact", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/support", methods=["GET", "HEAD"], response_class=HTMLResponse)
-def get_dashboard_spa():
+def get_dashboard_spa(request: Request, path: Optional[str] = None):
     """Serves the rich, production-grade System Validation Center SPA page with full bilingual RTL/LTR support."""
+    clean_subpath = (path or "").strip("/").split("/")[0] if path else ""
+    if clean_subpath and clean_subpath not in VALID_PUBLIC_SUBPATHS:
+        return HTMLResponse(
+            status_code=404,
+            content="<!DOCTYPE html><html><head><title>404 Not Found — YarTrader</title><meta name='robots' content='noindex'></head><body style='background:#0B1420;color:#f8fafc;font-family:sans-serif;text-align:center;padding:50px;'><h1>404 — Page Not Found</h1><p>The requested page does not exist on YarTrader.</p><a href='/fa' style='color:#E3A83B;'>Return to Homepage</a></body></html>"
+        )
     react_index = "trader-terminal/dist/index.html"
     if os.path.exists(react_index):
         try:

@@ -293,6 +293,23 @@ function MainApp() {
     };
     document.title = titles[routePath] || 'YarTrader — Autonomous Financial Intelligence Platform';
 
+    const descriptions = {
+      '/': t('welcome_desc') || 'YarTrader is an autonomous financial intelligence platform for non-linear price structure analysis, risk management, and prop firm challenge evaluation.',
+      '/features': t('features_desc') || 'YarTrader Cognitive Features - Non-linear market analysis without lagging indicators.',
+      '/pricing': t('pricing_desc') || 'YarTrader SaaS Subscriptions & Prop Firm Challenge Risk Gate Plans.',
+      '/blog': 'Algorithmic Research Blog and Market Structure Papers.',
+      '/guide': t('guide_subtitle') || 'YarTrader Financial Intelligence Platform Comprehensive Guide.',
+      '/faq': t('faq_subtitle') || 'Frequently Asked Questions about YarTrader platform capabilities, risk limits, and trading modes.'
+    };
+
+    let metaDescEl = document.querySelector('meta[name="description"]');
+    if (!metaDescEl) {
+      metaDescEl = document.createElement('meta');
+      metaDescEl.setAttribute('name', 'description');
+      document.head.appendChild(metaDescEl);
+    }
+    metaDescEl.setAttribute('content', descriptions[routePath] || descriptions['/']);
+
     let canonicalEl = document.querySelector('link[rel="canonical"]');
     if (!canonicalEl) {
       canonicalEl = document.createElement('link');
