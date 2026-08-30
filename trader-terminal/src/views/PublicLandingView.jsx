@@ -37,11 +37,11 @@ export default function PublicLandingView({ t, setRoute, appVersion = "7.0" }) {
         </div>
       </div>
 
-      {/* Overview Metrics */}
+      {/* Real Market Intelligence Overview Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <MetricCard title="نرخ برد تاریخی (Win Rate)" value="75.09%" change="+2.4%" trend="up" subtitle="1,136 معامله شبیه‌سازی شده" />
-        <MetricCard title="نسبت سود به زیان (R:R)" value="1 : 2.08" change="+0.15" trend="up" subtitle="ریسک به ریوارد واقعی" />
-        <MetricCard title="مدل ساختار بازار" value="Base Detector v1.1" change="Gate 3" trend="neutral" subtitle="پوشش تایم‌فریم‌های M5 تا W1" />
+        <MetricCard title="بازارهای فعال (Active Markets)" value="30 Symbol Pairs" change="Live Streaming" trend="up" subtitle="پوشش XAUUSD, BTCUSD, EURUSD" />
+        <MetricCard title="سیگنال‌های ارزیابی‌شده" value="Multi-Horizon" change="Micro to Macro" trend="neutral" subtitle="بدون اندیکاتور متأخر (Price Action)" />
+        <MetricCard title="مدل ساختار بازار" value="Price Action & RTM" change="Canonical V2" trend="neutral" subtitle="پوشش تایم‌فریم‌های M1 تا W1" />
         <MetricCard title="وضعیت حساب‌های معاملاتی" value="DEMO Active" change="MT5 #52961173" trend="up" subtitle="Alpari-MT5-Demo" />
       </div>
     </div>

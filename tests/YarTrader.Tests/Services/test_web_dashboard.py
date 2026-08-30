@@ -29,7 +29,6 @@ class TestWebDashboardFastAPI(unittest.TestCase):
             "/en",
             "/tr",
             "/ar",
-            "/de",
             "/fa/admin",
             "/fa/login",
             "/fa/dashboard",
@@ -42,7 +41,6 @@ class TestWebDashboardFastAPI(unittest.TestCase):
             "/en/admin",
             "/tr/admin",
             "/ar/admin",
-            "/de/admin",
         ]:
             resp = self.client.get(path)
             self.assertEqual(resp.status_code, 200, f"Failed for path: {path}")

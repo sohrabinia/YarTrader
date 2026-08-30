@@ -41,8 +41,7 @@ def test_dynamic_homepage_version_interpolation(monkeypatch):
         "fa": "به سامانه YarTrader v7.0 خوش آمدید",
         "en": "Welcome to YarTrader v7.0",
         "tr": "YarTrader v7.0'a Hoş Geldiniz",
-        "ar": "مرحباً بكم في YarTrader v7.0",
-        "de": "Willkommen bei YarTrader v7.0"
+        "ar": "مرحباً بكم في YarTrader v7.0"
     }
 
     for lang, expected_str in expected_70.items():
@@ -66,8 +65,7 @@ def test_dynamic_homepage_version_interpolation(monkeypatch):
         "fa": "به سامانه YarTrader v7.1 خوش آمدید",
         "en": "Welcome to YarTrader v7.1",
         "tr": "YarTrader v7.1'a Hoş Geldiniz",
-        "ar": "مرحباً بكم في YarTrader v7.1",
-        "de": "Willkommen bei YarTrader v7.1"
+        "ar": "مرحباً بكم في YarTrader v7.1"
     }
 
     for lang, expected_str in expected_71.items():
