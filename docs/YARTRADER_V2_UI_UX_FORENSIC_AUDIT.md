@@ -14,6 +14,7 @@ This forensic audit evaluates all previous Pull Requests, branches, UI component
 The audit strictly adheres to the **Canonical Behavioral Freeze Directive**:
 - **Behavioral Rule:** Trading Core rules, signal logic, risk parameters, execution boundaries, learning loop mechanics, and safety gates are 100% frozen and untouchable.
 - **Code Maintenance Rule:** Non-canonical, duplicate, deprecated, or dead UI components, DTOs, adapters, and presentation layers surrounding the Trading Core MAY be refactored, migrated, repaired, or isolated, provided canonical trading behavior remains identical.
+- **Shadow Product Removal:** Shadow Trading is retired as an active product feature in V2 and removed from active UI/product routes and contracts.
 - **Source of Truth:** If an older PR contains code that conflicts with the canonical version, `CANONICAL CURRENT VERSION WINS`.
 
 ---
@@ -26,7 +27,7 @@ The audit strictly adheres to the **Canonical Behavioral Freeze Directive**:
 | **PR #199** | Frontend Spec V1 | **MIGRATE** | Terminal layout structures and design token baseline migrated into canonical Vite frontend (`trader-terminal`). |
 | **PR #200** | Multi-Timeframe Learning Engine | **KEEP / REPAIR** | Preserved learning matrix backend APIs while eliminating duplicate mock UI renderers. |
 | **PR #201** | Execution Intelligence Platform | **KEEP** | Standardized 5-stage execution cascade (`Signal -> Decision -> Risk -> Gate -> Trade`). |
-| **PR #202** | Autonomous Shadow Engine | **KEEP** | Virtual $1,000 paper trading engine and Judge Brain evaluation framework retained. |
+| **PR #202** | Autonomous Shadow Engine | **RETIRED FROM UI** | Preserved backend evaluation engine for historical/learning purposes, but retired from active product UI/navigation. |
 | **PR #203** | Gold Fractal Intelligence Engine | **KEEP** | Non-linear price action & fractal pattern memory (`FractalPatternMemory`) preserved. |
 | **PR #204** | Growth & Trust Platform | **MIGRATE** | Migrated trust metrics and user referral schemas to backend REST handlers. |
 | **PR #205** | Real MT5 Provider Boundary | **KEEP** | Preserved real MT5 broker IPC adapter (`mt5_adapter.py`) and safety boundary (`LIVE_TRADING_ENABLED=False`). |
@@ -51,7 +52,7 @@ The audit strictly adheres to the **Canonical Behavioral Freeze Directive**:
 
 1. **Purged Legacy Locales:** Completely removed German (`de`) legacy files and tests. System strictly supports 4 locales (`fa`, `en`, `tr`, `ar`).
 2. **Eliminated Synthetic / Fake Fallbacks:** Removed synthetic fallback mock generators from UI rendering paths. When backend APIs are unavailable, UI displays clean `DATA UNAVAILABLE` states.
-3. **shadcn-admin Isolation:** Confirmed `satnaing/shadcn-admin` was used solely as UX/UI design inspiration for command palette, tables, and metric cards. Zero copied source code, branding, or third-party Clerk dependencies exist in the repository.
+3. **Shadow Product Removal:** Retired `/{lang}/shadow` route, menu entries, widgets, and active UI contracts.
 
 ---
 
