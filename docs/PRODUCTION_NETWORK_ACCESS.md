@@ -6,7 +6,7 @@ This document describes how to configure inbound network access, register Window
 
 ## 1. Required Ports
 
-To allow external monitoring (e.g. from `TradeYar.DevOps`) or visual dashboards to securely query the runtime, you must expose the following inbound port:
+To allow external monitoring (e.g. from `YarTrader.DevOps`) or visual dashboards to securely query the runtime, you must expose the following inbound port:
 
 | Protocol | Port | Destination | Description |
 | :---: | :---: | :---: | :--- |

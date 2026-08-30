@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TradeYar AI — Production Acceptance, Autonomous Validation & Quality Assurance Platform
+YarTrader — Production Acceptance, Autonomous Validation & Quality Assurance Platform
 
 This script serves as the official validation and release entry point for non-programmers.
 It automates the complete production verification workflow:
@@ -590,7 +590,7 @@ class ReleaseValidationPlatform:
 
     def _compile_markdown(self, data: Dict[str, Any], failures: List[Dict[str, Any]], reg: Dict[str, Any]) -> str:
         status_emoji = "✅" if data["readiness_status"] == "Production Ready" else "❌"
-        md = f"""# TradeYar AI — Release Verification Acceptance Report
+        md = f"""# YarTrader — Release Verification Acceptance Report
 
 ## Overall Status: {data['readiness_status']} {status_emoji}
 - **Timestamp:** {data['timestamp']}
@@ -656,7 +656,7 @@ class ReleaseValidationPlatform:
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TradeYar AI — Release Acceptance Report</title>
+    <title>YarTrader — Release Acceptance Report</title>
     <style>
         body {{
             font-family: 'Segoe UI', Arial, sans-serif;
@@ -737,7 +737,7 @@ class ReleaseValidationPlatform:
 <body>
     <div class="container">
         <div class="header">
-            <h1 style="margin: 0; color: #1d3557;">TradeYar AI</h1>
+            <h1 style="margin: 0; color: #1d3557;">YarTrader</h1>
             <p style="color: #8d99ae; font-size: 1.1em; margin: 5px 0 15px 0;">Production Acceptance & Release Validation Portal</p>
             <div class="score-badge">{status_text} ({data['readiness_score']}%)</div>
             <p style="font-style: italic; color: #4a5759; max-width: 600px; margin: 10px auto;">"{data['readiness_explanation']}"</p>
@@ -827,7 +827,7 @@ class ReleaseValidationPlatform:
 
     def execute_complete_workflow(self) -> Dict[str, Any]:
         """Runs the whole production accept workflow sequentially."""
-        print_header("TradeYar AI Release Acceptance Workflow")
+        print_header("YarTrader Release Acceptance Workflow")
 
         # 1. Environment
         self.current_phase = "Environment Verification"

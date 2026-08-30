@@ -3,7 +3,7 @@
 **Document Reference:** `docs/PRODUCTION_HARDENING_AUDIT.md`
 **Target Runtime:** Windows Server 2022 Datacenter
 **Deployment Path:** `C:\Projects\TradeYar_AI`
-**SRE System:** TradeYar.DevOps Platform (`C:\Projects\TradeYar.DevOps`)
+**SRE System:** YarTrader.DevOps Platform (`C:\Projects\YarTrader.DevOps`)
 
 ---
 
@@ -96,9 +96,9 @@ The high-fidelity Shadow Trading system operates inside a 100% passive, read-onl
 
 ---
 
-## 5. TradeYar.DevOps Integration & SRE Governance
+## 5. YarTrader.DevOps Integration & SRE Governance
 
-The `TradeYar.DevOps` platform acts as the operational and site-reliability engineering (SRE) brain.
+The `YarTrader.DevOps` platform acts as the operational and site-reliability engineering (SRE) brain.
 
 ### A. DevOps Capabilities Audited
 
