@@ -1,12 +1,24 @@
 User-agent: *
 Allow: /
-Allow: /pricing
-Allow: /features
-Allow: /blog
-Allow: /about
+Allow: /fa
+Allow: /en
+Allow: /tr
+Allow: /ar
+Allow: /fa/*
+Allow: /en/*
+Allow: /tr/*
+Allow: /ar/*
 
 Disallow: /admin
 Disallow: /api/admin
 Disallow: /sre
+Disallow: /dashboard
+Disallow: /live
+Disallow: /demo
+Disallow: /shadow
+Disallow: /backtest
+Disallow: /signals
+Disallow: /execution-intel
+Disallow: /learning
 
 Sitemap: https://yartrader.com/sitemap.xml

@@ -38,7 +38,7 @@ function getRouteFromLocation() {
   let langFromUrl = null;
   let cleanPath = path;
 
-  if (pathParts.length > 0 && ['fa', 'en', 'tr', 'ar', 'de'].includes(pathParts[0].toLowerCase())) {
+  if (pathParts.length > 0 && ['fa', 'en', 'tr', 'ar'].includes(pathParts[0].toLowerCase())) {
     langFromUrl = pathParts[0].toLowerCase();
     cleanPath = '/' + pathParts.slice(1).join('/');
   }
@@ -281,7 +281,27 @@ function MainApp() {
     const isRtl = lang === 'fa' || lang === 'ar';
     document.documentElement.dir = isRtl ? 'rtl' : 'ltr';
     document.documentElement.lang = lang;
-  }, [lang]);
+
+    // Dynamic SEO Metadata & Canonical Injection
+    const titles = {
+      '/': 'YarTrader — Autonomous Financial Intelligence Platform',
+      '/features': `${t('features_title') || 'Features'} | YarTrader`,
+      '/pricing': `${t('pricing_title') || 'Pricing'} | YarTrader`,
+      '/blog': `${t('nav_blog') || 'Research Blog'} | YarTrader`,
+      '/guide': `${t('guide_title') || 'User Guide'} | YarTrader`,
+      '/faq': `${t('faq_title') || 'FAQ'} | YarTrader`
+    };
+    document.title = titles[routePath] || 'YarTrader — Autonomous Financial Intelligence Platform';
+
+    let canonicalEl = document.querySelector('link[rel="canonical"]');
+    if (!canonicalEl) {
+      canonicalEl = document.createElement('link');
+      canonicalEl.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonicalEl);
+    }
+    const cleanRoute = routePath === '/' ? '' : routePath;
+    canonicalEl.setAttribute('href', `https://yartrader.com/${lang}${cleanRoute}`);
+  }, [lang, routePath, t]);
 
   // Dynamic Route Theme Mapping: Public pages -> Light editorial, Terminal/Admin -> Dark
   useEffect(() => {

@@ -18,24 +18,33 @@
     <lastmod>2026-03-30</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en" />
   </url>
   <url>
     <loc>https://yartrader.com/tr</loc>
     <lastmod>2026-03-30</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://yartrader.com/de</loc>
-    <lastmod>2026-03-30</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en" />
   </url>
   <url>
     <loc>https://yartrader.com/ar</loc>
     <lastmod>2026-03-30</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en" />
   </url>
 
   <!-- Features -->
@@ -44,12 +53,44 @@
     <lastmod>2026-03-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/features" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/features" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/features" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/features" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/features" />
   </url>
   <url>
     <loc>https://yartrader.com/en/features</loc>
     <lastmod>2026-03-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/features" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/features" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/features" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/features" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/features" />
+  </url>
+  <url>
+    <loc>https://yartrader.com/tr/features</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/features" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/features" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/features" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/features" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/features" />
+  </url>
+  <url>
+    <loc>https://yartrader.com/ar/features</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/features" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/features" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/features" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/features" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/features" />
   </url>
 
   <!-- Pricing -->
@@ -58,12 +99,44 @@
     <lastmod>2026-03-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/pricing" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/pricing" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/pricing" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/pricing" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/pricing" />
   </url>
   <url>
     <loc>https://yartrader.com/en/pricing</loc>
     <lastmod>2026-03-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/pricing" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/pricing" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/pricing" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/pricing" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/pricing" />
+  </url>
+  <url>
+    <loc>https://yartrader.com/tr/pricing</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/pricing" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/pricing" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/pricing" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/pricing" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/pricing" />
+  </url>
+  <url>
+    <loc>https://yartrader.com/ar/pricing</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/pricing" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/pricing" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/pricing" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/pricing" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/pricing" />
   </url>
 
   <!-- Guide -->
@@ -72,12 +145,44 @@
     <lastmod>2026-03-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/guide" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/guide" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/guide" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/guide" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/guide" />
   </url>
   <url>
     <loc>https://yartrader.com/en/guide</loc>
     <lastmod>2026-03-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/guide" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/guide" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/guide" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/guide" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/guide" />
+  </url>
+  <url>
+    <loc>https://yartrader.com/tr/guide</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/guide" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/guide" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/guide" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/guide" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/guide" />
+  </url>
+  <url>
+    <loc>https://yartrader.com/ar/guide</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/guide" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/guide" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/guide" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/guide" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/guide" />
   </url>
 
   <!-- FAQ -->
@@ -86,12 +191,44 @@
     <lastmod>2026-03-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/faq" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/faq" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/faq" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/faq" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/faq" />
   </url>
   <url>
     <loc>https://yartrader.com/en/faq</loc>
     <lastmod>2026-03-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/faq" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/faq" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/faq" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/faq" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/faq" />
+  </url>
+  <url>
+    <loc>https://yartrader.com/tr/faq</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/faq" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/faq" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/faq" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/faq" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/faq" />
+  </url>
+  <url>
+    <loc>https://yartrader.com/ar/faq</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/faq" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/faq" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/faq" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/faq" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/faq" />
   </url>
 
   <!-- Blog -->
@@ -100,11 +237,43 @@
     <lastmod>2026-03-30</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/blog" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/blog" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/blog" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/blog" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/blog" />
   </url>
   <url>
     <loc>https://yartrader.com/en/blog</loc>
     <lastmod>2026-03-30</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/blog" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/blog" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/blog" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/blog" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/blog" />
+  </url>
+  <url>
+    <loc>https://yartrader.com/tr/blog</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/blog" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/blog" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/blog" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/blog" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/blog" />
+  </url>
+  <url>
+    <loc>https://yartrader.com/ar/blog</loc>
+    <lastmod>2026-03-30</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+    <xhtml:link rel="alternate" hreflang="fa" href="https://yartrader.com/fa/blog" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://yartrader.com/en/blog" />
+    <xhtml:link rel="alternate" hreflang="tr" href="https://yartrader.com/tr/blog" />
+    <xhtml:link rel="alternate" hreflang="ar" href="https://yartrader.com/ar/blog" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://yartrader.com/en/blog" />
   </url>
 </urlset>
