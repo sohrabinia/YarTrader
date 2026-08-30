@@ -21,6 +21,7 @@ class ExecutionIntelligencePlanner:
         similarity: Dict[str, Any],
         portfolio_risk: Dict[str, Any],
         current_price: float,
+        strategy_eval: Optional[Dict[str, Any]] = None,
         lang: str = "fa"
     ) -> Dict[str, Any]:
         """
@@ -90,8 +91,23 @@ class ExecutionIntelligencePlanner:
             if resting_ssl:
                 take_profit = resting_ssl[0]["level"]
 
-        # If ranging or compression, set WAIT
-        if narrative.get("state") in ["COMPRESSION", "RANGE"] and action != "WAIT":
+        # Incorporate StrategyOrchestrator candidates if primary alignment is WAIT or H1 is ranging
+        selected_strategy_name = "DAY_TRADING"
+        if strategy_eval and strategy_eval.get("best_candidate"):
+            best_cand = strategy_eval["best_candidate"]
+            cand_direction = best_cand.get("direction", "WAIT")
+            if cand_direction in ["BUY", "SELL"]:
+                # If primary HTF alignment is WAIT/RANGE, allow valid lower-timeframe strategy candidate (FAST_SCALP, SCALP, JUMP, RTM, FRACTAL)
+                if action == "WAIT" or narrative.get("state") in ["COMPRESSION", "RANGE"]:
+                    action = cand_direction
+                    entry = float(best_cand.get("entry", current_price))
+                    stop_loss = float(best_cand.get("stop_loss", 0.0))
+                    take_profit = float(best_cand.get("take_profit", 0.0))
+                    confidence = float(best_cand.get("confidence", 70.0))
+                    selected_strategy_name = best_cand.get("strategy_name", "FAST_SCALP")
+
+        # If ranging or compression and NO valid strategy candidate exists, set WAIT
+        elif narrative.get("state") in ["COMPRESSION", "RANGE"] and action != "WAIT":
             action = "WAIT"
 
         # Calculate risk reward
@@ -120,6 +136,7 @@ class ExecutionIntelligencePlanner:
             "timeframe": timeframe,
             "plan": {
                 "action": action,
+                "strategy": selected_strategy_name,
                 "entry": entry if action in ["BUY", "SELL"] else 0.0,
                 "stop_loss": stop_loss if action in ["BUY", "SELL"] else 0.0,
                 "take_profit": take_profit if action in ["BUY", "SELL"] else 0.0,

@@ -62,7 +62,6 @@ def log_service_message(message: str) -> None:
 from app.core.config import ProductionConfig
 from app.workers.research_worker import ResearchWorker
 from app.workers.intelligence_worker import IntelligenceWorker
-from app.workers.shadow_worker import ShadowWorker
 from src.Application.Runtime.runtime_state import central_runtime_state
 
 # Import existing FastAPI app
@@ -88,13 +87,12 @@ class YarTraderServiceHost:
         self.uvicorn_server: Optional[uvicorn.Server] = None
         self.uvicorn_thread: Optional[threading.Thread] = None
 
-        # Instantiate workers
+        # Instantiate active workers
         self.research_worker = ResearchWorker(
             symbol=self.config.mt5_symbol,
             timeframe=self.config.mt5_timeframe
         )
         self.intelligence_worker = IntelligenceWorker()
-        self.shadow_worker = ShadowWorker()
 
     def start(self) -> None:
         """Starts all background processes, API, and worker threads."""
@@ -113,11 +111,11 @@ class YarTraderServiceHost:
                 self.research_worker.start()
 
             # Continuous IntelligenceWorker is deprecated and removed from orchestration.
-            # Active startup dependency has been completely removed to avoid server CPU pressure.
             log_service_message("Workers Started — Intelligence Worker (DEPRECATED/SKIPPED)")
 
-            log_service_message("Workers Started — Shadow Trading Worker")
-            self.shadow_worker.start()
+            # ShadowWorker is DEPRECATED and REMOVED repository-wide (SHADOW = ZERO).
+            log_service_message("Workers Started — Shadow Worker (DEPRECATED/REMOVED - SHADOW = ZERO)")
+            central_runtime_state.update_state("shadow_status", "Disabled")
         except Exception as e:
             self.last_error = f"Worker startup exception: {str(e)}"
             log_service_message(f"Exception during worker startup: {str(e)}")
@@ -201,7 +199,7 @@ class YarTraderServiceHost:
         # 1. Stop workers
         try:
             self.research_worker.stop()
-            self.shadow_worker.stop()
+            central_runtime_state.update_state("shadow_status", "Stopped")
         except Exception as e:
             log_service_message(f"Exception during worker shutdown: {str(e)}")
 
