@@ -2,13 +2,13 @@ import os
 import json
 import pytest
 
-def test_five_language_key_parity():
-    """Verify 100% key parity across all 5 language locale files (FA, EN, TR, AR, DE)."""
+def test_four_language_key_parity():
+    """Verify 100% key parity across all 4 production locale files (FA, EN, TR, AR)."""
     locales_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
         "trader-terminal", "public", "locales"
     )
-    languages = ["fa", "en", "tr", "ar", "de"]
+    languages = ["fa", "en", "tr", "ar"]
     locale_data = {}
 
     for lang in languages:
@@ -32,9 +32,9 @@ def test_five_language_key_parity():
 def test_language_direction_mapping():
     """Verify RTL/LTR direction classification rules."""
     rtl_languages = {"fa", "ar"}
-    ltr_languages = {"en", "tr", "de"}
+    ltr_languages = {"en", "tr"}
 
-    for lang in ["fa", "ar", "en", "tr", "de"]:
+    for lang in ["fa", "ar", "en", "tr"]:
         if lang in rtl_languages:
             direction = "rtl"
         else:

@@ -15,7 +15,7 @@ export default function AdminView({ t, devopsStatus, systemMetrics, usersList })
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <HealthIndicator label="FastAPI Backend Services" status="HEALTHY" latency="14ms" />
-        <HealthIndicator label="Predictive Shadow Engine" status="HEALTHY" latency="8ms" />
+        <HealthIndicator label="Cognitive Intelligence Pipeline" status="HEALTHY" latency="8ms" />
         <HealthIndicator label="MT5 Demo Bridge Process" status="HEALTHY" latency="22ms" />
         <HealthIndicator label="PostgreSQL & Redis Cache" status="HEALTHY" latency="5ms" />
       </div>

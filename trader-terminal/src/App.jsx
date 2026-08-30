@@ -212,8 +212,6 @@ function MainApp() {
   const [backtestForm, setBacktestForm] = useState({ symbol: 'XAUUSD', timeframe: '64', bars: '1000' });
   const [demoTrades, setDemoTrades] = useState([]);
   const [demoReport, setDemoReport] = useState({});
-  const [shadowReport, setShadowReport] = useState({});
-  const [shadowTradesList, setShadowTradesList] = useState([]);
 
   // Pattern detail and Pricing detail modal state
   const [selectedPattern, setSelectedPattern] = useState(null);
@@ -229,7 +227,6 @@ function MainApp() {
   const [devopsMetrics, setDevopsMetrics] = useState({});
   const [validationHistory, setValidationHistory] = useState([]);
   const [validationStatus, setValidationStatus] = useState({});
-  const [shadowMetrics, setShadowMetrics] = useState({});
   const [validationPhase, setValidationPhase] = useState('IDLE');
   const [validationComponent, setValidationComponent] = useState('N/A');
   const [validationTrace, setValidationTrace] = useState('N/A');
@@ -391,17 +388,6 @@ function MainApp() {
     }
   };
 
-  const fetchShadowData = async () => {
-    try {
-      const rep = await apiService.get('/api/shadow/report');
-      setShadowReport(rep || {});
-      const currentToken = localStorage.getItem('yartrader_token') || token || '';
-      const trades = await apiService.get(`/api/admin/shadow-trades?token=${encodeURIComponent(currentToken)}`);
-      setShadowTradesList(Array.isArray(trades) ? trades : (trades.shadow_trades || []));
-    } catch (err) {
-      console.error('Shadow data error:', err);
-    }
-  };
 
   const runBacktestExecution = async () => {
     setBacktestRunning(true);
@@ -435,8 +421,6 @@ function MainApp() {
       fetchBacktestHistory();
     } else if (hash === '#/demo') {
       fetchDemoData();
-    } else if (hash === '#/shadow') {
-      fetchShadowData();
     } else if (hash === '#/signals') {
       fetchUserSignals();
     } else if (hash === '#/execution-intel') {
@@ -681,8 +665,6 @@ function MainApp() {
       setValidationHistory(valHistory);
       const valStatus = await apiService.get('/api/validation/status');
       setValidationStatus(valStatus);
-      const shadow = await apiService.get('/api/shadow/metrics');
-      setShadowMetrics(shadow);
     } catch (err) {
       console.error(err);
     }
@@ -888,7 +870,6 @@ function MainApp() {
               </div>
               <a href={`/${lang}/backtest`} className={`sidebar-link ${routePath.startsWith('/backtest') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/backtest'); }}>{t('nav_backtest')}</a>
               <a href={`/${lang}/demo`} className={`sidebar-link ${routePath === '/demo' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/demo'); }}>{t('nav_demo')}</a>
-              <a href={`/${lang}/shadow`} className={`sidebar-link ${routePath === '/shadow' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/shadow'); }}>{t('nav_shadow')}</a>
               <a href={`/${lang}/live`} className={`sidebar-link ${routePath === '/live' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/live'); }} style={{ color: 'var(--danger)' }}>{t('nav_live')}</a>
             </div>
           )}
@@ -1271,38 +1252,6 @@ function MainApp() {
             <DemoView t={t} demoReport={demoReport} backendState={backendState} />
           )}
 
-          {/* DEDICATED TRADING MODE 3: SHADOW / PAPER TRADING PAGE */}
-          {hash === '#/shadow' && (
-            <div id="shell-shadow">
-              <div className="card" style={{ borderTop: '4px solid #4FB6C7' }}>
-                <h2 style={{ marginTop: 0, color: '#4FB6C7' }}>{t('shadow_title')}</h2>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('shadow_desc')}</p>
-
-                <div className="status-board" style={{ marginBottom: '25px' }}>
-                  <MetricCard title={lang === 'fa' ? 'حساب مجازی (Paper)' : 'Virtual Account ID'} value={shadowReport.account_id || 'vaccount-shadow-1'} status="primary" />
-                  <MetricCard title={lang === 'fa' ? 'موجودی (Balance)' : 'Virtual Cash'} value={shadowReport.balance != null ? `$${shadowReport.balance.toLocaleString()}` : 'DATA UNAVAILABLE'} status="passed" />
-                  <MetricCard title={lang === 'fa' ? 'ارزش ویژه (Equity)' : 'Virtual Equity'} value={shadowReport.equity != null ? `$${shadowReport.equity.toLocaleString()}` : 'DATA UNAVAILABLE'} status="passed" />
-                  <MetricCard title={lang === 'fa' ? 'سود/زیان محقق‌شده' : 'Realized PnL'} value={shadowReport.realized_pnl != null ? `$${shadowReport.realized_pnl.toFixed(2)}` : 'DATA UNAVAILABLE'} status={(shadowReport.realized_pnl || 0) >= 0 ? 'passed' : 'failed'} />
-                </div>
-
-                <h3 style={{ color: '#4FB6C7', marginTop: 0 }}>{lang === 'fa' ? 'موقعیت‌های مجازی سایه (Virtual Positions)' : 'Virtual Position Manager'}</h3>
-                <DataTable
-                  headers={['VPOS ID', 'Symbol', 'Side', 'Entry Price', 'Stop Loss', 'Take Profit', 'Unrealized PnL', 'Paper Status']}
-                  rows={shadowTradesList.map((st, idx) => [
-                    st.vpos_id || st.position_id || st.id || `vpos-${st.symbol ? st.symbol.toLowerCase() : idx+1}`,
-                    <strong>{st.symbol || 'N/A'}</strong>,
-                    <span style={{ color: st.side === 'BUY' ? 'var(--accent)' : 'var(--danger)' }}>{st.side || 'DATA UNAVAILABLE'}</span>,
-                    st.entry_price != null ? st.entry_price : 'DATA UNAVAILABLE',
-                    <span style={{ color: 'var(--danger)' }}>{st.stop_loss != null ? st.stop_loss : '-'}</span>,
-                    <span style={{ color: 'var(--accent)' }}>{st.take_profit != null ? st.take_profit : '-'}</span>,
-                    <span className={(st.unrealized_pnl || 0) >= 0 ? 'status-passed' : 'status-failed'}>${st.unrealized_pnl != null ? st.unrealized_pnl.toFixed(2) : '0.00'}</span>,
-                    <StatusBadge status="neutral" label="SIMULATED PAPER" />
-                  ])}
-                  emptyMessage={lang === 'fa' ? 'هیچ پوزیشن سایه‌ای در حال حاضر باز نیست.' : 'No virtual shadow positions currently open.'}
-                />
-              </div>
-            </div>
-          )}
 
           {/* DEDICATED TRADING MODE 4: LIVE TRADING PAGE (HARD BLOCKED) */}
           {hash === '#/live' && (
@@ -1355,7 +1304,7 @@ function MainApp() {
                   </div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', fontWeight: 'bold' }}>
-                      ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'SHADOW / DEMO PAPER')}
+                      ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'DEMO PAPER')}
                     </span>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
                       SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE ACTIVE' : 'FAIL-CLOSED (LIVE DISABLED)')}
@@ -1653,7 +1602,6 @@ function MainApp() {
                 {/* Signal Category Tabs */}
                 <div className="sub-nav-tabs">
                   <div className={`sub-tab ${signalTab === 'live' ? 'active' : ''}`} onClick={() => setSignalTab('live')}>{t('tab_live_signals')}</div>
-                  <div className={`sub-tab ${signalTab === 'shadow' ? 'active' : ''}`} onClick={() => setSignalTab('shadow')}>{t('tab_shadow_signals')}</div>
                   <div className={`sub-tab ${signalTab === 'backtest' ? 'active' : ''}`} onClick={() => setSignalTab('backtest')}>{t('tab_backtest_signals')}</div>
                   <div className={`sub-tab ${signalTab === 'historical' ? 'active' : ''}`} onClick={() => setSignalTab('historical')}>{t('tab_historical_signals')}</div>
                 </div>
@@ -1815,7 +1763,6 @@ function MainApp() {
                       <div style={{ lineHeight: '2', fontSize: '0.9rem' }}>
                         <div><strong>Backtest Engine:</strong> {backtestRuns.length} historical simulations recorded</div>
                         <div><strong>Broker Demo Trades:</strong> {demoTrades.length} orders executed (Account #52961173)</div>
-                        <div><strong>Shadow Paper Positions:</strong> {shadowTradesList.length} virtual trades open</div>
                         <div><strong>Live Money Trading:</strong> <span style={{ color: 'var(--danger)' }}>HARD BLOCKED (Zero Risk)</span></div>
                       </div>
                     </div>
@@ -1889,7 +1836,7 @@ function MainApp() {
                     <h4 style={{ margin: 0, color: 'var(--danger)' }}>🛑 LIVE TRADING HARD ISOLATION GATE</h4>
                     <p style={{ fontSize: '0.9rem', marginTop: '8px', lineHeight: '1.6' }}>
                       The SRE Safety Gate prevents real-money order routing under all conditions (`LIVE_TRADING_ENABLED=False`).
-                      Execution is strictly restricted to MT5 Demo (#52961173) and Paper Shadow ($1,000).
+                      Execution is strictly restricted to MT5 Demo (#52961173).
                     </p>
                   </div>
                 </div>
@@ -1900,7 +1847,7 @@ function MainApp() {
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🧠 Intelligence Engine & SCM Reports</h3>
                   <DataTable
-                    headers={[t('col_symbol'), t('col_timeframe'), t('col_shadow_cycles'), t('col_wins_losses'), t('col_win_rate'), t('col_avg_confidence')]}
+                    headers={[t('col_symbol'), t('col_timeframe'), 'Evaluation Cycles', t('col_wins_losses'), t('col_win_rate'), t('col_avg_confidence')]}
                     rows={adminReports.map(rep => [
                       rep.symbol,
                       rep.timeframe,
