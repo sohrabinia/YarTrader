@@ -48,8 +48,7 @@ def test_four_localized_spa_routes():
 def test_de_locale_removed():
     """Verify German (/de) public route is removed or disallowed as active public SEO locale."""
     res = client.get("/de")
-    # /de is no longer an explicit route in FastAPI
-    assert res.status_code in (404, 200)
+    assert res.status_code == 404
 
 def test_api_404_isolation():
     """Verify that unknown /api/* endpoints return real HTTP 404 JSON instead of HTML SPA fallbacks."""

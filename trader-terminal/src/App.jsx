@@ -282,16 +282,23 @@ function MainApp() {
     document.documentElement.dir = isRtl ? 'rtl' : 'ltr';
     document.documentElement.lang = lang;
 
-    // Dynamic SEO Metadata & Canonical Injection
+    // Dynamic SEO Metadata, OpenGraph, Twitter & Canonical Injection
+    const localizedHomeTitles = {
+      fa: 'YarTrader — پلتفرم هوش مالی خودکار',
+      en: 'YarTrader — Autonomous Financial Intelligence Platform',
+      tr: 'YarTrader — Otonom Finansal Zeka Platformu',
+      ar: 'YarTrader — منصة الذكاء المالي الذاتي'
+    };
     const titles = {
-      '/': 'YarTrader — Autonomous Financial Intelligence Platform',
+      '/': localizedHomeTitles[lang] || localizedHomeTitles.en,
       '/features': `${t('features_title') || 'Features'} | YarTrader`,
       '/pricing': `${t('pricing_title') || 'Pricing'} | YarTrader`,
       '/blog': `${t('nav_blog') || 'Research Blog'} | YarTrader`,
       '/guide': `${t('guide_title') || 'User Guide'} | YarTrader`,
       '/faq': `${t('faq_title') || 'FAQ'} | YarTrader`
     };
-    document.title = titles[routePath] || 'YarTrader — Autonomous Financial Intelligence Platform';
+    const activeTitle = titles[routePath] || titles['/'];
+    document.title = activeTitle;
 
     const descriptions = {
       '/': t('welcome_desc') || 'YarTrader is an autonomous financial intelligence platform for non-linear price structure analysis, risk management, and prop firm challenge evaluation.',
@@ -301,6 +308,7 @@ function MainApp() {
       '/guide': t('guide_subtitle') || 'YarTrader Financial Intelligence Platform Comprehensive Guide.',
       '/faq': t('faq_subtitle') || 'Frequently Asked Questions about YarTrader platform capabilities, risk limits, and trading modes.'
     };
+    const activeDesc = descriptions[routePath] || descriptions['/'];
 
     let metaDescEl = document.querySelector('meta[name="description"]');
     if (!metaDescEl) {
@@ -308,7 +316,17 @@ function MainApp() {
       metaDescEl.setAttribute('name', 'description');
       document.head.appendChild(metaDescEl);
     }
-    metaDescEl.setAttribute('content', descriptions[routePath] || descriptions['/']);
+    metaDescEl.setAttribute('content', activeDesc);
+
+    // OpenGraph Dynamic Updates
+    const ogTitle = document.querySelector('meta[property="og:title"]');
+    if (ogTitle) ogTitle.setAttribute('content', activeTitle);
+    const ogDesc = document.querySelector('meta[property="og:description"]');
+    if (ogDesc) ogDesc.setAttribute('content', activeDesc);
+    const ogUrl = document.querySelector('meta[property="og:url"]');
+    const cleanRoute = routePath === '/' ? '' : routePath;
+    const activeCanonical = `https://yartrader.com/${lang}${cleanRoute}`;
+    if (ogUrl) ogUrl.setAttribute('content', activeCanonical);
 
     let canonicalEl = document.querySelector('link[rel="canonical"]');
     if (!canonicalEl) {
@@ -316,8 +334,7 @@ function MainApp() {
       canonicalEl.setAttribute('rel', 'canonical');
       document.head.appendChild(canonicalEl);
     }
-    const cleanRoute = routePath === '/' ? '' : routePath;
-    canonicalEl.setAttribute('href', `https://yartrader.com/${lang}${cleanRoute}`);
+    canonicalEl.setAttribute('href', activeCanonical);
   }, [lang, routePath, t]);
 
   // Dynamic Route Theme Mapping: Public pages -> Light editorial, Terminal/Admin -> Dark
