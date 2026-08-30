@@ -248,7 +248,7 @@ class TestP1RemediationSecurity(unittest.TestCase):
 
         # Restore from the last successful backup
         recent_backups = glob_backups(self.test_backup_dir)
-        recent_backups.sort(key=os.path.getmtime, reverse=True)
+        recent_backups.sort(reverse=True)
         last_good_backup = os.path.basename(recent_backups[0])
 
         restore_res = self.backup_manager.restore_backup(last_good_backup)
