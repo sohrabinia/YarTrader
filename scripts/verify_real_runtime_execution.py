@@ -6,6 +6,7 @@ from src.Data.MarketData.Providers.providers import MetaTrader5Provider
 from src.Data.MarketData.Models.models import MarketDataRequest
 from src.Intelligence.Execution.core import ExecutionIntelligenceCore
 from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
+from src.Research.Brain.memory import MarketMemorySystem
 
 def run_real_runtime_verification():
     print("=" * 80)
@@ -166,6 +167,25 @@ def run_real_runtime_verification():
     print("=" * 80)
     print("FINAL MULTI-STRATEGY RUNTIME PROOF COMPLETED.")
     print("=" * 80)
+
+    # Phase 6 & 7 Verification: Check patterns_memory.json existence and fresh re-instantiation reload
+    patterns_file = os.path.join("runtime_logs", "brain_memory", "patterns_memory.json")
+    experiences_file = os.path.join("runtime_logs", "brain_memory", "experiences_memory.json")
+
+    print(f"\n[PATTERN MEMORY VERIFICATION]")
+    print(f"Checking canonical storage files in runtime_logs/brain_memory/:")
+    print(f"  - Experiences memory file: {experiences_file} -> Exists: {os.path.exists(experiences_file)}")
+    print(f"  - Patterns memory file   : {patterns_file} -> Exists: {os.path.exists(patterns_file)}")
+
+    if os.path.exists(patterns_file):
+        with open(patterns_file, "r", encoding="utf-8") as f:
+            p_data = json.load(f)
+        print(f"  - Pattern count in patterns_memory.json: {len(p_data)}")
+
+    # Fresh re-instantiation reload check
+    mem_sys = MarketMemorySystem(storage_dir=os.path.join("runtime_logs", "brain_memory"))
+    print(f"  - Fresh MarketMemorySystem reload pattern count: {len(mem_sys.patterns)}")
+    print(f"  - Fresh MarketMemorySystem reload experience count: {len(mem_sys.experiences)}")
 
 if __name__ == "__main__":
     run_real_runtime_verification()

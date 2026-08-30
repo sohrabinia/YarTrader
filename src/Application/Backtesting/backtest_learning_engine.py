@@ -21,7 +21,7 @@ class BacktestAndLearningEngine:
     """
 
     def __init__(self, storage_dir: Optional[str] = None) -> None:
-        self.storage_dir = storage_dir or os.path.join("runtime_logs", "backtest_learning")
+        self.storage_dir = storage_dir or os.path.join("runtime_logs", "brain_memory")
         os.makedirs(self.storage_dir, exist_ok=True)
 
         self.memory_systems: Dict[str, MarketMemorySystem] = {}
