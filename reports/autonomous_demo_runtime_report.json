@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-30T12:45:33.994321+00:00",
+  "timestamp": "2026-08-30T14:04:05.653149+00:00",
   "runtime_duration_hours": 0.1,
   "signals_generated": 1,
   "signals_rejected": 0,
@@ -7,149 +7,173 @@
   "closed_positions": 1,
   "tp_hits": 1,
   "sl_hits": 0,
-  "total_pnl": 35.55,
+  "total_pnl": 20.59,
   "performance_metrics": {
-    "total_trades": 24,
-    "wins": 20,
-    "losses": 4,
-    "win_rate": 83.33,
-    "average_rr": 2.04,
-    "average_win": 26.8,
-    "average_loss": 19.56,
-    "profit_factor": 6.85,
-    "max_drawdown": 31.95,
-    "expectancy": 19.07
+    "total_trades": 30,
+    "wins": 22,
+    "losses": 8,
+    "win_rate": 73.33,
+    "average_rr": 2.09,
+    "average_win": 28.09,
+    "average_loss": 16.57,
+    "profit_factor": 4.66,
+    "max_drawdown": 24.06,
+    "expectancy": 16.18
   },
   "breakdowns": {
     "by_pattern": {
-      "MTF Selection: Highest structural alignment score (0.9) on M15.": {
-        "total_trades": 3,
-        "wins": 3,
-        "losses": 0,
-        "win_rate": 100.0,
-        "average_rr": 1.98,
-        "average_win": 27.56,
-        "average_loss": 0.0,
-        "profit_factor": 99.0,
-        "max_drawdown": 0.0,
-        "expectancy": 27.56
-      },
       "MTF Selection: Highest structural alignment score (0.85) on M15.": {
-        "total_trades": 15,
-        "wins": 13,
-        "losses": 2,
-        "win_rate": 86.67,
-        "average_rr": 2.06,
-        "average_win": 27.87,
-        "average_loss": 23.14,
-        "profit_factor": 7.83,
-        "max_drawdown": 24.54,
-        "expectancy": 21.07
+        "total_trades": 17,
+        "wins": 11,
+        "losses": 6,
+        "win_rate": 64.71,
+        "average_rr": 2.08,
+        "average_win": 27.16,
+        "average_loss": 16.83,
+        "profit_factor": 2.96,
+        "max_drawdown": 38.08,
+        "expectancy": 11.63
       },
-      "MTF Selection: Highest structural alignment score (0.85) on M5.": {
-        "total_trades": 4,
-        "wins": 2,
+      "MTF Selection: Highest structural alignment score (0.9) on M5.": {
+        "total_trades": 3,
+        "wins": 1,
         "losses": 2,
-        "win_rate": 50.0,
-        "average_rr": 2.0,
-        "average_win": 19.52,
-        "average_loss": 15.97,
-        "profit_factor": 1.22,
-        "max_drawdown": 31.95,
-        "expectancy": 1.77
+        "win_rate": 33.33,
+        "average_rr": 2.15,
+        "average_win": 23.11,
+        "average_loss": 15.75,
+        "profit_factor": 0.73,
+        "max_drawdown": 31.51,
+        "expectancy": -2.8
       },
       "MTF Selection: Highest structural alignment score (0.9) on H1.": {
         "total_trades": 1,
         "wins": 1,
         "losses": 0,
         "win_rate": 100.0,
-        "average_rr": 2.08,
-        "average_win": 16.52,
+        "average_rr": 2.1,
+        "average_win": 34.24,
         "average_loss": 0.0,
         "profit_factor": 99.0,
         "max_drawdown": 0.0,
-        "expectancy": 16.52
+        "expectancy": 34.24
       },
-      "MTF Selection: Highest structural alignment score (0.9) on M5.": {
-        "total_trades": 1,
-        "wins": 1,
+      "MTF Selection: Highest structural alignment score (0.9) on M15.": {
+        "total_trades": 2,
+        "wins": 2,
         "losses": 0,
         "win_rate": 100.0,
-        "average_rr": 2.12,
-        "average_win": 35.55,
+        "average_rr": 2.15,
+        "average_win": 17.02,
         "average_loss": 0.0,
         "profit_factor": 99.0,
         "max_drawdown": 0.0,
-        "expectancy": 35.55
+        "expectancy": 17.02
+      },
+      "MTF Selection: Highest structural alignment score (0.85) on M5.": {
+        "total_trades": 3,
+        "wins": 3,
+        "losses": 0,
+        "win_rate": 100.0,
+        "average_rr": 2.06,
+        "average_win": 27.6,
+        "average_loss": 0.0,
+        "profit_factor": 99.0,
+        "max_drawdown": 0.0,
+        "expectancy": 27.6
+      },
+      "MTF Selection: Highest structural alignment score (0.9) on H4.": {
+        "total_trades": 4,
+        "wins": 4,
+        "losses": 0,
+        "win_rate": 100.0,
+        "average_rr": 2.11,
+        "average_win": 36.25,
+        "average_loss": 0.0,
+        "profit_factor": 99.0,
+        "max_drawdown": 0.0,
+        "expectancy": 36.25
       }
     },
     "by_timeframe": {
       "M15": {
-        "total_trades": 18,
-        "wins": 16,
-        "losses": 2,
-        "win_rate": 88.89,
-        "average_rr": 2.05,
-        "average_win": 27.81,
-        "average_loss": 23.14,
-        "profit_factor": 9.61,
-        "max_drawdown": 24.54,
-        "expectancy": 22.15
+        "total_trades": 19,
+        "wins": 13,
+        "losses": 6,
+        "win_rate": 68.42,
+        "average_rr": 2.09,
+        "average_win": 25.6,
+        "average_loss": 16.83,
+        "profit_factor": 3.29,
+        "max_drawdown": 38.08,
+        "expectancy": 12.2
       },
       "M5": {
-        "total_trades": 5,
-        "wins": 3,
+        "total_trades": 6,
+        "wins": 4,
         "losses": 2,
-        "win_rate": 60.0,
-        "average_rr": 2.02,
-        "average_win": 24.86,
-        "average_loss": 15.97,
-        "profit_factor": 2.33,
-        "max_drawdown": 31.95,
-        "expectancy": 8.53
+        "win_rate": 66.67,
+        "average_rr": 2.1,
+        "average_win": 26.48,
+        "average_loss": 15.75,
+        "profit_factor": 3.36,
+        "max_drawdown": 17.34,
+        "expectancy": 12.4
       },
       "H1": {
         "total_trades": 1,
         "wins": 1,
         "losses": 0,
         "win_rate": 100.0,
-        "average_rr": 2.08,
-        "average_win": 16.52,
+        "average_rr": 2.1,
+        "average_win": 34.24,
         "average_loss": 0.0,
         "profit_factor": 99.0,
         "max_drawdown": 0.0,
-        "expectancy": 16.52
+        "expectancy": 34.24
+      },
+      "H4": {
+        "total_trades": 4,
+        "wins": 4,
+        "losses": 0,
+        "win_rate": 100.0,
+        "average_rr": 2.11,
+        "average_win": 36.25,
+        "average_loss": 0.0,
+        "profit_factor": 99.0,
+        "max_drawdown": 0.0,
+        "expectancy": 36.25
       }
     },
     "by_direction": {
       "BUY": {
-        "total_trades": 22,
-        "wins": 20,
-        "losses": 2,
-        "win_rate": 90.91,
-        "average_rr": 2.05,
-        "average_win": 26.8,
-        "average_loss": 15.97,
-        "profit_factor": 16.78,
-        "max_drawdown": 31.95,
-        "expectancy": 22.91
+        "total_trades": 29,
+        "wins": 21,
+        "losses": 8,
+        "win_rate": 72.41,
+        "average_rr": 2.1,
+        "average_win": 28.5,
+        "average_loss": 16.57,
+        "profit_factor": 4.52,
+        "max_drawdown": 24.06,
+        "expectancy": 16.07
       },
       "SELL": {
-        "total_trades": 2,
-        "wins": 0,
-        "losses": 2,
-        "win_rate": 0.0,
-        "average_rr": 2.0,
-        "average_win": 0.0,
-        "average_loss": 23.14,
-        "profit_factor": 0.0,
-        "max_drawdown": 46.28,
-        "expectancy": -23.14
+        "total_trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "win_rate": 100.0,
+        "average_rr": 1.98,
+        "average_win": 19.48,
+        "average_loss": 0.0,
+        "profit_factor": 99.0,
+        "max_drawdown": 0.0,
+        "expectancy": 19.48
       }
     }
   },
   "learning_updates": 1,
   "timeframes_used": [
-    "M5"
+    "M15"
   ]
 }
