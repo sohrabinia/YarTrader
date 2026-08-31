@@ -45,9 +45,11 @@ class TestMemoryPersistenceLifecycle(unittest.TestCase):
         self.memory.add_experience(exp)
         self.assertIn("exp-test-001", self.memory.experiences)
 
-        # Step 2: Pattern Memory (automatically promoted via add_experience)
-        self.assertEqual(len(self.memory.patterns), 1)
-        pat = list(self.memory.patterns.values())[0]
+        # Step 2: Promote to Pattern Memory
+        promoted = self.memory.promote_experiences_to_patterns()
+        self.assertEqual(len(promoted), 1)
+
+        pat = promoted[0]
         pattern_id = pat.pattern_id
         self.assertEqual(pat.occurrences_count, 1)
         self.assertEqual(pat.continuation_count, 1)

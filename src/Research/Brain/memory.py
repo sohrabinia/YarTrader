@@ -31,7 +31,6 @@ class MarketMemorySystem:
 
         # Load existing data on initialization
         self.load_all()
-        self.promote_experiences_to_patterns()
 
     def get_learning_statistics(self) -> Dict[str, Any]:
         """
@@ -81,7 +80,6 @@ class MarketMemorySystem:
             self.experiences[exp.experience_id] = exp
             self.last_learning_update = datetime.now().isoformat()
             self._save_layer("experiences")
-        self.promote_experiences_to_patterns()
 
     def add_pattern(self, pattern: PatternMemory) -> None:
         """Stores or updates a pattern in Pattern Memory."""
