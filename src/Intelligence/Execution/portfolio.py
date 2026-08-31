@@ -10,29 +10,13 @@ class PortfolioRiskIntelligenceEngine:
         self,
         max_heat_pct: float = 6.0,
         max_concentration_pct: float = 30.0,
-        max_correlation_exposure_pct: float = 15.0,
-        max_risk_per_trade_pct: float = 0.5,
-        max_strategy_exposure_ceiling_pct: float = 3.0,
-        max_daily_drawdown_pct: float = 10.0,
-        start_of_day_equity: Optional[float] = None,
-        daily_pnl: float = 0.0
+        max_correlation_exposure_pct: float = 15.0
     ) -> None:
         self.max_heat_pct = max_heat_pct
         self.max_concentration_pct = max_concentration_pct
         self.max_correlation_exposure_pct = max_correlation_exposure_pct
-        self.max_risk_per_trade_pct = max_risk_per_trade_pct
-        self.max_strategy_exposure_ceiling_pct = max_strategy_exposure_ceiling_pct
-        self.max_daily_drawdown_pct = max_daily_drawdown_pct
-        self.start_of_day_equity = start_of_day_equity
-        self.daily_pnl = daily_pnl
 
-    def calculate_portfolio_risk(
-        self,
-        active_trades: List[Dict[str, Any]],
-        virtual_balance: float = 10000.0,
-        start_of_day_equity: Optional[float] = None,
-        daily_pnl: float = 0.0
-    ) -> Dict[str, Any]:
+    def calculate_portfolio_risk(self, active_trades: List[Dict[str, Any]], virtual_balance: float = 10000.0) -> Dict[str, Any]:
         """
         Processes active trades to evaluate overall portfolio exposure and risk indicators.
         """
@@ -78,43 +62,20 @@ class PortfolioRiskIntelligenceEngine:
         forex_pct = (forex_exp / virtual_balance * 100.0) if virtual_balance > 0 else 0.0
         correlation_exposure = max(metals_pct, forex_pct)
 
-        # 4. Daily Drawdown Evaluation
-        sod_eq = start_of_day_equity or self.start_of_day_equity or virtual_balance
-        actual_daily_pnl = daily_pnl if daily_pnl != 0.0 else self.daily_pnl
-        daily_dd_pct = 0.0
-        if sod_eq > 0 and actual_daily_pnl < 0:
-            daily_dd_pct = (abs(actual_daily_pnl) / sod_eq) * 100.0
-
-        # 5. Check Governance Violations
-        trade_risk_violation = False
-        for t in active_trades:
-            if t.get("status") in ["CREATED", "RUNNING"]:
-                t_risk_pct = float(t.get("risk_pct", 0.0))
-                if t_risk_pct > self.max_risk_per_trade_pct:
-                    trade_risk_violation = True
-                    break
-
+        # 4. Check Governance Violations
         heat_violation = portfolio_heat > self.max_heat_pct
         concentration_violation = highest_concentration > self.max_concentration_pct
         correlation_violation = correlation_exposure > self.max_correlation_exposure_pct
-        exposure_ceiling_violation = portfolio_heat > self.max_strategy_exposure_ceiling_pct
-        daily_drawdown_violation = daily_dd_pct >= self.max_daily_drawdown_pct
 
-        risk_approved = not (heat_violation or concentration_violation or correlation_violation or trade_risk_violation or exposure_ceiling_violation or daily_drawdown_violation)
+        risk_approved = not (heat_violation or concentration_violation or correlation_violation)
 
         violations = []
-        if trade_risk_violation:
-            violations.append(f"Single trade risk exceeds max limit of {self.max_risk_per_trade_pct}% equity")
         if heat_violation:
             violations.append(f"Portfolio Heat ({portfolio_heat:.2f}%) exceeds system budget ({self.max_heat_pct}%)")
-        if exposure_ceiling_violation:
-            violations.append(f"Combined strategy exposure ({portfolio_heat:.2f}%) exceeds max ceiling ({self.max_strategy_exposure_ceiling_pct}%)")
         if concentration_violation:
             violations.append(f"Asset Concentration ({highest_concentration:.2f}%) exceeds max boundary ({self.max_concentration_pct}%)")
         if correlation_violation:
             violations.append(f"Correlation Cluster Exposure ({correlation_exposure:.2f}%) exceeds boundary ({self.max_correlation_exposure_pct}%)")
-        if daily_drawdown_violation:
-            violations.append(f"Daily drawdown ({daily_dd_pct:.2f}%) hit max daily loss threshold ({self.max_daily_drawdown_pct}% of SOD equity). Trading halted.")
 
         return {
             "total_exposure": round(total_exposure, 2),

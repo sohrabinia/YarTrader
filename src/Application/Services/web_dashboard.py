@@ -3958,10 +3958,10 @@ def get_production_health():
     worker_status = state.get("worker_status", "Stopped")
     research_status = state.get("research_status", "Stopped")
     intelligence_status = state.get("intelligence_status", "Stopped")
-    shadow_status = "Disabled"
+    shadow_status = state.get("shadow_status", "Stopped")
 
     # If any worker is active or managed, we say Running
-    if research_status == "Running" or intelligence_status == "Running" or research_tracker.get("worker_status") == "RUNNING":
+    if research_status == "Running" or intelligence_status == "Running" or shadow_status == "Running" or research_tracker.get("worker_status") == "RUNNING":
         worker_status = "Running"
 
     # Determine MT5 connectivity status dynamically from provider
@@ -3974,14 +3974,20 @@ def get_production_health():
         mt5_connected = False
     mt5_status = "Connected" if mt5_connected else "Disconnected"
 
-    # Shadow Trading is DEPRECATED & REMOVED repository-wide (SHADOW = ZERO)
-    shadow_status_active = "Disabled"
+    # Determine Shadow Trading Status linked to ShadowTradingEngine
+    try:
+        from src.ShadowTrading.Engine.ShadowTradingEngine import ShadowTradingEngine
+        shadow_engine = ShadowTradingEngine.get_instance()
+        shadow_status_active = "Active" if shadow_engine is not None else "Offline"
+    except Exception:
+        shadow_status_active = "Offline"
 
     # Harden SRE Health Accuracy against fake reporting
     overall_status = "healthy"
     degraded_states = ["Failed", "Degraded", "Recovering"]
     if (research_status in degraded_states or
         intelligence_status in degraded_states or
+        shadow_status in degraded_states or
         research_tracker.get("worker_status") in degraded_states):
         overall_status = "degraded"
 

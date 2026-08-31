@@ -21,7 +21,7 @@ class TestHealthStatus(unittest.TestCase):
             "worker_status": "Running",
             "research_status": "Running",
             "intelligence_status": "Running",
-            "shadow_status": "Disabled"
+            "shadow_status": "Running"
         })
 
         with patch.dict("src.Application.Services.web_dashboard.research_tracker", {"mt5_status": "CONNECTED", "worker_status": "RUNNING"}):
@@ -33,8 +33,8 @@ class TestHealthStatus(unittest.TestCase):
             self.assertEqual(health["worker"], "Running")
             self.assertEqual(health["research_worker"], "Running")
             self.assertEqual(health["intelligence_worker"], "Running")
-            self.assertEqual(health["shadow_worker"], "Disabled")
-            self.assertEqual(health["shadow_trading"], "Disabled")
+            self.assertEqual(health["shadow_worker"], "Running")
+            self.assertEqual(health["shadow_trading"], "Active")
             self.assertIn("timestamp", health)
 
     def test_health_disconnected_status(self):
