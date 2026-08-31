@@ -329,10 +329,12 @@ class DecisionEvidenceCollector:
     def collect_evidence(
         self,
         decision_id: str,
-        context: DecisionIntelligenceContext
+        context: DecisionIntelligenceContext,
+        analysis: Optional[DecisionAnalysis] = None
     ) -> DecisionEvidenceTrail:
         # Collect features from context metadata if available
         features = context.Metadata.get("features", [])
+        supporting = analysis.SupportingEvidence.copy() if (analysis and analysis.SupportingEvidence) else {}
 
         return DecisionEvidenceTrail(
             DecisionId=decision_id,
@@ -341,6 +343,7 @@ class DecisionEvidenceCollector:
             PatternEvidence=context.PatternObservations,
             StrategyEvidence=context.StrategyEvaluations,
             RiskEvidence=context.RiskAssessments,
+            SupportingEvidence=supporting,
             CollectedAt=datetime.now()
         )
 
