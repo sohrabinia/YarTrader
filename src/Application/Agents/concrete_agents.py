@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from src.Application.Agents.interfaces import IIntelligenceAgent
 from src.Application.Agents.context import AgentContext
 from src.Application.Agents.communication import IntelligenceMessage
@@ -9,10 +9,23 @@ from src.Infrastructure.exceptions import ValidationException
 
 class BaseAgent(IIntelligenceAgent):
     """Base class for all Agents, implementing standard scanning and shared attributes."""
-    def __init__(self, agent_id: str, name: str, responsibility: str) -> None:
+    def __init__(
+        self,
+        agent_id: str,
+        name: str,
+        responsibility: str,
+        domain: str = "general",
+        version: str = "1.0.0",
+        autonomy_level: str = "L1",
+        lifecycle_status: str = "IMPLEMENTED"
+    ) -> None:
         self._agent_id = agent_id
         self._name = name
         self._responsibility = responsibility
+        self._domain = domain
+        self._version = version
+        self._autonomy_level = autonomy_level.upper()
+        self._lifecycle_status = lifecycle_status.upper()
 
     @property
     def agent_id(self) -> str:
@@ -26,16 +39,42 @@ class BaseAgent(IIntelligenceAgent):
     def responsibility(self) -> str:
         return self._responsibility
 
+    @property
+    def domain(self) -> str:
+        return self._domain
+
+    @property
+    def version(self) -> str:
+        return self._version
+
+    @property
+    def autonomy_level(self) -> str:
+        return self._autonomy_level
+
+    @property
+    def lifecycle_status(self) -> str:
+        return self._lifecycle_status
+
     def _verify_isolation(self, message: IntelligenceMessage, forbidden_keywords: List[str]) -> None:
-        """Enforces strict agent isolation by scanning for forbidden keywords in payload."""
+        """Enforces strict agent isolation by scanning for forbidden keywords in payload using word boundaries."""
+        import re
+
         def check_val(val: Any) -> None:
             if isinstance(val, str):
                 lower_val = val.lower()
+                words = set(re.findall(r'\b\w+\b', lower_val))
                 for keyword in forbidden_keywords:
-                    if keyword in lower_val:
-                        raise ValidationException(
-                            f"Isolation Violation: Agent '{self.name}' accessed or output forbidden capability '{keyword}'."
-                        )
+                    kw_lower = keyword.lower()
+                    if " " in kw_lower or "_" in kw_lower:
+                        if kw_lower in lower_val:
+                            raise ValidationException(
+                                f"Isolation Violation: Agent '{self.name}' accessed or output forbidden capability '{keyword}'."
+                            )
+                    else:
+                        if kw_lower in words:
+                            raise ValidationException(
+                                f"Isolation Violation: Agent '{self.name}' accessed or output forbidden capability '{keyword}'."
+                            )
             elif isinstance(val, dict):
                 for k, v in val.items():
                     check_val(k)
@@ -47,28 +86,72 @@ class BaseAgent(IIntelligenceAgent):
         check_val(message.payload)
 
 
+class MarketIntelligenceAgent(BaseAgent):
+    """
+    Market Intelligence Agent.
+    Allowed: Structural perception, Price Action, RTM compression, Fractal scale mapping, Regime classification.
+    Forbidden: Buy/Sell execution, Position sizing, Risk %, Add-on approval.
+    """
+    def __init__(self) -> None:
+        super().__init__(
+            agent_id="agent-market-intel",
+            name="Market Intelligence Agent",
+            responsibility="Perceives non-linear market structures, Price Action setups, RTM compression zones, and Fractal scales.",
+            domain="Financial Perception",
+            version="1.0.0",
+            autonomy_level="L1",
+            lifecycle_status="IMPLEMENTED"
+        )
+
+    def process(self, context: AgentContext, message: IntelligenceMessage) -> IntelligenceMessage:
+        forbidden = ["execute_trade", "place_order", "buy", "sell", "set_risk_pct", "approve_addon"]
+        self._verify_isolation(message, forbidden)
+
+        asset = context.data.get("asset", "XAUUSD")
+
+        market_context = {
+            "asset": asset,
+            "regime": "COMPRESSION_EXPANSION_NODE",
+            "detected_structures": ["RTM Supply Zone @ 2750.50", "H1 Double Bottom", "M5 Base Compression"],
+            "scale_hierarchy": {"D1": "Bullish", "H4": "Bullish", "H1": "Compressing", "M5": "Ready"},
+            "confidence_score": 0.88,
+            "timestamp": datetime.now().isoformat()
+        }
+
+        return IntelligenceMessage(
+            message_id=f"msg-mkt-{uuid.uuid4()}",
+            sender_id=self.agent_id,
+            recipient_id=message.sender_id,
+            timestamp=datetime.now(),
+            message_type="MarketStructureContext",
+            payload=market_context,
+            trace_trail=list(message.trace_trail)
+        )
+
+
 class ResearchAgent(BaseAgent):
     """
     Research Agent.
-    Allowed: Market observation, Feature analysis, Pattern discovery.
+    Allowed: Market observation, Feature analysis, Pattern discovery, Replay hypothesis testing.
     Forbidden: Execution, Orders, Trading commands.
     """
     def __init__(self) -> None:
         super().__init__(
             agent_id="agent-research",
             name="Research Agent",
-            responsibility="Generates market observations, feature extractions, and technical pattern discoveries."
+            responsibility="Generates market observations, feature extractions, and scientific pattern discoveries.",
+            domain="Financial Research",
+            version="1.0.0",
+            autonomy_level="L1",
+            lifecycle_status="IMPLEMENTED"
         )
 
     def process(self, context: AgentContext, message: IntelligenceMessage) -> IntelligenceMessage:
-        # Strict isolation check
         forbidden = ["execution", "orders", "trading commands", "buy", "sell", "place_order"]
         self._verify_isolation(message, forbidden)
 
-        # Retrieve market data details from context or message payload
         asset = context.data.get("asset", "UNKNOWN")
 
-        # Generate passive market observation
         observation = {
             "asset": asset,
             "observation_type": "Market observation, feature analysis, pattern discovery",
@@ -77,7 +160,6 @@ class ResearchAgent(BaseAgent):
             "timestamp": datetime.now().isoformat()
         }
 
-        # Build output message
         return IntelligenceMessage(
             message_id=f"msg-res-{uuid.uuid4()}",
             sender_id=self.agent_id,
@@ -85,6 +167,50 @@ class ResearchAgent(BaseAgent):
             timestamp=datetime.now(),
             message_type="ResearchReport",
             payload=observation,
+            trace_trail=list(message.trace_trail)
+        )
+
+
+class RiskAdvisorAgent(BaseAgent):
+    """
+    Risk Advisor Agent.
+    Allowed: Risk scenario analysis, Exposure warning, Correlation spike detection, Risk recommendations.
+    Forbidden: Risk % modification, Position sizing, Add-on approval, Final risk decision override.
+    """
+    def __init__(self) -> None:
+        super().__init__(
+            agent_id="agent-risk-advisor",
+            name="Risk Advisor Agent",
+            responsibility="Performs exposure scenario checks, portfolio volatility modeling, and generates risk recommendations.",
+            domain="Financial Risk Advisory",
+            version="1.0.0",
+            autonomy_level="L1",
+            lifecycle_status="IMPLEMENTED"
+        )
+
+    def process(self, context: AgentContext, message: IntelligenceMessage) -> IntelligenceMessage:
+        forbidden = ["modify_risk_pct", "override_risk_engine", "force_position_size", "execute_trade"]
+        self._verify_isolation(message, forbidden)
+
+        asset = context.data.get("asset", "UNKNOWN")
+
+        advisory_data = {
+            "asset": asset,
+            "risk_recommendation": "PROCEED_WITH_NORMAL_RISK_GATE",
+            "portfolio_volatility": 0.11,
+            "max_drawdown_limit": 0.05,
+            "correlation_warning": False,
+            "advisory_notes": "All risk metrics within safe bounds. Recommending evaluation by Deterministic Risk Engine.",
+            "timestamp": datetime.now().isoformat()
+        }
+
+        return IntelligenceMessage(
+            message_id=f"msg-rkadv-{uuid.uuid4()}",
+            sender_id=self.agent_id,
+            recipient_id=message.sender_id,
+            timestamp=datetime.now(),
+            message_type="RiskAdvisoryRecommendation",
+            payload=advisory_data,
             trace_trail=list(message.trace_trail)
         )
 
@@ -99,7 +225,11 @@ class StrategyAnalystAgent(BaseAgent):
         super().__init__(
             agent_id="agent-strategy",
             name="Strategy Analyst Agent",
-            responsibility="Evaluates registered strategies, scores candidate performance, and ranks alignment."
+            responsibility="Evaluates registered strategies, scores candidate performance, and ranks alignment.",
+            domain="Strategy Evaluation",
+            version="1.0.0",
+            autonomy_level="L1",
+            lifecycle_status="IMPLEMENTED"
         )
 
     def process(self, context: AgentContext, message: IntelligenceMessage) -> IntelligenceMessage:
@@ -108,7 +238,6 @@ class StrategyAnalystAgent(BaseAgent):
 
         asset = context.data.get("asset", "UNKNOWN")
 
-        # Evaluate strategy
         score_data = {
             "asset": asset,
             "strategy_id": "strat-momentum-pipeline",
@@ -142,7 +271,11 @@ class RiskAgent(BaseAgent):
         super().__init__(
             agent_id="agent-risk",
             name="Risk Agent",
-            responsibility="Performs exposure checks, calculates portfolio risk metrics, and stress-tests allocations."
+            responsibility="Performs exposure checks, calculates portfolio risk metrics, and stress-tests allocations.",
+            domain="Risk Analysis",
+            version="1.0.0",
+            autonomy_level="L1",
+            lifecycle_status="IMPLEMENTED"
         )
 
     def process(self, context: AgentContext, message: IntelligenceMessage) -> IntelligenceMessage:
@@ -151,7 +284,6 @@ class RiskAgent(BaseAgent):
 
         asset = context.data.get("asset", "UNKNOWN")
 
-        # Generate portfolio risk and exposure analysis
         risk_data = {
             "asset": asset,
             "IsApproved": True,
@@ -186,7 +318,11 @@ class ValidationAgent(BaseAgent):
         super().__init__(
             agent_id="agent-validation",
             name="Validation Agent",
-            responsibility="Validates compliance against system design boundaries, data quality, and ensures zero execution leakage."
+            responsibility="Validates compliance against system design boundaries, data quality, and ensures zero execution leakage.",
+            domain="Compliance & Validation",
+            version="1.0.0",
+            autonomy_level="L3",
+            lifecycle_status="IMPLEMENTED"
         )
 
     def process(self, context: AgentContext, message: IntelligenceMessage) -> IntelligenceMessage:
@@ -195,7 +331,6 @@ class ValidationAgent(BaseAgent):
 
         asset = context.data.get("asset", "UNKNOWN")
 
-        # Compliance and quality report
         validation_data = {
             "asset": asset,
             "compliance_checked": True,
@@ -226,7 +361,11 @@ class LearningAgent(BaseAgent):
         super().__init__(
             agent_id="agent-learning",
             name="Learning Agent",
-            responsibility="Ingests feedback loops, evaluates agent decisions for consistency, and logs performance analytics."
+            responsibility="Ingests feedback loops, evaluates agent decisions for consistency, and logs performance analytics.",
+            domain="Continuous Learning",
+            version="1.0.0",
+            autonomy_level="L2",
+            lifecycle_status="IMPLEMENTED"
         )
 
     def process(self, context: AgentContext, message: IntelligenceMessage) -> IntelligenceMessage:
@@ -235,7 +374,6 @@ class LearningAgent(BaseAgent):
 
         asset = context.data.get("asset", "UNKNOWN")
 
-        # In-memory performance logs & feedback suggestions
         learning_data = {
             "asset": asset,
             "feedback_analyzed": True,

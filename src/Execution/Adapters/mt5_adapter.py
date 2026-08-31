@@ -79,7 +79,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         acc_info = self._mt5.account_info()
         if acc_info is None:
+            self._initialized = False
             err = self._mt5.last_error()
+            if err == (0, "Success"):
+                raise ValidationException("MT5 Terminal IPC is disconnected or no active account is logged in.")
             raise ValidationException(f"Failed to fetch MT5 account info: {err}")
 
         actual_login = str(getattr(acc_info, "login", ""))
@@ -110,6 +113,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             return None
         acc = self._mt5.account_info()
         if acc is None:
+            self._initialized = False
             return None
         if hasattr(acc, "_asdict"):
             return acc._asdict()
@@ -129,7 +133,8 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if not self._mt5:
             return None
         term = self._mt5.terminal_info()
-        if term is None:
+        if term is None or not getattr(term, "connected", False):
+            self._initialized = False
             return None
         return term._asdict() if hasattr(term, "_asdict") else {
             "connected": getattr(term, "connected", False),
