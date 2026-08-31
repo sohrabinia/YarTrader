@@ -137,8 +137,8 @@ class DecisionEngine(IDecisionEngine):
         # 4. Resolve layer conflicts
         conflict_result = self.conflict_resolver.resolve_conflicts(context, analysis)
 
-        # 5. Collect evidence trail
-        evidence_trail = self.collector.collect_evidence(decision_id, context)
+        # 5. Collect evidence trail (propagates analysis.SupportingEvidence)
+        evidence_trail = self.collector.collect_evidence(decision_id, context, analysis)
 
         # 6. Determine analytical Decision State derived from Professional Signal Engine
         if prof_sig_error:
@@ -147,7 +147,10 @@ class DecisionEngine(IDecisionEngine):
             if prof_sig.direction in ["BUY", "SELL"]:
                 state = DecisionState.APPROVED
             elif prof_sig.direction == "WAIT":
-                if getattr(prof_sig, "risk_level", None) in ["HIGH_SPREAD_REJECTION", "REJECTED"]:
+                market_ctx = getattr(prof_sig, "market_context", "") or ""
+                pattern_id = getattr(prof_sig, "pattern_id", "") or ""
+                risk_lvl = getattr(prof_sig, "risk_level", "") or ""
+                if "REJECTED" in market_ctx or "REJECTED" in pattern_id or risk_lvl in ["HIGH_SPREAD_REJECTION", "REJECTED"]:
                     state = DecisionState.REJECTED
                 else:
                     state = DecisionState.NO_ACTION
