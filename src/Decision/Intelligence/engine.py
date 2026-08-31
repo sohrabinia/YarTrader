@@ -118,6 +118,8 @@ class DecisionEngine(IDecisionEngine):
         analysis = self.analyzer.analyze_context(context)
 
         # 2b. Invoke ProfessionalSignalEngine if candle/market points exist in context
+        prof_sig = None
+        prof_sig_error = None
         if hasattr(context, "MarketDataPoints") and context.MarketDataPoints:
             try:
                 symbol = getattr(context, "Asset", "XAUUSD")
@@ -125,8 +127,9 @@ class DecisionEngine(IDecisionEngine):
                 if isinstance(candles_by_tf, dict):
                     prof_sig = self.signal_engine.generate_unified_signal(symbol, candles_by_tf)
                     analysis.SupportingEvidence["professional_signal"] = prof_sig.__dict__ if hasattr(prof_sig, "__dict__") else str(prof_sig)
-            except Exception:
-                pass
+            except Exception as pe:
+                prof_sig_error = str(pe)
+                analysis.SupportingEvidence["professional_signal_error"] = prof_sig_error
 
         # 3. Evaluate decision quality
         quality_score = self.evaluator.evaluate_quality(context, analysis)
@@ -137,34 +140,37 @@ class DecisionEngine(IDecisionEngine):
         # 5. Collect evidence trail
         evidence_trail = self.collector.collect_evidence(decision_id, context)
 
-        # 6. Determine analytical Decision State
-        # - Default to NoAction if weights are empty
-        # - ReviewRequired if evidence is insufficient
-        # - Rejected if risk rejected
-        # - ReviewRequired if severe conflict
-        # - Approved otherwise
-        state = DecisionState.APPROVED
-
-        # Check Insufficient Evidence -> ReviewRequired
-        # (e.g. no strategy evaluations or no research insights)
-        if not context.StrategyEvaluations or not context.ResearchInsights:
+        # 6. Determine analytical Decision State derived from Professional Signal Engine
+        if prof_sig_error:
             state = DecisionState.REVIEW_REQUIRED
+        elif prof_sig:
+            if prof_sig.direction in ["BUY", "SELL"]:
+                state = DecisionState.APPROVED
+            elif prof_sig.direction == "WAIT":
+                if getattr(prof_sig, "risk_level", None) in ["HIGH_SPREAD_REJECTION", "REJECTED"]:
+                    state = DecisionState.REJECTED
+                else:
+                    state = DecisionState.NO_ACTION
+            else:
+                state = DecisionState.NO_ACTION
+        else:
+            state = DecisionState.APPROVED
+            if not context.StrategyEvaluations or not context.ResearchInsights:
+                state = DecisionState.REVIEW_REQUIRED
 
-        # Check risk approval
-        risk_approved = analysis.SupportingEvidence.get("risk_approved", True)
-        if not risk_approved:
-            state = DecisionState.REJECTED
+            risk_approved = analysis.SupportingEvidence.get("risk_approved", True)
+            if not risk_approved:
+                state = DecisionState.REJECTED
 
-        # If empty allocation, default to NoAction
-        has_weights = False
-        if context.StrategyEvaluations:
-            for s in context.StrategyEvaluations:
-                if hasattr(s, "Score") and getattr(s, "Score").OverallScore > 0:
-                    has_weights = True
-                elif isinstance(s, dict) and s.get("score", 0.0) > 0:
-                    has_weights = True
-        if not has_weights and state == DecisionState.APPROVED:
-            state = DecisionState.NO_ACTION
+            has_weights = False
+            if context.StrategyEvaluations:
+                for s in context.StrategyEvaluations:
+                    if hasattr(s, "Score") and getattr(s, "Score").OverallScore > 0:
+                        has_weights = True
+                    elif isinstance(s, dict) and s.get("score", 0.0) > 0:
+                        has_weights = True
+            if not has_weights and state == DecisionState.APPROVED:
+                state = DecisionState.NO_ACTION
 
         # 7. Compile report
         report = self.report_builder.build_report(
