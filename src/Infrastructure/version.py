@@ -5,11 +5,9 @@ from typing import Dict, Any
 _VERSION_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "version.json")
 
 import subprocess
-from functools import lru_cache
 
-@lru_cache(maxsize=1)
 def _get_git_commit_sha() -> str:
-    """Attempts to resolve the current Git repository HEAD commit SHA (memoized)."""
+    """Attempts to resolve the current Git repository HEAD commit SHA."""
     try:
         repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         res = subprocess.run(

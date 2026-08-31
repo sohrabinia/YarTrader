@@ -17,7 +17,6 @@ class DecisionIntelligenceContext:
     MarketConditions: Dict[str, Any] = field(default_factory=dict)
     HistoricalEvidence: Dict[str, Any] = field(default_factory=dict)
     Metadata: Dict[str, Any] = field(default_factory=dict)
-    MarketDataPoints: Optional[List[Any]] = None
 
     def __post_init__(self) -> None:
         # Strict safety check for execution leaking parameters
@@ -96,7 +95,6 @@ class DecisionEvidenceTrail:
     PatternEvidence: List[Any] = field(default_factory=list)
     StrategyEvidence: List[Any] = field(default_factory=list)
     RiskEvidence: List[Any] = field(default_factory=list)
-    SupportingEvidence: Dict[str, Any] = field(default_factory=dict)
     CollectedAt: datetime = field(default_factory=datetime.now)
 
 

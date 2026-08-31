@@ -179,8 +179,4 @@ trader-terminal/dist/
 
 
 validation/mt5_native_demo/
-
-# Runtime Generated Reports
-reports/autonomous_demo_runtime_report.json
-reports/final_autonomous_runtime_forensic_report.json
-reports/v1_2_demo_learning_loop_results.json
+reports/

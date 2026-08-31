@@ -38,19 +38,6 @@ app = FastAPI(
 )
 
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-
-# Configure explicit Host Header allowlist for production origin security
-default_allowed_hosts = ["yartrader.com", "*.yartrader.com", "localhost", "127.0.0.1", "testserver"]
-env_allowed_hosts = os.environ.get("YARTRADER_ALLOWED_HOSTS")
-if env_allowed_hosts:
-    extra_hosts = [h.strip() for h in env_allowed_hosts.split(",") if h.strip()]
-    default_allowed_hosts.extend(extra_hosts)
-
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=default_allowed_hosts
-)
 
 # Enable CORS for production domain and local developer tools
 app.add_middleware(
@@ -69,42 +56,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.middleware("http")
-async def security_headers_and_https_redirect_middleware(request: Request, call_next):
-    """
-    Production Origin Security & Edge Hardening Middleware:
-    1. Enforces HTTP -> HTTPS redirection (301 Permanent) when forwarded over plaintext HTTP behind Cloudflare/edge proxy.
-    2. Injects production security headers (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy).
-    """
-    # Enforce HTTP -> HTTPS redirect if X-Forwarded-Proto indicates HTTP
-    forwarded_proto = request.headers.get("x-forwarded-proto", "").lower()
-    if forwarded_proto == "http":
-        url = request.url.replace(scheme="https")
-        return Response(
-            status_code=301,
-            headers={"Location": str(url)}
-        )
-
-    response = await call_next(request)
-
-    # Inject production security headers
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "SAMEORIGIN"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
-        "font-src 'self' https://cdn.jsdelivr.net data:; "
-        "img-src 'self' data: https:; "
-        "connect-src 'self' https://yartrader.com https://www.yartrader.com wss: ws:; "
-        "frame-ancestors 'self';"
-    )
-    return response
 
 # Mount three isolated production-grade SaaS routers
 locales_dir = "trader-terminal/dist/locales" if os.path.exists("trader-terminal/dist/locales") else ("trader-terminal/public/locales" if os.path.exists("trader-terminal/public/locales") else "locales")

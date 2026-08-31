@@ -19,9 +19,6 @@ from src.Decision.Intelligence.services import (
     DecisionValidator,
     DecisionHistoryStore
 )
-from src.Decision.Intelligence.professional_signal_engine import ProfessionalSignalEngine
-from src.Decision.Intelligence.timeframe_selector import UnifiedSignalContract
-from src.Data.MarketData.Models.models import MarketDataPoint
 from src.Infrastructure.exceptions import ValidationException
 
 
@@ -29,9 +26,9 @@ class DecisionEngine(IDecisionEngine):
     """
     Advanced context-aware Decision Intelligence Engine.
     Synthesizes multi-factor inputs (Research, Strategy, Risk) to produce explainable analytical decisions.
-    Integrates ProfessionalSignalEngine as the canonical professional signal generation layer.
+    Strictly contains zero BUY/SELL states or trading execution mechanics.
     """
-    def __init__(self, signal_engine: Optional[ProfessionalSignalEngine] = None) -> None:
+    def __init__(self) -> None:
         self.builder = DecisionContextBuilder()
         self.analyzer = DecisionAnalyzer()
         self.evaluator = DecisionQualityEvaluator()
@@ -40,25 +37,6 @@ class DecisionEngine(IDecisionEngine):
         self.report_builder = DecisionReportBuilder()
         self.validator = DecisionValidator()
         self.history_store = DecisionHistoryStore()
-        self.signal_engine = signal_engine or ProfessionalSignalEngine()
-
-    def generate_professional_signal(
-        self,
-        symbol: str,
-        candles_by_tf: Dict[str, List[MarketDataPoint]],
-        spread_pip: float = 1.0,
-        account_balance: float = 10000.0
-    ) -> UnifiedSignalContract:
-        """
-        Delegates signal generation directly to the integrated ProfessionalSignalEngine.
-        Returns a UnifiedSignalContract containing the qualified BUY, SELL, or WAIT signal.
-        """
-        return self.signal_engine.generate_unified_signal(
-            symbol=symbol,
-            candles_by_tf=candles_by_tf,
-            spread_pip=spread_pip,
-            account_balance=account_balance
-        )
 
     def evaluate_decision(self, context: DecisionContext) -> DecisionResult:
         """
@@ -117,63 +95,43 @@ class DecisionEngine(IDecisionEngine):
         # 2. Analyze context
         analysis = self.analyzer.analyze_context(context)
 
-        # 2b. Invoke ProfessionalSignalEngine if candle/market points exist in context
-        prof_sig = None
-        prof_sig_error = None
-        if hasattr(context, "MarketDataPoints") and context.MarketDataPoints:
-            try:
-                symbol = getattr(context, "Asset", "XAUUSD")
-                candles_by_tf = {"M15": context.MarketDataPoints} if isinstance(context.MarketDataPoints, list) else context.MarketDataPoints
-                if isinstance(candles_by_tf, dict):
-                    prof_sig = self.signal_engine.generate_unified_signal(symbol, candles_by_tf)
-                    analysis.SupportingEvidence["professional_signal"] = prof_sig.__dict__ if hasattr(prof_sig, "__dict__") else str(prof_sig)
-            except Exception as pe:
-                prof_sig_error = str(pe)
-                analysis.SupportingEvidence["professional_signal_error"] = prof_sig_error
-
         # 3. Evaluate decision quality
         quality_score = self.evaluator.evaluate_quality(context, analysis)
 
         # 4. Resolve layer conflicts
         conflict_result = self.conflict_resolver.resolve_conflicts(context, analysis)
 
-        # 5. Collect evidence trail (propagates analysis.SupportingEvidence)
-        evidence_trail = self.collector.collect_evidence(decision_id, context, analysis)
+        # 5. Collect evidence trail
+        evidence_trail = self.collector.collect_evidence(decision_id, context)
 
-        # 6. Determine analytical Decision State derived from Professional Signal Engine
-        if prof_sig_error:
+        # 6. Determine analytical Decision State
+        # - Default to NoAction if weights are empty
+        # - ReviewRequired if evidence is insufficient
+        # - Rejected if risk rejected
+        # - ReviewRequired if severe conflict
+        # - Approved otherwise
+        state = DecisionState.APPROVED
+
+        # Check Insufficient Evidence -> ReviewRequired
+        # (e.g. no strategy evaluations or no research insights)
+        if not context.StrategyEvaluations or not context.ResearchInsights:
             state = DecisionState.REVIEW_REQUIRED
-        elif prof_sig:
-            if prof_sig.direction in ["BUY", "SELL"]:
-                state = DecisionState.APPROVED
-            elif prof_sig.direction == "WAIT":
-                market_ctx = getattr(prof_sig, "market_context", "") or ""
-                pattern_id = getattr(prof_sig, "pattern_id", "") or ""
-                risk_lvl = getattr(prof_sig, "risk_level", "") or ""
-                if "REJECTED" in market_ctx or "REJECTED" in pattern_id or risk_lvl in ["HIGH_SPREAD_REJECTION", "REJECTED"]:
-                    state = DecisionState.REJECTED
-                else:
-                    state = DecisionState.NO_ACTION
-            else:
-                state = DecisionState.NO_ACTION
-        else:
-            state = DecisionState.APPROVED
-            if not context.StrategyEvaluations or not context.ResearchInsights:
-                state = DecisionState.REVIEW_REQUIRED
 
-            risk_approved = analysis.SupportingEvidence.get("risk_approved", True)
-            if not risk_approved:
-                state = DecisionState.REJECTED
+        # Check risk approval
+        risk_approved = analysis.SupportingEvidence.get("risk_approved", True)
+        if not risk_approved:
+            state = DecisionState.REJECTED
 
-            has_weights = False
-            if context.StrategyEvaluations:
-                for s in context.StrategyEvaluations:
-                    if hasattr(s, "Score") and getattr(s, "Score").OverallScore > 0:
-                        has_weights = True
-                    elif isinstance(s, dict) and s.get("score", 0.0) > 0:
-                        has_weights = True
-            if not has_weights and state == DecisionState.APPROVED:
-                state = DecisionState.NO_ACTION
+        # If empty allocation, default to NoAction
+        has_weights = False
+        if context.StrategyEvaluations:
+            for s in context.StrategyEvaluations:
+                if hasattr(s, "Score") and getattr(s, "Score").OverallScore > 0:
+                    has_weights = True
+                elif isinstance(s, dict) and s.get("score", 0.0) > 0:
+                    has_weights = True
+        if not has_weights and state == DecisionState.APPROVED:
+            state = DecisionState.NO_ACTION
 
         # 7. Compile report
         report = self.report_builder.build_report(
