@@ -138,7 +138,8 @@ class DemoExecutionGate:
                 except ValidationException:
                     raise
                 except Exception as ex:
-                    logger.warning(f"[DemoExecutionGate] Error checking position exclusivity: {ex}")
+                    logger.error(f"[DemoExecutionGate] Fail-Closed: Error checking position exclusivity: {ex}")
+                    raise ValidationException(f"DemoExecutionGate Fail-Closed Violation: Unable to verify active position exclusivity for '{request.Symbol}': {ex}")
 
         logger.info("[DemoExecutionGate] All SRE Demo Execution safety checks PASSED.")
         return True
