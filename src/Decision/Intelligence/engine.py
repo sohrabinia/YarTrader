@@ -19,6 +19,9 @@ from src.Decision.Intelligence.services import (
     DecisionValidator,
     DecisionHistoryStore
 )
+from src.Decision.Intelligence.professional_signal_engine import ProfessionalSignalEngine
+from src.Decision.Intelligence.timeframe_selector import UnifiedSignalContract
+from src.Data.MarketData.Models.models import MarketDataPoint
 from src.Infrastructure.exceptions import ValidationException
 
 
@@ -26,9 +29,9 @@ class DecisionEngine(IDecisionEngine):
     """
     Advanced context-aware Decision Intelligence Engine.
     Synthesizes multi-factor inputs (Research, Strategy, Risk) to produce explainable analytical decisions.
-    Strictly contains zero BUY/SELL states or trading execution mechanics.
+    Integrates ProfessionalSignalEngine as the canonical professional signal generation layer.
     """
-    def __init__(self) -> None:
+    def __init__(self, signal_engine: Optional[ProfessionalSignalEngine] = None) -> None:
         self.builder = DecisionContextBuilder()
         self.analyzer = DecisionAnalyzer()
         self.evaluator = DecisionQualityEvaluator()
@@ -37,6 +40,25 @@ class DecisionEngine(IDecisionEngine):
         self.report_builder = DecisionReportBuilder()
         self.validator = DecisionValidator()
         self.history_store = DecisionHistoryStore()
+        self.signal_engine = signal_engine or ProfessionalSignalEngine()
+
+    def generate_professional_signal(
+        self,
+        symbol: str,
+        candles_by_tf: Dict[str, List[MarketDataPoint]],
+        spread_pip: float = 1.0,
+        account_balance: float = 10000.0
+    ) -> UnifiedSignalContract:
+        """
+        Delegates signal generation directly to the integrated ProfessionalSignalEngine.
+        Returns a UnifiedSignalContract containing the qualified BUY, SELL, or WAIT signal.
+        """
+        return self.signal_engine.generate_unified_signal(
+            symbol=symbol,
+            candles_by_tf=candles_by_tf,
+            spread_pip=spread_pip,
+            account_balance=account_balance
+        )
 
     def evaluate_decision(self, context: DecisionContext) -> DecisionResult:
         """
@@ -94,6 +116,17 @@ class DecisionEngine(IDecisionEngine):
 
         # 2. Analyze context
         analysis = self.analyzer.analyze_context(context)
+
+        # 2b. Invoke ProfessionalSignalEngine if candle/market points exist in context
+        if hasattr(context, "MarketDataPoints") and context.MarketDataPoints:
+            try:
+                symbol = getattr(context, "Asset", "XAUUSD")
+                candles_by_tf = {"M15": context.MarketDataPoints} if isinstance(context.MarketDataPoints, list) else context.MarketDataPoints
+                if isinstance(candles_by_tf, dict):
+                    prof_sig = self.signal_engine.generate_unified_signal(symbol, candles_by_tf)
+                    analysis.SupportingEvidence["professional_signal"] = prof_sig.__dict__ if hasattr(prof_sig, "__dict__") else str(prof_sig)
+            except Exception:
+                pass
 
         # 3. Evaluate decision quality
         quality_score = self.evaluator.evaluate_quality(context, analysis)
