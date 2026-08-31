@@ -105,8 +105,8 @@ class DemoExecutionGate:
                 raise ValidationException(f"DemoExecutionGate Violation: Volume {request.Volume} out of bounds [{vol_min}, {vol_max}].")
 
         # Check 9: SL/TP validation on correct side of price
+        order_type = str(getattr(request, "OrderType", "")).upper()
         if hasattr(request, "Price") and request.Price > 0:
-            order_type = str(getattr(request, "OrderType", "")).upper()
             sl = getattr(request, "StopLoss", None)
             tp = getattr(request, "TakeProfit", None)
 
@@ -121,5 +121,25 @@ class DemoExecutionGate:
                 if tp and tp > 0 and tp >= request.Price:
                     raise ValidationException(f"DemoExecutionGate Violation: Sell order TP {tp} must be below entry price {request.Price}.")
 
-        logger.info("[DemoExecutionGate] All 9 SRE Demo Execution safety checks PASSED.")
+        # Check 10: Position Exclusivity Guard (At most 1 active directional position per symbol)
+        if order_type != "CLOSE" and hasattr(request, "Symbol"):
+            get_pos_fn = getattr(adapter_or_mt5, "get_positions", None)
+            if callable(get_pos_fn):
+                try:
+                    active_positions = get_pos_fn(symbol=request.Symbol)
+                    if active_positions and len(active_positions) > 0:
+                        pos_ticket = active_positions[0].get("ticket", "N/A")
+                        pos_dir = "BUY" if active_positions[0].get("type", 0) == 0 else "SELL"
+                        raise ValidationException(
+                            f"DemoExecutionGate Violation: Position Exclusivity Guard for '{request.Symbol}'. "
+                            f"Active position exists (ticket={pos_ticket}, direction={pos_dir}). "
+                            f"Simultaneous or duplicate position entry is strictly forbidden."
+                        )
+                except ValidationException:
+                    raise
+                except Exception as ex:
+                    logger.error(f"[DemoExecutionGate] Fail-Closed: Error checking position exclusivity: {ex}")
+                    raise ValidationException(f"DemoExecutionGate Fail-Closed Violation: Unable to verify active position exclusivity for '{request.Symbol}': {ex}")
+
+        logger.info("[DemoExecutionGate] All SRE Demo Execution safety checks PASSED.")
         return True

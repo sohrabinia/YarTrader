@@ -160,34 +160,103 @@ class ResearchWorker:
                                         if self.demo_engine is None:
                                             self.demo_engine = DemoExecutionEngine(demo_mode=True)
 
-                                        sig_price = auto_dec.get("entry")
-                                        sig_sl = auto_dec.get("stop_loss")
-                                        sig_tp = auto_dec.get("take_profit")
-                                        sig_vol = auto_dec.get("volume", 0.01)
-                                        decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
+                                        # Check active broker positions to enforce Position Exclusivity Guard
+                                        active_positions = self.demo_engine.get_active_positions(symbol=symbol)
+                                        if active_positions and len(active_positions) > 0:
+                                            existing_ticket = active_positions[0].get("ticket", 0)
+                                            existing_dir_code = active_positions[0].get("type", 0)
+                                            existing_dir = "BUY" if existing_dir_code == 0 else "SELL"
 
-                                        print(f"[ResearchWorker] Actionable decision detected: {symbol} {sig_dir}. Dispatching to DemoExecutionEngine...")
-                                        exec_resp = self.demo_engine.execute_demo_decision(
-                                            symbol=symbol,
-                                            direction=sig_dir,
-                                            volume=sig_vol,
-                                            price=sig_price,
-                                            sl=sig_sl,
-                                            tp=sig_tp,
-                                            comment=f"YarTrader DEMO {symbol}",
-                                            magic=143056,
-                                            decision_id=decision_id
-                                        )
+                                            if existing_dir == sig_dir:
+                                                print(f"[ResearchWorker] Duplicate position guard triggered: {symbol} already has active {existing_dir} position (ticket={existing_ticket}). Skipping.")
+                                            else:
+                                                # Opposite direction decision detected: Enforce Sequential Reversal Lifecycle
+                                                # OPEN -> CLOSE REQUESTED -> CLOSE CONFIRMED -> REASSESS -> OPPOSITE ENTRY
+                                                print(f"[ResearchWorker] Sequential Reversal Triggered: Existing active {existing_dir} position found for {symbol}. Requesting close before reassessment...")
+                                                close_resp = self.demo_engine.close_position(
+                                                    symbol=symbol,
+                                                    position_ticket=existing_ticket,
+                                                    comment=f"YarTrader RevClose {symbol}"
+                                                )
 
-                                        # Record execution time for cooldown tracking
-                                        self.last_executed_signal[symbol.upper()] = {
-                                            "direction": sig_dir,
-                                            "sig_time": sig_time,
-                                            "exec_time": now_time,
-                                            "decision_id": decision_id
-                                        }
+                                                # Explicitly evaluate close response status before market reassessment
+                                                if close_resp.Status not in ["Placed", "Closed"]:
+                                                    print(f"[ResearchWorker] Reversal BLOCKED: Position {existing_ticket} close request failed (Status={close_resp.Status}, Comment={close_resp.Comment}). Failing closed.")
+                                                else:
+                                                    # Authoritative broker position verification: confirm symbol is flat
+                                                    remaining_pos = self.demo_engine.get_active_positions(symbol=symbol)
+                                                    is_closed = not any(str(p.get("ticket", "")) == str(existing_ticket) for p in remaining_pos)
 
-                                        print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+                                                    if not is_closed:
+                                                        print(f"[ResearchWorker] Reversal BLOCKED: Position {existing_ticket} close unconfirmed / pending in broker state. Failing closed.")
+                                                    else:
+                                                        print(f"[ResearchWorker] Position {existing_ticket} close CONFIRMED flat. Reassessing market for {symbol} {sig_dir}...")
+                                                        # Fresh Market Reassessment: Must be self-contained
+                                                        reassess_run = runtime.run_once()
+                                                        reassess_dec = reassess_run.Findings.get("autonomous_decision", {})
+                                                        reassess_action = reassess_dec.get("action", "WAIT")
+
+                                                        if reassess_action == sig_dir:
+                                                            # Extract execution parameters STRICTLY from reassess_dec (NO fallback to auto_dec)
+                                                            rev_price = reassess_dec.get("entry")
+                                                            rev_sl = reassess_dec.get("stop_loss")
+                                                            rev_tp = reassess_dec.get("take_profit")
+                                                            rev_vol = reassess_dec.get("volume", 0.01)
+
+                                                            if rev_price and rev_sl and rev_tp and float(rev_price) > 0 and float(rev_sl) > 0 and float(rev_tp) > 0:
+                                                                decision_id = f"DEC-REV-{symbol.upper()}-{sig_dir}-{int(sig_time)}"
+                                                                exec_resp = self.demo_engine.execute_demo_decision(
+                                                                    symbol=symbol,
+                                                                    direction=sig_dir,
+                                                                    volume=float(rev_vol),
+                                                                    price=float(rev_price),
+                                                                    sl=float(rev_sl),
+                                                                    tp=float(rev_tp),
+                                                                    comment=f"YarTrader REV {symbol}",
+                                                                    magic=143056,
+                                                                    decision_id=decision_id
+                                                                )
+                                                                self.last_executed_signal[symbol.upper()] = {
+                                                                    "direction": sig_dir,
+                                                                    "sig_time": sig_time,
+                                                                    "exec_time": now_time,
+                                                                    "decision_id": decision_id
+                                                                }
+                                                                print(f"[ResearchWorker] Reversal DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+                                                            else:
+                                                                print(f"[ResearchWorker] Reversal BLOCKED: Fresh reassessment decision for {symbol} missing required execution parameters (entry={rev_price}, sl={rev_sl}, tp={rev_tp}). Remaining flat.")
+                                                        else:
+                                                            print(f"[ResearchWorker] Reversal aborted: Reassessment action for {symbol} is {reassess_action} (opposite entry not independently confirmed). Remaining flat.")
+                                        else:
+                                            # Flat state: Normal execution dispatch
+                                            sig_price = auto_dec.get("entry")
+                                            sig_sl = auto_dec.get("stop_loss")
+                                            sig_tp = auto_dec.get("take_profit")
+                                            sig_vol = auto_dec.get("volume", 0.01)
+                                            decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
+
+                                            print(f"[ResearchWorker] Actionable decision detected for flat symbol {symbol}: {sig_dir}. Dispatching to DemoExecutionEngine...")
+                                            exec_resp = self.demo_engine.execute_demo_decision(
+                                                symbol=symbol,
+                                                direction=sig_dir,
+                                                volume=sig_vol,
+                                                price=sig_price,
+                                                sl=sig_sl,
+                                                tp=sig_tp,
+                                                comment=f"YarTrader DEMO {symbol}",
+                                                magic=143056,
+                                                decision_id=decision_id
+                                            )
+
+                                            # Record execution time for cooldown tracking
+                                            self.last_executed_signal[symbol.upper()] = {
+                                                "direction": sig_dir,
+                                                "sig_time": sig_time,
+                                                "exec_time": now_time,
+                                                "decision_id": decision_id
+                                            }
+
+                                            print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
                                     except Exception as exec_err:
                                         print(f"[ResearchWorker] DEMO Execution Gate / Fail-Closed: {exec_err}")
                         else:

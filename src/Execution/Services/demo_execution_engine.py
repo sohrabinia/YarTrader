@@ -147,6 +147,59 @@ class DemoExecutionEngine:
             self._log_evidence(evidence)
             raise
 
+    def get_active_positions(self, symbol: Optional[str] = None) -> list:
+        """Queries active broker positions for symbol."""
+        if hasattr(self.adapter, "get_positions"):
+            return self.adapter.get_positions(symbol=symbol)
+        return []
+
+    def close_position(
+        self,
+        symbol: str,
+        position_ticket: int,
+        volume: float = 0.01,
+        comment: str = "YarTrader Close"
+    ) -> OrderResponse:
+        """
+        Submits CLOSE request for position ticket and confirms authoritative position closure.
+        Returns OrderResponse with Status="Placed" or "Closed" if confirmed, or "Failed" if closure is unconfirmed.
+        """
+        req = OrderRequest(
+            Symbol=symbol.upper(),
+            OrderType="CLOSE",
+            Volume=float(volume),
+            PositionTicket=str(position_ticket),
+            Comment=comment
+        )
+
+        response = self.adapter.send_order_to_broker(req)
+
+        # Confirm closure from broker position list
+        remaining = self.get_active_positions(symbol=symbol)
+        ticket_str = str(position_ticket)
+        still_open = any(str(p.get("ticket", "")) == ticket_str for p in remaining)
+
+        if still_open:
+            logger.warning(
+                f"[DemoExecutionEngine] Position close requested for ticket {position_ticket}, "
+                f"but position remains open on broker. State is CLOSE_PENDING/FAILED."
+            )
+            return OrderResponse(
+                OrderId=response.OrderId,
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=response.SubmittedAt,
+                Retcode=response.Retcode,
+                Comment=f"Position close requested but broker confirmation pending/failed. Position {position_ticket} still active.",
+                DealTicket=response.DealTicket,
+                Price=response.Price,
+                Volume=response.Volume,
+                RawResponse=response.RawResponse
+            )
+
+        logger.info(f"[DemoExecutionEngine] Position {position_ticket} close CONFIRMED on broker.")
+        return response
+
     def _log_evidence(self, evidence: Dict[str, Any]) -> None:
         """Writes execution telemetry safely to disk without exposing credentials."""
         try:
