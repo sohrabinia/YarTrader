@@ -1,20 +1,21 @@
 # YARTRADER TRADING BRAIN RECONSTRUCTION
-**Full Forensic Reconstruction & Scientific Backtest Optimization Audit of YarTrader Decision & Execution Core**
+**Full Forensic Reconstruction & Adaptive Backtest/Learning Architecture Audit of YarTrader Decision & Execution Core**
 **Classification: READ-ONLY AUDIT & FORENSIC DOCUMENTATION**
 **Repository Version / Commit: YarTrader v7.0 (HEAD: `5b7e817d44f43131a8ce68193a36bcbf2fdbd0fc`)**
+**Branch Name: `forensic-brain-reconstruction-v2`**
 
 ---
 
 ## EXECUTIVE SUMMARY
 
-This forensic audit performs a full, evidence-based call-chain reconstruction of the YarTrader trading decision and execution brain. It addresses the exact executable reachability, parameter flow, risk enforcement, win rate fallbacks, learning loops, entry predicates, execution authority, and scientific backtest/optimization capabilities.
+This forensic audit performs a full, evidence-based call-chain reconstruction of the YarTrader trading decision and execution brain. It addresses the exact executable reachability, parameter flow, risk enforcement, win rate fallbacks, learning loops, entry predicates, execution authority, market regime intelligence, and target learning architecture without modifying any application source code.
 
 ---
 
 ## SECTION 1 — CANONICAL BRAIN TRACE
 
 ### Production Entry Points & Reachability Chain
-The production background service (`app/workers/service.py`) initializes and launches `ResearchWorker` (`app/workers/research_worker.py:65`) and `IntelligenceWorker` (`app/workers/intelligence_worker.py:25`).
+The production background service (`app/workers/service.py:75`) initializes and launches `ResearchWorker` (`app/workers/research_worker.py:45`) and `IntelligenceWorker` (`app/workers/intelligence_worker.py:25`).
 
 #### 1. Real Runtime Call Chain (Market Data to Broker Order)
 ```text
@@ -231,3 +232,76 @@ $$\text{SELL} = (\text{Bearish MSB}) \land (\text{Bearish FVG or OB Retest}) \la
 | Execution Safety | **HARD LOCKED (`LIVE_TRADING_ENABLED=False`)** | `demo_execution_gate.py:55` |
 | Scientific Backtest | **IMPLEMENTED (ZERO LOOK-AHEAD)** | `backtest_learning_engine.py` |
 | Automated Self-Optimization | **NOT FOUND** | No active parameter grid-search optimizer in runtime code |
+
+---
+
+## SECTION 17 — MARKET REGIME INTELLIGENCE
+
+### 17.1 Range Detection
+- `FractalBaseDetectionEngine` (`src/Research/Brain/fractal_base_detection_engine.py:35`): Detects price bases/ranges.
+- Outputs `BaseLow`, `BaseHigh`, and `SqueezeRatio`.
+- **Classification:** **CANONICAL (RESEARCH BRAIN)**.
+
+### 17.2 Range Entry Logic
+- `PRICE_ACTION_RTM` strategy (`strategy_orchestrator.py:375`): Retests Quasimodo levels during range compression.
+- **Classification:** **CANONICAL**.
+
+### 17.3 Range Stop Placement
+- Based on Order Block / FVG boundary + 2.0 pips buffer (`strategy_orchestrator.py:240`).
+- **Classification:** **CANONICAL**.
+
+### 17.4 Range RR
+- Min Net Real RR >= 1.5 enforced globally by `ProfessionalRiskEngine`.
+- **Classification:** **CANONICAL**.
+
+### 17.5 Breakout Detection
+- `JumpStrategy` (`strategy_orchestrator.py:320`): Detects volume spikes > 2.0x 20-bar avg + directional ATR expansion.
+- **Classification:** **CANONICAL**.
+
+### 17.6 Breakout Continuation
+- `ScalpStrategy` (`strategy_orchestrator.py:220`): FVG/OB mitigation retest following Market Structure Break (MSB).
+- **Classification:** **CANONICAL**.
+
+### 17.7 Explosive Move
+- ATR expansion >= 1.8x in `JumpStrategy`.
+- **Classification:** **CANONICAL**.
+
+### 17.8 High-RR Moves (1:3 to 1:8+)
+- Strategy TP multipliers range from 1.5x (`FAST_SCALP`) to 2.5x (`DAY_TRADING`). Target RR > 2.5 is **NOT IMPLEMENTED** in static code.
+
+### 17.9 Exhaustion & Reversal
+- `ReversalHandoffManager` (`src/Risk/Services/reversal_handoff.py:20`): Evaluates post-close Fast Scalp/Scalp non-blind reversal setups.
+- **Classification:** **CANONICAL**.
+
+### 17.12 Regime State Machine
+- `NarrativeEngine` (`src/Intelligence/Execution/narrative.py:40`): Classifies market regimes (`TRENDING`, `RANGING`, `HIGH_VOLATILITY`, `COMPRESSING`).
+- **Classification:** **CANONICAL**.
+
+---
+
+## SECTION 18 — ADAPTIVE BACKTEST / LEARNING TARGET ARCHITECTURE
+
+*Note: This section defines target architecture for future research isolation and is NOT live production code.*
+
+### 18.1 Target Research Loop
+```text
+HISTORICAL DATA -> FEATURE EXTRACTION -> REGIME CLASSIFICATION -> POLICY SELECTION -> WALK-FORWARD OOS VALIDATION -> RETAIN / REJECT
+```
+
+### 18.2 Anti-Overfitting Requirements
+- 3-Fold Data Separation: Train / Validation / Test (Touch-free final holdout).
+- Strict out-of-sample (OOS) parameter locking.
+
+---
+
+## SECTION 19 — FINAL FORENSIC CONCLUSION
+
+1. **Production Decision Path:** `ResearchWorker` -> `ResearchRuntime.run_once()` -> `ExecutionIntelligenceCore.evaluate_context()` -> `StrategyOrchestrator.evaluate_all_strategies()` -> `ExecutionIntelligencePlanner.generate_execution_plan()` -> `DemoExecutionEngine.execute_demo_decision()`.
+2. **StrategyOrchestrator Status:** **CANONICAL** (Evaluates 6 active strategy profiles).
+3. **ExecutionIntelligenceCore Status:** **CANONICAL**.
+4. **ExecutionIntelligencePlanner Status:** **CANONICAL**.
+5. **DecisionEngine & ProfessionalSignalEngine Status:** **ADVISORY / REST API** (Unreachable from worker polling loop).
+6. **Final Execution Gate Authority:** `DemoExecutionGate` (`LIVE_TRADING_ENABLED = False` hard stop).
+7. **Range / Breakout / Reversal Intelligence:** Implemented across `FractalBaseDetectionEngine`, `StrategyOrchestrator`, and `ReversalHandoffManager`.
+8. **Learning Loop:** `FractalPatternMemory` persists outcomes to `patterns_memory.json` and updates historical similarity weights.
+9. **Automated Self-Optimization:** **NOT FOUND** (Requires future walk-forward research loop construction).
