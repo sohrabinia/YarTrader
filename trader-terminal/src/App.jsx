@@ -32,8 +32,6 @@ import CommandPalette from './components/common/CommandPalette.jsx';
 
 function getRouteFromLocation() {
   const path = window.location.pathname || '/';
-  const hash = window.location.hash || '';
-
   const pathParts = path.split('/').filter(Boolean);
   let langFromUrl = null;
   let cleanPath = path;
@@ -41,10 +39,6 @@ function getRouteFromLocation() {
   if (pathParts.length > 0 && ['fa', 'en', 'tr', 'ar'].includes(pathParts[0].toLowerCase())) {
     langFromUrl = pathParts[0].toLowerCase();
     cleanPath = '/' + pathParts.slice(1).join('/');
-  }
-
-  if ((cleanPath === '/' || cleanPath === '') && hash) {
-    cleanPath = hash.replace(/^#/, '');
   }
 
   if (!cleanPath || cleanPath === '') cleanPath = '/';
@@ -61,7 +55,6 @@ function MainApp() {
     const { cleanPath } = getRouteFromLocation();
     return cleanPath;
   });
-  const hash = '#' + (routePath === '/' ? '/' : routePath);
 
   const navigateTo = (targetPath, targetLang = lang) => {
     const normPath = targetPath.startsWith('/') ? targetPath : '/' + targetPath;
@@ -69,7 +62,6 @@ function MainApp() {
     if (window.history && window.history.pushState) {
       window.history.pushState({}, '', targetUrl);
     }
-    window.location.hash = `#${normPath}`;
     setRoutePath(normPath);
   };
   const [theme, setTheme] = useState(() => localStorage.getItem('yartrader_theme') || 'dark');
@@ -250,14 +242,14 @@ function MainApp() {
   ]);
   const chatMessagesEndRef = useRef(null);
 
-  // Sync hash state with window.location
+  // Sync routePath state with window.location popstate
   useEffect(() => {
-    const handleHashChange = () => {
-      const currentHash = window.location.hash || '#/';
-      setHash(currentHash);
+    const handlePopState = () => {
+      const { cleanPath } = getRouteFromLocation();
+      setRoutePath(cleanPath);
     };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // Check backend connectivity on mount
@@ -340,32 +332,32 @@ function MainApp() {
     if (savedTheme) {
       setTheme(savedTheme);
     } else {
-      const isPublic = hash === '#/' || hash === '#/features' || hash === '#/pricing' || hash === '#/blog' || hash === '#/login' || hash === '#/register' || hash === '#/forgot-password';
+      const isPublic = routePath === '/' || routePath === '/features' || routePath === '/pricing' || routePath === '/blog' || routePath === '/login' || routePath === '/register' || routePath === '/forgot-password' || routePath === '/faq' || routePath === '/guide';
       if (isPublic) {
         setTheme('light');
       } else {
         setTheme('dark');
       }
     }
-  }, [hash]);
+  }, [routePath]);
 
   // Auth & Routing Guard
   useEffect(() => {
-    const isRestrictedRoute = hash === '#/dashboard' || hash === '#/execution-intel' || hash === '#/admin' || hash === '#/learning';
+    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/learning';
     if (isRestrictedRoute && !token) {
-      window.location.hash = '#/login';
+      navigateTo('/login');
       showNotification(
         lang === 'fa' ? 'لطفاً جهت دسترسی ابتدا وارد حساب کاربری خود شوید.' : 'Please sign in to access this zone.',
         'warning'
       );
     }
-    if (hash === '#/admin' && token && role !== 'ADMIN') {
+    if (routePath === '/admin' && token && role !== 'ADMIN') {
       showNotification(
         lang === 'fa' ? 'دسترسی فقط برای کاربران با نقش مدیریت (ADMIN) مجاز است.' : 'Admin role is required.',
         'warning'
       );
     }
-  }, [hash, token, role]);
+  }, [routePath, token, role]);
 
   // Trading Mode data fetchers
   const fetchBacktestHistory = async () => {
@@ -409,30 +401,30 @@ function MainApp() {
   // Route-specific Data Fetching
   useEffect(() => {
     checkBackendStatus();
-    if (hash === '#/' || hash === '') {
+    if (routePath === '/' || routePath === '') {
       fetchPublicMetrics();
-    } else if (hash === '#/pricing') {
+    } else if (routePath === '/pricing') {
       fetchSubscriptionPlans();
-    } else if (hash === '#/blog') {
+    } else if (routePath === '/blog') {
       fetchBlogArticles();
-    } else if (hash === '#/dashboard') {
+    } else if (routePath === '/dashboard') {
       fetchUserSignals();
-    } else if (hash.startsWith('#/backtest')) {
+    } else if (routePath.startsWith('/backtest')) {
       fetchBacktestHistory();
-    } else if (hash === '#/demo') {
+    } else if (routePath === '/demo') {
       fetchDemoData();
-    } else if (hash === '#/signals') {
+    } else if (routePath === '/signals') {
       fetchUserSignals();
-    } else if (hash === '#/execution-intel') {
+    } else if (routePath === '/execution-intel') {
       fetchExecutionIntelligence();
-    } else if (hash === '#/learning') {
+    } else if (routePath.startsWith('/learning')) {
       fetchLearningMatrix();
-    } else if (hash === '#/admin' && role === 'ADMIN') {
+    } else if (routePath === '/admin' && role === 'ADMIN') {
       fetchAdminSymbols();
       fetchAdminReports();
       fetchStatus();
     }
-  }, [hash, selectedAsset, role, activeHorizon]);
+  }, [routePath, selectedAsset, role, activeHorizon]);
 
   const showNotification = (msg, type = 'success') => {
     setNotif({ show: true, msg, type });
@@ -466,7 +458,7 @@ function MainApp() {
       setRole(roleVal);
       setName(nameVal);
       showNotification(lang === 'fa' ? 'ورود با موفقیت انجام شد.' : 'Successfully signed in.', 'success');
-      window.location.hash = '#/dashboard';
+      navigateTo('/dashboard');
     } catch (err) {
       showNotification(err.message, 'failed');
     }
@@ -485,7 +477,7 @@ function MainApp() {
         lang === 'fa' ? 'ثبت‌نام با موفقیت انجام شد. لطفاً وارد شوید.' : 'Successfully registered. Please login.',
         'success'
       );
-      window.location.hash = '#/login';
+      navigateTo('/login');
     } catch (err) {
       showNotification(err.message, 'failed');
     }
@@ -518,22 +510,15 @@ function MainApp() {
       setRole(null);
       setName(null);
       showNotification(lang === 'fa' ? 'با موفقیت از سیستم خارج شدید.' : 'Successfully logged out.', 'success');
-      window.location.hash = '#/';
+      navigateTo('/');
     }
   };
 
   const handleSocialLogin = (provider) => {
     showNotification(
-      lang === 'fa' ? `ورود امن با ${provider} تایید شد.` : `Signed in with ${provider}.`,
-      'success'
+      lang === 'fa' ? `پشتیبانی از ${provider} در حال آماده‌سازی است.` : `${provider} sign-in is under initialization.`,
+      'warning'
     );
-    localStorage.setItem('yartrader_token', 'mock_social_token');
-    localStorage.setItem('yartrader_role', 'ADMIN');
-    localStorage.setItem('yartrader_name', `${provider} Trader`);
-    setToken('mock_social_token');
-    setRole('ADMIN');
-    setName(`${provider} Trader`);
-    window.location.hash = '#/dashboard';
   };
 
   // Data Fetching Operations
@@ -788,7 +773,7 @@ function MainApp() {
   return (
     <div>
       {/* Global Functional Command Palette Overlay (Ctrl+K / Cmd+K) */}
-      <CommandPalette lang={lang} t={t} />
+      <CommandPalette lang={lang} t={t} navigateTo={navigateTo} />
 
       {/* Toast Notification Overlay */}
       {notif.show && (
@@ -885,12 +870,12 @@ function MainApp() {
                 {name} ({role})
               </div>
             )}
-            {!token && <a href="#/login" className={`sidebar-link ${hash === '#/login' ? 'active' : ''}`}>{t('nav_login')}</a>}
-            {!token && <a href="#/register" className={`sidebar-link ${hash === '#/register' ? 'active' : ''}`}>{t('nav_register')}</a>}
+            {!token && <a href={`/${lang}/login`} className={`sidebar-link ${routePath === '/login' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/login'); }}>{t('nav_login')}</a>}
+            {!token && <a href={`/${lang}/register`} className={`sidebar-link ${routePath === '/register' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/register'); }}>{t('nav_register')}</a>}
             {token && (
-              <a href="javascript:void(0)" className="sidebar-link" onClick={handleLogout}>
+              <button type="button" className="sidebar-link w-full text-left border-none bg-transparent cursor-pointer" onClick={handleLogout}>
                 {t('nav_logout')}
-              </a>
+              </button>
             )}
           </div>
         </div>
@@ -898,7 +883,7 @@ function MainApp() {
         {/* Multi-Shell Main Panel Router */}
         <div className="main-panel">
           {/* PUBLIC MARKETING LANDING SHELL */}
-          {hash === '#/' && (
+          {(routePath === '/' || routePath === '') && (
             <div id="shell-marketing">
               <div className="card" style={{ borderRight: '6px solid var(--primary)', borderLeft: '6px solid var(--primary)' }}>
                 <h2 style={{ margin: '0 0 10px 0', color: 'var(--primary)' }}>{t('welcome_title', { version: appVersion })}</h2>
@@ -933,7 +918,7 @@ function MainApp() {
           )}
 
           {/* FEATURES */}
-          {hash === '#/features' && (
+          {routePath === '/features' && (
             <div id="shell-features">
               <div className="card">
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('features_title')}</h2>
@@ -962,7 +947,7 @@ function MainApp() {
           )}
 
           {/* PRICING */}
-          {hash === '#/pricing' && (
+          {routePath === '/pricing' && (
             <div id="shell-pricing">
               <div className="card">
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('pricing_title')}</h2>
@@ -1171,7 +1156,7 @@ function MainApp() {
           )}
 
           {/* DEDICATED TRADING MODE 1: BACKTEST PAGE */}
-          {hash.startsWith('#/backtest') && (
+          {routePath.startsWith('/backtest') && (
             <div id="shell-backtest">
               <div className="card" style={{ borderTop: '4px solid var(--primary)' }}>
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('backtest_title')}</h2>
@@ -1248,13 +1233,13 @@ function MainApp() {
           )}
 
           {/* DEDICATED TRADING MODE 2: DEMO TRADING PAGE */}
-          {hash === '#/demo' && (
+          {routePath === '/demo' && (
             <DemoView t={t} demoReport={demoReport} backendState={backendState} />
           )}
 
 
           {/* DEDICATED TRADING MODE 4: LIVE TRADING PAGE (HARD BLOCKED) */}
-          {hash === '#/live' && (
+          {routePath === '/live' && (
             <div id="shell-live">
               <div className="card" style={{ borderTop: '6px solid var(--danger)', backgroundColor: 'rgba(194, 74, 62, 0.05)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
@@ -1289,7 +1274,7 @@ function MainApp() {
           )}
 
           {/* CUSTOMER FINANCIAL TERMINAL SHELL (COMMAND CENTER) */}
-          {hash === '#/dashboard' && (
+          {routePath === '/dashboard' && (
             <div id="shell-terminal">
               {/* Institutional Environment & Command Header */}
               <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary)', background: 'linear-gradient(180deg, rgba(18, 30, 44, 0.9) 0%, rgba(11, 20, 32, 0.95) 100%)' }}>
@@ -1447,7 +1432,7 @@ function MainApp() {
           )}
 
           {/* EXECUTION INTELLIGENCE ZONE */}
-          {hash === '#/execution-intel' && (
+          {routePath === '/execution-intel' && (
             <div id="shell-execution-intel">
               {/* 5-Stage Execution Pipeline Cascade Header */}
               <div className="card" style={{ marginBottom: '20px', borderTop: '4px solid var(--primary)', background: 'linear-gradient(180deg, rgba(18, 30, 44, 0.95) 0%, rgba(11, 20, 32, 0.9) 100%)' }}>
@@ -1582,7 +1567,7 @@ function MainApp() {
           )}
 
           {/* ISOLATED SIGNAL HUB UI PAGE */}
-          {hash === '#/signals' && (
+          {routePath === '/signals' && (
             <div id="shell-signals">
               <div className="card" style={{ borderTop: '4px solid var(--primary)' }}>
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('signals_title')}</h2>
@@ -1631,7 +1616,7 @@ function MainApp() {
           )}
 
           {/* MULTI-TIMEFRAME LEARNING MATRIX SHELL */}
-          {hash.startsWith('#/learning') && (
+          {routePath.startsWith('/learning') && (
             <div id="shell-learning">
               {/* Scoreboard Cards */}
               <div className="card">
@@ -1693,7 +1678,7 @@ function MainApp() {
           )}
 
           {/* UPGRADED ADMIN OPERATIONAL CONTROL & OBSERVABILITY CENTER */}
-          {hash === '#/admin' && role === 'ADMIN' && (
+          {routePath === '/admin' && role === 'ADMIN' && (
             <div id="shell-admin">
               {/* Top Navigation Sub-tabs for Admin Drill-down */}
               <div className="card" style={{ borderBottom: '2px solid var(--border-dark)', marginBottom: '20px', paddingBottom: '10px' }}>
@@ -1926,7 +1911,7 @@ function MainApp() {
           )}
 
           {/* AUTHENTICATION VIEWS */}
-          {hash === '#/login' && (
+          {routePath === '/login' && (
             <div id="shell-login">
               <form className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }} onSubmit={handleLogin}>
                 <h2 style={{ marginTop: 0, color: 'var(--primary)', textAlign: 'center' }}>{t('login_title')}</h2>
@@ -1957,7 +1942,7 @@ function MainApp() {
             </div>
           )}
 
-          {hash === '#/register' && (
+          {routePath === '/register' && (
             <div id="shell-register">
               <form className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }} onSubmit={handleRegister}>
                 <h2 style={{ marginTop: 0, color: 'var(--primary)', textAlign: 'center' }}>{t('register_title')}</h2>
@@ -1988,7 +1973,7 @@ function MainApp() {
             </div>
           )}
 
-          {hash === '#/forgot-password' && (
+          {routePath === '/forgot-password' && (
             <div id="shell-forgot">
               <form className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }} onSubmit={handleForgot}>
                 <h2 style={{ marginTop: 0, color: 'var(--primary)', textAlign: 'center' }}>{t('forgot_title')}</h2>

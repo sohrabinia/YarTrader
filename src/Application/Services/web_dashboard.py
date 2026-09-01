@@ -127,12 +127,6 @@ def check_admin_guard(session_token: Optional[str] = None):
         # Graceful validation/testing override to prevent breaking the release pipeline checks
         return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
 
-    if session_token == "mock_social_token":
-        if is_production:
-            log_security("AUTHORIZATION_DENIED", token=log_token, reason="Mock social token forbidden in production")
-            raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
-        else:
-            return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
     session = global_auth_service.validate_session(session_token)
     if not session or session.get("role") != "ADMIN":
         log_security("AUTHORIZATION_DENIED", token=log_token, email=session.get("email") if session else None)
