@@ -102,17 +102,20 @@ class ProfessionalRiskEngine:
         stop_loss: float,
         account_equity: float,
         free_margin: float,
-        risk_pct: float = 2.0,
+        risk_pct: float = 0.5,
         leverage: float = 100.0,
         spread_pip: float = 1.0,
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,
-        contract_size: float = 100.0
+        contract_size: float = 100.0,
+        volume_min: float = 0.01,
+        volume_max: float = 100.0,
+        volume_step: float = 0.01
     ) -> PositionSizingResult:
         """
         Enforces Free Margin Sequence:
-        Risk Budget -> Stop Distance -> Position Size -> Margin Check -> Free Margin Check -> Execution.
-        Calculates position size strictly against Account Equity (default 2.0%).
+        Risk Budget (default 0.5%) -> Stop Distance -> Position Size -> Broker Constraint Check -> Free Margin Check -> Execution.
+        Calculates position size strictly against Account Equity (0.5% per trade).
         """
         if account_equity <= 0:
             return PositionSizingResult(
@@ -144,7 +147,7 @@ class ProfessionalRiskEngine:
         friction_dist = (spread_pip + estimated_slippage_pip) * pip_size
         net_sl_dist = raw_sl_dist + friction_dist
 
-        # Calculate volume in lots: Lot Size * (net_sl_dist * contract_size) + Lot Size * commission_per_lot = risk_budget_usd
+        # Calculate volume in lots based on actual 0.5% risk budget
         risk_per_lot = (net_sl_dist * contract_size) + commission_per_lot
         if risk_per_lot <= 0:
             return PositionSizingResult(
@@ -159,7 +162,27 @@ class ProfessionalRiskEngine:
             )
 
         calculated_lots = risk_budget_usd / risk_per_lot
-        volume_lots = round(max(0.01, calculated_lots), 2)
+
+        # Align to broker volume_step
+        if volume_step > 0:
+            normalized_lots = round(round(calculated_lots / volume_step) * volume_step, 4)
+        else:
+            normalized_lots = round(calculated_lots, 2)
+
+        # Reject if risk-based volume is below broker minimum allowed volume (NO ARTIFICIAL 0.01 FORCING)
+        if normalized_lots < volume_min:
+            return PositionSizingResult(
+                is_valid=False,
+                risk_budget_usd=round(risk_budget_usd, 2),
+                risk_pct=risk_pct,
+                volume_lots=normalized_lots,
+                margin_required_usd=0.0,
+                free_margin_usd=free_margin,
+                effective_be_price=entry_price,
+                rejection_reason=f"TRADE REJECTED: Risk-based position size ({normalized_lots:.4f} lots) is below broker minimum ({volume_min:.4f} lots)."
+            )
+
+        volume_lots = min(volume_max, normalized_lots)
 
         # Margin Requirement Check
         margin_required = (entry_price * contract_size * volume_lots) / leverage if leverage > 0 else 0.0

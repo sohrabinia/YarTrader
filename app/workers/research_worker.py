@@ -232,21 +232,51 @@ class ResearchWorker:
                                             sig_price = auto_dec.get("entry")
                                             sig_sl = auto_dec.get("stop_loss")
                                             sig_tp = auto_dec.get("take_profit")
-                                            sig_vol = auto_dec.get("volume", 0.01)
-                                            decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
 
-                                            print(f"[ResearchWorker] Actionable decision detected for flat symbol {symbol}: {sig_dir}. Dispatching to DemoExecutionEngine...")
-                                            exec_resp = self.demo_engine.execute_demo_decision(
+                                            # Calculate 0.5% account equity risk position size from live account info
+                                            acc_info = runtime.provider.delegate.get_account_info() if hasattr(runtime.provider, "delegate") else None
+                                            equity_val = float(acc_info.get("equity", 10000.0)) if acc_info else 10000.0
+                                            free_margin_val = float(acc_info.get("free_margin", equity_val)) if acc_info else equity_val
+
+                                            from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+                                            risk_engine = ProfessionalRiskEngine()
+
+                                            sym_info = self.demo_engine.adapter.get_symbol_info(symbol) if self.demo_engine else None
+                                            vol_min = float(sym_info.get("volume_min", 0.01)) if sym_info else 0.01
+                                            vol_max = float(sym_info.get("volume_max", 100.0)) if sym_info else 100.0
+                                            vol_step = float(sym_info.get("volume_step", 0.01)) if sym_info else 0.01
+
+                                            sizing_res = risk_engine.evaluate_equity_risk_and_position_size(
                                                 symbol=symbol,
                                                 direction=sig_dir,
-                                                volume=sig_vol,
-                                                price=sig_price,
-                                                sl=sig_sl,
-                                                tp=sig_tp,
-                                                comment=f"YarTrader DEMO {symbol}",
-                                                magic=143056,
-                                                decision_id=decision_id
+                                                entry_price=float(sig_price or 2500.0),
+                                                stop_loss=float(sig_sl or 2490.0),
+                                                account_equity=equity_val,
+                                                free_margin=free_margin_val,
+                                                risk_pct=0.5,
+                                                volume_min=vol_min,
+                                                volume_max=vol_max,
+                                                volume_step=vol_step
                                             )
+
+                                            if not sizing_res.is_valid:
+                                                print(f"[ResearchWorker] Position sizing rejected for {symbol} {sig_dir}: {sizing_res.rejection_reason}")
+                                            else:
+                                                calculated_vol = sizing_res.volume_lots
+                                                decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
+
+                                                print(f"[ResearchWorker] Actionable decision detected for {symbol}: {sig_dir} with 0.5% risk volume = {calculated_vol} lots (Equity=${equity_val}). Dispatching...")
+                                                exec_resp = self.demo_engine.execute_demo_decision(
+                                                    symbol=symbol,
+                                                    direction=sig_dir,
+                                                    volume=calculated_vol,
+                                                    price=sig_price,
+                                                    sl=sig_sl,
+                                                    tp=sig_tp,
+                                                    comment=f"YarTrader DEMO {symbol}",
+                                                    magic=143056,
+                                                    decision_id=decision_id
+                                                )
 
                                             # Record execution time for cooldown tracking
                                             self.last_executed_signal[symbol.upper()] = {
