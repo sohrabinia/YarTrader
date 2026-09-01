@@ -198,10 +198,10 @@ export default function PublicLandingView({ t, setRoute, appVersion = "7.0", lan
           © 2026 YarTrader Financial Intelligence. All rights reserved.
         </div>
         <div className="flex gap-6">
-          <a href="#/guide" onClick={(e) => { e.preventDefault(); setRoute('guide'); }} className="hover:text-amber-400">راهنما</a>
-          <a href="#/faq" onClick={(e) => { e.preventDefault(); setRoute('faq'); }} className="hover:text-amber-400">سوالات متداول</a>
-          <a href="#/pricing" onClick={(e) => { e.preventDefault(); setRoute('pricing'); }} className="hover:text-amber-400">پلن‌ها</a>
-          <a href="#/features" onClick={(e) => { e.preventDefault(); setRoute('features'); }} className="hover:text-amber-400">ویژگی‌ها</a>
+          <a href={`/${lang}/guide`} onClick={(e) => { e.preventDefault(); setRoute('guide'); }} className="hover:text-amber-400">راهنما</a>
+          <a href={`/${lang}/faq`} onClick={(e) => { e.preventDefault(); setRoute('faq'); }} className="hover:text-amber-400">سوالات متداول</a>
+          <a href={`/${lang}/pricing`} onClick={(e) => { e.preventDefault(); setRoute('pricing'); }} className="hover:text-amber-400">پلن‌ها</a>
+          <a href={`/${lang}/features`} onClick={(e) => { e.preventDefault(); setRoute('features'); }} className="hover:text-amber-400">ویژگی‌ها</a>
         </div>
       </footer>
     </div>

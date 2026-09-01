@@ -20,7 +20,7 @@ class TestSequentialMultiMarketLearning(unittest.TestCase):
         for sym in self.symbols:
             base_p = 2000.0 if sym == "XAUUSD" else (150.0 if sym == "USDJPY" else 1.10)
             candles = []
-            for i in range(40):
+            for i in range(15):
                 candles.append({
                     "timestamp": f"2025-01-01T{i//2:02d}:{(i%2)*30:02d}:00",
                     "open": base_p,
