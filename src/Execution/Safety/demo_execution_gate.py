@@ -104,8 +104,10 @@ class DemoExecutionGate:
             if request.Volume < vol_min or request.Volume > vol_max:
                 raise ValidationException(f"DemoExecutionGate Violation: Volume {request.Volume} out of bounds [{vol_min}, {vol_max}].")
 
-        # Check 9: SL/TP validation on correct side of price
+        # Check 9: Dynamic SL/TP Side Validation (Dynamic Market Geometry)
         order_type = str(getattr(request, "OrderType", "")).upper()
+        symbol = str(getattr(request, "Symbol", "")).upper()
+
         if hasattr(request, "Price") and request.Price > 0:
             sl = getattr(request, "StopLoss", None)
             tp = getattr(request, "TakeProfit", None)

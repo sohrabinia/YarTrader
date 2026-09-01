@@ -329,6 +329,27 @@ class ProfessionalRiskEngine:
         raw_sl_distance = abs(entry_price - stop_loss)
         raw_tp_distance = abs(take_profit - entry_price)
 
+        # Dynamic Market Risk & Volatility Bounds (No fixed SL/TP hardcoding)
+        # Validates that Stop Loss distance is non-zero and reasonable relative to market volatility
+        if raw_sl_distance < (spread_pip * pip_size):
+            return RiskEvaluationResult(
+                is_valid=False,
+                direction="WAIT",
+                entry_price=entry_price,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
+                risk_amount_usd=0.0,
+                potential_reward_usd=0.0,
+                spread_cost_pip=spread_pip,
+                commission_usd=0.0,
+                slippage_pip=estimated_slippage_pip,
+                gross_rr=0.0,
+                real_rr=0.0,
+                win_probability=win_probability,
+                expected_value=0.0,
+                rejection_reason=f"Stop Loss distance ({raw_sl_distance:.4f}) is smaller than execution spread cost."
+            )
+
         if raw_sl_distance <= 0:
             return RiskEvaluationResult(
                 is_valid=False,
