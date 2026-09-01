@@ -53,12 +53,39 @@ class TimeframeAggregator:
             )
             return []
 
-        aggregated_candles = []
-        num_m1 = len(m1_candles)
+        def parse_ts(candle: Dict[str, Any]) -> int:
+            t = candle.get("time") or candle.get("timestamp") or candle.get("Timestamp")
+            if isinstance(t, (int, float)):
+                return int(t)
+            if isinstance(t, str):
+                try:
+                    from datetime import datetime
+                    if t.endswith("Z"):
+                        t = t[:-1] + "+00:00"
+                    return int(datetime.fromisoformat(t).timestamp())
+                except Exception:
+                    return 0
+            return 0
 
-        # Slice M1 candles into buckets of size `ratio`
-        for i in range(0, num_m1, ratio):
-            bucket = m1_candles[i:i + ratio]
+        # Sort M1 candles strictly by timestamp
+        clean_m1 = sorted([c for c in m1_candles if parse_ts(c) > 0], key=parse_ts)
+        if not clean_m1 or len(clean_m1) < ratio:
+            return []
+
+        tf_seconds = ratio * 60
+        buckets: Dict[int, List[Dict[str, Any]]] = {}
+
+        for candle in clean_m1:
+            ts = parse_ts(candle)
+            # Group by UTC boundary timestamp
+            boundary_ts = ts - (ts % tf_seconds)
+            if boundary_ts not in buckets:
+                buckets[boundary_ts] = []
+            buckets[boundary_ts].append(candle)
+
+        aggregated_candles = []
+        for boundary_ts in sorted(buckets.keys()):
+            bucket = buckets[boundary_ts]
             if not bucket:
                 continue
 
@@ -67,11 +94,10 @@ class TimeframeAggregator:
             high_price = max(float(c.get("high", c.get("High", 0.0))) for c in bucket)
             low_price = min(float(c.get("low", c.get("Low", 0.0))) for c in bucket)
             volume = sum(float(c.get("volume", c.get("Volume", c.get("tick_volume", 0.0)))) for c in bucket)
-            timestamp = bucket[0].get("time", bucket[0].get("timestamp", bucket[0].get("Timestamp", 0)))
 
             aggregated_candles.append({
-                "time": timestamp,
-                "timestamp": str(timestamp),
+                "time": boundary_ts,
+                "timestamp": str(boundary_ts),
                 "open": round(open_price, 4),
                 "high": round(high_price, 4),
                 "low": round(low_price, 4),

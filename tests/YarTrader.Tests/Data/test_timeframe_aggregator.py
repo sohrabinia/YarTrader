@@ -10,7 +10,8 @@ class TestTimeframeAggregator(unittest.TestCase):
     """
 
     def setUp(self):
-        # Generate 240 M1 candles (enough for 48 M5, 16 M15, 4 H1, 1 H4)
+        # Generate 240 M1 candles starting at an H4-aligned epoch boundary (1700006400 % 14400 == 0)
+        base_time = 1700006400
         self.m1_candles = []
         for i in range(240):
             o = 2000.0 + (i * 0.1)
@@ -18,8 +19,8 @@ class TestTimeframeAggregator(unittest.TestCase):
             l = o - 0.3
             c = o + 0.2
             self.m1_candles.append({
-                "time": 1700000000 + i * 60,
-                "timestamp": str(1700000000 + i * 60),
+                "time": base_time + i * 60,
+                "timestamp": str(base_time + i * 60),
                 "open": round(o, 4),
                 "high": round(h, 4),
                 "low": round(l, 4),
