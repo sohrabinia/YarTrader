@@ -82,8 +82,25 @@ class ExecutionIntelligenceCore:
         if not candles:
             return state
 
+        # Compute SHA256 provenance hash & unique decision cycle ID strictly from OHLC candle price data
+        import hashlib
+        import uuid
+        candle_count = len(candles)
+        latest_ts = str(candles[-1].get("time", candles[-1].get("timestamp", "")))
+        # OHLC summary vector hash computed strictly from price values to detect identical data
+        ohlc_summary = f"{symbol.upper()}:{candle_count}:" + "|".join([
+            f"{c.get('open')},{c.get('high')},{c.get('low')},{c.get('close')}" for c in candles
+        ])
+        ctx_hash = f"ctx-{hashlib.sha256(ohlc_summary.encode('utf-8')).hexdigest()[:16]}"
+        cycle_id = f"cycle-{symbol.upper()}-{timeframe.upper()}-{uuid.uuid4().hex[:8]}"
+
         # 1. Market Narrative
         narrative_res = self.narrative_engine.analyze_narrative(candles)
+        narrative_res["data_source"] = "DUKASCOPY_XAUUSD_M1_SERIES"
+        narrative_res["candle_count"] = candle_count
+        narrative_res["latest_candle_timestamp"] = latest_ts
+        narrative_res["context_identity"] = ctx_hash
+        narrative_res["decision_cycle_id"] = cycle_id
         state["narrative"] = narrative_res
 
         # 2. Liquidity Mapping

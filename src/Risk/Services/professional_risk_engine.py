@@ -322,7 +322,7 @@ class ProfessionalRiskEngine:
         stop_loss: float,
         take_profit: float,
         account_balance: float = 10000.0,
-        risk_percentage: float = 1.0,
+        risk_percentage: float = 0.5,
         spread_pip: float = 1.0,
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,

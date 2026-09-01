@@ -6,32 +6,32 @@ import React, { useState, useEffect, useRef } from 'react';
  * Supports fuzzy search navigation across 16+ routes, keyboard arrow selection, Enter navigation,
  * and dynamic LTR/RTL support.
  */
-export default function CommandPalette({ lang = 'fa', t = (k) => k }) {
+export default function CommandPalette({ lang = 'fa', t = (k) => k, navigateTo = () => {} }) {
   const [open, setChatOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef(null);
 
   const routes = [
-    { label: t('nav_public') || 'Home Platform', hash: '#/', icon: '🌐', group: 'Portal' },
-    { label: t('nav_features') || 'Features', hash: '#/features', icon: '⚡', group: 'Portal' },
-    { label: t('nav_pricing') || 'Pricing & Plans', hash: '#/pricing', icon: '💎', group: 'Portal' },
-    { label: t('nav_blog') || 'Research Blog', hash: '#/blog', icon: '📰', group: 'Portal' },
-    { label: t('nav_terminal') || 'Command Center Dashboard', hash: '#/dashboard', icon: '🏛️', group: 'Platform' },
-    { label: t('nav_signals') || 'Market Intelligence & Signals', hash: '#/signals', icon: '📡', group: 'Platform' },
-    { label: t('nav_execution_intel') || 'Execution Intelligence & XAI', hash: '#/execution-intel', icon: '⚡', group: 'Platform' },
-    { label: t('nav_backtest') || 'Backtest Simulation Lab', hash: '#/backtest', icon: '📊', group: 'Trading' },
-    { label: t('nav_demo') || 'MT5 Demo Terminal (#52961173)', hash: '#/demo', icon: '🎮', group: 'Trading' },
-    { label: t('nav_learning') || 'Pattern Memory & Learning Matrix', hash: '#/learning', icon: '🧠', group: 'Intelligence' },
-    { label: t('nav_admin') || 'SRE Admin Operational Control Center', hash: '#/admin', icon: '🛡️', group: 'Administration' },
-    { label: t('nav_login') || 'Sign In', hash: '#/login', icon: '🔑', group: 'Auth' },
-    { label: t('nav_register') || 'Sign Up', hash: '#/register', icon: '📝', group: 'Auth' }
+    { label: t('nav_public') || 'Home Platform', path: '/', icon: '🌐', group: 'Portal' },
+    { label: t('nav_features') || 'Features', path: '/features', icon: '⚡', group: 'Portal' },
+    { label: t('nav_pricing') || 'Pricing & Plans', path: '/pricing', icon: '💎', group: 'Portal' },
+    { label: t('nav_blog') || 'Research Blog', path: '/blog', icon: '📰', group: 'Portal' },
+    { label: t('nav_terminal') || 'Command Center Dashboard', path: '/dashboard', icon: '🏛️', group: 'Platform' },
+    { label: t('nav_signals') || 'Market Intelligence & Signals', path: '/signals', icon: '📡', group: 'Platform' },
+    { label: t('nav_execution_intel') || 'Execution Intelligence & XAI', path: '/execution-intel', icon: '⚡', group: 'Platform' },
+    { label: t('nav_backtest') || 'Backtest Simulation Lab', path: '/backtest', icon: '📊', group: 'Trading' },
+    { label: t('nav_demo') || 'MT5 Demo Terminal (#52961173)', path: '/demo', icon: '🎮', group: 'Trading' },
+    { label: t('nav_learning') || 'Pattern Memory & Learning Matrix', path: '/learning', icon: '🧠', group: 'Intelligence' },
+    { label: t('nav_admin') || 'SRE Admin Operational Control Center', path: '/admin', icon: '🛡️', group: 'Administration' },
+    { label: t('nav_login') || 'Sign In', path: '/login', icon: '🔑', group: 'Auth' },
+    { label: t('nav_register') || 'Sign Up', path: '/register', icon: '📝', group: 'Auth' }
   ];
 
   const filteredRoutes = routes.filter((r) =>
     r.label.toLowerCase().includes(query.toLowerCase()) ||
     r.group.toLowerCase().includes(query.toLowerCase()) ||
-    r.hash.toLowerCase().includes(query.toLowerCase())
+    r.path.toLowerCase().includes(query.toLowerCase())
   );
 
   // Toggle overlay on Ctrl+K / Cmd+K
@@ -58,8 +58,13 @@ export default function CommandPalette({ lang = 'fa', t = (k) => k }) {
     }
   }, [open]);
 
-  const handleSelectRoute = (hash) => {
-    window.location.hash = hash;
+  const handleSelectRoute = (path) => {
+    if (typeof navigateTo === 'function') {
+      navigateTo(path);
+    } else {
+      const curLang = window.location.pathname.split('/')[1] || 'fa';
+      window.location.pathname = `/${curLang}${path === '/' ? '' : path}`;
+    }
     setChatOpen(false);
   };
 
@@ -72,7 +77,7 @@ export default function CommandPalette({ lang = 'fa', t = (k) => k }) {
       setSelectedIndex((prev) => (prev - 1 + filteredRoutes.length) % (filteredRoutes.length || 1));
     } else if (e.key === 'Enter' && filteredRoutes[selectedIndex]) {
       e.preventDefault();
-      handleSelectRoute(filteredRoutes[selectedIndex].hash);
+      handleSelectRoute(filteredRoutes[selectedIndex].path);
     }
   };
 
@@ -117,7 +122,7 @@ export default function CommandPalette({ lang = 'fa', t = (k) => k }) {
                       ? 'bg-[var(--primary)] text-[#07090E] font-bold shadow-sm'
                       : 'hover:bg-white/5 text-[var(--text-dark)]'
                   }`}
-                  onClick={() => handleSelectRoute(route.hash)}
+                  onClick={() => handleSelectRoute(route.path)}
                   onMouseEnter={() => setSelectedIndex(idx)}
                 >
                   <div className="flex items-center gap-2.5">
