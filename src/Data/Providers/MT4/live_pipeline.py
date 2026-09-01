@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
-from src.Data.Providers.MT4.mt4_adapter import RealMT4BrokerAdapter
+import importlib
 from src.Research.MarketAnalysis.Services.continuous_market_following_engine import ContinuousMarketFollowingEngine, ProbabilisticPathForecast
 
 logger = logging.getLogger("MT4LivePipeline")
@@ -23,9 +23,12 @@ class MT4LiveMarketPipeline:
     Enforces UTC timestamp normalization, signal deduplication, and rate limiting.
     """
 
-    def __init__(self, symbol: str = "XAUUSD", min_tick_interval_sec: float = 0.5):
+    def __init__(self, symbol: str = "XAUUSD", min_tick_interval_sec: float = 0.5, adapter: Any = None):
         self.symbol = symbol.upper()
-        self.adapter = RealMT4BrokerAdapter()
+        if adapter is None:
+            mod = importlib.import_module("src.Execution.Adapters.mt4_adapter")
+            adapter = mod.RealMT4BrokerAdapter()
+        self.adapter = adapter
         self.engine = ContinuousMarketFollowingEngine(symbol=self.symbol)
         self.min_tick_interval_sec = min_tick_interval_sec
         self.last_tick_timestamp: float = 0.0

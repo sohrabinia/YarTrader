@@ -28,7 +28,7 @@ import os
 import pytest
 from datetime import datetime, timezone
 
-from src.Data.Providers.MT4.mt4_adapter import RealMT4BrokerAdapter
+from src.Execution.Adapters.mt4_adapter import RealMT4BrokerAdapter
 from src.Data.Providers.MT4.live_pipeline import MT4LiveMarketPipeline
 from src.Research.MarketAnalysis.Services.continuous_market_following_engine import ContinuousMarketFollowingEngine, ProbabilisticPathForecast
 from src.Decision.Intelligence.professional_signal_engine import ProfessionalSignalEngine
