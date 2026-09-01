@@ -56,7 +56,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01)
         with self.assertRaises(ValidationException) as ctx:
             DemoExecutionGate.verify_demo_execution_eligibility(self.mock_adapter, req, demo_mode_flag=True)
-        self.assertIn("not authorized DEMO account", str(ctx.exception))
+        self.assertIn("SECURITY VIOLATION: Connected account is REAL", str(ctx.exception))
 
     def test_04_terminal_trading_disabled_rejected(self):
         """Test 4: Terminal with trade_allowed=False is rejected."""
