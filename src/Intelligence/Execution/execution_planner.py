@@ -121,7 +121,8 @@ class ExecutionIntelligencePlanner:
         take_profit = round(take_profit, 4)
 
         # Provenance metadata
-        data_source = narrative.get("data_source", "DUKASCOPY_XAUUSD_M1_SERIES")
+        data_source = narrative.get("data_source", "MT5_XAUUSD_M1_RATES")
+        data_mode = narrative.get("data_mode", "REAL")
         candle_count = narrative.get("candle_count", 30)
         latest_candle_timestamp = narrative.get("latest_candle_timestamp", "")
         context_identity = narrative.get("context_identity", "ctx-xauusd-mtf-brain")
@@ -144,6 +145,7 @@ class ExecutionIntelligencePlanner:
                 "confidence": confidence if action in ["BUY", "SELL"] else 0.0,
                 "reasoning": reasoning,
                 "data_source": data_source,
+                "data_mode": data_mode,
                 "candle_count": candle_count,
                 "latest_candle_timestamp": latest_candle_timestamp,
                 "context_identity": context_identity,

@@ -97,6 +97,10 @@ class ResearchWorker:
                     if not self.is_running:
                         break
 
+                    # Phase 1 Scope Boundary: Trading Core & execution dispatch are strictly XAUUSD ONLY
+                    if symbol.upper() != "XAUUSD":
+                        continue
+
                     try:
                         print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
 
@@ -233,8 +237,13 @@ class ResearchWorker:
                                             sig_sl = auto_dec.get("stop_loss")
                                             sig_tp = auto_dec.get("take_profit")
 
-                                            # Calculate 0.5% account equity risk position size from live account info
-                                            acc_info = runtime.provider.delegate.get_account_info() if hasattr(runtime.provider, "delegate") else None
+                                            # Calculate 0.5% account equity risk position size from live broker account info
+                                            acc_info = None
+                                            if self.demo_engine and hasattr(self.demo_engine, "adapter") and hasattr(self.demo_engine.adapter, "get_account_info"):
+                                                try:
+                                                    acc_info = self.demo_engine.adapter.get_account_info()
+                                                except Exception:
+                                                    acc_info = None
                                             equity_val = float(acc_info.get("equity", 10000.0)) if acc_info else 10000.0
                                             free_margin_val = float(acc_info.get("free_margin", equity_val)) if acc_info else equity_val
 

@@ -451,10 +451,38 @@ def run_acceptance_runner_thread():
 # -----------------------------------------------------------------------------
 from src.Intelligence.Execution.core import ExecutionIntelligenceCore
 
+def fetch_production_market_candles(symbol: str, timeframe: str) -> List[Dict[str, Any]]:
+    """
+    Fetches real M1 market candles via global_research_runtime / MT5DataProvider
+    and aggregates them into target timeframe bars via TimeframeAggregator.
+    Fails closed with empty list if real data is unavailable (NEVER falls back to synthetic data in production).
+    """
+    try:
+        from src.Data.Aggregation.timeframe_aggregator import TimeframeAggregator
+        sym_clean = (symbol or "XAUUSD").upper()
+        tf_clean = (timeframe or "H1").upper()
+
+        # Query real market data from global research runtime
+        res = global_research_runtime.run_once()
+        raw_candles = res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])
+
+        if not raw_candles:
+            return []
+
+        if tf_clean == "M1":
+            return raw_candles
+
+        # Aggregate real M1 candles into target timeframe
+        return TimeframeAggregator.aggregate_m1_candles(raw_candles, target_timeframe=tf_clean)
+    except Exception as e:
+        log_event("ERROR", f"fetch_production_market_candles failed for {symbol} {timeframe}: {str(e)}")
+        return []
+
+
 def generate_active_ohlcv_candles(symbol: str, timeframe: Optional[str] = "H1") -> List[Dict[str, Any]]:
     """
-    Generates a deterministic series of 30 candles with genuine timeframe-specific OHLC price structure,
-    range scaling, and swing frequencies corresponding to M1, M5, M15, M30, H1, H4, D1, W1, and MN1.
+    Unit Test Fixture Generator: Generates a deterministic series of 30 candles
+    strictly for test environments when real MT5 IPC is offline.
     """
     base = 1800.0 if "XAU" in symbol.upper() else (1.1000 if "EUR" in symbol.upper() else 65000.0)
     candles = []
@@ -512,18 +540,46 @@ def generate_active_ohlcv_candles(symbol: str, timeframe: Optional[str] = "H1") 
     return candles
 
 
+def resolve_candles_for_context(symbol: str, timeframe: str) -> List[Dict[str, Any]]:
+    """Resolves real market candles in production, or test fixtures during unit testing."""
+    candles = fetch_production_market_candles(symbol, timeframe)
+    if not candles and ("pytest" in sys.modules or os.environ.get("YARTRADER_ENV") != "production"):
+        candles = generate_active_ohlcv_candles(symbol, timeframe)
+    return candles
+
+
 @app.get("/api/execution/plans")
 def get_execution_plans(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1", lang: str = "fa"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
-    res = core.evaluate_context(symbol, timeframe, candles, lang=lang)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {
+            "symbol": (symbol or "XAUUSD").upper(),
+            "timeframe": timeframe,
+            "action": "WAIT",
+            "decision": "NO_TRADE",
+            "decision_source": "BRAIN",
+            "strategy": "Multi-Timeframe Continuous Market Intelligence",
+            "reasoning": ["Real market data unavailable or MT5 provider disconnected."],
+            "data_mode": "UNAVAILABLE"
+        }
+
+    h4_c = resolve_candles_for_context(symbol, "H4")
+    h1_c = resolve_candles_for_context(symbol, "H1")
+    m15_c = resolve_candles_for_context(symbol, "M15")
+    m5_c = resolve_candles_for_context(symbol, "M5")
+    all_tf = {"H4": h4_c, "H1": h1_c, "M15": m15_c, "M5": m5_c}
+
+    res = core.evaluate_context(symbol, timeframe, candles, all_timeframe_candles=all_tf, lang=lang)
     return res["plan"]
 
 
 @app.get("/api/execution/confidence")
 def get_execution_confidence(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"symbol": symbol, "timeframe": timeframe, "confidence": 0.0}
     res = core.evaluate_context(symbol, timeframe, candles)
     return {"symbol": symbol, "timeframe": timeframe, "confidence": res["plan"]["confidence"]}
 
@@ -531,7 +587,9 @@ def get_execution_confidence(symbol: Optional[str] = "XAUUSD", timeframe: Option
 @app.get("/api/execution/reasoning")
 def get_execution_reasoning(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1", lang: str = "fa"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"symbol": symbol, "timeframe": timeframe, "reasoning": ["Real market data unavailable."]}
     res = core.evaluate_context(symbol, timeframe, candles, lang=lang)
     return {"symbol": symbol, "timeframe": timeframe, "reasoning": res["plan"]["reasoning"]}
 
@@ -539,7 +597,9 @@ def get_execution_reasoning(symbol: Optional[str] = "XAUUSD", timeframe: Optiona
 @app.get("/api/structure/map")
 def get_structure_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"symbol": symbol, "timeframe": timeframe, "swings": [], "structure_nodes": [], "order_blocks": [], "fair_value_gaps": []}
     res = core.evaluate_context(symbol, timeframe, candles)
     return {
         "symbol": symbol,
@@ -554,8 +614,8 @@ def get_structure_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str]
 @app.get("/api/structure/alignment")
 def get_structure_alignment(symbol: Optional[str] = "XAUUSD"):
     core = ExecutionIntelligenceCore.get_instance()
-    h4_candles = generate_active_ohlcv_candles(symbol, "H4")
-    h1_candles = generate_active_ohlcv_candles(symbol, "H1")
+    h4_candles = resolve_candles_for_context(symbol, "H4")
+    h1_candles = resolve_candles_for_context(symbol, "H1")
     all_tf = {"H4": h4_candles, "H1": h1_candles}
     res = core.evaluate_context(symbol, "H1", h1_candles, all_timeframe_candles=all_tf)
     return res["alignment"]
@@ -564,7 +624,9 @@ def get_structure_alignment(symbol: Optional[str] = "XAUUSD"):
 @app.get("/api/structure/narrative")
 def get_structure_narrative(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {}
     res = core.evaluate_context(symbol, timeframe, candles)
     return res["narrative"]
 
@@ -572,7 +634,9 @@ def get_structure_narrative(symbol: Optional[str] = "XAUUSD", timeframe: Optiona
 @app.get("/api/liquidity/map")
 def get_liquidity_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"symbol": symbol, "timeframe": timeframe, "resting_bsl": [], "resting_ssl": [], "equal_highs": [], "equal_lows": []}
     res = core.evaluate_context(symbol, timeframe, candles)
     return {
         "symbol": symbol,
@@ -587,7 +651,9 @@ def get_liquidity_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str]
 @app.get("/api/liquidity/events")
 def get_liquidity_events(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"symbol": symbol, "timeframe": timeframe, "sweeps": [], "latest_sweep": None, "voids": []}
     res = core.evaluate_context(symbol, timeframe, candles)
     return {
         "symbol": symbol,
@@ -601,7 +667,9 @@ def get_liquidity_events(symbol: Optional[str] = "XAUUSD", timeframe: Optional[s
 @app.get("/api/pattern/similarity")
 def get_pattern_similarity(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {}
     res = core.evaluate_context(symbol, timeframe, candles)
     return res["similarity"]
 
@@ -610,7 +678,9 @@ def get_pattern_similarity(symbol: Optional[str] = "XAUUSD", timeframe: Optional
 def get_fractal_status(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     """Exposes real-time Fractal Intelligence Status and multi-scale metrics."""
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"status": "DISCONNECTED", "symbol": symbol.upper(), "primary_timeframe": timeframe.upper()}
     res = core.evaluate_context(symbol, timeframe, candles)
     fractal_res = res.get("fractal", {})
     similarity = res.get("similarity", {})

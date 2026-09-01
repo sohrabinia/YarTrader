@@ -96,7 +96,8 @@ class ExecutionIntelligenceCore:
 
         # 1. Market Narrative
         narrative_res = self.narrative_engine.analyze_narrative(candles)
-        narrative_res["data_source"] = "DUKASCOPY_XAUUSD_M1_SERIES"
+        narrative_res["data_source"] = "MT5_XAUUSD_M1_RATES"
+        narrative_res["data_mode"] = "REAL"
         narrative_res["candle_count"] = candle_count
         narrative_res["latest_candle_timestamp"] = latest_ts
         narrative_res["context_identity"] = ctx_hash
