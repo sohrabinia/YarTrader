@@ -42,7 +42,8 @@ class BacktestAndLearningEngine:
         timeframe: str,
         candles: List[Dict[str, Any]],
         initial_balance: float = 10000.0,
-        start_index: int = 50
+        start_index: int = 50,
+        strategy_params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Executes a chronological, walk-forward backtest simulation across historical candles.
@@ -152,19 +153,44 @@ class BacktestAndLearningEngine:
 
                 plan = eval_res.get("plan", {})
                 action = plan.get("action", "WAIT")
+                conf = float(plan.get("confidence", 70.0))
+                rr_val = float(plan.get("risk_reward", 0.0))
+
+                # Apply candidate research strategy_params overrides if provided
+                if strategy_params and action in ["BUY", "SELL"]:
+                    min_conf = float(strategy_params.get("confidence_threshold", 0.0))
+                    min_rr_gate = float(strategy_params.get("minimum_rr", 0.0))
+                    if conf < min_conf or rr_val < min_rr_gate:
+                        action = "WAIT"
 
                 if action in ["BUY", "SELL"]:
+                    raw_entry = float(plan.get("entry", current_price))
+                    raw_sl = float(plan.get("stop_loss", 0.0))
+                    raw_tp = float(plan.get("take_profit", 0.0))
+
+                    # Apply research stop/target multipliers if provided
+                    if strategy_params:
+                        stop_mult = float(strategy_params.get("stop_multiplier", 1.0))
+                        target_mult = float(strategy_params.get("target_multiplier", 1.0))
+                        sl_dist = abs(raw_entry - raw_sl) * stop_mult if raw_sl > 0 else 0.0
+                        if sl_dist > 0:
+                            raw_sl = raw_entry - sl_dist if action == "BUY" else raw_entry + sl_dist
+                            raw_tp = raw_entry + (sl_dist * target_mult) if action == "BUY" else raw_entry - (sl_dist * target_mult)
+                            risk_dist = abs(raw_entry - raw_sl)
+                            reward_dist = abs(raw_tp - raw_entry)
+                            rr_val = round(reward_dist / risk_dist, 2) if risk_dist > 0 else rr_val
+
                     open_position = {
                         "trade_id": f"BT-{symbol.upper()}-{uuid.uuid4().hex[:6]}",
                         "symbol": symbol.upper(),
                         "timeframe": timeframe,
                         "strategy": plan.get("strategy", "FAST_SCALP"),
                         "direction": action,
-                        "entry": float(plan.get("entry", current_price)),
-                        "stop_loss": float(plan.get("stop_loss", 0.0)),
-                        "take_profit": float(plan.get("take_profit", 0.0)),
-                        "risk_reward": float(plan.get("risk_reward", 0.0)),
-                        "confidence": float(plan.get("confidence", 70.0)),
+                        "entry": raw_entry,
+                        "stop_loss": raw_sl,
+                        "take_profit": raw_tp,
+                        "risk_reward": rr_val,
+                        "confidence": conf,
                         "volume": 0.01,
                         "entry_time": bar_time,
                         "market_context": eval_res.get("narrative", {}),
