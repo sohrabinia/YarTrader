@@ -91,8 +91,8 @@ class ExecutionIntelligencePlanner:
             if resting_ssl:
                 take_profit = resting_ssl[0]["level"]
 
-        # Strategy identity is strictly Jules Discovered Market Intelligence Core
-        selected_strategy_name = "Discovered Market Intelligence (Continuous Market Following)"
+        # Strategy identity is strictly Multi-Timeframe Continuous Market Intelligence Core
+        selected_strategy_name = "Multi-Timeframe Continuous Market Intelligence"
         if strategy_eval and strategy_eval.get("best_candidate"):
             best_cand = strategy_eval["best_candidate"]
             cand_direction = best_cand.get("direction", "WAIT")
