@@ -78,7 +78,7 @@ class ProfessionalSignalEngine:
             risk_reward=sig.real_rr,
             confidence=float(sig.confidence_pct) / 100.0,
             pattern_id=sig.trading_style,
-            market_context=f"MTF Selection: {tf_res.reason}",
+            market_context=f"MTF Selection: {tf_res.reason} | Provenance: {getattr(sig, 'platform_provenance', 'MT5')}",
             created_at=sig.timestamp
         )
 
@@ -88,7 +88,8 @@ class ProfessionalSignalEngine:
         timeframe: str,
         candles_by_tf: Dict[str, List[MarketDataPoint]],
         spread_pip: float = 1.0,
-        account_balance: float = 10000.0
+        account_balance: float = 10000.0,
+        platform_provenance: str = "MT5"
     ) -> ProfessionalSignal:
         symbol_upper = symbol.upper()
         tf_upper = timeframe.upper()

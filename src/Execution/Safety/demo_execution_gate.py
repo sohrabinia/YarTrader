@@ -64,25 +64,30 @@ class DemoExecutionGate:
             logger.warning("[DemoExecutionGate] MT5 process disconnected. Failing closed.")
             raise ValidationException("DemoExecutionGate Violation: MT5 Terminal is disconnected or account info is unavailable.")
 
-        # Check 3: Connected MT5 account is verified DEMO (trade_mode == 0)
+        # Check 3: Platform & DEMO Verification (Rejects REAL accounts explicitly)
         login = str(acc_info.get("login", ""))
         server = str(acc_info.get("server", ""))
         trade_mode = acc_info.get("trade_mode", None)
+        is_real = acc_info.get("is_real", False)
+        platform = str(acc_info.get("platform", "MT5")).upper()
 
-        if login and login != cls.AUTHORIZED_DEMO_ACCOUNT:
-            raise ValidationException(
-                f"DemoExecutionGate Violation: Connected MT5 account '{login}' is not authorized DEMO account '{cls.AUTHORIZED_DEMO_ACCOUNT}'."
-            )
+        if is_real or (trade_mode is not None and trade_mode != 0):
+            raise ValidationException("SECURITY VIOLATION: Connected account is REAL or non-DEMO. Real account execution is strictly rejected repository-wide.")
 
-        if server and server != cls.AUTHORIZED_DEMO_SERVER:
-            raise ValidationException(
-                f"DemoExecutionGate Violation: Connected MT5 server '{server}' is not authorized DEMO server '{cls.AUTHORIZED_DEMO_SERVER}'."
-            )
-
-        if trade_mode is not None and trade_mode != 0:
-            raise ValidationException(
-                f"DemoExecutionGate Violation: Connected MT5 account trade_mode '{trade_mode}' is not DEMO (0)."
-            )
+        if platform == "MT4":
+            if login and login != "4109825":
+                raise ValidationException(f"DemoExecutionGate Violation: Connected MT4 account '{login}' is not authorized DEMO account '4109825'.")
+            if server and server != "Alpari-MT4-Demo":
+                raise ValidationException(f"DemoExecutionGate Violation: Connected MT4 server '{server}' is not authorized DEMO server 'Alpari-MT4-Demo'.")
+        else:
+            if login and login != cls.AUTHORIZED_DEMO_ACCOUNT:
+                raise ValidationException(
+                    f"DemoExecutionGate Violation: Connected MT5 account '{login}' is not authorized DEMO account '{cls.AUTHORIZED_DEMO_ACCOUNT}'."
+                )
+            if server and server != cls.AUTHORIZED_DEMO_SERVER:
+                raise ValidationException(
+                    f"DemoExecutionGate Violation: Connected MT5 server '{server}' is not authorized DEMO server '{cls.AUTHORIZED_DEMO_SERVER}'."
+                )
 
         # Check 4: Terminal trading permissions enabled
         if term_info is not None:
