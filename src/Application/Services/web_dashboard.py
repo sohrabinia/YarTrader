@@ -451,14 +451,30 @@ def run_acceptance_runner_thread():
 # -----------------------------------------------------------------------------
 from src.Intelligence.Execution.core import ExecutionIntelligenceCore
 
-def generate_active_ohlcv_candles(symbol: str) -> List[Dict[str, Any]]:
+def generate_active_ohlcv_candles(symbol: str, timeframe: Optional[str] = "H1") -> List[Dict[str, Any]]:
     """
-    Generates a deterministic series of 30 candles starting 30 hours ago,
+    Generates a deterministic series of 30 candles starting at an appropriate historical offset,
+    scaled accurately according to the specified timeframe,
     complete with sine-wave swing structures, displacement blocks, and FVGs.
     """
     base = 1800.0 if "XAU" in symbol.upper() else (1.1000 if "EUR" in symbol.upper() else 65000.0)
     candles = []
     import math
+
+    tf = (timeframe or "H1").upper().strip()
+    tf_seconds_map = {
+        "M1": 60,
+        "M5": 300,
+        "M15": 900,
+        "M30": 1800,
+        "H1": 3600,
+        "H4": 14400,
+        "D1": 86400,
+        "W1": 604800,
+        "MN1": 2592000,
+    }
+    step_sec = tf_seconds_map.get(tf, 3600)
+
     # Establish a clean mathematical structure wave
     for i in range(30):
         wave = math.sin(i / 5.0) * 15.0 + (i * 0.5)
@@ -475,7 +491,7 @@ def generate_active_ohlcv_candles(symbol: str) -> List[Dict[str, Any]]:
             h = o + 6.0
 
         candles.append({
-            "time": int(time.time() - (30 - i) * 3600),
+            "time": int(time.time() - (30 - i) * step_sec),
             "open": round(o, 4),
             "high": round(h, 4),
             "low": round(l, 4),
@@ -488,7 +504,7 @@ def generate_active_ohlcv_candles(symbol: str) -> List[Dict[str, Any]]:
 @app.get("/api/execution/plans")
 def get_execution_plans(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1", lang: str = "fa"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol)
+    candles = generate_active_ohlcv_candles(symbol, timeframe)
     res = core.evaluate_context(symbol, timeframe, candles, lang=lang)
     return res["plan"]
 
@@ -496,7 +512,7 @@ def get_execution_plans(symbol: Optional[str] = "XAUUSD", timeframe: Optional[st
 @app.get("/api/execution/confidence")
 def get_execution_confidence(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol)
+    candles = generate_active_ohlcv_candles(symbol, timeframe)
     res = core.evaluate_context(symbol, timeframe, candles)
     return {"symbol": symbol, "timeframe": timeframe, "confidence": res["plan"]["confidence"]}
 
@@ -504,7 +520,7 @@ def get_execution_confidence(symbol: Optional[str] = "XAUUSD", timeframe: Option
 @app.get("/api/execution/reasoning")
 def get_execution_reasoning(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1", lang: str = "fa"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol)
+    candles = generate_active_ohlcv_candles(symbol, timeframe)
     res = core.evaluate_context(symbol, timeframe, candles, lang=lang)
     return {"symbol": symbol, "timeframe": timeframe, "reasoning": res["plan"]["reasoning"]}
 
@@ -512,7 +528,7 @@ def get_execution_reasoning(symbol: Optional[str] = "XAUUSD", timeframe: Optiona
 @app.get("/api/structure/map")
 def get_structure_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol)
+    candles = generate_active_ohlcv_candles(symbol, timeframe)
     res = core.evaluate_context(symbol, timeframe, candles)
     return {
         "symbol": symbol,
@@ -527,8 +543,8 @@ def get_structure_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str]
 @app.get("/api/structure/alignment")
 def get_structure_alignment(symbol: Optional[str] = "XAUUSD"):
     core = ExecutionIntelligenceCore.get_instance()
-    h4_candles = generate_active_ohlcv_candles(symbol)
-    h1_candles = generate_active_ohlcv_candles(symbol)
+    h4_candles = generate_active_ohlcv_candles(symbol, "H4")
+    h1_candles = generate_active_ohlcv_candles(symbol, "H1")
     all_tf = {"H4": h4_candles, "H1": h1_candles}
     res = core.evaluate_context(symbol, "H1", h1_candles, all_timeframe_candles=all_tf)
     return res["alignment"]
@@ -537,7 +553,7 @@ def get_structure_alignment(symbol: Optional[str] = "XAUUSD"):
 @app.get("/api/structure/narrative")
 def get_structure_narrative(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol)
+    candles = generate_active_ohlcv_candles(symbol, timeframe)
     res = core.evaluate_context(symbol, timeframe, candles)
     return res["narrative"]
 
@@ -545,7 +561,7 @@ def get_structure_narrative(symbol: Optional[str] = "XAUUSD", timeframe: Optiona
 @app.get("/api/liquidity/map")
 def get_liquidity_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol)
+    candles = generate_active_ohlcv_candles(symbol, timeframe)
     res = core.evaluate_context(symbol, timeframe, candles)
     return {
         "symbol": symbol,
@@ -560,7 +576,7 @@ def get_liquidity_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str]
 @app.get("/api/liquidity/events")
 def get_liquidity_events(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol)
+    candles = generate_active_ohlcv_candles(symbol, timeframe)
     res = core.evaluate_context(symbol, timeframe, candles)
     return {
         "symbol": symbol,
@@ -574,7 +590,7 @@ def get_liquidity_events(symbol: Optional[str] = "XAUUSD", timeframe: Optional[s
 @app.get("/api/pattern/similarity")
 def get_pattern_similarity(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol)
+    candles = generate_active_ohlcv_candles(symbol, timeframe)
     res = core.evaluate_context(symbol, timeframe, candles)
     return res["similarity"]
 
@@ -583,7 +599,7 @@ def get_pattern_similarity(symbol: Optional[str] = "XAUUSD", timeframe: Optional
 def get_fractal_status(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     """Exposes real-time Fractal Intelligence Status and multi-scale metrics."""
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol)
+    candles = generate_active_ohlcv_candles(symbol, timeframe)
     res = core.evaluate_context(symbol, timeframe, candles)
     fractal_res = res.get("fractal", {})
     similarity = res.get("similarity", {})
