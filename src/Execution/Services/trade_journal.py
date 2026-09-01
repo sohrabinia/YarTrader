@@ -45,6 +45,11 @@ class TradeJournalRecord:
     market_regime: str
     result: str  # WIN | LOSS | BREAKEVEN | PENDING
     configuration_version: str
+    entry_efficiency_pct: float = 0.0
+    exit_efficiency_pct: float = 0.0
+    move_capture_ratio: float = 0.0
+    brier_score_contribution: float = 0.0
+    platform_provenance: str = "MT5"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

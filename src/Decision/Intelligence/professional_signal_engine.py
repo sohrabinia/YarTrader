@@ -9,6 +9,7 @@ from src.Research.Brain.multi_timeframe_context import MultiTimeframeContextEngi
 from src.Research.Brain.fractal_memory import FractalPatternMemory
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
 from src.Decision.Intelligence.timeframe_selector import AutomaticTimeframeSelector, UnifiedSignalContract
+from src.Research.MarketAnalysis.Services.continuous_market_following_engine import ContinuousMarketFollowingEngine
 
 @dataclass
 class ProfessionalSignal:
@@ -45,6 +46,7 @@ class ProfessionalSignalEngine:
         self.fractal_memory = FractalPatternMemory()
         self.risk_engine = ProfessionalRiskEngine()
         self.tf_selector = AutomaticTimeframeSelector()
+        self.market_following_engine = ContinuousMarketFollowingEngine()
 
     def generate_unified_signal(
         self,
@@ -76,7 +78,7 @@ class ProfessionalSignalEngine:
             risk_reward=sig.real_rr,
             confidence=float(sig.confidence_pct) / 100.0,
             pattern_id=sig.trading_style,
-            market_context=f"MTF Selection: {tf_res.reason}",
+            market_context=f"MTF Selection: {tf_res.reason} | Provenance: {getattr(sig, 'platform_provenance', 'MT5')}",
             created_at=sig.timestamp
         )
 
@@ -86,7 +88,8 @@ class ProfessionalSignalEngine:
         timeframe: str,
         candles_by_tf: Dict[str, List[MarketDataPoint]],
         spread_pip: float = 1.0,
-        account_balance: float = 10000.0
+        account_balance: float = 10000.0,
+        platform_provenance: str = "MT5"
     ) -> ProfessionalSignal:
         symbol_upper = symbol.upper()
         tf_upper = timeframe.upper()
@@ -137,10 +140,22 @@ class ProfessionalSignalEngine:
                 timestamp=datetime.now().isoformat()
             )
 
+        pip_factor = 0.0001 if "USD" in symbol_upper and "XAU" not in symbol_upper and "BTC" not in symbol_upper else 0.1
+        if "XAU" in symbol_upper:
+            pip_factor = 0.1
+        elif "BTC" in symbol_upper:
+            pip_factor = 1.0
+
+        # Continuous Probabilistic Market Following Engine Evaluation
+        for candle in current_candles[-20:]:
+            self.market_following_engine.observe(price=candle.Close, volume=candle.Volume, timestamp=None)
+        path_forecast = self.market_following_engine.estimate_path_distribution(spread_usd=spread_pip * pip_factor)
+
         # 3. Multi-Timeframe Context Evaluation
         mtf_context = self.mtf_engine.evaluate_context(symbol_upper, candles_by_tf)
         raw_direction = mtf_context["decision_bias"]
         market_reasoning = mtf_context["reasoning"]
+        market_reasoning.append(f"Continuous Path Forecast: ContProb={path_forecast.continuation_probability}, RevProb={path_forecast.reversal_probability}, ExpProb={path_forecast.explosive_expansion_probability}")
 
         if raw_direction == "WAIT":
             return ProfessionalSignal(
@@ -185,12 +200,6 @@ class ProfessionalSignalEngine:
             current_price = current_candles[-1].Close
             latest_high = max(c.High for c in current_candles[-10:])
             latest_low = min(c.Low for c in current_candles[-10:])
-
-        pip_factor = 0.0001 if "USD" in symbol_upper and "XAU" not in symbol_upper and "BTC" not in symbol_upper else 0.1
-        if "XAU" in symbol_upper:
-            pip_factor = 0.1
-        elif "BTC" in symbol_upper:
-            pip_factor = 1.0
 
         if raw_direction == "BUY":
             entry_price = current_price

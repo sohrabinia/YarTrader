@@ -158,12 +158,30 @@ class DemoExecutionEngine:
         symbol: str,
         position_ticket: int,
         volume: float = 0.01,
-        comment: str = "YarTrader Close"
+        comment: str = "YarTrader Close",
+        open_timestamp: Optional[float] = None,
+        is_eod_flatten: bool = False
     ) -> OrderResponse:
         """
         Submits CLOSE request for position ticket and confirms authoritative position closure.
+        Enforces 120-second minimum holding period unless overridden by EOD flattening.
         Returns OrderResponse with Status="Placed" or "Closed" if confirmed, or "Failed" if closure is unconfirmed.
         """
+        # 120-second Minimum Hold Invariant Guard
+        if open_timestamp is not None and not is_eod_flatten:
+            elapsed_sec = time.time() - open_timestamp
+            if elapsed_sec < 120.0:
+                logger.warning(f"[DemoExecutionEngine] Close blocked for ticket {position_ticket}: Hold time ({int(elapsed_sec)}s) < 120s minimum hold constraint.")
+                return OrderResponse(
+                    OrderId="0",
+                    Symbol=symbol.upper(),
+                    Status="Failed",
+                    SubmittedAt=datetime.now(timezone.utc),
+                    Retcode=10013,
+                    Comment=f"Minimum holding time violation: {int(elapsed_sec)}s < 120s minimum constraint.",
+                    RawResponse={"reason": "MINIMUM_HOLD_VIOLATION"}
+                )
+
         req = OrderRequest(
             Symbol=symbol.upper(),
             OrderType="CLOSE",
