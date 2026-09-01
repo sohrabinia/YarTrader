@@ -1,7 +1,7 @@
 # YARTRADER TRADING CORE FORENSIC RULEBOOK
 **Authoritative forensic rulebook documenting the active, legacy, and shadow trading behavior of YarTrader**
 **Classification: READ-ONLY AUDIT REPORT**
-**Repository Version / Commit: YarTrader v7.0 (HEAD)**
+**Repository Version / Commit: YarTrader v7.0 (HEAD: `5b7e817d44f43131a8ce68193a36bcbf2fdbd0fc`)**
 
 ---
 
