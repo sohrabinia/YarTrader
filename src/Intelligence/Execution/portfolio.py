@@ -26,6 +26,40 @@ class PortfolioRiskIntelligenceEngine:
         self.start_of_day_equity = start_of_day_equity
         self.daily_pnl = daily_pnl
 
+    def evaluate_opportunity_cost(
+        self,
+        candidate_trade: Dict[str, Any],
+        available_market_opportunities: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Evaluates trade candidates across markets (XAUUSD, EURUSD, GBPUSD, USDJPY)
+        Opportunity Score = Expected Net Return / (Capital-at-Risk * max(1, Holding Time Sec / 60))
+        Rejects candidate if an alternative has materially superior expected utility.
+        """
+        if not available_market_opportunities:
+            return {"is_approved": True, "reason": "No competing market opportunities."}
+
+        def score_opp(op: Dict[str, Any]) -> float:
+            exp_ret = op.get("expected_return_usd", 0.0)
+            risk = max(1.0, op.get("risk_amount_usd", 1.0))
+            hold_sec = max(60.0, op.get("expected_holding_time_sec", 300.0))
+            return exp_ret / (risk * (hold_sec / 60.0))
+
+        candidate_score = score_opp(candidate_trade)
+        best_opp = max(available_market_opportunities, key=score_opp)
+        best_score = score_opp(best_opp)
+
+        if best_score > candidate_score * 1.25 and best_opp.get("symbol") != candidate_trade.get("symbol"):
+            return {
+                "is_approved": False,
+                "rejection_status": "REJECTED_INFERIOR_OPPORTUNITY",
+                "reason": (
+                    f"Candidate trade for {candidate_trade.get('symbol')} (Score: {candidate_score:.4f}) "
+                    f"is inferior to available opportunity on {best_opp.get('symbol')} (Score: {best_score:.4f})."
+                )
+            }
+        return {"is_approved": True, "reason": "Opportunity score is optimal."}
+
     def calculate_portfolio_risk(
         self,
         active_trades: List[Dict[str, Any]],

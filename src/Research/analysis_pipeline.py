@@ -36,26 +36,147 @@ class TechnicalAnalysisEngine:
         variance = sum((c - mean_price) ** 2 for c in closes) / n if n > 1 else 0.0
         std_dev = math.sqrt(variance)
 
+        # 1. Minimum Data Availability Check
+        if n < 14:
+            return {
+                "support": support,
+                "resistance": resistance,
+                "highest_high": highest_high,
+                "lowest_low": lowest_low,
+                "swing_highs": swing_highs,
+                "swing_lows": swing_lows,
+                "mean": round(mean_price, 4),
+                "std_dev": round(std_dev, 4),
+                "insufficient_data": True,
+                "sma_20": None,
+                "sma_50": None,
+                "ema_12": None,
+                "ema_26": None,
+                "macd": None,
+                "macd_signal": None,
+                "macd_histogram": None,
+                "rsi": None,
+                "atr": None,
+                "upper_band": None,
+                "lower_band": None
+            }
+
+        # 2. Moving Averages Calculation
+        sma_20 = sum(closes[-20:]) / 20.0 if n >= 20 else None
+        sma_50 = sum(closes[-50:]) / 50.0 if n >= 50 else None
+
+        def calc_ema(series: List[float], period: int) -> Optional[float]:
+            if len(series) < period:
+                return None
+            k = 2.0 / (period + 1.0)
+            ema = sum(series[:period]) / float(period)
+            for p in series[period:]:
+                ema = (p * k) + (ema * (1.0 - k))
+            return ema
+
+        ema_12 = calc_ema(closes, 12)
+        ema_26 = calc_ema(closes, 26)
+
+        # 3. MACD Calculation (12, 26, 9)
+        macd_val = None
+        macd_sig = None
+        macd_hist = None
+
+        if len(closes) >= 35:  # 26 for EMA26 + 9 for signal
+            ema12_series = []
+            ema26_series = []
+            k12 = 2.0 / (12 + 1)
+            k26 = 2.0 / (26 + 1)
+
+            e12 = sum(closes[:12]) / 12.0
+            e26 = sum(closes[:26]) / 26.0
+
+            for i in range(len(closes)):
+                if i >= 12:
+                    e12 = (closes[i] * k12) + (e12 * (1.0 - k12))
+                if i >= 26:
+                    e26 = (closes[i] * k26) + (e26 * (1.0 - k26))
+                    macd_line = e12 - e26
+                    ema12_series.append(macd_line)
+
+            if len(ema12_series) >= 9:
+                k9 = 2.0 / (9 + 1)
+                macd_sig = sum(ema12_series[:9]) / 9.0
+                for m_val in ema12_series[9:]:
+                    macd_sig = (m_val * k9) + (macd_sig * (1.0 - k9))
+                macd_val = ema12_series[-1]
+                macd_hist = macd_val - macd_sig
+
+        # 4. RSI Calculation (14-period Wilder)
+        rsi_val = None
+        if n >= 15:
+            gains = []
+            losses = []
+            for i in range(1, len(closes)):
+                change = closes[i] - closes[i - 1]
+                gains.append(max(0.0, change))
+                losses.append(max(0.0, -change))
+
+            avg_gain = sum(gains[:14]) / 14.0
+            avg_loss = sum(losses[:14]) / 14.0
+
+            for i in range(14, len(gains)):
+                avg_gain = (avg_gain * 13.0 + gains[i]) / 14.0
+                avg_loss = (avg_loss * 13.0 + losses[i]) / 14.0
+
+            if avg_loss == 0:
+                rsi_val = 100.0
+            else:
+                rs = avg_gain / avg_loss
+                rsi_val = 100.0 - (100.0 / (1.0 + rs))
+
+        # 5. ATR Calculation (14-period)
+        atr_val = None
+        if n >= 15:
+            tr_list = []
+            for i in range(1, len(candles)):
+                high = candles[i].High
+                low = candles[i].Low
+                prev_close = candles[i - 1].Close
+                tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+                tr_list.append(tr)
+
+            atr_val = sum(tr_list[:14]) / 14.0
+            for tr in tr_list[14:]:
+                atr_val = (atr_val * 13.0 + tr) / 14.0
+
+        # 6. Bollinger Bands Calculation (20-period, 2-std-dev)
+        upper_band = None
+        lower_band = None
+        if n >= 20:
+            c20 = closes[-20:]
+            m20 = sum(c20) / 20.0
+            var20 = sum((x - m20) ** 2 for x in c20) / 20.0
+            std20 = math.sqrt(var20)
+            upper_band = m20 + (2.0 * std20)
+            lower_band = m20 - (2.0 * std20)
+
         return {
-            "support": support,
-            "resistance": resistance,
-            "highest_high": highest_high,
-            "lowest_low": lowest_low,
+            "support": round(support, 4),
+            "resistance": round(resistance, 4),
+            "highest_high": round(highest_high, 4),
+            "lowest_low": round(lowest_low, 4),
             "swing_highs": swing_highs,
             "swing_lows": swing_lows,
-            "mean": mean_price,
-            "std_dev": std_dev,
-            "sma_20": mean_price,  # Retained for backwards schema compatibility
-            "sma_50": mean_price,
-            "ema_12": mean_price,
-            "ema_26": mean_price,
-            "macd": 0.0,
-            "macd_signal": 0.0,
-            "macd_histogram": 0.0,
-            "rsi": 50.0,
-            "atr": (resistance - support) / 14 if n >= 14 else 0.0,
-            "upper_band": resistance,
-            "lower_band": support
+            "mean": round(mean_price, 4),
+            "std_dev": round(std_dev, 4),
+            "insufficient_data": False if n >= 20 else True,
+            "sma_20": round(sma_20, 4) if sma_20 is not None else None,
+            "sma_50": round(sma_50, 4) if sma_50 is not None else None,
+            "ema_12": round(ema_12, 4) if ema_12 is not None else None,
+            "ema_26": round(ema_26, 4) if ema_26 is not None else None,
+            "macd": round(macd_val, 4) if macd_val is not None else None,
+            "macd_signal": round(macd_sig, 4) if macd_sig is not None else None,
+            "macd_histogram": round(macd_hist, 4) if macd_hist is not None else None,
+            "rsi": round(rsi_val, 4) if rsi_val is not None else None,
+            "atr": round(atr_val, 4) if atr_val is not None else None,
+            "upper_band": round(upper_band, 4) if upper_band is not None else None,
+            "lower_band": round(lower_band, 4) if lower_band is not None else None
         }
 
 class FeatureEngineeringLayer:
