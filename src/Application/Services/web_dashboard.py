@@ -87,6 +87,12 @@ global_research_runtime = ResearchRuntime(
     evidence_dir="runtime_logs"
 )
 
+global_m1_research_runtime = ResearchRuntime(
+    symbol="XAUUSD",
+    timeframe="M1",
+    evidence_dir="runtime_logs"
+)
+
 global_memory_system = MarketMemorySystem()
 global_decision_explainer = DecisionExplainer(memory_system=global_memory_system)
 
@@ -453,8 +459,8 @@ from src.Intelligence.Execution.core import ExecutionIntelligenceCore
 
 def fetch_production_market_candles(symbol: str, timeframe: str) -> List[Dict[str, Any]]:
     """
-    Fetches real M1 market candles via global_research_runtime / MT5DataProvider
-    and aggregates them into target timeframe bars via TimeframeAggregator.
+    Fetches real M1 market candles via global_m1_research_runtime / MT5DataProvider
+    (source is M1) and aggregates them into target timeframe bars via TimeframeAggregator.
     Fails closed with empty list if real data is unavailable (NEVER falls back to synthetic data in production).
     """
     try:
@@ -462,8 +468,8 @@ def fetch_production_market_candles(symbol: str, timeframe: str) -> List[Dict[st
         sym_clean = (symbol or "XAUUSD").upper()
         tf_clean = (timeframe or "H1").upper()
 
-        # Query real market data from global research runtime
-        res = global_research_runtime.run_once()
+        # Query real M1 market data from global M1 research runtime
+        res = global_m1_research_runtime.run_once()
         raw_candles = res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])
 
         if not raw_candles:
