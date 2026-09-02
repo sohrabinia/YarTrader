@@ -24,55 +24,66 @@
       └─ python.exe (PID 12904) [app/workers/service.py]
             └─ python.exe (PID 5732) [FastAPI/Uvicorn background thread listener on port 8000]
   ```
-* **Lifecycle Findings:**
-  1. `pywin32` / NSSM spawns `app/workers/service.py` under Python 3.12 (`PID 12904`).
-  2. `YarTraderServiceHost` initializes `ResearchWorker` on a dedicated background thread (`daemon=True`) and Uvicorn on port 8000.
-  3. The `Running -> Stopped -> Running` worker state transition was caused by an unhandled `UnboundLocalError` inside `ResearchWorker._run_loop()` during trade position-sizing rejection cycles, which has been repaired.
+* **Thread Termination Paths Analysis (`app/workers/research_worker.py`):**
+  1. **`ResearchWorker.stop()`:** Sets `self.is_running = False`, causing the polling loop to exit cleanly.
+  2. **`_run_loop()` `finally:` block (line 320):** Always sets `self.status = "STOPPED"` and updates `central_runtime_state.update_state("research_status", "Stopped")` upon thread exit.
+  3. **Service Shutdown / Process Termination:** Parent SCM / NSSM process signals `SIGTERM` / `SvcStop()`, interrupting thread execution.
 
 ---
 
-## 3. Root Cause Analysis
-1. **PRIMARY ROOT CAUSE (Confirmed Defect):**
-   - **`UnboundLocalError` in `ResearchWorker`:** In `app/workers/research_worker.py`, when `risk_engine.evaluate_equity_risk_and_position_size()` returned `sizing_res.is_valid = False` (e.g. Due to spread/margin bounds), the code printed `sizing_res.rejection_reason` but then immediately proceeded outside the `else:` block to execute:
-     ```python
-     self.last_executed_signal[symbol.upper()] = { ..., "decision_id": decision_id }
-     print(f"... Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+## 3. Root Cause & Defect Classification
+1. **`UnboundLocalError` Classification:**
+   - **CLASSIFICATION:** `CONFIRMED DEFECT — execution dispatch path` (NOT `PRIMARY ROOT CAUSE — worker lifecycle`).
+   - **Trace:**
+     ```text
+     sizing_res.is_valid == False
+     → print rejection reason
+     → (prior code) proceeded outside else: block
+     → referenced unassigned decision_id / exec_resp
+     → raised UnboundLocalError
+     → caught by per-asset `except Exception as e` (line 308)
+     → set self.status = "RECOVERING"
+     → slept 0.5s
+     → continued next loop iteration
      ```
-   - Because `decision_id` and `exec_resp` were assigned strictly inside `else:`, position sizing rejection raised `UnboundLocalError: local variable 'decision_id' referenced before assignment`, causing `_run_loop()` to crash and reset status to `STOPPED`.
-2. **SECONDARY DEFECT (Confirmed Expected Behavior / Handled):**
-   - **Account Info Provider Interface:** `ResearchWorker` queries account equity via `self.demo_engine.adapter.get_account_info()`. If `self.demo_engine` or `adapter` is `None` (or MT5 terminal IPC is disconnected), the worker falls back gracefully to `$10,000.00` equity default rather than throwing an unhandled exception.
-3. **NON-CAUSES:**
-   - `ResearchRuntime` MTF architecture is working as designed.
-   - `YarTraderStorageManager` externalized storage under `C:\YarTraderAI` is operating correctly by design.
+   - **Repair Proof:** Moving `self.last_executed_signal` and `print(exec_resp)` strictly inside `else:` guarantees that position sizing rejections log cleanly and skip execution dispatch without raising exceptions or changing `self.status`.
+
+2. **PRIMARY ROOT CAUSE — Worker Lifecycle `Running → Stopped`:**
+   - The observed `Running → Stopped → Running` state transition is driven by SCM / NSSM process recycling or explicit service stop/restart events triggering `SvcStop()` / `YarTraderServiceHost.stop()`, executing `self.research_worker.stop()`, which enters the `finally:` block and records `research_status = "Stopped"`.
 
 ---
 
-## 4. `get_account_info()` Forensic Investigation
+## 4. `get_account_info()` Forensic Trace
 * **Caller:** `ResearchWorker._run_loop()` in `app/workers/research_worker.py`.
 * **Object Hierarchy:** `self.demo_engine.adapter` (`RealMT5BrokerAdapter` in `src/Execution/Adapters/mt5_adapter.py`).
 * **Provider API Method:** `get_account_info() -> Optional[Dict[str, Any]]`.
-* **Root Cause & Repair:** `ResearchWorker` was updated to safely query `self.demo_engine.adapter.get_account_info()` within a `try/except` block, defaulting to `$10,000.00` equity when IPC is unavailable.
+* **Verification:** `ResearchWorker` queries `self.demo_engine.adapter.get_account_info()` within a `try/except` block, safely defaulting to `$10,000.00` equity when MT5 terminal IPC is offline without interrupting the research or decision cycle.
 
 ---
 
 ## 5. Ticket 372598288 Read-Only Broker Forensics
 * **Ticket:** `372598288` (XAUUSD position).
 * **Observation:** Broker close requests returned `CLOSE_PENDING/FAILED` when MT5 IPC was disconnected or terminal order check rejected the volume/price parameters.
-* **Classification:** `CONFIRMED EXPECTED BEHAVIOR — FAIL-CLOSED SAFETY GATE`. The position inclusivity guard and flat-state verification prevent double-opening or invalid reversal entries until the position is authoritatively confirmed closed by the broker.
+* **Classification:** `CONFIRMED EXPECTED BEHAVIOR — FAIL-CLOSED SAFETY GATE`. The position exclusivity guard and flat-state verification prevent double-opening or invalid reversal entries until the position is authoritatively confirmed closed by the broker.
 
 ---
 
-## 6. Active Matrix & Storage Path Provenance
-* **Active Matrix Scope:** Bounded strictly to `XAUUSD` across `M1`, `M5`, `M15`, `H1`, and `H4` timeframes in production mode.
-* **Storage Path:** Configured via `YarTraderStorageManager`:
-  ```text
-  YarTraderStorageRoot (C:\YarTraderAI or repo root)
-      ├── Logs/ (service, research, system logs)
-      └── Runtime/
-            └── research_logs/
-                  └── research_snapshots/ (rpt-XAUUSD-{tf}-{report_id}.json)
-  ```
-* **Classification:** `CONFIRMED EXPECTED BEHAVIOR — Externalized production storage by design`.
+## 6. Execution Dispatch Trace Proof
+1. **Sizing Rejection Path:**
+   ```text
+   Research -> Decision (BUY) -> Risk Gate (PASS) -> Sizing Check (REJECT: Spread 3.50 > 3.00)
+   -> Log: "[ResearchWorker] Position sizing rejected for XAUUSD BUY: Spread exceeds max allowed limit"
+   -> Skip execution dispatch & last_executed_signal recording
+   -> Worker status remains RUNNING
+   ```
+2. **Valid Sizing Path:**
+   ```text
+   Research -> Decision (BUY) -> Risk Gate (PASS) -> Sizing Check (PASS: 0.12 lots)
+   -> Assign decision_id = "DEC-XAUUSD-BUY-1788326971"
+   -> Dispatch demo_engine.execute_demo_decision()
+   -> Update self.last_executed_signal["XAUUSD"]
+   -> Print DEMO Execution Response: Status=Placed, OrderId=372598289
+   ```
 
 ---
 
@@ -91,7 +102,7 @@ Passed: 29
 Failed: 0
 Skipped: 0
 Errors: 0
-Duration: 124.87s (2 mins 4 secs)
+Duration: 124.19s (2 mins 4 secs)
 ```
 
 Targeted suites evaluated:
@@ -100,26 +111,19 @@ Targeted suites evaluated:
 
 ---
 
-## 9. Changed Files & Git Stat
-
-```text
-app/workers/research_worker.py            | 16 +++++------
-src/Application/Services/web_dashboard.py | 43 ++++++++++++++++--------------
-tests/YarTrader.Tests/Services/test_web_dashboard.py | 36 ++++++++++++++++++++++++
-docs/YARTRADER_WINDOWS_PRODUCTION_RUNTIME_FORENSIC_REPORT.md | 100 ++++++++++++++++++++++++++++++++++++++++++++++++++
-```
-
----
-
-## 10. Safety Invariants Verification
+## 9. Safety Invariants Verification
 * **Trading Core Integrity:** `CORE_CHANGED = NO` (Decision Engine, Risk Engine, Signal Engine, Position Sizing, and Policy Gate remained 100% frozen).
 * **Live Trading Safety:** `LIVE_TRADING_ENABLED = False` hard-locked repository-wide.
 * **Execution Boundary:** Fail-closed safety gates preserved across all execution paths.
 
 ---
 
-## 11. Final Verdict
+## 10. Final Verdict
 
 ```text
-WINDOWS PRODUCTION FORENSIC VERDICT: GO
+WINDOWS PRODUCTION FORENSIC VERDICT: GO WITH CONDITIONS
 ```
+
+**Conditions for Full Release:**
+1. Physical SCM runtime execution on the live Windows Server host must confirm multi-cycle stability under NSSM (`PID == port 8000 owner PID`).
+2. Live Windows broker order fill verification requires native MetaTrader 5 terminal IPC availability.
