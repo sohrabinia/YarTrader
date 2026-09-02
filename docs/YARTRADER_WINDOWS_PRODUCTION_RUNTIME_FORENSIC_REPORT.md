@@ -7,7 +7,7 @@
 * **OS:** Linux sandbox verification container (Windows Server target host runtime specs: Windows Server 2022 / Windows 11 x64).
 * **Python Environment:** Python 3.12.13 (`.venv` virtual environment).
 * **Repository Root:** `/app` (Windows production host path: `C:\Projects\YarTrader`).
-* **Git HEAD:** `4ea700725221ab7a4af161e4b6701ad6e9f30888` (Branch: `jules-2126246103029536183-bcb29b5b`).
+* **Git HEAD:** `9ffc993` (Branch: `jules-2126246103029536183-bcb29b5b`).
 * **Windows Service Configuration:**
   - Service Name: `YarTrader`
   - Display Name: `YarTrader Production Runtime Service`
@@ -53,11 +53,13 @@
 
 ---
 
-## 4. `get_account_info()` Forensic Trace
+## 4. `get_account_info()` Forensic Trace & Account Info Status
 * **Caller:** `ResearchWorker._run_loop()` in `app/workers/research_worker.py`.
 * **Object Hierarchy:** `self.demo_engine.adapter` (`RealMT5BrokerAdapter` in `src/Execution/Adapters/mt5_adapter.py`).
 * **Provider API Method:** `get_account_info() -> Optional[Dict[str, Any]]`.
-* **Verification:** `ResearchWorker` queries `self.demo_engine.adapter.get_account_info()` within a `try/except` block, safely defaulting to `$10,000.00` equity when MT5 terminal IPC is offline without interrupting the research or decision cycle.
+* **Verification & Account Info Status:** `ResearchWorker` queries `self.demo_engine.adapter.get_account_info()` within a `try/except` block.
+  - **With Active MT5 IPC Connection:** Returns authentic live broker account equity, balance, and free margin metrics.
+  - **With Disconnected MT5 IPC:** Returns `None`, which `ResearchWorker` safely handles by falling back to `$10,000.00` default equity without raising unhandled exceptions or crashing the polling loop.
 
 ---
 
