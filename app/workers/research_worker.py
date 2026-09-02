@@ -287,15 +287,15 @@ class ResearchWorker:
                                                     decision_id=decision_id
                                                 )
 
-                                            # Record execution time for cooldown tracking
-                                            self.last_executed_signal[symbol.upper()] = {
-                                                "direction": sig_dir,
-                                                "sig_time": sig_time,
-                                                "exec_time": now_time,
-                                                "decision_id": decision_id
-                                            }
+                                                # Record execution time for cooldown tracking
+                                                self.last_executed_signal[symbol.upper()] = {
+                                                    "direction": sig_dir,
+                                                    "sig_time": sig_time,
+                                                    "exec_time": now_time,
+                                                    "decision_id": decision_id
+                                                }
 
-                                            print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+                                                print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
                                     except Exception as exec_err:
                                         print(f"[ResearchWorker] DEMO Execution Gate / Fail-Closed: {exec_err}")
                         else:

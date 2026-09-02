@@ -3788,42 +3788,41 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
         except Exception:
             pass
 
-    # Memory Fallback
-    history = global_research_runtime.history
-    if not history:
-        try:
-            res = global_research_runtime.run_once()
-            history = [res]
-        except Exception as e:
-            # Deterministic degraded response fallback when MT5/data provider is offline
-            sym_fallback = search_symbol.upper()
-            tf_fallback = (timeframe or "H1").upper()
-            return {
-                "symbol": sym_fallback,
-                "timeframe": tf_fallback,
-                "bias": "Neutral",
-                "confidence": 50,
-                "status": "degraded",
-                "reasoning": [
-                    "Live research worker is operating in degraded mode.",
-                    "Market data connection unavailable or MT5 terminal disconnected.",
-                    f"Error detail: {str(e)}"
-                ],
-                "timestamp": datetime.now().isoformat(),
-                "indicators": {}
-            }
+    # Timeframe-safe Memory Fallback (strictly filter memory items by requested symbol AND timeframe)
+    target_tf = (timeframe or "H1").upper()
+    matching_memory = [
+        item for item in global_research_runtime.history
+        if item.Request.Asset.upper() == search_symbol.upper()
+        and item.Request.Context.get("timeframe", "H1").upper() == target_tf
+    ]
 
-    latest = history[-1]
-    po = latest.Findings.get("pipeline_outputs", {})
-    smart = po.get("smart_interpretation", {})
+    if matching_memory:
+        latest = matching_memory[-1]
+        po = latest.Findings.get("pipeline_outputs", {})
+        smart = po.get("smart_interpretation", {})
+        return {
+            "symbol": latest.Request.Asset,
+            "timeframe": latest.Request.Context.get("timeframe", target_tf),
+            "bias": smart.get("bias", "Neutral"),
+            "confidence": smart.get("confidence", 50),
+            "reasoning": smart.get("reasoning", []),
+            "timestamp": latest.CreatedAt.isoformat(),
+            "indicators": po.get("technical_analysis", {})
+        }
+
+    # Deterministic degraded response fallback when no exact (symbol, timeframe) snapshot or memory exists
     return {
-        "symbol": latest.Request.Asset,
-        "timeframe": latest.Request.Context.get("timeframe", "H1"),
-        "bias": smart.get("bias", "Neutral"),
-        "confidence": smart.get("confidence", 50),
-        "reasoning": smart.get("reasoning", []),
-        "timestamp": latest.CreatedAt.isoformat(),
-        "indicators": po.get("technical_analysis", {})
+        "symbol": search_symbol.upper(),
+        "timeframe": target_tf,
+        "bias": "Neutral",
+        "confidence": 50,
+        "status": "degraded",
+        "reasoning": [
+            f"No research snapshot or memory record available for {search_symbol.upper()} {target_tf}.",
+            "Operating in deterministic fallback mode without cross-timeframe data leakage."
+        ],
+        "timestamp": datetime.now().isoformat(),
+        "indicators": {}
     }
 
 
@@ -3864,9 +3863,11 @@ def get_analysis_history(symbol: Optional[str] = "XAUUSD"):
         except Exception:
             pass
 
-    # Memory Fallback
+    # Timeframe-safe Memory Fallback
     if not history_list:
         for item in global_research_runtime.history:
+            if search_symbol and item.Request.Asset.upper() != search_symbol.upper():
+                continue
             po = item.Findings.get("pipeline_outputs", {})
             smart = po.get("smart_interpretation", {})
             history_list.append({

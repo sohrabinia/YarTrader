@@ -237,3 +237,39 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertEqual(data_admin["account_id"], "SYSTEM-AGGREGATE")
         self.assertIn(data_admin["audit_status"], ["AUDITED_LIVE", "IDLE"])
         self.assertGreaterEqual(data_admin["accounts_count"], 1)
+
+    def test_08_mtf_research_api_timeframe_isolation(self):
+        """Verifies that requesting a non-H1 timeframe (e.g. M5) never leaks H1 memory data."""
+        # Clear existing disk snapshots temporarily for test isolation
+        snapshot_dir = "runtime_logs/research_snapshots"
+        saved_files = {}
+        if os.path.exists(snapshot_dir):
+            for f in os.listdir(snapshot_dir):
+                if f.endswith(".json"):
+                    fpath = os.path.join(snapshot_dir, f)
+                    with open(fpath, "r", encoding="utf-8") as file:
+                        saved_files[f] = file.read()
+                    os.remove(fpath)
+
+        try:
+            # 1. Request M5 when no M5 snapshot or M5 memory exists -> must return M5 degraded
+            resp_m5 = self.client.get("/api/research/current?symbol=XAUUSD&timeframe=M5")
+            self.assertEqual(resp_m5.status_code, 200)
+            data_m5 = resp_m5.json()
+            self.assertEqual(data_m5["symbol"], "XAUUSD")
+            self.assertEqual(data_m5["timeframe"], "M5")
+            self.assertEqual(data_m5.get("status"), "degraded")
+
+            # 2. Request H1 -> must return H1
+            resp_h1 = self.client.get("/api/research/current?symbol=XAUUSD&timeframe=H1")
+            self.assertEqual(resp_h1.status_code, 200)
+            data_h1 = resp_h1.json()
+            self.assertEqual(data_h1["symbol"], "XAUUSD")
+            self.assertEqual(data_h1["timeframe"], "H1")
+        finally:
+            # Restore snapshots
+            if saved_files:
+                os.makedirs(snapshot_dir, exist_ok=True)
+                for f, content in saved_files.items():
+                    with open(os.path.join(snapshot_dir, f), "w", encoding="utf-8") as file:
+                        file.write(content)
