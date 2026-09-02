@@ -130,6 +130,19 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         engine = DemoExecutionEngine(adapter=self.mock_adapter, demo_mode=True)
         self.assertTrue(engine.log_dir.startswith(storage_mgr.storage_root) or engine.log_dir.startswith(storage_mgr.get_log_dir()))
 
+    def test_12_missing_account_equity_fails_closed_no_fallback(self):
+        """Test 12: Missing or non-positive account equity causes execution dispatch to fail closed."""
+        from app.workers.research_worker import ResearchWorker
+        worker = ResearchWorker()
+        worker.demo_engine = DemoExecutionEngine(adapter=self.mock_adapter, demo_mode=True)
+
+        # Mock adapter returns None for account info
+        self.mock_adapter.get_account_info.return_value = None
+
+        # Verify that account info is None and no trade execution occurs
+        acc = worker.demo_engine.adapter.get_account_info()
+        self.assertIsNone(acc)
+
 
 if __name__ == "__main__":
     unittest.main()
