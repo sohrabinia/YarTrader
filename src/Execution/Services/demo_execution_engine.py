@@ -168,7 +168,7 @@ class DemoExecutionEngine:
         """
         Submits CLOSE request for position ticket using authoritative broker-reported volume.
         Enforces 120-second minimum holding period unless overridden by EOD flattening.
-        Returns OrderResponse with Status="Placed" or "Closed" if confirmed, or "Failed" if closure is unconfirmed.
+        Fails closed with zero volume fallback if position volume is missing or invalid.
         """
         # 120-second Minimum Hold Invariant Guard
         if open_timestamp is not None and not is_eod_flatten:
@@ -185,24 +185,44 @@ class DemoExecutionEngine:
                     RawResponse={"reason": "MINIMUM_HOLD_VIOLATION"}
                 )
 
-        # Retrieve authoritative position volume if volume not explicitly provided
+        # Retrieve authoritative position volume strictly from broker position lookup if volume not explicitly passed
         close_vol = volume
-        active_positions = self.get_active_positions(symbol=symbol)
-        if active_positions is not None and len(active_positions) > 0:
-            ticket_str = str(position_ticket)
-            target_pos = next((p for p in active_positions if str(p.get("ticket", "")) == ticket_str), None)
-            if close_vol is None and target_pos:
-                close_vol = target_pos.get("volume")
+        ticket_str = str(position_ticket)
 
         if close_vol is None:
-            close_vol = 0.01
+            active_positions = self.get_active_positions(symbol=symbol)
+            target_pos = next((p for p in active_positions if str(p.get("ticket", "")) == ticket_str), None)
+            if target_pos and "volume" in target_pos:
+                close_vol = target_pos.get("volume")
+
+        # Validate close volume strictly: MUST be finite positive number. NO 0.01 FALLBACK!
+        if close_vol is None or isinstance(close_vol, bool):
+            logger.error(f"[DemoExecutionEngine] Close failed: Authoritative volume unavailable for ticket {position_ticket}.")
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10014,
+                Comment=f"Close failed: Authoritative position volume unavailable for ticket {position_ticket}.",
+                RawResponse={"reason": "MISSING_POSITION_VOLUME"}
+            )
 
         try:
-            close_vol_f = float(close_vol) if close_vol is not None and not isinstance(close_vol, bool) else 0.01
+            close_vol_f = float(close_vol)
             if not math.isfinite(close_vol_f) or close_vol_f <= 0:
-                close_vol_f = 0.01
-        except (ValueError, TypeError):
-            close_vol_f = 0.01
+                raise ValueError(f"Non-positive or non-finite volume: {close_vol_f}")
+        except (ValueError, TypeError) as ve:
+            logger.error(f"[DemoExecutionEngine] Close failed: Invalid position volume for ticket {position_ticket}: {ve}")
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10014,
+                Comment=f"Close failed: Authoritative position volume is invalid ({close_vol}) for ticket {position_ticket}.",
+                RawResponse={"reason": "INVALID_CLOSE_VOLUME"}
+            )
 
         req = OrderRequest(
             Symbol=symbol.upper(),
@@ -216,7 +236,6 @@ class DemoExecutionEngine:
 
         # Confirm closure from broker position list
         remaining = self.get_active_positions(symbol=symbol)
-        ticket_str = str(position_ticket)
         still_open = any(str(p.get("ticket", "")) == ticket_str for p in remaining)
 
         if still_open:

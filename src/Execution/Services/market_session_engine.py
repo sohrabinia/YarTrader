@@ -113,7 +113,7 @@ class MarketSessionEngine:
     3. Forex DST & Broker Server timezone handling.
     4. Mandatory Pre-Entry >120s remaining session feasibility check.
     5. Causal Pre-Entry TP-Time Feasibility model.
-    6. Daily Loss Protection Kill Switch (8.0% limit, fail-closed on invalid equity).
+    6. Daily Loss Protection Kill Switch (8.0% limit, fail-closed on missing/invalid equity).
     7. Fail-closed on UNKNOWN state.
     """
 
@@ -266,7 +266,7 @@ class MarketSessionEngine:
         """
         Performs the complete unified Pre-Entry Session, Calendar Feasibility, and Daily Loss Gate.
         Evaluates:
-        1. Daily Loss Protection Kill Switch (requires valid, finite, positive current equity).
+        1. Daily Loss Protection Kill Switch (UNCONDITIONAL: missing/invalid equity fails closed).
         2. Market State (OPEN vs CLOSED vs UNKNOWN vs HOLIDAY_CLOSED).
         3. Pre-Entry 120-second session remaining feasibility (`remaining_session_seconds > 121.0`).
         4. Causal Pre-Entry TP-Time Feasibility.
@@ -275,23 +275,22 @@ class MarketSessionEngine:
         if now.tzinfo is None:
             now = now.replace(tzinfo=timezone.utc)
 
-        # 1. Daily Loss Protection Kill Switch Evaluation
-        if current_equity is not None or session_baseline_equity is not None:
-            ks_allowed, ks_reason, ks_meta = self.kill_switch.evaluate_daily_loss(
-                current_equity=current_equity,
-                session_baseline_equity=session_baseline_equity,
-                now_utc=now
+        # 1. Unconditional Daily Loss Protection Kill Switch Evaluation (Equity missing/invalid -> FAIL CLOSED)
+        ks_allowed, ks_reason, ks_meta = self.kill_switch.evaluate_daily_loss(
+            current_equity=current_equity,
+            session_baseline_equity=session_baseline_equity,
+            now_utc=now
+        )
+        if not ks_allowed:
+            return MarketSessionValidationResult(
+                allowed=False,
+                rejection_reason=ks_reason,
+                market_state=MarketState.CLOSED,
+                active_interval=None,
+                remaining_session_seconds=0.0,
+                source_authority=CalendarSourcePrecedence.GENERIC_FALLBACK,
+                message=f"Trade rejected by Daily Loss Protection Kill Switch: {ks_reason}"
             )
-            if not ks_allowed:
-                return MarketSessionValidationResult(
-                    allowed=False,
-                    rejection_reason=ks_reason,
-                    market_state=MarketState.CLOSED,
-                    active_interval=None,
-                    remaining_session_seconds=0.0,
-                    source_authority=CalendarSourcePrecedence.GENERIC_FALLBACK,
-                    message=f"Trade rejected by Daily Loss Protection Kill Switch: {ks_reason}"
-                )
 
         state, active_interval, source_auth = self.get_market_state(symbol=symbol, broker=broker, current_time=now)
 

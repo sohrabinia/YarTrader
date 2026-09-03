@@ -17,7 +17,8 @@ class DailyLossKillSwitch:
     Safety Invariants:
     1. Explicit numeric equity validation: missing, None, <= 0, NaN, Inf, or malformed equity fails closed.
     2. Zero financial fallback (no 10000.0 or default equity substitution).
-    3. Failure during evaluation or state corruption fails closed.
+    3. Session baseline equity is immutable once established per session (never reset to lower intraday equity).
+    4. Failure during evaluation or state corruption fails closed.
     """
     MAX_DAILY_LOSS_PCT: float = 8.00  # 8.00% hard limit
 
@@ -57,6 +58,20 @@ class DailyLossKillSwitch:
         except Exception as e:
             logger.error(f"[DailyLossKillSwitch] Failed to save state file: {e}")
 
+    def set_session_baseline(self, baseline_equity: Any, session_date_str: Optional[str] = None) -> bool:
+        """Explicitly sets or resets the session baseline equity for a new session boundary."""
+        if baseline_equity is None or isinstance(baseline_equity, bool) or not isinstance(baseline_equity, (int, float)):
+            return False
+        b_val = float(baseline_equity)
+        if not math.isfinite(b_val) or b_val <= 0:
+            return False
+
+        self.baseline_equity = b_val
+        if session_date_str:
+            self.session_date = session_date_str
+        self._save_state()
+        return True
+
     def evaluate_daily_loss(
         self,
         current_equity: Any,
@@ -79,26 +94,25 @@ class DailyLossKillSwitch:
             if not math.isfinite(curr_eq) or curr_eq <= 0:
                 return False, f"KILL_SWITCH_ERROR: current_equity is non-finite or <= 0 ({curr_eq})", {}
 
-            # Determine baseline equity
-            baseline = None
+            # Handle session baseline logic:
+            # Explicit session_baseline_equity overrides if specified for session start
             if session_baseline_equity is not None:
                 if isinstance(session_baseline_equity, (int, float)) and not isinstance(session_baseline_equity, bool):
                     b_val = float(session_baseline_equity)
                     if math.isfinite(b_val) and b_val > 0:
-                        baseline = b_val
-                        self.baseline_equity = b_val
-                        self._save_state()
+                        # Set baseline if not already established or if explicit new baseline provided
+                        if self.baseline_equity is None:
+                            self.baseline_equity = b_val
+                            self._save_state()
 
-            if baseline is None:
-                if self.baseline_equity is not None and math.isfinite(self.baseline_equity) and self.baseline_equity > 0:
-                    baseline = self.baseline_equity
-                else:
-                    # First evaluation or uninitialized session baseline: record current equity as session baseline
-                    baseline = curr_eq
-                    self.baseline_equity = curr_eq
-                    self._save_state()
+            # If still no baseline, establish baseline from first current_equity
+            if self.baseline_equity is None or not math.isfinite(self.baseline_equity) or self.baseline_equity <= 0:
+                self.baseline_equity = curr_eq
+                self._save_state()
 
-            # Calculate loss percentage
+            baseline = self.baseline_equity
+
+            # Calculate loss percentage against immutable session baseline
             loss_usd = baseline - curr_eq
             loss_pct = (loss_usd / baseline) * 100.0
 

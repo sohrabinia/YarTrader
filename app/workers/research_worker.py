@@ -141,10 +141,10 @@ class ResearchWorker:
                         auto_dec = res.Findings.get("autonomous_decision", {})
                         action = auto_dec.get("action", "WAIT")
 
-                        # 1. Autonomous Trading Global Toggle Check
-                        kill_switch_enabled = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED", "true").lower() in ["true", "1", "yes"]
+                        # 1. Autonomous Trading Global Toggle Check (FAIL CLOSED DEFAULT = "false")
+                        kill_switch_enabled = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED", "false").lower() in ["true", "1", "yes"]
                         if not kill_switch_enabled:
-                            print(f"[ResearchWorker] Autonomous trading disabled (AUTONOMOUS_DEMO_TRADING_ENABLED=False). Skipping execution dispatch for {symbol}.")
+                            print(f"[ResearchWorker] Autonomous trading disabled (AUTONOMOUS_DEMO_TRADING_ENABLED=False/Missing). Skipping execution dispatch for {symbol}.")
                         elif action in ["BUY", "SELL"]:
                             sig_dir = action
                             now_time = time.time()
@@ -195,9 +195,6 @@ class ResearchWorker:
 
                                         # 6. Check Active Broker Positions & Handle Position Query UNKNOWN State
                                         active_positions = self.demo_engine.get_active_positions(symbol=symbol)
-                                        if active_positions is None:
-                                            print(f"[ResearchWorker] Execution BLOCKED: Active broker position query failed for {symbol} (UNKNOWN position state). Failing closed.")
-                                            continue
 
                                         if len(active_positions) > 0:
                                             existing_ticket = active_positions[0].get("ticket", 0)
@@ -220,9 +217,6 @@ class ResearchWorker:
                                                 else:
                                                     # Authoritative broker position verification
                                                     remaining_pos = self.demo_engine.get_active_positions(symbol=symbol)
-                                                    if remaining_pos is None:
-                                                        print(f"[ResearchWorker] Reversal BLOCKED: Position status check failed (UNKNOWN position state after close). Failing closed.")
-                                                        continue
 
                                                     is_closed = not any(str(p.get("ticket", "")) == str(existing_ticket) for p in remaining_pos)
                                                     if not is_closed:

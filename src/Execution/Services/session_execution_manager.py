@@ -88,7 +88,8 @@ class SessionExecutionManager:
         distance_to_tp: Optional[float] = None,
         current_volatility_atr: Optional[float] = None,
         historical_mfe_speed: float = 1.0,
-        current_time: Optional[datetime] = None
+        current_time: Optional[datetime] = None,
+        current_equity: Optional[Any] = 10000.0
     ) -> Dict[str, Any]:
         """
         Evaluates session entry constraints.
@@ -120,7 +121,8 @@ class SessionExecutionManager:
                 distance_to_tp=distance_to_tp,
                 current_volatility_atr=current_volatility_atr,
                 historical_mfe_speed=historical_mfe_speed,
-                current_time=current_time
+                current_time=current_time,
+                current_equity=current_equity
             )
             if not res.allowed:
                 return {

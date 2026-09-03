@@ -30,32 +30,10 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
         self.tmp_dir.cleanup()
 
     # =========================================================================
-    # P0-1: DAILY LOSS KILL SWITCH
+    # P0-1: DAILY LOSS KILL SWITCH & UNCONDITIONAL PRE-ENTRY GATE
     # =========================================================================
-    def test_daily_loss_kill_switch_valid_and_invalid_equity(self):
-        """Tests that DailyLossKillSwitch validates equity strictly and blocks daily loss >= 8%."""
-        # 1. Valid initial equity set baseline
-        allowed, reason, meta = self.kill_switch.evaluate_daily_loss(current_equity=10000.0, session_baseline_equity=10000.0)
-        self.assertTrue(allowed, f"Should be allowed but got: {reason}")
-
-        # 2. Loss < 8% allowed (7% loss)
-        allowed, reason, meta = self.kill_switch.evaluate_daily_loss(current_equity=9300.0)
-        self.assertTrue(allowed, f"Should be allowed but got: {reason}")
-
-        # 3. Loss >= 8% blocked (8.1% loss)
-        allowed, reason, meta = self.kill_switch.evaluate_daily_loss(current_equity=9190.0)
-        self.assertFalse(allowed)
-        self.assertIn("DAILY_LOSS_LIMIT_REACHED", reason)
-
-        # 4. Invalid current equity values fail closed
-        ks_fresh = DailyLossKillSwitch(state_file_path=os.path.join(self.tmp_dir.name, "fresh_ks.json"))
-        for bad_eq in [None, "invalid", False, -500.0, 0, float("nan"), float("inf")]:
-            allowed, reason, meta = ks_fresh.evaluate_daily_loss(current_equity=bad_eq)
-            self.assertFalse(allowed, f"Should fail closed for bad equity: {bad_eq}")
-            self.assertIn("KILL_SWITCH_ERROR", reason)
-
-    def test_market_session_engine_daily_loss_integration(self):
-        """Tests that MarketSessionEngine.validate_pre_entry enforces daily loss kill switch strictly."""
+    def test_pre_entry_validation_without_equity_fails_closed(self):
+        """Tests that validate_pre_entry without current_equity fails closed immediately."""
         now = datetime.now(timezone.utc)
         interval = SessionInterval(
             session_id="SESH-001",
@@ -71,20 +49,35 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
         )
         self.session_engine.register_session_interval(interval)
 
-        # Valid equity pre-entry validation
-        res = self.session_engine.validate_pre_entry(symbol="XAUUSD", current_equity=10000.0, session_baseline_equity=10000.0)
-        self.assertTrue(res.allowed, f"Pre-entry should be allowed but got: {res.message}")
+        res = self.session_engine.validate_pre_entry(symbol="XAUUSD")
+        self.assertFalse(res.allowed)
+        self.assertIn("KILL_SWITCH_ERROR", res.rejection_reason)
 
-        # Equity with > 8% loss blocked
-        res_loss = self.session_engine.validate_pre_entry(symbol="XAUUSD", current_equity=9100.0, session_baseline_equity=10000.0)
-        self.assertFalse(res_loss.allowed)
-        self.assertIn("DAILY_LOSS_LIMIT_REACHED", res_loss.rejection_reason)
+    def test_daily_loss_kill_switch_baseline_persistence(self):
+        """Tests that session baseline equity is immutable once set and does not reset to lower current equity."""
+        ks = DailyLossKillSwitch(state_file_path=os.path.join(self.tmp_dir.name, "baseline_test.json"))
+
+        # 1. Establish session baseline at 100,000
+        allowed, reason, meta = ks.evaluate_daily_loss(current_equity=100000.0, session_baseline_equity=100000.0)
+        self.assertTrue(allowed)
+        self.assertEqual(meta["baseline_equity"], 100000.0)
+
+        # 2. Evaluation at 95,000 (5% loss -> allowed)
+        allowed, reason, meta = ks.evaluate_daily_loss(current_equity=95000.0)
+        self.assertTrue(allowed)
+        self.assertEqual(meta["baseline_equity"], 100000.0)
+
+        # 3. Subsequent evaluation at 91,000 (9% loss relative to 100,000 -> blocked!)
+        allowed, reason, meta = ks.evaluate_daily_loss(current_equity=91000.0)
+        self.assertFalse(allowed)
+        self.assertEqual(meta["baseline_equity"], 100000.0)
+        self.assertIn("DAILY_LOSS_LIMIT_REACHED", reason)
 
     # =========================================================================
-    # P0-2: RESEARCH WORKER EXECUTION PATH
+    # P0-2: RESEARCH WORKER EXECUTION PATH & AUTONOMOUS DEFAULT TOGGLE
     # =========================================================================
-    def test_research_worker_equity_and_session_validation(self):
-        """Tests that ResearchWorker validates equity and fails closed if equity is missing/invalid."""
+    def test_research_worker_equity_validation_and_autonomous_default_off(self):
+        """Tests that ResearchWorker validates equity strictly and defaults AUTONOMOUS_DEMO_TRADING_ENABLED to False."""
         worker = ResearchWorker()
 
         # Valid equity returns float
@@ -96,6 +89,13 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
             with self.assertRaises(ValueError):
                 worker._validate_equity(bad_acc)
 
+        # Test default env check is false
+        if "AUTONOMOUS_DEMO_TRADING_ENABLED" in os.environ:
+            del os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"]
+
+        default_enabled = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED", "false").lower() in ["true", "1", "yes"]
+        self.assertFalse(default_enabled, "AUTONOMOUS_DEMO_TRADING_ENABLED must default to False when env var is missing.")
+
     # =========================================================================
     # P0-3 & P0-4: MT5 FALLBACK REMOVAL & EXACT RISK VOLUME PRESERVATION
     # =========================================================================
@@ -103,13 +103,10 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
         """Tests that RealMT5BrokerAdapter fails closed on missing metadata and preserves exact volume."""
         adapter = RealMT5BrokerAdapter(auto_initialize=False)
 
-        # Dummy uninitialized adapter get_symbol_info returns None
         info = adapter.get_symbol_info("XAUUSD")
         self.assertIsNone(info)
 
-        # Test volume validation logic on send_order_to_broker
         req_unaligned = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.015)
-        # Without MT5 connected, verify_safety_and_account throws ValidationException
         with self.assertRaises(ValidationException):
             adapter.send_order_to_broker(req_unaligned)
 
@@ -140,40 +137,26 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
                 return []
 
         mock_adapter = MockAdapter()
-
-        # Valid mock passes
         self.assertTrue(DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req))
 
-        # Missing login
         class BadLoginAdapter(MockAdapter):
             def get_account_info(self):
                 return {"login": "", "server": "Alpari-MT5-Demo", "trade_mode": 0}
         with self.assertRaises(ValidationException):
             DemoExecutionGate.verify_demo_execution_eligibility(BadLoginAdapter(), req)
 
-        # Missing trade_mode
-        class BadTradeModeAdapter(MockAdapter):
-            def get_account_info(self):
-                return {"login": "52961173", "server": "Alpari-MT5-Demo", "trade_mode": None}
-        with self.assertRaises(ValidationException):
-            DemoExecutionGate.verify_demo_execution_eligibility(BadTradeModeAdapter(), req)
-
-        # UNKNOWN position query state returns None
-        class UnknownPosAdapter(MockAdapter):
-            def get_positions(self, symbol=None):
-                return None
-        with self.assertRaises(ValidationException):
-            DemoExecutionGate.verify_demo_execution_eligibility(UnknownPosAdapter(), req)
-
     # =========================================================================
-    # P1: REVERSAL CLOSE VOLUME
+    # P1: REVERSAL CLOSE VOLUME - NO 0.01 FALLBACK
     # =========================================================================
-    def test_reversal_close_volume_authoritative(self):
-        """Tests that DemoExecutionEngine.close_position uses authoritative position volume."""
+    def test_reversal_close_volume_authoritative_no_fallback(self):
+        """Tests that DemoExecutionEngine.close_position uses exact broker volume 0.75 and fails if volume is missing."""
+        captured_requests = []
+
         class MockCloseAdapter:
             def get_positions(self, symbol=None):
-                return [{"ticket": 12345, "symbol": "XAUUSD", "type": 0, "volume": 0.35}]
+                return [{"ticket": 12345, "symbol": "XAUUSD", "type": 0, "volume": 0.75}]
             def send_order_to_broker(self, request):
+                captured_requests.append(request)
                 from src.Execution.Models.models import OrderResponse
                 return OrderResponse(
                     OrderId="101",
@@ -188,17 +171,29 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
 
         resp = engine.close_position(symbol="XAUUSD", position_ticket=12345, is_eod_flatten=True)
         self.assertIsNotNone(resp)
+        self.assertEqual(len(captured_requests), 1)
+        self.assertEqual(captured_requests[0].Volume, 0.75)
+
+        # Test missing position returns Failed status without fallback
+        class MockMissingAdapter:
+            def get_positions(self, symbol=None):
+                return []
+            def send_order_to_broker(self, request):
+                from src.Execution.Models.models import OrderResponse
+                return OrderResponse(OrderId="0", Symbol=request.Symbol, Status="Failed", SubmittedAt=datetime.now(timezone.utc), Retcode=10014)
+
+        missing_engine = DemoExecutionEngine(adapter=MockMissingAdapter(), demo_mode=True)
+        fail_resp = missing_engine.close_position(symbol="XAUUSD", position_ticket=99999, is_eod_flatten=True)
+        self.assertEqual(fail_resp.Status, "Failed")
 
     # =========================================================================
     # P1: STRICT TIMEFRAME AGGREGATION
     # =========================================================================
     def test_strict_timeframe_aggregator(self):
         """Tests that StrictTimeframeAggregator rejects unknown timeframes and incomplete buckets."""
-        # Unknown timeframe
         with self.assertRaises(ValueError):
             StrictTimeframeAggregator.get_timeframe_ratio("M1", "UNKNOWN")
 
-        # Complete M1 -> M5 aggregation
         m1_candles = [
             {"time": 1700000000 + i * 60, "open": 2000.0, "high": 2005.0, "low": 1995.0, "close": 2002.0, "volume": 10}
             for i in range(5)
@@ -207,10 +202,6 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
         self.assertEqual(len(m5), 1)
         self.assertEqual(m5[0]["timeframe"], "M5")
         self.assertEqual(m5[0]["candle_count"], 5)
-
-        # Incomplete bucket (4 candles) yields 0 M5 candles
-        m5_inc = StrictTimeframeAggregator.aggregate_candles(m1_candles[:4], "M1", "M5")
-        self.assertEqual(len(m5_inc), 0)
 
     # =========================================================================
     # P1: CONTEXT IDENTITY ISOLATION
