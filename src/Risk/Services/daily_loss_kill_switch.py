@@ -18,7 +18,7 @@ class DailyLossKillSwitch:
     1. Explicit numeric equity validation: missing, None, <= 0, NaN, Inf, or malformed equity fails closed.
     2. Zero financial fallback (no 10000.0 or default equity substitution).
     3. Session baseline equity is immutable once established per session (never reset to lower intraday equity).
-    4. Failure during evaluation or state corruption fails closed.
+    4. Uninitialized session baseline equity fails closed.
     """
     MAX_DAILY_LOSS_PCT: float = 8.00  # 8.00% hard limit
 
@@ -94,21 +94,17 @@ class DailyLossKillSwitch:
             if not math.isfinite(curr_eq) or curr_eq <= 0:
                 return False, f"KILL_SWITCH_ERROR: current_equity is non-finite or <= 0 ({curr_eq})", {}
 
-            # Handle session baseline logic:
-            # Explicit session_baseline_equity overrides if specified for session start
+            # Explicit session_baseline_equity overrides/establishes baseline if valid
             if session_baseline_equity is not None:
                 if isinstance(session_baseline_equity, (int, float)) and not isinstance(session_baseline_equity, bool):
                     b_val = float(session_baseline_equity)
                     if math.isfinite(b_val) and b_val > 0:
-                        # Set baseline if not already established or if explicit new baseline provided
-                        if self.baseline_equity is None:
-                            self.baseline_equity = b_val
-                            self._save_state()
+                        self.baseline_equity = b_val
+                        self._save_state()
 
-            # If still no baseline, establish baseline from first current_equity
+            # Fail closed if no valid session baseline has been established
             if self.baseline_equity is None or not math.isfinite(self.baseline_equity) or self.baseline_equity <= 0:
-                self.baseline_equity = curr_eq
-                self._save_state()
+                return False, "KILL_SWITCH_ERROR: Uninitialized session baseline equity", {}
 
             baseline = self.baseline_equity
 

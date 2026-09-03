@@ -195,7 +195,7 @@ class DemoExecutionEngine:
             if target_pos and "volume" in target_pos:
                 close_vol = target_pos.get("volume")
 
-        # Validate close volume strictly: MUST be finite positive number. NO 0.01 FALLBACK!
+        # Validate close volume strictly: MUST be finite positive float. ZERO FALLBACK TO 0.01!
         if close_vol is None or isinstance(close_vol, bool):
             logger.error(f"[DemoExecutionEngine] Close failed: Authoritative volume unavailable for ticket {position_ticket}.")
             return OrderResponse(
