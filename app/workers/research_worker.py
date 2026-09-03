@@ -70,6 +70,126 @@ class ResearchWorker:
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=5.0)
 
+    def _validate_and_size_decision(self, symbol: str, sig_dir: str, decision_dict: dict) -> Optional[Dict[str, Any]]:
+        """
+        Canonical Fail-Closed Validation & 0.5% Risk Position Sizing Pipeline.
+        Returns a dict with validated parameters and calculated volume_lots, or None if validation fails.
+        """
+        if not self.demo_engine or not hasattr(self.demo_engine, "adapter"):
+            print(f"[ResearchWorker] Execution BLOCKED: Demo execution engine or adapter unavailable. Failing closed.")
+            return None
+
+        # 1. Obtain & Validate Authoritative Broker Account Info
+        try:
+            acc_info = self.demo_engine.adapter.get_account_info()
+        except Exception as acc_err:
+            print(f"[ResearchWorker] Broker get_account_info raised error: {acc_err}")
+            acc_info = None
+
+        if not acc_info or not isinstance(acc_info, dict):
+            print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account info unavailable or invalid (acc_info={acc_info}). Failing closed.")
+            return None
+
+        raw_equity = acc_info.get("equity")
+        equity_val = -1.0
+        if raw_equity is not None:
+            try:
+                equity_val = float(raw_equity)
+            except (ValueError, TypeError):
+                equity_val = -1.0
+
+        if equity_val <= 0 or math.isnan(equity_val) or math.isinf(equity_val):
+            print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account equity unavailable or invalid (equity={raw_equity}). Failing closed.")
+            return None
+
+        raw_margin = acc_info.get("free_margin")
+        free_margin_val = equity_val
+        if raw_margin is not None:
+            try:
+                m_val = float(raw_margin)
+                if not math.isnan(m_val) and not math.isinf(m_val):
+                    free_margin_val = m_val
+            except (ValueError, TypeError):
+                free_margin_val = equity_val
+
+        # 2. Obtain & Validate Authoritative Broker Symbol Metadata
+        sym_info = self.demo_engine.adapter.get_symbol_info(symbol) if hasattr(self.demo_engine.adapter, "get_symbol_info") else None
+        if not sym_info or not isinstance(sym_info, dict) or "volume_min" not in sym_info or "volume_max" not in sym_info or "volume_step" not in sym_info:
+            print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker symbol info unavailable or missing volume limits for {symbol} (sym_info={sym_info}). Failing closed.")
+            return None
+
+        try:
+            vol_min = float(sym_info["volume_min"])
+            vol_max = float(sym_info["volume_max"])
+            vol_step = float(sym_info["volume_step"])
+        except (ValueError, TypeError):
+            vol_min = vol_max = vol_step = -1.0
+
+        if vol_min <= 0 or vol_max <= 0 or vol_step <= 0 or math.isnan(vol_min) or math.isinf(vol_min):
+            print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker symbol volume limits invalid for {symbol} (min={vol_min}, max={vol_max}, step={vol_step}). Failing closed.")
+            return None
+
+        # 3. Validate Entry Price and Stop Loss Parameters Without Fallbacks
+        raw_price = decision_dict.get("entry")
+        raw_sl = decision_dict.get("stop_loss")
+        raw_tp = decision_dict.get("take_profit")
+
+        price_val = -1.0
+        sl_val = -1.0
+        if raw_price is not None and raw_sl is not None:
+            try:
+                price_val = float(raw_price)
+                sl_val = float(raw_sl)
+            except (ValueError, TypeError):
+                price_val = sl_val = -1.0
+
+        is_valid_prices = (
+            price_val > 0 and sl_val > 0 and
+            not math.isnan(price_val) and not math.isinf(price_val) and
+            not math.isnan(sl_val) and not math.isinf(sl_val)
+        )
+
+        if is_valid_prices:
+            if sig_dir == "BUY" and sl_val >= price_val:
+                is_valid_prices = False
+            elif sig_dir == "SELL" and sl_val <= price_val:
+                is_valid_prices = False
+
+        if not is_valid_prices:
+            print(f"[ResearchWorker] Execution BLOCKED: Decision entry/SL parameters missing or invalid for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}). Failing closed.")
+            return None
+
+        # 4. Calculate 0.5% Risk Position Sizing
+        from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+        risk_engine = ProfessionalRiskEngine()
+
+        sizing_res = risk_engine.evaluate_equity_risk_and_position_size(
+            symbol=symbol,
+            direction=sig_dir,
+            entry_price=price_val,
+            stop_loss=sl_val,
+            account_equity=equity_val,
+            free_margin=free_margin_val,
+            risk_pct=0.5,
+            volume_min=vol_min,
+            volume_max=vol_max,
+            volume_step=vol_step
+        )
+
+        if not sizing_res.is_valid:
+            print(f"[ResearchWorker] Position sizing rejected for {symbol} {sig_dir}: {sizing_res.rejection_reason}")
+            return None
+
+        return {
+            "equity": equity_val,
+            "free_margin": free_margin_val,
+            "price": price_val,
+            "sl": sl_val,
+            "tp": float(raw_tp) if raw_tp is not None else None,
+            "volume_lots": sizing_res.volume_lots,
+            "risk_budget_usd": sizing_res.risk_budget_usd
+        }
+
     def _run_loop(self) -> None:
         """Worker loop running on the background thread."""
         try:
@@ -202,21 +322,17 @@ class ResearchWorker:
                                                         reassess_action = reassess_dec.get("action", "WAIT")
 
                                                         if reassess_action == sig_dir:
-                                                            # Extract execution parameters STRICTLY from reassess_dec (NO fallback to auto_dec)
-                                                            rev_price = reassess_dec.get("entry")
-                                                            rev_sl = reassess_dec.get("stop_loss")
-                                                            rev_tp = reassess_dec.get("take_profit")
-                                                            rev_vol = reassess_dec.get("volume", 0.01)
-
-                                                            if rev_price and rev_sl and rev_tp and float(rev_price) > 0 and float(rev_sl) > 0 and float(rev_tp) > 0:
+                                                            # Run Reversal Decision through Canonical Validation & 0.5% Risk Position Sizing
+                                                            rev_sized = self._validate_and_size_decision(symbol, sig_dir, reassess_dec)
+                                                            if rev_sized:
                                                                 decision_id = f"DEC-REV-{symbol.upper()}-{sig_dir}-{int(sig_time)}"
                                                                 exec_resp = self.demo_engine.execute_demo_decision(
                                                                     symbol=symbol,
                                                                     direction=sig_dir,
-                                                                    volume=float(rev_vol),
-                                                                    price=float(rev_price),
-                                                                    sl=float(rev_sl),
-                                                                    tp=float(rev_tp),
+                                                                    volume=rev_sized["volume_lots"],
+                                                                    price=rev_sized["price"],
+                                                                    sl=rev_sized["sl"],
+                                                                    tp=rev_sized["tp"],
                                                                     comment=f"YarTrader REV {symbol}",
                                                                     magic=143056,
                                                                     decision_id=decision_id
@@ -229,139 +345,38 @@ class ResearchWorker:
                                                                 }
                                                                 print(f"[ResearchWorker] Reversal DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
                                                             else:
-                                                                print(f"[ResearchWorker] Reversal BLOCKED: Fresh reassessment decision for {symbol} missing required execution parameters (entry={rev_price}, sl={rev_sl}, tp={rev_tp}). Remaining flat.")
+                                                                print(f"[ResearchWorker] Reversal BLOCKED: Reassessment decision for {symbol} failed validation / position sizing. Remaining flat.")
                                                         else:
                                                             print(f"[ResearchWorker] Reversal aborted: Reassessment action for {symbol} is {reassess_action} (opposite entry not independently confirmed). Remaining flat.")
                                         else:
                                             # Flat state: Canonical Single Execution Path
-                                            # STEP 1: Obtain authoritative broker account information
-                                            acc_info = None
-                                            if self.demo_engine and hasattr(self.demo_engine, "adapter") and hasattr(self.demo_engine.adapter, "get_account_info"):
-                                                try:
-                                                    acc_info = self.demo_engine.adapter.get_account_info()
-                                                except Exception as acc_err:
-                                                    print(f"[ResearchWorker] Broker get_account_info raised error: {acc_err}")
-                                                    acc_info = None
+                                            flat_sized = self._validate_and_size_decision(symbol, sig_dir, auto_dec)
+                                            if flat_sized:
+                                                calculated_vol = flat_sized["volume_lots"]
+                                                decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
 
-                                            # STEP 2 & 3 & 4: Validate account information, equity, and free margin
-                                            if not acc_info or not isinstance(acc_info, dict):
-                                                print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account info unavailable or invalid (acc_info={acc_info}). Failing closed.")
-                                            else:
-                                                raw_equity = acc_info.get("equity")
-                                                equity_val = -1.0
-                                                if raw_equity is not None:
-                                                    try:
-                                                        equity_val = float(raw_equity)
-                                                    except (ValueError, TypeError):
-                                                        equity_val = -1.0
+                                                print(f"[ResearchWorker] Actionable decision detected for {symbol}: {sig_dir} with 0.5% risk volume = {calculated_vol} lots (Equity=${flat_sized['equity']}). Dispatching...")
+                                                exec_resp = self.demo_engine.execute_demo_decision(
+                                                    symbol=symbol,
+                                                    direction=sig_dir,
+                                                    volume=calculated_vol,
+                                                    price=flat_sized["price"],
+                                                    sl=flat_sized["sl"],
+                                                    tp=flat_sized["tp"],
+                                                    comment=f"YarTrader DEMO {symbol}",
+                                                    magic=143056,
+                                                    decision_id=decision_id
+                                                )
 
-                                                if equity_val <= 0 or math.isnan(equity_val) or math.isinf(equity_val):
-                                                    print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account equity unavailable or invalid (acc_info={acc_info}). Failing closed.")
-                                                else:
-                                                    raw_margin = acc_info.get("free_margin")
-                                                    free_margin_val = equity_val
-                                                    if raw_margin is not None:
-                                                        try:
-                                                            m_val = float(raw_margin)
-                                                            if not math.isnan(m_val) and not math.isinf(m_val):
-                                                                free_margin_val = m_val
-                                                        except (ValueError, TypeError):
-                                                            free_margin_val = equity_val
+                                                # Update execution state exactly once after successful execution dispatch
+                                                self.last_executed_signal[symbol.upper()] = {
+                                                    "direction": sig_dir,
+                                                    "sig_time": sig_time,
+                                                    "exec_time": now_time,
+                                                    "decision_id": decision_id
+                                                }
 
-                                                    # STEP 5 & 6: Obtain & validate broker symbol information
-                                                    sym_info = self.demo_engine.adapter.get_symbol_info(symbol) if self.demo_engine and hasattr(self.demo_engine, "adapter") and hasattr(self.demo_engine.adapter, "get_symbol_info") else None
-                                                    if not sym_info or not isinstance(sym_info, dict) or "volume_min" not in sym_info or "volume_max" not in sym_info or "volume_step" not in sym_info:
-                                                        print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker symbol info unavailable or missing volume limits for {symbol} (sym_info={sym_info}). Failing closed.")
-                                                    else:
-                                                        try:
-                                                            vol_min = float(sym_info["volume_min"])
-                                                            vol_max = float(sym_info["volume_max"])
-                                                            vol_step = float(sym_info["volume_step"])
-                                                        except (ValueError, TypeError):
-                                                            vol_min = vol_max = vol_step = -1.0
-
-                                                        if vol_min <= 0 or vol_max <= 0 or vol_step <= 0 or math.isnan(vol_min) or math.isinf(vol_min):
-                                                            print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker symbol volume limits invalid for {symbol} (min={vol_min}, max={vol_max}, step={vol_step}). Failing closed.")
-                                                        else:
-                                                            # STEP 7: Validate decision entry price and stop loss without fallbacks
-                                                            raw_price = auto_dec.get("entry")
-                                                            raw_sl = auto_dec.get("stop_loss")
-                                                            sig_tp = auto_dec.get("take_profit")
-
-                                                            price_val = -1.0
-                                                            sl_val = -1.0
-                                                            if raw_price is not None and raw_sl is not None:
-                                                                try:
-                                                                    price_val = float(raw_price)
-                                                                    sl_val = float(raw_sl)
-                                                                except (ValueError, TypeError):
-                                                                    price_val = sl_val = -1.0
-
-                                                            is_valid_prices = (
-                                                                price_val > 0 and sl_val > 0 and
-                                                                not math.isnan(price_val) and not math.isinf(price_val) and
-                                                                not math.isnan(sl_val) and not math.isinf(sl_val)
-                                                            )
-
-                                                            if is_valid_prices:
-                                                                if sig_dir == "BUY" and sl_val >= price_val:
-                                                                    is_valid_prices = False
-                                                                elif sig_dir == "SELL" and sl_val <= price_val:
-                                                                    is_valid_prices = False
-
-                                                            if not is_valid_prices:
-                                                                print(f"[ResearchWorker] Execution BLOCKED: Decision entry/SL parameters missing or invalid for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}). Failing closed.")
-                                                            else:
-                                                                sig_price = price_val
-                                                                sig_sl = sl_val
-
-                                                                # STEP 8: Calculate 0.5% risk sizing from validated account equity and prices
-                                                                from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
-                                                                risk_engine = ProfessionalRiskEngine()
-
-                                                                sizing_res = risk_engine.evaluate_equity_risk_and_position_size(
-                                                                    symbol=symbol,
-                                                                    direction=sig_dir,
-                                                                    entry_price=sig_price,
-                                                                    stop_loss=sig_sl,
-                                                                    account_equity=equity_val,
-                                                                    free_margin=free_margin_val,
-                                                                    risk_pct=0.5,
-                                                                    volume_min=vol_min,
-                                                                    volume_max=vol_max,
-                                                                    volume_step=vol_step
-                                                                )
-
-                                                                # STEP 9: Validate sizing
-                                                                if not sizing_res.is_valid:
-                                                                    print(f"[ResearchWorker] Position sizing rejected for {symbol} {sig_dir}: {sizing_res.rejection_reason}")
-                                                                else:
-                                                                    # STEP 10: Execute through canonical DemoExecutionGate
-                                                                    calculated_vol = sizing_res.volume_lots
-                                                                    decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
-
-                                                                    print(f"[ResearchWorker] Actionable decision detected for {symbol}: {sig_dir} with 0.5% risk volume = {calculated_vol} lots (Equity=${equity_val}). Dispatching...")
-                                                                    exec_resp = self.demo_engine.execute_demo_decision(
-                                                                        symbol=symbol,
-                                                                        direction=sig_dir,
-                                                                        volume=calculated_vol,
-                                                                        price=sig_price,
-                                                                        sl=sig_sl,
-                                                                        tp=sig_tp,
-                                                                        comment=f"YarTrader DEMO {symbol}",
-                                                                        magic=143056,
-                                                                        decision_id=decision_id
-                                                                    )
-
-                                                                    # STEP 11: Update execution state exactly once after successful execution dispatch
-                                                                    self.last_executed_signal[symbol.upper()] = {
-                                                                        "direction": sig_dir,
-                                                                        "sig_time": sig_time,
-                                                                        "exec_time": now_time,
-                                                                        "decision_id": decision_id
-                                                                    }
-
-                                                                    print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+                                                print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
                                     except Exception as exec_err:
                                         print(f"[ResearchWorker] DEMO Execution Gate / Fail-Closed: {exec_err}")
                         else:

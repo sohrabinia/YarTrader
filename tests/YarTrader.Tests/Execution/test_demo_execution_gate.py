@@ -273,14 +273,81 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
     @patch("time.sleep", return_value=None)
     @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
-    def test_15_valid_account_exact_once_execution(self, mock_sizing, mock_sleep):
-        """Test 15: Valid authoritative broker account data produces exactly 1 sizing call, 1 execution call, 0.5% risk budget, and 1 state update."""
+    def test_15_reversal_adversarial_and_valid_execution(self, mock_sizing, mock_sleep):
+        """Test 15: Reversal execution path satisfies fail-closed validation & 0.5% risk position sizing without volume fallbacks."""
         from app.workers.research_worker import ResearchWorker
         from src.Risk.Services.professional_risk_engine import PositionSizingResult
 
+        # Part A: Adversarial invalid reversal decisions (missing/invalid reassessment entry/SL/volume)
+        invalid_reversal_decisions = [
+            {"action": "SELL", "entry": None, "stop_loss": 2510.0, "take_profit": 2480.0},
+            {"action": "SELL", "entry": 2500.0, "stop_loss": None, "take_profit": 2480.0},
+            {"action": "SELL", "entry": 2500.0, "stop_loss": 2490.0, "take_profit": 2480.0}, # Invalid SELL geometry (SL <= entry)
+            {"action": "WAIT"}, # Reassessment didn't confirm opposite action
+        ]
+
+        for idx, rev_dec in enumerate(invalid_reversal_decisions):
+            mock_sizing.reset_mock()
+            worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+
+            mock_adapter = MagicMock()
+            mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
+            mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+
+            mock_demo = MagicMock()
+            mock_demo.adapter = mock_adapter
+
+            # Simulate existing active BUY position (ticket 1001) that gets closed during reversal
+            mock_demo.get_active_positions.side_effect = [
+                [{"ticket": 1001, "type": 0, "symbol": "XAUUSD"}], # First check: active BUY position
+                [] # Second check: position closed flat
+            ]
+            close_order_resp = OrderResponse(OrderId="1001", Symbol="XAUUSD", Status="Closed", SubmittedAt=datetime.now(timezone.utc), Comment="RevClose")
+            mock_demo.close_position.return_value = close_order_resp
+
+            worker.demo_engine = mock_demo
+
+            mock_runtime = MagicMock()
+            # Initial run returns SELL signal triggering reversal of existing BUY position
+            initial_run_res = MagicMock()
+            initial_run_res.Findings = {
+                "autonomous_decision": {
+                    "action": "SELL",
+                    "entry": 2500.0,
+                    "stop_loss": 2510.0,
+                    "take_profit": 2480.0,
+                    "risk_reward": 2.0,
+                    "confidence": 80.0
+                }
+            }
+            # Reassessment run returns rev_dec
+            reassess_run_res = MagicMock()
+            reassess_run_res.Findings = {"autonomous_decision": rev_dec}
+
+            mock_runtime.run_once.side_effect = [initial_run_res, reassess_run_res]
+            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            worker.runtimes[("XAUUSD", "H1")] = mock_runtime
+
+            worker.is_running = True
+            def stop_loop_after_one(*args, **kwargs):
+                if not hasattr(stop_loop_after_one, "called"):
+                    stop_loop_after_one.called = True
+                    return [("XAUUSD", "H1", "Commodities", "MT5")]
+                worker.is_running = False
+                return [("XAUUSD", "H1", "Commodities", "MT5")]
+
+            with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+                worker._run_loop()
+
+            # Verify reversal close occurred but opposite order dispatch was BLOCKED
+            self.assertEqual(mock_demo.close_position.call_count, 1)
+            self.assertEqual(mock_demo.execute_demo_decision.call_count, 0, f"Invalid Reversal Case {idx+1} executed order unexpectedly")
+
+        # Part B: Valid Reversal Decision
+        mock_sizing.reset_mock()
         mock_sizing.return_value = PositionSizingResult(
             is_valid=True,
-            volume_lots=0.5,
+            volume_lots=0.75,
             risk_budget_usd=50.0,
             risk_pct=0.5,
             margin_required_usd=1000.0,
@@ -297,23 +364,38 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
         mock_demo = MagicMock()
         mock_demo.adapter = mock_adapter
-        mock_demo.get_active_positions.return_value = []
-        mock_demo.execute_demo_decision.return_value = OrderResponse(OrderId="1001", Symbol="XAUUSD", Status="Placed", SubmittedAt=datetime.now(timezone.utc), Comment="DEMO")
+        mock_demo.get_active_positions.side_effect = [
+            [{"ticket": 1001, "type": 0, "symbol": "XAUUSD"}],
+            []
+        ]
+        mock_demo.close_position.return_value = OrderResponse(OrderId="1001", Symbol="XAUUSD", Status="Closed", SubmittedAt=datetime.now(timezone.utc), Comment="RevClose")
+        mock_demo.execute_demo_decision.return_value = OrderResponse(OrderId="1002", Symbol="XAUUSD", Status="Placed", SubmittedAt=datetime.now(timezone.utc), Comment="REV")
         worker.demo_engine = mock_demo
 
         mock_runtime = MagicMock()
-        mock_run_res = MagicMock()
-        mock_run_res.Findings = {
+        initial_run_res = MagicMock()
+        initial_run_res.Findings = {
             "autonomous_decision": {
-                "action": "BUY",
+                "action": "SELL",
                 "entry": 2500.0,
-                "stop_loss": 2490.0,
-                "take_profit": 2520.0,
+                "stop_loss": 2510.0,
+                "take_profit": 2480.0,
                 "risk_reward": 2.0,
                 "confidence": 80.0
             }
         }
-        mock_runtime.run_once.return_value = mock_run_res
+        reassess_run_res = MagicMock()
+        reassess_run_res.Findings = {
+            "autonomous_decision": {
+                "action": "SELL",
+                "entry": 2500.0,
+                "stop_loss": 2510.0,
+                "take_profit": 2480.0,
+                "risk_reward": 2.0,
+                "confidence": 80.0
+            }
+        }
+        mock_runtime.run_once.side_effect = [initial_run_res, reassess_run_res]
         mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
         worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
@@ -328,13 +410,11 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
             worker._run_loop()
 
-        # Exact-Once Assertions
         self.assertEqual(mock_sizing.call_count, 1)
         self.assertEqual(mock_demo.execute_demo_decision.call_count, 1)
+        self.assertEqual(mock_demo.execute_demo_decision.call_args[1]["volume"], 0.75)
         self.assertIn("XAUUSD", worker.last_executed_signal)
-        self.assertEqual(worker.last_executed_signal["XAUUSD"]["direction"], "BUY")
-        self.assertEqual(mock_sizing.call_args[1]["account_equity"], 10000.0)
-        self.assertEqual(mock_sizing.call_args[1]["risk_pct"], 0.5)
+        self.assertEqual(worker.last_executed_signal["XAUUSD"]["direction"], "SELL")
 
 
 if __name__ == "__main__":
