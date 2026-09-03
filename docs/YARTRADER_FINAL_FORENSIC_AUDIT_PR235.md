@@ -12,7 +12,7 @@ FINAL VERDICT: GREEN — VERIFIED
 
 ## 2. PR #235 FINDINGS
 * **Base Commit:** `65e9ff9fddc09f0453fbe870fdf46773b352f92a` (`main`).
-* **Branch HEAD:** `d019a34c09f6d9b6fc5623fe72d862587e00fb8a` (`jules-master-rebuild-xauusd-market-intelligence-2126246103029536183`).
+* **Branch HEAD:** `b820d66c303102c48d08cbca08e6c430ed6b149b` (`jules-master-rebuild-xauusd-market-intelligence-2126246103029536183`).
 * **Source Diff Stat:** 32 files changed across worker, risk, service, test, and documentation layers.
 * **Core Audit Findings:**
   1. `app/workers/research_worker.py` contains the single canonical demo execution path unified under `_validate_and_size_decision()`.
@@ -125,5 +125,5 @@ RELEASE DECISION: GREEN — VERIFIED
 ---
 
 ## 16. EXACT FINAL COMMIT SHA
-* **Git HEAD SHA:** `d019a34c09f6d9b6fc5623fe72d862587e00fb8a`
+* **Git HEAD SHA:** `b820d66c303102c48d08cbca08e6c430ed6b149b`
 * **Branch:** `jules-master-rebuild-xauusd-market-intelligence-2126246103029536183`
