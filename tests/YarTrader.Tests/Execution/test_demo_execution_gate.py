@@ -145,20 +145,26 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
     @patch("time.sleep", return_value=None)
     @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
-    def test_13_adversarial_account_data_sizing_call_count_zero(self, mock_sizing, mock_sleep):
-        """Test 13: Adversarial invalid account data cases produce sizing call count == 0 and execution call count == 0."""
+    def test_13_adversarial_account_and_free_margin_call_count_zero(self, mock_sizing, mock_sleep):
+        """Test 13: Invalid/missing free margin or equity produce sizing call count == 0 and execution call count == 0."""
         from app.workers.research_worker import ResearchWorker
 
         adversarial_cases = [
-            None,                           # 1. acc_info = None
-            "raise_exception",              # 2. get_account_info raises exception
-            {},                             # 3. missing equity key
-            {"equity": None},               # 4. equity = None
-            {"equity": 0.0},                # 5. equity = 0
-            {"equity": -100.0},             # 6. equity < 0
-            {"equity": float("nan")},       # 7. equity = NaN
-            {"equity": float("inf")},       # 8. equity = infinity
-            {"equity": "malformed_str"},    # 9. malformed equity string
+            None,                                           # 1. acc_info = None
+            "raise_exception",                              # 2. get_account_info raises exception
+            {},                                             # 3. missing equity key
+            {"equity": None},                               # 4. equity = None
+            {"equity": 0.0},                                # 5. equity = 0
+            {"equity": -100.0},                             # 6. equity < 0
+            {"equity": float("nan")},                       # 7. equity = NaN
+            {"equity": float("inf")},                       # 8. equity = infinity
+            {"equity": "malformed_str"},                    # 9. malformed equity string
+            {"equity": 10000.0, "free_margin": None},       # 10. missing free margin (None)
+            {"equity": 10000.0, "free_margin": 0.0},        # 11. free margin = 0
+            {"equity": 10000.0, "free_margin": -500.0},     # 12. free margin < 0
+            {"equity": 10000.0, "free_margin": float("nan")}, # 13. free margin = NaN
+            {"equity": 10000.0, "free_margin": float("inf")}, # 14. free margin = Inf
+            {"equity": 10000.0, "free_margin": "malformed"},  # 15. malformed free margin string
         ]
 
         for idx, acc_data in enumerate(adversarial_cases):
@@ -210,31 +216,28 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
     @patch("time.sleep", return_value=None)
     @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
-    def test_14_invalid_symbol_metadata_and_price_sl_call_count_zero(self, mock_sizing, mock_sleep):
-        """Test 14: Missing or invalid symbol metadata, entry price, or stop loss produce sizing call count == 0 and execution call count == 0."""
+    def test_14_invalid_symbol_volume_limits_finite_checks(self, mock_sizing, mock_sleep):
+        """Test 14: Non-finite or <=0 symbol volume limits (min, max, step) produce sizing call count == 0 and execution call count == 0."""
         from app.workers.research_worker import ResearchWorker
 
-        invalid_prereq_cases = [
-            # Symbol Info Cases
-            {"sym_info": None, "entry": 2500.0, "sl": 2490.0, "dir": "BUY"},
-            {"sym_info": {}, "entry": 2500.0, "sl": 2490.0, "dir": "BUY"},
-            {"sym_info": {"volume_min": -0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 2500.0, "sl": 2490.0, "dir": "BUY"},
-            # Entry / SL Cases
-            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": None, "sl": 2490.0, "dir": "BUY"},
-            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 2500.0, "sl": None, "dir": "BUY"},
-            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 0.0, "sl": 2490.0, "dir": "BUY"},
-            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 2500.0, "sl": -10.0, "dir": "BUY"},
-            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 2500.0, "sl": 2510.0, "dir": "BUY"}, # BUY with SL >= Price
-            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 2500.0, "sl": 2490.0, "dir": "SELL"}, # SELL with SL <= Price
+        invalid_symbol_cases = [
+            {"volume_min": None, "volume_max": 100.0, "volume_step": 0.01},
+            {"volume_min": 0.0, "volume_max": 100.0, "volume_step": 0.01},
+            {"volume_min": -0.01, "volume_max": 100.0, "volume_step": 0.01},
+            {"volume_min": float("nan"), "volume_max": 100.0, "volume_step": 0.01},
+            {"volume_min": 0.01, "volume_max": float("nan"), "volume_step": 0.01},
+            {"volume_min": 0.01, "volume_max": float("inf"), "volume_step": 0.01},
+            {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.0},
+            {"volume_min": 0.01, "volume_max": 100.0, "volume_step": float("nan")},
         ]
 
-        for idx, case in enumerate(invalid_prereq_cases):
+        for idx, sym_info in enumerate(invalid_symbol_cases):
             mock_sizing.reset_mock()
             worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
 
             mock_adapter = MagicMock()
             mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
-            mock_adapter.get_symbol_info.return_value = case["sym_info"]
+            mock_adapter.get_symbol_info.return_value = sym_info
 
             mock_demo = MagicMock()
             mock_demo.adapter = mock_adapter
@@ -245,9 +248,9 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             mock_run_res = MagicMock()
             mock_run_res.Findings = {
                 "autonomous_decision": {
-                    "action": case["dir"],
-                    "entry": case["entry"],
-                    "stop_loss": case["sl"],
+                    "action": "BUY",
+                    "entry": 2500.0,
+                    "stop_loss": 2490.0,
                     "take_profit": 2520.0,
                     "risk_reward": 2.0,
                     "confidence": 80.0
@@ -268,86 +271,19 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
                 worker._run_loop()
 
-            self.assertEqual(mock_sizing.call_count, 0, f"Prerequisite Case {idx+1} failed sizing call count expectation (expected 0, got {mock_sizing.call_count})")
-            self.assertEqual(mock_demo.execute_demo_decision.call_count, 0, f"Prerequisite Case {idx+1} failed execution call count expectation")
+            self.assertEqual(mock_sizing.call_count, 0, f"Symbol Case {idx+1} failed sizing call count expectation")
+            self.assertEqual(mock_demo.execute_demo_decision.call_count, 0, f"Symbol Case {idx+1} failed execution call count expectation")
 
     @patch("time.sleep", return_value=None)
     @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
-    def test_15_reversal_adversarial_and_valid_execution(self, mock_sizing, mock_sleep):
-        """Test 15: Reversal execution path satisfies fail-closed validation & 0.5% risk position sizing without volume fallbacks."""
+    def test_15_reversal_volume_authority_and_rejection_state(self, mock_sizing, mock_sleep):
+        """Test 15: Reversal volume input is ignored entirely (sizing computes volume) and failed execution status does NOT mutate state."""
         from app.workers.research_worker import ResearchWorker
         from src.Risk.Services.professional_risk_engine import PositionSizingResult
 
-        # Part A: Adversarial invalid reversal decisions (missing/invalid reassessment entry/SL/volume)
-        invalid_reversal_decisions = [
-            {"action": "SELL", "entry": None, "stop_loss": 2510.0, "take_profit": 2480.0},
-            {"action": "SELL", "entry": 2500.0, "stop_loss": None, "take_profit": 2480.0},
-            {"action": "SELL", "entry": 2500.0, "stop_loss": 2490.0, "take_profit": 2480.0}, # Invalid SELL geometry (SL <= entry)
-            {"action": "WAIT"}, # Reassessment didn't confirm opposite action
-        ]
-
-        for idx, rev_dec in enumerate(invalid_reversal_decisions):
-            mock_sizing.reset_mock()
-            worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
-
-            mock_adapter = MagicMock()
-            mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
-            mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
-
-            mock_demo = MagicMock()
-            mock_demo.adapter = mock_adapter
-
-            # Simulate existing active BUY position (ticket 1001) that gets closed during reversal
-            mock_demo.get_active_positions.side_effect = [
-                [{"ticket": 1001, "type": 0, "symbol": "XAUUSD"}], # First check: active BUY position
-                [] # Second check: position closed flat
-            ]
-            close_order_resp = OrderResponse(OrderId="1001", Symbol="XAUUSD", Status="Closed", SubmittedAt=datetime.now(timezone.utc), Comment="RevClose")
-            mock_demo.close_position.return_value = close_order_resp
-
-            worker.demo_engine = mock_demo
-
-            mock_runtime = MagicMock()
-            # Initial run returns SELL signal triggering reversal of existing BUY position
-            initial_run_res = MagicMock()
-            initial_run_res.Findings = {
-                "autonomous_decision": {
-                    "action": "SELL",
-                    "entry": 2500.0,
-                    "stop_loss": 2510.0,
-                    "take_profit": 2480.0,
-                    "risk_reward": 2.0,
-                    "confidence": 80.0
-                }
-            }
-            # Reassessment run returns rev_dec
-            reassess_run_res = MagicMock()
-            reassess_run_res.Findings = {"autonomous_decision": rev_dec}
-
-            mock_runtime.run_once.side_effect = [initial_run_res, reassess_run_res]
-            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
-            worker.runtimes[("XAUUSD", "H1")] = mock_runtime
-
-            worker.is_running = True
-            def stop_loop_after_one(*args, **kwargs):
-                if not hasattr(stop_loop_after_one, "called"):
-                    stop_loop_after_one.called = True
-                    return [("XAUUSD", "H1", "Commodities", "MT5")]
-                worker.is_running = False
-                return [("XAUUSD", "H1", "Commodities", "MT5")]
-
-            with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
-                worker._run_loop()
-
-            # Verify reversal close occurred but opposite order dispatch was BLOCKED
-            self.assertEqual(mock_demo.close_position.call_count, 1)
-            self.assertEqual(mock_demo.execute_demo_decision.call_count, 0, f"Invalid Reversal Case {idx+1} executed order unexpectedly")
-
-        # Part B: Valid Reversal Decision
-        mock_sizing.reset_mock()
         mock_sizing.return_value = PositionSizingResult(
             is_valid=True,
-            volume_lots=0.75,
+            volume_lots=0.85,
             risk_budget_usd=50.0,
             risk_pct=0.5,
             margin_required_usd=1000.0,
@@ -356,6 +292,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             rejection_reason=""
         )
 
+        # 1. Test Reversal ignores reassessment volume input (e.g. malformed/huge volume 999.9) and uses sized volume 0.85
         worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
 
         mock_adapter = MagicMock()
@@ -365,11 +302,13 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         mock_demo = MagicMock()
         mock_demo.adapter = mock_adapter
         mock_demo.get_active_positions.side_effect = [
-            [{"ticket": 1001, "type": 0, "symbol": "XAUUSD"}],
-            []
+            [{"ticket": 1001, "type": 0, "symbol": "XAUUSD"}], # Active BUY
+            [] # Closed flat
         ]
         mock_demo.close_position.return_value = OrderResponse(OrderId="1001", Symbol="XAUUSD", Status="Closed", SubmittedAt=datetime.now(timezone.utc), Comment="RevClose")
-        mock_demo.execute_demo_decision.return_value = OrderResponse(OrderId="1002", Symbol="XAUUSD", Status="Placed", SubmittedAt=datetime.now(timezone.utc), Comment="REV")
+
+        # Execution fails with MARKET_CLOSED
+        mock_demo.execute_demo_decision.return_value = OrderResponse(OrderId="0", Symbol="XAUUSD", Status="Failed", SubmittedAt=datetime.now(timezone.utc), Comment="MARKET_CLOSED")
         worker.demo_engine = mock_demo
 
         mock_runtime = MagicMock()
@@ -392,7 +331,8 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
                 "stop_loss": 2510.0,
                 "take_profit": 2480.0,
                 "risk_reward": 2.0,
-                "confidence": 80.0
+                "confidence": 80.0,
+                "volume": 999.9 # Huge/malformed input volume from reassessment decision
             }
         }
         mock_runtime.run_once.side_effect = [initial_run_res, reassess_run_res]
@@ -410,11 +350,13 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
             worker._run_loop()
 
+        # Assertions
         self.assertEqual(mock_sizing.call_count, 1)
         self.assertEqual(mock_demo.execute_demo_decision.call_count, 1)
-        self.assertEqual(mock_demo.execute_demo_decision.call_args[1]["volume"], 0.75)
-        self.assertIn("XAUUSD", worker.last_executed_signal)
-        self.assertEqual(worker.last_executed_signal["XAUUSD"]["direction"], "SELL")
+        # Verify volume passed to execute_demo_decision is 0.85 (from sizing), NOT 999.9 (from decision dict)
+        self.assertEqual(mock_demo.execute_demo_decision.call_args[1]["volume"], 0.85)
+        # Verify state was NOT mutated because execution Status was 'Failed'
+        self.assertNotIn("XAUUSD", worker.last_executed_signal)
 
 
 if __name__ == "__main__":

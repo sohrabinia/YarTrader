@@ -98,19 +98,21 @@ class ResearchWorker:
             except (ValueError, TypeError):
                 equity_val = -1.0
 
-        if equity_val <= 0 or math.isnan(equity_val) or math.isinf(equity_val):
+        if equity_val <= 0 or not math.isfinite(equity_val):
             print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account equity unavailable or invalid (equity={raw_equity}). Failing closed.")
             return None
 
         raw_margin = acc_info.get("free_margin")
-        free_margin_val = equity_val
+        free_margin_val = -1.0
         if raw_margin is not None:
             try:
-                m_val = float(raw_margin)
-                if not math.isnan(m_val) and not math.isinf(m_val):
-                    free_margin_val = m_val
+                free_margin_val = float(raw_margin)
             except (ValueError, TypeError):
-                free_margin_val = equity_val
+                free_margin_val = -1.0
+
+        if free_margin_val <= 0 or not math.isfinite(free_margin_val):
+            print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account free_margin unavailable or invalid (free_margin={raw_margin}). Failing closed.")
+            return None
 
         # 2. Obtain & Validate Authoritative Broker Symbol Metadata
         sym_info = self.demo_engine.adapter.get_symbol_info(symbol) if hasattr(self.demo_engine.adapter, "get_symbol_info") else None
@@ -125,7 +127,9 @@ class ResearchWorker:
         except (ValueError, TypeError):
             vol_min = vol_max = vol_step = -1.0
 
-        if vol_min <= 0 or vol_max <= 0 or vol_step <= 0 or math.isnan(vol_min) or math.isinf(vol_min):
+        if (vol_min <= 0 or not math.isfinite(vol_min) or
+            vol_max <= 0 or not math.isfinite(vol_max) or
+            vol_step <= 0 or not math.isfinite(vol_step)):
             print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker symbol volume limits invalid for {symbol} (min={vol_min}, max={vol_max}, step={vol_step}). Failing closed.")
             return None
 
@@ -145,8 +149,7 @@ class ResearchWorker:
 
         is_valid_prices = (
             price_val > 0 and sl_val > 0 and
-            not math.isnan(price_val) and not math.isinf(price_val) and
-            not math.isnan(sl_val) and not math.isinf(sl_val)
+            math.isfinite(price_val) and math.isfinite(sl_val)
         )
 
         if is_valid_prices:
@@ -337,13 +340,17 @@ class ResearchWorker:
                                                                     magic=143056,
                                                                     decision_id=decision_id
                                                                 )
-                                                                self.last_executed_signal[symbol.upper()] = {
-                                                                    "direction": sig_dir,
-                                                                    "sig_time": sig_time,
-                                                                    "exec_time": now_time,
-                                                                    "decision_id": decision_id
-                                                                }
-                                                                print(f"[ResearchWorker] Reversal DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+
+                                                                if exec_resp and exec_resp.Status in ["Placed", "Closed", "Executed", "OK", "Success"]:
+                                                                    self.last_executed_signal[symbol.upper()] = {
+                                                                        "direction": sig_dir,
+                                                                        "sig_time": sig_time,
+                                                                        "exec_time": now_time,
+                                                                        "decision_id": decision_id
+                                                                    }
+                                                                    print(f"[ResearchWorker] Reversal DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+                                                                else:
+                                                                    print(f"[ResearchWorker] Reversal DEMO Execution FAILED / Rejected (Status={exec_resp.Status if exec_resp else 'None'}). State NOT mutated.")
                                                             else:
                                                                 print(f"[ResearchWorker] Reversal BLOCKED: Reassessment decision for {symbol} failed validation / position sizing. Remaining flat.")
                                                         else:
@@ -368,15 +375,17 @@ class ResearchWorker:
                                                     decision_id=decision_id
                                                 )
 
-                                                # Update execution state exactly once after successful execution dispatch
-                                                self.last_executed_signal[symbol.upper()] = {
-                                                    "direction": sig_dir,
-                                                    "sig_time": sig_time,
-                                                    "exec_time": now_time,
-                                                    "decision_id": decision_id
-                                                }
-
-                                                print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+                                                # Update execution state ONLY if execution response confirms order placement/execution
+                                                if exec_resp and exec_resp.Status in ["Placed", "Closed", "Executed", "OK", "Success"]:
+                                                    self.last_executed_signal[symbol.upper()] = {
+                                                        "direction": sig_dir,
+                                                        "sig_time": sig_time,
+                                                        "exec_time": now_time,
+                                                        "decision_id": decision_id
+                                                    }
+                                                    print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+                                                else:
+                                                    print(f"[ResearchWorker] DEMO Execution FAILED / Rejected (Status={exec_resp.Status if exec_resp else 'None'}). State NOT mutated.")
                                     except Exception as exec_err:
                                         print(f"[ResearchWorker] DEMO Execution Gate / Fail-Closed: {exec_err}")
                         else:
