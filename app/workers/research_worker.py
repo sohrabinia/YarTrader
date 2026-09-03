@@ -1,5 +1,6 @@
 import os
 import time
+import math
 import threading
 from datetime import datetime
 from typing import Optional, Dict, Any
@@ -232,75 +233,98 @@ class ResearchWorker:
                                                         else:
                                                             print(f"[ResearchWorker] Reversal aborted: Reassessment action for {symbol} is {reassess_action} (opposite entry not independently confirmed). Remaining flat.")
                                         else:
-                                            # Flat state: Normal execution dispatch
-                                            sig_price = auto_dec.get("entry")
-                                            sig_sl = auto_dec.get("stop_loss")
-                                            sig_tp = auto_dec.get("take_profit")
-
-                                            # Calculate 0.5% account equity risk position size from live broker account info
+                                            # Flat state: Canonical Single Execution Path
+                                            # STEP 1: Obtain authoritative broker account information
                                             acc_info = None
                                             if self.demo_engine and hasattr(self.demo_engine, "adapter") and hasattr(self.demo_engine.adapter, "get_account_info"):
                                                 try:
                                                     acc_info = self.demo_engine.adapter.get_account_info()
-                                                except Exception:
+                                                except Exception as acc_err:
+                                                    print(f"[ResearchWorker] Broker get_account_info raised error: {acc_err}")
                                                     acc_info = None
 
-                                            # Fail Closed: If authoritative broker account info is missing or equity <= 0, block trade dispatch immediately
-                                            if not acc_info or not isinstance(acc_info, dict) or float(acc_info.get("equity", 0.0)) <= 0:
-                                                print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account equity unavailable or invalid (acc_info={acc_info}). Failing closed.")
+                                            # STEP 2 & 3 & 4: Validate account information, equity, and free margin
+                                            if not acc_info or not isinstance(acc_info, dict):
+                                                print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account info unavailable or invalid (acc_info={acc_info}). Failing closed.")
                                             else:
-                                                equity_val = float(acc_info.get("equity", 0.0))
-                                                free_margin_val = float(acc_info.get("free_margin", equity_val))
+                                                raw_equity = acc_info.get("equity")
+                                                equity_val = -1.0
+                                                if raw_equity is not None:
+                                                    try:
+                                                        equity_val = float(raw_equity)
+                                                    except (ValueError, TypeError):
+                                                        equity_val = -1.0
 
-                                                from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
-                                                risk_engine = ProfessionalRiskEngine()
-
-                                                sym_info = self.demo_engine.adapter.get_symbol_info(symbol) if self.demo_engine else None
-                                                vol_min = float(sym_info.get("volume_min", 0.01)) if sym_info else 0.01
-                                                vol_max = float(sym_info.get("volume_max", 100.0)) if sym_info else 100.0
-                                                vol_step = float(sym_info.get("volume_step", 0.01)) if sym_info else 0.01
-
-                                                sizing_res = risk_engine.evaluate_equity_risk_and_position_size(
-                                                    symbol=symbol,
-                                                    direction=sig_dir,
-                                                    entry_price=float(sig_price or 2500.0),
-                                                    stop_loss=float(sig_sl or 2490.0),
-                                                    account_equity=equity_val,
-                                                    free_margin=free_margin_val,
-                                                    risk_pct=0.5,
-                                                    volume_min=vol_min,
-                                                    volume_max=vol_max,
-                                                    volume_step=vol_step
-                                                )
-
-                                                if not sizing_res.is_valid:
-                                                    print(f"[ResearchWorker] Position sizing rejected for {symbol} {sig_dir}: {sizing_res.rejection_reason}")
+                                                if equity_val <= 0 or math.isnan(equity_val) or math.isinf(equity_val):
+                                                    print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account equity unavailable or invalid (acc_info={acc_info}). Failing closed.")
                                                 else:
-                                                    calculated_vol = sizing_res.volume_lots
-                                                    decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
+                                                    raw_margin = acc_info.get("free_margin")
+                                                    free_margin_val = equity_val
+                                                    if raw_margin is not None:
+                                                        try:
+                                                            m_val = float(raw_margin)
+                                                            if not math.isnan(m_val) and not math.isinf(m_val):
+                                                                free_margin_val = m_val
+                                                        except (ValueError, TypeError):
+                                                            free_margin_val = equity_val
 
-                                                    print(f"[ResearchWorker] Actionable decision detected for {symbol}: {sig_dir} with 0.5% risk volume = {calculated_vol} lots (Equity=${equity_val}). Dispatching...")
-                                                    exec_resp = self.demo_engine.execute_demo_decision(
+                                                    # STEP 5 & 6: Obtain & validate broker symbol information
+                                                    sym_info = self.demo_engine.adapter.get_symbol_info(symbol) if self.demo_engine and hasattr(self.demo_engine, "adapter") and hasattr(self.demo_engine.adapter, "get_symbol_info") else None
+                                                    vol_min = float(sym_info.get("volume_min", 0.01)) if sym_info and isinstance(sym_info, dict) else 0.01
+                                                    vol_max = float(sym_info.get("volume_max", 100.0)) if sym_info and isinstance(sym_info, dict) else 100.0
+                                                    vol_step = float(sym_info.get("volume_step", 0.01)) if sym_info and isinstance(sym_info, dict) else 0.01
+
+                                                    # STEP 7: Calculate 0.5% risk sizing from validated account equity
+                                                    sig_price = auto_dec.get("entry")
+                                                    sig_sl = auto_dec.get("stop_loss")
+                                                    sig_tp = auto_dec.get("take_profit")
+
+                                                    from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+                                                    risk_engine = ProfessionalRiskEngine()
+
+                                                    sizing_res = risk_engine.evaluate_equity_risk_and_position_size(
                                                         symbol=symbol,
                                                         direction=sig_dir,
-                                                        volume=calculated_vol,
-                                                        price=sig_price,
-                                                        sl=sig_sl,
-                                                        tp=sig_tp,
-                                                        comment=f"YarTrader DEMO {symbol}",
-                                                        magic=143056,
-                                                        decision_id=decision_id
+                                                        entry_price=float(sig_price or 2500.0),
+                                                        stop_loss=float(sig_sl or 2490.0),
+                                                        account_equity=equity_val,
+                                                        free_margin=free_margin_val,
+                                                        risk_pct=0.5,
+                                                        volume_min=vol_min,
+                                                        volume_max=vol_max,
+                                                        volume_step=vol_step
                                                     )
 
-                                                    # Record execution time for cooldown tracking
-                                                    self.last_executed_signal[symbol.upper()] = {
-                                                        "direction": sig_dir,
-                                                        "sig_time": sig_time,
-                                                        "exec_time": now_time,
-                                                        "decision_id": decision_id
-                                                    }
+                                                    # STEP 8: Validate sizing
+                                                    if not sizing_res.is_valid:
+                                                        print(f"[ResearchWorker] Position sizing rejected for {symbol} {sig_dir}: {sizing_res.rejection_reason}")
+                                                    else:
+                                                        # STEP 9: Execute through canonical DemoExecutionGate
+                                                        calculated_vol = sizing_res.volume_lots
+                                                        decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
 
-                                                    print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+                                                        print(f"[ResearchWorker] Actionable decision detected for {symbol}: {sig_dir} with 0.5% risk volume = {calculated_vol} lots (Equity=${equity_val}). Dispatching...")
+                                                        exec_resp = self.demo_engine.execute_demo_decision(
+                                                            symbol=symbol,
+                                                            direction=sig_dir,
+                                                            volume=calculated_vol,
+                                                            price=sig_price,
+                                                            sl=sig_sl,
+                                                            tp=sig_tp,
+                                                            comment=f"YarTrader DEMO {symbol}",
+                                                            magic=143056,
+                                                            decision_id=decision_id
+                                                        )
+
+                                                        # STEP 10: Update execution state exactly once after successful execution dispatch
+                                                        self.last_executed_signal[symbol.upper()] = {
+                                                            "direction": sig_dir,
+                                                            "sig_time": sig_time,
+                                                            "exec_time": now_time,
+                                                            "decision_id": decision_id
+                                                        }
+
+                                                        print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
                                     except Exception as exec_err:
                                         print(f"[ResearchWorker] DEMO Execution Gate / Fail-Closed: {exec_err}")
                         else:

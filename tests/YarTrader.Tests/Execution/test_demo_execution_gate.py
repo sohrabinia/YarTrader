@@ -143,6 +143,138 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         acc = worker.demo_engine.adapter.get_account_info()
         self.assertIsNone(acc)
 
+    @patch("time.sleep", return_value=None)
+    @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
+    def test_13_adversarial_account_data_sizing_call_count_zero(self, mock_sizing, mock_sleep):
+        """Test 13: Adversarial invalid account data cases produce sizing call count == 0 and execution call count == 0."""
+        from app.workers.research_worker import ResearchWorker
+
+        adversarial_cases = [
+            None,                           # 1. acc_info = None
+            "raise_exception",              # 2. get_account_info raises exception
+            {},                             # 3. missing equity key
+            {"equity": None},               # 4. equity = None
+            {"equity": 0.0},                # 5. equity = 0
+            {"equity": -100.0},             # 6. equity < 0
+            {"equity": float("nan")},       # 7. equity = NaN
+            {"equity": float("inf")},       # 8. equity = infinity
+            {"equity": "malformed_str"},    # 9. malformed equity string
+        ]
+
+        for idx, acc_data in enumerate(adversarial_cases):
+            mock_sizing.reset_mock()
+            worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+
+            mock_adapter = MagicMock()
+            if acc_data == "raise_exception":
+                mock_adapter.get_account_info.side_effect = RuntimeError("Broker connection timeout")
+            else:
+                mock_adapter.get_account_info.return_value = acc_data
+
+            mock_demo = MagicMock()
+            mock_demo.adapter = mock_adapter
+            mock_demo.get_active_positions.return_value = []
+            worker.demo_engine = mock_demo
+
+            # Mock ResearchRuntime run_once returning actionable BUY decision
+            mock_runtime = MagicMock()
+            mock_run_res = MagicMock()
+            mock_run_res.Findings = {
+                "autonomous_decision": {
+                    "action": "BUY",
+                    "entry": 2500.0,
+                    "stop_loss": 2490.0,
+                    "take_profit": 2520.0,
+                    "risk_reward": 2.0,
+                    "confidence": 80.0
+                }
+            }
+            mock_runtime.run_once.return_value = mock_run_res
+            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            worker.runtimes[("XAUUSD", "H1")] = mock_runtime
+
+            # Run single worker iteration by invoking _run_loop logic for 1 step
+            worker.is_running = True
+            def stop_loop_after_one(*args, **kwargs):
+                if not hasattr(stop_loop_after_one, "called"):
+                    stop_loop_after_one.called = True
+                    return [("XAUUSD", "H1", "Commodities", "MT5")]
+                worker.is_running = False
+                return [("XAUUSD", "H1", "Commodities", "MT5")]
+
+            with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+                worker._run_loop()
+
+            # Proves Sizing Call Count == 0 and Execution Call Count == 0 for all invalid account cases
+            self.assertEqual(mock_sizing.call_count, 0, f"Case {idx+1} failed sizing call count expectation (expected 0, got {mock_sizing.call_count})")
+            self.assertEqual(mock_demo.execute_demo_decision.call_count, 0, f"Case {idx+1} failed execution call count expectation")
+            self.assertNotIn("XAUUSD", worker.last_executed_signal, f"Case {idx+1} updated last_executed_signal unexpectedly")
+
+    @patch("time.sleep", return_value=None)
+    @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
+    def test_14_valid_account_exact_once_execution(self, mock_sizing, mock_sleep):
+        """Test 14: Valid authoritative broker account data produces exactly 1 sizing call, 1 execution call, 0.5% risk budget, and 1 state update."""
+        from app.workers.research_worker import ResearchWorker
+        from src.Risk.Services.professional_risk_engine import PositionSizingResult
+
+        mock_sizing.return_value = PositionSizingResult(
+            is_valid=True,
+            volume_lots=0.5,
+            risk_budget_usd=50.0,
+            risk_pct=0.5,
+            margin_required_usd=1000.0,
+            free_margin_usd=10000.0,
+            effective_be_price=2500.0,
+            rejection_reason=""
+        )
+
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+
+        mock_adapter = MagicMock()
+        mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
+        mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+
+        mock_demo = MagicMock()
+        mock_demo.adapter = mock_adapter
+        mock_demo.get_active_positions.return_value = []
+        mock_demo.execute_demo_decision.return_value = OrderResponse(OrderId="1001", Symbol="XAUUSD", Status="Placed", SubmittedAt=datetime.now(timezone.utc), Comment="DEMO")
+        worker.demo_engine = mock_demo
+
+        mock_runtime = MagicMock()
+        mock_run_res = MagicMock()
+        mock_run_res.Findings = {
+            "autonomous_decision": {
+                "action": "BUY",
+                "entry": 2500.0,
+                "stop_loss": 2490.0,
+                "take_profit": 2520.0,
+                "risk_reward": 2.0,
+                "confidence": 80.0
+            }
+        }
+        mock_runtime.run_once.return_value = mock_run_res
+        mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+        worker.runtimes[("XAUUSD", "H1")] = mock_runtime
+
+        worker.is_running = True
+        def stop_loop_after_one(*args, **kwargs):
+            if not hasattr(stop_loop_after_one, "called"):
+                stop_loop_after_one.called = True
+                return [("XAUUSD", "H1", "Commodities", "MT5")]
+            worker.is_running = False
+            return [("XAUUSD", "H1", "Commodities", "MT5")]
+
+        with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+            worker._run_loop()
+
+        # Exact-Once Assertions
+        self.assertEqual(mock_sizing.call_count, 1)
+        self.assertEqual(mock_demo.execute_demo_decision.call_count, 1)
+        self.assertIn("XAUUSD", worker.last_executed_signal)
+        self.assertEqual(worker.last_executed_signal["XAUUSD"]["direction"], "BUY")
+        self.assertEqual(mock_sizing.call_args[1]["account_equity"], 10000.0)
+        self.assertEqual(mock_sizing.call_args[1]["risk_pct"], 0.5)
+
 
 if __name__ == "__main__":
     unittest.main()
