@@ -170,13 +170,13 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
                 mock_adapter.get_account_info.side_effect = RuntimeError("Broker connection timeout")
             else:
                 mock_adapter.get_account_info.return_value = acc_data
+            mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
 
             mock_demo = MagicMock()
             mock_demo.adapter = mock_adapter
             mock_demo.get_active_positions.return_value = []
             worker.demo_engine = mock_demo
 
-            # Mock ResearchRuntime run_once returning actionable BUY decision
             mock_runtime = MagicMock()
             mock_run_res = MagicMock()
             mock_run_res.Findings = {
@@ -193,7 +193,6 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
             worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
-            # Run single worker iteration by invoking _run_loop logic for 1 step
             worker.is_running = True
             def stop_loop_after_one(*args, **kwargs):
                 if not hasattr(stop_loop_after_one, "called"):
@@ -205,15 +204,77 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
                 worker._run_loop()
 
-            # Proves Sizing Call Count == 0 and Execution Call Count == 0 for all invalid account cases
             self.assertEqual(mock_sizing.call_count, 0, f"Case {idx+1} failed sizing call count expectation (expected 0, got {mock_sizing.call_count})")
             self.assertEqual(mock_demo.execute_demo_decision.call_count, 0, f"Case {idx+1} failed execution call count expectation")
             self.assertNotIn("XAUUSD", worker.last_executed_signal, f"Case {idx+1} updated last_executed_signal unexpectedly")
 
     @patch("time.sleep", return_value=None)
     @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
-    def test_14_valid_account_exact_once_execution(self, mock_sizing, mock_sleep):
-        """Test 14: Valid authoritative broker account data produces exactly 1 sizing call, 1 execution call, 0.5% risk budget, and 1 state update."""
+    def test_14_invalid_symbol_metadata_and_price_sl_call_count_zero(self, mock_sizing, mock_sleep):
+        """Test 14: Missing or invalid symbol metadata, entry price, or stop loss produce sizing call count == 0 and execution call count == 0."""
+        from app.workers.research_worker import ResearchWorker
+
+        invalid_prereq_cases = [
+            # Symbol Info Cases
+            {"sym_info": None, "entry": 2500.0, "sl": 2490.0, "dir": "BUY"},
+            {"sym_info": {}, "entry": 2500.0, "sl": 2490.0, "dir": "BUY"},
+            {"sym_info": {"volume_min": -0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 2500.0, "sl": 2490.0, "dir": "BUY"},
+            # Entry / SL Cases
+            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": None, "sl": 2490.0, "dir": "BUY"},
+            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 2500.0, "sl": None, "dir": "BUY"},
+            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 0.0, "sl": 2490.0, "dir": "BUY"},
+            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 2500.0, "sl": -10.0, "dir": "BUY"},
+            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 2500.0, "sl": 2510.0, "dir": "BUY"}, # BUY with SL >= Price
+            {"sym_info": {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}, "entry": 2500.0, "sl": 2490.0, "dir": "SELL"}, # SELL with SL <= Price
+        ]
+
+        for idx, case in enumerate(invalid_prereq_cases):
+            mock_sizing.reset_mock()
+            worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+
+            mock_adapter = MagicMock()
+            mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
+            mock_adapter.get_symbol_info.return_value = case["sym_info"]
+
+            mock_demo = MagicMock()
+            mock_demo.adapter = mock_adapter
+            mock_demo.get_active_positions.return_value = []
+            worker.demo_engine = mock_demo
+
+            mock_runtime = MagicMock()
+            mock_run_res = MagicMock()
+            mock_run_res.Findings = {
+                "autonomous_decision": {
+                    "action": case["dir"],
+                    "entry": case["entry"],
+                    "stop_loss": case["sl"],
+                    "take_profit": 2520.0,
+                    "risk_reward": 2.0,
+                    "confidence": 80.0
+                }
+            }
+            mock_runtime.run_once.return_value = mock_run_res
+            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            worker.runtimes[("XAUUSD", "H1")] = mock_runtime
+
+            worker.is_running = True
+            def stop_loop_after_one(*args, **kwargs):
+                if not hasattr(stop_loop_after_one, "called"):
+                    stop_loop_after_one.called = True
+                    return [("XAUUSD", "H1", "Commodities", "MT5")]
+                worker.is_running = False
+                return [("XAUUSD", "H1", "Commodities", "MT5")]
+
+            with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+                worker._run_loop()
+
+            self.assertEqual(mock_sizing.call_count, 0, f"Prerequisite Case {idx+1} failed sizing call count expectation (expected 0, got {mock_sizing.call_count})")
+            self.assertEqual(mock_demo.execute_demo_decision.call_count, 0, f"Prerequisite Case {idx+1} failed execution call count expectation")
+
+    @patch("time.sleep", return_value=None)
+    @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
+    def test_15_valid_account_exact_once_execution(self, mock_sizing, mock_sleep):
+        """Test 15: Valid authoritative broker account data produces exactly 1 sizing call, 1 execution call, 0.5% risk budget, and 1 state update."""
         from app.workers.research_worker import ResearchWorker
         from src.Risk.Services.professional_risk_engine import PositionSizingResult
 
