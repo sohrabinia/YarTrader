@@ -1,4 +1,5 @@
 import os
+import math
 import time
 import threading
 from datetime import datetime
@@ -6,9 +7,10 @@ from typing import Optional, Dict, Any
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from src.Application.Runtime.runtime_state import central_runtime_state
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
+from src.Execution.Services.market_session_engine import MarketSessionEngine
 
 class ResearchWorker:
-    """Manages the background research worker polling loop."""
+    """Manages the background research worker polling loop with strict SRE safety gates."""
     def __init__(self, symbol: str = "XAUUSD", timeframe: str = "H1", interval_sec: float = 60.0, cooldown_sec: float = 300.0) -> None:
         self.default_symbol = symbol
         self.timeframe = timeframe
@@ -28,6 +30,7 @@ class ResearchWorker:
         self.status = "IDLE"
         self.error_count = 0
         self.demo_engine = None
+        self.session_engine = MarketSessionEngine()
         central_runtime_state.update_state("research_status", "Stopped")
 
     def _get_or_create_runtime(self, symbol: str, tf: str, asset_class: str = "Forex", provider: str = "MT5") -> ResearchRuntime:
@@ -68,6 +71,21 @@ class ResearchWorker:
         central_runtime_state.update_state("research_status", "Stopped")
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=5.0)
+
+    def _validate_equity(self, acc_info: Optional[Dict[str, Any]]) -> float:
+        """Strictly validates authoritative account equity. Fails closed on missing or non-positive equity."""
+        if not acc_info or not isinstance(acc_info, dict):
+            raise ValueError("[ResearchWorker] Execution BLOCKED: Authoritative broker account info unavailable.")
+
+        raw_eq = acc_info.get("equity")
+        if raw_eq is None or isinstance(raw_eq, bool) or not isinstance(raw_eq, (int, float)):
+            raise ValueError(f"[ResearchWorker] Execution BLOCKED: Account equity is missing or malformed ({raw_eq}).")
+
+        equity_val = float(raw_eq)
+        if not math.isfinite(equity_val) or equity_val <= 0:
+            raise ValueError(f"[ResearchWorker] Execution BLOCKED: Account equity is non-finite or <= 0 (${equity_val}).")
+
+        return equity_val
 
     def _run_loop(self) -> None:
         """Worker loop running on the background thread."""
@@ -123,10 +141,10 @@ class ResearchWorker:
                         auto_dec = res.Findings.get("autonomous_decision", {})
                         action = auto_dec.get("action", "WAIT")
 
-                        # 1. Kill Switch Enforcement
+                        # 1. Autonomous Trading Global Toggle Check
                         kill_switch_enabled = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED", "true").lower() in ["true", "1", "yes"]
                         if not kill_switch_enabled:
-                            print(f"[ResearchWorker] Kill Switch ACTIVE (AUTONOMOUS_DEMO_TRADING_ENABLED=False). Skipping execution dispatch for {symbol}.")
+                            print(f"[ResearchWorker] Autonomous trading disabled (AUTONOMOUS_DEMO_TRADING_ENABLED=False). Skipping execution dispatch for {symbol}.")
                         elif action in ["BUY", "SELL"]:
                             sig_dir = action
                             now_time = time.time()
@@ -160,9 +178,28 @@ class ResearchWorker:
                                         if self.demo_engine is None:
                                             self.demo_engine = DemoExecutionEngine(demo_mode=True)
 
-                                        # Check active broker positions to enforce Position Exclusivity Guard
+                                        # 4. Authoritative Broker Equity Retrieval & Validation
+                                        acc_info = runtime.provider.delegate.get_account_info() if hasattr(runtime.provider, "delegate") else None
+                                        equity_val = self._validate_equity(acc_info)
+                                        free_margin_val = float(acc_info.get("free_margin", equity_val)) if acc_info else equity_val
+
+                                        # 5. Pre-Entry Session & Daily Loss Protection Kill Switch Gate
+                                        session_val = self.session_engine.validate_pre_entry(
+                                            symbol=symbol,
+                                            current_time=datetime.now(),
+                                            current_equity=equity_val
+                                        )
+                                        if not session_val.allowed:
+                                            print(f"[ResearchWorker] Pre-entry BLOCKED for {symbol}: {session_val.rejection_reason} ({session_val.message})")
+                                            continue
+
+                                        # 6. Check Active Broker Positions & Handle Position Query UNKNOWN State
                                         active_positions = self.demo_engine.get_active_positions(symbol=symbol)
-                                        if active_positions and len(active_positions) > 0:
+                                        if active_positions is None:
+                                            print(f"[ResearchWorker] Execution BLOCKED: Active broker position query failed for {symbol} (UNKNOWN position state). Failing closed.")
+                                            continue
+
+                                        if len(active_positions) > 0:
                                             existing_ticket = active_positions[0].get("ticket", 0)
                                             existing_dir_code = active_positions[0].get("type", 0)
                                             existing_dir = "BUY" if existing_dir_code == 0 else "SELL"
@@ -170,8 +207,7 @@ class ResearchWorker:
                                             if existing_dir == sig_dir:
                                                 print(f"[ResearchWorker] Duplicate position guard triggered: {symbol} already has active {existing_dir} position (ticket={existing_ticket}). Skipping.")
                                             else:
-                                                # Opposite direction decision detected: Enforce Sequential Reversal Lifecycle
-                                                # OPEN -> CLOSE REQUESTED -> CLOSE CONFIRMED -> REASSESS -> OPPOSITE ENTRY
+                                                # Sequential Reversal Lifecycle
                                                 print(f"[ResearchWorker] Sequential Reversal Triggered: Existing active {existing_dir} position found for {symbol}. Requesting close before reassessment...")
                                                 close_resp = self.demo_engine.close_position(
                                                     symbol=symbol,
@@ -179,78 +215,108 @@ class ResearchWorker:
                                                     comment=f"YarTrader RevClose {symbol}"
                                                 )
 
-                                                # Explicitly evaluate close response status before market reassessment
                                                 if close_resp.Status not in ["Placed", "Closed"]:
                                                     print(f"[ResearchWorker] Reversal BLOCKED: Position {existing_ticket} close request failed (Status={close_resp.Status}, Comment={close_resp.Comment}). Failing closed.")
                                                 else:
-                                                    # Authoritative broker position verification: confirm symbol is flat
+                                                    # Authoritative broker position verification
                                                     remaining_pos = self.demo_engine.get_active_positions(symbol=symbol)
-                                                    is_closed = not any(str(p.get("ticket", "")) == str(existing_ticket) for p in remaining_pos)
+                                                    if remaining_pos is None:
+                                                        print(f"[ResearchWorker] Reversal BLOCKED: Position status check failed (UNKNOWN position state after close). Failing closed.")
+                                                        continue
 
+                                                    is_closed = not any(str(p.get("ticket", "")) == str(existing_ticket) for p in remaining_pos)
                                                     if not is_closed:
-                                                        print(f"[ResearchWorker] Reversal BLOCKED: Position {existing_ticket} close unconfirmed / pending in broker state. Failing closed.")
+                                                        print(f"[ResearchWorker] Reversal BLOCKED: Position {existing_ticket} close unconfirmed in broker state. Failing closed.")
                                                     else:
                                                         print(f"[ResearchWorker] Position {existing_ticket} close CONFIRMED flat. Reassessing market for {symbol} {sig_dir}...")
-                                                        # Fresh Market Reassessment: Must be self-contained
                                                         reassess_run = runtime.run_once()
                                                         reassess_dec = reassess_run.Findings.get("autonomous_decision", {})
                                                         reassess_action = reassess_dec.get("action", "WAIT")
 
                                                         if reassess_action == sig_dir:
-                                                            # Extract execution parameters STRICTLY from reassess_dec (NO fallback to auto_dec)
                                                             rev_price = reassess_dec.get("entry")
                                                             rev_sl = reassess_dec.get("stop_loss")
                                                             rev_tp = reassess_dec.get("take_profit")
-                                                            rev_vol = reassess_dec.get("volume", 0.01)
 
                                                             if rev_price and rev_sl and rev_tp and float(rev_price) > 0 and float(rev_sl) > 0 and float(rev_tp) > 0:
-                                                                decision_id = f"DEC-REV-{symbol.upper()}-{sig_dir}-{int(sig_time)}"
-                                                                exec_resp = self.demo_engine.execute_demo_decision(
+                                                                from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+                                                                risk_engine = ProfessionalRiskEngine()
+                                                                sym_info = self.demo_engine.adapter.get_symbol_info(symbol) if self.demo_engine else None
+                                                                if not sym_info:
+                                                                    print(f"[ResearchWorker] Reversal BLOCKED: Broker symbol metadata missing for {symbol}.")
+                                                                    continue
+
+                                                                vol_min = float(sym_info["volume_min"])
+                                                                vol_max = float(sym_info["volume_max"])
+                                                                vol_step = float(sym_info["volume_step"])
+
+                                                                rev_sizing = risk_engine.evaluate_equity_risk_and_position_size(
                                                                     symbol=symbol,
                                                                     direction=sig_dir,
-                                                                    volume=float(rev_vol),
-                                                                    price=float(rev_price),
-                                                                    sl=float(rev_sl),
-                                                                    tp=float(rev_tp),
-                                                                    comment=f"YarTrader REV {symbol}",
-                                                                    magic=143056,
-                                                                    decision_id=decision_id
+                                                                    entry_price=float(rev_price),
+                                                                    stop_loss=float(rev_sl),
+                                                                    account_equity=equity_val,
+                                                                    free_margin=free_margin_val,
+                                                                    risk_pct=0.5,
+                                                                    volume_min=vol_min,
+                                                                    volume_max=vol_max,
+                                                                    volume_step=vol_step
                                                                 )
-                                                                self.last_executed_signal[symbol.upper()] = {
-                                                                    "direction": sig_dir,
-                                                                    "sig_time": sig_time,
-                                                                    "exec_time": now_time,
-                                                                    "decision_id": decision_id
-                                                                }
-                                                                print(f"[ResearchWorker] Reversal DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+
+                                                                if not rev_sizing.is_valid:
+                                                                    print(f"[ResearchWorker] Reversal sizing rejected for {symbol} {sig_dir}: {rev_sizing.rejection_reason}")
+                                                                else:
+                                                                    decision_id = f"DEC-REV-{symbol.upper()}-{sig_dir}-{int(sig_time)}"
+                                                                    exec_resp = self.demo_engine.execute_demo_decision(
+                                                                        symbol=symbol,
+                                                                        direction=sig_dir,
+                                                                        volume=rev_sizing.volume_lots,
+                                                                        price=float(rev_price),
+                                                                        sl=float(rev_sl),
+                                                                        tp=float(rev_tp),
+                                                                        comment=f"YarTrader REV {symbol}",
+                                                                        magic=143056,
+                                                                        decision_id=decision_id
+                                                                    )
+                                                                    if exec_resp.Status in ["Placed", "Closed", "Executed", "OK", "Success"]:
+                                                                        self.last_executed_signal[symbol.upper()] = {
+                                                                            "direction": sig_dir,
+                                                                            "sig_time": sig_time,
+                                                                            "exec_time": now_time,
+                                                                            "decision_id": decision_id
+                                                                        }
+                                                                    print(f"[ResearchWorker] Reversal DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
                                                             else:
-                                                                print(f"[ResearchWorker] Reversal BLOCKED: Fresh reassessment decision for {symbol} missing required execution parameters (entry={rev_price}, sl={rev_sl}, tp={rev_tp}). Remaining flat.")
+                                                                print(f"[ResearchWorker] Reversal BLOCKED: Fresh reassessment decision for {symbol} missing required parameters. Remaining flat.")
                                                         else:
-                                                            print(f"[ResearchWorker] Reversal aborted: Reassessment action for {symbol} is {reassess_action} (opposite entry not independently confirmed). Remaining flat.")
+                                                            print(f"[ResearchWorker] Reversal aborted: Reassessment action for {symbol} is {reassess_action}. Remaining flat.")
                                         else:
                                             # Flat state: Normal execution dispatch
                                             sig_price = auto_dec.get("entry")
                                             sig_sl = auto_dec.get("stop_loss")
                                             sig_tp = auto_dec.get("take_profit")
 
-                                            # Calculate 0.5% account equity risk position size from live account info
-                                            acc_info = runtime.provider.delegate.get_account_info() if hasattr(runtime.provider, "delegate") else None
-                                            equity_val = float(acc_info.get("equity", 10000.0)) if acc_info else 10000.0
-                                            free_margin_val = float(acc_info.get("free_margin", equity_val)) if acc_info else equity_val
+                                            if not sig_price or not sig_sl or float(sig_price) <= 0 or float(sig_sl) <= 0:
+                                                print(f"[ResearchWorker] Decision for {symbol} rejected: Missing or invalid entry/stop_loss price.")
+                                                continue
 
                                             from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
                                             risk_engine = ProfessionalRiskEngine()
 
                                             sym_info = self.demo_engine.adapter.get_symbol_info(symbol) if self.demo_engine else None
-                                            vol_min = float(sym_info.get("volume_min", 0.01)) if sym_info else 0.01
-                                            vol_max = float(sym_info.get("volume_max", 100.0)) if sym_info else 100.0
-                                            vol_step = float(sym_info.get("volume_step", 0.01)) if sym_info else 0.01
+                                            if not sym_info:
+                                                print(f"[ResearchWorker] Execution BLOCKED: Symbol metadata unavailable for {symbol}.")
+                                                continue
+
+                                            vol_min = float(sym_info["volume_min"])
+                                            vol_max = float(sym_info["volume_max"])
+                                            vol_step = float(sym_info["volume_step"])
 
                                             sizing_res = risk_engine.evaluate_equity_risk_and_position_size(
                                                 symbol=symbol,
                                                 direction=sig_dir,
-                                                entry_price=float(sig_price or 2500.0),
-                                                stop_loss=float(sig_sl or 2490.0),
+                                                entry_price=float(sig_price),
+                                                stop_loss=float(sig_sl),
                                                 account_equity=equity_val,
                                                 free_margin=free_margin_val,
                                                 risk_pct=0.5,
@@ -270,23 +336,23 @@ class ResearchWorker:
                                                     symbol=symbol,
                                                     direction=sig_dir,
                                                     volume=calculated_vol,
-                                                    price=sig_price,
-                                                    sl=sig_sl,
-                                                    tp=sig_tp,
+                                                    price=float(sig_price),
+                                                    sl=float(sig_sl),
+                                                    tp=float(sig_tp) if sig_tp else None,
                                                     comment=f"YarTrader DEMO {symbol}",
                                                     magic=143056,
                                                     decision_id=decision_id
                                                 )
 
-                                            # Record execution time for cooldown tracking
-                                            self.last_executed_signal[symbol.upper()] = {
-                                                "direction": sig_dir,
-                                                "sig_time": sig_time,
-                                                "exec_time": now_time,
-                                                "decision_id": decision_id
-                                            }
+                                                if exec_resp.Status in ["Placed", "Closed", "Executed", "OK", "Success"]:
+                                                    self.last_executed_signal[symbol.upper()] = {
+                                                        "direction": sig_dir,
+                                                        "sig_time": sig_time,
+                                                        "exec_time": now_time,
+                                                        "decision_id": decision_id
+                                                    }
 
-                                            print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
+                                                print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
                                     except Exception as exec_err:
                                         print(f"[ResearchWorker] DEMO Execution Gate / Fail-Closed: {exec_err}")
                         else:

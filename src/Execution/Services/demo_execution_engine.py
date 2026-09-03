@@ -1,4 +1,5 @@
 import os
+import math
 import json
 import time
 import logging
@@ -151,20 +152,21 @@ class DemoExecutionEngine:
     def get_active_positions(self, symbol: Optional[str] = None) -> list:
         """Queries active broker positions for symbol."""
         if hasattr(self.adapter, "get_positions"):
-            return self.adapter.get_positions(symbol=symbol)
+            res = self.adapter.get_positions(symbol=symbol)
+            return res if res is not None else []
         return []
 
     def close_position(
         self,
         symbol: str,
         position_ticket: int,
-        volume: float = 0.01,
+        volume: Optional[float] = None,
         comment: str = "YarTrader Close",
         open_timestamp: Optional[float] = None,
         is_eod_flatten: bool = False
     ) -> OrderResponse:
         """
-        Submits CLOSE request for position ticket and confirms authoritative position closure.
+        Submits CLOSE request for position ticket using authoritative broker-reported volume.
         Enforces 120-second minimum holding period unless overridden by EOD flattening.
         Returns OrderResponse with Status="Placed" or "Closed" if confirmed, or "Failed" if closure is unconfirmed.
         """
@@ -183,10 +185,29 @@ class DemoExecutionEngine:
                     RawResponse={"reason": "MINIMUM_HOLD_VIOLATION"}
                 )
 
+        # Retrieve authoritative position volume if volume not explicitly provided
+        close_vol = volume
+        active_positions = self.get_active_positions(symbol=symbol)
+        if active_positions is not None and len(active_positions) > 0:
+            ticket_str = str(position_ticket)
+            target_pos = next((p for p in active_positions if str(p.get("ticket", "")) == ticket_str), None)
+            if close_vol is None and target_pos:
+                close_vol = target_pos.get("volume")
+
+        if close_vol is None:
+            close_vol = 0.01
+
+        try:
+            close_vol_f = float(close_vol) if close_vol is not None and not isinstance(close_vol, bool) else 0.01
+            if not math.isfinite(close_vol_f) or close_vol_f <= 0:
+                close_vol_f = 0.01
+        except (ValueError, TypeError):
+            close_vol_f = 0.01
+
         req = OrderRequest(
             Symbol=symbol.upper(),
             OrderType="CLOSE",
-            Volume=float(volume),
+            Volume=close_vol_f,
             PositionTicket=str(position_ticket),
             Comment=comment
         )

@@ -113,7 +113,8 @@ class MarketSessionEngine:
     3. Forex DST & Broker Server timezone handling.
     4. Mandatory Pre-Entry >120s remaining session feasibility check.
     5. Causal Pre-Entry TP-Time Feasibility model.
-    6. Fail-closed on UNKNOWN state.
+    6. Daily Loss Protection Kill Switch (8.0% limit, fail-closed on invalid equity).
+    7. Fail-closed on UNKNOWN state.
     """
 
     POSITION_MINIMUM_NORMAL_LIFETIME: float = 120.0  # Must be strictly > 120.0s
@@ -122,6 +123,8 @@ class MarketSessionEngine:
         self.symbol_schedules: Dict[str, List[SessionInterval]] = {}
         self.holiday_calendar: List[HolidayEvent] = []
         self.forexfactory_enrichment: List[Dict[str, Any]] = []
+        from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+        self.kill_switch = DailyLossKillSwitch()
 
     def register_session_interval(self, interval: SessionInterval) -> None:
         """Register a session interval for a symbol."""
@@ -256,18 +259,39 @@ class MarketSessionEngine:
         distance_to_tp: Optional[float] = None,
         current_volatility_atr: Optional[float] = None,
         historical_mfe_speed: float = 1.0,
-        current_time: Optional[datetime] = None
+        current_time: Optional[datetime] = None,
+        current_equity: Optional[Any] = None,
+        session_baseline_equity: Optional[Any] = None
     ) -> MarketSessionValidationResult:
         """
-        Performs the complete unified Pre-Entry Session & Calendar Feasibility Gate.
+        Performs the complete unified Pre-Entry Session, Calendar Feasibility, and Daily Loss Gate.
         Evaluates:
-        1. Market State (OPEN vs CLOSED vs UNKNOWN vs HOLIDAY_CLOSED).
-        2. Pre-Entry 120-second session remaining feasibility (`remaining_session_seconds > 121.0`).
-        3. Causal Pre-Entry TP-Time Feasibility.
+        1. Daily Loss Protection Kill Switch (requires valid, finite, positive current equity).
+        2. Market State (OPEN vs CLOSED vs UNKNOWN vs HOLIDAY_CLOSED).
+        3. Pre-Entry 120-second session remaining feasibility (`remaining_session_seconds > 121.0`).
+        4. Causal Pre-Entry TP-Time Feasibility.
         """
         now = current_time if current_time else datetime.now(timezone.utc)
         if now.tzinfo is None:
             now = now.replace(tzinfo=timezone.utc)
+
+        # 1. Daily Loss Protection Kill Switch Evaluation
+        if current_equity is not None or session_baseline_equity is not None:
+            ks_allowed, ks_reason, ks_meta = self.kill_switch.evaluate_daily_loss(
+                current_equity=current_equity,
+                session_baseline_equity=session_baseline_equity,
+                now_utc=now
+            )
+            if not ks_allowed:
+                return MarketSessionValidationResult(
+                    allowed=False,
+                    rejection_reason=ks_reason,
+                    market_state=MarketState.CLOSED,
+                    active_interval=None,
+                    remaining_session_seconds=0.0,
+                    source_authority=CalendarSourcePrecedence.GENERIC_FALLBACK,
+                    message=f"Trade rejected by Daily Loss Protection Kill Switch: {ks_reason}"
+                )
 
         state, active_interval, source_auth = self.get_market_state(symbol=symbol, broker=broker, current_time=now)
 

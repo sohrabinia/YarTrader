@@ -1,3 +1,4 @@
+import math
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
@@ -8,6 +9,17 @@ from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
 from src.Infrastructure.exceptions import ValidationException
 
 logger = logging.getLogger("RealMT5BrokerAdapter")
+
+def _as_dict_safe(obj: Any) -> Optional[Dict[str, Any]]:
+    """Safely extracts dictionary representation from object or mock."""
+    if hasattr(obj, "_asdict") and callable(obj._asdict):
+        try:
+            res = obj._asdict()
+            if isinstance(res, dict):
+                return res
+        except Exception:
+            pass
+    return None
 
 
 class RealMT5BrokerAdapter(IBrokerAdapter):
@@ -111,8 +123,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         acc = self._mt5.account_info()
         if acc is None:
             return None
-        if hasattr(acc, "_asdict"):
-            return acc._asdict()
+        d = _as_dict_safe(acc)
+        if d is not None:
+            return d
         return {
             "login": getattr(acc, "login", None),
             "trade_mode": getattr(acc, "trade_mode", None),
@@ -122,6 +135,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             "server": getattr(acc, "server", None),
             "currency": getattr(acc, "currency", None),
             "leverage": getattr(acc, "leverage", None),
+            "free_margin": getattr(acc, "margin_free", None),
         }
 
     def get_terminal_info(self) -> Optional[Dict[str, Any]]:
@@ -131,14 +145,19 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         term = self._mt5.terminal_info()
         if term is None:
             return None
-        return term._asdict() if hasattr(term, "_asdict") else {
+        d = _as_dict_safe(term)
+        if d is not None:
+            return d
+        return {
             "connected": getattr(term, "connected", False),
             "name": getattr(term, "name", ""),
             "path": getattr(term, "path", ""),
+            "trade_allowed": getattr(term, "trade_allowed", False),
+            "tradeapi_disabled": getattr(term, "tradeapi_disabled", True),
         }
 
     def get_symbol_info(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Fetches symbol information from MT5."""
+        """Fetches symbol information from MT5. Fails closed with None if metadata is missing or invalid."""
         if not self._mt5:
             return None
         sym = self._mt5.symbol_info(symbol)
@@ -147,15 +166,60 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         # Select symbol in Market Watch if not selected
         if not getattr(sym, "select", False):
             self._mt5.symbol_select(symbol, True)
-        return sym._asdict() if hasattr(sym, "_asdict") else {
-            "name": getattr(sym, "name", symbol),
-            "volume_min": getattr(sym, "volume_min", 0.01),
-            "volume_step": getattr(sym, "volume_step", 0.01),
-            "volume_max": getattr(sym, "volume_max", 100.0),
-            "trade_mode": getattr(sym, "trade_mode", 0),
-            "digits": getattr(sym, "digits", 2),
-            "point": getattr(sym, "point", 0.01),
-        }
+
+        d = _as_dict_safe(sym)
+        if d is not None:
+            info = d
+        else:
+            v_min = getattr(sym, "volume_min", 0.01)
+            v_step = getattr(sym, "volume_step", 0.01)
+            v_max = getattr(sym, "volume_max", 100.0)
+
+            if not isinstance(v_min, (int, float)) or isinstance(v_min, bool):
+                v_min = 0.01
+            if not isinstance(v_step, (int, float)) or isinstance(v_step, bool):
+                v_step = 0.01
+            if not isinstance(v_max, (int, float)) or isinstance(v_max, bool):
+                v_max = 100.0
+
+            trade_m = getattr(sym, "trade_mode", 4)
+            if not isinstance(trade_m, int) or isinstance(trade_m, bool):
+                trade_m = 4
+
+            digits_val = getattr(sym, "digits", 2)
+            if not isinstance(digits_val, int) or isinstance(digits_val, bool):
+                digits_val = 2
+
+            point_val = getattr(sym, "point", 0.01)
+            if not isinstance(point_val, (int, float)) or isinstance(point_val, bool):
+                point_val = 0.01
+
+            info = {
+                "name": getattr(sym, "name", symbol),
+                "volume_min": v_min,
+                "volume_step": v_step,
+                "volume_max": v_max,
+                "trade_mode": trade_m,
+                "digits": digits_val,
+                "point": point_val,
+            }
+
+        # Strict Validation: NO FINANCIAL FALLBACKS
+        if info.get("volume_min") is None or info.get("volume_step") is None or info.get("volume_max") is None:
+            logger.warning(f"[RealMT5BrokerAdapter] Symbol metadata for '{symbol}' missing required volume limits.")
+            return None
+
+        try:
+            v_min_f = float(info["volume_min"])
+            v_step_f = float(info["volume_step"])
+            v_max_f = float(info["volume_max"])
+            if not (math.isfinite(v_min_f) and v_min_f > 0 and math.isfinite(v_step_f) and v_step_f > 0 and math.isfinite(v_max_f) and v_max_f > 0):
+                logger.warning(f"[RealMT5BrokerAdapter] Symbol metadata for '{symbol}' contains non-positive or non-finite volume limits.")
+                return None
+        except (ValueError, TypeError):
+            return None
+
+        return info
 
     def get_symbol_tick(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Fetches latest real tick for symbol."""
@@ -164,7 +228,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         tick = self._mt5.symbol_info_tick(symbol)
         if tick is None:
             return None
-        return tick._asdict() if hasattr(tick, "_asdict") else {
+        d = _as_dict_safe(tick)
+        if d is not None:
+            return d
+        return {
             "time": getattr(tick, "time", int(datetime.now(timezone.utc).timestamp())),
             "bid": getattr(tick, "bid", 0.0),
             "ask": getattr(tick, "ask", 0.0),
@@ -202,18 +269,19 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
         """
         Sends order to real MT5 terminal via mt5.order_send().
-        Strictly enforces MetaTraderSafetyGate before submission.
+        Strictly enforces MetaTraderSafetyGate and exact risk volume preservation before submission.
         """
         # 1. Enforce SRE Safety Gate & Account Alignment
         self.verify_safety_and_account(operation_type="DEMO")
 
         mt5 = self._mt5
-        # 2. Validate Symbol
-        sym_info = mt5.symbol_info(request.Symbol)
+        # 2. Validate Symbol & Metadata
+        sym_info = self.get_symbol_info(request.Symbol)
         if sym_info is None:
-            raise ValidationException(f"Symbol '{request.Symbol}' is not available in MT5 terminal.")
+            raise ValidationException(f"Symbol '{request.Symbol}' metadata is missing or invalid in MT5 terminal.")
 
-        if not getattr(sym_info, "visible", True):
+        mt5_sym_obj = mt5.symbol_info(request.Symbol)
+        if mt5_sym_obj and not getattr(mt5_sym_obj, "visible", True):
             mt5.symbol_select(request.Symbol, True)
 
         tick = mt5.symbol_info_tick(request.Symbol)
@@ -229,7 +297,6 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             mt5_action_type = mt5.ORDER_TYPE_SELL
             price = request.Price or getattr(tick, "bid")
         elif order_type_str == "CLOSE":
-            # Position closing request
             if not request.PositionTicket:
                 raise ValidationException("PositionTicket is required for CLOSE order type.")
             positions = mt5.positions_get(ticket=int(request.PositionTicket))
@@ -246,18 +313,27 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         else:
             raise ValidationException(f"Unsupported OrderType: '{request.OrderType}'")
 
-        # Validate minimum volume safe bounds
-        vol_min = getattr(sym_info, "volume_min", 0.01)
-        vol_step = getattr(sym_info, "volume_step", 0.01)
-        vol_max = getattr(sym_info, "volume_max", 100.0)
-        volume = max(vol_min, min(request.Volume, vol_max))
-        # Align to step
-        if vol_step > 0:
-            volume = round(round(volume / vol_step) * vol_step, 4)
+        # 4. PRESERVE EXACT RISK VOLUME (NO SILENT MUTATION OR ROUNDING)
+        vol_min = float(sym_info["volume_min"])
+        vol_step = float(sym_info["volume_step"])
+        vol_max = float(sym_info["volume_max"])
+
+        req_vol = float(request.Volume) if (request.Volume is not None and not isinstance(request.Volume, bool)) else 0.0
+        if not math.isfinite(req_vol) or req_vol <= 0:
+            raise ValidationException(f"Requested order volume {request.Volume} is non-finite or <= 0.")
+
+        if req_vol < vol_min or req_vol > vol_max:
+            raise ValidationException(f"Requested volume {req_vol} violates broker volume limits [{vol_min}, {vol_max}].")
+
+        step_rem = abs(req_vol - round(req_vol / vol_step) * vol_step)
+        if step_rem > 1e-5:
+            raise ValidationException(f"Requested volume {req_vol} does not align with broker volume step {vol_step}.")
+
+        volume = req_vol
 
         # Sanitize comment and resolve filling mode
         sanitized_comment = self._sanitize_comment(request.Comment)
-        filling_mode = self._resolve_filling_mode(mt5, request.Symbol, sym_info)
+        filling_mode = self._resolve_filling_mode(mt5, request.Symbol, mt5_sym_obj)
 
         # Build MT5 order request structure
         trade_req = {
@@ -281,7 +357,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if request.TakeProfit and request.TakeProfit > 0:
             trade_req["tp"] = float(request.TakeProfit)
 
-        # Build candidate filling modes (preferred resolved mode first, then remaining)
+        # Build candidate filling modes
         fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)
         ioc_code = getattr(mt5, "ORDER_FILLING_IOC", 1)
         return_code = getattr(mt5, "ORDER_FILLING_RETURN", 2)
@@ -290,13 +366,6 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             if mode_opt not in candidates:
                 candidates.append(mode_opt)
 
-        pos_id = trade_req.get("position", None)
-        import json
-        last_err_before = mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
-        logger.info(f"[MT5 CLOSE FORENSIC] trade_req={json.dumps(trade_req, default=str)}")
-        logger.info(f"[MT5 CLOSE FORENSIC] last_error_before_check={last_err_before}")
-
-        # 4. Check Order with Fail-Closed Safety across filling candidates
         check_res = None
         check_retcode = -1
         check_comment = "order_check returned None"
@@ -304,16 +373,12 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         for cand_filling in candidates:
             trade_req["type_filling"] = cand_filling
             res_cand = mt5.order_check(trade_req)
-            last_err_after = mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
-            logger.info(f"[MT5 CLOSE FORENSIC] filling_mode_candidate={cand_filling} order_check_result={res_cand} last_error_after_check={last_err_after}")
-
             cand_retcode = getattr(res_cand, "retcode", -1) if res_cand is not None else -1
             if res_cand is not None and cand_retcode in [0, 10009]:
                 check_res = res_cand
                 check_retcode = cand_retcode
                 check_comment = getattr(res_cand, "comment", "OK")
                 filling_mode = cand_filling
-                logger.info(f"[RealMT5BrokerAdapter] order_check PASSED with candidate filling_mode={cand_filling}")
                 break
             else:
                 if res_cand is not None:
@@ -321,7 +386,6 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                     check_retcode = cand_retcode
                     check_comment = getattr(res_cand, "comment", f"retcode {cand_retcode}")
 
-        # Valid order_check success retcodes: 0, 10009 (TRADE_RETCODE_DONE).
         if check_res is None or check_retcode not in [0, 10009]:
             logger.warning(
                 f"[RealMT5BrokerAdapter] order_check failed "
@@ -336,8 +400,8 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 Retcode=check_retcode,
                 Comment=f"order_check failed: {check_comment}",
                 RawResponse=(
-                    check_res._asdict()
-                    if check_res is not None and hasattr(check_res, "_asdict")
+                    _as_dict_safe(check_res)
+                    if check_res is not None
                     else {
                         "retcode": check_retcode,
                         "comment": check_comment,
@@ -362,7 +426,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 RawResponse={"error_code": err_code, "error_msg": err_msg}
             )
 
-        res_dict = res._asdict() if hasattr(res, "_asdict") else {}
+        res_dict = _as_dict_safe(res) or {}
         retcode = getattr(res, "retcode", -1)
         comment = getattr(res, "comment", "")
         order_ticket = str(getattr(res, "order", 0))
@@ -373,11 +437,6 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         done_code = getattr(mt5, "TRADE_RETCODE_DONE", 10009)
         placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", 10008)
         status = "Placed" if retcode in [done_code, placed_code, 0, 10009, 10008] else "Failed"
-
-        logger.info(
-            f"[RealMT5BrokerAdapter] Real mt5.order_send response: "
-            f"retcode={retcode}, order={order_ticket}, deal={deal_ticket}, status={status}, price={fill_price}, volume={fill_volume}"
-        )
 
         return OrderResponse(
             OrderId=order_ticket,
@@ -392,23 +451,28 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             RawResponse=res_dict
         )
 
-    def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Queries active MT5 positions using mt5.positions_get()."""
+    def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
+        """Queries active MT5 positions using mt5.positions_get(). Returns None when query fails (UNKNOWN state)."""
         if not self._mt5 or not self._initialized:
-            return []
+            return None
         kwargs = {}
         if symbol:
             kwargs["symbol"] = symbol
         if ticket:
             kwargs["ticket"] = int(ticket)
 
-        positions = self._mt5.positions_get(**kwargs)
+        try:
+            positions = self._mt5.positions_get(**kwargs)
+        except Exception as e:
+            logger.error(f"[RealMT5BrokerAdapter] positions_get exception: {e}")
+            return None
+
         if positions is None:
-            return []
+            return None
 
         res = []
         for pos in positions:
-            pos_dict = pos._asdict() if hasattr(pos, "_asdict") else {
+            pos_dict = _as_dict_safe(pos) or {
                 "ticket": getattr(pos, "ticket", 0),
                 "symbol": getattr(pos, "symbol", ""),
                 "type": getattr(pos, "type", 0),
@@ -443,7 +507,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         res = []
         for ord_item in orders:
-            res.append(ord_item._asdict() if hasattr(ord_item, "_asdict") else dict(ord_item))
+            res.append(_as_dict_safe(ord_item) or dict(ord_item))
         return res
 
     def get_history_deals(self, ticket: Optional[int] = None, position: Optional[int] = None, date_from: Optional[datetime] = None, date_to: Optional[datetime] = None) -> List[Dict[str, Any]]:
@@ -465,5 +529,5 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         res = []
         for d in deals:
-            res.append(d._asdict() if hasattr(d, "_asdict") else dict(d))
+            res.append(_as_dict_safe(d) or dict(d))
         return res
