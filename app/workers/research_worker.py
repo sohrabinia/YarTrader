@@ -247,7 +247,7 @@ class ResearchWorker:
                         self.status = "RUNNING"
                         self.error_count = 0
 
-                        candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [1] * 15))
+                        candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", []))
                         print(f"Candles: {candles_count}")
                         print("Features: Generated")
                         print("Research: Completed\n")
