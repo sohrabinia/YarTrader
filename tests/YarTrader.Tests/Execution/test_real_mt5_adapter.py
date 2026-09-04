@@ -164,6 +164,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.ORDER_FILLING_FOK = 0
         mock_mt5.ORDER_FILLING_IOC = 1
         mock_mt5.ORDER_FILLING_RETURN = 2
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+        mock_mt5.TRADE_RETCODE_PLACED = 10008
 
         sym_info_btc = _create_mock_sym()
         sym_info_btc.filling_mode = 1  # SYMBOL_FILLING_FOK
@@ -314,6 +316,9 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_order_check_blocks_10030(self, mock_verify):
         mock_mt5 = MagicMock()
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+        mock_mt5.TRADE_RETCODE_PLACED = 10008
+        mock_mt5.ORDER_FILLING_FOK = 0
         mock_acc = MagicMock()
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
@@ -351,6 +356,9 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_invalid_filling_blocks_order_send(self, mock_verify):
         mock_mt5 = MagicMock()
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+        mock_mt5.TRADE_RETCODE_PLACED = 10008
+        mock_mt5.ORDER_FILLING_FOK = 0
         mock_acc = MagicMock()
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
@@ -403,6 +411,9 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_order_check_invalid_retcode_10013_fails_closed(self, mock_verify):
         mock_mt5 = MagicMock()
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+        mock_mt5.TRADE_RETCODE_PLACED = 10008
+        mock_mt5.ORDER_FILLING_FOK = 0
         mock_acc = MagicMock()
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
@@ -511,6 +522,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.ORDER_TIME_GTC = 0
         mock_mt5.ORDER_FILLING_FOK = 0
         mock_mt5.ORDER_FILLING_IOC = 1
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+        mock_mt5.TRADE_RETCODE_PLACED = 10008
 
         mock_acc = MagicMock()
         mock_acc.login = 52961173
@@ -674,6 +687,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.ORDER_FILLING_FOK = 0
         mock_mt5.ORDER_FILLING_IOC = 1
         mock_mt5.ORDER_FILLING_RETURN = 2
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+        mock_mt5.TRADE_RETCODE_PLACED = 10008
 
         mock_acc = MagicMock()
         mock_acc.login = 52961173

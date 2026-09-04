@@ -266,27 +266,40 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         return sanitized or "YarClose"
 
     def _resolve_filling_mode(self, mt5: Any, symbol: str, sym_info: Any) -> Optional[int]:
-        """Deterministically resolves supported MT5 filling mode for symbol using native MT5 constants."""
+        """
+        Deterministically resolves supported MT5 filling mode for symbol using native MT5 constants.
+        Fails closed with None if required native filling constants are unavailable or MagicMock.
+        """
         fok_code = getattr(mt5, "ORDER_FILLING_FOK", None)
-        if isinstance(fok_code, MagicMock) or fok_code is None:
-            fok_code = 0
+        if isinstance(fok_code, MagicMock) or fok_code is None or not isinstance(fok_code, int):
+            fok_code = None
+
         ioc_code = getattr(mt5, "ORDER_FILLING_IOC", None)
-        if isinstance(ioc_code, MagicMock) or ioc_code is None:
-            ioc_code = 1
+        if isinstance(ioc_code, MagicMock) or ioc_code is None or not isinstance(ioc_code, int):
+            ioc_code = None
+
         return_code = getattr(mt5, "ORDER_FILLING_RETURN", None)
-        if isinstance(return_code, MagicMock) or return_code is None:
-            return_code = 2
+        if isinstance(return_code, MagicMock) or return_code is None or not isinstance(return_code, int):
+            return_code = None
 
         f_mode = getattr(sym_info, "filling_mode", None) if sym_info else None
         if f_mode is not None and isinstance(f_mode, int):
-            if f_mode & 1:
+            if f_mode & 1 and fok_code is not None:
                 return fok_code
-            if f_mode & 2:
+            if f_mode & 2 and ioc_code is not None:
                 return ioc_code
-            if f_mode & 4:
+            if f_mode & 4 and return_code is not None:
                 return return_code
 
-        return fok_code
+        # If sym_info didn't specify or match, fallback to any available native constant without fabricating integers
+        if fok_code is not None:
+            return fok_code
+        if ioc_code is not None:
+            return ioc_code
+        if return_code is not None:
+            return return_code
+
+        return None
 
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
         """
@@ -380,26 +393,52 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             trade_req["tp"] = float(request.TakeProfit)
 
         done_code = getattr(mt5, "TRADE_RETCODE_DONE", None)
-        if isinstance(done_code, MagicMock) or done_code is None:
-            done_code = 10009
-        placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", None)
-        if isinstance(placed_code, MagicMock) or placed_code is None:
-            placed_code = 10008
+        if isinstance(done_code, MagicMock) or done_code is None or not isinstance(done_code, int):
+            done_code = None
 
-        valid_done_codes = [c for c in [done_code, placed_code, 0, 10009, 10008] if c is not None and isinstance(c, int)]
+        placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", None)
+        if isinstance(placed_code, MagicMock) or placed_code is None or not isinstance(placed_code, int):
+            placed_code = None
+
+        if done_code is None and placed_code is None:
+            logger.warning("[RealMT5BrokerAdapter] Native MT5 retcode success constants (DONE/PLACED) unavailable. Failing closed.")
+            return OrderResponse(
+                OrderId=None,
+                Symbol=request.Symbol,
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=None,
+                Comment="order_check failed: Native MT5 success retcode constants unavailable.",
+                RawResponse={"error": "Native MT5 retcode constants missing"}
+            )
+
+        valid_done_codes = [c for c in [done_code, placed_code, 0] if c is not None and isinstance(c, int)]
 
         fok_code = getattr(mt5, "ORDER_FILLING_FOK", None)
-        if isinstance(fok_code, MagicMock) or fok_code is None:
-            fok_code = 0
+        if isinstance(fok_code, MagicMock) or fok_code is None or not isinstance(fok_code, int):
+            fok_code = None
+
         ioc_code = getattr(mt5, "ORDER_FILLING_IOC", None)
-        if isinstance(ioc_code, MagicMock) or ioc_code is None:
-            ioc_code = 1
+        if isinstance(ioc_code, MagicMock) or ioc_code is None or not isinstance(ioc_code, int):
+            ioc_code = None
+
         return_code = getattr(mt5, "ORDER_FILLING_RETURN", None)
-        if isinstance(return_code, MagicMock) or return_code is None:
-            return_code = 2
+        if isinstance(return_code, MagicMock) or return_code is None or not isinstance(return_code, int):
+            return_code = None
 
         candidates = [c for c in [filling_mode, fok_code, ioc_code, return_code] if c is not None]
         candidates = list(dict.fromkeys(candidates))
+        if not candidates:
+            logger.warning("[RealMT5BrokerAdapter] Native MT5 filling mode constants unavailable. Failing closed.")
+            return OrderResponse(
+                OrderId=None,
+                Symbol=request.Symbol,
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=None,
+                Comment="order_check failed: Native MT5 filling mode constants unavailable.",
+                RawResponse={"error": "Native MT5 filling mode constants missing"}
+            )
 
         check_res = None
         check_retcode = None
@@ -511,10 +550,17 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             except (ValueError, TypeError):
                 pass
 
-        done_code = getattr(mt5, "TRADE_RETCODE_DONE", 10009)
-        placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", 10008)
+        done_code = getattr(mt5, "TRADE_RETCODE_DONE", None)
+        if isinstance(done_code, MagicMock) or done_code is None or not isinstance(done_code, int):
+            done_code = None
 
-        is_retcode_ok = (retcode is not None and retcode in [done_code, placed_code, 0, 10009, 10008])
+        placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", None)
+        if isinstance(placed_code, MagicMock) or placed_code is None or not isinstance(placed_code, int):
+            placed_code = None
+
+        valid_send_codes = [c for c in [done_code, placed_code] if c is not None and isinstance(c, int)]
+
+        is_retcode_ok = (retcode is not None and retcode in valid_send_codes)
         is_fill_valid = (fill_price is not None and fill_volume is not None)
 
         if is_retcode_ok and is_fill_valid:

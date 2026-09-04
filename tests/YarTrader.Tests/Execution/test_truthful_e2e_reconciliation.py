@@ -149,6 +149,7 @@ def test_order_check_fail_closed():
     mock_mt5 = MagicMock()
     mock_mt5.TRADE_RETCODE_DONE = 10009
     mock_mt5.TRADE_RETCODE_PLACED = 10008
+    mock_mt5.ORDER_FILLING_FOK = 0
     mock_mt5.symbol_info.return_value = _create_explicit_mock_sym()
     mock_mt5.symbol_info_tick.return_value = _create_explicit_mock_tick()
 
@@ -203,6 +204,9 @@ def test_order_check_success_allows_order_send():
     adapter._initialized = True
 
     mock_mt5 = MagicMock()
+    mock_mt5.TRADE_RETCODE_DONE = 10009
+    mock_mt5.TRADE_RETCODE_PLACED = 10008
+    mock_mt5.ORDER_FILLING_FOK = 0
     mock_mt5.symbol_info.return_value = _create_explicit_mock_sym()
     mock_mt5.symbol_info_tick.return_value = _create_explicit_mock_tick()
 
