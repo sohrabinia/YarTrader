@@ -21,11 +21,11 @@ class OrderRequest:
 @dataclass(frozen=True)
 class OrderResponse:
     """Represents order response block returned by adapters."""
-    OrderId: str  # Real MT5 Order Ticket (e.g. str(mt5_order_ticket)) or adapter ID
-    Symbol: str
-    Status: str  # e.g., "Placed", "Executed", "MockPlaced", "Rejected", "Failed"
-    SubmittedAt: datetime
-    Retcode: int = 0
+    OrderId: Optional[str] = None  # Real MT5 Order Ticket (e.g. str(mt5_order_ticket)) or None if failed/unknown
+    Symbol: str = "XAUUSD"
+    Status: str = "Failed"  # e.g., "Placed", "Executed", "Rejected", "Failed"
+    SubmittedAt: Optional[datetime] = None
+    Retcode: Optional[int] = None
     Comment: str = ""
     DealTicket: Optional[str] = None
     PositionTicket: Optional[str] = None

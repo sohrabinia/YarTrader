@@ -42,6 +42,12 @@ class ProfessionalRiskEngine:
     Real Risk/Reward (Real RR), Account Equity Sizing, Effective Risk-Free Break-Even, Multi-Leg Campaign Rules,
     1% Add-On Eligibility, Free Margin Sequence Checks, and Base/Node Settlement.
 
+    NOTE ON COST-MODEL ASSUMPTIONS:
+    `spread_pip`, `commission_per_lot`, `estimated_slippage_pip`, and `max_portfolio_risk_pct` parameters
+    are analytical cost-model and research simulation assumptions used strictly for net risk-reward calculation
+    and effective break-even stop estimation. They carry ZERO authority over live broker account facts, broker order
+    submission, or SRE DemoExecutionGate/SafetyGate authorization boundaries.
+
     Enforces mandatory trade qualification rules:
     - Win Probability >= 50%
     - Real RR >= 1.5

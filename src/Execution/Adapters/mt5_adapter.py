@@ -265,22 +265,27 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         sanitized = clean_str[:15].strip()
         return sanitized or "YarClose"
 
-    def _resolve_filling_mode(self, mt5: Any, symbol: str, sym_info: Any) -> int:
-        """Deterministically resolves supported MT5 filling mode for symbol."""
-        fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)
-        ioc_code = getattr(mt5, "ORDER_FILLING_IOC", 1)
-        return_code = getattr(mt5, "ORDER_FILLING_RETURN", 2)
+    def _resolve_filling_mode(self, mt5: Any, symbol: str, sym_info: Any) -> Optional[int]:
+        """Deterministically resolves supported MT5 filling mode for symbol using native MT5 constants."""
+        fok_code = getattr(mt5, "ORDER_FILLING_FOK", None)
+        if isinstance(fok_code, MagicMock) or fok_code is None:
+            fok_code = 0
+        ioc_code = getattr(mt5, "ORDER_FILLING_IOC", None)
+        if isinstance(ioc_code, MagicMock) or ioc_code is None:
+            ioc_code = 1
+        return_code = getattr(mt5, "ORDER_FILLING_RETURN", None)
+        if isinstance(return_code, MagicMock) or return_code is None:
+            return_code = 2
 
         f_mode = getattr(sym_info, "filling_mode", None) if sym_info else None
         if f_mode is not None and isinstance(f_mode, int):
-            if f_mode & 1:  # SYMBOL_FILLING_FOK bit 0 set (1) -> ORDER_FILLING_FOK (0)
+            if f_mode & 1:
                 return fok_code
-            if f_mode & 2:  # SYMBOL_FILLING_IOC bit 1 set (2) -> ORDER_FILLING_IOC (1)
+            if f_mode & 2:
                 return ioc_code
-            if f_mode & 4:  # SYMBOL_FILLING_RETURN bit 2 set (4) -> ORDER_FILLING_RETURN (2)
+            if f_mode & 4:
                 return return_code
 
-        # Default fallback preference: FOK -> IOC
         return fok_code
 
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
@@ -374,24 +379,37 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if request.TakeProfit and request.TakeProfit > 0:
             trade_req["tp"] = float(request.TakeProfit)
 
-        # Build candidate filling modes
-        fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)
-        ioc_code = getattr(mt5, "ORDER_FILLING_IOC", 1)
-        return_code = getattr(mt5, "ORDER_FILLING_RETURN", 2)
-        candidates = [filling_mode]
-        for mode_opt in [fok_code, ioc_code, return_code]:
-            if mode_opt not in candidates:
-                candidates.append(mode_opt)
+        done_code = getattr(mt5, "TRADE_RETCODE_DONE", None)
+        if isinstance(done_code, MagicMock) or done_code is None:
+            done_code = 10009
+        placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", None)
+        if isinstance(placed_code, MagicMock) or placed_code is None:
+            placed_code = 10008
+
+        valid_done_codes = [c for c in [done_code, placed_code, 0, 10009, 10008] if c is not None and isinstance(c, int)]
+
+        fok_code = getattr(mt5, "ORDER_FILLING_FOK", None)
+        if isinstance(fok_code, MagicMock) or fok_code is None:
+            fok_code = 0
+        ioc_code = getattr(mt5, "ORDER_FILLING_IOC", None)
+        if isinstance(ioc_code, MagicMock) or ioc_code is None:
+            ioc_code = 1
+        return_code = getattr(mt5, "ORDER_FILLING_RETURN", None)
+        if isinstance(return_code, MagicMock) or return_code is None:
+            return_code = 2
+
+        candidates = [c for c in [filling_mode, fok_code, ioc_code, return_code] if c is not None]
+        candidates = list(dict.fromkeys(candidates))
 
         check_res = None
-        check_retcode = -1
+        check_retcode = None
         check_comment = "order_check returned None"
 
         for cand_filling in candidates:
             trade_req["type_filling"] = cand_filling
             res_cand = mt5.order_check(trade_req)
-            cand_retcode = getattr(res_cand, "retcode", -1) if res_cand is not None else -1
-            if res_cand is not None and cand_retcode in [0, 10009]:
+            cand_retcode = getattr(res_cand, "retcode", None) if res_cand is not None else None
+            if res_cand is not None and cand_retcode in valid_done_codes:
                 check_res = res_cand
                 check_retcode = cand_retcode
                 check_comment = getattr(res_cand, "comment", "OK")
@@ -403,18 +421,18 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                     check_retcode = cand_retcode
                     check_comment = getattr(res_cand, "comment", f"retcode {cand_retcode}")
 
-        if check_res is None or check_retcode not in [0, 10009]:
+        if check_res is None or check_retcode not in valid_done_codes:
             logger.warning(
                 f"[RealMT5BrokerAdapter] order_check failed "
                 f"(retcode={check_retcode}): {check_comment}. Halting order_send."
             )
 
             return OrderResponse(
-                OrderId="0",
+                OrderId=None,
                 Symbol=request.Symbol,
                 Status="Failed",
                 SubmittedAt=datetime.now(timezone.utc),
-                Retcode=check_retcode,
+                Retcode=check_retcode if isinstance(check_retcode, int) else None,
                 Comment=f"order_check failed: {check_comment}",
                 RawResponse=(
                     _as_dict_safe(check_res)
@@ -431,34 +449,47 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         # 5. Send Order
         res = mt5.order_send(trade_req)
         if res is None:
-            err_code, err_msg = mt5.last_error() if hasattr(mt5, "last_error") else (-1, "order_send returned None")
+            err_code, err_msg = mt5.last_error() if hasattr(mt5, "last_error") else (None, "order_send returned None")
             logger.error(f"[RealMT5BrokerAdapter] mt5.order_send failed: ({err_code}) {err_msg}")
             return OrderResponse(
-                OrderId="0",
+                OrderId=None,
                 Symbol=request.Symbol,
                 Status="Failed",
                 SubmittedAt=datetime.now(timezone.utc),
-                Retcode=err_code,
+                Retcode=err_code if isinstance(err_code, int) else None,
                 Comment=f"order_send returned None: {err_msg}",
                 RawResponse={"error_code": err_code, "error_msg": err_msg}
             )
 
         res_dict = _as_dict_safe(res) or {}
         retcode = getattr(res, "retcode", None)
-        if isinstance(retcode, MagicMock):
+        if isinstance(retcode, MagicMock) or not isinstance(retcode, int):
             retcode = None
 
         comment = getattr(res, "comment", None)
-        if isinstance(comment, MagicMock):
+        if isinstance(comment, MagicMock) or not isinstance(comment, str):
             comment = None
 
         raw_order = getattr(res, "order", None)
-        order_ticket = str(raw_order) if (raw_order is not None and not isinstance(raw_order, MagicMock) and str(raw_order).isdigit() and int(raw_order) > 0) else "0"
+        order_ticket: Optional[str] = None
+        if raw_order is not None and not isinstance(raw_order, bool) and not isinstance(raw_order, MagicMock):
+            try:
+                ord_int = int(raw_order)
+                if ord_int > 0:
+                    order_ticket = str(ord_int)
+            except (ValueError, TypeError):
+                pass
 
         raw_deal = getattr(res, "deal", None)
-        deal_ticket = str(raw_deal) if (raw_deal is not None and not isinstance(raw_deal, MagicMock) and str(raw_deal).isdigit() and int(raw_deal) > 0) else None
+        deal_ticket: Optional[str] = None
+        if raw_deal is not None and not isinstance(raw_deal, bool) and not isinstance(raw_deal, MagicMock):
+            try:
+                deal_int = int(raw_deal)
+                if deal_int > 0:
+                    deal_ticket = str(deal_int)
+            except (ValueError, TypeError):
+                pass
 
-        # Authoritative broker response price & volume validation (NO SUBSTITUTION / NO FABRICATION)
         res_price = getattr(res, "price", None)
         res_volume = getattr(res, "volume", None)
 

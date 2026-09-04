@@ -435,7 +435,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         resp = self.adapter.send_order_to_broker(req)
 
         self.assertEqual(resp.Status, "Failed")
-        self.assertEqual(resp.OrderId, "0")
+        self.assertIsNone(resp.OrderId)
         self.assertEqual(resp.Retcode, 10013)
         mock_mt5.order_send.assert_not_called()
 
@@ -593,7 +593,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         resp = self.adapter.send_order_to_broker(req)
 
         self.assertEqual(resp.Status, "Failed")
-        self.assertEqual(resp.OrderId, "0")
+        self.assertIsNone(resp.OrderId)
         mock_mt5.order_send.assert_not_called()
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")

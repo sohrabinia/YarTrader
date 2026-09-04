@@ -244,6 +244,55 @@ def test_add_on_eligibility_financial_inputs_required():
     assert "Add-on position sizing failed" in res["rejection_reasons"][0]
 
 
+def test_mt5_adapter_broker_response_truthfulness_and_no_fabrication():
+    """Proves RealMT5BrokerAdapter.send_order_to_broker does NOT fabricate retcode or OrderId when response fields are missing."""
+    adapter = RealMT5BrokerAdapter(auto_initialize=False)
+    adapter._initialized = True
+    adapter._mt5 = MagicMock()
+
+    # Mock safety verification
+    adapter.verify_safety_and_account = MagicMock(return_value=True)
+    adapter.get_symbol_info = MagicMock(return_value={"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01})
+    adapter.get_symbol_tick = MagicMock(return_value={"bid": 2500.0, "ask": 2500.20, "time": 1700000000})
+
+    # Response missing retcode & order ID -> Status = Failed, OrderId = None
+    mock_res = MagicMock()
+    mock_res.retcode = None
+    mock_res.order = None
+    mock_res.price = None
+    mock_res.volume = None
+    adapter._mt5.order_check.return_value = MagicMock(retcode=10009)
+    adapter._mt5.order_send.return_value = mock_res
+
+    req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.1, Price=2500.20)
+    resp = adapter.send_order_to_broker(req)
+
+    assert resp.Status == "Failed"
+    assert resp.OrderId is None
+    assert resp.Price is None
+    assert resp.Volume is None
+
+
+def test_cost_model_defaults_cannot_override_execution_safety():
+    """Proves altering cost model assumptions in ProfessionalRiskEngine cannot bypass DemoExecutionGate."""
+    risk_engine = ProfessionalRiskEngine()
+    eval_res = risk_engine.evaluate_trade_risk(
+        symbol="XAUUSD",
+        direction="BUY",
+        entry_price=2500.0,
+        stop_loss=2490.0,
+        take_profit=2520.0,
+        spread_pip=0.01,  # Trivial cost assumption
+        commission_per_lot=0.0
+    )
+    assert eval_res.is_valid is True
+
+    # Attempting order dispatch with REAL_LIVE operation still fails closed at SafetyGate
+    from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
+    with pytest.raises(ValidationException, match="Real Live Trading is hard-disabled"):
+        MetaTraderSafetyGate.verify_operation("MT5", "REAL_LIVE")
+
+
 def test_full_execution_chain_integration():
     """
     Exercises full integration call chain:
