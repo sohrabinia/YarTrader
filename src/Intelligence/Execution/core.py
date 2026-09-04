@@ -205,6 +205,7 @@ class ExecutionIntelligenceCore:
             "zones": zones_res,
             "alignment": alignment_res,
             "similarity": similarity_res,
+            "fractal": state.get("fractal", {}),
             "strategy_evaluation": strategy_eval_res,
             "portfolio_risk": portfolio_res,
             "plan": plan_res["plan"]

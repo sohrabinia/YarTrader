@@ -113,24 +113,15 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             return None
         if hasattr(acc, "_asdict"):
             return acc._asdict()
-        login = getattr(acc, "login", None)
-        trade_mode = getattr(acc, "trade_mode", None)
-        server = getattr(acc, "server", None)
-        is_real = getattr(acc, "is_real", False)
-        if hasattr(login, "_mock_name"): login = "52961173"
-        if hasattr(trade_mode, "_mock_name"): trade_mode = 0
-        if hasattr(server, "_mock_name"): server = "Alpari-MT5-Demo"
-        if hasattr(is_real, "_mock_name"): is_real = False
         return {
-            "login": login,
-            "trade_mode": trade_mode,
-            "is_real": is_real,
-            "balance": getattr(acc, "balance", None) if not hasattr(getattr(acc, "balance", None), "_mock_name") else 10000.0,
-            "equity": getattr(acc, "equity", None) if not hasattr(getattr(acc, "equity", None), "_mock_name") else 10000.0,
-            "profit": getattr(acc, "profit", None) if not hasattr(getattr(acc, "profit", None), "_mock_name") else 0.0,
-            "server": server,
-            "currency": getattr(acc, "currency", None) if not hasattr(getattr(acc, "currency", None), "_mock_name") else "USD",
-            "leverage": getattr(acc, "leverage", None) if not hasattr(getattr(acc, "leverage", None), "_mock_name") else 100,
+            "login": getattr(acc, "login", None),
+            "trade_mode": getattr(acc, "trade_mode", None),
+            "balance": getattr(acc, "balance", None),
+            "equity": getattr(acc, "equity", None),
+            "profit": getattr(acc, "profit", None),
+            "server": getattr(acc, "server", None),
+            "currency": getattr(acc, "currency", None),
+            "leverage": getattr(acc, "leverage", None),
         }
 
     def get_terminal_info(self) -> Optional[Dict[str, Any]]:
@@ -401,19 +392,23 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             RawResponse=res_dict
         )
 
-    def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Queries active MT5 positions using mt5.positions_get()."""
+    def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
+        """Queries active MT5 positions using mt5.positions_get(). Returns None (UNKNOWN) if MT5 is disconnected or query fails."""
         if not self._mt5 or not self._initialized:
-            return []
+            return None
         kwargs = {}
         if symbol:
             kwargs["symbol"] = symbol
         if ticket:
             kwargs["ticket"] = int(ticket)
 
-        positions = self._mt5.positions_get(**kwargs)
-        if positions is None:
-            return []
+        try:
+            positions = self._mt5.positions_get(**kwargs)
+            if positions is None:
+                return None
+        except Exception as e:
+            logger.error(f"[RealMT5BrokerAdapter] positions_get exception: {e}")
+            return None
 
         res = []
         for pos in positions:

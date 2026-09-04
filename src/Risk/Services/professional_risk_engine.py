@@ -117,6 +117,18 @@ class ProfessionalRiskEngine:
         Risk Budget (default 0.5%) -> Stop Distance -> Position Size -> Broker Constraint Check -> Free Margin Check -> Execution.
         Calculates position size strictly against Account Equity (0.5% per trade).
         """
+        if risk_pct > 2.0:
+            return PositionSizingResult(
+                is_valid=False,
+                risk_budget_usd=0.0,
+                risk_pct=risk_pct,
+                volume_lots=0.0,
+                margin_required_usd=0.0,
+                free_margin_usd=free_margin,
+                effective_be_price=entry_price,
+                rejection_reason=f"Risk percentage ({risk_pct:.2f}%) exceeds maximum allowable ceiling of 2.0%."
+            )
+
         if account_equity <= 0:
             return PositionSizingResult(
                 is_valid=False,
@@ -412,6 +424,9 @@ class ProfessionalRiskEngine:
 
         # Qualification Gate Checks
         rejection_reasons = []
+        if risk_percentage > 2.0:
+            rejection_reasons.append(f"Risk percentage ({risk_percentage:.2f}%) exceeds maximum allowable ceiling of 2.0%.")
+
         if win_probability < 0.50:
             rejection_reasons.append(f"Win probability ({win_probability*100:.1f}%) < 50.0% threshold.")
 
