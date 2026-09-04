@@ -622,6 +622,13 @@ def get_structure_alignment(symbol: Optional[str] = "XAUUSD"):
     core = ExecutionIntelligenceCore.get_instance()
     h4_candles = resolve_candles_for_context(symbol, "H4")
     h1_candles = resolve_candles_for_context(symbol, "H1")
+    if not h1_candles:
+        return {
+            "symbol": (symbol or "XAUUSD").upper(),
+            "alignment": "UNAVAILABLE",
+            "confidence": 0.0,
+            "summary": "Real market data unavailable or MT5 provider disconnected."
+        }
     all_tf = {"H4": h4_candles, "H1": h1_candles}
     res = core.evaluate_context(symbol, "H1", h1_candles, all_timeframe_candles=all_tf)
     return res["alignment"]
@@ -3814,14 +3821,14 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
     return {
         "symbol": search_symbol.upper(),
         "timeframe": target_tf,
-        "bias": "Neutral",
-        "confidence": 50,
+        "bias": "UNAVAILABLE",
+        "confidence": 0,
         "status": "degraded",
         "reasoning": [
             f"No research snapshot or memory record available for {search_symbol.upper()} {target_tf}.",
             "Operating in deterministic fallback mode without cross-timeframe data leakage."
         ],
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "indicators": {}
     }
 

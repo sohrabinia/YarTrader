@@ -392,19 +392,23 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             RawResponse=res_dict
         )
 
-    def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Queries active MT5 positions using mt5.positions_get()."""
+    def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
+        """Queries active MT5 positions using mt5.positions_get(). Returns None (UNKNOWN) if MT5 is disconnected or query fails."""
         if not self._mt5 or not self._initialized:
-            return []
+            return None
         kwargs = {}
         if symbol:
             kwargs["symbol"] = symbol
         if ticket:
             kwargs["ticket"] = int(ticket)
 
-        positions = self._mt5.positions_get(**kwargs)
-        if positions is None:
-            return []
+        try:
+            positions = self._mt5.positions_get(**kwargs)
+            if positions is None:
+                return None
+        except Exception as e:
+            logger.error(f"[RealMT5BrokerAdapter] positions_get exception: {e}")
+            return None
 
         res = []
         for pos in positions:
