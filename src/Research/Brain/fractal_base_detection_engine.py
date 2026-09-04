@@ -1,11 +1,17 @@
 """
 YarTrader Forensic Fractal Research — Gate 3 Multi-Scale Base Detection Engine
 Ratio-agnostic, deterministic, versioned, and fully reproducible Base detection.
-Detects candidate market Bases independently at every constructed scale without assuming fractality is true.
+Detects candidate market Bases independently at every constructed scale.
+
+CAUSALITY GOVERNANCE:
+Online Base Detection MUST NOT perform future-bar lookahead.
+Online detection evaluates candidate bases using strictly historical bars up to current time t.
+Offline outcome labeling (labeling future breakout/retest/return_to_base) is strictly isolated.
 """
 
 import math
 from typing import List, Dict, Any, Optional
+
 
 class Gate3BaseDetectorEngine:
     """
@@ -13,7 +19,7 @@ class Gate3BaseDetectorEngine:
     Detects candidate market Bases independently at any scale level.
     """
 
-    ALGORITHM_VERSION = "base_detector_v1.0.0"
+    ALGORITHM_VERSION = "base_detector_v2.0.0_causal"
 
     def __init__(
         self,
@@ -51,10 +57,12 @@ class Gate3BaseDetectorEngine:
     def detect_bases_at_scale(
         self,
         bars: List[Dict[str, Any]],
-        scale_label: str = "x1"
+        scale_label: str = "x1",
+        enable_offline_lookahead_labeling: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Detects candidate Bases in a given bar series at a specific scale.
+        By default (enable_offline_lookahead_labeling=False), ONLINE detection uses strictly causal data up to time t (NO FUTURE LOOKAHEAD).
         """
         if not bars or len(bars) < self.min_duration_bars:
             return []
@@ -92,7 +100,7 @@ class Gate3BaseDetectorEngine:
                     mean_close = sum(closes) / len(closes)
                     volatility = math.sqrt(sum((c - mean_close) ** 2 for c in closes) / len(closes)) if len(closes) > 1 else 0.0
 
-                    # Count internal swing reversals
+                    # Internal movement reversals
                     internal_movement_count = 0
                     direction = 0
                     for k in range(1, len(closes)):
@@ -104,7 +112,7 @@ class Gate3BaseDetectorEngine:
                             internal_movement_count += 1
                             direction = -1
 
-                    # Lookahead for breakout & transition
+                    # CAUSAL ONLINE STATE (Default: No lookahead)
                     breakout = False
                     failed_breakout = False
                     retest = False
@@ -112,28 +120,30 @@ class Gate3BaseDetectorEngine:
                     return_to_base = False
                     expansion = 0.0
 
-                    lookahead_start = i + length
-                    for j in range(lookahead_start, min(n, lookahead_start + 20)):
-                        ahead_bar = bars[j]
-                        dist_from_mid = abs(ahead_bar["close"] - local_mid)
-                        if local_range > 0:
-                            exp_val = dist_from_mid / local_range
-                            if exp_val > expansion:
-                                expansion = exp_val
+                    # OFFLINE OUTCOME LABELING ONLY (if explicitly enabled for offline dataset creation)
+                    if enable_offline_lookahead_labeling:
+                        lookahead_start = i + length
+                        for j in range(lookahead_start, min(n, lookahead_start + 20)):
+                            ahead_bar = bars[j]
+                            dist_from_mid = abs(ahead_bar["close"] - local_mid)
+                            if local_range > 0:
+                                exp_val = dist_from_mid / local_range
+                                if exp_val > expansion:
+                                    expansion = exp_val
 
-                        if ahead_bar["close"] > local_high or ahead_bar["close"] < local_low:
-                            if not breakout:
-                                breakout = True
-                                exit_idx = j
+                            if ahead_bar["close"] > local_high or ahead_bar["close"] < local_low:
+                                if not breakout:
+                                    breakout = True
+                                    exit_idx = j
 
-                            if breakout and (abs(ahead_bar["low"] - local_high) <= local_range * 0.2 or abs(ahead_bar["high"] - local_low) <= local_range * 0.2):
-                                retest = True
+                                if breakout and (abs(ahead_bar["low"] - local_high) <= local_range * 0.2 or abs(ahead_bar["high"] - local_low) <= local_range * 0.2):
+                                    retest = True
 
-                        if breakout and (local_low <= ahead_bar["close"] <= local_high):
-                            failed_breakout = True
-                            return_to_base = True
+                            if breakout and (local_low <= ahead_bar["close"] <= local_high):
+                                failed_breakout = True
+                                return_to_base = True
 
-                    # Detection Score (0.0 to 1.0)
+                    # Causal Detection Score (0.0 to 1.0)
                     tightness_score = max(0.0, 1.0 - (compression_ratio / self.max_compression_threshold))
                     duration_score = min(1.0, length / 20.0)
                     breakout_bonus = 0.2 if breakout else 0.0
@@ -163,6 +173,7 @@ class Gate3BaseDetectorEngine:
                         "exit_index": exit_idx,
                         "return_to_base": return_to_base,
                         "detection_score": detection_score,
+                        "causal_mode": "OFFLINE_LABELING" if enable_offline_lookahead_labeling else "ONLINE_CAUSAL",
                         "detector_version": self.ALGORITHM_VERSION,
                         "thresholds": {
                             "min_duration_bars": self.min_duration_bars,
@@ -182,7 +193,8 @@ class Gate3BaseDetectorEngine:
 
     def detect_multiscale_bases(
         self,
-        scale_family_map: Dict[str, List[Dict[str, Any]]]
+        scale_family_map: Dict[str, List[Dict[str, Any]]],
+        enable_offline_lookahead_labeling: bool = False
     ) -> Dict[str, Any]:
         """
         Detects candidate Bases independently across all scale levels in a scale family map.
@@ -191,7 +203,11 @@ class Gate3BaseDetectorEngine:
         total_bases = 0
 
         for scale_label, bar_series in scale_family_map.items():
-            detected = self.detect_bases_at_scale(bar_series, scale_label=scale_label)
+            detected = self.detect_bases_at_scale(
+                bar_series,
+                scale_label=scale_label,
+                enable_offline_lookahead_labeling=enable_offline_lookahead_labeling
+            )
             results_by_scale[scale_label] = {
                 "bar_count": len(bar_series),
                 "base_count": len(detected),

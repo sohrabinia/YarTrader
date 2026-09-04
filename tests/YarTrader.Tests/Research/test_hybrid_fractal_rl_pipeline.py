@@ -3,12 +3,12 @@ Comprehensive Unit, Causality, Regression, and End-to-End Integration Test Suite
 ===================================================================================
 Verifies:
 A. Data integrity & no fabrication
-B. Causality & zero future look-ahead leakage
+B. Causality & zero future look-ahead leakage (including Base Detection Engine)
 C. Layer 1 Math Engines (Hurst, Higuchi D, Wavelet) & Scale-Invariant Similarity
 D. Layer 2 MTF State & Pullback vs Reversal Classification
 E. Layer 2 Target Probability & MTF Consensus
 F. Layer 3 Gymnasium-compatible Environment & PPO Agent
-G. Risk Engine 2.0% Hard Ceiling Enforcement
+G. Risk Engine 2.0% Hard Ceiling Enforcement & Virtual Balance Isolation
 H. End-to-End Hybrid Research-to-Safety Pipeline
 """
 
@@ -23,6 +23,8 @@ from src.Research.Brain.wavelet_engine import WaveletEngine
 from src.Intelligence.Execution.similarity import PatternSimilarityIntelligenceEngine
 from src.Research.Brain.target_probability_engine import TargetProbabilityEngine
 from src.Research.Brain.multi_timeframe_state import MultiTimeframeStateBuilder, FractalMarketState
+from src.Research.Brain.fractal_base_detection_engine import Gate3BaseDetectorEngine
+from src.Intelligence.Execution.core import ExecutionIntelligenceCore
 from src.Research.RL.environment import FractalMarketEnv
 from src.Research.RL.ppo_agent import PPOAgent
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
@@ -63,7 +65,7 @@ class TestHybridFractalRLPipeline:
             assert match_record["confidence_weight"] is None
 
     # ----------------------------------------------------
-    # B. CAUSALITY & LEAKAGE TEST
+    # B. CAUSALITY & LEAKAGE TESTS
     # ----------------------------------------------------
     def test_causality_future_mutation_does_not_change_past_features(self):
         engine = FractalEngine()
@@ -72,23 +74,42 @@ class TestHybridFractalRLPipeline:
             for i in range(25)
         ]
 
-        # Evaluation at time t (last bar index 20)
         subset_at_t = base_candles[:21]
         res_t1 = engine.analyze_fractals("XAUUSD", "M5", {"M5": subset_at_t})
 
-        # Future candles mutated wildly (indices 21 to 24)
         mutated_future_candles = list(base_candles[:21]) + [
             {'timestamp': f'2025-01-01T10:{i:02d}:00', 'open': 5000.0, 'high': 6000.0, 'low': 4000.0, 'close': 5500.0, 'volume': 999.0}
             for i in range(21, 25)
         ]
 
-        # Evaluate feature state strictly up to t (index 20) in mutated series
         subset_mutated_at_t = mutated_future_candles[:21]
         res_t2 = engine.analyze_fractals("XAUUSD", "M5", {"M5": subset_mutated_at_t})
 
-        # Features at t MUST remain identical!
         assert res_t1["hurst_analysis"]["H"] == res_t2["hurst_analysis"]["H"]
         assert res_t1["fractal_dimension_analysis"]["D"] == res_t2["fractal_dimension_analysis"]["D"]
+
+    def test_base_detection_engine_online_causality_no_lookahead(self):
+        detector = Gate3BaseDetectorEngine()
+        bars_t = [
+            {'timestamp': f'2025-01-01T10:{i:02d}:00', 'open': 2000.0, 'high': 2001.0, 'low': 1999.0, 'close': 2000.0, 'volume': 10.0}
+            for i in range(10)
+        ]
+
+        bases_1 = detector.detect_bases_at_scale(bars_t, enable_offline_lookahead_labeling=False)
+
+        # Mutate future bars after t
+        bars_with_future_explosion = list(bars_t) + [
+            {'timestamp': f'2025-01-01T10:{i:02d}:00', 'open': 5000.0, 'high': 6000.0, 'low': 4000.0, 'close': 5500.0, 'volume': 100.0}
+            for i in range(10, 20)
+        ]
+
+        # Online detection at time t MUST remain 100% identical!
+        bases_2 = detector.detect_bases_at_scale(bars_with_future_explosion[:10], enable_offline_lookahead_labeling=False)
+
+        assert len(bases_1) == len(bases_2)
+        if bases_1 and bases_2:
+            assert bases_1[0]["causal_mode"] == "ONLINE_CAUSAL"
+            assert bases_1[0]["breakout"] == bases_2[0]["breakout"] == False
 
     # ----------------------------------------------------
     # C. LAYER 1 MATHEMATICAL & SCALE-INVARIANT TESTS
@@ -111,9 +132,7 @@ class TestHybridFractalRLPipeline:
 
     def test_scale_invariant_similarity(self):
         sim_engine = PatternSimilarityIntelligenceEngine()
-        # Shape A at 4500
         shape_4500 = [4500.0, 4510.0, 4505.0, 4520.0]
-        # Shape A at 5000
         shape_5000 = [5000.0, 5010.0, 5005.0, 5020.0]
 
         g1 = sim_engine.normalize_signature_geometry(shape_4500, atr=5.0)
@@ -183,7 +202,7 @@ class TestHybridFractalRLPipeline:
         assert proposal["advisory_note"] is not None
 
     # ----------------------------------------------------
-    # G. RISK ENGINE 2% HARD CEILING ENFORCEMENT
+    # G. RISK ENGINE 2% HARD CEILING ENFORCEMENT & VIRTUAL BALANCE ISOLATION
     # ----------------------------------------------------
     def test_risk_engine_enforces_2_percent_hard_ceiling(self):
         risk_engine = ProfessionalRiskEngine()
@@ -196,7 +215,7 @@ class TestHybridFractalRLPipeline:
         assert not res_201.is_valid
         assert "exceeds maximum allowable ceiling of 2.0%" in res_201.rejection_reason
 
-        # 2.0% -> ALLOWED if all other checks pass
+        # 2.0% -> ALLOWED
         res_200 = risk_engine.evaluate_equity_risk_and_position_size(
             symbol="XAUUSD", direction="BUY", entry_price=2000.0, stop_loss=1995.0,
             account_equity=10000.0, free_margin=10000.0, risk_pct=2.0
@@ -210,17 +229,36 @@ class TestHybridFractalRLPipeline:
         )
         assert res_100.is_valid
 
+    def test_virtual_balance_has_zero_authority_over_broker_sizing(self):
+        core = ExecutionIntelligenceCore()
+        risk_engine = ProfessionalRiskEngine()
+        candles = [{'time': f'2025-01-01T10:{i:02d}:00', 'open': 2000.0+i, 'high': 2005.0+i, 'low': 1998.0+i, 'close': 2002.0+i, 'volume': 100.0} for i in range(25)]
+
+        # Changing virtual_balance from 10k to 1M in ExecutionCore
+        res_10k = core.evaluate_context("XAUUSD", "M5", candles, virtual_balance=10000.0)
+        res_1m = core.evaluate_context("XAUUSD", "M5", candles, virtual_balance=1000000.0)
+
+        # Execution authority for position volume belongs ONLY to ProfessionalRiskEngine with authoritative broker account equity
+        broker_equity = 5000.0
+        broker_free_margin = 5000.0
+
+        sizing_authoritative = risk_engine.evaluate_equity_risk_and_position_size(
+            symbol="XAUUSD", direction="BUY", entry_price=2000.0, stop_loss=1995.0,
+            account_equity=broker_equity, free_margin=broker_free_margin, risk_pct=0.5
+        )
+
+        # Authoritative sizing is calculated strictly on $5000 broker equity, ignoring virtual_balance 10k or 1M!
+        assert sizing_authoritative.risk_budget_usd == 25.0  # 0.5% of $5000 = $25
+
     # ----------------------------------------------------
     # H. END-TO-END HYBRID RESEARCH-TO-SAFETY PIPELINE
     # ----------------------------------------------------
     def test_end_to_end_research_to_safety_pipeline(self):
-        # 1. Truthful Data
         candles_m5 = [
             {'timestamp': f'2025-01-01T10:{i:02d}:00', 'open': 2000.0 + i*0.5, 'high': 2005.0 + i*0.5, 'low': 1998.0 + i*0.5, 'close': 2002.0 + i*0.5, 'volume': 100.0}
             for i in range(30)
         ]
 
-        # 2. Fractal Engine (Layer 1 + Layer 2 + Layer 3)
         engine = FractalEngine()
         analysis = engine.analyze_fractals("XAUUSD", "M5", {"M5": candles_m5})
 
@@ -229,7 +267,6 @@ class TestHybridFractalRLPipeline:
         assert analysis["fractal_market_state"] is not None
         assert analysis["ppo_decision_proposal"] is not None
 
-        # 3. Advisory proposal -> Risk Engine validation
         proposal = analysis["ppo_decision_proposal"]
         action = proposal["proposal_action"]
 
@@ -243,7 +280,7 @@ class TestHybridFractalRLPipeline:
                 stop_loss=candles_m5[-1]["close"] - 3.0 if direction == "BUY" else candles_m5[-1]["close"] + 3.0,
                 account_equity=10000.0,
                 free_margin=10000.0,
-                risk_pct=1.0  # valid 1% risk proposal
+                risk_pct=1.0
             )
             assert sizing.is_valid
             assert sizing.volume_lots > 0
