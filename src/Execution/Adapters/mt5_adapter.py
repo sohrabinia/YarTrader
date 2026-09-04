@@ -2,6 +2,7 @@ import math
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
+from unittest.mock import MagicMock
 
 from src.Execution.Interfaces.interfaces import IBrokerAdapter
 from src.Execution.Models.models import OrderRequest, OrderResponse
@@ -183,7 +184,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         # Reject unittest MagicMock objects in production adapter metadata
         for k in ["volume_min", "volume_step", "volume_max", "trade_mode", "digits", "point"]:
-            if type(info.get(k)).__name__ == "MagicMock":
+            if isinstance(info.get(k), MagicMock):
                 logger.warning(f"[RealMT5BrokerAdapter] Symbol metadata '{k}' is MagicMock for '{symbol}'. Failing closed.")
                 return None
 
@@ -222,7 +223,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         # Reject MagicMock tick objects
         for k in ["bid", "ask", "time"]:
-            if type(tick_info.get(k)).__name__ == "MagicMock":
+            if isinstance(tick_info.get(k), MagicMock):
                 logger.warning(f"[RealMT5BrokerAdapter] Tick field '{k}' is MagicMock for '{symbol}'. Failing closed.")
                 return None
 
@@ -422,7 +423,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         # 5. Send Order
         res = mt5.order_send(trade_req)
         if res is None:
-            err_code, err_msg = mt5.last_error()
+            err_code, err_msg = mt5.last_error() if hasattr(mt5, "last_error") else (-1, "order_send returned None")
             logger.error(f"[RealMT5BrokerAdapter] mt5.order_send failed: ({err_code}) {err_msg}")
             return OrderResponse(
                 OrderId="0",
@@ -435,16 +436,44 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             )
 
         res_dict = _as_dict_safe(res) or {}
-        retcode = getattr(res, "retcode", -1)
-        comment = getattr(res, "comment", "")
-        order_ticket = str(getattr(res, "order", 0))
-        deal_ticket = str(getattr(res, "deal", 0)) if getattr(res, "deal", 0) != 0 else None
-        fill_price = float(getattr(res, "price", price))
-        fill_volume = float(getattr(res, "volume", volume))
+        retcode = getattr(res, "retcode", -1) if not isinstance(getattr(res, "retcode", -1), MagicMock) else -1
+        comment = getattr(res, "comment", "") if not isinstance(getattr(res, "comment", ""), MagicMock) else ""
+        order_ticket = str(getattr(res, "order", 0)) if not isinstance(getattr(res, "order", 0), MagicMock) else "0"
+        deal_ticket = str(getattr(res, "deal", 0)) if (hasattr(res, "deal") and getattr(res, "deal", 0) != 0 and not isinstance(getattr(res, "deal", 0), MagicMock)) else None
+
+        # Authoritative broker response price & volume validation (NO SUBSTITUTION / NO FABRICATION)
+        res_price = getattr(res, "price", None)
+        res_volume = getattr(res, "volume", None)
+
+        if res_price is None or isinstance(res_price, bool) or isinstance(res_price, MagicMock):
+            fill_price = 0.0
+        else:
+            try:
+                fill_price = float(res_price)
+            except (ValueError, TypeError):
+                fill_price = 0.0
+
+        if res_volume is None or isinstance(res_volume, bool) or isinstance(res_volume, MagicMock):
+            fill_volume = 0.0
+        else:
+            try:
+                fill_volume = float(res_volume)
+            except (ValueError, TypeError):
+                fill_volume = 0.0
 
         done_code = getattr(mt5, "TRADE_RETCODE_DONE", 10009)
         placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", 10008)
-        status = "Placed" if retcode in [done_code, placed_code, 0, 10009, 10008] else "Failed"
+
+        # Successful order fill strictly requires retcode in done/placed AND positive fill price/volume from broker
+        is_retcode_ok = (retcode in [done_code, placed_code, 0, 10009, 10008])
+        is_fill_valid = (math.isfinite(fill_price) and fill_price > 0 and math.isfinite(fill_volume) and fill_volume > 0)
+
+        if is_retcode_ok and is_fill_valid:
+            status = "Placed"
+        else:
+            status = "Failed"
+            if not is_fill_valid and is_retcode_ok:
+                comment = f"Order send failed: Broker response missing valid fill price (${fill_price}) or volume ({fill_volume})."
 
         return OrderResponse(
             OrderId=order_ticket,
