@@ -318,6 +318,27 @@ class MarketSessionEngine:
                 message=f"Trade rejected: Remaining session time ({rem_seconds:.1f}s) <= 121s cutoff threshold."
             )
 
+        # Evaluate Daily 8% Loss Kill-Switch & Iran Session Boundary Gate
+        try:
+            from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+            kill_switch = DailyLossKillSwitch.get_instance()
+            # Default to account equity baseline if current equity not explicitly passed
+            current_equity = kwargs.get("current_equity", 10000.0) if "kwargs" in locals() else 10000.0
+            ks_eval = kill_switch.evaluate_entry_allowed(current_equity=current_equity, dt=now)
+
+            if not ks_eval["allowed"]:
+                return MarketSessionValidationResult(
+                    allowed=False,
+                    rejection_reason=ks_eval["reason"] or "DAILY_LOSS_LIMIT_REACHED",
+                    market_state=state,
+                    active_interval=active_interval,
+                    remaining_session_seconds=rem_seconds,
+                    source_authority=source_auth,
+                    message=ks_eval["message"]
+                )
+        except Exception as ks_err:
+            logger.error(f"[MarketSessionEngine] DailyLossKillSwitch evaluation error: {ks_err}")
+
         # TP-Time Feasibility evaluation if TP parameters are supplied
         tp_feasibility = None
         if distance_to_tp is not None and current_volatility_atr is not None:

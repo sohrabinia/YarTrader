@@ -87,6 +87,12 @@ global_research_runtime = ResearchRuntime(
     evidence_dir="runtime_logs"
 )
 
+global_m1_research_runtime = ResearchRuntime(
+    symbol="XAUUSD",
+    timeframe="M1",
+    evidence_dir="runtime_logs"
+)
+
 global_memory_system = MarketMemorySystem()
 global_decision_explainer = DecisionExplainer(memory_system=global_memory_system)
 
@@ -451,11 +457,38 @@ def run_acceptance_runner_thread():
 # -----------------------------------------------------------------------------
 from src.Intelligence.Execution.core import ExecutionIntelligenceCore
 
+def fetch_production_market_candles(symbol: str, timeframe: str) -> List[Dict[str, Any]]:
+    """
+    Fetches real M1 market candles via global_m1_research_runtime / MT5DataProvider
+    (source is M1) and aggregates them into target timeframe bars via TimeframeAggregator.
+    Fails closed with empty list if real data is unavailable (NEVER falls back to synthetic data in production).
+    """
+    try:
+        from src.Data.Aggregation.timeframe_aggregator import TimeframeAggregator
+        sym_clean = (symbol or "XAUUSD").upper()
+        tf_clean = (timeframe or "H1").upper()
+
+        # Query real M1 market data from global M1 research runtime
+        res = global_m1_research_runtime.run_once()
+        raw_candles = res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])
+
+        if not raw_candles:
+            return []
+
+        if tf_clean == "M1":
+            return raw_candles
+
+        # Aggregate real M1 candles into target timeframe
+        return TimeframeAggregator.aggregate_m1_candles(raw_candles, target_timeframe=tf_clean)
+    except Exception as e:
+        log_event("ERROR", f"fetch_production_market_candles failed for {symbol} {timeframe}: {str(e)}")
+        return []
+
+
 def generate_active_ohlcv_candles(symbol: str, timeframe: Optional[str] = "H1") -> List[Dict[str, Any]]:
     """
-    Generates a deterministic series of 30 candles starting at an appropriate historical offset,
-    scaled accurately according to the specified timeframe,
-    complete with sine-wave swing structures, displacement blocks, and FVGs.
+    Unit Test Fixture Generator: Generates a deterministic series of 30 candles
+    strictly for test environments when real MT5 IPC is offline.
     """
     base = 1800.0 if "XAU" in symbol.upper() else (1.1000 if "EUR" in symbol.upper() else 65000.0)
     candles = []
@@ -475,20 +508,32 @@ def generate_active_ohlcv_candles(symbol: str, timeframe: Optional[str] = "H1") 
     }
     step_sec = tf_seconds_map.get(tf, 3600)
 
-    # Establish a clean mathematical structure wave
+    # Timeframe-specific volatility & swing frequency parameters to guarantee genuine OHLC differentiation
+    tf_params = {
+        "M1":  {"freq": 1.2, "amp": 0.8,  "drift": 0.05, "wick": 0.3},
+        "M5":  {"freq": 2.0, "amp": 1.5,  "drift": 0.10, "wick": 0.6},
+        "M15": {"freq": 3.0, "amp": 4.0,  "drift": 0.25, "wick": 1.2},
+        "M30": {"freq": 4.0, "amp": 8.0,  "drift": 0.35, "wick": 2.0},
+        "H1":  {"freq": 5.0, "amp": 15.0, "drift": 0.50, "wick": 2.5},
+        "H4":  {"freq": 8.0, "amp": 45.0, "drift": 1.50, "wick": 6.0},
+        "D1":  {"freq": 12.0, "amp": 120.0, "drift": 4.00, "wick": 15.0},
+        "W1":  {"freq": 20.0, "amp": 300.0, "drift": 10.00, "wick": 35.0},
+        "MN1": {"freq": 30.0, "amp": 600.0, "drift": 25.00, "wick": 70.0},
+    }
+    p = tf_params.get(tf, tf_params["H1"])
+
     for i in range(30):
-        wave = math.sin(i / 5.0) * 15.0 + (i * 0.5)
-        # Create a tiny bullish displacement at bar 15 to form a real Order Block & FVG!
+        wave = math.sin(i / p["freq"]) * p["amp"] + (i * p["drift"])
         if i == 15:
-            wave += 8.0
+            wave += p["amp"] * 0.5
 
         o = base + wave
-        h = o + 2.5
-        l = o - 1.5
-        c = o + 1.2
+        h = o + p["wick"]
+        l = o - (p["wick"] * 0.6)
+        c = o + (p["wick"] * 0.48)
         if i == 15:
-            c = o + 5.0
-            h = o + 6.0
+            c = o + (p["wick"] * 2.0)
+            h = o + (p["wick"] * 2.4)
 
         candles.append({
             "time": int(time.time() - (30 - i) * step_sec),
@@ -501,18 +546,46 @@ def generate_active_ohlcv_candles(symbol: str, timeframe: Optional[str] = "H1") 
     return candles
 
 
+def resolve_candles_for_context(symbol: str, timeframe: str) -> List[Dict[str, Any]]:
+    """Resolves real market candles in production, or test fixtures during unit testing."""
+    candles = fetch_production_market_candles(symbol, timeframe)
+    if not candles and ("pytest" in sys.modules or os.environ.get("YARTRADER_ENV") != "production"):
+        candles = generate_active_ohlcv_candles(symbol, timeframe)
+    return candles
+
+
 @app.get("/api/execution/plans")
 def get_execution_plans(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1", lang: str = "fa"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
-    res = core.evaluate_context(symbol, timeframe, candles, lang=lang)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {
+            "symbol": (symbol or "XAUUSD").upper(),
+            "timeframe": timeframe,
+            "action": "WAIT",
+            "decision": "NO_TRADE",
+            "decision_source": "BRAIN",
+            "strategy": "Multi-Timeframe Continuous Market Intelligence",
+            "reasoning": ["Real market data unavailable or MT5 provider disconnected."],
+            "data_mode": "UNAVAILABLE"
+        }
+
+    h4_c = resolve_candles_for_context(symbol, "H4")
+    h1_c = resolve_candles_for_context(symbol, "H1")
+    m15_c = resolve_candles_for_context(symbol, "M15")
+    m5_c = resolve_candles_for_context(symbol, "M5")
+    all_tf = {"H4": h4_c, "H1": h1_c, "M15": m15_c, "M5": m5_c}
+
+    res = core.evaluate_context(symbol, timeframe, candles, all_timeframe_candles=all_tf, lang=lang)
     return res["plan"]
 
 
 @app.get("/api/execution/confidence")
 def get_execution_confidence(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"symbol": symbol, "timeframe": timeframe, "confidence": 0.0}
     res = core.evaluate_context(symbol, timeframe, candles)
     return {"symbol": symbol, "timeframe": timeframe, "confidence": res["plan"]["confidence"]}
 
@@ -520,7 +593,9 @@ def get_execution_confidence(symbol: Optional[str] = "XAUUSD", timeframe: Option
 @app.get("/api/execution/reasoning")
 def get_execution_reasoning(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1", lang: str = "fa"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"symbol": symbol, "timeframe": timeframe, "reasoning": ["Real market data unavailable."]}
     res = core.evaluate_context(symbol, timeframe, candles, lang=lang)
     return {"symbol": symbol, "timeframe": timeframe, "reasoning": res["plan"]["reasoning"]}
 
@@ -528,7 +603,9 @@ def get_execution_reasoning(symbol: Optional[str] = "XAUUSD", timeframe: Optiona
 @app.get("/api/structure/map")
 def get_structure_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"symbol": symbol, "timeframe": timeframe, "swings": [], "structure_nodes": [], "order_blocks": [], "fair_value_gaps": []}
     res = core.evaluate_context(symbol, timeframe, candles)
     return {
         "symbol": symbol,
@@ -543,8 +620,8 @@ def get_structure_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str]
 @app.get("/api/structure/alignment")
 def get_structure_alignment(symbol: Optional[str] = "XAUUSD"):
     core = ExecutionIntelligenceCore.get_instance()
-    h4_candles = generate_active_ohlcv_candles(symbol, "H4")
-    h1_candles = generate_active_ohlcv_candles(symbol, "H1")
+    h4_candles = resolve_candles_for_context(symbol, "H4")
+    h1_candles = resolve_candles_for_context(symbol, "H1")
     all_tf = {"H4": h4_candles, "H1": h1_candles}
     res = core.evaluate_context(symbol, "H1", h1_candles, all_timeframe_candles=all_tf)
     return res["alignment"]
@@ -553,7 +630,9 @@ def get_structure_alignment(symbol: Optional[str] = "XAUUSD"):
 @app.get("/api/structure/narrative")
 def get_structure_narrative(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {}
     res = core.evaluate_context(symbol, timeframe, candles)
     return res["narrative"]
 
@@ -561,7 +640,9 @@ def get_structure_narrative(symbol: Optional[str] = "XAUUSD", timeframe: Optiona
 @app.get("/api/liquidity/map")
 def get_liquidity_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"symbol": symbol, "timeframe": timeframe, "resting_bsl": [], "resting_ssl": [], "equal_highs": [], "equal_lows": []}
     res = core.evaluate_context(symbol, timeframe, candles)
     return {
         "symbol": symbol,
@@ -576,7 +657,9 @@ def get_liquidity_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str]
 @app.get("/api/liquidity/events")
 def get_liquidity_events(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"symbol": symbol, "timeframe": timeframe, "sweeps": [], "latest_sweep": None, "voids": []}
     res = core.evaluate_context(symbol, timeframe, candles)
     return {
         "symbol": symbol,
@@ -590,7 +673,9 @@ def get_liquidity_events(symbol: Optional[str] = "XAUUSD", timeframe: Optional[s
 @app.get("/api/pattern/similarity")
 def get_pattern_similarity(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {}
     res = core.evaluate_context(symbol, timeframe, candles)
     return res["similarity"]
 
@@ -599,7 +684,9 @@ def get_pattern_similarity(symbol: Optional[str] = "XAUUSD", timeframe: Optional
 def get_fractal_status(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
     """Exposes real-time Fractal Intelligence Status and multi-scale metrics."""
     core = ExecutionIntelligenceCore.get_instance()
-    candles = generate_active_ohlcv_candles(symbol, timeframe)
+    candles = resolve_candles_for_context(symbol, timeframe)
+    if not candles:
+        return {"status": "DISCONNECTED", "symbol": symbol.upper(), "primary_timeframe": timeframe.upper()}
     res = core.evaluate_context(symbol, timeframe, candles)
     fractal_res = res.get("fractal", {})
     similarity = res.get("similarity", {})
@@ -3701,42 +3788,41 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
         except Exception:
             pass
 
-    # Memory Fallback
-    history = global_research_runtime.history
-    if not history:
-        try:
-            res = global_research_runtime.run_once()
-            history = [res]
-        except Exception as e:
-            # Deterministic degraded response fallback when MT5/data provider is offline
-            sym_fallback = search_symbol.upper()
-            tf_fallback = (timeframe or "H1").upper()
-            return {
-                "symbol": sym_fallback,
-                "timeframe": tf_fallback,
-                "bias": "Neutral",
-                "confidence": 50,
-                "status": "degraded",
-                "reasoning": [
-                    "Live research worker is operating in degraded mode.",
-                    "Market data connection unavailable or MT5 terminal disconnected.",
-                    f"Error detail: {str(e)}"
-                ],
-                "timestamp": datetime.now().isoformat(),
-                "indicators": {}
-            }
+    # Timeframe-safe Memory Fallback (strictly filter memory items by requested symbol AND timeframe)
+    target_tf = (timeframe or "H1").upper()
+    matching_memory = [
+        item for item in global_research_runtime.history
+        if item.Request.Asset.upper() == search_symbol.upper()
+        and item.Request.Context.get("timeframe", "H1").upper() == target_tf
+    ]
 
-    latest = history[-1]
-    po = latest.Findings.get("pipeline_outputs", {})
-    smart = po.get("smart_interpretation", {})
+    if matching_memory:
+        latest = matching_memory[-1]
+        po = latest.Findings.get("pipeline_outputs", {})
+        smart = po.get("smart_interpretation", {})
+        return {
+            "symbol": latest.Request.Asset,
+            "timeframe": latest.Request.Context.get("timeframe", target_tf),
+            "bias": smart.get("bias", "Neutral"),
+            "confidence": smart.get("confidence", 50),
+            "reasoning": smart.get("reasoning", []),
+            "timestamp": latest.CreatedAt.isoformat(),
+            "indicators": po.get("technical_analysis", {})
+        }
+
+    # Deterministic degraded response fallback when no exact (symbol, timeframe) snapshot or memory exists
     return {
-        "symbol": latest.Request.Asset,
-        "timeframe": latest.Request.Context.get("timeframe", "H1"),
-        "bias": smart.get("bias", "Neutral"),
-        "confidence": smart.get("confidence", 50),
-        "reasoning": smart.get("reasoning", []),
-        "timestamp": latest.CreatedAt.isoformat(),
-        "indicators": po.get("technical_analysis", {})
+        "symbol": search_symbol.upper(),
+        "timeframe": target_tf,
+        "bias": "Neutral",
+        "confidence": 50,
+        "status": "degraded",
+        "reasoning": [
+            f"No research snapshot or memory record available for {search_symbol.upper()} {target_tf}.",
+            "Operating in deterministic fallback mode without cross-timeframe data leakage."
+        ],
+        "timestamp": datetime.now().isoformat(),
+        "indicators": {}
     }
 
 
@@ -3777,9 +3863,11 @@ def get_analysis_history(symbol: Optional[str] = "XAUUSD"):
         except Exception:
             pass
 
-    # Memory Fallback
+    # Timeframe-safe Memory Fallback
     if not history_list:
         for item in global_research_runtime.history:
+            if search_symbol and item.Request.Asset.upper() != search_symbol.upper():
+                continue
             po = item.Findings.get("pipeline_outputs", {})
             smart = po.get("smart_interpretation", {})
             history_list.append({
