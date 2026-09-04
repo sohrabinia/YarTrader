@@ -107,28 +107,28 @@ class TestPhaseCExecutionLifecycle:
         manager = SessionExecutionManager()
 
         # Remaining session time <= 121s -> REJECTED
-        res_121s = manager.evaluate_entry_permission(trading_style="SCALP", remaining_session_seconds=121.0)
+        res_121s = manager.evaluate_entry_permission(trading_style="SCALP", remaining_session_seconds=121.0, current_equity=10000.0, session_baseline_equity=10000.0)
         assert res_121s["allowed"] is False
         assert res_121s["rejection_reason"] == "INSUFFICIENT_REMAINING_SESSION_TIME"
 
         # Remaining session time = 122s -> ALLOWED
-        res_122s = manager.evaluate_entry_permission(trading_style="SCALP", remaining_session_seconds=122.0)
+        res_122s = manager.evaluate_entry_permission(trading_style="SCALP", remaining_session_seconds=122.0, current_equity=10000.0, session_baseline_equity=10000.0)
         assert res_122s["allowed"] is True
 
     def test_forbidden_trading_style_rejection(self):
         manager = SessionExecutionManager()
 
         # SWING style -> REJECTED
-        res_swing = manager.evaluate_entry_permission(trading_style="SWING", remaining_session_seconds=3600.0)
+        res_swing = manager.evaluate_entry_permission(trading_style="SWING", remaining_session_seconds=3600.0, current_equity=10000.0, session_baseline_equity=10000.0)
         assert res_swing["allowed"] is False
         assert "FORBIDDEN_STYLE" in res_swing["rejection_reason"]
 
         # OVERNIGHT style -> REJECTED
-        res_overnight = manager.evaluate_entry_permission(trading_style="OVERNIGHT", remaining_session_seconds=3600.0)
+        res_overnight = manager.evaluate_entry_permission(trading_style="OVERNIGHT", remaining_session_seconds=3600.0, current_equity=10000.0, session_baseline_equity=10000.0)
         assert res_overnight["allowed"] is False
 
         # FAST_SCALP -> ALLOWED
-        res_scalp = manager.evaluate_entry_permission(trading_style="FAST_SCALP", remaining_session_seconds=3600.0)
+        res_scalp = manager.evaluate_entry_permission(trading_style="FAST_SCALP", remaining_session_seconds=3600.0, current_equity=10000.0, session_baseline_equity=10000.0)
         assert res_scalp["allowed"] is True
 
     def test_eod_flatten_safety_invariant(self):

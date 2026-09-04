@@ -65,12 +65,12 @@ class ProfessionalRiskEngine:
         symbol: str,
         direction: str,
         entry_price: float,
-        volume_lots: float = 1.0,
+        volume_lots: float,
+        contract_size: float,
         spread_pip: float = 1.0,
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,
-        safety_buffer_pip: float = 0.5,
-        contract_size: float = 100.0
+        safety_buffer_pip: float = 0.5
     ) -> float:
         """
         Calculates exact stop loss price required for a position/leg to be zero-loss
@@ -100,23 +100,64 @@ class ProfessionalRiskEngine:
         direction: str,
         entry_price: float,
         stop_loss: float,
-        account_equity: float,
-        free_margin: float,
+        account_equity: Optional[Any] = None,
+        free_margin: Optional[Any] = None,
+        volume_min: Optional[Any] = None,
+        volume_max: Optional[Any] = None,
+        volume_step: Optional[Any] = None,
+        leverage: Optional[Any] = None,
+        contract_size: Optional[Any] = None,
         risk_pct: float = 0.5,
-        leverage: float = 100.0,
         spread_pip: float = 1.0,
         commission_per_lot: float = 7.0,
-        estimated_slippage_pip: float = 0.5,
-        contract_size: float = 100.0,
-        volume_min: float = 0.01,
-        volume_max: float = 100.0,
-        volume_step: float = 0.01
+        estimated_slippage_pip: float = 0.5
     ) -> PositionSizingResult:
         """
         Enforces Free Margin Sequence:
-        Risk Budget (default 0.5%) -> Stop Distance -> Position Size -> Broker Constraint Check -> Free Margin Check -> Execution.
+        Risk Budget (0.5%) -> Stop Distance -> Position Size -> Broker Constraint Check -> Free Margin Check -> Execution.
         Calculates position size strictly against Account Equity (0.5% per trade).
+        All financial/broker limits (account_equity, free_margin, volume_min, volume_max, volume_step, leverage, contract_size)
+        must be explicit numeric inputs without permissive execution fallbacks.
         """
+        import math
+        # Strict input validation for execution financial parameters
+        fin_inputs = {
+            "account_equity": account_equity,
+            "free_margin": free_margin,
+            "volume_min": volume_min,
+            "volume_max": volume_max,
+            "volume_step": volume_step,
+            "leverage": leverage,
+            "contract_size": contract_size,
+            "entry_price": entry_price,
+            "stop_loss": stop_loss
+        }
+
+        for param_name, param_val in fin_inputs.items():
+            if param_val is None or isinstance(param_val, bool) or not isinstance(param_val, (int, float)):
+                return PositionSizingResult(
+                    is_valid=False,
+                    risk_budget_usd=0.0,
+                    risk_pct=risk_pct,
+                    volume_lots=0.0,
+                    margin_required_usd=0.0,
+                    free_margin_usd=free_margin if isinstance(free_margin, (int, float)) and not isinstance(free_margin, bool) else 0.0,
+                    effective_be_price=entry_price if isinstance(entry_price, (int, float)) and not isinstance(entry_price, bool) else 0.0,
+                    rejection_reason=f"Financial parameter '{param_name}' is missing or malformed ({param_val})."
+                )
+            f_val = float(param_val)
+            if not math.isfinite(f_val) or f_val <= 0:
+                return PositionSizingResult(
+                    is_valid=False,
+                    risk_budget_usd=0.0,
+                    risk_pct=risk_pct,
+                    volume_lots=0.0,
+                    margin_required_usd=0.0,
+                    free_margin_usd=free_margin if math.isfinite(float(free_margin or 0)) else 0.0,
+                    effective_be_price=entry_price if math.isfinite(float(entry_price or 0)) else 0.0,
+                    rejection_reason=f"Financial parameter '{param_name}' is non-finite or <= 0 ({f_val})."
+                )
+
         if account_equity <= 0:
             return PositionSizingResult(
                 is_valid=False,
@@ -228,6 +269,9 @@ class ProfessionalRiskEngine:
         current_price: float,
         account_equity: float,
         free_margin: float,
+        volume_min: float = 0.01,
+        volume_max: float = 100.0,
+        volume_step: float = 0.01,
         spread_pip: float = 1.0,
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,
@@ -275,6 +319,9 @@ class ProfessionalRiskEngine:
             stop_loss=campaign.legs[0].stop_loss if active_legs else current_price,
             account_equity=account_equity,
             free_margin=free_margin,
+            volume_min=volume_min,
+            volume_max=volume_max,
+            volume_step=volume_step,
             risk_pct=1.0,  # Strict 1% add-on
             leverage=leverage,
             spread_pip=spread_pip,

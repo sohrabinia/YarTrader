@@ -47,6 +47,9 @@ class CampaignLifecycleManager:
             stop_loss=stop_loss,
             account_equity=account_equity,
             free_margin=free_margin,
+            volume_min=0.01,
+            volume_max=100.0,
+            volume_step=0.01,
             risk_pct=2.0,  # Mandatory 2% initial risk
             leverage=leverage,
             spread_pip=spread_pip,

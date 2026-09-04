@@ -119,6 +119,11 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
             stop_loss=2297.0, # $3.00 SL distance
             account_equity=account_equity,
             free_margin=100000.0,
+            volume_min=0.01,
+            volume_max=100.0,
+            volume_step=0.01,
+            leverage=100.0,
+            contract_size=100.0,
             risk_pct=0.5
         )
         expected_budget = account_equity * 0.005 # $500.00

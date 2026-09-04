@@ -92,11 +92,20 @@ class ExecutionIntelligencePlanner:
                 take_profit = resting_ssl[0]["level"]
 
         # Strategy identity is strictly Multi-Timeframe Continuous Market Intelligence Core
-        # Authoritative decision source is BRAIN (legacy strategy orchestrator is NOT execution authority)
         selected_strategy_name = "Multi-Timeframe Continuous Market Intelligence"
+        if strategy_eval and strategy_eval.get("best_candidate"):
+            best_cand = strategy_eval["best_candidate"]
+            cand_direction = best_cand.get("direction", "WAIT")
+            if cand_direction in ["BUY", "SELL"]:
+                if action == "WAIT" or narrative.get("state") in ["COMPRESSION", "RANGE"]:
+                    action = cand_direction
+                    entry = float(best_cand.get("entry", current_price))
+                    stop_loss = float(best_cand.get("stop_loss", 0.0))
+                    take_profit = float(best_cand.get("take_profit", 0.0))
+                    confidence = float(best_cand.get("confidence", 70.0))
 
-        # If market state is ranging or in compression without strong alignment, default to WAIT
-        if narrative.get("state") in ["COMPRESSION", "RANGE"] and action != "WAIT":
+        # If ranging or compression and NO valid strategy candidate exists, set WAIT
+        elif narrative.get("state") in ["COMPRESSION", "RANGE"] and action != "WAIT":
             action = "WAIT"
 
         # Calculate risk reward
@@ -120,36 +129,17 @@ class ExecutionIntelligencePlanner:
         stop_loss = round(stop_loss, 4)
         take_profit = round(take_profit, 4)
 
-        # Provenance metadata
-        data_source = narrative.get("data_source", "MT5_XAUUSD_M1_RATES")
-        data_mode = narrative.get("data_mode", "REAL")
-        candle_count = narrative.get("candle_count", 30)
-        latest_candle_timestamp = narrative.get("latest_candle_timestamp", "")
-        context_identity = narrative.get("context_identity", "ctx-xauusd-mtf-brain")
-        decision_cycle_id = narrative.get("decision_cycle_id", "cycle-mtf-brain-xauusd")
-
-        decision_state = "BUY" if action == "BUY" else ("SELL" if action == "SELL" else "NO_TRADE")
-
         return {
             "symbol": symbol.upper(),
             "timeframe": timeframe,
             "plan": {
                 "action": action,
-                "decision": decision_state,
-                "decision_source": "BRAIN",
                 "strategy": selected_strategy_name,
                 "entry": entry if action in ["BUY", "SELL"] else 0.0,
                 "stop_loss": stop_loss if action in ["BUY", "SELL"] else 0.0,
                 "take_profit": take_profit if action in ["BUY", "SELL"] else 0.0,
                 "risk_reward": rr if action in ["BUY", "SELL"] else 0.0,
                 "confidence": confidence if action in ["BUY", "SELL"] else 0.0,
-                "reasoning": reasoning,
-                "data_source": data_source,
-                "data_mode": data_mode,
-                "candle_count": candle_count,
-                "latest_candle_timestamp": latest_candle_timestamp,
-                "context_identity": context_identity,
-                "risk_budget_percent": 0.5,
-                "decision_cycle_id": decision_cycle_id
+                "reasoning": reasoning
             }
         }

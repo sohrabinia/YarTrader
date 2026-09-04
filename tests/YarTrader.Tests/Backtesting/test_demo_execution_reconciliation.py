@@ -49,33 +49,7 @@ class TestDemoExecutionReconciliation(unittest.TestCase):
         )
 
         closed = res["closed_trades"]
-        if len(closed) == 0:
-            # Reconcile math directly using engine's post-trade learning and balance reconciliation logic
-            trade_open = {
-                "trade_id": "BT-XAUUSD-TEST01",
-                "symbol": "XAUUSD",
-                "timeframe": "M30",
-                "strategy": "Multi-Timeframe Continuous Market Intelligence",
-                "direction": "BUY",
-                "entry": 2000.0,
-                "stop_loss": 1997.0,
-                "take_profit": 2010.0,
-                "exit_price": 2010.0,
-                "exit_reason": "TAKE_PROFIT_HIT",
-                "volume": 0.01,
-                "confidence": 85.0,
-                "pnl": 10.0,
-                "r_multiple": 3.33,
-                "outcome": "WIN",
-                "mfe": 10.0,
-                "mae": -1.0,
-                "market_context": {}
-            }
-            learning_res = self.engine._process_post_trade_learning(self.engine.get_market_memory("XAUUSD"), trade_open)
-            trade_open["learning_update"] = learning_res
-            closed = [trade_open]
-            res["closed_trades"] = closed
-            res["final_balance"] = init_balance + 10.0
+        self.assertGreater(len(closed), 0, "At least one trade should execute and close.")
 
         trade = closed[0]
         entry_price = trade["entry"]

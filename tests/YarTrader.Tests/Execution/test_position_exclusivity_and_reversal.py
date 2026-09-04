@@ -34,7 +34,8 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
         self.mock_adapter.get_symbol_info.return_value = {
             "trade_mode": 4,
             "volume_min": 0.01,
-            "volume_max": 100.0
+            "volume_max": 100.0,
+            "volume_step": 0.01
         }
 
     def test_normal_buy_when_flat(self):
@@ -113,11 +114,17 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
             Comment="Close OK"
         )
 
-        # Post-close query returns empty list (position confirmed closed/flat)
-        self.mock_adapter.get_positions.return_value = []
+        # 1st call to get_positions returns open position, 2nd call returns [] (confirmed closed)
+        self.mock_adapter.get_positions.side_effect = [
+            [{"ticket": 1001, "symbol": "XAUUSD", "type": 0, "volume": 0.01}],
+            []
+        ]
         close_resp = engine.close_position(symbol="XAUUSD", position_ticket=1001)
 
         self.assertEqual(close_resp.Status, "Closed")
+
+        self.mock_adapter.get_positions.side_effect = None
+        self.mock_adapter.get_positions.return_value = []
 
         sell_req = OrderRequest(
             Symbol="XAUUSD",
@@ -206,10 +213,15 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
             Comment="Close OK"
         )
 
-        self.mock_adapter.get_positions.return_value = []
+        self.mock_adapter.get_positions.side_effect = [
+            [{"ticket": 1001, "symbol": "XAUUSD", "type": 0, "volume": 0.01}],
+            []
+        ]
         close_resp = engine.close_position(symbol="XAUUSD", position_ticket=1001)
         self.assertEqual(close_resp.Status, "Closed")
 
+        self.mock_adapter.get_positions.side_effect = None
+        self.mock_adapter.get_positions.return_value = []
         self.assertEqual(len(self.mock_adapter.get_positions(symbol="XAUUSD")), 0)
 
     def test_reversal_missing_fresh_parameters_fails_closed(self):

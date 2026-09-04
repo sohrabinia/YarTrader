@@ -28,6 +28,7 @@ def test_a_point_five_percent_account_balance_capital_allocation():
         leverage=100.0,
         contract_size=100.0,
         volume_min=0.01,
+        volume_max=100.0,
         volume_step=0.01
     )
     assert res10k.is_valid is True
@@ -46,6 +47,7 @@ def test_a_point_five_percent_account_balance_capital_allocation():
         leverage=100.0,
         contract_size=100.0,
         volume_min=0.01,
+        volume_max=100.0,
         volume_step=0.01
     )
     assert res20k.is_valid is True
@@ -71,6 +73,7 @@ def test_b_instrument_aware_volume_calculation():
         leverage=100.0,
         contract_size=100000.0,
         volume_min=0.01,
+        volume_max=100.0,
         volume_step=0.01
     )
     assert res_eur.is_valid is True
@@ -94,6 +97,7 @@ def test_c_sub_broker_minimum_rejects_without_forcing_0_01():
         leverage=100.0,
         contract_size=100.0,
         volume_min=0.01,
+        volume_max=100.0,
         volume_step=0.01
     )
     assert res.is_valid is False

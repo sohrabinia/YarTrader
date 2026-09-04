@@ -32,7 +32,7 @@ class DummyAdapter:
     def get_terminal_info(self):
         return {"trade_allowed": True}
     def get_symbol_info(self, symbol):
-        return {"trade_mode": 4, "volume_min": 0.01, "volume_max": 100.0}
+        return {"trade_mode": 4, "volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
     def get_positions(self, symbol=None):
         return []
 

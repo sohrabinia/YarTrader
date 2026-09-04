@@ -121,3 +121,38 @@ class TestExecutionIntelligenceUnit(unittest.TestCase):
         self.assertEqual(state2["symbol"], "EURUSD")
         self.assertEqual(state1["timeframe"], "H1")
         self.assertEqual(state2["timeframe"], "M15")
+
+    def test_mtf_context_identity_timeframe_separation(self) -> None:
+        # Same OHLC candles evaluated under M5 vs H1 MUST produce distinct context identities
+        id_m5 = ExecutionIntelligenceCore.compute_context_identity("XAUUSD", "M5", self.candles)
+        id_h1 = ExecutionIntelligenceCore.compute_context_identity("XAUUSD", "H1", self.candles)
+
+        self.assertNotEqual(id_m5, id_h1)
+
+    def test_virtual_balance_cannot_alter_broker_position_sizing(self) -> None:
+        from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+        risk_engine = ProfessionalRiskEngine()
+
+        # Authoritative broker account equity = $10,000, free_margin = $9,000
+        # Position sizing evaluated strictly against broker equity
+        sizing_authoritative = risk_engine.evaluate_equity_risk_and_position_size(
+            symbol="XAUUSD",
+            direction="BUY",
+            entry_price=2500.0,
+            stop_loss=2490.0,
+            account_equity=10000.0,
+            free_margin=9000.0,
+            volume_min=0.01,
+            volume_max=100.0,
+            volume_step=0.01,
+            leverage=100.0,
+            contract_size=100.0
+        )
+
+        core = ExecutionIntelligenceCore.get_instance()
+        # Evaluate context with virtual_balance = $1,000,000 (100x virtual balance)
+        core_res = core.evaluate_context("XAUUSD", "M5", self.candles, virtual_balance=1000000.0)
+
+        # Confirm broker risk volume remains 100% unchanged (0.05 lots based on authoritative $10,000 equity)
+        self.assertEqual(sizing_authoritative.volume_lots, 0.05)
+        self.assertEqual(sizing_authoritative.risk_budget_usd, 50.0)

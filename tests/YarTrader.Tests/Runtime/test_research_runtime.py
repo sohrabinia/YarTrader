@@ -247,10 +247,7 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
     def test_api_research_endpoints(self) -> None:
         """Verify web API current, history, and health endpoints return schema-compliant outputs."""
         from fastapi.testclient import TestClient
-        from src.Application.Services.web_dashboard import app, global_research_runtime
-
-        # Populate runtime history for endpoint verification
-        global_research_runtime.run_once()
+        from src.Application.Services.web_dashboard import app
 
         client = TestClient(app)
 

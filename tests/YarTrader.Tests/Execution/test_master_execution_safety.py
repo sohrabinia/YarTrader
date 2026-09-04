@@ -1,0 +1,235 @@
+import pytest
+import math
+from datetime import datetime, timezone
+from unittest.mock import MagicMock
+
+from src.Infrastructure.exceptions import ValidationException
+from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+from src.Execution.Services.market_session_engine import MarketSessionEngine
+from src.Execution.Services.session_execution_manager import SessionExecutionManager
+from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
+from src.Execution.Adapters.mt4_adapter import RealMT4BrokerAdapter
+from src.Execution.Safety.demo_execution_gate import DemoExecutionGate
+from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
+from src.Execution.Models.models import OrderRequest
+from app.workers.research_worker import ResearchWorker
+
+
+def test_missing_and_invalid_equity_fail_closed(tmp_path):
+    """Proves missing, None, malformed, non-positive, NaN, and Inf equity fail closed in DailyLossKillSwitch."""
+    ks_path = str(tmp_path / "ks_test.json")
+    ks = DailyLossKillSwitch(state_file_path=ks_path)
+    ks.set_session_baseline(10000.0, "2025-01-01")
+
+    # Missing / None
+    allowed, reason, _ = ks.evaluate_daily_loss(None)
+    assert not allowed
+    assert "KILL_SWITCH_ERROR" in reason
+
+    # Malformed / bool
+    allowed, reason, _ = ks.evaluate_daily_loss(True)
+    assert not allowed
+    assert "KILL_SWITCH_ERROR" in reason
+
+    # <= 0
+    allowed, reason, _ = ks.evaluate_daily_loss(-100.0)
+    assert not allowed
+    assert "KILL_SWITCH_ERROR" in reason
+
+    # NaN / Inf
+    allowed, reason, _ = ks.evaluate_daily_loss(float("nan"))
+    assert not allowed
+    assert "KILL_SWITCH_ERROR" in reason
+
+    allowed, reason, _ = ks.evaluate_daily_loss(float("inf"))
+    assert not allowed
+    assert "KILL_SWITCH_ERROR" in reason
+
+
+def test_daily_loss_limit_trigger_and_baseline_immutability(tmp_path):
+    """Proves >8% loss triggers kill switch and baseline cannot be mutated by caller."""
+    ks_path = str(tmp_path / "ks_test.json")
+    ks = DailyLossKillSwitch(state_file_path=ks_path)
+    dt_now = datetime.now(timezone.utc)
+    today_str = dt_now.strftime("%Y-%m-%d")
+
+    assert ks.set_session_baseline(10000.0, today_str)
+
+    # 5% loss -> allowed
+    allowed, _, meta = ks.evaluate_daily_loss(9500.0, session_baseline_equity=5000.0, now_utc=dt_now)
+    assert allowed
+    assert meta["baseline_equity"] == 10000.0  # Unchanged by caller 5000.0
+
+    # 8.5% loss -> triggered
+    allowed, reason, meta = ks.evaluate_daily_loss(9140.0, now_utc=dt_now)
+    assert not allowed
+    assert "DAILY_LOSS_LIMIT_REACHED" in reason
+    assert ks.is_triggered
+
+
+def test_outdated_session_date_requires_new_baseline(tmp_path):
+    """Proves old session baseline from yesterday does not silently apply today without explicit session baseline."""
+    ks_path = str(tmp_path / "ks_test.json")
+    ks = DailyLossKillSwitch(state_file_path=ks_path)
+    ks.set_session_baseline(10000.0, "2020-01-01")
+
+    dt_today = datetime.now(timezone.utc)
+    # Evaluate today without providing session_baseline_equity -> FAIL CLOSED
+    allowed, reason, _ = ks.evaluate_daily_loss(9900.0, session_baseline_equity=None, now_utc=dt_today)
+    assert not allowed
+    assert "Outdated session baseline" in reason
+
+    # Providing explicit new session baseline updates baseline to current day
+    allowed, _, meta = ks.evaluate_daily_loss(9900.0, session_baseline_equity=10000.0, now_utc=dt_today)
+    assert allowed
+    assert meta["session_date"] == dt_today.strftime("%Y-%m-%d")
+
+
+def test_research_worker_independent_account_metrics_validation():
+    """Proves ResearchWorker requires both equity and free_margin without substituting free_margin=equity."""
+    worker = ResearchWorker()
+
+    # Missing free_margin -> ValueError
+    acc_no_fm = {"login": 52961173, "equity": 10000.0}
+    with pytest.raises(ValueError) as exc_info:
+        worker._validate_account_metrics(acc_no_fm)
+    assert "Free margin is missing" in str(exc_info.value)
+
+    # Invalid free_margin <= 0 -> ValueError
+    acc_invalid_fm = {"login": 52961173, "equity": 10000.0, "free_margin": -10.0}
+    with pytest.raises(ValueError) as exc_info:
+        worker._validate_account_metrics(acc_invalid_fm)
+    assert "Free margin is non-finite or <= 0" in str(exc_info.value)
+
+    # Valid both -> succeeds
+    acc_valid = {"login": 52961173, "equity": 10000.0, "free_margin": 9500.0}
+    eq, fm = worker._validate_account_metrics(acc_valid)
+    assert eq == 10000.0
+    assert fm == 9500.0
+
+
+def test_professional_risk_engine_financial_inputs_required():
+    """Proves ProfessionalRiskEngine rejects missing or non-finite financial/broker parameters."""
+    engine = ProfessionalRiskEngine()
+
+    # Missing volume_min -> fails validation
+    res = engine.evaluate_equity_risk_and_position_size(
+        symbol="XAUUSD",
+        direction="BUY",
+        entry_price=2500.0,
+        stop_loss=2495.0,
+        account_equity=10000.0,
+        free_margin=9000.0,
+        volume_min=None,
+        volume_max=100.0,
+        volume_step=0.01
+    )
+    assert not res.is_valid
+    assert "volume_min" in res.rejection_reason
+
+    # Exact volume calculation
+    res_ok = engine.evaluate_equity_risk_and_position_size(
+        symbol="XAUUSD",
+        direction="BUY",
+        entry_price=2500.0,
+        stop_loss=2495.0,
+        account_equity=10000.0,
+        free_margin=9000.0,
+        volume_min=0.01,
+        volume_max=100.0,
+        volume_step=0.01,
+        leverage=100.0,
+        contract_size=100.0
+    )
+    assert res_ok.is_valid
+    assert res_ok.volume_lots > 0
+
+
+def test_mt4_adapter_has_zero_production_execution_authority():
+    """Proves MT4 adapter raises ValidationException on order submission and returns None when disconnected."""
+    mt4 = RealMT4BrokerAdapter(auto_initialize=False)
+
+    acc = mt4.get_account_info()
+    assert acc is None  # Zero fabricated facts when disconnected
+
+    tick = mt4.get_symbol_tick("XAUUSD")
+    assert tick is None
+
+    positions = mt4.get_positions("XAUUSD")
+    assert positions is None
+
+    req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.1, Price=2500.0)
+    with pytest.raises(ValidationException) as exc_info:
+        mt4.send_order_to_broker(req)
+    assert "ZERO production order execution authority" in str(exc_info.value)
+
+
+def test_demo_execution_gate_non_xauusd_rejection():
+    """Proves DemoExecutionGate rejects non-XAUUSD symbols for execution."""
+    mock_adapter = MagicMock()
+    mock_adapter.get_account_info.return_value = {
+        "login": "52961173",
+        "server": "Alpari-MT5-Demo",
+        "trade_mode": 0,
+        "is_real": False,
+        "platform": "MT5"
+    }
+    mock_adapter.get_terminal_info.return_value = {
+        "trade_allowed": True,
+        "tradeapi_disabled": False
+    }
+
+    req_eur = OrderRequest(Symbol="EURUSD", OrderType="BUY", Volume=0.1, Price=1.0850)
+    with pytest.raises(ValidationException) as exc_info:
+        DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req_eur)
+    assert "restricted to 'XAUUSD'" in str(exc_info.value)
+
+
+def test_full_execution_chain_integration():
+    """
+    Exercises full integration call chain:
+    Worker -> Account metrics validation -> Pre-entry session gate -> Risk engine position sizing -> Demo Execution Gate.
+    """
+    worker = ResearchWorker()
+    risk_engine = ProfessionalRiskEngine()
+
+    acc_info = {
+        "login": 52961173,
+        "server": "Alpari-MT5-Demo",
+        "trade_mode": 0,
+        "is_real": False,
+        "platform": "MT5",
+        "equity": 10000.0,
+        "free_margin": 9500.0
+    }
+
+    eq, fm = worker._validate_account_metrics(acc_info)
+    assert eq == 10000.0 and fm == 9500.0
+
+    # Pre-entry session check
+    session_res = worker.session_engine.validate_pre_entry(
+        symbol="XAUUSD",
+        current_time=datetime.now(timezone.utc),
+        current_equity=eq
+    )
+    # Session engine schedule may be unknown in test environment without registered interval -> verify fail closed or allowed
+    if not session_res.allowed:
+        assert session_res.rejection_reason is not None
+
+    # Risk Engine Position Sizing
+    sizing = risk_engine.evaluate_equity_risk_and_position_size(
+        symbol="XAUUSD",
+        direction="BUY",
+        entry_price=2500.0,
+        stop_loss=2495.0,
+        account_equity=eq,
+        free_margin=fm,
+        volume_min=0.01,
+        volume_max=100.0,
+        volume_step=0.01,
+        leverage=100.0,
+        contract_size=100.0
+    )
+    assert sizing.is_valid
+    assert sizing.volume_lots == 0.1

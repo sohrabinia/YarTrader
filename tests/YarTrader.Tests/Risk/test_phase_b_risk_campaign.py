@@ -24,8 +24,12 @@ class TestPhaseBRiskCampaign:
             stop_loss=1990.0,
             account_equity=10000.0,
             free_margin=5000.0,
+            volume_min=0.01,
+            volume_max=100.0,
+            volume_step=0.01,
             risk_pct=2.0,
             leverage=100.0,
+            contract_size=100.0,
             spread_pip=1.0,
             commission_per_lot=7.0,
             estimated_slippage_pip=0.5
@@ -43,6 +47,7 @@ class TestPhaseBRiskCampaign:
             direction="BUY",
             entry_price=2000.0,
             volume_lots=1.0,
+            contract_size=100.0,
             spread_pip=1.0,
             commission_per_lot=7.0,
             estimated_slippage_pip=0.5,
@@ -57,6 +62,7 @@ class TestPhaseBRiskCampaign:
             direction="SELL",
             entry_price=2000.0,
             volume_lots=1.0,
+            contract_size=100.0,
             spread_pip=1.0,
             commission_per_lot=7.0,
             estimated_slippage_pip=0.5,
@@ -166,6 +172,10 @@ class TestPhaseBRiskCampaign:
             stop_loss=1999.0,  # Very tight SL -> Huge lot size requirement
             account_equity=100000.0,
             free_margin=50.0,  # Tiny free margin
+            volume_min=0.01,
+            volume_max=100.0,
+            volume_step=0.01,
+            contract_size=100.0,
             risk_pct=2.0,
             leverage=10.0
         )

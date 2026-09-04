@@ -22,6 +22,11 @@ def test_a_point_five_percent_risk_budget_calculation():
         stop_loss=2490.0,  # $10 SL distance -> $1000 risk per lot (+ $7 commission) = $1007
         account_equity=10000.0,
         free_margin=10000.0,
+        volume_min=0.01,
+        volume_max=100.0,
+        volume_step=0.01,
+        leverage=100.0,
+        contract_size=100.0,
         risk_pct=0.5
     )
     assert res10k.is_valid is True
@@ -35,6 +40,11 @@ def test_a_point_five_percent_risk_budget_calculation():
         stop_loss=2490.0,
         account_equity=20000.0,
         free_margin=20000.0,
+        volume_min=0.01,
+        volume_max=100.0,
+        volume_step=0.01,
+        leverage=100.0,
+        contract_size=100.0,
         risk_pct=0.5
     )
     assert res20k.is_valid is True
@@ -52,8 +62,12 @@ def test_b_stop_distance_volume_scaling():
         stop_loss=2480.0,
         account_equity=10000.0,
         free_margin=10000.0,
-        risk_pct=0.5,
-        volume_min=0.001
+        volume_min=0.001,
+        volume_max=100.0,
+        volume_step=0.001,
+        leverage=100.0,
+        contract_size=100.0,
+        risk_pct=0.5
     )
 
     # Tighter SL ($5 distance) -> larger lot volume
@@ -64,8 +78,12 @@ def test_b_stop_distance_volume_scaling():
         stop_loss=2495.0,
         account_equity=10000.0,
         free_margin=10000.0,
-        risk_pct=0.5,
-        volume_min=0.001
+        volume_min=0.001,
+        volume_max=100.0,
+        volume_step=0.001,
+        leverage=100.0,
+        contract_size=100.0,
+        risk_pct=0.5
     )
 
     assert res_tight.volume_lots > res_wide.volume_lots
@@ -84,8 +102,12 @@ def test_c_volume_below_broker_minimum_rejects_without_forcing_0_01():
         stop_loss=2480.0,
         account_equity=100.0,
         free_margin=100.0,
-        risk_pct=0.5,
-        volume_min=0.01
+        volume_min=0.01,
+        volume_max=100.0,
+        volume_step=0.01,
+        leverage=100.0,
+        contract_size=100.0,
+        risk_pct=0.5
     )
 
     assert res.is_valid is False
@@ -102,8 +124,12 @@ def test_d_volume_step_normalization():
         stop_loss=2490.0,
         account_equity=10000.0,
         free_margin=10000.0,
-        risk_pct=0.5,
-        volume_step=0.01
+        volume_min=0.01,
+        volume_max=100.0,
+        volume_step=0.01,
+        leverage=100.0,
+        contract_size=100.0,
+        risk_pct=0.5
     )
 
     # Verify calculated lots rounded to volume_step 0.01

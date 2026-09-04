@@ -40,9 +40,8 @@ class RealMT4BrokerAdapter(IBrokerAdapter):
             self._try_init()
 
     def _try_init(self) -> bool:
-        """Attempts to initialize MT4 IPC connection or fallback provider."""
+        """Attempts to initialize MT4 IPC connection."""
         try:
-            # Check for MT4 python bindings or IPC bridge
             import MetaTrader4 as mt4
             self._mt4 = mt4
             if self._mt4.initialize():
@@ -50,12 +49,13 @@ class RealMT4BrokerAdapter(IBrokerAdapter):
                 logger.info("[RealMT4BrokerAdapter] MT4 initialized successfully.")
                 return True
         except ImportError:
-            logger.info("[RealMT4BrokerAdapter] Native MetaTrader4 package not present. Using canonical IPC bridge adapter.")
+            logger.info("[RealMT4BrokerAdapter] Native MetaTrader4 package not present. Real MT4 connection unavailable.")
         except Exception as ex:
             logger.warning(f"[RealMT4BrokerAdapter] MT4 initialize exception: {ex}")
 
-        self._initialized = True
-        return True
+        self._initialized = False
+        self._mt4 = None
+        return False
 
     def verify_safety_and_account(self, operation_type: str = "DEMO") -> bool:
         """
@@ -71,7 +71,7 @@ class RealMT4BrokerAdapter(IBrokerAdapter):
 
         acc_info = self.get_account_info()
         if acc_info is None:
-            raise ValidationException("MT4 Terminal is disconnected or account info is unavailable.")
+            raise ValidationException("MT4 Terminal is disconnected or account info is unavailable (Fail-Closed).")
 
         login = str(acc_info.get("login", ""))
         server = str(acc_info.get("server", ""))
@@ -94,79 +94,79 @@ class RealMT4BrokerAdapter(IBrokerAdapter):
         return True
 
     def get_account_info(self) -> Optional[Dict[str, Any]]:
-        if not self._initialized:
+        """Returns MT4 account info from native API. Returns None (UNKNOWN) if MT4 is unavailable."""
+        if not self._mt4 or not self._initialized:
             return None
-        return {
-            "login": self.TARGET_ACCOUNT,
-            "trade_mode": 0,  # DEMO
-            "is_real": False,
-            "balance": 10000.0,
-            "equity": 10000.0,
-            "profit": 0.0,
-            "server": self.TARGET_SERVER,
-            "currency": "USD",
-            "leverage": 100,
-            "platform": "MT4"
-        }
+        try:
+            acc = self._mt4.account_info()
+            if acc is None:
+                return None
+            return dict(acc) if hasattr(acc, "_asdict") else dict(acc)
+        except Exception as e:
+            logger.error(f"[RealMT4BrokerAdapter] get_account_info exception: {e}")
+            return None
 
     def get_terminal_info(self) -> Optional[Dict[str, Any]]:
-        return {
-            "connected": True,
-            "name": "MetaTrader 4 Terminal",
-            "platform": "MT4",
-            "trade_allowed": True
-        }
+        """Returns active MT4 terminal info. Returns None (UNKNOWN) if MT4 is unavailable."""
+        if not self._mt4 or not self._initialized:
+            return None
+        try:
+            term = self._mt4.terminal_info()
+            if term is None:
+                return None
+            return dict(term) if hasattr(term, "_asdict") else dict(term)
+        except Exception as e:
+            logger.error(f"[RealMT4BrokerAdapter] get_terminal_info exception: {e}")
+            return None
 
     def get_symbol_info(self, symbol: str) -> Optional[Dict[str, Any]]:
-        sym = symbol.upper()
-        return {
-            "name": sym,
-            "volume_min": 0.01,
-            "volume_step": 0.01,
-            "volume_max": 100.0,
-            "trade_mode": 4,  # FULL
-            "digits": 2 if "XAU" in sym else 5,
-            "point": 0.01 if "XAU" in sym else 0.00001,
-            "platform": "MT4"
-        }
+        """Fetches symbol information from MT4. Returns None (UNKNOWN) if MT4 is unavailable."""
+        if not self._mt4 or not self._initialized:
+            return None
+        try:
+            sym = self._mt4.symbol_info(symbol)
+            if sym is None:
+                return None
+            return dict(sym) if hasattr(sym, "_asdict") else dict(sym)
+        except Exception as e:
+            logger.error(f"[RealMT4BrokerAdapter] get_symbol_info exception: {e}")
+            return None
 
     def get_symbol_tick(self, symbol: str) -> Optional[Dict[str, Any]]:
-        sym = symbol.upper()
-        ts_utc = datetime.now(timezone.utc)
-        base_bid = 2500.00 if "XAU" in sym else 1.0850
-        return {
-            "time": int(ts_utc.timestamp()),
-            "timestamp_iso": ts_utc.isoformat(),
-            "bid": base_bid,
-            "ask": base_bid + (0.20 if "XAU" in sym else 0.0001),
-            "last": base_bid,
-            "volume": 120,
-            "source_platform": "MT4"
-        }
+        """Fetches symbol tick from MT4. Returns None (UNKNOWN) if MT4 is unavailable."""
+        if not self._mt4 or not self._initialized:
+            return None
+        try:
+            tick = self._mt4.symbol_info_tick(symbol)
+            if tick is None:
+                return None
+            return dict(tick) if hasattr(tick, "_asdict") else dict(tick)
+        except Exception as e:
+            logger.error(f"[RealMT4BrokerAdapter] get_symbol_tick exception: {e}")
+            return None
 
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
-        """Sends order to MT4 DEMO account via verified safety gate."""
-        self.verify_safety_and_account(operation_type="DEMO")
+        """
+        MT4 HAS ZERO PRODUCTION ORDER EXECUTION AUTHORITY.
+        Order execution requests via MT4 are unconditionally rejected.
+        """
+        logger.error("[RealMT4BrokerAdapter] SECURITY REJECTION: MT4 order execution requested. MT4 execution authority is ZERO.")
+        raise ValidationException("SECURITY VIOLATION: MT4 adapter has ZERO production order execution authority. Production execution is strictly reserved for MT5 DEMO.")
 
-        sym = request.Symbol.upper()
-        tick = self.get_symbol_tick(sym)
-        fill_price = request.Price or (tick["ask"] if request.OrderType.upper() in ["BUY", "LONG"] else tick["bid"])
-
-        ticket_id = f"MT4-{int(time.time()*1000)}"
-        logger.info(f"[RealMT4BrokerAdapter] Executed MT4 DEMO order {ticket_id} for {sym} {request.OrderType} @ {fill_price}")
-
-        return OrderResponse(
-            OrderId=ticket_id,
-            Symbol=sym,
-            Status="Placed",
-            SubmittedAt=datetime.now(timezone.utc),
-            Retcode=10009,
-            Comment=f"MT4 Demo Order ({request.Comment or 'OK'})",
-            DealTicket=f"DEAL-{ticket_id}",
-            Price=fill_price,
-            Volume=request.Volume,
-            RawResponse={"platform": "MT4", "ticket": ticket_id, "trade_mode": "DEMO"}
-        )
-
-    def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> List[Dict[str, Any]]:
-        return []
+    def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
+        """Queries active MT4 positions. Returns None (UNKNOWN) if MT4 is unavailable or query fails."""
+        if not self._mt4 or not self._initialized:
+            return None
+        try:
+            kwargs = {}
+            if symbol:
+                kwargs["symbol"] = symbol
+            if ticket:
+                kwargs["ticket"] = int(ticket)
+            positions = self._mt4.positions_get(**kwargs)
+            if positions is None:
+                return None
+            return [dict(p) if hasattr(p, "_asdict") else dict(p) for p in positions]
+        except Exception as e:
+            logger.error(f"[RealMT4BrokerAdapter] get_positions exception: {e}")
+            return None
