@@ -3,10 +3,9 @@ YarTrader Forensic Fractal Research — Gate 3 Multi-Scale Base Detection Engine
 Ratio-agnostic, deterministic, versioned, and fully reproducible Base detection.
 Detects candidate market Bases independently at every constructed scale.
 
-CAUSALITY GOVERNANCE:
-Online Base Detection MUST NOT perform future-bar lookahead.
-Online detection evaluates candidate bases using strictly historical bars up to current time t.
-Offline outcome labeling (labeling future breakout/retest/return_to_base) is strictly isolated.
+CAUSALITY & DATA INTEGRITY GOVERNANCE:
+1. Online Base Detection MUST NOT perform future-bar lookahead.
+2. No data fabrication: if local ATR <= 0 or invalid prices, candidate base is rejected.
 """
 
 import math
@@ -19,7 +18,7 @@ class Gate3BaseDetectorEngine:
     Detects candidate market Bases independently at any scale level.
     """
 
-    ALGORITHM_VERSION = "base_detector_v2.0.0_causal"
+    ALGORITHM_VERSION = "base_detector_v2.1.0_strict"
 
     def __init__(
         self,
@@ -63,6 +62,7 @@ class Gate3BaseDetectorEngine:
         """
         Detects candidate Bases in a given bar series at a specific scale.
         By default (enable_offline_lookahead_labeling=False), ONLINE detection uses strictly causal data up to time t (NO FUTURE LOOKAHEAD).
+        Strict Data Integrity: Zero fabricated ATR or OHLC fallbacks.
         """
         if not bars or len(bars) < self.min_duration_bars:
             return []
@@ -80,10 +80,14 @@ class Gate3BaseDetectorEngine:
                 local_low = min(b["low"] for b in window)
                 local_range = local_high - local_low
                 local_mid = (local_high + local_low) / 2.0
-                local_atr = atrs[i + length - 1] if (i + length - 1) < len(atrs) else 1.0
 
-                if local_atr <= 0:
-                    local_atr = 0.0001
+                if i + length - 1 >= len(atrs):
+                    continue
+
+                local_atr = atrs[i + length - 1]
+                if local_atr <= 0.0 or math.isnan(local_atr) or math.isinf(local_atr):
+                    # Reject candidate base when ATR is non-positive or invalid (NO DATA FABRICATION)
+                    continue
 
                 compression_ratio = local_range / local_atr
 
@@ -94,8 +98,11 @@ class Gate3BaseDetectorEngine:
                     open_start = window[0]["open"]
                     close_end = window[-1]["close"]
 
-                    return_pct = (close_end - open_start) / open_start if open_start > 0 else 0.0
-                    normalized_range = local_range / local_mid if local_mid > 0 else 0.0
+                    if open_start <= 0.0 or local_mid <= 0.0:
+                        continue
+
+                    return_pct = (close_end - open_start) / open_start
+                    normalized_range = local_range / local_mid
 
                     mean_close = sum(closes) / len(closes)
                     volatility = math.sqrt(sum((c - mean_close) ** 2 for c in closes) / len(closes)) if len(closes) > 1 else 0.0
