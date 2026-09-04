@@ -6,6 +6,42 @@ from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
 from scripts.run_real_mt5_demo_e2e import reconcile_pnl
 
 
+def _create_explicit_mock_sym():
+    mock_sym = MagicMock()
+    mock_sym.visible = True
+    mock_sym.volume_min = 0.01
+    mock_sym.volume_step = 0.01
+    mock_sym.volume_max = 100.0
+    mock_sym.trade_mode = 4
+    mock_sym.digits = 2
+    mock_sym.point = 0.01
+    mock_sym._asdict.return_value = {
+        "name": "XAUUSD",
+        "volume_min": 0.01,
+        "volume_step": 0.01,
+        "volume_max": 100.0,
+        "trade_mode": 4,
+        "digits": 2,
+        "point": 0.01
+    }
+    return mock_sym
+
+
+def _create_explicit_mock_tick():
+    mock_tick = MagicMock()
+    mock_tick.bid = 2600.0
+    mock_tick.ask = 2600.5
+    mock_tick.time = 1700000000
+    mock_tick._asdict.return_value = {
+        "time": 1700000000,
+        "bid": 2600.0,
+        "ask": 2600.5,
+        "last": 2600.25,
+        "volume": 100
+    }
+    return mock_tick
+
+
 def test_reconcile_pnl_success():
     mt5_metrics = {
         "symbol": "BITCOIN",
@@ -113,8 +149,8 @@ def test_order_check_fail_closed():
     mock_mt5 = MagicMock()
     mock_mt5.TRADE_RETCODE_DONE = 10009
     mock_mt5.TRADE_RETCODE_PLACED = 10008
-    mock_mt5.symbol_info.return_value = MagicMock(visible=True, volume_min=0.01, volume_step=0.01, volume_max=100.0)
-    mock_mt5.symbol_info_tick.return_value = MagicMock(bid=2600.0, ask=2600.5)
+    mock_mt5.symbol_info.return_value = _create_explicit_mock_sym()
+    mock_mt5.symbol_info_tick.return_value = _create_explicit_mock_tick()
 
     # Simulated failed order_check (retcode 10014 = INVALID_VOLUME)
     mock_check_res = MagicMock()
@@ -167,8 +203,8 @@ def test_order_check_success_allows_order_send():
     adapter._initialized = True
 
     mock_mt5 = MagicMock()
-    mock_mt5.symbol_info.return_value = MagicMock(visible=True, volume_min=0.01, volume_step=0.01, volume_max=100.0)
-    mock_mt5.symbol_info_tick.return_value = MagicMock(bid=2600.0, ask=2600.5)
+    mock_mt5.symbol_info.return_value = _create_explicit_mock_sym()
+    mock_mt5.symbol_info_tick.return_value = _create_explicit_mock_tick()
 
     mock_check_res = MagicMock()
     mock_check_res.retcode = 0  # DONE
@@ -181,6 +217,7 @@ def test_order_check_success_allows_order_send():
     mock_send_res.price = 2600.5
     mock_send_res.volume = 0.01
     mock_send_res.comment = "Request executed"
+    mock_send_res._asdict.return_value = {"retcode": 10009, "order": 123456}
     mock_mt5.order_send.return_value = mock_send_res
 
     adapter._mt5 = mock_mt5

@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
+from unittest.mock import MagicMock
 
 from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
 from src.Execution.Services.market_session_engine import MarketSessionEngine, MarketState, SessionInterval
@@ -109,6 +110,41 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
         req_unaligned = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.015)
         with self.assertRaises(ValidationException):
             adapter.send_order_to_broker(req_unaligned)
+
+    def test_mt5_adapter_rejects_magicmock_and_missing_tick_fields(self):
+        """Tests that get_symbol_info and get_symbol_tick fail closed when encountering MagicMock or missing tick/symbol fields."""
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        mock_mt5 = MagicMock()
+        adapter._mt5 = mock_mt5
+        adapter._initialized = True
+
+        # Mock symbol_info with MagicMock fields
+        mock_sym = MagicMock()
+        mock_sym.volume_min = MagicMock()
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        info = adapter.get_symbol_info("XAUUSD")
+        self.assertIsNone(info, "get_symbol_info MUST return None when metadata fields contain MagicMock.")
+
+        # Mock tick missing bid/ask/time
+        mock_tick = MagicMock()
+        mock_tick.bid = None
+        mock_tick.ask = 2500.0
+        mock_tick.time = 1700000000
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        tick = adapter.get_symbol_tick("XAUUSD")
+        self.assertIsNone(tick, "get_symbol_tick MUST return None when mandatory fields (bid/ask/time) are missing.")
+
+        # Mock tick with negative price
+        mock_tick2 = MagicMock()
+        mock_tick2.bid = -10.0
+        mock_tick2.ask = 2500.0
+        mock_tick2.time = 1700000000
+        mock_mt5.symbol_info_tick.return_value = mock_tick2
+
+        tick2 = adapter.get_symbol_tick("XAUUSD")
+        self.assertIsNone(tick2, "get_symbol_tick MUST return None when bid or ask is <= 0.")
 
     # =========================================================================
     # P0-5: POSITION QUERY UNKNOWN STATE

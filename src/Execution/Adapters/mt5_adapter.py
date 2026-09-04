@@ -181,6 +181,12 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 "point": getattr(sym, "point", None),
             }
 
+        # Reject unittest MagicMock objects in production adapter metadata
+        for k in ["volume_min", "volume_step", "volume_max", "trade_mode", "digits", "point"]:
+            if type(info.get(k)).__name__ == "MagicMock":
+                logger.warning(f"[RealMT5BrokerAdapter] Symbol metadata '{k}' is MagicMock for '{symbol}'. Failing closed.")
+                return None
+
         # Strict Validation: ZERO FINANCIAL FALLBACKS
         if info.get("volume_min") is None or info.get("volume_step") is None or info.get("volume_max") is None:
             logger.warning(f"[RealMT5BrokerAdapter] Symbol metadata for '{symbol}' missing required volume limits.")
@@ -213,6 +219,12 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             "last": getattr(tick, "last", None),
             "volume": getattr(tick, "volume", None),
         }
+
+        # Reject MagicMock tick objects
+        for k in ["bid", "ask", "time"]:
+            if type(tick_info.get(k)).__name__ == "MagicMock":
+                logger.warning(f"[RealMT5BrokerAdapter] Tick field '{k}' is MagicMock for '{symbol}'. Failing closed.")
+                return None
 
         # Strict Fail-Closed Validation for Real Ticks
         bid = tick_info.get("bid")
