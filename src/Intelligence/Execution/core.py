@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 import os
 import json
+import hashlib
 
 from src.Intelligence.Execution.narrative import MarketNarrativeEngine
 from src.Intelligence.Execution.liquidity import LiquidityIntelligenceEngine
@@ -47,6 +48,25 @@ class ExecutionIntelligenceCore:
         # Keys are (symbol, timeframe) tuples
         self.context_states: Dict[tuple, Dict[str, Any]] = {}
 
+    @classmethod
+    def compute_context_identity(
+        cls,
+        symbol: str,
+        timeframe: str,
+        candles: List[Dict[str, Any]]
+    ) -> str:
+        """
+        Computes SHA256 context provenance hash strictly derived from symbol, timeframe,
+        timestamps, OHLC price vectors, and candle count.
+
+        Guarantees MTF causal isolation: (same OHLC, M5) != (same OHLC, H1).
+        """
+        ts_vector = [str(c.get("time") or c.get("timestamp") or "") for c in candles]
+        ohlc_vector = [f"{c.get('open')}:{c.get('high')}:{c.get('low')}:{c.get('close')}" for c in candles]
+
+        payload = f"{symbol.upper()}:{timeframe.upper()}:{len(candles)}:{','.join(ts_vector)}:{','.join(ohlc_vector)}"
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
     def get_context_state(self, symbol: str, timeframe: str) -> Dict[str, Any]:
         """Gets or initializes the isolated state for a specific research context."""
         key = (symbol.upper(), timeframe.upper())
@@ -81,6 +101,9 @@ class ExecutionIntelligenceCore:
         state = self.get_context_state(symbol, timeframe)
         if not candles:
             return state
+
+        context_identity = self.compute_context_identity(symbol, timeframe, candles)
+        state["context_identity"] = context_identity
 
         # 1. Market Narrative
         narrative_res = self.narrative_engine.analyze_narrative(candles)
@@ -180,6 +203,7 @@ class ExecutionIntelligenceCore:
 
         # Combine results
         return {
+            "context_identity": context_identity,
             "symbol": symbol.upper(),
             "timeframe": timeframe.upper(),
             "narrative": narrative_res,

@@ -94,8 +94,7 @@ class RealMT4BrokerAdapter(IBrokerAdapter):
         return True
 
     def get_account_info(self) -> Optional[Dict[str, Any]]:
-        if not self._initialized:
-            return None
+        """Returns MT4 account info for simulation data pipeline. MT4 cannot be used for production execution."""
         return {
             "login": self.TARGET_ACCOUNT,
             "trade_mode": 0,  # DEMO
@@ -106,7 +105,8 @@ class RealMT4BrokerAdapter(IBrokerAdapter):
             "server": self.TARGET_SERVER,
             "currency": "USD",
             "leverage": 100,
-            "platform": "MT4"
+            "platform": "MT4",
+            "is_real_broker": False
         }
 
     def get_terminal_info(self) -> Optional[Dict[str, Any]]:
@@ -141,32 +141,17 @@ class RealMT4BrokerAdapter(IBrokerAdapter):
             "ask": base_bid + (0.20 if "XAU" in sym else 0.0001),
             "last": base_bid,
             "volume": 120,
-            "source_platform": "MT4"
+            "source_platform": "MT4",
+            "is_real_broker": False
         }
 
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
-        """Sends order to MT4 DEMO account via verified safety gate."""
-        self.verify_safety_and_account(operation_type="DEMO")
-
-        sym = request.Symbol.upper()
-        tick = self.get_symbol_tick(sym)
-        fill_price = request.Price or (tick["ask"] if request.OrderType.upper() in ["BUY", "LONG"] else tick["bid"])
-
-        ticket_id = f"MT4-{int(time.time()*1000)}"
-        logger.info(f"[RealMT4BrokerAdapter] Executed MT4 DEMO order {ticket_id} for {sym} {request.OrderType} @ {fill_price}")
-
-        return OrderResponse(
-            OrderId=ticket_id,
-            Symbol=sym,
-            Status="Placed",
-            SubmittedAt=datetime.now(timezone.utc),
-            Retcode=10009,
-            Comment=f"MT4 Demo Order ({request.Comment or 'OK'})",
-            DealTicket=f"DEAL-{ticket_id}",
-            Price=fill_price,
-            Volume=request.Volume,
-            RawResponse={"platform": "MT4", "ticket": ticket_id, "trade_mode": "DEMO"}
-        )
+        """
+        MT4 HAS ZERO PRODUCTION ORDER EXECUTION AUTHORITY.
+        Order execution requests via MT4 are unconditionally rejected.
+        """
+        logger.error("[RealMT4BrokerAdapter] SECURITY REJECTION: MT4 order execution requested. MT4 execution authority is ZERO.")
+        raise ValidationException("SECURITY VIOLATION: MT4 adapter has ZERO production order execution authority. Production execution is strictly reserved for MT5 DEMO.")
 
     def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> List[Dict[str, Any]]:
         return []

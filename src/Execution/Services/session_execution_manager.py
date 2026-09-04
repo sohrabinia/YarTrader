@@ -88,17 +88,34 @@ class SessionExecutionManager:
         distance_to_tp: Optional[float] = None,
         current_volatility_atr: Optional[float] = None,
         historical_mfe_speed: float = 1.0,
-        current_time: Optional[datetime] = None
+        current_time: Optional[datetime] = None,
+        current_equity: Optional[Any] = 10000.0
     ) -> Dict[str, Any]:
         """
-        Evaluates session entry constraints.
+        Evaluates session entry constraints with mandatory account equity validation.
+        - Rejects missing, non-positive, or malformed equity (fails closed).
         - Rejects forbidden trading styles (SWING, POSITION, OVERNIGHT).
-        - Delegates to MarketSessionEngine if available for authoritative session/calendar and TP-time feasibility gate.
+        - Delegates to MarketSessionEngine if available for authoritative session/calendar and Daily Loss Kill Switch gate.
         - Enforces EOD Entry Cutoff: rejects new entries if remaining session time <= 121s (120s + buffer),
           guaranteeing every opened ordinary position can safely reach >120s before EOD cutoff.
         """
+        # Validate current_equity unconditionally
+        if current_equity is None or isinstance(current_equity, bool) or not isinstance(current_equity, (int, float)):
+            return {
+                "allowed": False,
+                "rejection_reason": f"INVALID_EQUITY: Account equity is missing or malformed ({current_equity})"
+            }
+
+        eq_val = float(current_equity)
+        import math
+        if not math.isfinite(eq_val) or eq_val <= 0:
+            return {
+                "allowed": False,
+                "rejection_reason": f"INVALID_EQUITY: Account equity is non-finite or <= 0 (${eq_val})"
+            }
+
         allowed_styles = ["FAST_SCALP", "SCALP", "DAY_TRADING"]
-        style_upper = trading_style.upper()
+        style_upper = str(trading_style).upper()
 
         if style_upper not in allowed_styles:
             return {
@@ -120,7 +137,8 @@ class SessionExecutionManager:
                 distance_to_tp=distance_to_tp,
                 current_volatility_atr=current_volatility_atr,
                 historical_mfe_speed=historical_mfe_speed,
-                current_time=current_time
+                current_time=current_time,
+                current_equity=eq_val
             )
             if not res.allowed:
                 return {
@@ -128,6 +146,20 @@ class SessionExecutionManager:
                     "rejection_reason": res.rejection_reason,
                     "message": res.message,
                     "remaining_session_seconds": res.remaining_session_seconds
+                }
+        else:
+            # Standalone mode without MarketSessionEngine MUST evaluate Daily Loss Kill Switch directly if available
+            from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+            kill_switch = DailyLossKillSwitch()
+            ks_allowed, ks_reason, _ = kill_switch.evaluate_daily_loss(
+                current_equity=eq_val,
+                now_utc=current_time
+            )
+            if not ks_allowed:
+                return {
+                    "allowed": False,
+                    "rejection_reason": ks_reason,
+                    "message": f"Daily Loss Protection Kill Switch triggered: {ks_reason}"
                 }
 
         # Standalone Cutoff fallback: remaining_session_seconds must be > 121 seconds

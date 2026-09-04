@@ -35,7 +35,8 @@ class TestMarketSessionEngine:
 
         res = self.engine.validate_pre_entry(
             symbol="XAUUSD",
-            current_time=self.now_utc
+            current_time=self.now_utc,
+            current_equity=10000.0
         )
 
         assert res.allowed is True
@@ -62,19 +63,19 @@ class TestMarketSessionEngine:
         self.engine.register_session_interval(interval)
 
         # Exact 120s remaining (at 10:00:00) -> REJECT
-        res_120 = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=self.now_utc)
+        res_120 = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=self.now_utc, current_equity=10000.0)
         assert res_120.allowed is False
         assert res_120.rejection_reason == "INSUFFICIENT_SESSION_TIME"
 
         # 119.999s remaining -> REJECT
         t_119 = datetime(2026, 3, 23, 10, 0, 0, 1000, tzinfo=timezone.utc)
-        res_119 = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=t_119)
+        res_119 = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=t_119, current_equity=10000.0)
         assert res_119.allowed is False
         assert res_119.rejection_reason == "INSUFFICIENT_SESSION_TIME"
 
         # 121.001s remaining -> ACCEPT
         t_121 = session_end - timedelta(seconds=121.001)
-        res_121 = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=t_121)
+        res_121 = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=t_121, current_equity=10000.0)
         assert res_121.allowed is True
         assert res_121.rejection_reason is None
 
@@ -110,18 +111,18 @@ class TestMarketSessionEngine:
 
         # 09:00 -> Inside interval 1 -> OPEN
         t_09 = datetime(2026, 3, 28, 9, 0, 0, tzinfo=timezone.utc)
-        res_09 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_09)
+        res_09 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_09, current_equity=10000.0)
         assert res_09.allowed is True
 
         # 12:30 -> In break between interval 1 & 2 -> CLOSED
         t_1230 = datetime(2026, 3, 28, 12, 30, 0, tzinfo=timezone.utc)
-        res_1230 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_1230)
+        res_1230 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_1230, current_equity=10000.0)
         assert res_1230.allowed is False
         assert res_1230.rejection_reason == "MARKET_CLOSED"
 
         # 14:00 -> Inside interval 2 -> OPEN
         t_14 = datetime(2026, 3, 28, 14, 0, 0, tzinfo=timezone.utc)
-        res_14 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_14)
+        res_14 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_14, current_equity=10000.0)
         assert res_14.allowed is True
 
     def test_pre_entry_tp_time_feasibility_matrix(self):
@@ -145,7 +146,8 @@ class TestMarketSessionEngine:
             distance_to_tp=70.0,
             current_volatility_atr=1.0,
             historical_mfe_speed=1.0,
-            current_time=self.now_utc
+            current_time=self.now_utc,
+            current_equity=10000.0
         )
         assert res_fast.allowed is False
         assert res_fast.rejection_reason == "TP_TIME_TOO_FAST_BELOW_MIN_HOLD_120S"
@@ -156,7 +158,8 @@ class TestMarketSessionEngine:
             distance_to_tp=180.0,
             current_volatility_atr=1.0,
             historical_mfe_speed=1.0,
-            current_time=self.now_utc
+            current_time=self.now_utc,
+            current_equity=10000.0
         )
         assert res_valid.allowed is True
         assert res_valid.rejection_reason is None
@@ -167,7 +170,8 @@ class TestMarketSessionEngine:
             distance_to_tp=700.0,
             current_volatility_atr=1.0,
             historical_mfe_speed=1.0,
-            current_time=self.now_utc
+            current_time=self.now_utc,
+            current_equity=10000.0
         )
         assert res_slow.allowed is False
         assert res_slow.rejection_reason == "TP_TIME_EXCEEDS_REMAINING_SESSION"
@@ -199,7 +203,7 @@ class TestMarketSessionEngine:
         )
         self.engine.register_session_interval(interval)
 
-        res = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=self.now_utc)
+        res = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=self.now_utc, current_equity=10000.0)
         assert res.allowed is True
         assert res.source_authority == CalendarSourcePrecedence.LIVE_BROKER_MT5
         assert len(self.engine.forexfactory_enrichment) == 1
@@ -229,14 +233,14 @@ class TestMarketSessionEngine:
         )
         self.engine.register_session_interval(interval)
 
-        res = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=self.now_utc)
+        res = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=self.now_utc, current_equity=10000.0)
         assert res.allowed is False
         assert res.market_state == MarketState.HOLIDAY_CLOSED
         assert res.rejection_reason == "HOLIDAY_CLOSED"
 
     def test_failure_injection_unknown_broker_schedule_fails_closed(self):
         # Empty engine without registered symbol schedule
-        res = self.engine.validate_pre_entry(symbol="UNKNOWN_SYMBOL", current_time=self.now_utc)
+        res = self.engine.validate_pre_entry(symbol="UNKNOWN_SYMBOL", current_time=self.now_utc, current_equity=10000.0)
         assert res.allowed is False
         assert res.market_state == MarketState.UNKNOWN
         assert res.rejection_reason == "UNKNOWN_BROKER_SCHEDULE"
@@ -264,7 +268,8 @@ class TestMarketSessionEngine:
             symbol="XAUUSD",
             distance_to_tp=180.0,
             current_volatility_atr=1.0,
-            current_time=self.now_utc
+            current_time=self.now_utc,
+            current_equity=10000.0
         )
 
         assert perm["allowed"] is True

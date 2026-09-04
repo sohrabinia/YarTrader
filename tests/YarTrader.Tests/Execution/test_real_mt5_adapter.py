@@ -7,6 +7,44 @@ from src.Execution.Models.models import OrderRequest, OrderResponse
 from src.Infrastructure.exceptions import ValidationException
 
 
+def _create_mock_sym():
+    mock_sym = MagicMock()
+    mock_sym.visible = True
+    mock_sym.volume_min = 0.01
+    mock_sym.volume_step = 0.01
+    mock_sym.volume_max = 100.0
+    mock_sym.trade_mode = 4
+    mock_sym.digits = 2
+    mock_sym.point = 0.01
+    mock_sym.filling_mode = 1
+    mock_sym._asdict.return_value = {
+        "name": "XAUUSD",
+        "volume_min": 0.01,
+        "volume_step": 0.01,
+        "volume_max": 100.0,
+        "trade_mode": 4,
+        "digits": 2,
+        "point": 0.01,
+        "filling_mode": 1
+    }
+    return mock_sym
+
+
+def _create_mock_tick():
+    mock_tick = MagicMock()
+    mock_tick.bid = 2300.50
+    mock_tick.ask = 2300.80
+    mock_tick.time = 1700000000
+    mock_tick._asdict.return_value = {
+        "time": 1700000000,
+        "bid": 2300.50,
+        "ask": 2300.80,
+        "last": 2300.65,
+        "volume": 100
+    }
+    return mock_tick
+
+
 class TestRealMT5BrokerAdapter(unittest.TestCase):
 
     def setUp(self):
@@ -64,16 +102,10 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
+        mock_sym = _create_mock_sym()
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
-        mock_tick.bid = 2300.50
-        mock_tick.ask = 2300.80
+        mock_tick = _create_mock_tick()
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         mock_check = MagicMock()
@@ -133,12 +165,12 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.ORDER_FILLING_IOC = 1
         mock_mt5.ORDER_FILLING_RETURN = 2
 
-        sym_info_btc = MagicMock()
+        sym_info_btc = _create_mock_sym()
         sym_info_btc.filling_mode = 1  # SYMBOL_FILLING_FOK
         mode_btc = self.adapter._resolve_filling_mode(mock_mt5, "BITCOIN", sym_info_btc)
         self.assertEqual(mode_btc, 0)  # ORDER_FILLING_FOK
 
-        sym_info_ioc = MagicMock()
+        sym_info_ioc = _create_mock_sym()
         sym_info_ioc.filling_mode = 2  # SYMBOL_FILLING_IOC
         mode_ioc = self.adapter._resolve_filling_mode(mock_mt5, "EURUSD", sym_info_ioc)
         self.assertEqual(mode_ioc, 1)  # ORDER_FILLING_IOC
@@ -159,17 +191,25 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
+        mock_sym = _create_mock_sym()
+        mock_sym.name = "BITCOIN"
         mock_sym.filling_mode = 1  # BITCOIN filling_mode = 1 (SYMBOL_FILLING_FOK)
+        mock_sym._asdict.return_value = {
+            "name": "BITCOIN",
+            "volume_min": 0.01,
+            "volume_step": 0.01,
+            "volume_max": 100.0,
+            "trade_mode": 4,
+            "digits": 2,
+            "point": 0.01,
+            "filling_mode": 1
+        }
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
+        mock_tick = _create_mock_tick()
         mock_tick.bid = 65000.0
         mock_tick.ask = 65050.0
+        mock_tick._asdict.return_value = {"time": 1700000000, "bid": 65000.0, "ask": 65050.0}
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         mock_pos = MagicMock()
@@ -227,17 +267,10 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
-        mock_sym.filling_mode = 1
+        mock_sym = _create_mock_sym()
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
-        mock_tick.bid = 65000.0
-        mock_tick.ask = 65050.0
+        mock_tick = _create_mock_tick()
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         mock_pos = MagicMock()
@@ -287,16 +320,10 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
+        mock_sym = _create_mock_sym()
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
-        mock_tick.bid = 65000.0
-        mock_tick.ask = 65050.0
+        mock_tick = _create_mock_tick()
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         # order_check returns retcode 10030 (Unsupported filling mode)
@@ -330,16 +357,10 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
+        mock_sym = _create_mock_sym()
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
-        mock_tick.bid = 65000.0
-        mock_tick.ask = 65050.0
+        mock_tick = _create_mock_tick()
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         # order_check returns retcode 10030 (Unsupported filling mode)
@@ -388,16 +409,10 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
+        mock_sym = _create_mock_sym()
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
-        mock_tick.bid = 2300.50
-        mock_tick.ask = 2300.80
+        mock_tick = _create_mock_tick()
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         # order_check returns 10013 (TRADE_RETCODE_INVALID)
@@ -440,17 +455,14 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
-        mock_sym.filling_mode = 1
+        mock_sym = _create_mock_sym()
+        mock_sym.name = "BITCOIN"
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
+        mock_tick = _create_mock_tick()
         mock_tick.bid = 77000.0
         mock_tick.ask = 77050.0
+        mock_tick._asdict.return_value = {"time": 1700000000, "bid": 77000.0, "ask": 77050.0}
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         mock_pos = MagicMock()
@@ -506,17 +518,21 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
+        mock_sym = _create_mock_sym()
         mock_sym.filling_mode = 2  # SYMBOL_FILLING_IOC (bit 1 = 2)
+        mock_sym._asdict.return_value = {
+            "name": "XAUUSD",
+            "volume_min": 0.01,
+            "volume_step": 0.01,
+            "volume_max": 100.0,
+            "trade_mode": 4,
+            "digits": 2,
+            "point": 0.01,
+            "filling_mode": 2
+        }
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
-        mock_tick.bid = 2300.50
-        mock_tick.ask = 2300.80
+        mock_tick = _create_mock_tick()
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         mock_check = MagicMock()
@@ -556,16 +572,10 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
+        mock_sym = _create_mock_sym()
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
-        mock_tick.bid = 2300.50
-        mock_tick.ask = 2300.80
+        mock_tick = _create_mock_tick()
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         # order_check returns None for all candidate attempts
@@ -604,17 +614,13 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
-        mock_sym.filling_mode = 1  # FOK preferred
+        mock_sym = _create_mock_sym()
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
+        mock_tick = _create_mock_tick()
         mock_tick.bid = 65000.0
         mock_tick.ask = 65050.0
+        mock_tick._asdict.return_value = {"time": 1700000000, "bid": 65000.0, "ask": 65050.0}
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         mock_pos = MagicMock()
@@ -675,17 +681,10 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
-        mock_sym.filling_mode = 1
+        mock_sym = _create_mock_sym()
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
-        mock_tick.bid = 2300.50
-        mock_tick.ask = 2300.80
+        mock_tick = _create_mock_tick()
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         fail_check = MagicMock()
@@ -725,17 +724,13 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
 
-        mock_sym = MagicMock()
-        mock_sym.visible = True
-        mock_sym.volume_min = 0.01
-        mock_sym.volume_step = 0.01
-        mock_sym.volume_max = 100.0
-        mock_sym.filling_mode = 1
+        mock_sym = _create_mock_sym()
         mock_mt5.symbol_info.return_value = mock_sym
 
-        mock_tick = MagicMock()
+        mock_tick = _create_mock_tick()
         mock_tick.bid = 65000.0
         mock_tick.ask = 65050.0
+        mock_tick._asdict.return_value = {"time": 1700000000, "bid": 65000.0, "ask": 65050.0}
         mock_mt5.symbol_info_tick.return_value = mock_tick
 
         mock_pos = MagicMock()
