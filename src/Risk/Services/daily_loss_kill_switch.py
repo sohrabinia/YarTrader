@@ -18,7 +18,7 @@ class DailyLossKillSwitch:
     1. Explicit numeric equity validation: missing, None, <= 0, NaN, Inf, or malformed equity fails closed.
     2. Zero financial fallback (no 10000.0 or default equity substitution).
     3. Session baseline equity is immutable once established per session (never reset to lower intraday equity).
-    4. Uninitialized session baseline equity fails closed.
+    4. Uninitialized session baseline equity fails closed (no self-creation from random intraday equity).
     """
     MAX_DAILY_LOSS_PCT: float = 8.00  # 8.00% hard limit
 

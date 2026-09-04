@@ -113,7 +113,7 @@ class MarketSessionEngine:
     3. Forex DST & Broker Server timezone handling.
     4. Mandatory Pre-Entry >120s remaining session feasibility check.
     5. Causal Pre-Entry TP-Time Feasibility model.
-    6. Daily Loss Protection Kill Switch (8.0% limit, fail-closed on missing/invalid equity).
+    6. Daily Loss Protection Kill Switch (UNCONDITIONAL, 8.0% limit, fail-closed on missing/invalid equity).
     7. Fail-closed on UNKNOWN state.
     """
 
@@ -275,7 +275,7 @@ class MarketSessionEngine:
         if now.tzinfo is None:
             now = now.replace(tzinfo=timezone.utc)
 
-        # 1. Unconditional Daily Loss Protection Kill Switch Evaluation (Equity missing/invalid -> FAIL CLOSED)
+        # 1. UNCONDITIONAL Daily Loss Protection Kill Switch Evaluation (Equity missing/invalid -> FAIL CLOSED)
         ks_allowed, ks_reason, ks_meta = self.kill_switch.evaluate_daily_loss(
             current_equity=current_equity,
             session_baseline_equity=session_baseline_equity,

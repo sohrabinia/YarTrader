@@ -46,7 +46,7 @@ class DemoExecutionEngine:
         self,
         symbol: str,
         direction: str,
-        volume: float = 0.01,
+        volume: float,
         price: Optional[float] = None,
         sl: Optional[float] = None,
         tp: Optional[float] = None,

@@ -108,22 +108,12 @@ class DemoExecutionGate:
             raise ValidationException(f"DemoExecutionGate Violation: Symbol info for '{getattr(request, 'Symbol', 'UNKNOWN')}' is missing or unavailable.")
 
         sym_trade_mode = sym_info.get("trade_mode")
-        if type(sym_trade_mode).__name__ == "MagicMock":
-            sym_trade_mode = 4
-
-        if sym_trade_mode is None or sym_trade_mode == 0:
+        if sym_trade_mode is None or (isinstance(sym_trade_mode, int) and sym_trade_mode == 0):
             raise ValidationException(f"DemoExecutionGate Violation: Symbol '{request.Symbol}' trade mode is DISABLED (0).")
 
-        vol_min = sym_info.get("volume_min", 0.01)
-        vol_max = sym_info.get("volume_max", 100.0)
-        vol_step = sym_info.get("volume_step", 0.01)
-
-        if type(vol_min).__name__ == "MagicMock":
-            vol_min = 0.01
-        if type(vol_max).__name__ == "MagicMock":
-            vol_max = 100.0
-        if type(vol_step).__name__ == "MagicMock":
-            vol_step = 0.01
+        vol_min = sym_info.get("volume_min")
+        vol_max = sym_info.get("volume_max")
+        vol_step = sym_info.get("volume_step")
 
         if vol_min is None or vol_max is None or vol_step is None:
             raise ValidationException(f"DemoExecutionGate Violation: Symbol '{request.Symbol}' volume limits (volume_min/max/step) are missing.")

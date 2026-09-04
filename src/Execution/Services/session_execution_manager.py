@@ -89,7 +89,7 @@ class SessionExecutionManager:
         current_volatility_atr: Optional[float] = None,
         historical_mfe_speed: float = 1.0,
         current_time: Optional[datetime] = None,
-        current_equity: Optional[Any] = 10000.0
+        current_equity: Optional[Any] = None
     ) -> Dict[str, Any]:
         """
         Evaluates session entry constraints.
