@@ -60,7 +60,7 @@ def test_b_walk_forward_chronology():
 def test_c_mt5_demo_forward_path():
     engine = DemoExecutionEngine(demo_mode=True)
     positions = engine.get_active_positions(symbol="XAUUSD")
-    assert isinstance(positions, list)
+    assert positions is None or isinstance(positions, list)
 
 
 def test_d_mt4_live_data_ingestion():
@@ -184,7 +184,7 @@ def test_l_duplicate_signal_prevention():
 def test_m_position_monitoring():
     engine = DemoExecutionEngine(demo_mode=True)
     positions = engine.get_active_positions(symbol="XAUUSD")
-    assert isinstance(positions, list)
+    assert positions is None or isinstance(positions, list)
 
 
 def test_n_realized_outcome_processing():

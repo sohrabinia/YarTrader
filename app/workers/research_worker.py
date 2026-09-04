@@ -196,6 +196,10 @@ class ResearchWorker:
                                         # 6. Check Active Broker Positions & Handle Position Query UNKNOWN State
                                         active_positions = self.demo_engine.get_active_positions(symbol=symbol)
 
+                                        if active_positions is None:
+                                            print(f"[ResearchWorker] Execution BLOCKED: Active broker position query returned UNKNOWN state for {symbol}. Failing closed.")
+                                            continue
+
                                         if len(active_positions) > 0:
                                             existing_ticket = active_positions[0].get("ticket", 0)
                                             existing_dir_code = active_positions[0].get("type", 0)
@@ -217,6 +221,10 @@ class ResearchWorker:
                                                 else:
                                                     # Authoritative broker position verification
                                                     remaining_pos = self.demo_engine.get_active_positions(symbol=symbol)
+
+                                                    if remaining_pos is None:
+                                                        print(f"[ResearchWorker] Reversal BLOCKED: Verification query returned UNKNOWN position state for {symbol}. Failing closed.")
+                                                        continue
 
                                                     is_closed = not any(str(p.get("ticket", "")) == str(existing_ticket) for p in remaining_pos)
                                                     if not is_closed:

@@ -94,13 +94,14 @@ class DailyLossKillSwitch:
             if not math.isfinite(curr_eq) or curr_eq <= 0:
                 return False, f"KILL_SWITCH_ERROR: current_equity is non-finite or <= 0 ({curr_eq})", {}
 
-            # Explicit session_baseline_equity overrides/establishes baseline if valid
-            if session_baseline_equity is not None:
-                if isinstance(session_baseline_equity, (int, float)) and not isinstance(session_baseline_equity, bool):
-                    b_val = float(session_baseline_equity)
-                    if math.isfinite(b_val) and b_val > 0:
-                        self.baseline_equity = b_val
-                        self._save_state()
+            # Establish session baseline ONLY if current session baseline is uninitialized
+            if self.baseline_equity is None or not math.isfinite(self.baseline_equity) or self.baseline_equity <= 0:
+                if session_baseline_equity is not None:
+                    if isinstance(session_baseline_equity, (int, float)) and not isinstance(session_baseline_equity, bool):
+                        b_val = float(session_baseline_equity)
+                        if math.isfinite(b_val) and b_val > 0:
+                            self.baseline_equity = b_val
+                            self._save_state()
 
             # Fail closed if no valid session baseline has been established
             if self.baseline_equity is None or not math.isfinite(self.baseline_equity) or self.baseline_equity <= 0:

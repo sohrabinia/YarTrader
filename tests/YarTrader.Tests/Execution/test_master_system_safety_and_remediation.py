@@ -54,24 +54,25 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
         self.assertFalse(res.allowed)
         self.assertIn("KILL_SWITCH_ERROR", res.rejection_reason)
 
-    def test_daily_loss_kill_switch_baseline_persistence(self):
-        """Tests that session baseline equity is immutable once set and does not reset to lower current equity."""
-        ks = DailyLossKillSwitch(state_file_path=os.path.join(self.tmp_dir.name, "baseline_test.json"))
+    def test_daily_loss_kill_switch_baseline_immutability(self):
+        """Tests that session baseline equity is immutable once set and cannot be overwritten by subsequent caller-supplied baselines."""
+        ks = DailyLossKillSwitch(state_file_path=os.path.join(self.tmp_dir.name, "baseline_immutability_test.json"))
 
         # 1. Establish session baseline at 100,000
         allowed, reason, meta = ks.evaluate_daily_loss(current_equity=100000.0, session_baseline_equity=100000.0)
         self.assertTrue(allowed)
         self.assertEqual(meta["baseline_equity"], 100000.0)
 
-        # 2. Evaluation at 95,000 (5% loss -> allowed)
-        allowed, reason, meta = ks.evaluate_daily_loss(current_equity=95000.0)
+        # 2. Subsequent evaluation attempting to pass conflicting baseline 110,000 -> MUST BE IGNORED, baseline remains 100,000
+        allowed, reason, meta = ks.evaluate_daily_loss(current_equity=95000.0, session_baseline_equity=110000.0)
         self.assertTrue(allowed)
-        self.assertEqual(meta["baseline_equity"], 100000.0)
+        self.assertEqual(meta["baseline_equity"], 100000.0, "Established baseline 100000 must NOT be overwritten by caller-supplied 110000.")
 
-        # 3. Subsequent evaluation at 91,000 (9% loss relative to 100,000 -> blocked!)
-        allowed, reason, meta = ks.evaluate_daily_loss(current_equity=91000.0)
+        # 3. Subsequent evaluation attempting to pass conflicting baseline 90,000 -> MUST BE IGNORED, loss calculated from 100,000
+        # Current equity = 91,000 (9% loss relative to 100,000 -> BLOCKED)
+        allowed, reason, meta = ks.evaluate_daily_loss(current_equity=91000.0, session_baseline_equity=90000.0)
         self.assertFalse(allowed)
-        self.assertEqual(meta["baseline_equity"], 100000.0)
+        self.assertEqual(meta["baseline_equity"], 100000.0, "Established baseline 100000 must NOT be overwritten by caller-supplied 90000.")
         self.assertIn("DAILY_LOSS_LIMIT_REACHED", reason)
 
     # =========================================================================
@@ -147,13 +148,28 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
         self.assertIsNone(tick2, "get_symbol_tick MUST return None when bid or ask is <= 0.")
 
     # =========================================================================
-    # P0-5: POSITION QUERY UNKNOWN STATE
+    # P0-5: POSITION QUERY UNKNOWN STATE & DEMO ENGINE UNKNOWN PRESERVATION
     # =========================================================================
     def test_get_positions_returns_none_when_disconnected(self):
         """Tests that get_positions() returns None (UNKNOWN) rather than [] when adapter is uninitialized."""
         adapter = RealMT5BrokerAdapter(auto_initialize=False)
         pos = adapter.get_positions(symbol="XAUUSD")
         self.assertIsNone(pos, "Disconnected adapter get_positions() must return None (UNKNOWN state).")
+
+    def test_demo_execution_engine_get_active_positions_unknown_semantics(self):
+        """Tests that DemoExecutionEngine.get_active_positions returns None on query failure (UNKNOWN state) and close_position fails closed."""
+        class DisconnectedAdapter:
+            def get_positions(self, symbol=None):
+                return None  # Query failure / disconnected state
+
+        engine = DemoExecutionEngine(adapter=DisconnectedAdapter(), demo_mode=True)
+        active = engine.get_active_positions(symbol="XAUUSD")
+        self.assertIsNone(active, "get_active_positions MUST return None (UNKNOWN state) when adapter query fails.")
+
+        # Closing position when position state is UNKNOWN must fail closed immediately
+        resp = engine.close_position(symbol="XAUUSD", position_ticket=12345, is_eod_flatten=True)
+        self.assertEqual(resp.Status, "Failed")
+        self.assertIn("UNKNOWN", resp.Comment)
 
     # =========================================================================
     # P0-6: STRICT DEMO IDENTITY

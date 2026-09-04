@@ -4,7 +4,7 @@ import json
 import time
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
 from src.Execution.Models.models import OrderRequest, OrderResponse
@@ -149,12 +149,21 @@ class DemoExecutionEngine:
             self._log_evidence(evidence)
             raise
 
-    def get_active_positions(self, symbol: Optional[str] = None) -> list:
-        """Queries active broker positions for symbol."""
+    def get_active_positions(self, symbol: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+        """
+        Queries active broker positions for symbol.
+        Returns:
+          - [] (empty list) when broker query succeeds and zero positions exist (FLAT).
+          - None (UNKNOWN) when broker query fails, adapter is disconnected, or raises an exception.
+        """
         if hasattr(self.adapter, "get_positions"):
-            res = self.adapter.get_positions(symbol=symbol)
-            return res if res is not None else []
-        return []
+            try:
+                res = self.adapter.get_positions(symbol=symbol)
+                return res  # None means UNKNOWN, List means confirmed positions
+            except Exception as e:
+                logger.error(f"[DemoExecutionEngine] Exception querying positions: {e}")
+                return None
+        return None
 
     def close_position(
         self,
@@ -169,7 +178,7 @@ class DemoExecutionEngine:
         Submits CLOSE request for position ticket using EXCLUSIVELY authoritative broker-reported volume.
         Caller-supplied volume parameter is completely ignored to prevent improper volume overrides.
         Enforces 120-second minimum holding period unless overridden by EOD flattening.
-        Fails closed if broker position cannot be found, or if volume is missing or invalid.
+        Fails closed if broker position query fails (UNKNOWN state), position cannot be found, or volume is missing/invalid.
         """
         # 120-second Minimum Hold Invariant Guard
         if open_timestamp is not None and not is_eod_flatten:
@@ -189,6 +198,19 @@ class DemoExecutionEngine:
         # Retrieve authoritative position volume strictly from broker query. Caller 'volume' parameter is IGNORED!
         ticket_str = str(position_ticket)
         active_positions = self.get_active_positions(symbol=symbol)
+
+        if active_positions is None:
+            logger.error(f"[DemoExecutionEngine] Close failed: Broker position state is UNKNOWN for symbol {symbol}.")
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10021,
+                Comment=f"Close failed: Broker position query failed / UNKNOWN state for ticket {position_ticket}.",
+                RawResponse={"reason": "UNKNOWN_POSITION_STATE"}
+            )
+
         target_pos = next((p for p in active_positions if str(p.get("ticket", "")) == ticket_str), None)
 
         if not target_pos or "volume" not in target_pos:
@@ -246,7 +268,7 @@ class DemoExecutionEngine:
 
         # Confirm closure from broker position list
         remaining = self.get_active_positions(symbol=symbol)
-        still_open = any(str(p.get("ticket", "")) == ticket_str for p in remaining)
+        still_open = (remaining is None) or any(str(p.get("ticket", "")) == ticket_str for p in remaining)
 
         if still_open:
             logger.warning(
