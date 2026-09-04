@@ -29,8 +29,8 @@ class OrderResponse:
     Comment: str = ""
     DealTicket: Optional[str] = None
     PositionTicket: Optional[str] = None
-    Price: float = 0.0
-    Volume: float = 0.0
+    Price: Optional[float] = None
+    Volume: Optional[float] = None
     RawResponse: Optional[Dict[str, Any]] = field(default=None)
 
 

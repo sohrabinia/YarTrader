@@ -65,7 +65,12 @@ class TestPhaseBRiskAndReversal:
             new_setup_valid=True,
             current_price=2005.0,
             account_equity=10000.0,
-            free_margin=8000.0
+            free_margin=8000.0,
+            volume_min=0.01,
+            volume_max=100.0,
+            volume_step=0.01,
+            leverage=100.0,
+            contract_size=100.0
         )
         assert not result1["add_on_allowed"]
         assert any("not effective risk-free" in r for r in result1["rejection_reasons"])
@@ -77,7 +82,12 @@ class TestPhaseBRiskAndReversal:
             new_setup_valid=True,
             current_price=2005.0,
             account_equity=10000.0,
-            free_margin=8000.0
+            free_margin=8000.0,
+            volume_min=0.01,
+            volume_max=100.0,
+            volume_step=0.01,
+            leverage=100.0,
+            contract_size=100.0
         )
         assert result2["add_on_allowed"]
         assert result2["add_on_risk_pct"] == 1.0

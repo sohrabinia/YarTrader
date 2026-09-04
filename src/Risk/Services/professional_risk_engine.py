@@ -267,16 +267,16 @@ class ProfessionalRiskEngine:
         campaign: TradeCampaign,
         new_setup_valid: bool,
         current_price: float,
-        account_equity: float,
-        free_margin: float,
-        volume_min: float = 0.01,
-        volume_max: float = 100.0,
-        volume_step: float = 0.01,
+        account_equity: Optional[Any] = None,
+        free_margin: Optional[Any] = None,
+        volume_min: Optional[Any] = None,
+        volume_max: Optional[Any] = None,
+        volume_step: Optional[Any] = None,
+        leverage: Optional[Any] = None,
+        contract_size: Optional[Any] = None,
         spread_pip: float = 1.0,
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,
-        leverage: float = 100.0,
-        contract_size: float = 100.0,
         max_portfolio_risk_pct: float = 6.0
     ) -> Dict[str, Any]:
         """

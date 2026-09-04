@@ -182,8 +182,66 @@ def test_demo_execution_gate_non_xauusd_rejection():
 
     req_eur = OrderRequest(Symbol="EURUSD", OrderType="BUY", Volume=0.1, Price=1.0850)
     with pytest.raises(ValidationException) as exc_info:
-        DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req_eur)
+        DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req_eur, demo_mode_flag=True)
     assert "restricted to 'XAUUSD'" in str(exc_info.value)
+
+
+def test_demo_execution_gate_missing_fields_fail_closed():
+    """Proves DemoExecutionGate rejects missing demo_mode_flag, is_real, platform, login, server, trade_mode, trade_allowed."""
+    mock_adapter = MagicMock()
+    req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.1, Price=2500.0, StopLoss=2490.0, TakeProfit=2520.0)
+
+    # Missing demo_mode_flag -> ValidationException
+    with pytest.raises(ValidationException, match="Demo execution flag is missing or not explicitly True"):
+        DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req, demo_mode_flag=None)
+
+    # Missing is_real -> ValidationException
+    mock_adapter.get_account_info.return_value = {
+        "login": "52961173",
+        "server": "Alpari-MT5-Demo",
+        "trade_mode": 0,
+        "platform": "MT5"
+        # missing is_real
+    }
+    mock_adapter.get_terminal_info.return_value = {"trade_allowed": True, "tradeapi_disabled": False}
+    with pytest.raises(ValidationException, match="is_real' field is missing"):
+        DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req, demo_mode_flag=True)
+
+    # Missing platform -> ValidationException
+    mock_adapter.get_account_info.return_value = {
+        "login": "52961173",
+        "server": "Alpari-MT5-Demo",
+        "trade_mode": 0,
+        "is_real": False
+        # missing platform
+    }
+    with pytest.raises(ValidationException, match="platform' field is missing or empty"):
+        DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req, demo_mode_flag=True)
+
+
+def test_add_on_eligibility_financial_inputs_required():
+    """Proves evaluate_add_on_eligibility fails closed if any execution financial input is missing."""
+    engine = ProfessionalRiskEngine()
+    from src.Risk.Models.campaign import TradeCampaign, CampaignLeg
+    leg = CampaignLeg(
+        leg_id="leg1", campaign_id="camp1", symbol="XAUUSD", direction="BUY",
+        entry_price=2500.0, stop_loss=2502.50, take_profit=2520.0, volume_lots=0.1,
+        risk_pct=2.0, risk_amount_usd=200.0, margin_required_usd=100.0, effective_be_price=2502.0,
+        is_effective_risk_free=True, status="ACTIVE", setup="M5_BREAKOUT"
+    )
+    camp = TradeCampaign(campaign_id="camp1", symbol="XAUUSD", direction="BUY", status="ACTIVE", legs=[leg])
+
+    # Omitted volume_min -> fails validation
+    res = engine.evaluate_add_on_eligibility(
+        campaign=camp,
+        new_setup_valid=True,
+        current_price=2510.0,
+        account_equity=10000.0,
+        free_margin=9000.0,
+        volume_min=None
+    )
+    assert not res["add_on_allowed"]
+    assert "Add-on position sizing failed" in res["rejection_reasons"][0]
 
 
 def test_full_execution_chain_integration():

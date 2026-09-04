@@ -31,15 +31,15 @@ class DemoExecutionGate:
         cls,
         adapter_or_mt5: Any,
         request: Any,
-        demo_mode_flag: bool = True
+        demo_mode_flag: Optional[bool] = None
     ) -> bool:
         """
         Evaluates mandatory SRE Demo Execution safety checks.
         Throws ValidationException on any check failure or missing field. Fails closed.
         """
         # Check 1: Demo mode flag explicitly enabled
-        if not demo_mode_flag:
-            raise ValidationException("DemoExecutionGate: Demo execution is disabled (demo_mode_flag=False).")
+        if demo_mode_flag is not True:
+            raise ValidationException("DemoExecutionGate Violation: Demo execution flag is missing or not explicitly True.")
 
         # Check 2: Live trading explicitly disabled & MetaTraderSafetyGate
         MetaTraderSafetyGate.verify_operation(
@@ -73,10 +73,17 @@ class DemoExecutionGate:
         if server is None or not str(server).strip():
             raise ValidationException("DemoExecutionGate Violation: Account server is missing or empty.")
 
-        is_real = acc_info.get("is_real", False)
-        platform = str(acc_info.get("platform", "MT5")).upper()
+        if "is_real" not in acc_info or acc_info.get("is_real") is None:
+            raise ValidationException("DemoExecutionGate Violation: Account 'is_real' field is missing.")
 
-        if is_real is True or trade_mode is None or isinstance(trade_mode, bool) or trade_mode != 0:
+        is_real = acc_info.get("is_real")
+
+        if "platform" not in acc_info or acc_info.get("platform") is None or not str(acc_info.get("platform")).strip():
+            raise ValidationException("DemoExecutionGate Violation: Account 'platform' field is missing or empty.")
+
+        platform = str(acc_info.get("platform")).upper()
+
+        if is_real is not False or trade_mode is None or isinstance(trade_mode, bool) or trade_mode != 0:
             raise ValidationException("SECURITY VIOLATION: Connected account is REAL or non-DEMO. Real account execution is strictly rejected repository-wide.")
 
         if platform == "MT4":
@@ -98,10 +105,16 @@ class DemoExecutionGate:
         if not term_info or not isinstance(term_info, dict):
             raise ValidationException("DemoExecutionGate Violation: Terminal info is missing or unavailable.")
 
+        if "trade_allowed" not in term_info or term_info.get("trade_allowed") is None:
+            raise ValidationException("DemoExecutionGate Violation: Terminal 'trade_allowed' field is missing.")
+
+        if "tradeapi_disabled" not in term_info or term_info.get("tradeapi_disabled") is None:
+            raise ValidationException("DemoExecutionGate Violation: Terminal 'tradeapi_disabled' field is missing.")
+
         trade_allowed = term_info.get("trade_allowed")
         tradeapi_disabled = term_info.get("tradeapi_disabled")
 
-        if trade_allowed is False or tradeapi_disabled is True:
+        if trade_allowed is not True or tradeapi_disabled is not False:
             raise ValidationException("DemoExecutionGate Violation: MT5 terminal trading permissions disabled or tradeapi disabled.")
 
         # Symbol Info Verification (XAUUSD-ONLY Boundary Enforcement)

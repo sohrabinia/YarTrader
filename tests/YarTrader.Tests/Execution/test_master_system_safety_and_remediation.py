@@ -180,7 +180,7 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
 
         class MockAdapter:
             def get_account_info(self):
-                return {"login": "52961173", "server": "Alpari-MT5-Demo", "trade_mode": 0, "is_real": False}
+                return {"login": "52961173", "server": "Alpari-MT5-Demo", "trade_mode": 0, "is_real": False, "platform": "MT5"}
             def get_terminal_info(self):
                 return {"trade_allowed": True, "tradeapi_disabled": False}
             def get_symbol_info(self, symbol):
@@ -189,7 +189,7 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
                 return []
 
         mock_adapter = MockAdapter()
-        self.assertTrue(DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req))
+        self.assertTrue(DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req, demo_mode_flag=True))
 
         class BadLoginAdapter(MockAdapter):
             def get_account_info(self):

@@ -25,7 +25,9 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
         self.mock_adapter.get_account_info.return_value = {
             "login": "52961173",
             "server": "Alpari-MT5-Demo",
-            "trade_mode": 0
+            "trade_mode": 0,
+            "is_real": False,
+            "platform": "MT5"
         }
         self.mock_adapter.get_terminal_info.return_value = {
             "trade_allowed": True,

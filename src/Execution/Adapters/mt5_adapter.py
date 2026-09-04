@@ -444,52 +444,62 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             )
 
         res_dict = _as_dict_safe(res) or {}
-        retcode = getattr(res, "retcode", -1) if not isinstance(getattr(res, "retcode", -1), MagicMock) else -1
-        comment = getattr(res, "comment", "") if not isinstance(getattr(res, "comment", ""), MagicMock) else ""
-        order_ticket = str(getattr(res, "order", 0)) if not isinstance(getattr(res, "order", 0), MagicMock) else "0"
-        deal_ticket = str(getattr(res, "deal", 0)) if (hasattr(res, "deal") and getattr(res, "deal", 0) != 0 and not isinstance(getattr(res, "deal", 0), MagicMock)) else None
+        retcode = getattr(res, "retcode", None)
+        if isinstance(retcode, MagicMock):
+            retcode = None
+
+        comment = getattr(res, "comment", None)
+        if isinstance(comment, MagicMock):
+            comment = None
+
+        raw_order = getattr(res, "order", None)
+        order_ticket = str(raw_order) if (raw_order is not None and not isinstance(raw_order, MagicMock) and str(raw_order).isdigit() and int(raw_order) > 0) else "0"
+
+        raw_deal = getattr(res, "deal", None)
+        deal_ticket = str(raw_deal) if (raw_deal is not None and not isinstance(raw_deal, MagicMock) and str(raw_deal).isdigit() and int(raw_deal) > 0) else None
 
         # Authoritative broker response price & volume validation (NO SUBSTITUTION / NO FABRICATION)
         res_price = getattr(res, "price", None)
         res_volume = getattr(res, "volume", None)
 
-        if res_price is None or isinstance(res_price, bool) or isinstance(res_price, MagicMock):
-            fill_price = 0.0
-        else:
+        fill_price: Optional[float] = None
+        if res_price is not None and not isinstance(res_price, bool) and not isinstance(res_price, MagicMock):
             try:
-                fill_price = float(res_price)
+                f_p = float(res_price)
+                if math.isfinite(f_p) and f_p > 0:
+                    fill_price = f_p
             except (ValueError, TypeError):
-                fill_price = 0.0
+                pass
 
-        if res_volume is None or isinstance(res_volume, bool) or isinstance(res_volume, MagicMock):
-            fill_volume = 0.0
-        else:
+        fill_volume: Optional[float] = None
+        if res_volume is not None and not isinstance(res_volume, bool) and not isinstance(res_volume, MagicMock):
             try:
-                fill_volume = float(res_volume)
+                f_v = float(res_volume)
+                if math.isfinite(f_v) and f_v > 0:
+                    fill_volume = f_v
             except (ValueError, TypeError):
-                fill_volume = 0.0
+                pass
 
         done_code = getattr(mt5, "TRADE_RETCODE_DONE", 10009)
         placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", 10008)
 
-        # Successful order fill strictly requires retcode in done/placed AND positive fill price/volume from broker
-        is_retcode_ok = (retcode in [done_code, placed_code, 0, 10009, 10008])
-        is_fill_valid = (math.isfinite(fill_price) and fill_price > 0 and math.isfinite(fill_volume) and fill_volume > 0)
+        is_retcode_ok = (retcode is not None and retcode in [done_code, placed_code, 0, 10009, 10008])
+        is_fill_valid = (fill_price is not None and fill_volume is not None)
 
         if is_retcode_ok and is_fill_valid:
             status = "Placed"
         else:
             status = "Failed"
             if not is_fill_valid and is_retcode_ok:
-                comment = f"Order send failed: Broker response missing valid fill price (${fill_price}) or volume ({fill_volume})."
+                comment = f"Order send failed: Broker response missing valid fill price ({res_price}) or volume ({res_volume})."
 
         return OrderResponse(
             OrderId=order_ticket,
             Symbol=request.Symbol,
             Status=status,
             SubmittedAt=datetime.now(timezone.utc),
-            Retcode=retcode,
-            Comment=comment,
+            Retcode=retcode if isinstance(retcode, int) else -1,
+            Comment=comment or "Order send failed / missing response data.",
             DealTicket=deal_ticket,
             Price=fill_price,
             Volume=fill_volume,
@@ -538,13 +548,13 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                     "volume": vol_val,
                     "price_open": open_p,
                     "price_current": curr_p,
-                    "sl": getattr(pos, "sl", 0.0),
-                    "tp": getattr(pos, "tp", 0.0),
+                    "sl": getattr(pos, "sl", None),
+                    "tp": getattr(pos, "tp", None),
                     "time": time_val,
-                    "magic": getattr(pos, "magic", 0),
-                    "comment": getattr(pos, "comment", ""),
-                    "profit": getattr(pos, "profit", 0.0),
-                    "swap": getattr(pos, "swap", 0.0),
+                    "magic": getattr(pos, "magic", None),
+                    "comment": getattr(pos, "comment", None),
+                    "profit": getattr(pos, "profit", None),
+                    "swap": getattr(pos, "swap", None),
                 }
 
             # Strict field validation for required position fields (NO TICKET=0, VOLUME=0.0 FABRICATION)
