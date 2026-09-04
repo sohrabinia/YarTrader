@@ -146,10 +146,10 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
             DemoExecutionGate.verify_demo_execution_eligibility(BadLoginAdapter(), req)
 
     # =========================================================================
-    # P1: REVERSAL CLOSE VOLUME - NO 0.01 FALLBACK
+    # P1: REVERSAL CLOSE VOLUME - BROKER VOLUME ONLY (CALLER VOLUME IGNORED)
     # =========================================================================
     def test_reversal_close_volume_authoritative_no_fallback(self):
-        """Tests that DemoExecutionEngine.close_position uses exact broker volume 0.75 and fails if volume is missing."""
+        """Tests that DemoExecutionEngine.close_position ignores caller volume (e.g. 0.01) and uses exact broker position volume 0.75."""
         captured_requests = []
 
         class MockCloseAdapter:
@@ -169,10 +169,11 @@ class TestMasterSystemSafetyAndRemediation(unittest.TestCase):
         mock_close = MockCloseAdapter()
         engine = DemoExecutionEngine(adapter=mock_close, demo_mode=True)
 
-        resp = engine.close_position(symbol="XAUUSD", position_ticket=12345, is_eod_flatten=True)
+        # Pass explicit caller volume 0.01 - engine MUST ignore it and send exact broker position volume 0.75
+        resp = engine.close_position(symbol="XAUUSD", position_ticket=12345, volume=0.01, is_eod_flatten=True)
         self.assertIsNotNone(resp)
         self.assertEqual(len(captured_requests), 1)
-        self.assertEqual(captured_requests[0].Volume, 0.75)
+        self.assertEqual(captured_requests[0].Volume, 0.75, "Engine MUST use authoritative broker position volume (0.75) and ignore caller volume (0.01).")
 
         # Test missing position returns Failed status without fallback
         class MockMissingAdapter:

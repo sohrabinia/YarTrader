@@ -268,7 +268,8 @@ class TestMarketSessionEngine:
             symbol="XAUUSD",
             distance_to_tp=180.0,
             current_volatility_atr=1.0,
-            current_time=self.now_utc
+            current_time=self.now_utc,
+            current_equity=10000.0
         )
 
         assert perm["allowed"] is True

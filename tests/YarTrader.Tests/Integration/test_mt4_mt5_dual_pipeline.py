@@ -229,8 +229,12 @@ def test_q_anti_lookahead_leakage_proof():
 
 def test_r_eod_position_flattening_invariant():
     class FakeAdapter:
-        def get_positions(self, symbol=None): return []
+        def __init__(self):
+            self.closed = False
+        def get_positions(self, symbol=None):
+            return [] if self.closed else [{"ticket": 999999, "symbol": "XAUUSD", "type": 0, "volume": 0.01}]
         def send_order_to_broker(self, req):
+            self.closed = True
             from src.Execution.Models.models import OrderResponse
             return OrderResponse(OrderId="101", Symbol=req.Symbol, Status="Closed", SubmittedAt=datetime.now(timezone.utc), Retcode=10009, Comment="EOD Flatten OK")
 

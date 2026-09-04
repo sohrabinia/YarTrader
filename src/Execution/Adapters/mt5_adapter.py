@@ -171,38 +171,17 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if d is not None:
             info = d
         else:
-            v_min = getattr(sym, "volume_min", None)
-            v_step = getattr(sym, "volume_step", None)
-            v_max = getattr(sym, "volume_max", None)
-            trade_m = getattr(sym, "trade_mode", None)
-            digits_val = getattr(sym, "digits", None)
-            point_val = getattr(sym, "point", None)
-
-            # Convert unittest MagicMock objects to default test values cleanly if present
-            if type(v_min).__name__ == "MagicMock":
-                v_min = 0.01
-            if type(v_step).__name__ == "MagicMock":
-                v_step = 0.01
-            if type(v_max).__name__ == "MagicMock":
-                v_max = 100.0
-            if type(trade_m).__name__ == "MagicMock":
-                trade_m = 4
-            if type(digits_val).__name__ == "MagicMock":
-                digits_val = 2
-            if type(point_val).__name__ == "MagicMock":
-                point_val = 0.01
-
             info = {
                 "name": getattr(sym, "name", symbol),
-                "volume_min": v_min,
-                "volume_step": v_step,
-                "volume_max": v_max,
-                "trade_mode": trade_m,
-                "digits": digits_val,
-                "point": point_val,
+                "volume_min": getattr(sym, "volume_min", None),
+                "volume_step": getattr(sym, "volume_step", None),
+                "volume_max": getattr(sym, "volume_max", None),
+                "trade_mode": getattr(sym, "trade_mode", None),
+                "digits": getattr(sym, "digits", None),
+                "point": getattr(sym, "point", None),
             }
 
-        # Strict Validation: NO FINANCIAL FALLBACKS
+        # Strict Validation: ZERO FINANCIAL FALLBACKS
         if info.get("volume_min") is None or info.get("volume_step") is None or info.get("volume_max") is None:
             logger.warning(f"[RealMT5BrokerAdapter] Symbol metadata for '{symbol}' missing required volume limits.")
             return None
@@ -220,22 +199,41 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         return info
 
     def get_symbol_tick(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Fetches latest real tick for symbol."""
+        """Fetches latest real tick for symbol. Fails closed with None if tick data is missing or invalid."""
         if not self._mt5:
             return None
         tick = self._mt5.symbol_info_tick(symbol)
         if tick is None:
             return None
         d = _as_dict_safe(tick)
-        if d is not None:
-            return d
-        return {
-            "time": getattr(tick, "time", int(datetime.now(timezone.utc).timestamp())),
-            "bid": getattr(tick, "bid", 0.0),
-            "ask": getattr(tick, "ask", 0.0),
-            "last": getattr(tick, "last", 0.0),
-            "volume": getattr(tick, "volume", 0),
+        tick_info = d if d is not None else {
+            "time": getattr(tick, "time", None),
+            "bid": getattr(tick, "bid", None),
+            "ask": getattr(tick, "ask", None),
+            "last": getattr(tick, "last", None),
+            "volume": getattr(tick, "volume", None),
         }
+
+        # Strict Fail-Closed Validation for Real Ticks
+        bid = tick_info.get("bid")
+        ask = tick_info.get("ask")
+        time_val = tick_info.get("time")
+
+        if bid is None or ask is None or time_val is None:
+            logger.warning(f"[RealMT5BrokerAdapter] Symbol tick for '{symbol}' is missing mandatory fields (bid/ask/time).")
+            return None
+
+        try:
+            bid_f = float(bid)
+            ask_f = float(ask)
+            time_f = float(time_val)
+            if not (math.isfinite(bid_f) and bid_f > 0 and math.isfinite(ask_f) and ask_f > 0 and math.isfinite(time_f) and time_f > 0):
+                logger.warning(f"[RealMT5BrokerAdapter] Symbol tick for '{symbol}' contains non-positive or non-finite bid/ask/time.")
+                return None
+        except (ValueError, TypeError):
+            return None
+
+        return tick_info
 
     def _sanitize_comment(self, comment: Optional[str]) -> str:
         """Sanitizes comment to safe short ASCII string (max 15 chars, alphanumeric/underscore)."""
@@ -282,18 +280,18 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if mt5_sym_obj and not getattr(mt5_sym_obj, "visible", True):
             mt5.symbol_select(request.Symbol, True)
 
-        tick = mt5.symbol_info_tick(request.Symbol)
-        if tick is None or getattr(tick, "bid", 0) <= 0 or getattr(tick, "ask", 0) <= 0:
+        tick = self.get_symbol_tick(request.Symbol)
+        if tick is None or float(tick.get("bid", 0)) <= 0 or float(tick.get("ask", 0)) <= 0:
             raise ValidationException(f"Real tick for symbol '{request.Symbol}' is unavailable or invalid.")
 
         # 3. Map Order Action and Price
         order_type_str = request.OrderType.upper()
         if order_type_str in ["BUY", "LONG"]:
             mt5_action_type = mt5.ORDER_TYPE_BUY
-            price = request.Price or getattr(tick, "ask")
+            price = request.Price or float(tick["ask"])
         elif order_type_str in ["SELL", "SHORT"]:
             mt5_action_type = mt5.ORDER_TYPE_SELL
-            price = request.Price or getattr(tick, "bid")
+            price = request.Price or float(tick["bid"])
         elif order_type_str == "CLOSE":
             if not request.PositionTicket:
                 raise ValidationException("PositionTicket is required for CLOSE order type.")
@@ -304,10 +302,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             pos_type = getattr(pos, "type", 0)
             if pos_type == mt5.POSITION_TYPE_BUY:
                 mt5_action_type = mt5.ORDER_TYPE_SELL
-                price = getattr(tick, "bid")
+                price = float(tick["bid"])
             else:
                 mt5_action_type = mt5.ORDER_TYPE_BUY
-                price = getattr(tick, "ask")
+                price = float(tick["ask"])
         else:
             raise ValidationException(f"Unsupported OrderType: '{request.OrderType}'")
 
