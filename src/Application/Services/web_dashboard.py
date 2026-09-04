@@ -4776,6 +4776,7 @@ def get_demo_report():
         "account": "52961173",
         "broker": "Alpari",
         "server": "Alpari-MT5-Demo",
+        "data_provenance": "DEMO_SIMULATED_BALANCE",
         "balance": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
         "equity": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
         "total_trades": total,

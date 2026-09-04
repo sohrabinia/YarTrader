@@ -70,7 +70,20 @@ class MultiTimeframeStateBuilder:
         h1_regime = h1_hurst.get("regime", "RANDOM_WALK")
         m5_regime = m5_hurst.get("regime", "RANDOM_WALK")
 
-        # Range detection: low persistence on both MTF and LTF
+        # Range & Regime evaluation via RangeRegimeEngine integration
+        from src.Research.Brain.range_regime_engine import RangeRegimeEngine
+        range_engine = RangeRegimeEngine()
+        candles = m5_analysis.get("candles", [])
+        if candles:
+            r_res = range_engine.evaluate_regime(
+                candles=candles,
+                hurst_val=m5_h,
+                htf_bias=h1_hurst.get("regime")
+            )
+            if r_res.regime in ["RANGE", "PULLBACK", "REVERSAL", "TRANSITION"]:
+                return r_res.regime
+
+        # Range fallback detection: low persistence on both MTF and LTF
         if m5_h >= 0.45 and m5_h <= 0.55 and h1_h >= 0.45 and h1_h <= 0.55:
             return "RANGE"
 

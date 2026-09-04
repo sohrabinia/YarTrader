@@ -30,6 +30,7 @@ from src.Research.Brain.fractal_dimension import HiguchiFractalDimension
 from src.Research.Brain.wavelet_engine import WaveletEngine
 from src.Research.Brain.target_probability_engine import TargetProbabilityEngine
 from src.Research.Brain.multi_timeframe_state import MultiTimeframeStateBuilder, FractalMarketState
+from src.Research.Brain.range_regime_engine import RangeRegimeEngine
 from src.Research.RL.ppo_agent import PPOAgent
 from src.Research.RL.environment import FractalMarketEnv
 
@@ -59,6 +60,7 @@ class FractalEngine(IFractalEngine):
         self.fractal_dimension = fractal_dimension or HiguchiFractalDimension()
         self.wavelet_engine = wavelet_engine or WaveletEngine()
         self.target_prob_engine = target_prob_engine or TargetProbabilityEngine()
+        self.range_regime_engine = RangeRegimeEngine()
         self.state_builder = MultiTimeframeStateBuilder()
         self.ppo_agent = ppo_agent or PPOAgent()
         logger.info("[FractalEngine] Hybrid Fractal + Math + Deep RL Engine initialized cleanly.")
@@ -207,12 +209,22 @@ class FractalEngine(IFractalEngine):
             )
             tf_candidates[tf] = tf_cands
 
+            # Range Regime Evaluation for TF
+            r_res = self.range_regime_engine.evaluate_regime(
+                candles=[{"close": c, "high": h, "low": l} for c, h, l in zip(tf_closes, tf_highs, tf_lows)],
+                hurst_val=h_res.get("H"),
+                fractal_dim=fd_res.get("D"),
+                atr_val=tf_atr
+            )
+
             tf_reports[tf] = {
                 "hurst_analysis": h_res,
                 "fractal_dimension_analysis": fd_res,
                 "wavelet_analysis": w_res,
+                "range_regime": r_res.__dict__,
                 "atr": round(tf_atr, 4),
                 "timestamp": tf_ts,
+                "candles": [{"close": c, "high": h, "low": l} for c, h, l in zip(tf_closes, tf_highs, tf_lows)],
                 "evidence_state": "ACTIVE"
             }
 
