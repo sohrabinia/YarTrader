@@ -21,9 +21,22 @@ if ($currentBranch -eq "main" -or $currentBranch -eq "master") {
     Write-Host "WARNING: Active branch is '$currentBranch'. Direct push may require Pull Request due to branch protection." -ForegroundColor Yellow
 }
 
-# 2. Detect Modified Tracked vs Untracked Files (No git add . or untracked file auto-staging)
-$modifiedFiles = git status --porcelain | Where-Object { $_ -notlike "\?\?*" }
-$untrackedFiles = git status --porcelain | Where-Object { $_ -like "\?\?*" }
+# 2. Detect Modified Tracked vs Untracked Files (Strict Approved Path Staging)
+$allowedPaths = @("update-site.ps1", "update-site.sh", "YARTRADER_FINAL_GIT_IDENTITY_PROOF.md")
+$statusPorcelain = git status --porcelain
+
+$modifiedFiles = $statusPorcelain | Where-Object { $_ -notlike "\?\?*" } | ForEach-Object { $_.Substring(3).Trim() }
+$untrackedFiles = $statusPorcelain | Where-Object { $_ -like "\?\?*" } | ForEach-Object { $_.Substring(3).Trim() }
+
+# Reject any unexpected modified tracked files outside allowed paths
+$unapprovedModified = $modifiedFiles | Where-Object { $allowedPaths -notcontains $_ }
+
+if ($unapprovedModified) {
+    Write-Host "CRITICAL: Unapproved modified tracked files detected outside allowed deployment script scope:" -ForegroundColor Red
+    $unapprovedModified | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+    Write-Error "Deployment aborted to prevent staging unexpected modifications. Please review or restore these files first."
+    exit 1
+}
 
 if (-not $modifiedFiles) {
     Write-Host "No tracked file modifications detected. Working tree clean." -ForegroundColor Green
@@ -71,15 +84,20 @@ if ($LASTEXITCODE -ne 0) {
 
 # 5. User Confirmation Prompt (Fail-Closed Default = NO)
 Write-Host "`nProposed Commit Message: '$CommitMessage'" -ForegroundColor Cyan
-$confirmation = Read-Host "Continue with staging, commit, and push to origin/$currentBranch? [y/N]"
+$confirmation = Read-Host "Continue with staging approved paths, commit, and push to origin/$currentBranch? [y/N]"
 if ($confirmation -ne "Y" -and $confirmation -ne "y") {
     Write-Host "Update cancelled by user. No changes staged or committed." -ForegroundColor Yellow
     exit 0
 }
 
-# 6. Stage Tracked Modifications ONLY (git add -u) & Commit
-Write-Host "`n[4/6] Staging Tracked Changes & Committing..." -ForegroundColor Yellow
-git add -u
+# 6. Stage ONLY Approved Allowed Files & Commit
+Write-Host "`n[4/6] Staging Approved Allowed Files & Committing..." -ForegroundColor Yellow
+foreach ($file in $allowedPaths) {
+    if (Test-Path $file) {
+        git add $file
+    }
+}
+
 git commit -m "$CommitMessage"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Git commit failed."
@@ -138,7 +156,7 @@ foreach ($url in $urls) {
         }
     }
     if (-not $passed) {
-        Write-Host "  [FAIL / ASYNC] $url" -ForegroundColor Red
+        Write-Host "  [FAIL / UNVERIFIED] $url" -ForegroundColor Red
         $allPassed = $false
     }
 }

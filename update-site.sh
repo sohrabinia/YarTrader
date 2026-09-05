@@ -17,9 +17,35 @@ if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
     echo "WARNING: Active branch is '$CURRENT_BRANCH'. Direct push may require Pull Request."
 fi
 
-# 2. Detect Modified Tracked vs Untracked Files
-MODIFIED_FILES=$(git status --porcelain | grep -v '^\?\?' || true)
-UNTRACKED_FILES=$(git status --porcelain | grep '^\?\?' || true)
+# 2. Detect Modified Tracked vs Untracked Files (Strict Approved Path Staging)
+ALLOWED_PATHS=("update-site.ps1" "update-site.sh" "YARTRADER_FINAL_GIT_IDENTITY_PROOF.md")
+
+MODIFIED_FILES=$(git status --porcelain | grep -v '^\?\?' | awk '{print $2}' || true)
+UNTRACKED_FILES=$(git status --porcelain | grep '^\?\?' | awk '{print $2}' || true)
+
+# Check for unexpected modified tracked files outside allowed paths
+UNAPPROVED=""
+for file in $MODIFIED_FILES; do
+    is_allowed=false
+    for allowed in "${ALLOWED_PATHS[@]}"; do
+        if [ "$file" = "$allowed" ]; then
+            is_allowed=true
+            break
+        fi
+    done
+    if [ "$is_allowed" = false ]; then
+        UNAPPROVED="$UNAPPROVED $file"
+    fi
+done
+
+if [ -n "$UNAPPROVED" ]; then
+    echo "CRITICAL: Unapproved modified tracked files detected outside allowed deployment script scope:"
+    for f in $UNAPPROVED; do
+        echo "  $f"
+    done
+    echo "Deployment aborted to prevent staging unexpected modifications. Please review or restore these files first."
+    exit 1
+fi
 
 if [ -z "$MODIFIED_FILES" ]; then
     echo "No tracked file modifications detected. Working tree clean."
@@ -62,7 +88,7 @@ echo "Git diff check passed."
 COMMIT_MSG="${1:-update: automated production release build and site synchronization}"
 echo ""
 echo "Proposed Commit Message: '$COMMIT_MSG'"
-read -p "Continue with staging, commit, and push to origin/$CURRENT_BRANCH? [y/N] " CONFIRMATION
+read -p "Continue with staging approved paths, commit, and push to origin/$CURRENT_BRANCH? [y/N] " CONFIRMATION
 case "$CONFIRMATION" in
     [yY][eE][sS]|[yY])
         ;;
@@ -72,10 +98,15 @@ case "$CONFIRMATION" in
         ;;
 esac
 
-# 6. Stage Tracked Changes ONLY (git add -u) & Commit
+# 6. Stage Approved Allowed Files ONLY & Commit
 echo ""
-echo "[4/6] Staging Tracked Changes & Committing..."
-git add -u
+echo "[4/6] Staging Approved Allowed Files & Committing..."
+for allowed in "${ALLOWED_PATHS[@]}"; do
+    if [ -f "$allowed" ]; then
+        git add "$allowed"
+    fi
+done
+
 git commit -m "$COMMIT_MSG"
 
 COMMIT_SHA=$(git rev-parse HEAD)
@@ -120,7 +151,7 @@ for url in "${URLS[@]}"; do
         sleep 2
     done
     if [ "$PASSED" = false ]; then
-        echo "  [FAIL / ASYNC] $url"
+        echo "  [FAIL / UNVERIFIED] $url"
         ALL_PASSED=false
     fi
 done
