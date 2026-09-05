@@ -1,4 +1,4 @@
-name: YarTrader Autonomous Release Gate & Production Deployment
+name: YarTrader Autonomous Release Gate & Production Health Verification
 
 on:
   push:
@@ -7,12 +7,12 @@ on:
       - master
 
 jobs:
-  release-gate-and-deploy:
-    name: Fail-Closed Release Gate & Production Deployment
+  release-gate-and-health-check:
+    name: Deterministic Fail-Closed Release Gate & Health Check
     runs-on: ubuntu-latest
     concurrency:
       group: yartrader-production-release
-      cancel-in-progress: true
+      cancel-in-progress: false
 
     steps:
       - name: Checkout Release Candidate Commit
@@ -43,7 +43,7 @@ jobs:
       - name: Deterministic Gate 2 — Frontend Production Build Compilation
         run: |
           cd trader-terminal
-          npm ci || npm install
+          npm ci
           npm run build
 
       - name: Deterministic Gate 3 — Git Formatting & Whitespace Validation
@@ -99,5 +99,5 @@ jobs:
               all_passed = False
 
           if not all_passed:
-              raise SystemExit('PRODUCTION HEALTH VERIFICATION FAILED! Triggering Rollback.')
+              raise SystemExit('PRODUCTION HEALTH VERIFICATION FAILED! Release Candidate Rejected.')
           "

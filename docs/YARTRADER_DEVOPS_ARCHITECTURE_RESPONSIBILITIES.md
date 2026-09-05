@@ -7,7 +7,7 @@ YARTRADER SINGLE-REPOSITORY UNIFIED ARCHITECTURE
 
 1. AUTHORITATIVE REPOSITORY BOUNDARY
    REPOS:               sohrabinia/YarTrader (SINGLE AUTHORITATIVE REPOSITORY)
-   DEPRECATED:          sohrabinia/yartrader.DevOps (Consolidated & archived into YarTrader)
+   DEPRECATED CANDIDATE:sohrabinia/yartrader.DevOps (Consolidation source; pending full archive)
 
 2. DOMAIN BOUNDARIES & INTERNAL ARCHITECTURE
 
@@ -36,49 +36,28 @@ YARTRADER SINGLE-REPOSITORY UNIFIED ARCHITECTURE
    │
    └── DEVOPS & RELEASE ENGINE (.github/workflows/, devops/ or repository workflows)
        ├── CI Validation Gate (.github/workflows/ci.yml)
-       ├── Automated Release Gate (.github/workflows/release.yml)
-       ├── AI Release Risk Assessment & Deterministic Fail-Closed Safety Checks
-       ├── Production Deployment Execution & Target Version Tracking
-       ├── Fail-Closed Post-Deployment Health Checks (GET health across all 8 routes)
-       └── Automatic Rollback to Last Known-Good Commit
+       ├── Deterministic Release Gate (.github/workflows/release.yml)
+       ├── Fail-Closed Pre-Commit & Pre-Release Quality Gates
+       └── Post-Deployment Health Checks (GET health across all 8 routes)
 
 ================================================================================
-3. AUTOMATED RELEASE DECISION, DEPLOYMENT & ROLLBACK FLOW
+3. IMPLEMENTED VS PENDING CAPABILITIES MATRIX
 ================================================================================
 
-   YarTrader main branch
-          │
-          │ Code merge to main
-          ▼
-   GitHub Release Candidate Event (.github/workflows/release.yml)
-          │
-          ├──> Deterministic Fail-Closed Release Gate
-          │      ├─ Source checkout & immutable Commit SHA tracking
-          │      ├─ Pytest test suite execution (1843+ tests passing)
-          │      ├─ Frontend Vite production build compilation (`npm run build`)
-          │      ├─ Git diff formatting check (`git diff --check`)
-          │      └─ Fail-closed MT5 DEMO gate & risk bounds check
-          │
-          ├──> GATE REJECT / FAIL
-          │      └─ Deployment BLOCKED; previous production release remains active
-          │
-          └──> GATE APPROVE / PASS
-                 │
-                 ▼
-            Automated Site Deployment Execution
-                 │
-                 ▼
-            Post-Deployment Production Health Verification
-                 ├─ HTTP GET checks across all 8 production routes
-                 ├─ Zero hash-routing (#/) check
-                 └─ Vazirmatn Persian WOFF2 font asset accessibility
-                 │
-             ┌───┴───┐
-             │       │
-           PASS    FAIL
-             │       │
-             ▼       ▼
-          SUCCESS  AUTOMATIC ROLLBACK to last known-good production commit
+   IMPLEMENTED & VERIFIED IN YARTRADER:
+   [X] Single Authoritative Repository Ownership (sohrabinia/YarTrader)
+   [X] Product Core Preservation (FastAPI, trader-terminal, MT5 Demo, 2% Risk)
+   [X] AI Agents Subsystem Preservation (src/Growth/Agents, app/intelligence)
+   [X] Blog & Content Subsystem Preservation (ContentAgents.py, BlogView.jsx)
+   [X] Removal of Obsolete Manual Deployment Scripts (update-site.ps1, update-site.sh)
+   [X] Deterministic Release Gating (.github/workflows/release.yml: pytest, npm ci build, diff check)
+   [X] Multi-Locale Production GET Health Verification (8 routes + Vazirmatn font asset)
+
+   PENDING / REQUIRING EXTERNAL PRODUCTION INFRASTRUCTURE ACCESS:
+   [ ] Real Production Deployment Execution (Physical artifact deployment to target server)
+   [ ] Automatic Version-Based Rollback Engine (Requires physical server rollback hooks)
+   [ ] AI-Driven Operational Risk Assessment (Requires production LLM decision engine)
+   [ ] Full Deprecation / Archival of sohrabinia/yartrader.DevOps on GitHub
 
 ================================================================================
 ```
