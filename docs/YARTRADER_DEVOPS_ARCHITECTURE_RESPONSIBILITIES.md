@@ -22,7 +22,11 @@ YARTRADER SINGLE-REPOSITORY UNIFIED ARCHITECTURE
    │   ├── Risk Engine (ProfessionalRiskEngine 2.0% ceiling, DailyLossKillSwitch 8.0%)
    │   └── Localization & Clean Routing (/fa/, /en/, /tr/, /ar/, clean URLs, 0 hash routes)
    │
-   ├── AI / AGENTS (src/Growth/Agents/, app/intelligence/, app/workers/)
+   ├── AI / PRODUCT AGENTS & ORCHESTRATION (src/Intelligence/Orchestration/, src/Growth/Agents/)
+   │   ├── Central Product Agent Orchestrator: AIAgentOrchestrator (src/Intelligence/Orchestration/orchestrator.py)
+   │   │   ├── AgentRegistry & TaskRouter
+   │   │   ├── PlannerAgent & OrchestratorExecutionEngine
+   │   │   └── Passive Advisory Squad Orchestration
    │   ├── Market Intelligence Agents (MarketIntelligenceAgents.py)
    │   ├── Research & Analysis Agents (PerformanceValidationAgent.py)
    │   ├── Content & Distribution Agents (ContentAgents.py, DistributionAgents.py)
@@ -46,6 +50,7 @@ YARTRADER SINGLE-REPOSITORY UNIFIED ARCHITECTURE
 
    IMPLEMENTED & VERIFIED IN YARTRADER:
    [X] Single Authoritative Repository Ownership (sohrabinia/YarTrader)
+   [X] Central Product Agent Brain (AIAgentOrchestrator in src/Intelligence/Orchestration/orchestrator.py)
    [X] Product Core Preservation (FastAPI, trader-terminal, MT5 Demo, 2% Risk)
    [X] AI Agents Subsystem Preservation (src/Growth/Agents, app/intelligence)
    [X] Blog & Content Subsystem Preservation (ContentAgents.py, BlogView.jsx)
@@ -56,7 +61,7 @@ YARTRADER SINGLE-REPOSITORY UNIFIED ARCHITECTURE
    PENDING / REQUIRING EXTERNAL PRODUCTION INFRASTRUCTURE ACCESS:
    [ ] Real Production Deployment Execution (Physical artifact deployment to target server)
    [ ] Automatic Version-Based Rollback Engine (Requires physical server rollback hooks)
-   [ ] AI-Driven Operational Risk Assessment (Requires production LLM decision engine)
+   [ ] AI-Driven Operational Risk Assessment (Shadow Mode evaluation suite)
    [ ] Full Deprecation / Archival of sohrabinia/yartrader.DevOps on GitHub
 
 ================================================================================
