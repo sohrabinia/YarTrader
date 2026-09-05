@@ -1,7 +1,7 @@
 # YarTrader Final Git Identity Proof
 
 ```text
-PR HEAD: d4e49c174b23db2edd6f78578b76cf9ba1a03fcd
+PR SOURCE HEAD: d4e49c174b23db2edd6f78578b76cf9ba1a03fcd
 AUDITED HEAD: d4e49c174b23db2edd6f78578b76cf9ba1a03fcd
 HEADS MATCH: YES
 
