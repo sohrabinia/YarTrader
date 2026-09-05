@@ -1,6 +1,8 @@
 # YarTrader Exhaustive Backend API Inventory
 
 CONCRETE BACKEND ROUTES: 107
+API INVENTORY COMPLETE: YES
+WILDCARDS REMAIN: NO
 
 | # | Method | Path | Auth Requirement | Status |
 | :--- | :--- | :--- | :--- | :--- |

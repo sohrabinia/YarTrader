@@ -1,5 +1,7 @@
 # YarTrader Final Persistence Forensic Proof
 
+PERSISTENCE CLASSIFICATION: File-based JSON Storage IMPLEMENTED; Relational DB NOT_IMPLEMENTED
+
 | Persistence Subsystem | Implementation Mechanism | Multi-Process Safety | Crash Recovery | Audit Status |
 | :--- | :--- | :--- | :--- | :--- |
 | Storage Manager | Local Atomic File Persistence (`storage.py`) | Thread-safe File Locks | Atomic File Swap | IMPLEMENTED + VERIFIED |

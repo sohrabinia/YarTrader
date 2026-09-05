@@ -1,5 +1,7 @@
 # YarTrader Final Agent Runtime Proof
 
+AGENT LEAST PRIVILEGE: PASS
+
 | Autonomous Agent | File Location | Trading Access | Wallet Access | Payment Access | Admin Access | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | Research Worker | `app/workers/research_worker.py` | DEMO ONLY | DENY | DENY | DENY | IMPLEMENTED + VERIFIED |

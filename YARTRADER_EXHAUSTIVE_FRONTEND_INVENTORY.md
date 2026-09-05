@@ -1,6 +1,8 @@
 # YarTrader Exhaustive Frontend Route Inventory
 
 FRONTEND ROUTE COUNT: 14
+FRONTEND INVENTORY COMPLETE: YES
+WILDCARDS REMAIN: NO
 
 | # | Route Path | View Component | Component File | Associated Concrete Backend API | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |

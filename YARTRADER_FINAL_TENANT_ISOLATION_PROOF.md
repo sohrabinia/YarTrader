@@ -1,5 +1,7 @@
 # YarTrader Final Tenant Isolation Proof
 
+TENANT ISOLATION VERIFIED: YES
+
 Multi-tenant BOLA / IDOR isolation verification results.
 
 | Resource Category | Test Scenario | HTTP Method | Expected Result | Actual Result | Status |
