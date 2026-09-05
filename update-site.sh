@@ -18,7 +18,7 @@ if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
 fi
 
 # 2. Detect Modified Tracked vs Untracked Files (Strict Approved Path Staging)
-ALLOWED_PATHS=("update-site.ps1" "update-site.sh" "YARTRADER_FINAL_GIT_IDENTITY_PROOF.md")
+ALLOWED_PATHS=("update-site.ps1" "update-site.sh")
 
 MODIFIED_FILES=$(git status --porcelain | grep -v '^\?\?' | awk '{print $2}' || true)
 UNTRACKED_FILES=$(git status --porcelain | grep '^\?\?' | awk '{print $2}' || true)

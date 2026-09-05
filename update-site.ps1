@@ -22,7 +22,7 @@ if ($currentBranch -eq "main" -or $currentBranch -eq "master") {
 }
 
 # 2. Detect Modified Tracked vs Untracked Files (Strict Approved Path Staging)
-$allowedPaths = @("update-site.ps1", "update-site.sh", "YARTRADER_FINAL_GIT_IDENTITY_PROOF.md")
+$allowedPaths = @("update-site.ps1", "update-site.sh")
 $statusPorcelain = git status --porcelain
 
 $modifiedFiles = $statusPorcelain | Where-Object { $_ -notlike "\?\?*" } | ForEach-Object { $_.Substring(3).Trim() }
