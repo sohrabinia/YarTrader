@@ -206,27 +206,56 @@ class DemoExecutionEngine:
                 RawResponse={"reason": "UNKNOWN_POSITION_STATE"}
             )
 
-        target_pos = next((p for p in active_positions if str(p.get("ticket", "")) == ticket_str), None)
-        close_vol = None
-        if target_pos and "volume" in target_pos:
-            close_vol = target_pos.get("volume")
-        elif volume is not None and isinstance(volume, (int, float)) and not isinstance(volume, bool) and volume > 0:
-            close_vol = volume
-        else:
-            close_vol = 0.01
+        if not active_positions:
+            logger.warning(f"[DemoExecutionEngine] Close failed: Known flat / position ticket {position_ticket} not found.")
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10013,
+                Comment=f"Close failed: Position ticket {position_ticket} not found on broker.",
+                RawResponse={"reason": "POSITION_NOT_FOUND"}
+            )
 
-        try:
-            close_vol_f = float(close_vol)
-            if not math.isfinite(close_vol_f) or close_vol_f <= 0:
-                raise ValueError(f"Non-positive or non-finite volume: {close_vol_f}")
-        except (ValueError, TypeError) as ve:
+        target_pos = next((p for p in active_positions if str(p.get("ticket", "")) == ticket_str), None)
+        if not target_pos:
+            logger.warning(f"[DemoExecutionEngine] Close failed: Position ticket {position_ticket} not in active positions.")
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10013,
+                Comment=f"Close failed: Position ticket {position_ticket} not found on broker.",
+                RawResponse={"reason": "POSITION_NOT_FOUND"}
+            )
+
+        raw_vol = target_pos.get("volume")
+        if raw_vol is None or isinstance(raw_vol, bool) or not isinstance(raw_vol, (int, float)):
+            logger.error(f"[DemoExecutionEngine] Close failed: Broker position volume is non-numeric or missing for ticket {position_ticket}.")
             return OrderResponse(
                 OrderId="0",
                 Symbol=symbol.upper(),
                 Status="Failed",
                 SubmittedAt=datetime.now(timezone.utc),
                 Retcode=10014,
-                Comment=f"Close failed: Authoritative position volume is invalid ({close_vol}) for ticket {position_ticket}.",
+                Comment=f"Close failed: Authoritative position volume is invalid for ticket {position_ticket}.",
+                RawResponse={"reason": "INVALID_CLOSE_VOLUME"}
+            )
+
+        try:
+            close_vol_f = float(raw_vol)
+            if not math.isfinite(close_vol_f) or close_vol_f <= 0:
+                raise ValueError(f"Non-positive or non-finite volume: {close_vol_f}")
+        except (ValueError, TypeError):
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10014,
+                Comment=f"Close failed: Authoritative position volume is invalid ({raw_vol}) for ticket {position_ticket}.",
                 RawResponse={"reason": "INVALID_CLOSE_VOLUME"}
             )
 

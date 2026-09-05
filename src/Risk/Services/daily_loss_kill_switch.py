@@ -134,11 +134,22 @@ class DailyLossKillSwitch:
         # New session date transition: reset kill-switch and set fresh session baseline
         if self.current_session_key != session_key:
             self.current_session_key = session_key
-            self.baseline_equity = float(session_baseline_equity) if (session_baseline_equity and isinstance(session_baseline_equity, (int, float)) and not isinstance(session_baseline_equity, bool) and float(session_baseline_equity) > 0) else eq_val
+            valid_supplied_base = False
+            if session_baseline_equity is not None and not isinstance(session_baseline_equity, bool) and isinstance(session_baseline_equity, (int, float)):
+                try:
+                    s_base_f = float(session_baseline_equity)
+                    if math.isfinite(s_base_f) and s_base_f > 0:
+                        valid_supplied_base = True
+                        self.baseline_equity = s_base_f
+                except (ValueError, TypeError):
+                    pass
+            if not valid_supplied_base:
+                self.baseline_equity = eq_val
+
             self.kill_switch_active = False
             self._save_persistence()
 
-        baseline = self.baseline_equity if (self.baseline_equity and self.baseline_equity > 0) else eq_val
+        baseline = self.baseline_equity if (self.baseline_equity is not None and math.isfinite(self.baseline_equity) and self.baseline_equity > 0) else eq_val
         loss_amount_usd = max(0.0, baseline - eq_val)
         loss_pct = (loss_amount_usd / baseline) * 100.0
 

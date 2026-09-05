@@ -237,12 +237,25 @@ def test_q_anti_lookahead_leakage_proof():
 
 def test_r_eod_position_flattening_invariant():
     class FakeAdapter:
-        def get_positions(self, symbol=None): return []
+        def get_positions(self, symbol=None):
+            return [{"ticket": 999999, "volume": 0.01, "symbol": "XAUUSD"}]
         def send_order_to_broker(self, req):
             from src.Execution.Models.models import OrderResponse
             return OrderResponse(OrderId="101", Symbol=req.Symbol, Status="Closed", SubmittedAt=datetime.now(timezone.utc), Retcode=10009, Comment="EOD Flatten OK")
 
-    engine = DemoExecutionEngine(adapter=FakeAdapter(), demo_mode=True)
+    fake_adapter = FakeAdapter()
+    engine = DemoExecutionEngine(adapter=fake_adapter, demo_mode=True)
+    # First query before close returns target position, second query after close returns empty list (position closed)
+    queries = [{"ticket": 999999, "volume": 0.01, "symbol": "XAUUSD"}], []
+    engine.get_active_positions = lambda symbol=None: queries[0] if not getattr(engine, "_closed_flag", False) else queries[1]
+
+    # Wrap send_order_to_broker to set _closed_flag
+    orig_send = fake_adapter.send_order_to_broker
+    def mock_send(req):
+        engine._closed_flag = True
+        return orig_send(req)
+    fake_adapter.send_order_to_broker = mock_send
+
     resp = engine.close_position(
         symbol="XAUUSD",
         position_ticket=999999,

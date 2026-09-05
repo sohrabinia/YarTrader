@@ -113,8 +113,17 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
             Comment="Close OK"
         )
 
-        # Post-close query returns empty list (position confirmed closed/flat)
-        self.mock_adapter.get_positions.return_value = []
+        # Mock active positions before close containing ticket 1001, and empty list after close
+        # Mock active positions before close containing ticket 1001, and empty list after close
+        self.mock_adapter.get_positions.side_effect = lambda symbol=None: []
+        engine.get_active_positions = lambda symbol=None: [{"ticket": 1001, "volume": 0.01, "symbol": "XAUUSD"}] if not getattr(engine, "_closed_flag", False) else []
+
+        orig_send = self.mock_adapter.send_order_to_broker
+        def mock_send(req):
+            engine._closed_flag = True
+            return OrderResponse(OrderId="1001", Symbol=req.Symbol, Status="Closed", SubmittedAt=datetime.now(timezone.utc), Retcode=10009, Comment="Close OK")
+        self.mock_adapter.send_order_to_broker = mock_send
+
         close_resp = engine.close_position(symbol="XAUUSD", position_ticket=1001)
 
         self.assertEqual(close_resp.Status, "Closed")
@@ -206,7 +215,14 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
             Comment="Close OK"
         )
 
-        self.mock_adapter.get_positions.return_value = []
+        self.mock_adapter.get_positions.side_effect = lambda symbol=None: []
+        engine.get_active_positions = lambda symbol=None: [{"ticket": 1001, "volume": 0.01, "symbol": "XAUUSD"}] if not getattr(engine, "_closed_flag", False) else []
+        orig_send = self.mock_adapter.send_order_to_broker
+        def mock_send(req):
+            engine._closed_flag = True
+            return OrderResponse(OrderId="1001", Symbol=req.Symbol, Status="Closed", SubmittedAt=datetime.now(timezone.utc), Retcode=10009, Comment="Close OK")
+        self.mock_adapter.send_order_to_broker = mock_send
+
         close_resp = engine.close_position(symbol="XAUUSD", position_ticket=1001)
         self.assertEqual(close_resp.Status, "Closed")
 
