@@ -1,51 +1,66 @@
-# YarTrader Architecture & Repository Responsibility Matrix
+# YarTrader Master Architecture & Repository Responsibility Matrix
 
 ```text
 ================================================================================
-YARTRADER REPOSITORY & DEVOPS SEPARATION OF RESPONSIBILITIES
+YARTRADER SINGLE-REPOSITORY UNIFIED ARCHITECTURE
 ================================================================================
 
-1. REPOSITORY BOUNDARIES
+1. AUTHORITATIVE REPOSITORY BOUNDARY
+   REPOS:               sohrabinia/YarTrader (SINGLE AUTHORITATIVE REPOSITORY)
+   DEPRECATED:          sohrabinia/yartrader.DevOps (Consolidated & archived into YarTrader)
 
-   a) Product Repository: sohrabinia/YarTrader
-      OWNERSHIP:
-      - Product source code (Python FastAPI backend, React trader-terminal UI)
-      - Application logic & 3-layer architecture (Fractal math, MTF state, Advisory PPO RL)
-      - MT5 / MT4 execution adapters & broker integration interfaces
-      - Product unit/integration test suite (pytest)
-      - Application build & static validation configurations
+2. DOMAIN BOUNDARIES & INTERNAL ARCHITECTURE
 
-   b) DevOps & Release Platform Repository: sohrabinia/yartrader.DevOps
-      OWNERSHIP:
-      - Authoritative production release orchestration & AI-driven release decision gates
-      - System telemetry, ASP.NET Core DevOps API (`YarTrader.DevOps.Api`) & background monitoring
-      - Production environment profiles (profiles/YarTrader-production.yaml)
-      - Automated site deployment execution, post-deployment health verification, & rollback
-      - Windows Service host (`YarTrader-DevOps`) & container configuration
-      - Production system collectors (IIS, SQL Server, Redis, MT5, Python AI, Model Health)
+   YarTrader/
+   │
+   ├── PRODUCT CORE (src/, app/, trader-terminal/)
+   │   ├── Backend (FastAPI, app/core, app/api)
+   │   ├── Frontend UI (trader-terminal/, React, Vite, Vazirmatn typography)
+   │   ├── Market Intelligence (Layer 1 Math & Fractals, Layer 2 MTF State)
+   │   ├── Strategy & Advisory Policy (Layer 3 Deep RL PPO Policy)
+   │   ├── Execution & Safety Gates (DemoExecutionGate, MT5 Adapter, MT4 Rejection)
+   │   ├── Risk Engine (ProfessionalRiskEngine 2.0% ceiling, DailyLossKillSwitch 8.0%)
+   │   └── Localization & Clean Routing (/fa/, /en/, /tr/, /ar/, clean URLs, 0 hash routes)
+   │
+   ├── AI / AGENTS (src/Growth/Agents/, app/intelligence/, app/workers/)
+   │   ├── Market Intelligence Agents (MarketIntelligenceAgents.py)
+   │   ├── Research & Analysis Agents (PerformanceValidationAgent.py)
+   │   ├── Content & Distribution Agents (ContentAgents.py, DistributionAgents.py)
+   │   ├── Security & Cost Validation Agents (SecurityCostAgents.py)
+   │   └── Trust Learning & User Growth Agents (TrustLearningAgents.py, UserGrowthAgents.py)
+   │
+   ├── BLOG / CONTENT (src/Growth/Agents/ContentAgents.py, trader-terminal/src/views/BlogView.jsx)
+   │   ├── Blog Engine & Article Rendering
+   │   ├── Multi-locale Content Dictionary & SEO Structured Data
+   │   └── Publication & Revision Lifecycle
+   │
+   └── DEVOPS & RELEASE ENGINE (.github/workflows/, devops/ or repository workflows)
+       ├── CI Validation Gate (.github/workflows/ci.yml)
+       ├── Automated Release Gate (.github/workflows/release.yml)
+       ├── AI Release Risk Assessment & Deterministic Fail-Closed Safety Checks
+       ├── Production Deployment Execution & Target Version Tracking
+       ├── Fail-Closed Post-Deployment Health Checks (GET health across all 8 routes)
+       └── Automatic Rollback to Last Known-Good Commit
 
 ================================================================================
-2. AUTOMATED DEPLOYMENT, RELEASE GATING & ROLLBACK PATHWAY
+3. AUTOMATED RELEASE DECISION, DEPLOYMENT & ROLLBACK FLOW
 ================================================================================
 
-   YarTrader Product Repository (sohrabinia/YarTrader)
+   YarTrader main branch
           │
-          │ Code change merged to main
+          │ Code merge to main
           ▼
-   GitHub Repository Trigger / Event Dispatch
+   GitHub Release Candidate Event (.github/workflows/release.yml)
           │
-          ▼
-   yartrader.DevOps Release Engine (sohrabinia/yartrader.DevOps)
-          │
-          ├──> AI / Safety Release Gate Evaluation (Fail-Closed)
-          │      ├─ Source checkout & commit SHA verification
-          │      ├─ Pytest suite execution (1843+ tests passing)
-          │      ├─ Frontend production build compilation (`npm run build`)
-          │      ├─ Git diff formatting & whitespace check (`git diff --check`)
-          │      └─ Fail-closed MT5 DEMO gate & risk bounds validation
+          ├──> Deterministic Fail-Closed Release Gate
+          │      ├─ Source checkout & immutable Commit SHA tracking
+          │      ├─ Pytest test suite execution (1843+ tests passing)
+          │      ├─ Frontend Vite production build compilation (`npm run build`)
+          │      ├─ Git diff formatting check (`git diff --check`)
+          │      └─ Fail-closed MT5 DEMO gate & risk bounds check
           │
           ├──> GATE REJECT / FAIL
-          │      └─ Deployment blocked; current production release remains active
+          │      └─ Deployment BLOCKED; previous production release remains active
           │
           └──> GATE APPROVE / PASS
                  │

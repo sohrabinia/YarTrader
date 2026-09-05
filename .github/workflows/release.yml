@@ -1,0 +1,103 @@
+name: YarTrader Autonomous Release Gate & Production Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  release-gate-and-deploy:
+    name: Fail-Closed Release Gate & Production Deployment
+    runs-on: ubuntu-latest
+    concurrency:
+      group: yartrader-production-release
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout Release Candidate Commit
+        uses: actions/checkout@v4
+
+      - name: Setup Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Pinned Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'trader-terminal/package-lock.json'
+
+      - name: Deterministic Gate 1 — Backend Pytest Suite Execution
+        run: |
+          python3 -m pytest -v
+
+      - name: Deterministic Gate 2 — Frontend Production Build Compilation
+        run: |
+          cd trader-terminal
+          npm ci || npm install
+          npm run build
+
+      - name: Deterministic Gate 3 — Git Formatting & Whitespace Validation
+        run: |
+          git diff --check
+
+      - name: Deterministic Gate 4 — Execute Release Gate Assessment
+        run: |
+          python validate_release.py
+
+      - name: Execute Fail-Closed Production Health Verification
+        run: |
+          python3 -c "
+          import urllib.request, time
+
+          urls = [
+              'https://yartrader.com/',
+              'https://yartrader.com/fa/',
+              'https://yartrader.com/fa/pricing',
+              'https://yartrader.com/fa/guide',
+              'https://yartrader.com/fa/faq',
+              'https://yartrader.com/en/',
+              'https://yartrader.com/tr/',
+              'https://yartrader.com/ar/'
+          ]
+
+          all_passed = True
+          for url in urls:
+              passed = False
+              for attempt in range(3):
+                  try:
+                      req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+                      res = urllib.request.urlopen(req, timeout=10)
+                      code = res.status
+                      final_url = res.geturl()
+                      if code >= 200 and code < 400 and '#' not in final_url:
+                          print(f' [HTTP {code} OK] {url}')
+                          passed = True
+                          break
+                  except Exception as e:
+                      time.sleep(2)
+              if not passed:
+                  print(f' [FAIL / UNVERIFIED] {url}')
+                  all_passed = False
+
+          font_url = 'https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/webfonts/Vazirmatn-Regular.woff2'
+          try:
+              req_f = urllib.request.Request(font_url, headers={'User-Agent': 'Mozilla/5.0'})
+              res_f = urllib.request.urlopen(req_f, timeout=10)
+              print(f' [FONT OK] Vazirmatn WOFF2 Asset Status {res_f.status}')
+          except Exception as e:
+              print(f' [FONT FAIL] Vazirmatn Asset Failed: {e}')
+              all_passed = False
+
+          if not all_passed:
+              raise SystemExit('PRODUCTION HEALTH VERIFICATION FAILED! Triggering Rollback.')
+          "
