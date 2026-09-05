@@ -106,7 +106,6 @@ for allowed in "${ALLOWED_PATHS[@]}"; do
         git add "$allowed"
     fi
 done
-
 git commit -m "$COMMIT_MSG"
 
 COMMIT_SHA=$(git rev-parse HEAD)

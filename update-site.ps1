@@ -97,7 +97,6 @@ foreach ($file in $allowedPaths) {
         git add $file
     }
 }
-
 git commit -m "$CommitMessage"
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Git commit failed."
