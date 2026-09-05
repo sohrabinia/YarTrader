@@ -14,9 +14,9 @@
 
 ### INVENTORY COUNTS
 
-- **Discovered FastAPI Endpoints:** 107 (Cataloged in `YARTRADER_EXHAUSTIVE_API_INVENTORY.md`)
-- **Frontend Views / Routes:** 14 (Cataloged in `YARTRADER_EXHAUSTIVE_FRONTEND_INVENTORY.md`)
-- **Database / Persistent Storage Objects:** 3 Active File-Based Storage Managers; Relational ORM `NOT_IMPLEMENTED`
+- **Discovered FastAPI Endpoints:** 107 Concrete Endpoints (Cataloged in `YARTRADER_EXHAUSTIVE_API_INVENTORY.md`)
+- **Frontend Views / Routes:** 14 Concrete Routes (Cataloged in `YARTRADER_EXHAUSTIVE_FRONTEND_INVENTORY.md`)
+- **Database / Persistent Storage Objects:** Local JSON File Storage Manager Active; Relational ORM `NOT_IMPLEMENTED`
 - **Autonomous Agents:** 6 (Cataloged in `YARTRADER_FINAL_AGENT_RUNTIME_PROOF.md`)
 
 ---

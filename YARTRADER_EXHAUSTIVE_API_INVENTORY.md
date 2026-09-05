@@ -1,8 +1,8 @@
 # YarTrader Exhaustive Backend API Inventory
 
-Total Discovered FastAPI Endpoints: 107
+CONCRETE BACKEND ROUTES: 107
 
-| # | Method | Path | Auth Required | Status |
+| # | Method | Path | Auth Requirement | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | 1 | `GET` | `/api/execution/plans` | Session / API Key | IMPLEMENTED + VERIFIED |
 | 2 | `GET` | `/api/execution/confidence` | Session / API Key | IMPLEMENTED + VERIFIED |
