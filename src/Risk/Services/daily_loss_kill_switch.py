@@ -100,13 +100,23 @@ class DailyLossKillSwitch:
         """
         Updates session baseline and resets kill-switch at 01:35 session boundary.
         Captured baseline is immutable during the active session.
+        Fails closed: invalid equity (None, bool, non-numeric, NaN, Inf, <= 0) cannot become baseline_equity.
         """
+        if current_equity is None or isinstance(current_equity, bool) or not isinstance(current_equity, (int, float)):
+            logger.warning("[DailyLossKillSwitch] update_session_state rejected invalid non-numeric/bool equity.")
+            return
+
+        eq_val = float(current_equity)
+        if not math.isfinite(eq_val) or eq_val <= 0:
+            logger.warning(f"[DailyLossKillSwitch] update_session_state rejected non-finite or <= 0 equity: {eq_val}")
+            return
+
         session_key, is_open, is_trans = self.get_session_key_and_window(dt)
 
         if self.current_session_key != session_key:
-            logger.info(f"[DailyLossKillSwitch] New session start: {session_key}. Baseline equity: ${current_equity:.2f}")
+            logger.info(f"[DailyLossKillSwitch] New session start: {session_key}. Baseline equity: ${eq_val:.2f}")
             self.current_session_key = session_key
-            self.baseline_equity = current_equity
+            self.baseline_equity = eq_val
             self.kill_switch_active = False
             self.realized_daily_loss_usd = 0.0
             self._save_persistence()

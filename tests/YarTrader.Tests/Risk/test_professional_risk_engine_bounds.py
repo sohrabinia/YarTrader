@@ -84,3 +84,32 @@ def test_risk_pct_0_and_negative_rejected():
         volume_step=0.01
     )
     assert res_neg.is_valid is False
+
+
+def test_nan_and_inf_risk_pct_rejected():
+    """Verifies that NaN, +Inf, -Inf, and non-numeric risk_pct are fail-closed in both public evaluation paths."""
+    engine = ProfessionalRiskEngine()
+    invalid_risks = [float("nan"), float("inf"), float("-inf"), "invalid_risk", None, True]
+
+    for inv_risk in invalid_risks:
+        res1 = engine.evaluate_equity_risk_and_position_size(
+            symbol="XAUUSD",
+            direction="BUY",
+            entry_price=2000.0,
+            stop_loss=1995.0,
+            account_equity=10000.0,
+            free_margin=10000.0,
+            risk_pct=inv_risk
+        )
+        assert res1.is_valid is False, f"Expected evaluate_equity_risk_and_position_size to fail for risk_pct={inv_risk}"
+
+        res2 = engine.evaluate_trade_risk(
+            symbol="XAUUSD",
+            direction="BUY",
+            entry_price=2000.0,
+            stop_loss=1995.0,
+            take_profit=2010.0,
+            account_balance=10000.0,
+            risk_percentage=inv_risk
+        )
+        assert res2.is_valid is False, f"Expected evaluate_trade_risk to fail for risk_percentage={inv_risk}"
