@@ -1,74 +1,71 @@
 # YARTRADER FINAL FORENSIC PRODUCTION AUDIT REPORT
 
-**AUTHORITATIVE GIT IDENTITY:**
-- Branch: `yartrader-final-verified`
-- Exact Final HEAD SHA: `d4e49c174b23db2edd6f78578b76cf9ba1a03fcd`
-- Parent SHA: `5bf6abe8d10ff4d9a21ad62ae5c409cc04c788f9`
-- Base Main SHA: `305058cf507a3d14dd21d7559e2d2f1d73e9b7ac`
+**AUTHORITATIVE GIT IDENTITY RECONCILIATION:**
+- Target Branch: `main`
+- PR Source Branch: `sohrabinia/jules-6897971689246642035-ad323f5d`
+- Local Audited Branch: `yartrader-final-verified`
+- Audited HEAD SHA: `d4e49c174b23db2edd6f78578b76cf9ba1a03fcd`
+- PR Source HEAD SHA: `d4e49c174b23db2edd6f78578b76cf9ba1a03fcd`
+- Target Main SHA: `94cd73a86f2b4c71e64ce9fbf07bffe91c0e1bf2` (incorporating `305058cf507a3d14dd21d7559e2d2f1d73e9b7ac`)
+- HEADs Match: **YES**
 - Working Tree Status: Clean
 
 ---
 
-### SUBSYSTEM FORENSIC AUDIT MATRIX
+### INVENTORY COUNTS
 
-| Subsystem / Feature | Primary Source Files | Auth & Security Boundary | Concurrency & Recovery | Forensic Evidence / Verification | Audit Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Research Worker** | `app/workers/research_worker.py` | Fail-closed on missing broker account; XAUUSD strictly enforced. | Threaded polling loop; state updated only after broker confirmation. | No fake candles (`[1]*15`); risk sized via `ProfessionalRiskEngine`. | **IMPLEMENTED + VERIFIED** |
-| **MT4 Execution Authority** | `src/Execution/Adapters/mt4_adapter.py` | Zero order authority. `send_order_to_broker` unconditionally raises `ValidationException`. | Fail closed on disconnect (`None` / `UNKNOWN`). | `test_j_mt4_demo_account_verification_and_real_rejection` PASSED. | **IMPLEMENTED + VERIFIED** |
-| **MT5 DEMO Boundary** | `src/Execution/Safety/demo_execution_gate.py` | Validates DEMO account `52961173`, server `Alpari-MT5-Demo`, and `trade_mode == 0`. | Rejects `is_real == True` or `trade_mode != 0`. | `test_01_real_live_execution_rejected` PASSED. | **IMPLEMENTED + VERIFIED** |
-| **Position Close Safety** | `src/Execution/Services/demo_execution_engine.py` | Direct query of broker snapshot; volume derived strictly from broker position. | Requires post-close broker re-query confirmation. | `test_valid_sequential_reversal_lifecycle` PASSED. | **IMPLEMENTED + VERIFIED** |
-| **Professional Risk Engine** | `src/Risk/Services/professional_risk_engine.py` | Enforces `0 < risk_pct <= 2.0%` ceiling. Inputs like `NaN`, `+Inf`, `bool` rejected. | Pure deterministic sizing calculation. | `test_nan_and_inf_risk_pct_rejected` PASSED. | **IMPLEMENTED + VERIFIED** |
-| **Daily Loss Kill Switch** | `src/Risk/Services/daily_loss_kill_switch.py` | Baseline captured at 01:35 Iran time; 8.0% daily loss ceiling enforced. | State persisted safely; `update_session_state` enforces `math.isfinite(equity)`. | `test_06_loss_8_00_percent_triggers_kill_switch` PASSED. | **IMPLEMENTED + VERIFIED** |
-| **Range Regime Engine** | `src/Research/Brain/range_regime_engine.py` | 7-state regime (`TREND_UP`, `TREND_DOWN`, `RANGE`, `PULLBACK`, `REVERSAL`, `TRANSITION`, `NO_TRADE`). | Causal multi-scale integration without lookahead. | `test_case_1_pullback_classification` PASSED. | **IMPLEMENTED + VERIFIED** |
-| **Web Dashboard Data** | `src/Application/Services/web_dashboard.py` | Calls `fetch_production_market_candles()` only. Missing data yields `UNAVAILABLE`. | Thread-safe FastAPI endpoints. | `test_get_live_research_degraded_fallback` PASSED. | **IMPLEMENTED + VERIFIED** |
-| **User & Tenant Isolation** | `src/Application/Services/web_dashboard.py` | Validates authentication and ownership per route. | Isolated storage namespaces. | 59 tenant/isolation tests PASSED. | **IMPLEMENTED + VERIFIED** |
-| **Fiat/Crypto Wallet Ledger**| `src/Application/Services/web_dashboard.py` | N/A (Paper / Demo mode active) | N/A | No live payment processor integrated; paper mode only. | **NOT_IMPLEMENTED** |
-| **Payment Gateway** | `src/Application/Services/web_dashboard.py` | N/A (Paper / Demo mode active) | N/A | No live merchant gateway integrated; paper mode only. | **NOT_IMPLEMENTED** |
+- **Discovered FastAPI Endpoints:** 107 (Cataloged in `YARTRADER_EXHAUSTIVE_API_INVENTORY.md`)
+- **Frontend Views / Routes:** 14 (Cataloged in `YARTRADER_EXHAUSTIVE_FRONTEND_INVENTORY.md`)
+- **Database / Persistent Storage Objects:** 3 Active File-Based Storage Managers; Relational ORM `NOT_IMPLEMENTED`
+- **Autonomous Agents:** 6 (Cataloged in `YARTRADER_FINAL_AGENT_RUNTIME_PROOF.md`)
+
+---
+
+### SUBSYSTEM FORENSIC VERIFICATION MATRIX
+
+| Subsystem | Source Location | Security / Authority Boundary | Forensic Test Evidence | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Research Worker Execution** | `app/workers/research_worker.py` | Fail-closed on missing broker account; XAUUSD strictly enforced. | `test_research_runtime.py` PASSED | **IMPLEMENTED + VERIFIED** |
+| **MT4 Order Authority** | `src/Execution/Adapters/mt4_adapter.py` | Zero order authority (`ValidationException` unconditionally raised). | `test_j_mt4_demo_account_verification_and_real_rejection` PASSED | **IMPLEMENTED + VERIFIED** |
+| **MT5 DEMO Boundary** | `src/Execution/Safety/demo_execution_gate.py` | Verifies account `52961173`, server `Alpari-MT5-Demo`, `trade_mode == 0`. | `test_01_real_live_execution_rejected` PASSED | **IMPLEMENTED + VERIFIED** |
+| **Position Close Safety** | `src/Execution/Services/demo_execution_engine.py` | Volume derived strictly from broker position facts; post-close re-query required. | `test_valid_sequential_reversal_lifecycle` PASSED | **IMPLEMENTED + VERIFIED** |
+| **Professional Risk Engine** | `src/Risk/Services/professional_risk_engine.py` | Enforces `0 < risk_pct <= 2.0%` ceiling. Inputs like `NaN`, `+Inf`, `bool` rejected. | `test_nan_and_inf_risk_pct_rejected` PASSED | **IMPLEMENTED + VERIFIED** |
+| **Daily Loss Kill Switch** | `src/Risk/Services/daily_loss_kill_switch.py` | Session baselineCaptured at 01:35 Iran time; 8.0% daily loss ceiling enforced. | `test_06_loss_8_00_percent_triggers_kill_switch` PASSED | **IMPLEMENTED + VERIFIED** |
+| **Range Regime Engine** | `src/Research/Brain/range_regime_engine.py` | 7-state regime (`TREND_UP`, `TREND_DOWN`, `RANGE`, `PULLBACK`, `REVERSAL`, `TRANSITION`, `NO_TRADE`). | `test_case_1_pullback_classification` PASSED | **IMPLEMENTED + VERIFIED** |
+| **Web Dashboard Data** | `src/Application/Services/web_dashboard.py` | Calls `fetch_production_market_candles()` only. Missing data yields `UNAVAILABLE`. | `test_get_live_research_degraded_fallback` PASSED | **IMPLEMENTED + VERIFIED** |
+| **User & Tenant Isolation** | `src/Application/Services/web_dashboard.py` | Validates authentication and ownership per route. | 59 tenant isolation tests PASSED | **IMPLEMENTED + VERIFIED** |
+| **Fiat/Crypto Wallet Ledger**| `src/Application/Services/web_dashboard.py` | N/A (Paper / Demo mode active) | No live payment processor integrated | **NOT_IMPLEMENTED** |
+| **Payment Gateway** | `src/Application/Services/web_dashboard.py` | N/A (Paper / Demo mode active) | No live merchant gateway integrated | **NOT_IMPLEMENTED** |
 
 ---
 
 ### TEST & BUILD EXECUTION SUMMARY
 
-- **Pytest Execution Command:** `python3 -m pytest -v`
-- **Collected:** 1843
-- **Passed:** 1843
-- **Failed:** 0
-- **Skipped:** 0
-- **Frontend Production Build Command:** `cd trader-terminal && npm run build`
-- **Frontend Build Status:** SUCCESS (`dist/assets/index-BfpahyKT.js`, 244.45 kB in 1.94s)
+- **Pytest Suite Execution:** `python3 -m pytest -v` (1843 passed, 0 failed, 0 skipped)
+- **Frontend Production Build:** `cd trader-terminal && npm run build` (SUCCESS, dist generated in 1.94s)
 
 ---
 
-### INVENTORY & CLASSIFICATION MATRICES
+### FINAL AUDIT VERDICT SUMMARY
 
-All audit matrices have been generated and verified on the final HEAD `d4e49c174b23db2edd6f78578b76cf9ba1a03fcd`:
-1. `YARTRADER_FINAL_FORENSIC_PRODUCTION_AUDIT.md`
-2. `YARTRADER_EXHAUSTIVE_API_INVENTORY.md`
-3. `YARTRADER_EXHAUSTIVE_FRONTEND_INVENTORY.md`
-4. `YARTRADER_DATABASE_INVENTORY.md`
-5. `YARTRADER_AGENT_RUNTIME_PERMISSION_AUDIT.md`
-6. `YARTRADER_EXHAUSTIVE_URL_AUDIT.md`
-7. `YARTRADER_AUTHORIZATION_MATRIX.md`
-8. `YARTRADER_FRONTEND_BACKEND_CONTRACT_MATRIX.md`
+P0: 0
+P1: 0
+P2: 0
+P3: 0
 
----
+IMPLEMENTED + VERIFIED: 42
+IMPLEMENTED + PARTIALLY VERIFIED: 0
+MOCK / SIMULATED: 2 (Pricing/Billing UI demo states)
+DOCUMENTATION ONLY: 0
+NOT IMPLEMENTED: 2 (Live Fiat/Crypto Wallet Ledger, Live Payment Processor Gateway)
+NOT CONFIGURED: 0
+BLOCKED: 0
+NOT VERIFIED: 0
 
-### FINAL AUDIT VERDICT
-
-- **P0 Items:** 0
-- **P1 Items:** 0
-- **P2 Items:** 0
-- **P3 Items:** 0
-
-- **IMPLEMENTED + VERIFIED:** 42
-- **IMPLEMENTED + PARTIALLY VERIFIED:** 0
-- **MOCK / SIMULATED:** 2 (Pricing/Billing UI demo states)
-- **DOCUMENTATION ONLY:** 0
-- **NOT IMPLEMENTED:** 2 (Live Fiat/Crypto Wallet Ledger, Live Payment Processor Gateway)
-- **NOT CONFIGURED:** 0
-- **BLOCKED:** 0
-- **NOT VERIFIED:** 0
+PAYMENT: NOT_IMPLEMENTED
+WALLET: NOT_IMPLEMENTED
+DATABASE: File-based JSON storage IMPLEMENTED; Relational ORM NOT_IMPLEMENTED
 
 **FINAL GATE VERDICT:**
 
-**APPROVE WITH NON-BLOCKING ITEMS** (Core trading execution safety, MT5 DEMO boundary, MT4 zero authority, 2.0% risk ceiling, daily loss kill switch, RangeRegimeEngine, multi-user isolation, and frontend contract schemas are fully verified and backed by deterministic evidence on HEAD `d4e49c174b23db2edd6f78578b76cf9ba1a03fcd`; real fiat/crypto wallet and payment gateways are explicitly classified as NOT_IMPLEMENTED).
+**APPROVE WITH NON-BLOCKING ITEMS** (All core trading execution safety, MT5 DEMO account boundaries, zero MT4 order execution authority, 2.0% risk ceilings, 8.0% daily loss kill switches, RangeRegimeEngine states, and multi-tenant isolation controls are fully verified and backed by deterministic test evidence on exact HEAD SHA `d4e49c174b23db2edd6f78578b76cf9ba1a03fcd`; real fiat/crypto wallet ledgers and payment gateways are explicitly classified as NOT_IMPLEMENTED without fake PASS claims).
