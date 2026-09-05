@@ -175,6 +175,24 @@ function MainApp() {
   ];
 
   const [subscriptionPlans, setSubscriptionPlans] = useState(DEFAULT_SUBSCRIPTION_PLANS);
+
+  // Prop Challenge states
+  const [propChallengeData, setPropChallengeData] = useState(null);
+  const [propConfigForm, setPropConfigForm] = useState({
+    prop_firm_name: 'Generic Prop Firm',
+    account_number: '',
+    account_size: 100000,
+    target_profit_pct: 10,
+    daily_loss_limit_pct: 5,
+    max_drawdown_pct: 10,
+    risk_per_trade_pct: 1,
+    max_exposure_pct: 3,
+    max_concurrent_positions: 3,
+    session_rules: 'ALLOW_ALL_SESSIONS',
+    overnight_rule: 'FLAT_BEFORE_CLOSE',
+    news_rule: 'NO_NEW_ENTRIES_AROUND_HIGH_IMPACT'
+  });
+
   const [blogArticles, setBlogArticles] = useState([]);
   const [publicMetrics, setPublicMetrics] = useState({
     activeMarketsCount: '30',
@@ -532,6 +550,80 @@ function MainApp() {
       });
     } catch (err) {
       console.error("Error fetching public metrics:", err);
+    }
+  };
+
+  const fetchPropChallengeStatus = async () => {
+    try {
+      const res = await apiService.get('/api/prop/challenge');
+
+      if (res && typeof res === 'object') {
+        setPropChallengeData(res);
+
+        const config = res.config || res.configuration || res.prop_config;
+
+        if (config && typeof config === 'object') {
+          setPropConfigForm(prev => ({
+            ...prev,
+            ...config
+          }));
+        }
+      } else {
+        setPropChallengeData(null);
+      }
+
+      return res;
+    } catch (err) {
+      console.warn('Prop Challenge status unavailable:', err);
+      setPropChallengeData(null);
+      return null;
+    }
+  };
+
+  const handleSavePropConfig = async (event) => {
+    event.preventDefault();
+
+    try {
+      const payload = {
+        prop_firm_name: propConfigForm.prop_firm_name || 'Generic Prop Firm',
+        account_number: propConfigForm.account_number || '',
+        account_size: Number(propConfigForm.account_size) || 0,
+        target_profit_pct: Number(propConfigForm.target_profit_pct) || 0,
+        daily_loss_limit_pct: Number(propConfigForm.daily_loss_limit_pct) || 0,
+        max_drawdown_pct: Number(propConfigForm.max_drawdown_pct) || 0,
+        risk_per_trade_pct: Number(propConfigForm.risk_per_trade_pct) || 0,
+        max_exposure_pct: Number(propConfigForm.max_exposure_pct) || 0,
+        max_concurrent_positions: Number(propConfigForm.max_concurrent_positions) || 1,
+        session_rules: propConfigForm.session_rules || 'ALLOW_ALL_SESSIONS',
+        overnight_rule: propConfigForm.overnight_rule || 'FLAT_BEFORE_CLOSE',
+        news_rule: propConfigForm.news_rule || 'NO_NEW_ENTRIES_AROUND_HIGH_IMPACT'
+      };
+
+      const res = await apiService.post('/api/prop/config', payload);
+
+      if (res && typeof res === 'object') {
+        setPropChallengeData(res);
+      }
+
+      setNotif({
+        show: true,
+        msg: lang === 'fa'
+          ? 'تنظیمات حساب پراپ با موفقیت ذخیره شد.'
+          : 'Prop Challenge configuration saved successfully.',
+        type: 'success'
+      });
+
+      await fetchPropChallengeStatus();
+    } catch (err) {
+      console.error('Failed to save Prop Challenge configuration:', err);
+
+      setNotif({
+        show: true,
+        msg: lang === 'fa'
+          ? `خطا در ذخیره تنظیمات پراپ: ${err.message}`
+          : `Failed to save Prop Challenge configuration: ${err.message}`,
+        type: 'error'
+      });
     }
   };
 
