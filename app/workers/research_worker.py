@@ -162,9 +162,21 @@ class ResearchWorker:
             print(f"[ResearchWorker] Execution BLOCKED: Decision entry/SL parameters missing or invalid for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}). Failing closed.")
             return None
 
-        # 4. Calculate 0.5% Risk Position Sizing
+        # 4. Calculate Risk Position Sizing (hard max ceiling 2.0% risk)
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
+
+        # Target requested risk percentage (Fail-Closed: strictly <= 2.0%)
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "2.0")
+        try:
+            req_risk_f = float(raw_risk_env) if not isinstance(raw_risk_env, bool) else -1.0
+            if not math.isfinite(req_risk_f) or req_risk_f <= 0.0 or req_risk_f > 2.0:
+                print(f"[ResearchWorker] Execution BLOCKED: Requested risk_pct ({raw_risk_env}) is invalid or exceeds 2.0% ceiling. Failing closed.")
+                return None
+            requested_risk_pct = req_risk_f
+        except (ValueError, TypeError):
+            print(f"[ResearchWorker] Execution BLOCKED: Requested risk_pct ({raw_risk_env}) is non-numeric. Failing closed.")
+            return None
 
         sizing_res = risk_engine.evaluate_equity_risk_and_position_size(
             symbol=symbol,
@@ -173,7 +185,7 @@ class ResearchWorker:
             stop_loss=sl_val,
             account_equity=equity_val,
             free_margin=free_margin_val,
-            risk_pct=0.5,
+            risk_pct=requested_risk_pct,
             volume_min=vol_min,
             volume_max=vol_max,
             volume_step=vol_step
@@ -242,7 +254,7 @@ class ResearchWorker:
                         self.status = "RUNNING"
                         self.error_count = 0
 
-                        candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [1] * 15))
+                        candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", []))
                         print(f"Candles: {candles_count}")
                         print("Features: Generated")
                         print("Research: Completed\n")

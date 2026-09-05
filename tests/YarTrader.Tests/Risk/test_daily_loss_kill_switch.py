@@ -192,5 +192,28 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         )
         self.assertTrue(eval_res.is_valid)
 
+    def test_13_nan_inf_equity_and_baseline_rejected(self):
+        """Test 13: Invalid/NaN/Inf current_equity or baseline are fail-closed and cannot replace baseline."""
+        switch = DailyLossKillSwitch(persistence_path=self.persistence_path)
+        dt = datetime(2026, 8, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+        # Establish valid baseline $10,000.00 first
+        res_valid = switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt)
+        self.assertTrue(res_valid["allowed"])
+        self.assertEqual(switch.baseline_equity, 10000.0)
+
+        # Attempt updating session state with invalid values
+        invalid_equities = [float("nan"), float("inf"), float("-inf"), 0, -500, None, True, "invalid"]
+        for inv_eq in invalid_equities:
+            # Advance to new session date to test update_session_state
+            dt_next = datetime(2026, 8, 16, 10, 0, 0, tzinfo=timezone.utc)
+            switch.update_session_state(inv_eq, dt=dt_next)
+            # Verify baseline remains $10,000.00 and is NOT replaced by invalid equity
+            self.assertEqual(switch.baseline_equity, 10000.0)
+
+            # Test evaluate_daily_loss fails closed
+            allowed, reason, meta = switch.evaluate_daily_loss(inv_eq, now_utc=dt)
+            self.assertFalse(allowed)
+
 if __name__ == "__main__":
     unittest.main()

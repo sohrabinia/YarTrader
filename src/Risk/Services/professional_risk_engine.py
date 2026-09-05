@@ -1,3 +1,4 @@
+import math
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -117,6 +118,22 @@ class ProfessionalRiskEngine:
         Risk Budget (default 0.5%) -> Stop Distance -> Position Size -> Broker Constraint Check -> Free Margin Check -> Execution.
         Calculates position size strictly against Account Equity (0.5% per trade).
         """
+        try:
+            risk_pct_f = float(risk_pct) if not isinstance(risk_pct, bool) else -1.0
+            if not math.isfinite(risk_pct_f) or risk_pct_f < 0.0 or risk_pct_f > 2.0:
+                raise ValueError("Out of bounds")
+        except (ValueError, TypeError):
+            return PositionSizingResult(
+                is_valid=False,
+                risk_budget_usd=0.0,
+                risk_pct=0.0,
+                volume_lots=0.0,
+                margin_required_usd=0.0,
+                free_margin_usd=free_margin,
+                effective_be_price=entry_price,
+                rejection_reason=f"SECURITY VIOLATION: Requested risk_pct ({risk_pct}) is invalid or exceeds maximum allowable ceiling of 2.0%."
+            )
+
         if account_equity <= 0:
             return PositionSizingResult(
                 is_valid=False,
@@ -373,7 +390,11 @@ class ProfessionalRiskEngine:
                 rejection_reason=f"Stop Loss distance ({raw_sl_distance:.4f}) is smaller than execution spread cost."
             )
 
-        if raw_sl_distance <= 0:
+        try:
+            risk_pct_f = float(risk_percentage) if not isinstance(risk_percentage, bool) else -1.0
+            if not math.isfinite(risk_pct_f) or risk_pct_f < 0.0 or risk_pct_f > 2.0:
+                raise ValueError("Out of bounds")
+        except (ValueError, TypeError):
             return RiskEvaluationResult(
                 is_valid=False,
                 direction="WAIT",
@@ -412,6 +433,9 @@ class ProfessionalRiskEngine:
 
         # Qualification Gate Checks
         rejection_reasons = []
+        if risk_percentage > 2.0:
+            rejection_reasons.append(f"Risk percentage ({risk_percentage:.2f}%) exceeds maximum allowable ceiling of 2.0%.")
+
         if win_probability < 0.50:
             rejection_reasons.append(f"Win probability ({win_probability*100:.1f}%) < 50.0% threshold.")
 

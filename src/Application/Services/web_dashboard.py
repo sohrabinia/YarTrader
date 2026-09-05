@@ -547,11 +547,8 @@ def generate_active_ohlcv_candles(symbol: str, timeframe: Optional[str] = "H1") 
 
 
 def resolve_candles_for_context(symbol: str, timeframe: str) -> List[Dict[str, Any]]:
-    """Resolves real market candles in production, or test fixtures during unit testing."""
-    candles = fetch_production_market_candles(symbol, timeframe)
-    if not candles and ("pytest" in sys.modules or os.environ.get("YARTRADER_ENV") != "production"):
-        candles = generate_active_ohlcv_candles(symbol, timeframe)
-    return candles
+    """Resolves real market candles strictly via fetch_production_market_candles. Zero synthetic generation."""
+    return fetch_production_market_candles(symbol, timeframe)
 
 
 @app.get("/api/execution/plans")
@@ -622,6 +619,13 @@ def get_structure_alignment(symbol: Optional[str] = "XAUUSD"):
     core = ExecutionIntelligenceCore.get_instance()
     h4_candles = resolve_candles_for_context(symbol, "H4")
     h1_candles = resolve_candles_for_context(symbol, "H1")
+    if not h1_candles:
+        return {
+            "symbol": (symbol or "XAUUSD").upper(),
+            "alignment": "UNAVAILABLE",
+            "confidence": 0.0,
+            "summary": "Real market data unavailable or MT5 provider disconnected."
+        }
     all_tf = {"H4": h4_candles, "H1": h1_candles}
     res = core.evaluate_context(symbol, "H1", h1_candles, all_timeframe_candles=all_tf)
     return res["alignment"]
@@ -685,8 +689,22 @@ def get_fractal_status(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str
     """Exposes real-time Fractal Intelligence Status and multi-scale metrics."""
     core = ExecutionIntelligenceCore.get_instance()
     candles = resolve_candles_for_context(symbol, timeframe)
+    sym_str = (symbol or "XAUUSD").upper()
+    tf_str = (timeframe or "H1").upper()
     if not candles:
-        return {"status": "DISCONNECTED", "symbol": symbol.upper(), "primary_timeframe": timeframe.upper()}
+        return {
+            "status": "DISCONNECTED",
+            "symbol": sym_str,
+            "primary_timeframe": tf_str,
+            "observability": {
+                "fractal_score": 0.0,
+                "similarity_score": 0.0,
+                "market_regime": "UNKNOWN",
+                "scale_state": "DISCONNECTED"
+            },
+            "details": {},
+            "timestamp": None
+        }
     res = core.evaluate_context(symbol, timeframe, candles)
     fractal_res = res.get("fractal", {})
     similarity = res.get("similarity", {})
@@ -695,16 +713,16 @@ def get_fractal_status(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str
     return {
         "status": "CONNECTED",
         "fractal_engine_status": fractal_res.get("fractal_status", "ACTIVE"),
-        "symbol": symbol.upper(),
-        "primary_timeframe": timeframe.upper(),
+        "symbol": sym_str,
+        "primary_timeframe": tf_str,
         "observability": {
-            "fractal_score": float(matching_rec.get("confidence_weight", 0.85)),
-            "similarity_score": float(similarity.get("average_similarity_score", 88.5)),
-            "market_regime": res.get("narrative", {}).get("regime", "TRENDING"),
+            "fractal_score": float(matching_rec.get("confidence_weight", 0.0)),
+            "similarity_score": float(similarity.get("average_similarity_score", 0.0)),
+            "market_regime": res.get("narrative", {}).get("regime", "UNKNOWN"),
             "scale_state": "MULTISCALE_STABLE" if fractal_res.get("scales_evaluated_count", 0) > 0 else "SINGLE_SCALE"
         },
         "details": fractal_res,
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -3779,10 +3797,10 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
                     return {
                         "symbol": sym_val,
                         "timeframe": tf_val,
-                        "bias": smart.get("bias", "Neutral"),
-                        "confidence": smart.get("confidence", 50),
+                        "bias": smart.get("bias", "UNAVAILABLE"),
+                        "confidence": smart.get("confidence", 0),
                         "reasoning": smart.get("reasoning", []),
-                        "timestamp": data.get("timestamp") or data.get("created_at", datetime.now().isoformat()),
+                        "timestamp": data.get("timestamp") or data.get("created_at"),
                         "indicators": po.get("technical_analysis", {})
                     }
         except Exception:
@@ -3803,8 +3821,8 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
         return {
             "symbol": latest.Request.Asset,
             "timeframe": latest.Request.Context.get("timeframe", target_tf),
-            "bias": smart.get("bias", "Neutral"),
-            "confidence": smart.get("confidence", 50),
+            "bias": smart.get("bias", "UNAVAILABLE"),
+            "confidence": smart.get("confidence", 0),
             "reasoning": smart.get("reasoning", []),
             "timestamp": latest.CreatedAt.isoformat(),
             "indicators": po.get("technical_analysis", {})
@@ -3814,14 +3832,14 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
     return {
         "symbol": search_symbol.upper(),
         "timeframe": target_tf,
-        "bias": "Neutral",
-        "confidence": 50,
+        "bias": "UNAVAILABLE",
+        "confidence": 0,
         "status": "degraded",
         "reasoning": [
             f"No research snapshot or memory record available for {search_symbol.upper()} {target_tf}.",
             "Operating in deterministic fallback mode without cross-timeframe data leakage."
         ],
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "indicators": {}
     }
 
@@ -3851,10 +3869,10 @@ def get_analysis_history(symbol: Optional[str] = "XAUUSD"):
                     history_list.append({
                         "symbol": sym_val,
                         "timeframe": data.get("timeframe", "H1"),
-                        "bias": smart.get("bias", "Neutral"),
-                        "confidence": smart.get("confidence", 50),
+                        "bias": smart.get("bias", "UNAVAILABLE"),
+                        "confidence": smart.get("confidence", 0),
                         "reasoning": smart.get("reasoning", []),
-                        "timestamp": data.get("created_at", datetime.now().isoformat())
+                        "timestamp": data.get("created_at")
                     })
                     if len(history_list) >= 50:
                         break
@@ -3873,8 +3891,8 @@ def get_analysis_history(symbol: Optional[str] = "XAUUSD"):
             history_list.append({
                 "symbol": item.Request.Asset,
                 "timeframe": item.Request.Context.get("timeframe", "H1"),
-                "bias": smart.get("bias", "Neutral"),
-                "confidence": smart.get("confidence", 50),
+                "bias": smart.get("bias", "UNAVAILABLE"),
+                "confidence": smart.get("confidence", 0),
                 "reasoning": smart.get("reasoning", []),
                 "timestamp": item.CreatedAt.isoformat()
             })
@@ -4758,6 +4776,7 @@ def get_demo_report():
         "account": "52961173",
         "broker": "Alpari",
         "server": "Alpari-MT5-Demo",
+        "data_provenance": "DEMO_SIMULATED_BALANCE",
         "balance": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
         "equity": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
         "total_trades": total,

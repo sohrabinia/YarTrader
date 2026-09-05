@@ -1,9 +1,23 @@
+"""
+Dedicated MT5 DEMO Execution Engine
+===================================
+Processes trade decisions and order requests strictly for DEMO account on MT5.
+
+Guarantees:
+- Zero LIVE trading reachability.
+- Explicit DemoExecutionGate enforcement.
+- Real MT5 order_check and order_send execution.
+- Strict close volume validation derived strictly from authoritative broker position facts.
+- Fail-closed on UNKNOWN position states.
+"""
+
 import os
+import math
 import json
 import time
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
 from src.Execution.Models.models import OrderRequest, OrderResponse
@@ -16,16 +30,14 @@ logger = logging.getLogger("DemoExecutionEngine")
 class DemoExecutionEngine:
     """
     Dedicated MT5 DEMO Execution Engine.
-    Processes trade decisions and order requests strictly for DEMO account 52961173 on Alpari-MT5-Demo.
-
-    Guarantees:
-    - Zero LIVE trading reachability.
-    - Explicit DemoExecutionGate enforcement.
-    - Real MT5 order_check and order_send execution.
-    - Full trade lifecycle evidence output.
     """
 
-    def __init__(self, adapter: Optional[RealMT5BrokerAdapter] = None, demo_mode: bool = True, log_dir: Optional[str] = None):
+    def __init__(
+        self,
+        adapter: Optional[RealMT5BrokerAdapter] = None,
+        demo_mode: bool = True,
+        log_dir: Optional[str] = None
+    ) -> None:
         self.demo_mode = demo_mode
         self.adapter = adapter or RealMT5BrokerAdapter(auto_initialize=True)
 
@@ -45,7 +57,7 @@ class DemoExecutionEngine:
         self,
         symbol: str,
         direction: str,
-        volume: float = 0.01,
+        volume: float,  # Explicit validated volume
         price: Optional[float] = None,
         sl: Optional[float] = None,
         tp: Optional[float] = None,
@@ -58,7 +70,6 @@ class DemoExecutionEngine:
         """
         timestamp = datetime.now(timezone.utc).isoformat()
 
-        # 1. Construct OrderRequest
         req = OrderRequest(
             Symbol=symbol.upper(),
             OrderType=direction.upper(),
@@ -89,7 +100,6 @@ class DemoExecutionEngine:
             "rejection_reason": None
         }
 
-        # 2. Enforce DemoExecutionGate
         try:
             DemoExecutionGate.verify_demo_execution_eligibility(
                 adapter_or_mt5=self.adapter,
@@ -104,7 +114,6 @@ class DemoExecutionEngine:
             self._log_evidence(evidence)
             raise
 
-        # 3. Submit to broker adapter with pre-check and retcode classification
         logger.info(f"[DemoExecutionEngine] Submitting DEMO order request for {symbol} {direction} {volume} lot.")
         try:
             response = self.adapter.send_order_to_broker(req)
@@ -115,7 +124,6 @@ class DemoExecutionEngine:
             evidence["deal_ticket"] = response.DealTicket
             evidence["rejection_reason"] = response.Comment if response.Status == "Failed" else None
 
-            # Retcode classification mapping
             if response.Retcode == 10018:
                 evidence["retcode_classification"] = "MARKET_CLOSED"
                 evidence["rejection_reason"] = "Market is closed (10018 MARKET_CLOSED). Recovering safely."
@@ -133,13 +141,6 @@ class DemoExecutionEngine:
                 evidence["retcode_classification"] = f"RETCODE_{response.Retcode}"
 
             self._log_evidence(evidence)
-
-            logger.info(
-                f"[DemoExecutionEngine] DEMO execution result: Status={response.Status}, "
-                f"Retcode={response.Retcode} ({evidence.get('retcode_classification')}), "
-                f"OrderId={response.OrderId}, DealTicket={response.DealTicket}, Comment={response.Comment}"
-            )
-
             return response
         except ValidationException as ve:
             evidence["status"] = "REJECTED"
@@ -148,27 +149,35 @@ class DemoExecutionEngine:
             self._log_evidence(evidence)
             raise
 
-    def get_active_positions(self, symbol: Optional[str] = None) -> list:
-        """Queries active broker positions for symbol."""
+    def get_active_positions(self, symbol: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+        """
+        Queries active broker positions for symbol.
+        Returns:
+          - [] (empty list) when broker query succeeds and zero positions exist (FLAT).
+          - None (UNKNOWN) when broker query fails, adapter is disconnected, or raises an exception.
+        """
         if hasattr(self.adapter, "get_positions"):
-            return self.adapter.get_positions(symbol=symbol)
-        return []
+            try:
+                res = self.adapter.get_positions(symbol=symbol)
+                return res
+            except Exception as e:
+                logger.error(f"[DemoExecutionEngine] Exception querying positions: {e}")
+                return None
+        return None
 
     def close_position(
         self,
         symbol: str,
         position_ticket: int,
-        volume: float = 0.01,
+        volume: Optional[float] = None,
         comment: str = "YarTrader Close",
         open_timestamp: Optional[float] = None,
         is_eod_flatten: bool = False
     ) -> OrderResponse:
         """
-        Submits CLOSE request for position ticket and confirms authoritative position closure.
+        Submits CLOSE request for position ticket using authoritative broker-reported volume.
         Enforces 120-second minimum holding period unless overridden by EOD flattening.
-        Returns OrderResponse with Status="Placed" or "Closed" if confirmed, or "Failed" if closure is unconfirmed.
         """
-        # 120-second Minimum Hold Invariant Guard
         if open_timestamp is not None and not is_eod_flatten:
             elapsed_sec = time.time() - open_timestamp
             if elapsed_sec < 120.0:
@@ -183,10 +192,77 @@ class DemoExecutionEngine:
                     RawResponse={"reason": "MINIMUM_HOLD_VIOLATION"}
                 )
 
+        ticket_str = str(position_ticket)
+        active_positions = self.get_active_positions(symbol=symbol)
+        if active_positions is None:
+            logger.error(f"[DemoExecutionEngine] Close failed: Broker position state is UNKNOWN for symbol {symbol}.")
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10021,
+                Comment=f"Close failed: Broker position query failed / UNKNOWN state for ticket {position_ticket}.",
+                RawResponse={"reason": "UNKNOWN_POSITION_STATE"}
+            )
+
+        if not active_positions:
+            logger.warning(f"[DemoExecutionEngine] Close failed: Known flat / position ticket {position_ticket} not found.")
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10013,
+                Comment=f"Close failed: Position ticket {position_ticket} not found on broker.",
+                RawResponse={"reason": "POSITION_NOT_FOUND"}
+            )
+
+        target_pos = next((p for p in active_positions if str(p.get("ticket", "")) == ticket_str), None)
+        if not target_pos:
+            logger.warning(f"[DemoExecutionEngine] Close failed: Position ticket {position_ticket} not in active positions.")
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10013,
+                Comment=f"Close failed: Position ticket {position_ticket} not found on broker.",
+                RawResponse={"reason": "POSITION_NOT_FOUND"}
+            )
+
+        raw_vol = target_pos.get("volume")
+        if raw_vol is None or isinstance(raw_vol, bool) or not isinstance(raw_vol, (int, float)):
+            logger.error(f"[DemoExecutionEngine] Close failed: Broker position volume is non-numeric or missing for ticket {position_ticket}.")
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10014,
+                Comment=f"Close failed: Authoritative position volume is invalid for ticket {position_ticket}.",
+                RawResponse={"reason": "INVALID_CLOSE_VOLUME"}
+            )
+
+        try:
+            close_vol_f = float(raw_vol)
+            if not math.isfinite(close_vol_f) or close_vol_f <= 0:
+                raise ValueError(f"Non-positive or non-finite volume: {close_vol_f}")
+        except (ValueError, TypeError):
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10014,
+                Comment=f"Close failed: Authoritative position volume is invalid ({raw_vol}) for ticket {position_ticket}.",
+                RawResponse={"reason": "INVALID_CLOSE_VOLUME"}
+            )
+
         req = OrderRequest(
             Symbol=symbol.upper(),
             OrderType="CLOSE",
-            Volume=float(volume),
+            Volume=close_vol_f,
             PositionTicket=str(position_ticket),
             Comment=comment
         )
@@ -195,8 +271,7 @@ class DemoExecutionEngine:
 
         # Confirm closure from broker position list
         remaining = self.get_active_positions(symbol=symbol)
-        ticket_str = str(position_ticket)
-        still_open = any(str(p.get("ticket", "")) == ticket_str for p in remaining)
+        still_open = (remaining is None) or any(str(p.get("ticket", "")) == ticket_str for p in remaining)
 
         if still_open:
             logger.warning(
