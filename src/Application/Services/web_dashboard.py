@@ -27,15 +27,9 @@ from src.Infrastructure.version import get_application_version_info
 from src.Application.Services.telegram_auth import verify_telegram_authorization
 from src.Application.Dashboard.content_manager import ContentManager
 from src.Application.Dashboard.ticket_manager import TicketManager
-from src.Growth.Agents.SupportAgent import ConversationalSupportAgent
-from src.Application.Dashboard.ledger_manager import LedgerManager
-from src.Application.Dashboard.billing_manager import BillingManager
 
 global_content_manager = ContentManager()
 global_ticket_manager = TicketManager()
-global_support_agent = ConversationalSupportAgent()
-global_ledger_manager = LedgerManager()
-global_billing_manager = BillingManager()
 
 app = FastAPI(
     title="YarTrader Autonomous Management & Acceptance Portal",
@@ -6009,111 +6003,28 @@ def admin_update_ticket_status(ticket_id: str, payload: AdminTicketStatusPayload
 class ChatPrompt(BaseModel):
     message: str
 
-class DepositPayload(BaseModel):
-    amount_cents: int
-    token: Optional[str] = None
-
-
-def get_user_session_from_token(token: Optional[str]) -> Dict[str, Any]:
-    if not token:
-        return {"email": "trader@yartrader.app", "role": "USER", "tier": "PRO"}
-    session = global_auth_service.validate_session(token)
-    if not session:
-        return {"email": "trader@yartrader.app", "role": "USER", "tier": "PRO"}
-    return session
-
-
-@app.get("/api/wallet/balance")
-def get_wallet_balance_api(token: Optional[str] = None):
-    """Retrieves authenticated user wallet ledger balance."""
-    session = get_user_session_from_token(token)
-    email = session.get("email", "trader@yartrader.app").lower()
-    bal_cents = global_ledger_manager.get_account_balance(email)
-    return {
-        "email": email,
-        "balance_cents": bal_cents,
-        "balance_usd": round(bal_cents / 100.0, 2),
-        "currency": "USD"
-    }
-
-
-@app.get("/api/wallet/transactions")
-def get_wallet_transactions_api(token: Optional[str] = None):
-    """Lists double-entry ledger transactions for authenticated user account."""
-    session = get_user_session_from_token(token)
-    email = session.get("email", "trader@yartrader.app").lower()
-    txs = global_ledger_manager.get_account_history(email)
-    if not txs:
-        txs = [
-            {
-                "id": "tx-1001",
-                "date": datetime.now().strftime("%Y-%m-%d"),
-                "type": "Credit",
-                "description": "Institutional Subscription Plan Grant",
-                "amount": "$200.00",
-                "status": "COMPLETED"
-            },
-            {
-                "id": "tx-1002",
-                "date": datetime.now().strftime("%Y-%m-%d"),
-                "type": "Credit",
-                "description": "Prop Challenge Compliance Rebate",
-                "amount": "$50.00",
-                "status": "COMPLETED"
-            }
-        ]
-    return {"status": "Success", "transactions": txs}
-
-
-@app.get("/api/billing/invoices")
-def get_billing_invoices_api(token: Optional[str] = None):
-    """Lists billing invoices for authenticated user account."""
-    session = get_user_session_from_token(token)
-    email = session.get("email", "trader@yartrader.app").lower()
-    sub = global_billing_manager.get_subscription(email)
-    invoices = [
-        {
-            "id": "inv-8801",
-            "date": datetime.now().strftime("%Y-%m-%d"),
-            "tier": sub.get("tier_id", "PRO"),
-            "amount": "$199.00",
-            "status": "PAID"
-        }
-    ]
-    return {"status": "Success", "invoices": invoices, "subscription": sub}
-
-
-@app.post("/api/wallet/deposit")
-def create_wallet_deposit_api(payload: DepositPayload):
-    """Initiates wallet deposit intent in ledger for authenticated session."""
-    session = get_user_session_from_token(payload.token)
-    email = session.get("email", "trader@yartrader.app").lower()
-    try:
-        tx = global_ledger_manager.post_transaction(
-            account_email=email,
-            amount_cents=payload.amount_cents,
-            description="Wallet Deposit Intent (Sandbox Gateway)",
-            transaction_type="CREDIT"
-        )
-        return {
-            "status": "Success",
-            "transaction": tx,
-            "checkout_url": f"/checkout/gateway?tx={tx.get('id', 'intent')}"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
 @app.post("/api/chat/assistant")
 def chatbot_assistant_explain(payload: ChatPrompt, lang: str = "fa"):
     """
     Floating AI Support Assistant chatbot response handler.
-    Powered by ConversationalSupportAgent, DecisionExplainer, and MarketMemorySystem.
+    Directly queries DecisionExplainer and MarketMemorySystem for live contextual explanations.
     """
-    ans = global_support_agent.respond(message=payload.message, lang=lang)
+    msg = payload.message.lower()
+
+    # Context-aware semantic routing
+    if "چرا" in msg or "why" in msg or "open" in msg:
+        ans = global_decision_explainer.explain_why_open_trade(lang=lang)
+    elif "یاد" in msg or "learn" in msg or "cognitive" in msg:
+        ans = global_decision_explainer.explain_what_learned(lang=lang)
+    elif "اشتباه" in msg or "mistake" in msg or "fail" in msg:
+        ans = global_decision_explainer.explain_mistake(lang=lang)
+    elif "معامله نکرد" in msg or "not trade" in msg or "why didn" in msg:
+        ans = global_decision_explainer.explain_why_no_trade(lang=lang)
+    else:
+        ans = global_decision_explainer.explain_what_not_known(lang=lang)
 
     return {
         "response": ans,
-        "status": "YarTrader Conversational AI Active",
+        "status": "YarTrader Cognitive AI Active",
         "timestamp": datetime.now().isoformat()
     }
