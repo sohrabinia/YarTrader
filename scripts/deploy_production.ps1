@@ -53,6 +53,30 @@ if (-not $ArtifactsValid) {
 }
 
 # ------------------------------------------------------------------------------
+# STEP 1.5: Frontend Build & Compilation (trader-terminal)
+# ------------------------------------------------------------------------------
+Write-Host "`n[+] Step 1.5: Building React Frontend Assets (trader-terminal)..." -ForegroundColor Cyan
+$FrontendDir = Join-Path $TargetWorkDir "trader-terminal"
+if (Test-Path $FrontendDir) {
+    try {
+        Push-Location $FrontendDir
+        if (Get-Command npm.cmd -ErrorAction SilentlyContinue) {
+            Write-Host "  [INFO] Installing frontend dependencies via npm ci..." -ForegroundColor Yellow
+            & npm.cmd ci --quiet
+            Write-Host "  [INFO] Compiling production frontend bundle via npm run build..." -ForegroundColor Yellow
+            & npm.cmd run build
+            Write-Host "  [OK] Frontend production build compiled successfully." -ForegroundColor Green
+        } else {
+            Write-Host "  [WARN] npm was not found in system PATH. Skipping frontend compilation." -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "  [WARN] Frontend build encountered non-fatal exception: $_" -ForegroundColor Yellow
+    } finally {
+        Pop-Location
+    }
+}
+
+# ------------------------------------------------------------------------------
 # STEP 2: Python Environment Validation
 # ------------------------------------------------------------------------------
 Write-Host "`n[+] Step 2: Validating Python Environment..." -ForegroundColor Cyan
