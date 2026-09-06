@@ -2,16 +2,25 @@ import React from 'react';
 import MetricCard from '../design-system/MetricCard';
 import HealthIndicator from '../design-system/HealthIndicator';
 import DataTable from '../design-system/DataTable';
+import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
 
 export default function AdminView({ t, devopsStatus, systemMetrics, usersList }) {
   return (
     <div id="shell-admin" className="space-y-6">
-      <div className="card" style={{ borderLeft: '4px solid #ef4444' }}>
-        <h2 className="text-xl font-bold text-red-500 mb-1">🛡️ پنل کنترل و پایش فرماندهی SRE Admin</h2>
-        <p className="text-sm text-[var(--text-dark)]">
-          پایش زیرساخت، کنترل دسترسی‌های RBAC، تلمتری موتورهای هوش مصنوعی و کلیدهای ایمنی پلتفرم.
-        </p>
-      </div>
+      <Card className="border-l-4 border-l-[var(--danger)]">
+        <CardHeader>
+          <CardTitle className="text-xl text-[var(--danger)]">
+            🛡️ YarTrader SRE Command & Control Center
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-[var(--text-muted)]">
+            Infrastructure telemetry, RBAC permissions control, AI engine health, and platform safety gates.
+          </p>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <HealthIndicator label="FastAPI Backend Services" status="HEALTHY" latency="14ms" />
@@ -21,27 +30,26 @@ export default function AdminView({ t, devopsStatus, systemMetrics, usersList })
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MetricCard title="پردازنده سیستم (CPU Usage)" value="14.2%" status="passed" subtitle="4 Cores Active" />
-        <MetricCard title="حافظه رم (RAM Usage)" value="2.8 GB / 16 GB" status="passed" subtitle="17.5% Allocation" />
-        <MetricCard title="فضای دیسک (Storage isolation)" value="12.4 GB / 250 GB" status="passed" subtitle="YarTraderStorageRoot" />
+        <MetricCard title="CPU Usage" value="14.2%" status="passed" subtitle="4 Cores Active" />
+        <MetricCard title="RAM Allocation" value="2.8 GB / 16 GB" status="passed" subtitle="17.5% Allocation" />
+        <MetricCard title="System Health Score" value="99.8%" status="passed" subtitle="SRE Target Satisfied" />
       </div>
 
-      <div className="card">
-        <h3 className="text-sm font-bold text-[var(--primary)] uppercase tracking-wider mb-3">مدیریت کاربران و دسترسی‌های RBAC</h3>
-        <DataTable
-          columns={[
-            { key: 'user', title: 'کاربر' },
-            { key: 'email', title: 'ایمیل' },
-            { key: 'role', title: 'نقش دسترسی (RBAC)' },
-            { key: 'status', title: 'وضعیت حساب' }
-          ]}
-          data={[
-            { user: 'مدیر ارشد (Owner)', email: 'admin@yartrader.internal', role: 'ADMIN', status: 'ACTIVE' },
-            { user: 'اپراتور سیستم', email: 'operator@yartrader.internal', role: 'OPERATOR', status: 'ACTIVE' },
-            { user: 'تحلیل‌گر ارشد', email: 'analyst@yartrader.internal', role: 'ANALYST', status: 'ACTIVE' }
-          ]}
-        />
-      </div>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>👥 Registered Platform Users</CardTitle>
+          <Badge variant="primary">ADMIN RBAC ACTIVE</Badge>
+        </CardHeader>
+        <CardContent>
+          <DataTable
+            headers={['User ID', 'Name', 'Email', 'Role', 'Status', 'Actions']}
+            rows={[
+              ['usr-admin-01', <strong>SRE Administrator</strong>, 'admin@yartrader.app', <Badge variant="warning">ADMIN</Badge>, <Badge variant="passed">ACTIVE</Badge>, <Button variant="ghost" size="sm">Manage</Button>],
+              ['usr-trader-02', <strong>Elite Trader</strong>, 'trader@yartrader.app', <Badge variant="neutral">USER</Badge>, <Badge variant="passed">ACTIVE</Badge>, <Button variant="ghost" size="sm">Inspect</Button>]
+            ]}
+          />
+        </CardContent>
+      </Card>
     </div>
   );
 }
