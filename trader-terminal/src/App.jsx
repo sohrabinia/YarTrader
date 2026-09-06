@@ -560,27 +560,34 @@ function MainApp() {
 
   const handleSocialLogin = (provider) => {
     if (provider === 'Google') {
-      const clientId = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || (window.YARTRADER_CONFIG && window.YARTRADER_CONFIG.GOOGLE_CLIENT_ID);
-      if (typeof window !== 'undefined' && window.google && window.google.accounts && window.google.accounts.id && clientId) {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleGoogleAuthResponse
-        });
-        window.google.accounts.id.prompt();
-      } else {
-        const inputToken = prompt(
-          lang === 'fa'
-            ? 'لطفاً ID Token شناسه گوگل خود را وارد کنید:'
-            : 'Please enter your Google OIDC ID Token:'
+      const clientId = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || (typeof window !== 'undefined' && window.YARTRADER_CONFIG && window.YARTRADER_CONFIG.GOOGLE_CLIENT_ID);
+
+      if (!clientId) {
+        showNotification(
+          lang === 'fa' ? 'جهت ورود با گوگل، تنظیم GOOGLE_CLIENT_ID در سرور لازم است.' : 'GOOGLE_CLIENT_ID environment configuration is required for Google Sign-In.',
+          'warning'
         );
-        if (inputToken) {
-          handleGoogleAuthResponse({ credential: inputToken });
-        } else {
+        return;
+      }
+
+      if (typeof window !== 'undefined' && window.google && window.google.accounts && window.google.accounts.id) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleGoogleAuthResponse
+          });
+          window.google.accounts.id.prompt();
+        } catch (err) {
           showNotification(
-            lang === 'fa' ? 'جهت ورود با گوگل، تنظیم GOOGLE_CLIENT_ID لازم است.' : 'GOOGLE_CLIENT_ID configuration is required for Google Sign-In.',
-            'warning'
+            lang === 'fa' ? 'خطا در بارگذاری سرویس شناسایی گوگل.' : 'Failed to initialize Google Identity Services.',
+            'failed'
           );
         }
+      } else {
+        showNotification(
+          lang === 'fa' ? 'سرویس شناسایی گوگل در دسترس نیست. لطفاً اتصال اینترنت خود را بررسی کنید.' : 'Google Identity Services SDK is unavailable. Please check your network connection.',
+          'warning'
+        );
       }
     } else {
       showNotification(
