@@ -3,7 +3,7 @@
 #
 # Idempotency Rule: This script can be run multiple times safely.
 # It validates production artifacts, verifies environment configurations,
-# builds the frontend, and checks the status of the YarTrader background service.
+# and checks the status of the YarTrader background service.
 
 $ServiceName = "YarTrader"
 $TargetWorkDir = Split-Path -Parent $PSScriptRoot
@@ -53,30 +53,9 @@ if (-not $ArtifactsValid) {
 }
 
 # ------------------------------------------------------------------------------
-# STEP 2: Environment Configurations Verification (.env)
+# STEP 1.5: Frontend Build & Compilation (trader-terminal)
 # ------------------------------------------------------------------------------
-Write-Host "`n[+] Step 2: Checking Environment Configuration..." -ForegroundColor Cyan
-
-$EnvFile = Join-Path $TargetWorkDir ".env"
-$EnvProdTemplate = Join-Path $TargetWorkDir ".env.production"
-
-if (-not (Test-Path $EnvFile)) {
-    if (Test-Path $EnvProdTemplate) {
-        Write-Host "  [INFO] .env not found. Copying .env.production as base..." -ForegroundColor Yellow
-        Copy-Item $EnvProdTemplate $EnvFile -Force
-        Write-Host "  [WARN] Generated .env file. PLEASE open '.env' and replace secure placeholder values before start!" -ForegroundColor Yellow
-    } else {
-        Write-Error "Deployment Failed: Neither .env nor .env.production templates exist!"
-        Exit 1
-    }
-} else {
-    Write-Host "  [OK] Found existing '.env' file." -ForegroundColor Green
-}
-
-# ------------------------------------------------------------------------------
-# STEP 3: Frontend Build & Compilation (trader-terminal)
-# ------------------------------------------------------------------------------
-Write-Host "`n[+] Step 3: Building React Frontend Assets (trader-terminal)..." -ForegroundColor Cyan
+Write-Host "`n[+] Step 1.5: Building React Frontend Assets (trader-terminal)..." -ForegroundColor Cyan
 $FrontendDir = Join-Path $TargetWorkDir "trader-terminal"
 
 if (-not (Test-Path $FrontendDir)) {
@@ -126,9 +105,9 @@ try {
 }
 
 # ------------------------------------------------------------------------------
-# STEP 4: Python Environment Validation
+# STEP 2: Python Environment Validation
 # ------------------------------------------------------------------------------
-Write-Host "`n[+] Step 4: Validating Python Environment..." -ForegroundColor Cyan
+Write-Host "`n[+] Step 2: Validating Python Environment..." -ForegroundColor Cyan
 
 $VenvPython = Join-Path $TargetWorkDir ".venv\Scripts\python.exe"
 if (Test-Path $VenvPython) {
@@ -169,9 +148,30 @@ try {
 }
 
 # ------------------------------------------------------------------------------
-# STEP 5: Windows Service Verification
+# STEP 3: Environment Configurations Verification (.env)
 # ------------------------------------------------------------------------------
-Write-Host "`n[+] Step 5: Checking YarTrader Windows Service..." -ForegroundColor Cyan
+Write-Host "`n[+] Step 3: Checking Environment Configuration..." -ForegroundColor Cyan
+
+$EnvFile = Join-Path $TargetWorkDir ".env"
+$EnvProdTemplate = Join-Path $TargetWorkDir ".env.production"
+
+if (-not (Test-Path $EnvFile)) {
+    if (Test-Path $EnvProdTemplate) {
+        Write-Host "  [INFO] .env not found. Copying .env.production as base..." -ForegroundColor Yellow
+        Copy-Item $EnvProdTemplate $EnvFile -Force
+        Write-Host "  [WARN] Generated .env file. PLEASE open '.env' and replace secure placeholder values before start!" -ForegroundColor Yellow
+    } else {
+        Write-Error "Deployment Failed: Neither .env nor .env.production templates exist!"
+        Exit 1
+    }
+} else {
+    Write-Host "  [OK] Found existing '.env' file." -ForegroundColor Green
+}
+
+# ------------------------------------------------------------------------------
+# STEP 4: Windows Service Verification
+# ------------------------------------------------------------------------------
+Write-Host "`n[+] Step 4: Checking YarTrader Windows Service..." -ForegroundColor Cyan
 
 $Service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 

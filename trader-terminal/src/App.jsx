@@ -26,6 +26,7 @@ import DemoView from './views/DemoView.jsx';
 import AdminView from './views/AdminView.jsx';
 import GuideView from './views/GuideView.jsx';
 import FaqView from './views/FaqView.jsx';
+import WalletView from './views/WalletView.jsx';
 
 // Import Global Functional Command Palette Component
 import CommandPalette from './components/common/CommandPalette.jsx';
@@ -1011,6 +1012,7 @@ function MainApp() {
 
           {token && <a href={`/${lang}/signals`} className={`sidebar-link ${routePath === '/signals' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/signals'); }}>{t('nav_signals')}</a>}
           {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
+          {token && <a href={`/${lang}/wallet`} className={`sidebar-link ${routePath === '/wallet' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/wallet'); }}>{lang === 'fa' ? '💳 کیف پول و مالی' : '💳 Wallet & Billing'}</a>}
           {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
           {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
 
@@ -1303,6 +1305,11 @@ function MainApp() {
           {/* FAQ PAGE */}
           {(routePath === '/faq' || (typeof window !== 'undefined' && window.location.hash === '#/faq')) && (
             <FaqView lang={lang} t={t} />
+          )}
+
+          {/* WALLET & BILLING PAGE */}
+          {(routePath === '/wallet' || (typeof window !== 'undefined' && window.location.hash === '#/wallet')) && (
+            <WalletView lang={lang} t={t} />
           )}
 
           {/* DEDICATED TRADING MODE 1: BACKTEST PAGE */}
