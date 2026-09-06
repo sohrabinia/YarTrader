@@ -3,12 +3,12 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app
-from src.Infrastructure.version import get_application_version_info
+from src.Infrastructure.version import get_application_version_info, get_current_version_string
 
 client = TestClient(app)
 
 def test_version_endpoints():
-    """Verify that version endpoints return 200 OK with correct JSON schema."""
+    """Verify that version endpoints return 200 OK with complete release identity metadata."""
     for path in ["/api/version", "/api/system/version", "/v1/version"]:
         res = client.get(path)
         assert res.status_code == 200
@@ -17,6 +17,26 @@ def test_version_endpoints():
         assert "version" in data
         assert "commit" in data
         assert "environment" in data
+        assert "release_id" in data
+        assert "build_id" in data
+        assert "artifact_id" in data
+        assert data["release_id"].startswith("rel-")
+        assert data["build_id"].startswith("bld-")
+        assert data["artifact_id"].startswith("art-yartrader-")
+
+def test_release_identity_structure():
+    """Verify that get_application_version_info returns deterministic release identity fields."""
+    info = get_application_version_info()
+    assert isinstance(info, dict)
+    assert info["application"] == "YarTrader"
+    assert "version" in info
+    assert "commit" in info
+    assert "release_id" in info
+    assert "build_id" in info
+    assert "artifact_id" in info
+    assert info["release_id"] == f"rel-{info['version']}-{info['commit'][:12]}"
+    assert info["artifact_id"] == f"art-yartrader-{info['version']}-{info['commit'][:12]}"
+    assert get_current_version_string() == str(info["version"])
 
 def test_dynamic_homepage_version_interpolation(monkeypatch):
     """

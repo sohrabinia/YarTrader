@@ -1,10 +1,10 @@
 import os
 import json
+import subprocess
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 _VERSION_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "version.json")
-
-import subprocess
 
 def _get_git_commit_sha() -> str:
     """Attempts to resolve the current Git repository HEAD commit SHA."""
@@ -28,14 +28,14 @@ def get_application_version_info() -> Dict[str, Any]:
     """
     Returns single authoritative application version metadata.
     Canonical precedence order:
-    1. Explicit environment variable (GIT_COMMIT or COMMIT_SHA)
-    2. Dynamic Git repository HEAD resolution
-    3. config/version.json fallback
+    1. Explicit environment variable (APP_VERSION or YARTRADER_VERSION)
+    2. config/version.json configuration
+    3. Dynamic Git repository HEAD resolution for commit SHA
     """
     version_data = {
         "application": "YarTrader",
-        "version": "7.0",
-        "commit": "49546b10db0964da145df24e1d35365f4833d340",
+        "version": "7.0.0",
+        "commit": "bdc6479406d83b01441839851ea034ad4c946ac5",
         "environment": "production"
     }
 
@@ -57,16 +57,26 @@ def get_application_version_info() -> Dict[str, Any]:
     if env_version:
         version_data["version"] = env_version
 
-    env_commit = os.environ.get("GIT_COMMIT") or os.environ.get("COMMIT_SHA")
+    env_commit = os.environ.get("GIT_COMMIT") or os.environ.get("COMMIT_SHA") or os.environ.get("YARTRADER_BUILD_SHA")
     if env_commit:
         version_data["commit"] = env_commit
 
-    env_type = os.environ.get("APP_ENV") or os.environ.get("ENVIRONMENT")
+    env_type = os.environ.get("YARTRADER_ENV") or os.environ.get("APP_ENV") or os.environ.get("ENVIRONMENT")
     if env_type:
         version_data["environment"] = env_type
+
+    # Construct explicit release identity fields
+    prod_version = version_data.get("version", "7.0.0")
+    commit_sha = version_data.get("commit", "bdc6479406d83b01441839851ea034ad4c946ac5")
+    short_sha = commit_sha[:12] if commit_sha else "000000000000"
+    date_stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
+
+    version_data["release_id"] = f"rel-{prod_version}-{short_sha}"
+    version_data["build_id"] = f"bld-{date_stamp}-{short_sha}"
+    version_data["artifact_id"] = f"art-yartrader-{prod_version}-{short_sha}"
 
     return version_data
 
 def get_current_version_string() -> str:
-    """Returns just the version string (e.g., '7.0')."""
-    return str(get_application_version_info().get("version", "7.0"))
+    """Returns just the version string (e.g., '7.0.0')."""
+    return str(get_application_version_info().get("version", "7.0.0"))
