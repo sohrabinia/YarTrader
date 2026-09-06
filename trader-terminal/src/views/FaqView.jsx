@@ -31,7 +31,7 @@ export default function FaqView({ lang, t }) {
         : 'Backtest runs historical simulation on past market feeds, while Demo executes orders on live MT5 demo accounts with zero financial risk.'
     },
     {
-      q: isFa ? 'چرا در برخی مواقع هیچ سیگنال فعالی وجود ندارد؟' : isTr ? 'Neden Bazen Sinyal Bulunmaz?' : isAr ? 'لماذا لا توجد إشارات أحياناً؟' : 'Why Can There Be No Valid Signals?',
+      q: isFa ? 'چرا در برخی مواقع هیچ سیگنال فعالی وجود ندارد؟' : isTr ? 'Neden Bazen Sinyal Bulunmaz؟' : isAr ? 'لماذا لا توجد إشارات أحياناً؟' : 'Why Can There Be No Valid Signals?',
       a: isFa
         ? 'زیرا کلیه کندل‌ها و موقعیت‌ها از ۳ گیت پالایش کلان (Macro)، ساختاری (Structural) و ریسک (Risk) عبور می‌کنند. اگر چیدمانی از هر سه گیت عبور نکند، جهت سیگنال WAIT اعلام می‌شود.'
         : 'Because candidates pass through strict Macro, Structural, and Risk qualification gates. If no setup passes all three, direction remains WAIT.'
