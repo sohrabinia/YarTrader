@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 export default function FaqView({ lang, t }) {
   const isFa = lang === 'fa';
   const isAr = lang === 'ar';
   const isTr = lang === 'tr';
-
-  const [openIndex, setOpenIndex] = useState(null);
 
   const faqItems = [
     {
@@ -33,7 +31,7 @@ export default function FaqView({ lang, t }) {
         : 'Backtest runs historical simulation on past market feeds, while Demo executes orders on live MT5 demo accounts with zero financial risk.'
     },
     {
-      q: isFa ? 'چرا در برخی مواقع هیچ سیگنال فعالی وجود ندارد؟' : isTr ? 'Neden Bazen Sinyal Bulunmaz?' : isAr ? 'لماذا لا توجد إشارات أحياناً؟' : 'Why Can There Be No Valid Signals?',
+      q: isFa ? 'چرا در برخی مواقع هیچ سیگنال فعالی وجود ندارد؟' : isTr ? 'Neden Bazen Sinyal Bulunmaz؟' : isAr ? 'لماذا لا توجد إشارات أحياناً؟' : 'Why Can There Be No Valid Signals?',
       a: isFa
         ? 'زیرا کلیه کندل‌ها و موقعیت‌ها از ۳ گیت پالایش کلان (Macro)، ساختاری (Structural) و ریسک (Risk) عبور می‌کنند. اگر چیدمانی از هر سه گیت عبور نکند، جهت سیگنال WAIT اعلام می‌شود.'
         : 'Because candidates pass through strict Macro, Structural, and Risk qualification gates. If no setup passes all three, direction remains WAIT.'
@@ -62,33 +60,25 @@ export default function FaqView({ lang, t }) {
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        {faqItems.map((item, idx) => {
-          const isOpen = openIndex === idx;
-          return (
-            <div
-              key={idx}
-              className="status-item"
-              style={{
-                padding: '18px',
-                borderLeft: isOpen ? '4px solid var(--primary)' : '4px solid var(--border-dark)',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                textAlign: 'inherit'
-              }}
-              onClick={() => setOpenIndex(isOpen ? null : idx)}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', color: isOpen ? 'var(--primary)' : 'var(--text-dark)' }}>
-                <span>{item.q}</span>
-                <span style={{ fontSize: '1.2em' }}>{isOpen ? '−' : '+'}</span>
-              </div>
-              {isOpen && (
-                <div style={{ marginTop: '12px', fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.7', borderTop: '1px solid var(--border-dark)', paddingTop: '10px' }}>
-                  {item.a}
-                </div>
-              )}
+        {faqItems.map((item, idx) => (
+          <div
+            key={idx}
+            className="status-item"
+            style={{
+              padding: '18px',
+              borderLeft: '4px solid var(--primary)',
+              transition: 'all 0.2s',
+              textAlign: 'inherit'
+            }}
+          >
+            <div style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
+              <span>{item.q}</span>
             </div>
-          );
-        })}
+            <div style={{ marginTop: '12px', fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.7', borderTop: '1px solid var(--border-dark)', paddingTop: '10px' }}>
+              {item.a}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
