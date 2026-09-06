@@ -532,11 +532,69 @@ function MainApp() {
     }
   };
 
+  const handleGoogleAuthResponse = async (googleResponse) => {
+    try {
+      const idToken = googleResponse.credential;
+      if (!idToken) {
+        throw new Error(lang === 'fa' ? 'توکن شناسایی گوگل دریافت نشد.' : 'Google ID token was not received.');
+      }
+      const res = await apiService.post('/api/auth/google', {
+        id_token: idToken
+      });
+      const tokenVal = res.session_token || res.token;
+      const roleVal = (res.user && res.user.role) || res.role || 'USER';
+      const nameVal = (res.user && res.user.name) || res.username || 'Google User';
+
+      localStorage.setItem('yartrader_token', tokenVal);
+      localStorage.setItem('yartrader_role', roleVal);
+      localStorage.setItem('yartrader_name', nameVal);
+      setToken(tokenVal);
+      setRole(roleVal);
+      setName(nameVal);
+      showNotification(lang === 'fa' ? 'ورود با گوگل با موفقیت انجام شد.' : 'Successfully signed in with Google.', 'success');
+      navigateTo('/dashboard');
+    } catch (err) {
+      showNotification(err.message || (lang === 'fa' ? 'خطا در ورود با گوگل.' : 'Google authentication failed.'), 'failed');
+    }
+  };
+
   const handleSocialLogin = (provider) => {
-    showNotification(
-      lang === 'fa' ? `پشتیبانی از ${provider} در حال آماده‌سازی است.` : `${provider} sign-in is under initialization.`,
-      'warning'
-    );
+    if (provider === 'Google') {
+      const clientId = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || (typeof window !== 'undefined' && window.YARTRADER_CONFIG && window.YARTRADER_CONFIG.GOOGLE_CLIENT_ID);
+
+      if (!clientId) {
+        showNotification(
+          lang === 'fa' ? 'جهت ورود با گوگل، تنظیم GOOGLE_CLIENT_ID در سرور لازم است.' : 'GOOGLE_CLIENT_ID environment configuration is required for Google Sign-In.',
+          'warning'
+        );
+        return;
+      }
+
+      if (typeof window !== 'undefined' && window.google && window.google.accounts && window.google.accounts.id) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleGoogleAuthResponse
+          });
+          window.google.accounts.id.prompt();
+        } catch (err) {
+          showNotification(
+            lang === 'fa' ? 'خطا در بارگذاری سرویس شناسایی گوگل.' : 'Failed to initialize Google Identity Services.',
+            'failed'
+          );
+        }
+      } else {
+        showNotification(
+          lang === 'fa' ? 'سرویس شناسایی گوگل در دسترس نیست. لطفاً اتصال اینترنت خود را بررسی کنید.' : 'Google Identity Services SDK is unavailable. Please check your network connection.',
+          'warning'
+        );
+      }
+    } else {
+      showNotification(
+        lang === 'fa' ? `پشتیبانی از ${provider} در حال آماده‌سازی است.` : `${provider} sign-in is under initialization.`,
+        'warning'
+      );
+    }
   };
 
   // Data Fetching Operations
@@ -1211,7 +1269,7 @@ function MainApp() {
           )}
 
           {/* RESEARCH BLOG */}
-          {(routePath === '/blog' || hash === '#/blog') && (
+          {(routePath === '/blog' || (typeof window !== 'undefined' && window.location.hash === '#/blog')) && (
             <div id="shell-blog">
               <div className="card">
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('nav_blog')}</h2>
@@ -1238,12 +1296,12 @@ function MainApp() {
           )}
 
           {/* USER GUIDE PAGE */}
-          {(routePath === '/guide' || hash === '#/guide') && (
+          {(routePath === '/guide' || (typeof window !== 'undefined' && window.location.hash === '#/guide')) && (
             <GuideView lang={lang} t={t} />
           )}
 
           {/* FAQ PAGE */}
-          {(routePath === '/faq' || hash === '#/faq') && (
+          {(routePath === '/faq' || (typeof window !== 'undefined' && window.location.hash === '#/faq')) && (
             <FaqView lang={lang} t={t} />
           )}
 

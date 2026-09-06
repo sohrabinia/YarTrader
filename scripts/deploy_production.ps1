@@ -3,7 +3,7 @@
 #
 # Idempotency Rule: This script can be run multiple times safely.
 # It validates production artifacts, verifies environment configurations,
-# and checks the status of the YarTrader background service.
+# builds the frontend, and checks the status of the YarTrader background service.
 
 $ServiceName = "YarTrader"
 $TargetWorkDir = Split-Path -Parent $PSScriptRoot
@@ -53,9 +53,82 @@ if (-not $ArtifactsValid) {
 }
 
 # ------------------------------------------------------------------------------
-# STEP 2: Python Environment Validation
+# STEP 2: Environment Configurations Verification (.env)
 # ------------------------------------------------------------------------------
-Write-Host "`n[+] Step 2: Validating Python Environment..." -ForegroundColor Cyan
+Write-Host "`n[+] Step 2: Checking Environment Configuration..." -ForegroundColor Cyan
+
+$EnvFile = Join-Path $TargetWorkDir ".env"
+$EnvProdTemplate = Join-Path $TargetWorkDir ".env.production"
+
+if (-not (Test-Path $EnvFile)) {
+    if (Test-Path $EnvProdTemplate) {
+        Write-Host "  [INFO] .env not found. Copying .env.production as base..." -ForegroundColor Yellow
+        Copy-Item $EnvProdTemplate $EnvFile -Force
+        Write-Host "  [WARN] Generated .env file. PLEASE open '.env' and replace secure placeholder values before start!" -ForegroundColor Yellow
+    } else {
+        Write-Error "Deployment Failed: Neither .env nor .env.production templates exist!"
+        Exit 1
+    }
+} else {
+    Write-Host "  [OK] Found existing '.env' file." -ForegroundColor Green
+}
+
+# ------------------------------------------------------------------------------
+# STEP 3: Frontend Build & Compilation (trader-terminal)
+# ------------------------------------------------------------------------------
+Write-Host "`n[+] Step 3: Building React Frontend Assets (trader-terminal)..." -ForegroundColor Cyan
+$FrontendDir = Join-Path $TargetWorkDir "trader-terminal"
+
+if (-not (Test-Path $FrontendDir)) {
+    Write-Error "Deployment Failed: Essential frontend directory '$FrontendDir' does not exist!"
+    Exit 1
+}
+
+$npmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
+if (-not $npmCmd) {
+    $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
+}
+
+if (-not $npmCmd) {
+    Write-Error "Deployment Failed: 'npm' command is required for production frontend compilation but was not found in PATH!"
+    Exit 1
+}
+
+try {
+    Push-Location $FrontendDir
+
+    Write-Host "  [INFO] Installing frontend dependencies via npm ci..." -ForegroundColor Yellow
+    & $npmCmd ci --quiet
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Deployment Failed: 'npm ci' failed with exit code $LASTEXITCODE"
+        Exit 1
+    }
+
+    Write-Host "  [INFO] Compiling production frontend bundle via npm run build..." -ForegroundColor Yellow
+    & $npmCmd run build
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Deployment Failed: 'npm run build' failed with exit code $LASTEXITCODE"
+        Exit 1
+    }
+
+    $DistIndex = Join-Path $FrontendDir "dist\index.html"
+    if (Test-Path $DistIndex) {
+        Write-Host "  [OK] Frontend production build compiled successfully ($DistIndex verified)." -ForegroundColor Green
+    } else {
+        Write-Error "Deployment Failed: Frontend build output 'dist\index.html' was not generated!"
+        Exit 1
+    }
+} catch {
+    Write-Error "Deployment Failed: Frontend compilation encountered an exception: $_"
+    Exit 1
+} finally {
+    Pop-Location
+}
+
+# ------------------------------------------------------------------------------
+# STEP 4: Python Environment Validation
+# ------------------------------------------------------------------------------
+Write-Host "`n[+] Step 4: Validating Python Environment..." -ForegroundColor Cyan
 
 $VenvPython = Join-Path $TargetWorkDir ".venv\Scripts\python.exe"
 if (Test-Path $VenvPython) {
@@ -96,30 +169,9 @@ try {
 }
 
 # ------------------------------------------------------------------------------
-# STEP 3: Environment Configurations Verification (.env)
+# STEP 5: Windows Service Verification
 # ------------------------------------------------------------------------------
-Write-Host "`n[+] Step 3: Checking Environment Configuration..." -ForegroundColor Cyan
-
-$EnvFile = Join-Path $TargetWorkDir ".env"
-$EnvProdTemplate = Join-Path $TargetWorkDir ".env.production"
-
-if (-not (Test-Path $EnvFile)) {
-    if (Test-Path $EnvProdTemplate) {
-        Write-Host "  [INFO] .env not found. Copying .env.production as base..." -ForegroundColor Yellow
-        Copy-Item $EnvProdTemplate $EnvFile -Force
-        Write-Host "  [WARN] Generated .env file. PLEASE open '.env' and replace secure placeholder values before start!" -ForegroundColor Yellow
-    } else {
-        Write-Error "Deployment Failed: Neither .env nor .env.production templates exist!"
-        Exit 1
-    }
-} else {
-    Write-Host "  [OK] Found existing '.env' file." -ForegroundColor Green
-}
-
-# ------------------------------------------------------------------------------
-# STEP 4: Windows Service Verification
-# ------------------------------------------------------------------------------
-Write-Host "`n[+] Step 4: Checking YarTrader Windows Service..." -ForegroundColor Cyan
+Write-Host "`n[+] Step 5: Checking YarTrader Windows Service..." -ForegroundColor Cyan
 
 $Service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 
