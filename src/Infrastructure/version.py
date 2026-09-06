@@ -7,7 +7,7 @@ from typing import Dict, Any
 _VERSION_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "version.json")
 
 def _get_git_commit_sha() -> str:
-    """Attempts to resolve the current Git repository HEAD commit SHA."""
+    """Attempts to resolve the current Git repository HEAD commit SHA dynamically."""
     try:
         repo_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         res = subprocess.run(
@@ -28,14 +28,15 @@ def get_application_version_info() -> Dict[str, Any]:
     """
     Returns single authoritative application version metadata.
     Canonical precedence order:
-    1. Explicit environment variable (APP_VERSION or YARTRADER_VERSION)
-    2. config/version.json configuration
-    3. Dynamic Git repository HEAD resolution for commit SHA
+    1. Explicit environment variable (APP_VERSION / YARTRADER_VERSION / GIT_COMMIT / COMMIT_SHA)
+    2. Dynamic Git repository HEAD resolution for commit SHA
+    3. config/version.json configuration
+    4. Fallback defaults (version: '7.0.0', commit: 'UNKNOWN_COMMIT')
     """
     version_data = {
         "application": "YarTrader",
         "version": "7.0.0",
-        "commit": "bdc6479406d83b01441839851ea034ad4c946ac5",
+        "commit": "UNKNOWN_COMMIT",
         "environment": "production"
     }
 
@@ -67,8 +68,8 @@ def get_application_version_info() -> Dict[str, Any]:
 
     # Construct explicit release identity fields
     prod_version = version_data.get("version", "7.0.0")
-    commit_sha = version_data.get("commit", "bdc6479406d83b01441839851ea034ad4c946ac5")
-    short_sha = commit_sha[:12] if commit_sha else "000000000000"
+    commit_sha = version_data.get("commit", "UNKNOWN_COMMIT")
+    short_sha = commit_sha[:12] if commit_sha and commit_sha != "UNKNOWN_COMMIT" else "000000000000"
     date_stamp = datetime.now(timezone.utc).strftime("%Y%m%d")
 
     version_data["release_id"] = f"rel-{prod_version}-{short_sha}"

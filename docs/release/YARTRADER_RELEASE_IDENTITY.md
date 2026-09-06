@@ -4,7 +4,6 @@
 **Status:** CANONICAL / AUTHORITATIVE SPECIFICATION
 **Date:** September 6, 2026
 **Repository:** `sohrabinia/YarTrader`
-**Current HEAD Commit SHA:** `bdc6479406d83b01441839851ea034ad4c946ac5`
 
 ---
 
@@ -24,9 +23,9 @@ src/Infrastructure/version.py
 
 ### Precedence Hierarchy for Version Resolution:
 1. **Explicit Environment Override:** `APP_VERSION` or `YARTRADER_VERSION` environment variable (if explicitly set during container or deployment startup).
-2. **Configuration File:** `config/version.json` (defines baseline product version metadata).
-3. **Dynamic Git HEAD Resolution:** Subprocess `git rev-parse HEAD` resolution at runtime/build time for `commit_sha`.
-4. **Fallback Default:** `7.0.0` (Semantic product version fallback when unconfigured).
+2. **Dynamic Git HEAD Resolution:** Subprocess `git rev-parse HEAD` or `GIT_COMMIT`/`COMMIT_SHA`/`YARTRADER_BUILD_SHA` environment resolution at runtime/build time for `commit_sha`.
+3. **Configuration File:** `config/version.json` (defines baseline product version metadata).
+4. **Fallback Default:** Version `'7.0.0'`, Commit `'UNKNOWN_COMMIT'` (Fallback when unconfigured; never masquerades as a fake Git commit SHA).
 
 No UI component, HTML template, documentation file, or secondary service may independently fabricate a product release version.
 
@@ -35,13 +34,13 @@ No UI component, HTML template, documentation file, or secondary service may ind
 ## 3. Canonical Release Identity Model
 YarTrader explicitly distinguishes the following 5 distinct identity components:
 
-| Identity Field | Conceptual Meaning | Example Value | Source / Resolution |
-| -------------- | ------------------ | ------------- | ------------------- |
+| Identity Field | Conceptual Meaning | Example Pattern | Source / Resolution |
+| -------------- | ------------------ | --------------- | ------------------- |
 | `product_version` | Semantic product release version | `7.0.0` | `src/Infrastructure/version.py` (`get_application_version_info()["version"]`) |
-| `release_id` | Immutable release identifier string | `rel-7.0.0-bdc6479406d8` | Formatted as `rel-{product_version}-{commit_sha[:12]}` |
-| `build_id` | Immutable build run identifier | `bld-20260906-bdc6479406d8` | Formatted as `bld-{YYYYMMDD}-{commit_sha[:12]}` |
-| `commit_sha` | Git source commit SHA-1 | `bdc6479406d83b01441839851ea034ad4c946ac5` | Resolved dynamically via `git rev-parse HEAD` or `GIT_COMMIT` env |
-| `artifact_id` | Compiled artifact identifier | `art-trader-terminal-7.0.0-bdc6479406d8` | Traceable name for static frontend `dist/` or backend package |
+| `release_id` | Immutable release identifier string | `rel-{version}-{short_sha}` | Formatted as `rel-{product_version}-{commit_sha[:12]}` |
+| `build_id` | Immutable build run identifier | `bld-{YYYYMMDD}-{short_sha}` | Formatted as `bld-{YYYYMMDD}-{commit_sha[:12]}` |
+| `commit_sha` | Git source commit SHA-1 | `40-char-git-sha` | Resolved dynamically via `git rev-parse HEAD` or `GIT_COMMIT` env |
+| `artifact_id` | Compiled artifact identifier | `art-yartrader-{version}-{short_sha}` | Traceable name for static frontend `dist/` or backend package |
 
 ---
 
@@ -58,7 +57,7 @@ Build identity (`build_id`) provides deterministic traceability from compiled as
 The source identity of every release is anchored by its immutable Git commit SHA-1.
 
 * **Source:** Resolved dynamically via `_get_git_commit_sha()` in `src/Infrastructure/version.py` or injected via `GIT_COMMIT` / `COMMIT_SHA` environment variables.
-* **Environment Variable Support:** `GIT_COMMIT`, `COMMIT_SHA`, `YARTRADER_BUILD_SHA`.
+* **Fallback Behavior:** Defaults to `'UNKNOWN_COMMIT'` when unconfigured. Stale historical SHA strings are strictly forbidden as hardcoded defaults.
 
 ---
 
@@ -79,10 +78,10 @@ Runtime release metadata is exposed via unified REST API endpoints:
    {
      "application": "YarTrader",
      "version": "7.0.0",
-     "release_id": "rel-7.0.0-bdc6479406d8",
-     "build_id": "bld-20260906-bdc6479406d8",
-     "commit": "bdc6479406d83b01441839851ea034ad4c946ac5",
-     "artifact_id": "art-yartrader-7.0.0-bdc6479406d8",
+     "release_id": "rel-7.0.0-{short_sha}",
+     "build_id": "bld-20260906-{short_sha}",
+     "commit": "{40-char-dynamic-git-sha}",
+     "artifact_id": "art-yartrader-7.0.0-{short_sha}",
      "environment": "production"
    }
    ```
@@ -114,7 +113,7 @@ env:
 For containerized or Windows Service deployments:
 * Container images are tagged using both semantic version and short commit SHA:
   * `yartrader:7.0.0`
-  * `yartrader:bdc6479406d8`
+  * `yartrader:{short_sha}`
 * PowerShell production deployment script `scripts/deploy_production.ps1` injects `APP_VERSION` and `GIT_COMMIT` into the service process environment prior to starting the `YarTrader` Windows service.
 
 ---
@@ -140,7 +139,7 @@ For containerized or Windows Service deployments:
 | Location | Discovered Value | Type | Canonical Owner | Action / Resolution |
 | -------- | ---------------- | ---- | --------------- | ------------------- |
 | `src/Infrastructure/version.py` | `7.0.0` | Python Version Module | Canonical Release Authority | **CANONICAL OWNER IDENTIFIED** — Unified release resolution engine |
-| `config/version.json` | `7.0.0` | JSON Config | Version Config File | **CANONICAL CONFIG** — Stores baseline version and fallback commit |
+| `config/version.json` | `7.0.0` | JSON Config | Version Config File | **CANONICAL CONFIG** — Stores baseline version |
 | `trader-terminal/package.json` | `1.0.0` | Frontend npm package | Frontend Package Manager | **PACKAGE VERSION ONLY** — Represents npm package version; product version consumed from `/api/version` |
 | `src/Application/Dashboard/content_manager.py` | `YarTrader v7.0` | Content Manager Text | Public Blog & News Feed | **DYNAMICIZED** — Replaced hardcoded strings with `get_current_version_string()` |
 | `src/Application/Services/web_dashboard.py` | `Welcome to YarTrader v7.0` | HTML Header String | Web Dashboard Gateway | **DYNAMICIZED** — Replaced hardcoded strings with API version resolution |
@@ -172,7 +171,7 @@ For containerized or Windows Service deployments:
 3. Every release ID and build ID MUST incorporate the source Git commit SHA.
 4. Historical Git tags are preserved and never deleted or overwritten.
 5. The React SPA frontend consumes version metadata dynamically from `/api/version`.
-6. Missing Git or environment version data falls back safely to `config/version.json` without failing runtime execution.
+6. Missing Git or environment version data falls back safely to `config/version.json` without failing runtime execution or fabricating fake commit SHAs.
 
 ---
 
@@ -196,4 +195,4 @@ Required assertions:
 PHASE 2 = PASS
 ```
 
-**Reasoning:** One canonical release identity model has been established and documented in `docs/release/YARTRADER_RELEASE_IDENTITY.md`. Version resolution logic in `src/Infrastructure/version.py` was harmonized to dynamically expose `product_version`, `release_id`, `build_id`, `commit_sha`, and `artifact_id`. Unit tests in `tests/YarTrader.Tests/Services/test_dynamic_version.py` pass cleanly, all historical tags are mapped, and zero feature/unrelated code changes were introduced.
+**Reasoning:** One canonical release identity model has been established and documented in `docs/release/YARTRADER_RELEASE_IDENTITY.md`. Version resolution logic in `src/Infrastructure/version.py` was harmonized to dynamically expose `product_version`, `release_id`, `build_id`, `commit_sha`, and `artifact_id` without hardcoding stale commit SHA defaults. Unit tests in `tests/YarTrader.Tests/Services/test_dynamic_version.py` pass cleanly, all historical tags are mapped, and zero feature/unrelated code changes were introduced.

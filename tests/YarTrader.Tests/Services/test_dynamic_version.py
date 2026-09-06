@@ -34,9 +34,31 @@ def test_release_identity_structure():
     assert "release_id" in info
     assert "build_id" in info
     assert "artifact_id" in info
-    assert info["release_id"] == f"rel-{info['version']}-{info['commit'][:12]}"
-    assert info["artifact_id"] == f"art-yartrader-{info['version']}-{info['commit'][:12]}"
+    short_sha = info["commit"][:12] if info["commit"] and info["commit"] != "UNKNOWN_COMMIT" else "000000000000"
+    assert info["release_id"] == f"rel-{info['version']}-{short_sha}"
+    assert info["artifact_id"] == f"art-yartrader-{info['version']}-{short_sha}"
     assert get_current_version_string() == str(info["version"])
+
+def test_environment_override_behavior(monkeypatch):
+    """Verify that environment variables (APP_VERSION, GIT_COMMIT) override defaults safely."""
+    monkeypatch.setenv("APP_VERSION", "9.9.9")
+    monkeypatch.setenv("GIT_COMMIT", "1234567890abcdef1234567890abcdef12345678")
+
+    info = get_application_version_info()
+    assert info["version"] == "9.9.9"
+    assert info["commit"] == "1234567890abcdef1234567890abcdef12345678"
+    assert info["release_id"] == "rel-9.9.9-1234567890ab"
+    assert info["artifact_id"] == "art-yartrader-9.9.9-1234567890ab"
+
+def test_protection_against_stale_commit_defaults(monkeypatch):
+    """Verify that version.py does NOT fall back to stale hardcoded commit SHAs when unconfigured."""
+    monkeypatch.delenv("GIT_COMMIT", raising=False)
+    monkeypatch.delenv("COMMIT_SHA", raising=False)
+    monkeypatch.delenv("YARTRADER_BUILD_SHA", raising=False)
+
+    info = get_application_version_info()
+    # Must NOT equal stale hardcoded historical SHA bdc6479406d83b01441839851ea034ad4c946ac5
+    assert info["commit"] != "bdc6479406d83b01441839851ea034ad4c946ac5"
 
 def test_dynamic_homepage_version_interpolation(monkeypatch):
     """
