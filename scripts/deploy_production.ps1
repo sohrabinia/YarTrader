@@ -53,6 +53,58 @@ if (-not $ArtifactsValid) {
 }
 
 # ------------------------------------------------------------------------------
+# STEP 1.5: Frontend Build & Compilation (trader-terminal)
+# ------------------------------------------------------------------------------
+Write-Host "`n[+] Step 1.5: Building React Frontend Assets (trader-terminal)..." -ForegroundColor Cyan
+$FrontendDir = Join-Path $TargetWorkDir "trader-terminal"
+
+if (-not (Test-Path $FrontendDir)) {
+    Write-Error "Deployment Failed: Essential frontend directory '$FrontendDir' does not exist!"
+    Exit 1
+}
+
+$npmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
+if (-not $npmCmd) {
+    $npmCmd = Get-Command npm -ErrorAction SilentlyContinue
+}
+
+if (-not $npmCmd) {
+    Write-Error "Deployment Failed: 'npm' command is required for production frontend compilation but was not found in PATH!"
+    Exit 1
+}
+
+try {
+    Push-Location $FrontendDir
+
+    Write-Host "  [INFO] Installing frontend dependencies via npm ci..." -ForegroundColor Yellow
+    & $npmCmd ci --quiet
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Deployment Failed: 'npm ci' failed with exit code $LASTEXITCODE"
+        Exit 1
+    }
+
+    Write-Host "  [INFO] Compiling production frontend bundle via npm run build..." -ForegroundColor Yellow
+    & $npmCmd run build
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Deployment Failed: 'npm run build' failed with exit code $LASTEXITCODE"
+        Exit 1
+    }
+
+    $DistIndex = Join-Path $FrontendDir "dist\index.html"
+    if (Test-Path $DistIndex) {
+        Write-Host "  [OK] Frontend production build compiled successfully ($DistIndex verified)." -ForegroundColor Green
+    } else {
+        Write-Error "Deployment Failed: Frontend build output 'dist\index.html' was not generated!"
+        Exit 1
+    }
+} catch {
+    Write-Error "Deployment Failed: Frontend compilation encountered an exception: $_"
+    Exit 1
+} finally {
+    Pop-Location
+}
+
+# ------------------------------------------------------------------------------
 # STEP 2: Python Environment Validation
 # ------------------------------------------------------------------------------
 Write-Host "`n[+] Step 2: Validating Python Environment..." -ForegroundColor Cyan
