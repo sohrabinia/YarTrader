@@ -1211,7 +1211,7 @@ function MainApp() {
           )}
 
           {/* RESEARCH BLOG */}
-          {(routePath === '/blog' || hash === '#/blog') && (
+          {(routePath === '/blog' || (typeof window !== 'undefined' && window.location.hash === '#/blog')) && (
             <div id="shell-blog">
               <div className="card">
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('nav_blog')}</h2>
@@ -1238,12 +1238,12 @@ function MainApp() {
           )}
 
           {/* USER GUIDE PAGE */}
-          {(routePath === '/guide' || hash === '#/guide') && (
+          {(routePath === '/guide' || (typeof window !== 'undefined' && window.location.hash === '#/guide')) && (
             <GuideView lang={lang} t={t} />
           )}
 
           {/* FAQ PAGE */}
-          {(routePath === '/faq' || hash === '#/faq') && (
+          {(routePath === '/faq' || (typeof window !== 'undefined' && window.location.hash === '#/faq')) && (
             <FaqView lang={lang} t={t} />
           )}
 
