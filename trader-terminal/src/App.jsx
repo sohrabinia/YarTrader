@@ -111,6 +111,12 @@ function MainApp() {
   // Toast Notification state
   const [notif, setNotif] = useState({ show: false, msg: '', type: 'success' });
 
+  // Market Data Intelligence State
+  const [marketCandles, setMarketCandles] = useState([]);
+  const [marketQuote, setMarketQuote] = useState(null);
+  const [marketDataLoading, setMarketDataLoading] = useState(false);
+  const [marketDataError, setMarketDataError] = useState(null);
+
   // Core Data States
   const [markets, setMarkets] = useState([]);
   const [signals, setSignals] = useState([]);

@@ -974,6 +974,60 @@ global_market_session_engine.register_session_interval(
 )
 
 
+
+
+# Initialize canonical Market Data Application Service
+from src.Application.Services.market_data_service import MarketDataService
+global_market_data_service = MarketDataService()
+
+@app.get("/api/market/historical")
+def get_historical_market_data(
+    symbol: str = "XAUUSD",
+    interval: str = "M15",
+    limit: int = 100,
+    token: Optional[str] = Query(None)
+):
+    """
+    Returns normalized historical OHLCV candles for specified symbol and interval.
+    Protected endpoint requiring session token validation.
+    """
+    # Validate session token
+    if token:
+        user = global_auth_service.get_session_user(token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+
+    try:
+        data = global_market_data_service.get_historical_candles(
+            symbol=symbol,
+            interval=interval,
+            limit=limit
+        )
+        return {"status": "Success", "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/market/quote")
+def get_latest_market_quote(
+    symbol: str = "XAUUSD",
+    token: Optional[str] = Query(None)
+):
+    """
+    Returns latest bid/ask/last quote for specified symbol.
+    Protected endpoint requiring session token validation.
+    """
+    if token:
+        user = global_auth_service.get_session_user(token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+
+    try:
+        quote = global_market_data_service.get_latest_quote(symbol=symbol)
+        return {"status": "Success", "data": quote}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.get("/api/market/session-status")
 def get_market_session_status(
     symbol: str = "XAUUSD",

@@ -22,9 +22,78 @@ export default function DashboardView({
   compounding,
   setCompounding,
   runCompoundingSimulation
-}) {
+,
+  marketCandles,
+  marketQuote,
+  marketDataLoading,
+  marketDataError}) {
   return (
     <div id="shell-terminal" className="space-y-6">
+
+      {/* Normalized Market Data / Intelligence Demonstration Card */}
+      <Card className="border-l-4 border-l-[var(--accent)]">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>📊</span> Normalized Market Data Intelligence ({selectedAsset || 'XAUUSD'})
+            </CardTitle>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Canonical provider-independent OHLCV historical feed & real-time quotes.
+            </p>
+          </div>
+          {marketQuote && (
+            <div className="flex gap-3 text-xs font-mono bg-[var(--surface-dark)] px-3 py-1.5 rounded border border-[var(--border)]">
+              <span>BID: <strong className="text-[var(--success)]">{marketQuote.bid}</strong></span>
+              <span>ASK: <strong className="text-[var(--danger)]">{marketQuote.ask}</strong></span>
+              <span>LAST: <strong className="text-[var(--primary)]">{marketQuote.last}</strong></span>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {marketDataLoading ? (
+            <div className="p-6 text-center text-xs text-[var(--text-muted)] animate-pulse">
+              Loading normalized market data feeds...
+            </div>
+          ) : marketDataError ? (
+            <div className="p-4 text-xs text-[var(--danger)] bg-[var(--danger-bg)] rounded border border-[var(--danger)]/30">
+              ⚠️ Market Data Error: {marketDataError}
+            </div>
+          ) : !marketCandles || marketCandles.length === 0 ? (
+            <div className="p-6 text-center text-xs text-[var(--text-muted)]">
+              No market data available for {selectedAsset || 'XAUUSD'}.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs font-mono text-left">
+                <thead>
+                  <tr className="border-b border-[var(--border)] text-[var(--text-muted)] uppercase">
+                    <th className="py-2 px-3">Timestamp (UTC)</th>
+                    <th className="py-2 px-3">Open</th>
+                    <th className="py-2 px-3">High</th>
+                    <th className="py-2 px-3">Low</th>
+                    <th className="py-2 px-3">Close</th>
+                    <th className="py-2 px-3">Volume</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {marketCandles.map((c, idx) => (
+                    <tr key={idx} className="border-b border-[var(--border)]/50 hover:bg-[var(--surface-light)]/30">
+                      <td className="py-1.5 px-3 text-[var(--text-muted)]">{c.timestamp}</td>
+                      <td className="py-1.5 px-3">{c.open}</td>
+                      <td className="py-1.5 px-3 text-[var(--success)]">{c.high}</td>
+                      <td className="py-1.5 px-3 text-[var(--danger)]">{c.low}</td>
+                      <td className="py-1.5 px-3 font-semibold">{c.close}</td>
+                      <td className="py-1.5 px-3 text-[var(--text-muted)]">{c.volume}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
       {/* Command Status Header */}
       <Card className="border-l-4 border-l-[var(--primary)] bg-gradient-to-b from-[var(--surface-light)] to-[var(--surface-dark)]">
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4">
