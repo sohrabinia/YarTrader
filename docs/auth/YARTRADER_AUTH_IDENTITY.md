@@ -41,26 +41,39 @@ JSON File Database (runtime_logs/auth.json)
 
 ---
 
-## 3. Canonical Identity Model
+## 3. Canonical Identity Model & Security Separation
 
-The canonical user identity DTO is structured as:
+The canonical public user identity DTO is strictly separated from internal security credential storage.
 
+### Canonical Public User Identity DTO (Exposed via APIs & Frontend):
 ```json
 {
   "user_id": "usr-8a9d20c",
   "email": "user@yartrader.app",
   "name": "Elite Trader",
   "role": "USER",
+  "tier": "FREE",
   "is_verified": false,
-  "created_at": "2026-09-06T20:00:00Z",
+  "created_at": "2026-09-06T20:00:00Z"
+}
+```
+
+### Internal Credential & Security Persistence Metadata (Never Exposed via DTOs):
+```json
+{
   "password_hash": "pbkdf2_sha256$100000$salt$hash",
-  "tier": "FREE"
+  "password_algo": "pbkdf2_sha256",
+  "iterations": 100000,
+  "salt_bytes": 16,
+  "failed_attempts": 0,
+  "locked_until": null
 }
 ```
 
 * **Canonical User Identifier (`user_id`):** Stable, unique string identifier (`usr-{hex}`).
 * **Normalized Email (`email`):** Unique, lowercased, whitespace-trimmed email address.
 * **Email Verification State (`is_verified`):** Boolean indicating whether email verification challenge has been completed.
+* **Credential Isolation Invariant:** `password_hash` and verification tokens MUST NEVER be returned in public API DTOs or frontend session state.
 
 ---
 
@@ -80,11 +93,13 @@ def normalize_email(email: str) -> str:
 
 ---
 
-## 5. Password Security
+## 5. Password Hashing Security Audit
 
-* **Hashing Standard:** `PBKDF2-SHA256` with 100,000 iterations and 16-byte random hex salts (`secrets.token_hex(16)`).
-* **Format:** `pbkdf2_sha256${iterations}${salt}${derived_key_hex}`
-* **Security Invariants:** Plaintext passwords are never stored, logged, or returned in API DTOs. Constant-time comparison (`hmac.compare_digest`) is enforced during credential verification.
+* **Algorithm:** `PBKDF2-HMAC-SHA256`
+* **Iteration Count:** 100,000 iterations (OWASP/NIST compliant PBKDF2 parameters).
+* **Salt Size:** 16 bytes (32 hex characters) generated via cryptographically secure random source (`secrets.token_hex(16)`).
+* **Comparison Method:** Constant-time string comparison (`hmac.compare_digest`) to prevent timing attacks.
+* **Security Invariants:** Plaintext passwords are never stored, logged, or returned in API DTOs.
 
 ---
 
@@ -123,4 +138,4 @@ def normalize_email(email: str) -> str:
 PHASE 4 = PASS
 ```
 
-**Reasoning:** Auth, identity, email verification, password security, lockout policies, and Telegram authentication helpers have been hardened and documented. Comprehensive unit and integration tests in `tests/YarTrader.Tests/Services/test_auth_identity_phase4.py` verify email normalization, token single-use lifecycle, PBKDF2 hashing, lockout thresholds, and session issuance. Full test suite (1846+ passed) and frontend build verify zero regressions.
+**Reasoning:** Auth, identity, email verification, password security, lockout policies, and Telegram authentication helpers have been hardened, audited, and documented. Canonical user identity DTOs strictly exclude credential hashes. Comprehensive unit and integration tests in `tests/YarTrader.Tests/Services/test_auth_identity_phase4.py` verify email normalization, token single-use lifecycle, PBKDF2 hashing, lockout thresholds, and Telegram authorization. Full test suite (1846+ passed) and frontend build verify zero regressions.
