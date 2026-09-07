@@ -10,6 +10,8 @@ from typing import Dict, Any, Optional, List
 from src.Application.Dashboard.auth_repo import AuthRepository
 from src.Infrastructure.exceptions import ValidationException
 
+CANONICAL_PBKDF2_ITERATIONS = 600000
+
 def normalize_email(email: str) -> str:
     """
     Canonical email normalization rule.
@@ -226,7 +228,7 @@ class LockoutAuditStore:
 
 class AuthService:
     """
-    Handles secure password hashing (PBKDF2-SHA256), OAuth2 account linking,
+    Handles secure password hashing (PBKDF2-SHA256 with 600,000 iterations), OAuth2 account linking,
     email normalization, verification challenges, and role-based session token validation.
     """
     def __init__(
@@ -241,8 +243,8 @@ class AuthService:
         self.verification_service = verification_service or EmailVerificationService()
         self.lock = threading.Lock()
 
-    def hash_password(self, password: str, salt: Optional[str] = None, iterations: int = 100000) -> str:
-        """Standard PBKDF2-SHA256 hashing."""
+    def hash_password(self, password: str, salt: Optional[str] = None, iterations: int = CANONICAL_PBKDF2_ITERATIONS) -> str:
+        """Standard PBKDF2-SHA256 hashing. Default work factor aligned with OWASP guidance (600,000 iterations)."""
         if not password or not isinstance(password, str) or len(password) < 6:
             raise ValidationException("Password must be at least 6 characters in length.")
 
@@ -351,6 +353,16 @@ class AuthService:
         if user and self.verify_password(password, user.get("password_hash", "")):
             # Clear failed attempts persistently
             self.lockout_store.clear_failed_attempts(email_clean)
+
+            # Check if password hash uses an outdated work factor and transparently upgrade it
+            current_hash = user.get("password_hash", "")
+            if current_hash:
+                parts = current_hash.split("$")
+                if len(parts) == 4:
+                    recorded_iterations = int(parts[1])
+                    if recorded_iterations < CANONICAL_PBKDF2_ITERATIONS:
+                        user["password_hash"] = self.hash_password(password)
+                        self.repo.save_db()
 
             event_type = "ADMIN_LOGIN_SUCCESS" if is_admin else "USER_LOGIN_SUCCESS"
             self.lockout_store.log_audit_event(

@@ -2,7 +2,7 @@ import time
 import hmac
 import hashlib
 import pytest
-from src.Application.Dashboard.auth_service import AuthService, normalize_email, EmailVerificationService, LockoutAuditStore
+from src.Application.Dashboard.auth_service import AuthService, normalize_email, EmailVerificationService, LockoutAuditStore, CANONICAL_PBKDF2_ITERATIONS
 from src.Application.Dashboard.auth_repo import AuthRepository
 from src.Application.Services.telegram_auth import verify_telegram_authorization, DEFAULT_TELEGRAM_BOT_TOKEN
 from src.Infrastructure.exceptions import ValidationException
@@ -19,16 +19,46 @@ def test_email_normalization():
         normalize_email("invalid-email-no-at-sign")
 
 def test_password_hashing_and_verification():
-    """Verify PBKDF2-SHA256 password hashing and constant-time verification."""
+    """Verify PBKDF2-SHA256 password hashing with 600,000 iterations and constant-time verification."""
     service = AuthService(repo=AuthRepository(filepath="runtime_logs/test_auth_repo.json"))
     raw_password = "SecurePassword123!"
 
     hashed = service.hash_password(raw_password)
-    assert hashed.startswith("pbkdf2_sha256$100000$")
+    assert f"pbkdf2_sha256${CANONICAL_PBKDF2_ITERATIONS}$" in hashed
     assert raw_password not in hashed  # Plaintext password must never be stored directly
 
     assert service.verify_password(raw_password, hashed) is True
     assert service.verify_password("WrongPassword123!", hashed) is False
+
+def test_legacy_password_hash_transparent_migration(tmp_path):
+    """Verify legacy 100,000-iteration hashes authenticate successfully and transparently rehash to 600,000 iterations."""
+    repo_file = str(tmp_path / "auth_legacy_test.json")
+    repo = AuthRepository(filepath=repo_file)
+    verification_service = EmailVerificationService(filepath=str(tmp_path / "tokens.json"))
+    service = AuthService(repo=repo, verification_service=verification_service)
+
+    # Manually insert legacy 100,000-iteration user hash
+    legacy_email = "legacy@yartrader.app"
+    legacy_password = "LegacyPassword123!"
+    legacy_hash = service.hash_password(legacy_password, iterations=100000)
+    assert "$100000$" in legacy_hash
+
+    user = repo.create_user(email=legacy_email, password_hash=legacy_hash, role="USER", name="Legacy User")
+    user["is_verified"] = True
+    repo.save_db()
+
+    # Verify initial stored hash is legacy 100k
+    stored_before = repo.get_user_by_email(legacy_email)
+    assert "$100000$" in stored_before["password_hash"]
+
+    # Authenticate user successfully
+    auth_user = service.authenticate_credentials(legacy_email, legacy_password)
+    assert auth_user is not None
+    assert auth_user["email"] == legacy_email
+
+    # Verify stored hash has been transparently upgraded to 600,000 iterations
+    stored_after = repo.get_user_by_email(legacy_email)
+    assert f"${CANONICAL_PBKDF2_ITERATIONS}$" in stored_after["password_hash"]
 
 def test_registration_and_unverified_state(tmp_path):
     """Verify user registration sets is_verified=False and returns verification challenge."""
@@ -42,6 +72,7 @@ def test_registration_and_unverified_state(tmp_path):
     assert "verification_token" in res
     assert res["user"]["email"] == "newuser@yartrader.app"
     assert res["user"]["is_verified"] is False
+    assert "password_hash" not in res["user"]  # Public user DTO must NEVER expose password_hash
     assert res["verification_token"].startswith("vkn-")
 
 def test_email_verification_lifecycle(tmp_path):

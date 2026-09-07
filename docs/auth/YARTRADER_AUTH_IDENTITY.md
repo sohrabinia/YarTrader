@@ -61,9 +61,9 @@ The canonical public user identity DTO is strictly separated from internal secur
 ### Internal Credential & Security Persistence Metadata (Never Exposed via DTOs):
 ```json
 {
-  "password_hash": "pbkdf2_sha256$100000$salt$hash",
+  "password_hash": "pbkdf2_sha256$600000$salt$hash",
   "password_algo": "pbkdf2_sha256",
-  "iterations": 100000,
+  "iterations": 600000,
   "salt_bytes": 16,
   "failed_attempts": 0,
   "locked_until": null
@@ -93,12 +93,13 @@ def normalize_email(email: str) -> str:
 
 ---
 
-## 5. Password Hashing Security Audit
+## 5. Password Hashing Security & Work Factor Policy
 
 * **Algorithm:** `PBKDF2-HMAC-SHA256`
-* **Iteration Count:** 100,000 iterations (OWASP/NIST compliant PBKDF2 parameters).
+* **Iteration Count:** 600,000 iterations (aligned with OWASP password storage guidance).
 * **Salt Size:** 16 bytes (32 hex characters) generated via cryptographically secure random source (`secrets.token_hex(16)`).
 * **Comparison Method:** Constant-time string comparison (`hmac.compare_digest`) to prevent timing attacks.
+* **Transparent Rehash-on-Login Migration:** Legacy account hashes using 100,000 iterations are authenticated via their recorded hash iterations and transparently rehashed/upgraded to 600,000 iterations upon successful login.
 * **Security Invariants:** Plaintext passwords are never stored, logged, or returned in API DTOs.
 
 ---
@@ -138,4 +139,4 @@ def normalize_email(email: str) -> str:
 PHASE 4 = PASS
 ```
 
-**Reasoning:** Auth, identity, email verification, password security, lockout policies, and Telegram authentication helpers have been hardened, audited, and documented. Canonical user identity DTOs strictly exclude credential hashes. Comprehensive unit and integration tests in `tests/YarTrader.Tests/Services/test_auth_identity_phase4.py` verify email normalization, token single-use lifecycle, PBKDF2 hashing, lockout thresholds, and Telegram authorization. Full test suite (1846+ passed) and frontend build verify zero regressions.
+**Reasoning:** Auth, identity, email verification, password security (PBKDF2-HMAC-SHA256 with 600,000 iterations aligned with OWASP guidance and transparent legacy rehash migration), lockout policies, and Telegram authentication helpers have been hardened, audited, and documented. Canonical user identity DTOs strictly exclude credential hashes. Comprehensive unit and integration tests in `tests/YarTrader.Tests/Services/test_auth_identity_phase4.py` verify email normalization, token single-use lifecycle, 600k PBKDF2 hashing, lockout thresholds, and Telegram authorization. Full test suite (1846+ passed) and frontend build verify zero regressions.
