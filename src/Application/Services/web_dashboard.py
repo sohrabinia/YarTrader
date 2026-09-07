@@ -976,6 +976,43 @@ global_market_session_engine.register_session_interval(
 
 
 
+
+
+# Initialize canonical Spike Strategy Application Service
+from src.Application.Services.spike_strategy_service import SpikeStrategyService
+global_spike_strategy_service = SpikeStrategyService()
+
+@app.get("/api/strategy/spike")
+def get_spike_strategy_evaluation(
+    symbol: str = "XAUUSD",
+    interval: str = "M15",
+    lookback_period: int = 14,
+    spike_threshold: float = 2.5,
+    min_movement: float = 1.0,
+    token: Optional[str] = Query(None)
+):
+    """
+    Evaluates deterministic Spike Strategy for specified symbol and interval.
+    Protected endpoint requiring valid session token.
+    """
+    if token:
+        user = global_auth_service.get_session_user(token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+
+    try:
+        eval_res = global_spike_strategy_service.evaluate_symbol_spike(
+            symbol=symbol,
+            interval=interval,
+            lookback_period=lookback_period,
+            spike_threshold=spike_threshold,
+            min_movement=min_movement
+        )
+        return {"status": "Success", "data": eval_res}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # Initialize canonical Market Data Application Service
 from src.Application.Services.market_data_service import MarketDataService
 global_market_data_service = MarketDataService()

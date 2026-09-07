@@ -117,6 +117,27 @@ function MainApp() {
   const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [marketDataError, setMarketDataError] = useState(null);
 
+  // Spike Strategy Intelligence State
+  const [spikeResult, setSpikeResult] = useState(null);
+  const [spikeLoading, setSpikeLoading] = useState(false);
+  const [spikeError, setSpikeError] = useState(null);
+
+  const fetchSpikeStrategy = async () => {
+    setSpikeLoading(true);
+    setSpikeError(null);
+    try {
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      const canonicalSymbol = getCanonicalSymbol(selectedAsset);
+      const res = await apiService.get(`/api/strategy/spike?symbol=${canonicalSymbol}&interval=M15&token=${encodeURIComponent(currentToken)}`);
+      setSpikeResult(res?.data || null);
+    } catch (err) {
+      console.warn('Spike strategy fetch error:', err);
+      setSpikeError(err.message || 'Failed to load spike strategy evaluation.');
+    } finally {
+      setSpikeLoading(false);
+    }
+  };
+
   // Core Data States
   const [markets, setMarkets] = useState([]);
   const [signals, setSignals] = useState([]);

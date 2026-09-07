@@ -26,9 +26,77 @@ export default function DashboardView({
   marketCandles,
   marketQuote,
   marketDataLoading,
-  marketDataError}) {
+  marketDataError,
+  spikeResult,
+  spikeLoading,
+  spikeError}) {
   return (
     <div id="shell-terminal" className="space-y-6">
+
+
+      {/* Spike Strategy Demonstration Card */}
+      <Card className="border-l-4 border-l-[var(--primary)]">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>⚡</span> Deterministic Spike Strategy ({selectedAsset || 'XAUUSD'})
+            </CardTitle>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Statistical abnormal range & impulse detection (M15 horizon).
+            </p>
+          </div>
+          {spikeResult && (
+            <div className="flex items-center gap-2">
+              <Badge variant={
+                spikeResult.signal_type === 'SPIKE_UP' ? 'success' :
+                spikeResult.signal_type === 'SPIKE_DOWN' ? 'danger' :
+                spikeResult.signal_type === 'INSUFFICIENT_DATA' ? 'warning' : 'default'
+              }>
+                SIGNAL: {spikeResult.signal_type}
+              </Badge>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {spikeLoading ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">
+              Evaluating spike strategy metrics...
+            </div>
+          ) : spikeError ? (
+            <div className="p-3 text-xs text-[var(--danger)] bg-[var(--danger-bg)] rounded border border-[var(--danger)]/30">
+              ⚠️ Spike Strategy Error: {spikeError}
+            </div>
+          ) : !spikeResult ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+              No strategy result available.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-mono">
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Spike Ratio</div>
+                <div className="text-base font-bold text-[var(--primary)]">{spikeResult.spike_ratio}x</div>
+                <div className="text-[10px] text-[var(--text-muted)]">Threshold: {spikeResult.config.spike_threshold}x</div>
+              </div>
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Candle Body</div>
+                <div className="text-base font-bold">{spikeResult.candle.body}</div>
+                <div className="text-[10px] text-[var(--text-muted)]">Range: {spikeResult.candle.range}</div>
+              </div>
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Volatility MTR</div>
+                <div className="text-base font-bold">{spikeResult.volatility_baseline}</div>
+                <div className="text-[10px] text-[var(--text-muted)]">Lookback: {spikeResult.config.lookback_period} bars</div>
+              </div>
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Evaluation Time</div>
+                <div className="text-xs text-[var(--text-muted)] truncate mt-1">{spikeResult.evaluation_time}</div>
+                <div className="text-[10px] text-[var(--success)] mt-1">No Look-Ahead Bias</div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
 
       {/* Normalized Market Data / Intelligence Demonstration Card */}
       <Card className="border-l-4 border-l-[var(--accent)]">
