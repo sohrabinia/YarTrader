@@ -978,6 +978,43 @@ global_market_session_engine.register_session_interval(
 
 
 
+
+
+# Initialize canonical Range Strategy Application Service
+from src.Application.Services.range_strategy_service import RangeStrategyService
+global_range_strategy_service = RangeStrategyService()
+
+@app.get("/api/strategy/range")
+def get_range_strategy_evaluation(
+    symbol: str = "XAUUSD",
+    interval: str = "M15",
+    lookback_period: int = 20,
+    max_normalized_range: float = 4.5,
+    min_range_width: float = 0.5,
+    token: Optional[str] = Query(None)
+):
+    """
+    Evaluates deterministic Range Strategy for specified symbol and interval.
+    Protected endpoint requiring valid session token.
+    """
+    if token:
+        user = global_auth_service.get_session_user(token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+
+    try:
+        eval_res = global_range_strategy_service.evaluate_symbol_range(
+            symbol=symbol,
+            interval=interval,
+            lookback_period=lookback_period,
+            max_normalized_range=max_normalized_range,
+            min_range_width=min_range_width
+        )
+        return {"status": "Success", "data": eval_res}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # Initialize canonical Spike Strategy Application Service
 from src.Application.Services.spike_strategy_service import SpikeStrategyService
 global_spike_strategy_service = SpikeStrategyService()

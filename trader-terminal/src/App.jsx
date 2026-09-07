@@ -117,6 +117,27 @@ function MainApp() {
   const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [marketDataError, setMarketDataError] = useState(null);
 
+  // Range Strategy Intelligence State
+  const [rangeResult, setRangeResult] = useState(null);
+  const [rangeLoading, setRangeLoading] = useState(false);
+  const [rangeError, setRangeError] = useState(null);
+
+  const fetchRangeStrategy = async () => {
+    setRangeLoading(true);
+    setRangeError(null);
+    try {
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      const canonicalSymbol = getCanonicalSymbol(selectedAsset);
+      const res = await apiService.get(`/api/strategy/range?symbol=${canonicalSymbol}&interval=M15&token=${encodeURIComponent(currentToken)}`);
+      setRangeResult(res?.data || null);
+    } catch (err) {
+      console.warn('Range strategy fetch error:', err);
+      setRangeError(err.message || 'Failed to load range strategy evaluation.');
+    } finally {
+      setRangeLoading(false);
+    }
+  };
+
   // Spike Strategy Intelligence State
   const [spikeResult, setSpikeResult] = useState(null);
   const [spikeLoading, setSpikeLoading] = useState(false);

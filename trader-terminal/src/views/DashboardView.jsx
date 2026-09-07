@@ -29,9 +29,76 @@ export default function DashboardView({
   marketDataError,
   spikeResult,
   spikeLoading,
-  spikeError}) {
+  spikeError,
+  rangeResult,
+  rangeLoading,
+  rangeError}) {
   return (
     <div id="shell-terminal" className="space-y-6">
+
+
+
+      {/* Range Strategy Demonstration Card */}
+      <Card className="border-l-4 border-l-[var(--success)]">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>📐</span> Deterministic Range Strategy ({selectedAsset || 'XAUUSD'})
+            </CardTitle>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Rolling channel width & normalized volatility structure (M15 horizon).
+            </p>
+          </div>
+          {rangeResult && (
+            <div className="flex items-center gap-2">
+              <Badge variant={
+                rangeResult.signal_type === 'RANGE' ? 'success' :
+                rangeResult.signal_type === 'INSUFFICIENT_DATA' ? 'warning' : 'default'
+              }>
+                SIGNAL: {rangeResult.signal_type}
+              </Badge>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {rangeLoading ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">
+              Evaluating range strategy metrics...
+            </div>
+          ) : rangeError ? (
+            <div className="p-3 text-xs text-[var(--danger)] bg-[var(--danger-bg)] rounded border border-[var(--danger)]/30">
+              ⚠️ Range Strategy Error: {rangeError}
+            </div>
+          ) : !rangeResult ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+              No strategy result available.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-mono">
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Normalized Ratio</div>
+                <div className="text-base font-bold text-[var(--success)]">{rangeResult.metrics.normalized_range_ratio}x</div>
+                <div className="text-[10px] text-[var(--text-muted)]">Max Threshold: {rangeResult.config.max_normalized_range}x</div>
+              </div>
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Range Channel</div>
+                <div className="text-base font-bold">{rangeResult.metrics.range_width}</div>
+                <div className="text-[10px] text-[var(--text-muted)]">L: {rangeResult.metrics.rolling_low} | H: {rangeResult.metrics.rolling_high}</div>
+              </div>
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Close Location</div>
+                <div className="text-base font-bold">{rangeResult.metrics.close_position_pct}%</div>
+                <div className="text-[10px] text-[var(--text-muted)]">In Rolling Channel</div>
+              </div>
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Evaluation Time</div>
+                <div className="text-xs text-[var(--text-muted)] truncate mt-1">{rangeResult.evaluation_time}</div>
+                <div className="text-[10px] text-[var(--success)] mt-1">No Look-Ahead Bias</div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
 
       {/* Spike Strategy Demonstration Card */}
