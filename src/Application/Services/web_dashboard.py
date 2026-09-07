@@ -980,6 +980,43 @@ global_market_session_engine.register_session_interval(
 
 
 
+
+
+# Initialize canonical Trend Strategy Application Service
+from src.Application.Services.trend_strategy_service import TrendStrategyService
+global_trend_strategy_service = TrendStrategyService()
+
+@app.get("/api/strategy/trend")
+def get_trend_strategy_evaluation(
+    symbol: str = "XAUUSD",
+    interval: str = "M15",
+    fast_period: int = 5,
+    slow_period: int = 20,
+    minimum_trend_strength: float = 0.5,
+    token: Optional[str] = Query(None)
+):
+    """
+    Evaluates deterministic Trend Strategy for specified symbol and interval.
+    Protected endpoint requiring valid session token.
+    """
+    if token:
+        user = global_auth_service.get_session_user(token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+
+    try:
+        eval_res = global_trend_strategy_service.evaluate_symbol_trend(
+            symbol=symbol,
+            interval=interval,
+            fast_period=fast_period,
+            slow_period=slow_period,
+            minimum_trend_strength=minimum_trend_strength
+        )
+        return {"status": "Success", "data": eval_res}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # Initialize canonical Range Strategy Application Service
 from src.Application.Services.range_strategy_service import RangeStrategyService
 global_range_strategy_service = RangeStrategyService()

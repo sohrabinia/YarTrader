@@ -32,10 +32,78 @@ export default function DashboardView({
   spikeError,
   rangeResult,
   rangeLoading,
-  rangeError}) {
+  rangeError,
+  trendResult,
+  trendLoading,
+  trendError}) {
   return (
     <div id="shell-terminal" className="space-y-6">
 
+
+
+
+      {/* Trend Strategy Demonstration Card */}
+      <Card className="border-l-4 border-l-[var(--primary)]">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>📈</span> Deterministic Trend Strategy ({selectedAsset || 'XAUUSD'})
+            </CardTitle>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Dual SMA Crossover & Volatility-Normalized Trend Strength (M15 horizon).
+            </p>
+          </div>
+          {trendResult && (
+            <div className="flex items-center gap-2">
+              <Badge variant={
+                trendResult.signal_type === 'TREND_UP' ? 'success' :
+                trendResult.signal_type === 'TREND_DOWN' ? 'danger' :
+                trendResult.signal_type === 'INSUFFICIENT_DATA' ? 'warning' : 'default'
+              }>
+                SIGNAL: {trendResult.signal_type}
+              </Badge>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {trendLoading ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">
+              Evaluating trend strategy metrics...
+            </div>
+          ) : trendError ? (
+            <div className="p-3 text-xs text-[var(--danger)] bg-[var(--danger-bg)] rounded border border-[var(--danger)]/30">
+              ⚠️ Trend Strategy Error: {trendError}
+            </div>
+          ) : !trendResult ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+              No strategy result available.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-mono">
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Trend Strength</div>
+                <div className="text-base font-bold text-[var(--primary)]">{trendResult.metrics.normalized_trend_strength}x</div>
+                <div className="text-[10px] text-[var(--text-muted)]">Min Threshold: {trendResult.config.minimum_trend_strength}x</div>
+              </div>
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Trend Spread</div>
+                <div className="text-base font-bold">{trendResult.metrics.trend_spread}</div>
+                <div className="text-[10px] text-[var(--text-muted)]">Fast: {trendResult.metrics.fast_sma} | Slow: {trendResult.metrics.slow_sma}</div>
+              </div>
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Volatility Baseline</div>
+                <div className="text-base font-bold">{trendResult.metrics.volatility_baseline}</div>
+                <div className="text-[10px] text-[var(--text-muted)]">MTR ({trendResult.config.slow_period} bars)</div>
+              </div>
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase">Evaluation Time</div>
+                <div className="text-xs text-[var(--text-muted)] truncate mt-1">{trendResult.evaluation_time}</div>
+                <div className="text-[10px] text-[var(--success)] mt-1">No Look-Ahead Bias</div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
 
       {/* Range Strategy Demonstration Card */}

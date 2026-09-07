@@ -117,6 +117,27 @@ function MainApp() {
   const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [marketDataError, setMarketDataError] = useState(null);
 
+  // Trend Strategy Intelligence State
+  const [trendResult, setTrendResult] = useState(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError, setTrendError] = useState(null);
+
+  const fetchTrendStrategy = async () => {
+    setTrendLoading(true);
+    setTrendError(null);
+    try {
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      const canonicalSymbol = getCanonicalSymbol(selectedAsset);
+      const res = await apiService.get(`/api/strategy/trend?symbol=${canonicalSymbol}&interval=M15&token=${encodeURIComponent(currentToken)}`);
+      setTrendResult(res?.data || null);
+    } catch (err) {
+      console.warn('Trend strategy fetch error:', err);
+      setTrendError(err.message || 'Failed to load trend strategy evaluation.');
+    } finally {
+      setTrendLoading(false);
+    }
+  };
+
   // Range Strategy Intelligence State
   const [rangeResult, setRangeResult] = useState(null);
   const [rangeLoading, setRangeLoading] = useState(false);
