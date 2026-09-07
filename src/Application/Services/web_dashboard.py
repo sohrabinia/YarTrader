@@ -5459,43 +5459,21 @@ class ResetPasswordPayload(BaseModel):
 
 @app.post("/api/auth/register")
 def register_user(payload: RegisterPayload):
-    """SaaS client registration using PBKDF2-SHA256."""
-    repo = global_auth_service.repo
-    email_clean = payload.email.lower()
-    if repo.get_user_by_email(email_clean):
-        raise HTTPException(status_code=400, detail="Account with this email already exists.")
-
-    password_hash = global_auth_service.hash_password(payload.password)
-    user = repo.create_user(email=email_clean, password_hash=password_hash, role="USER", name=payload.name)
-
-    # Generate secure email verification token
-    import secrets
-    import hashlib
-    raw_token = secrets.token_urlsafe(32)
-    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
-    expires_at = time.time() + 86400.0  # 24 hours expiration
-
-    user["verification_token_hash"] = token_hash
-    user["verification_token_expires"] = expires_at
-    repo.users[email_clean] = user
-    repo.save_db()
-
-    # Send verification email
-    from src.Application.Dashboard.auth_service import send_saas_email
-    subject = "Verify Your YarTrader Account"
-    verification_url = f"/api/auth/verify-email?token={raw_token}"
-    body = f"Hello {user['name']},\n\nPlease verify your YarTrader account by clicking the link: {verification_url}"
-    send_saas_email(email_clean, subject, body)
-
-    return {
-        "status": "Success",
-        "message": "User registered successfully. Please check your email to verify your account.",
-        "user": {
-            "email": user["email"],
-            "name": user["name"],
-            "role": user["role"]
+    """SaaS client registration delegating to global_auth_service."""
+    try:
+        reg_res = global_auth_service.register_user(
+            email=payload.email,
+            password=payload.password,
+            name=payload.name
+        )
+        return {
+            "status": "Success",
+            "message": "User registered successfully. Please check your email to verify your account.",
+            "user": reg_res["user"],
+            "verification_token": reg_res.get("verification_token")
         }
-    }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/auth/login")
 def login_user(payload: LoginPayload, request: Request):
@@ -5563,35 +5541,15 @@ def forgot_password_recovery(payload: ForgotPasswordPayload):
 
 @app.get("/api/auth/verify-email")
 def verify_email(token: str):
-    """Verifies a user email using the secure registration token."""
-    import hashlib
-    repo = global_auth_service.repo
+    """Verifies a user email using global_auth_service."""
     raw_token = token.strip()
-    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
-
-    target_user = None
-    for email, user in repo.users.items():
-        if user.get("verification_token_hash") == token_hash:
-            target_user = user
-            break
-
-    if not target_user:
-        raise HTTPException(status_code=400, detail="Invalid or expired verification token.")
-
-    expires = target_user.get("verification_token_expires", 0.0)
-    if time.time() > expires:
-        raise HTTPException(status_code=400, detail="Verification token has expired.")
-
-    target_user["is_verified"] = True
-    target_user["verification_token_hash"] = None
-    target_user["verification_token_expires"] = 0.0
-
-    repo.users[target_user["email"].lower()] = target_user
-    repo.save_db()
-
-    return HTMLResponse(
-        content="<h2>Email Verified Successfully!</h2><p>Your account is now active. You can now login to YarTrader.</p>"
-    )
+    try:
+        global_auth_service.verify_email_account(raw_token)
+        return HTMLResponse(
+            content="<h2>Email Verified Successfully!</h2><p>Your account is now active. You can now login to YarTrader.</p>"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/auth/reset-password")
 def reset_password_endpoint(payload: ResetPasswordPayload):
