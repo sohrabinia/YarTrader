@@ -176,6 +176,26 @@ function MainApp() {
   const [intelligenceLoading, setIntelligenceLoading] = useState(false);
   const [intelligenceError, setIntelligenceError] = useState(null);
 
+  const [decisionContextData, setDecisionContextData] = useState(null);
+  const [decisionContextLoading, setDecisionContextLoading] = useState(false);
+  const [decisionContextError, setDecisionContextError] = useState(null);
+
+  const fetchDecisionContextData = async () => {
+    setDecisionContextLoading(true);
+    setDecisionContextError(null);
+    try {
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      const canonicalSymbol = getCanonicalSymbol(selectedAsset);
+      const res = await apiService.get(`/api/decision-context?symbol=${canonicalSymbol}&interval=M15&strategy=TREND&limit=100&token=${encodeURIComponent(currentToken)}`);
+      setDecisionContextData(res?.data || null);
+    } catch (err) {
+      console.warn('Decision context fetch error:', err);
+      setDecisionContextError(err.message || 'Failed to load decision context summary.');
+    } finally {
+      setDecisionContextLoading(false);
+    }
+  };
+
   const fetchIntelligenceData = async () => {
     setIntelligenceLoading(true);
     setIntelligenceError(null);
@@ -862,6 +882,7 @@ function MainApp() {
     fetchLearningInsight();
     fetchMemoryData();
     fetchIntelligenceData();
+    fetchDecisionContextData();
   };
 
   const fetchLearningMatrix = async () => {

@@ -47,11 +47,92 @@ export default function DashboardView({
   memoryError,
   intelligenceData,
   intelligenceLoading,
-  intelligenceError}) {
+  intelligenceError,
+  decisionContextData,
+  decisionContextLoading,
+  decisionContextError}) {
   return (
     <div id="shell-terminal" className="space-y-6">
 
 
+
+
+      {/* Deterministic Decision Context Foundation Card */}
+      <Card className="border-l-4 border-l-[var(--success)]">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>📋</span> Decision Context Foundation ({selectedAsset || 'XAUUSD'})
+            </CardTitle>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Structured historical context preparation for human or AI consumers (No Buy/Sell signals, predictions, or auto-trading).
+            </p>
+          </div>
+          {decisionContextData && (
+            <div className="flex items-center gap-2">
+              <Badge variant="passed">
+                QUALITY: {decisionContextData.data_quality_state}
+              </Badge>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {decisionContextLoading ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">
+              Compiling decision context summary...
+            </div>
+          ) : decisionContextError ? (
+            <div className="p-3 text-xs text-[var(--danger)] bg-[var(--danger-bg)] rounded border border-[var(--danger)]/30">
+              ⚠️ Decision Context Error: {decisionContextError}
+            </div>
+          ) : !decisionContextData ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+              No decision context data available.
+            </div>
+          ) : (
+            <div className="space-y-4 text-xs font-mono">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Context Status</div>
+                  <div className="text-base font-bold text-[var(--success)]">{decisionContextData.reliability_state}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Reliability Classification</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Data Quality</div>
+                  <div className="text-base font-bold text-[var(--primary)]">{decisionContextData.data_quality_state}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Historical Sample Depth</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Evidence Factors</div>
+                  <div className="text-base font-bold">{decisionContextData.factors?.length || 0}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Explainable Parameters</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Compiled At (UTC)</div>
+                  <div className="text-xs text-[var(--text-muted)] truncate mt-1">{decisionContextData.compiled_at || 'N/A'}</div>
+                  <div className="text-[10px] text-[var(--success)] mt-1">Zero Predictions / Trades</div>
+                </div>
+              </div>
+
+              {decisionContextData.factors && decisionContextData.factors.length > 0 && (
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase mb-2">Explainable Context Evidence Factors</div>
+                  <div className="space-y-1.5">
+                    {decisionContextData.factors.map((f, idx) => (
+                      <div key={idx} className="p-2 bg-[var(--surface-light)]/20 rounded border border-[var(--border)]/50 flex justify-between items-center text-[11px]">
+                        <div>
+                          <span className="font-bold text-[var(--primary)]">{f.factor_name}:</span> {f.explanation}
+                        </div>
+                        <Badge variant="neutral">{f.source}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
 
       {/* Historical Intelligence Foundation Card */}
