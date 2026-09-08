@@ -23,6 +23,7 @@ HISTORY_DIR = "history"
 # Import production logging functions
 from app.core.logging import log_event, log_audit, log_intelligence_decision
 from src.Application.Runtime.runtime_state import central_runtime_state
+from src.Infrastructure.exceptions import ValidationException
 from src.Infrastructure.version import get_application_version_info
 from src.Application.Services.telegram_auth import verify_telegram_authorization
 from src.Application.Dashboard.content_manager import ContentManager
@@ -5868,7 +5869,8 @@ def link_telegram_account(payload: TelegramLinkPayload, request: Request):
 @app.get("/api/blog")
 def list_blog_articles():
     """Lists published long-form algorithmic insights and platform governance research papers."""
-    return global_content_manager.get_blog_articles()
+    articles = global_content_manager.get_blog_articles()
+    return [a for a in articles if a.get("published") is True]
 
 
 @app.get("/api/blog/{article_id}")
@@ -5876,7 +5878,7 @@ def get_blog_article(article_id: str):
     """Retrieves full body content of a specific research paper article."""
     articles = global_content_manager.get_blog_articles()
     for article in articles:
-        if article.get("id") == article_id or article.get("slug") == article_id:
+        if (article.get("id") == article_id or article.get("slug") == article_id) and article.get("published") is True:
             return article
     raise HTTPException(status_code=404, detail="Research article not found.")
 
@@ -5923,11 +5925,15 @@ class AdminContentPayload(BaseModel):
 
 
 @app.post("/api/admin/content")
-def admin_manage_content(payload: AdminContentPayload):
+def admin_manage_content(payload: AdminContentPayload, token: Optional[str] = Query(None)):
     """SRE Admin content publishing endpoint."""
+    check_admin_guard(token)
     if payload.domain not in ("blog", "news", "faq", "guide"):
         raise HTTPException(status_code=400, detail="Invalid content domain.")
-    created = global_content_manager.add_content_item(payload.domain, payload.item)
+    try:
+        created = global_content_manager.add_content_item(payload.domain, payload.item)
+    except ValidationException as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "Success", "domain": payload.domain, "item": created}
 
 

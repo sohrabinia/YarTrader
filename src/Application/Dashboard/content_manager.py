@@ -122,6 +122,28 @@ class ContentManager:
         return self.data.get("guide", [])
 
     def add_content_item(self, domain: str, item: Dict[str, Any]) -> Dict[str, Any]:
+        from src.Infrastructure.exceptions import ValidationException
+
+        # 1. Validate required fields: title and content (for blog, news, guide) or question/answer (for faq)
+        if domain in ("blog", "news", "guide"):
+            title = item.get("title")
+            if not title or not isinstance(title, str) or not title.strip():
+                raise ValidationException("Content item title must be a non-empty string.")
+
+            content = item.get("content")
+            if not content or not isinstance(content, str) or not content.strip():
+                raise ValidationException("Content item content must be a non-empty string.")
+
+        # 2. Slug integrity: enforce unique slug per domain if slug is provided
+        slug = item.get("slug")
+        if slug and isinstance(slug, str) and slug.strip():
+            slug_clean = slug.strip().lower()
+            existing_items = self.data.get(domain, [])
+            for existing in existing_items:
+                existing_slug = existing.get("slug")
+                if existing_slug and isinstance(existing_slug, str) and existing_slug.strip().lower() == slug_clean:
+                    raise ValidationException(f"Duplicate slug '{slug_clean}' in domain '{domain}'.")
+
         if domain not in self.data:
             self.data[domain] = []
         if not item.get("id"):

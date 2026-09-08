@@ -44,19 +44,129 @@ def test_faq_and_guide_endpoints():
     assert res_guide_detail.status_code == 200
     assert res_guide_detail.json()["id"] == guide_id
 
-def test_admin_content_creation():
+def test_admin_content_creation_security_and_draft_protection():
+    import os
+    import time
+    from unittest.mock import patch
+    unique_suffix = int(time.time() * 1000)
+    draft_id = f"draft-test-{unique_suffix}"
+    draft_slug = f"unpublished-draft-article-{unique_suffix}"
+    pub_id = f"pub-test-{unique_suffix}"
+    pub_slug = f"published-article-test-{unique_suffix}"
+
     payload = {
         "domain": "blog",
         "item": {
-            "title": "Test Blog Title",
-            "category": "Testing",
-            "summary": "Short summary",
-            "content": "Full article content"
+            "id": draft_id,
+            "title": "Unpublished Draft Article",
+            "category": "Security Research",
+            "summary": "Draft summary",
+            "content": "Full draft article content",
+            "slug": draft_slug,
+            "published": False
         }
     }
-    res = client.post("/api/admin/content", json=payload)
-    assert res.status_code == 200
-    assert res.json()["status"] == "Success"
+
+    # Anonymous / unauthenticated POST rejected under production mode check
+    with patch.dict(os.environ, {"YARTRADER_ENV": "production"}):
+        res_anon = client.post("/api/admin/content", json=payload)
+        assert res_anon.status_code in (401, 403)
+
+    # Non-admin user session token rejected
+    from src.Application.Dashboard.auth_service import global_auth_service
+    user_token = "tkn-test-regular-user-token"
+    global_auth_service.active_sessions[user_token] = {
+        "email": "regular_user@yartrader.app",
+        "role": "USER",
+        "name": "Regular User"
+    }
+    try:
+        res_user = client.post(f"/api/admin/content?token={user_token}", json=payload)
+        assert res_user.status_code == 403
+    finally:
+        global_auth_service.active_sessions.pop(user_token, None)
+
+    # Authorized Admin session token allowed via create_session()
+    admin_user = {"email": "admin_user@yartrader.app", "role": "ADMIN", "name": "SRE Admin"}
+    admin_token = global_auth_service.create_session(admin_user)
+    try:
+        res_admin = client.post(f"/api/admin/content?token={admin_token}", json=payload)
+        assert res_admin.status_code == 200
+        assert res_admin.json()["status"] == "Success"
+
+        # 2. P1 Draft Protection Tests
+        # Verify unpublished draft article is EXCLUDED from public GET /api/blog listing
+        res_list = client.get("/api/blog")
+        assert res_list.status_code == 200
+        public_articles = res_list.json()
+        assert not any(a.get("id") == draft_id for a in public_articles)
+
+        # Verify direct ID lookup for unpublished draft fails with 404
+        res_id = client.get(f"/api/blog/{draft_id}")
+        assert res_id.status_code == 404
+
+        # Verify direct slug lookup for unpublished draft fails with 404
+        res_slug = client.get(f"/api/blog/{draft_slug}")
+        assert res_slug.status_code == 404
+
+        # 3. Verify Published Article Access
+        published_payload = {
+            "domain": "blog",
+            "item": {
+                "id": pub_id,
+                "title": "Published Article Test",
+                "category": "Public Research",
+                "summary": "Public summary",
+                "content": "Public article body content",
+                "slug": pub_slug,
+                "published": True
+            }
+        }
+        res_pub_post = client.post(f"/api/admin/content?token={admin_token}", json=published_payload)
+        assert res_pub_post.status_code == 200
+
+        res_pub_list = client.get("/api/blog")
+        assert res_pub_list.status_code == 200
+        assert any(a.get("id") == pub_id for a in res_pub_list.json())
+
+        res_pub_id = client.get(f"/api/blog/{pub_id}")
+        assert res_pub_id.status_code == 200
+        assert res_pub_id.json()["id"] == pub_id
+
+        res_pub_slug = client.get(f"/api/blog/{pub_slug}")
+        assert res_pub_slug.status_code == 200
+        assert res_pub_slug.json()["slug"] == pub_slug
+
+        # 4. Strict Publication Semantics Micro-Gate Tests
+        # published=None, missing published, published="true" string
+        for idx, p_val in enumerate([None, "MISSING_KEY", "true"]):
+            p_id = f"mg-test-{idx}-{unique_suffix}"
+            p_slug = f"mg-slug-{idx}-{unique_suffix}"
+            item_payload = {
+                "id": p_id,
+                "title": f"Test Article {idx}",
+                "category": "MicroGate",
+                "summary": "Summary",
+                "content": "Body",
+                "slug": p_slug
+            }
+            if p_val != "MISSING_KEY":
+                item_payload["published"] = p_val
+
+            res_post = client.post(f"/api/admin/content?token={admin_token}", json={"domain": "blog", "item": item_payload})
+            assert res_post.status_code == 200
+
+            # Must be EXCLUDED from public blog list
+            res_list_check = client.get("/api/blog")
+            assert res_list_check.status_code == 200
+            assert not any(a.get("id") == p_id for a in res_list_check.json())
+
+            # Direct ID and slug lookup MUST return HTTP 404
+            assert client.get(f"/api/blog/{p_id}").status_code == 404
+            assert client.get(f"/api/blog/{p_slug}").status_code == 404
+
+    finally:
+        global_auth_service.active_sessions.pop(admin_token, None)
 
 def test_user_ticket_lifecycle():
     from src.Application.Dashboard.ticket_manager import TicketManager
