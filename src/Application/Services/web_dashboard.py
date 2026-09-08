@@ -7,7 +7,7 @@ import subprocess
 import platform
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Query
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Query, Header
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -22,6 +22,7 @@ HISTORY_DIR = "history"
 
 # Import production logging functions
 from app.core.logging import log_event, log_audit, log_intelligence_decision
+from src.Infrastructure.exceptions import ValidationException
 from src.Application.Runtime.runtime_state import central_runtime_state
 from src.Infrastructure.version import get_application_version_info
 from src.Application.Services.telegram_auth import verify_telegram_authorization
@@ -982,9 +983,99 @@ global_market_session_engine.register_session_interval(
 
 
 
-# Initialize canonical Trend Strategy Application Service
+# Initialize canonical Backtest, Trend, Range, and Spike Application Services
 from src.Application.Services.trend_strategy_service import TrendStrategyService
+from src.Application.Services.backtest_service import BacktestService
+from src.Application.Services.learning_service import LearningService
 global_trend_strategy_service = TrendStrategyService()
+global_backtest_service = BacktestService()
+global_learning_service = LearningService()
+
+@app.get("/api/learning")
+def run_learning_endpoint(
+    symbol: str = "XAUUSD",
+    interval: str = "M15",
+    strategy: str = "TREND",
+    limit: int = 100,
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = Query(None)
+):
+    """
+    Protected REST endpoint retrieving deterministic statistical historical Learning Insights.
+    Requires session authentication token.
+    """
+    token_str = token
+    if not token_str and authorization:
+        if authorization.startswith("Bearer "):
+            token_str = authorization[7:].strip()
+        else:
+            token_str = authorization.strip()
+
+    if not token_str:
+        raise HTTPException(status_code=401, detail="Unauthorized session or missing token")
+
+    session = global_auth_service.validate_session(token_str)
+    if not session:
+        raise HTTPException(status_code=401, detail="Unauthorized session or invalid token")
+
+    try:
+        res = global_learning_service.analyze_historical_learning(
+            symbol=symbol,
+            interval=interval,
+            strategy=strategy,
+            limit=limit
+        )
+        return {
+            "status": "Success",
+            "data": res
+        }
+    except ValidationException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Learning execution error: {str(e)}")
+
+@app.get("/api/backtest")
+def run_backtest_endpoint(
+    symbol: str = "XAUUSD",
+    interval: str = "M15",
+    strategy: str = "TREND",
+    limit: int = 100,
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = Query(None)
+):
+    """
+    Protected REST endpoint executing deterministic walk-forward historical backtesting simulation.
+    Requires session authentication token.
+    """
+    token_str = token
+    if not token_str and authorization:
+        if authorization.startswith("Bearer "):
+            token_str = authorization[7:].strip()
+        else:
+            token_str = authorization.strip()
+
+    if not token_str:
+        raise HTTPException(status_code=401, detail="Unauthorized session or missing token")
+
+    session = global_auth_service.validate_session(token_str)
+    if not session:
+        raise HTTPException(status_code=401, detail="Unauthorized session or invalid token")
+
+    try:
+        res = global_backtest_service.run_historical_backtest(
+            symbol=symbol,
+            interval=interval,
+            strategy=strategy,
+            limit=limit
+        )
+        return {
+            "status": "Success",
+            "data": res
+        }
+    except ValidationException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Backtest execution error: {str(e)}")
 
 @app.get("/api/strategy/trend")
 def get_trend_strategy_evaluation(

@@ -35,11 +35,165 @@ export default function DashboardView({
   rangeError,
   trendResult,
   trendLoading,
-  trendError}) {
+  trendError,
+  backtestResult,
+  backtestLoading,
+  backtestError,
+  learningInsight,
+  learningLoading,
+  learningError}) {
   return (
     <div id="shell-terminal" className="space-y-6">
 
 
+
+
+      {/* Deterministic Statistical Learning Analysis Card */}
+      <Card className="border-l-4 border-l-[var(--primary)]">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>🧠</span> Historical Learning Analysis ({selectedAsset || 'XAUUSD'})
+            </CardTitle>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Deterministic statistical signal frequencies & sample sufficiency aggregation (No AI/ML or Strategy Modification).
+            </p>
+          </div>
+          {learningInsight && (
+            <div className="flex items-center gap-2">
+              <Badge variant={learningInsight.sample_sufficiency ? 'success' : 'warning'}>
+                STATUS: {learningInsight.sample_sufficiency ? 'VALID_SAMPLE' : 'INSUFFICIENT_DATA'}
+              </Badge>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {learningLoading ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">
+              Aggregating historical learning observations...
+            </div>
+          ) : learningError ? (
+            <div className="p-3 text-xs text-[var(--danger)] bg-[var(--danger-bg)] rounded border border-[var(--danger)]/30">
+              ⚠️ Learning Error: {learningError}
+            </div>
+          ) : !learningInsight ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+              No historical learning insights available.
+            </div>
+          ) : (
+            <div className="space-y-4 text-xs font-mono">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Observations</div>
+                  <div className="text-base font-bold text-[var(--primary)]">{learningInsight.observation_count}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Threshold: {learningInsight.config.min_sample_threshold} bars</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Active Signal Ratio</div>
+                  <div className="text-base font-bold text-[var(--success)]">{(learningInsight.reliability_summary.active_signal_ratio * 100).toFixed(1)}%</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Count: {learningInsight.reliability_summary.active_signal_count}</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Strategy Type</div>
+                  <div className="text-base font-bold">{learningInsight.strategy_type}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">{learningInsight.symbol} ({learningInsight.interval})</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Analyzed At (UTC)</div>
+                  <div className="text-xs text-[var(--text-muted)] truncate mt-1">{learningInsight.analyzed_at}</div>
+                  <div className="text-[10px] text-[var(--success)] mt-1">Strict t ≤ T Cutoff</div>
+                </div>
+              </div>
+
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase mb-2">Signal Distribution & Frequencies</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {Object.entries(learningInsight.signal_counts || {}).map(([sig, count]) => (
+                    <div key={sig} className="p-2 bg-[var(--surface-light)]/20 rounded border border-[var(--border)]/50">
+                      <div className="text-[var(--text-muted)] text-[10px]">{sig}</div>
+                      <div className="text-xs font-bold mt-0.5">{count} ({((learningInsight.signal_frequencies[sig] || 0) * 100).toFixed(1)}%)</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+
+      {/* Walk-Forward Historical Backtest Simulation Card */}
+      <Card className="border-l-4 border-l-[var(--success)]">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>⏳</span> Walk-Forward Backtest Simulation ({selectedAsset || 'XAUUSD'})
+            </CardTitle>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Historical simulation with strict t ≤ T candle slicing (Zero look-ahead bias).
+            </p>
+          </div>
+          {backtestResult && (
+            <div className="flex items-center gap-2">
+              <Badge variant="success">
+                VALID EVALUATIONS: {backtestResult.summary.valid_evaluations} / {backtestResult.summary.total_evaluations}
+              </Badge>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {backtestLoading ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">
+              Executing walk-forward backtest simulation...
+            </div>
+          ) : backtestError ? (
+            <div className="p-3 text-xs text-[var(--danger)] bg-[var(--danger-bg)] rounded border border-[var(--danger)]/30">
+              ⚠️ Backtest Error: {backtestError}
+            </div>
+          ) : !backtestResult ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+              No backtest simulation result available.
+            </div>
+          ) : (
+            <div className="space-y-4 text-xs font-mono">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Evaluations</div>
+                  <div className="text-base font-bold text-[var(--success)]">{backtestResult.summary.total_evaluations}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Valid: {backtestResult.summary.valid_evaluations}</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Strategy Type</div>
+                  <div className="text-base font-bold">{backtestResult.strategy_type}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">{backtestResult.symbol} ({backtestResult.interval})</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Min History Bars</div>
+                  <div className="text-base font-bold">{backtestResult.config.min_history_bars} bars</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Cold Start Protection</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Executed At (UTC)</div>
+                  <div className="text-xs text-[var(--text-muted)] truncate mt-1">{backtestResult.executed_at}</div>
+                  <div className="text-[10px] text-[var(--success)] mt-1">Zero Live Execution</div>
+                </div>
+              </div>
+
+              <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                <div className="text-[var(--text-muted)] text-[10px] uppercase mb-2">Signal Distribution Counts</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {Object.entries(backtestResult.summary.signal_counts || {}).map(([sig, count]) => (
+                    <div key={sig} className="p-2 bg-[var(--surface-light)]/20 rounded border border-[var(--border)]/50">
+                      <div className="text-[var(--text-muted)] text-[10px]">{sig}</div>
+                      <div className="text-xs font-bold mt-0.5">{count} bars</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
 
       {/* Trend Strategy Demonstration Card */}

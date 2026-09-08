@@ -159,6 +159,31 @@ function MainApp() {
     }
   };
 
+  // Backtest & Learning Intelligence State
+  const [backtestResult, setBacktestResult] = useState(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestError, setBacktestError] = useState(null);
+
+  const [learningInsight, setLearningInsight] = useState(null);
+  const [learningLoading, setLearningLoading] = useState(false);
+  const [learningError, setLearningError] = useState(null);
+
+  const fetchLearningInsight = async () => {
+    setLearningLoading(true);
+    setLearningError(null);
+    try {
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      const canonicalSymbol = getCanonicalSymbol(selectedAsset);
+      const res = await apiService.get(`/api/learning?symbol=${canonicalSymbol}&interval=M15&strategy=TREND&limit=100&token=${encodeURIComponent(currentToken)}`);
+      setLearningInsight(res?.data || null);
+    } catch (err) {
+      console.warn('Learning insight fetch error:', err);
+      setLearningError(err.message || 'Failed to load historical learning insights.');
+    } finally {
+      setLearningLoading(false);
+    }
+  };
+
   // Spike Strategy Intelligence State
   const [spikeResult, setSpikeResult] = useState(null);
   const [spikeLoading, setSpikeLoading] = useState(false);
@@ -791,6 +816,10 @@ function MainApp() {
       console.error(err);
       setSignals([]);
     }
+    fetchTrendStrategy();
+    fetchRangeStrategy();
+    fetchSpikeStrategy();
+    fetchLearningInsight();
   };
 
   const fetchLearningMatrix = async () => {
