@@ -29,6 +29,7 @@ import FaqView from './views/FaqView.jsx';
 
 // Import Global Functional Command Palette Component
 import CommandPalette from './components/common/CommandPalette.jsx';
+import ArticleReader from './components/ArticleReader.jsx';
 
 function getRouteFromLocation() {
   const path = window.location.pathname || '/';
@@ -194,6 +195,7 @@ function MainApp() {
   });
 
   const [blogArticles, setBlogArticles] = useState([]);
+  const [selectedArticleId, setSelectedArticleId] = useState(null);
   const [publicMetrics, setPublicMetrics] = useState({
     activeMarketsCount: '30',
     historicalSimulatedTrades: '125.4k+',
@@ -1275,23 +1277,54 @@ function MainApp() {
                 <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('nav_blog')}</h2>
                 <div className="blog-grid">
                   {blogArticles.map((art, idx) => (
-                    <div key={idx} className="status-item" style={{ textAlign: 'inherit', padding: '20px', borderLeft: '4px solid var(--primary)' }}>
+                    <div
+                      key={idx}
+                      className="status-item"
+                      style={{ textAlign: 'inherit', padding: '20px', borderLeft: '4px solid var(--primary)', cursor: 'pointer', transition: 'transform 0.15s ease' }}
+                      onClick={() => setSelectedArticleId(art.id || art.slug || art.article_id)}
+                      tabIndex="0"
+                      role="button"
+                      onKeyDown={(e) => e.key === 'Enter' && setSelectedArticleId(art.id || art.slug || art.article_id)}
+                    >
                       <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>{art.title}</h3>
                       <div style={{ fontSize: '0.8em', color: 'var(--text-muted)', marginBottom: '10px' }}>
-                        {art.date} | By {art.author}
+                        {art.date} | By {art.author} {art.category && `| 🏷️ ${art.category}`}
                       </div>
                       <p style={{ fontSize: '0.9em', lineHeight: '1.6' }}>{art.summary}</p>
-                      <div style={{ marginTop: '15px' }}>
-                        {art.tags?.map((tag, tIdx) => (
-                          <span key={tIdx} style={{ fontSize: '0.75em', padding: '4px 8px', background: 'rgba(79, 70, 229, 0.1)', color: 'var(--primary)', borderRadius: '4px', marginRight: '5px' }}>
-                            #{tag}
-                          </span>
-                        ))}
+                      <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          {art.tags?.map((tag, tIdx) => (
+                            <span key={tIdx} style={{ fontSize: '0.75em', padding: '4px 8px', background: 'rgba(79, 70, 229, 0.1)', color: 'var(--primary)', borderRadius: '4px', marginRight: '5px' }}>
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 12px', fontSize: '0.8rem', cursor: 'pointer' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedArticleId(art.id || art.slug || art.article_id);
+                          }}
+                        >
+                          {lang === 'fa' ? 'مطالعه مقاله ←' : 'Read Article →'}
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
+
+              {/* Dedicated Article Reader Modal View */}
+              {selectedArticleId && (
+                <ArticleReader
+                  articleId={selectedArticleId}
+                  onClose={() => setSelectedArticleId(null)}
+                  lang={lang}
+                  t={t}
+                />
+              )}
             </div>
           )}
 
