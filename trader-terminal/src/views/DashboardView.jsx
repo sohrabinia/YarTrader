@@ -50,11 +50,91 @@ export default function DashboardView({
   intelligenceError,
   decisionContextData,
   decisionContextLoading,
-  decisionContextError}) {
+  decisionContextError,
+  decisionIntelligenceData,
+  decisionIntelligenceLoading,
+  decisionIntelligenceError}) {
   return (
     <div id="shell-terminal" className="space-y-6">
 
 
+
+
+      {/* Deterministic Decision Intelligence Foundation Card */}
+      <Card className="border-l-4 border-l-[var(--primary)]">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>🎯</span> Decision Intelligence Foundation ({selectedAsset || 'XAUUSD'})
+            </CardTitle>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Sample depth & data quality intelligence summary (No AI/LLM models, neural networks, or predictions).
+            </p>
+          </div>
+          {decisionIntelligenceData && (
+            <div className="flex items-center gap-2">
+              <Badge variant={decisionIntelligenceData.decision_readiness_state === 'INTELLIGENCE_READY' ? 'success' : 'warning'}>
+                READINESS: {decisionIntelligenceData.decision_readiness_state}
+              </Badge>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {decisionIntelligenceLoading ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">
+              Compiling decision intelligence metrics...
+            </div>
+          ) : decisionIntelligenceError ? (
+            <div className="p-3 text-xs text-[var(--danger)] bg-[var(--danger-bg)] rounded border border-[var(--danger)]/30">
+              ⚠️ Decision Intelligence Error: {decisionIntelligenceError}
+            </div>
+          ) : !decisionIntelligenceData ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+              No decision intelligence data available.
+            </div>
+          ) : (
+            <div className="space-y-4 text-xs font-mono">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Readiness State</div>
+                  <div className="text-base font-bold text-[var(--success)]">{decisionIntelligenceData.decision_readiness_state}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Context Stability</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Sample Sufficiency</div>
+                  <div className="text-base font-bold text-[var(--primary)]">{((decisionIntelligenceData.context_sufficiency_score || 0) * 100).toFixed(0)}%</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">30-Bar Baseline Score</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Factor Quality</div>
+                  <div className="text-base font-bold">{decisionIntelligenceData.evidence_factor_quality}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Evidence Depth</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Compiled At (UTC)</div>
+                  <div className="text-xs text-[var(--text-muted)] truncate mt-1">{decisionIntelligenceData.compiled_at || 'N/A'}</div>
+                  <div className="text-[10px] text-[var(--success)] mt-1">Pure Statistical Math</div>
+                </div>
+              </div>
+
+              {decisionIntelligenceData.metrics && decisionIntelligenceData.metrics.length > 0 && (
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase mb-2">Explainable Intelligence Metrics</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    {decisionIntelligenceData.metrics.map((m, idx) => (
+                      <div key={idx} className="p-2 bg-[var(--surface-light)]/20 rounded border border-[var(--border)]/50 text-[11px]">
+                        <div className="font-bold text-[var(--primary)]">{m.metric_name}</div>
+                        <div className="text-[10px] text-[var(--text-muted)] mt-0.5">{m.explanation}</div>
+                        <Badge variant="neutral" className="mt-1">{m.category}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
 
       {/* Deterministic Decision Context Foundation Card */}
