@@ -7,7 +7,7 @@ import subprocess
 import platform
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Query, Header
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Query, Depends
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -22,7 +22,6 @@ HISTORY_DIR = "history"
 
 # Import production logging functions
 from app.core.logging import log_event, log_audit, log_intelligence_decision
-from src.Infrastructure.exceptions import ValidationException
 from src.Application.Runtime.runtime_state import central_runtime_state
 from src.Infrastructure.version import get_application_version_info
 from src.Application.Services.telegram_auth import verify_telegram_authorization
@@ -973,493 +972,6 @@ global_market_session_engine.register_session_interval(
         source=CalendarSourcePrecedence.LIVE_BROKER_MT5
     )
 )
-
-
-
-
-
-
-
-
-
-
-# Initialize canonical Backtest, Trend, Range, and Spike Application Services
-from src.Application.Services.trend_strategy_service import TrendStrategyService
-from src.Application.Services.backtest_service import BacktestService
-from src.Application.Services.learning_service import LearningService
-from src.Application.Services.memory_service import MemoryService
-from src.Application.Services.intelligence_service import IntelligenceService
-from src.Application.Services.decision_context_service import DecisionContextService
-from src.Application.Services.decision_intelligence_service import DecisionIntelligenceService
-from src.Application.Services.decision_governance_service import DecisionGovernanceService
-global_trend_strategy_service = TrendStrategyService()
-global_backtest_service = BacktestService()
-global_learning_service = LearningService()
-global_memory_service = MemoryService()
-global_intelligence_service = IntelligenceService()
-global_decision_context_service = DecisionContextService()
-global_decision_intelligence_service = DecisionIntelligenceService()
-global_decision_governance_service = DecisionGovernanceService()
-
-@app.get("/api/decision-governance")
-def get_decision_governance_endpoint(
-    symbol: str = "XAUUSD",
-    interval: str = "M15",
-    strategy: str = "TREND",
-    limit: int = 100,
-    authorization: Optional[str] = Header(None),
-    token: Optional[str] = Query(None)
-):
-    """
-    Protected REST endpoint retrieving deterministic GovernanceResult objects.
-    Requires session authentication token.
-    """
-    token_str = token
-    if not token_str and authorization:
-        if authorization.startswith("Bearer "):
-            token_str = authorization[7:].strip()
-        else:
-            token_str = authorization.strip()
-
-    if not token_str:
-        raise HTTPException(status_code=401, detail="Unauthorized session or missing token")
-
-    session = global_auth_service.validate_session(token_str)
-    if not session:
-        raise HTTPException(status_code=401, detail="Unauthorized session or invalid token")
-
-    try:
-        res = global_decision_governance_service.evaluate_decision_governance(
-            symbol=symbol,
-            interval=interval,
-            strategy=strategy,
-            limit=limit
-        )
-        return {
-            "status": "Success",
-            "data": res
-        }
-    except ValidationException as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Decision governance evaluation error: {str(e)}")
-
-@app.get("/api/decision-intelligence")
-def get_decision_intelligence_endpoint(
-    symbol: str = "XAUUSD",
-    interval: str = "M15",
-    strategy: str = "TREND",
-    limit: int = 100,
-    authorization: Optional[str] = Header(None),
-    token: Optional[str] = Query(None)
-):
-    """
-    Protected REST endpoint retrieving deterministic DecisionIntelligenceSummary objects.
-    Requires session authentication token.
-    """
-    token_str = token
-    if not token_str and authorization:
-        if authorization.startswith("Bearer "):
-            token_str = authorization[7:].strip()
-        else:
-            token_str = authorization.strip()
-
-    if not token_str:
-        raise HTTPException(status_code=401, detail="Unauthorized session or missing token")
-
-    session = global_auth_service.validate_session(token_str)
-    if not session:
-        raise HTTPException(status_code=401, detail="Unauthorized session or invalid token")
-
-    try:
-        res = global_decision_intelligence_service.get_decision_intelligence_summary(
-            symbol=symbol,
-            interval=interval,
-            strategy=strategy,
-            limit=limit
-        )
-        return {
-            "status": "Success",
-            "data": res
-        }
-    except ValidationException as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Decision intelligence retrieval error: {str(e)}")
-
-@app.get("/api/decision-context")
-def get_decision_context_endpoint(
-    symbol: str = "XAUUSD",
-    interval: str = "M15",
-    strategy: str = "TREND",
-    limit: int = 100,
-    authorization: Optional[str] = Header(None),
-    token: Optional[str] = Query(None)
-):
-    """
-    Protected REST endpoint retrieving deterministic DecisionContextSummary objects.
-    Requires session authentication token.
-    """
-    token_str = token
-    if not token_str and authorization:
-        if authorization.startswith("Bearer "):
-            token_str = authorization[7:].strip()
-        else:
-            token_str = authorization.strip()
-
-    if not token_str:
-        raise HTTPException(status_code=401, detail="Unauthorized session or missing token")
-
-    session = global_auth_service.validate_session(token_str)
-    if not session:
-        raise HTTPException(status_code=401, detail="Unauthorized session or invalid token")
-
-    try:
-        res = global_decision_context_service.get_decision_context_summary(
-            symbol=symbol,
-            interval=interval,
-            strategy=strategy,
-            limit=limit
-        )
-        return {
-            "status": "Success",
-            "data": res
-        }
-    except ValidationException as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Decision context retrieval error: {str(e)}")
-
-@app.get("/api/intelligence")
-def get_intelligence_endpoint(
-    symbol: str = "XAUUSD",
-    interval: str = "M15",
-    strategy: str = "TREND",
-    limit: int = 100,
-    authorization: Optional[str] = Header(None),
-    token: Optional[str] = Query(None)
-):
-    """
-    Protected REST endpoint retrieving deterministic statistical Intelligence Foundation summaries.
-    Requires session authentication token.
-    """
-    token_str = token
-    if not token_str and authorization:
-        if authorization.startswith("Bearer "):
-            token_str = authorization[7:].strip()
-        else:
-            token_str = authorization.strip()
-
-    if not token_str:
-        raise HTTPException(status_code=401, detail="Unauthorized session or missing token")
-
-    session = global_auth_service.validate_session(token_str)
-    if not session:
-        raise HTTPException(status_code=401, detail="Unauthorized session or invalid token")
-
-    try:
-        res = global_intelligence_service.get_historical_intelligence_summary(
-            symbol=symbol,
-            interval=interval,
-            strategy=strategy,
-            limit=limit
-        )
-        return {
-            "status": "Success",
-            "data": res
-        }
-    except ValidationException as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Intelligence retrieval error: {str(e)}")
-
-@app.get("/api/memory")
-def get_memory_endpoint(
-    symbol: Optional[str] = Query(None),
-    strategy: Optional[str] = Query(None),
-    start_time: Optional[str] = Query(None),
-    end_time: Optional[str] = Query(None),
-    authorization: Optional[str] = Header(None),
-    token: Optional[str] = Query(None)
-):
-    """
-    Protected read-only REST endpoint retrieving structured historical MemoryRecords.
-    Requires session authentication token.
-    """
-    token_str = token
-    if not token_str and authorization:
-        if authorization.startswith("Bearer "):
-            token_str = authorization[7:].strip()
-        else:
-            token_str = authorization.strip()
-
-    if not token_str:
-        raise HTTPException(status_code=401, detail="Unauthorized session or missing token")
-
-    session = global_auth_service.validate_session(token_str)
-    if not session:
-        raise HTTPException(status_code=401, detail="Unauthorized session or invalid token")
-
-    try:
-        # Seed an initial record for demonstration if store is empty
-        if global_memory_service.store.count() == 0:
-            global_memory_service.record_learning_insight(
-                symbol=symbol or "XAUUSD",
-                strategy=strategy or "TREND"
-            )
-
-        res = global_memory_service.get_historical_memory(
-            symbol=symbol,
-            strategy_type=strategy,
-            start_time=start_time,
-            end_time=end_time
-        )
-        return {
-            "status": "Success",
-            "data": res
-        }
-    except ValidationException as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Memory retrieval error: {str(e)}")
-
-@app.get("/api/learning")
-def run_learning_endpoint(
-    symbol: str = "XAUUSD",
-    interval: str = "M15",
-    strategy: str = "TREND",
-    limit: int = 100,
-    authorization: Optional[str] = Header(None),
-    token: Optional[str] = Query(None)
-):
-    """
-    Protected REST endpoint retrieving deterministic statistical historical Learning Insights.
-    Requires session authentication token.
-    """
-    token_str = token
-    if not token_str and authorization:
-        if authorization.startswith("Bearer "):
-            token_str = authorization[7:].strip()
-        else:
-            token_str = authorization.strip()
-
-    if not token_str:
-        raise HTTPException(status_code=401, detail="Unauthorized session or missing token")
-
-    session = global_auth_service.validate_session(token_str)
-    if not session:
-        raise HTTPException(status_code=401, detail="Unauthorized session or invalid token")
-
-    try:
-        res = global_learning_service.analyze_historical_learning(
-            symbol=symbol,
-            interval=interval,
-            strategy=strategy,
-            limit=limit
-        )
-        return {
-            "status": "Success",
-            "data": res
-        }
-    except ValidationException as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Learning execution error: {str(e)}")
-
-@app.get("/api/backtest")
-def run_backtest_endpoint(
-    symbol: str = "XAUUSD",
-    interval: str = "M15",
-    strategy: str = "TREND",
-    limit: int = 100,
-    authorization: Optional[str] = Header(None),
-    token: Optional[str] = Query(None)
-):
-    """
-    Protected REST endpoint executing deterministic walk-forward historical backtesting simulation.
-    Requires session authentication token.
-    """
-    token_str = token
-    if not token_str and authorization:
-        if authorization.startswith("Bearer "):
-            token_str = authorization[7:].strip()
-        else:
-            token_str = authorization.strip()
-
-    if not token_str:
-        raise HTTPException(status_code=401, detail="Unauthorized session or missing token")
-
-    session = global_auth_service.validate_session(token_str)
-    if not session:
-        raise HTTPException(status_code=401, detail="Unauthorized session or invalid token")
-
-    try:
-        res = global_backtest_service.run_historical_backtest(
-            symbol=symbol,
-            interval=interval,
-            strategy=strategy,
-            limit=limit
-        )
-        return {
-            "status": "Success",
-            "data": res
-        }
-    except ValidationException as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Backtest execution error: {str(e)}")
-
-@app.get("/api/strategy/trend")
-def get_trend_strategy_evaluation(
-    symbol: str = "XAUUSD",
-    interval: str = "M15",
-    fast_period: int = 5,
-    slow_period: int = 20,
-    minimum_trend_strength: float = 0.5,
-    token: Optional[str] = Query(None)
-):
-    """
-    Evaluates deterministic Trend Strategy for specified symbol and interval.
-    Protected endpoint requiring valid session token.
-    """
-    if token:
-        user = global_auth_service.get_session_user(token)
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
-
-    try:
-        eval_res = global_trend_strategy_service.evaluate_symbol_trend(
-            symbol=symbol,
-            interval=interval,
-            fast_period=fast_period,
-            slow_period=slow_period,
-            minimum_trend_strength=minimum_trend_strength
-        )
-        return {"status": "Success", "data": eval_res}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-# Initialize canonical Range Strategy Application Service
-from src.Application.Services.range_strategy_service import RangeStrategyService
-global_range_strategy_service = RangeStrategyService()
-
-@app.get("/api/strategy/range")
-def get_range_strategy_evaluation(
-    symbol: str = "XAUUSD",
-    interval: str = "M15",
-    lookback_period: int = 20,
-    max_normalized_range: float = 4.5,
-    min_range_width: float = 0.5,
-    token: Optional[str] = Query(None)
-):
-    """
-    Evaluates deterministic Range Strategy for specified symbol and interval.
-    Protected endpoint requiring valid session token.
-    """
-    if token:
-        user = global_auth_service.get_session_user(token)
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
-
-    try:
-        eval_res = global_range_strategy_service.evaluate_symbol_range(
-            symbol=symbol,
-            interval=interval,
-            lookback_period=lookback_period,
-            max_normalized_range=max_normalized_range,
-            min_range_width=min_range_width
-        )
-        return {"status": "Success", "data": eval_res}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-# Initialize canonical Spike Strategy Application Service
-from src.Application.Services.spike_strategy_service import SpikeStrategyService
-global_spike_strategy_service = SpikeStrategyService()
-
-@app.get("/api/strategy/spike")
-def get_spike_strategy_evaluation(
-    symbol: str = "XAUUSD",
-    interval: str = "M15",
-    lookback_period: int = 14,
-    spike_threshold: float = 2.5,
-    min_movement: float = 1.0,
-    token: Optional[str] = Query(None)
-):
-    """
-    Evaluates deterministic Spike Strategy for specified symbol and interval.
-    Protected endpoint requiring valid session token.
-    """
-    if token:
-        user = global_auth_service.get_session_user(token)
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
-
-    try:
-        eval_res = global_spike_strategy_service.evaluate_symbol_spike(
-            symbol=symbol,
-            interval=interval,
-            lookback_period=lookback_period,
-            spike_threshold=spike_threshold,
-            min_movement=min_movement
-        )
-        return {"status": "Success", "data": eval_res}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-# Initialize canonical Market Data Application Service
-from src.Application.Services.market_data_service import MarketDataService
-global_market_data_service = MarketDataService()
-
-@app.get("/api/market/historical")
-def get_historical_market_data(
-    symbol: str = "XAUUSD",
-    interval: str = "M15",
-    limit: int = 100,
-    token: Optional[str] = Query(None)
-):
-    """
-    Returns normalized historical OHLCV candles for specified symbol and interval.
-    Protected endpoint requiring session token validation.
-    """
-    # Validate session token
-    if token:
-        user = global_auth_service.get_session_user(token)
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
-
-    try:
-        data = global_market_data_service.get_historical_candles(
-            symbol=symbol,
-            interval=interval,
-            limit=limit
-        )
-        return {"status": "Success", "data": data}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-@app.get("/api/market/quote")
-def get_latest_market_quote(
-    symbol: str = "XAUUSD",
-    token: Optional[str] = Query(None)
-):
-    """
-    Returns latest bid/ask/last quote for specified symbol.
-    Protected endpoint requiring session token validation.
-    """
-    if token:
-        user = global_auth_service.get_session_user(token)
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid or expired session token.")
-
-    try:
-        quote = global_market_data_service.get_latest_quote(symbol=symbol)
-        return {"status": "Success", "data": quote}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/market/session-status")
@@ -5947,21 +5459,43 @@ class ResetPasswordPayload(BaseModel):
 
 @app.post("/api/auth/register")
 def register_user(payload: RegisterPayload):
-    """SaaS client registration delegating to global_auth_service."""
-    try:
-        reg_res = global_auth_service.register_user(
-            email=payload.email,
-            password=payload.password,
-            name=payload.name
-        )
-        return {
-            "status": "Success",
-            "message": "User registered successfully. Please check your email to verify your account.",
-            "user": reg_res["user"],
-            "verification_token": reg_res.get("verification_token")
+    """SaaS client registration using PBKDF2-SHA256."""
+    repo = global_auth_service.repo
+    email_clean = payload.email.lower()
+    if repo.get_user_by_email(email_clean):
+        raise HTTPException(status_code=400, detail="Account with this email already exists.")
+
+    password_hash = global_auth_service.hash_password(payload.password)
+    user = repo.create_user(email=email_clean, password_hash=password_hash, role="USER", name=payload.name)
+
+    # Generate secure email verification token
+    import secrets
+    import hashlib
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+    expires_at = time.time() + 86400.0  # 24 hours expiration
+
+    user["verification_token_hash"] = token_hash
+    user["verification_token_expires"] = expires_at
+    repo.users[email_clean] = user
+    repo.save_db()
+
+    # Send verification email
+    from src.Application.Dashboard.auth_service import send_saas_email
+    subject = "Verify Your YarTrader Account"
+    verification_url = f"/api/auth/verify-email?token={raw_token}"
+    body = f"Hello {user['name']},\n\nPlease verify your YarTrader account by clicking the link: {verification_url}"
+    send_saas_email(email_clean, subject, body)
+
+    return {
+        "status": "Success",
+        "message": "User registered successfully. Please check your email to verify your account.",
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"]
         }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    }
 
 @app.post("/api/auth/login")
 def login_user(payload: LoginPayload, request: Request):
@@ -6029,15 +5563,35 @@ def forgot_password_recovery(payload: ForgotPasswordPayload):
 
 @app.get("/api/auth/verify-email")
 def verify_email(token: str):
-    """Verifies a user email using global_auth_service."""
+    """Verifies a user email using the secure registration token."""
+    import hashlib
+    repo = global_auth_service.repo
     raw_token = token.strip()
-    try:
-        global_auth_service.verify_email_account(raw_token)
-        return HTMLResponse(
-            content="<h2>Email Verified Successfully!</h2><p>Your account is now active. You can now login to YarTrader.</p>"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+
+    target_user = None
+    for email, user in repo.users.items():
+        if user.get("verification_token_hash") == token_hash:
+            target_user = user
+            break
+
+    if not target_user:
+        raise HTTPException(status_code=400, detail="Invalid or expired verification token.")
+
+    expires = target_user.get("verification_token_expires", 0.0)
+    if time.time() > expires:
+        raise HTTPException(status_code=400, detail="Verification token has expired.")
+
+    target_user["is_verified"] = True
+    target_user["verification_token_hash"] = None
+    target_user["verification_token_expires"] = 0.0
+
+    repo.users[target_user["email"].lower()] = target_user
+    repo.save_db()
+
+    return HTMLResponse(
+        content="<h2>Email Verified Successfully!</h2><p>Your account is now active. You can now login to YarTrader.</p>"
+    )
 
 @app.post("/api/auth/reset-password")
 def reset_password_endpoint(payload: ResetPasswordPayload):
@@ -6450,27 +6004,34 @@ class ChatPrompt(BaseModel):
     message: str
 
 @app.post("/api/chat/assistant")
-def chatbot_assistant_explain(payload: ChatPrompt, lang: str = "fa"):
+def chatbot_assistant_explain(
+    payload: ChatPrompt,
+    lang: str = "fa",
+    request: Request = None
+):
     """
     Floating AI Support Assistant chatbot response handler.
-    Directly queries DecisionExplainer and MarketMemorySystem for live contextual explanations.
+    Delegates to SupportAIService for bounded, grounded explanations.
     """
-    msg = payload.message.lower()
+    from src.Application.Services.support_ai_service import SupportAIService
+    service = SupportAIService()
 
-    # Context-aware semantic routing
-    if "چرا" in msg or "why" in msg or "open" in msg:
-        ans = global_decision_explainer.explain_why_open_trade(lang=lang)
-    elif "یاد" in msg or "learn" in msg or "cognitive" in msg:
-        ans = global_decision_explainer.explain_what_learned(lang=lang)
-    elif "اشتباه" in msg or "mistake" in msg or "fail" in msg:
-        ans = global_decision_explainer.explain_mistake(lang=lang)
-    elif "معامله نکرد" in msg or "not trade" in msg or "why didn" in msg:
-        ans = global_decision_explainer.explain_why_no_trade(lang=lang)
-    else:
-        ans = global_decision_explainer.explain_what_not_known(lang=lang)
+    user_ctx = None
+    if request:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            if token in global_auth_service.active_sessions:
+                sess_data = global_auth_service.active_sessions[token]
+                user_ctx = {
+                    "authenticated": True,
+                    "email": sess_data.get("email"),
+                    "tier": sess_data.get("tier"),
+                    "balance": sess_data.get("balance")
+                }
 
-    return {
-        "response": ans,
-        "status": "YarTrader Cognitive AI Active",
-        "timestamp": datetime.now().isoformat()
-    }
+    return service.process_chat_message(
+        message=payload.message,
+        lang=lang,
+        user_context=user_ctx
+    )
