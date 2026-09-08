@@ -172,6 +172,26 @@ function MainApp() {
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memoryError, setMemoryError] = useState(null);
 
+  const [intelligenceData, setIntelligenceData] = useState(null);
+  const [intelligenceLoading, setIntelligenceLoading] = useState(false);
+  const [intelligenceError, setIntelligenceError] = useState(null);
+
+  const fetchIntelligenceData = async () => {
+    setIntelligenceLoading(true);
+    setIntelligenceError(null);
+    try {
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      const canonicalSymbol = getCanonicalSymbol(selectedAsset);
+      const res = await apiService.get(`/api/intelligence?symbol=${canonicalSymbol}&interval=M15&strategy=TREND&limit=100&token=${encodeURIComponent(currentToken)}`);
+      setIntelligenceData(res?.data || null);
+    } catch (err) {
+      console.warn('Intelligence data fetch error:', err);
+      setIntelligenceError(err.message || 'Failed to load historical intelligence summary.');
+    } finally {
+      setIntelligenceLoading(false);
+    }
+  };
+
   const fetchMemoryData = async () => {
     setMemoryLoading(true);
     setMemoryError(null);
@@ -841,6 +861,7 @@ function MainApp() {
     fetchSpikeStrategy();
     fetchLearningInsight();
     fetchMemoryData();
+    fetchIntelligenceData();
   };
 
   const fetchLearningMatrix = async () => {

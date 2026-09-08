@@ -44,11 +44,91 @@ export default function DashboardView({
   learningError,
   memoryData,
   memoryLoading,
-  memoryError}) {
+  memoryError,
+  intelligenceData,
+  intelligenceLoading,
+  intelligenceError}) {
   return (
     <div id="shell-terminal" className="space-y-6">
 
 
+
+
+      {/* Historical Intelligence Foundation Card */}
+      <Card className="border-l-4 border-l-[var(--primary)]">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>🧠</span> Deterministic Intelligence Foundation ({selectedAsset || 'XAUUSD'})
+            </CardTitle>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Statistical context aggregation from Learning & Memory outputs (No AI/LLM/ML models, neural networks, or predictions).
+            </p>
+          </div>
+          {intelligenceData && (
+            <div className="flex items-center gap-2">
+              <Badge variant={intelligenceData.sample_sufficiency_status === 'VALID_SAMPLE' ? 'success' : 'warning'}>
+                SAMPLE STATUS: {intelligenceData.sample_sufficiency_status}
+              </Badge>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {intelligenceLoading ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">
+              Compiling historical intelligence summary...
+            </div>
+          ) : intelligenceError ? (
+            <div className="p-3 text-xs text-[var(--danger)] bg-[var(--danger-bg)] rounded border border-[var(--danger)]/30">
+              ⚠️ Intelligence Error: {intelligenceError}
+            </div>
+          ) : !intelligenceData ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+              No intelligence foundation data available.
+            </div>
+          ) : (
+            <div className="space-y-4 text-xs font-mono">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Context Observations</div>
+                  <div className="text-base font-bold text-[var(--primary)]">{intelligenceData.historical_context_count}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Memory Records: {intelligenceData.memory_records_count}</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Active Signals</div>
+                  <div className="text-base font-bold text-[var(--success)]">{intelligenceData.context?.active_signals_count || 0}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Active Strategy Signals</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Sample Confidence</div>
+                  <div className="text-base font-bold text-[var(--primary)]">{((intelligenceData.statistical_confidence_score || 0) * 100).toFixed(0)}%</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Sample Size Score (Not Prediction)</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Compiled At (UTC)</div>
+                  <div className="text-xs text-[var(--text-muted)] truncate mt-1">{intelligenceData.compiled_at || 'N/A'}</div>
+                  <div className="text-[10px] text-[var(--success)] mt-1">Read-Only Pure Math</div>
+                </div>
+              </div>
+
+              {intelligenceData.signal_summaries && intelligenceData.signal_summaries.length > 0 && (
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase mb-2">Signal Distribution Summaries</div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {intelligenceData.signal_summaries.map((s) => (
+                      <div key={s.signal_name} className="p-2 bg-[var(--surface-light)]/20 rounded border border-[var(--border)]/50">
+                        <div className="text-[var(--text-muted)] text-[10px]">{s.signal_name}</div>
+                        <div className="text-xs font-bold mt-0.5">{s.historical_count} ({((s.frequency_ratio || 0) * 100).toFixed(1)}%)</div>
+                        <div className="text-[9px] text-[var(--primary)] mt-1">{s.sample_confidence_state}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
 
       {/* Historical Memory Foundation Card */}
