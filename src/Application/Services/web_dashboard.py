@@ -987,9 +987,61 @@ global_market_session_engine.register_session_interval(
 from src.Application.Services.trend_strategy_service import TrendStrategyService
 from src.Application.Services.backtest_service import BacktestService
 from src.Application.Services.learning_service import LearningService
+from src.Application.Services.memory_service import MemoryService
 global_trend_strategy_service = TrendStrategyService()
 global_backtest_service = BacktestService()
 global_learning_service = LearningService()
+global_memory_service = MemoryService()
+
+@app.get("/api/memory")
+def get_memory_endpoint(
+    symbol: Optional[str] = Query(None),
+    strategy: Optional[str] = Query(None),
+    start_time: Optional[str] = Query(None),
+    end_time: Optional[str] = Query(None),
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = Query(None)
+):
+    """
+    Protected read-only REST endpoint retrieving structured historical MemoryRecords.
+    Requires session authentication token.
+    """
+    token_str = token
+    if not token_str and authorization:
+        if authorization.startswith("Bearer "):
+            token_str = authorization[7:].strip()
+        else:
+            token_str = authorization.strip()
+
+    if not token_str:
+        raise HTTPException(status_code=401, detail="Unauthorized session or missing token")
+
+    session = global_auth_service.validate_session(token_str)
+    if not session:
+        raise HTTPException(status_code=401, detail="Unauthorized session or invalid token")
+
+    try:
+        # Seed an initial record for demonstration if store is empty
+        if global_memory_service.store.count() == 0:
+            global_memory_service.record_learning_insight(
+                symbol=symbol or "XAUUSD",
+                strategy=strategy or "TREND"
+            )
+
+        res = global_memory_service.get_historical_memory(
+            symbol=symbol,
+            strategy_type=strategy,
+            start_time=start_time,
+            end_time=end_time
+        )
+        return {
+            "status": "Success",
+            "data": res
+        }
+    except ValidationException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Memory retrieval error: {str(e)}")
 
 @app.get("/api/learning")
 def run_learning_endpoint(

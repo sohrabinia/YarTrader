@@ -41,11 +41,88 @@ export default function DashboardView({
   backtestError,
   learningInsight,
   learningLoading,
-  learningError}) {
+  learningError,
+  memoryData,
+  memoryLoading,
+  memoryError}) {
   return (
     <div id="shell-terminal" className="space-y-6">
 
 
+
+
+      {/* Historical Memory Foundation Card */}
+      <Card className="border-l-4 border-l-[var(--accent)]">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>🏛️</span> Historical Memory Foundation ({selectedAsset || 'XAUUSD'})
+            </CardTitle>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Structured historical knowledge storage derived from Phase 11 Learning Insights (No AI Agents or Vector DB).
+            </p>
+          </div>
+          {memoryData && (
+            <div className="flex items-center gap-2">
+              <Badge variant="passed">
+                RECORDS: {memoryData.total_records} STORED
+              </Badge>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {memoryLoading ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">
+              Retrieving historical memory records...
+            </div>
+          ) : memoryError ? (
+            <div className="p-3 text-xs text-[var(--danger)] bg-[var(--danger-bg)] rounded border border-[var(--danger)]/30">
+              ⚠️ Memory Error: {memoryError}
+            </div>
+          ) : !memoryData ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+              No historical memory records available.
+            </div>
+          ) : (
+            <div className="space-y-4 text-xs font-mono">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Stored Records</div>
+                  <div className="text-base font-bold text-[var(--accent)]">{memoryData.total_records}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Phase 12 In-Memory Store</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Latest Timestamp</div>
+                  <div className="text-xs text-[var(--text-muted)] truncate mt-1">{memoryData.summary?.latest_timestamp || 'N/A'}</div>
+                  <div className="text-[10px] text-[var(--success)] mt-1">UTC Timezone</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Strategies Tracked</div>
+                  <div className="text-base font-bold">{Object.keys(memoryData.summary?.strategy_distribution || {}).length || 1}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Phase 7-9 Coverage</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Symbols Tracked</div>
+                  <div className="text-base font-bold">{Object.keys(memoryData.summary?.symbol_distribution || {}).length || 1}</div>
+                  <div className="text-[10px] text-[var(--success)] mt-1">Read-Only Store</div>
+                </div>
+              </div>
+
+              {memoryData.records && memoryData.records.length > 0 && (
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase mb-2">Latest Knowledge Record Details</div>
+                  <div className="p-2 bg-[var(--surface-light)]/20 rounded border border-[var(--border)]/50 space-y-1 text-[11px]">
+                    <div><strong>Record ID:</strong> {memoryData.records[0].id}</div>
+                    <div><strong>Observation Type:</strong> {memoryData.records[0].observation_type}</div>
+                    <div><strong>Confidence Score:</strong> {(memoryData.records[0].confidence * 100).toFixed(1)}%</div>
+                    <div><strong>Source Phase:</strong> {memoryData.records[0].source_phase}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
 
       {/* Deterministic Statistical Learning Analysis Card */}

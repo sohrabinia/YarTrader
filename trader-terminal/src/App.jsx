@@ -168,6 +168,26 @@ function MainApp() {
   const [learningLoading, setLearningLoading] = useState(false);
   const [learningError, setLearningError] = useState(null);
 
+  const [memoryData, setMemoryData] = useState(null);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryError, setMemoryError] = useState(null);
+
+  const fetchMemoryData = async () => {
+    setMemoryLoading(true);
+    setMemoryError(null);
+    try {
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      const canonicalSymbol = getCanonicalSymbol(selectedAsset);
+      const res = await apiService.get(`/api/memory?symbol=${canonicalSymbol}&strategy=TREND&token=${encodeURIComponent(currentToken)}`);
+      setMemoryData(res?.data || null);
+    } catch (err) {
+      console.warn('Memory data fetch error:', err);
+      setMemoryError(err.message || 'Failed to load historical memory records.');
+    } finally {
+      setMemoryLoading(false);
+    }
+  };
+
   const fetchLearningInsight = async () => {
     setLearningLoading(true);
     setLearningError(null);
@@ -820,6 +840,7 @@ function MainApp() {
     fetchRangeStrategy();
     fetchSpikeStrategy();
     fetchLearningInsight();
+    fetchMemoryData();
   };
 
   const fetchLearningMatrix = async () => {
