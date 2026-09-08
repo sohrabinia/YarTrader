@@ -991,6 +991,7 @@ from src.Application.Services.memory_service import MemoryService
 from src.Application.Services.intelligence_service import IntelligenceService
 from src.Application.Services.decision_context_service import DecisionContextService
 from src.Application.Services.decision_intelligence_service import DecisionIntelligenceService
+from src.Application.Services.decision_governance_service import DecisionGovernanceService
 global_trend_strategy_service = TrendStrategyService()
 global_backtest_service = BacktestService()
 global_learning_service = LearningService()
@@ -998,6 +999,50 @@ global_memory_service = MemoryService()
 global_intelligence_service = IntelligenceService()
 global_decision_context_service = DecisionContextService()
 global_decision_intelligence_service = DecisionIntelligenceService()
+global_decision_governance_service = DecisionGovernanceService()
+
+@app.get("/api/decision-governance")
+def get_decision_governance_endpoint(
+    symbol: str = "XAUUSD",
+    interval: str = "M15",
+    strategy: str = "TREND",
+    limit: int = 100,
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = Query(None)
+):
+    """
+    Protected REST endpoint retrieving deterministic GovernanceResult objects.
+    Requires session authentication token.
+    """
+    token_str = token
+    if not token_str and authorization:
+        if authorization.startswith("Bearer "):
+            token_str = authorization[7:].strip()
+        else:
+            token_str = authorization.strip()
+
+    if not token_str:
+        raise HTTPException(status_code=401, detail="Unauthorized session or missing token")
+
+    session = global_auth_service.validate_session(token_str)
+    if not session:
+        raise HTTPException(status_code=401, detail="Unauthorized session or invalid token")
+
+    try:
+        res = global_decision_governance_service.evaluate_decision_governance(
+            symbol=symbol,
+            interval=interval,
+            strategy=strategy,
+            limit=limit
+        )
+        return {
+            "status": "Success",
+            "data": res
+        }
+    except ValidationException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Decision governance evaluation error: {str(e)}")
 
 @app.get("/api/decision-intelligence")
 def get_decision_intelligence_endpoint(

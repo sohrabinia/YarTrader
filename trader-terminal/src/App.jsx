@@ -184,6 +184,26 @@ function MainApp() {
   const [decisionIntelligenceLoading, setDecisionIntelligenceLoading] = useState(false);
   const [decisionIntelligenceError, setDecisionIntelligenceError] = useState(null);
 
+  const [decisionGovernanceData, setDecisionGovernanceData] = useState(null);
+  const [decisionGovernanceLoading, setDecisionGovernanceLoading] = useState(false);
+  const [decisionGovernanceError, setDecisionGovernanceError] = useState(null);
+
+  const fetchDecisionGovernanceData = async () => {
+    setDecisionGovernanceLoading(true);
+    setDecisionGovernanceError(null);
+    try {
+      const currentToken = localStorage.getItem('yartrader_token') || token || '';
+      const canonicalSymbol = getCanonicalSymbol(selectedAsset);
+      const res = await apiService.get(`/api/decision-governance?symbol=${canonicalSymbol}&interval=M15&strategy=TREND&limit=100&token=${encodeURIComponent(currentToken)}`);
+      setDecisionGovernanceData(res?.data || null);
+    } catch (err) {
+      console.warn('Decision governance fetch error:', err);
+      setDecisionGovernanceError(err.message || 'Failed to load decision governance evaluation.');
+    } finally {
+      setDecisionGovernanceLoading(false);
+    }
+  };
+
   const fetchDecisionIntelligenceData = async () => {
     setDecisionIntelligenceLoading(true);
     setDecisionIntelligenceError(null);
@@ -904,6 +924,7 @@ function MainApp() {
     fetchIntelligenceData();
     fetchDecisionContextData();
     fetchDecisionIntelligenceData();
+    fetchDecisionGovernanceData();
   };
 
   const fetchLearningMatrix = async () => {

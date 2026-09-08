@@ -53,11 +53,92 @@ export default function DashboardView({
   decisionContextError,
   decisionIntelligenceData,
   decisionIntelligenceLoading,
-  decisionIntelligenceError}) {
+  decisionIntelligenceError,
+  decisionGovernanceData,
+  decisionGovernanceLoading,
+  decisionGovernanceError}) {
   return (
     <div id="shell-terminal" className="space-y-6">
 
 
+
+
+      {/* Deterministic Decision Governance Foundation Card */}
+      <Card className="border-l-4 border-l-[var(--success)]">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>🛡️</span> Decision Governance Foundation ({selectedAsset || 'XAUUSD'})
+            </CardTitle>
+            <p className="text-xs text-[var(--text-muted)] mt-1">
+              Sample depth, data quality, & context stability validation checks (No Buy/Sell signals, trading execution, or AI models).
+            </p>
+          </div>
+          {decisionGovernanceData && (
+            <div className="flex items-center gap-2">
+              <Badge variant={decisionGovernanceData.governance_state === 'GOVERNANCE_APPROVED' ? 'success' : 'danger'}>
+                GOVERNANCE: {decisionGovernanceData.governance_state}
+              </Badge>
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          {decisionGovernanceLoading ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">
+              Evaluating decision governance rules...
+            </div>
+          ) : decisionGovernanceError ? (
+            <div className="p-3 text-xs text-[var(--danger)] bg-[var(--danger-bg)] rounded border border-[var(--danger)]/30">
+              ⚠️ Decision Governance Error: {decisionGovernanceError}
+            </div>
+          ) : !decisionGovernanceData ? (
+            <div className="p-4 text-center text-xs text-[var(--text-muted)]">
+              No decision governance evaluation data available.
+            </div>
+          ) : (
+            <div className="space-y-4 text-xs font-mono">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Governance State</div>
+                  <div className="text-base font-bold text-[var(--success)]">{decisionGovernanceData.governance_state}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Rule Validation Status</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Evidence Quality</div>
+                  <div className="text-base font-bold text-[var(--primary)]">{decisionGovernanceData.evidence_quality}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Sample Quality Grade</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Rule Checks Passed</div>
+                  <div className="text-base font-bold">{decisionGovernanceData.checks?.filter(c => c.passed).length || 0} / {decisionGovernanceData.checks?.length || 0}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Deterministic Rules</div>
+                </div>
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase">Compiled At (UTC)</div>
+                  <div className="text-xs text-[var(--text-muted)] truncate mt-1">{decisionGovernanceData.compiled_at || 'N/A'}</div>
+                  <div className="text-[10px] text-[var(--success)] mt-1">Zero Orders / Broker Calls</div>
+                </div>
+              </div>
+
+              {decisionGovernanceData.checks && decisionGovernanceData.checks.length > 0 && (
+                <div className="bg-[var(--surface-dark)] p-3 rounded border border-[var(--border)]">
+                  <div className="text-[var(--text-muted)] text-[10px] uppercase mb-2">Governance Validation Checks</div>
+                  <div className="space-y-1.5">
+                    {decisionGovernanceData.checks.map((c, idx) => (
+                      <div key={idx} className="p-2 bg-[var(--surface-light)]/20 rounded border border-[var(--border)]/50 flex justify-between items-center text-[11px]">
+                        <div>
+                          <span className="font-bold text-[var(--primary)]">{c.rule_id} ({c.rule_name}):</span> {c.message}
+                        </div>
+                        <Badge variant={c.passed ? 'success' : 'danger'}>{c.passed ? 'PASSED' : 'FAILED'}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
 
       {/* Deterministic Decision Intelligence Foundation Card */}
