@@ -266,6 +266,92 @@ class TestContentMarketingPhase15(unittest.TestCase):
         with self.assertRaises(ValidationException):
             self.manager.update_content_item("blog", created["id"], {"published": None})
 
+    def test_24_dynamic_sitemap_xml_validity_and_base_routes(self) -> None:
+        import xml.etree.ElementTree as ET
+        res = self.client.get("/sitemap.xml")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("application/xml", res.headers.get("content-type", ""))
+
+        # Parse XML tree to verify structural validity
+        root = ET.fromstring(res.text)
+        sitemap_ns = "http://www.sitemaps.org/schemas/sitemap/0.9"
+        locs = [loc.text.strip() for loc in root.findall(f".//{{{sitemap_ns}}}loc") if loc.text]
+
+        # Verify base routes are present
+        self.assertTrue(any("/pricing" in loc for loc in locs))
+        self.assertTrue(any("/guide" in loc for loc in locs))
+        self.assertTrue(any("/faq" in loc for loc in locs))
+
+    def test_25_dynamic_sitemap_includes_published_articles_and_excludes_drafts(self) -> None:
+        import xml.etree.ElementTree as ET
+        import time
+
+        pub_slug = f"sitemap-pub-{int(time.time() * 1000)}"
+        draft_slug = f"sitemap-draft-{int(time.time() * 1000)}"
+
+        pub_article = {"title": "Sitemap Published", "content": "Body", "slug": pub_slug, "published": True}
+        draft_article = {"title": "Sitemap Draft", "content": "Body", "slug": draft_slug, "published": False}
+
+        self.client.post(f"/api/admin/content?token={self.admin_token}", json={"domain": "blog", "item": pub_article})
+        self.client.post(f"/api/admin/content?token={self.admin_token}", json={"domain": "blog", "item": draft_article})
+
+        res = self.client.get("/sitemap.xml")
+        self.assertEqual(res.status_code, 200)
+
+        root = ET.fromstring(res.text)
+        sitemap_ns = "http://www.sitemaps.org/schemas/sitemap/0.9"
+        locs = [loc.text.strip() for loc in root.findall(f".//{{{sitemap_ns}}}loc") if loc.text]
+
+        # Published article appears across locales
+        self.assertTrue(any(f"/fa/blog/{pub_slug}" in loc for loc in locs))
+        self.assertTrue(any(f"/en/blog/{pub_slug}" in loc for loc in locs))
+
+        # Draft article does NOT appear
+        self.assertFalse(any(draft_slug in loc for loc in locs))
+
+    def test_26_dynamic_sitemap_excludes_non_boolean_publication_states(self) -> None:
+        import xml.etree.ElementTree as ET
+        import time
+
+        fake_slug = f"sitemap-fake-{int(time.time() * 1000)}"
+        fake_article = {"title": "Fake Published String", "content": "Body", "slug": fake_slug, "published": "true"}
+
+        # Add item directly with string published state
+        from src.Application.Services.web_dashboard import global_content_manager
+        global_content_manager.data["blog"].append(fake_article)
+
+        try:
+            res = self.client.get("/sitemap.xml")
+            self.assertEqual(res.status_code, 200)
+
+            root = ET.fromstring(res.text)
+            sitemap_ns = "http://www.sitemaps.org/schemas/sitemap/0.9"
+            locs = [loc.text.strip() for loc in root.findall(f".//{{{sitemap_ns}}}loc") if loc.text]
+
+            # Non-boolean "true" string publication state is excluded
+            self.assertFalse(any(fake_slug in loc for loc in locs))
+        finally:
+            global_content_manager.data["blog"] = [a for a in global_content_manager.data["blog"] if a.get("slug") != fake_slug]
+
+    def test_27_dynamic_sitemap_escapes_xml_special_characters(self) -> None:
+        import xml.etree.ElementTree as ET
+        import time
+
+        special_slug = f"sitemap-special-slug-{int(time.time() * 1000)}"
+        special_article = {"title": "Special & Title <Test>", "content": "Body", "slug": special_slug, "published": True}
+
+        self.client.post(f"/api/admin/content?token={self.admin_token}", json={"domain": "blog", "item": special_article})
+
+        res = self.client.get("/sitemap.xml")
+        self.assertEqual(res.status_code, 200)
+
+        # Ensure returned text parses cleanly as valid XML without syntax errors
+        root = ET.fromstring(res.text)
+        sitemap_ns = "http://www.sitemaps.org/schemas/sitemap/0.9"
+        locs = [loc.text.strip() for loc in root.findall(f".//{{{sitemap_ns}}}loc") if loc.text]
+
+        self.assertTrue(any(special_slug in loc for loc in locs))
+
 
 if __name__ == "__main__":
     unittest.main()

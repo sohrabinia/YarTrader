@@ -1022,17 +1022,84 @@ def get_market_session_status(
 # ==============================================================================
 # 1. SEO & ROBOTS / SITEMAP ENDPOINTS
 # ==============================================================================
+import xml.etree.ElementTree as ET
+
 @app.api_route("/sitemap.xml", methods=["GET", "HEAD"])
 def get_sitemap_xml():
-    """Serves production sitemap.xml with application/xml media type."""
+    """Serves production sitemap.xml dynamically appending published blog article URLs."""
     dist_sitemap = "trader-terminal/dist/sitemap.xml"
     public_sitemap = "trader-terminal/public/sitemap.xml"
     target_path = dist_sitemap if os.path.exists(dist_sitemap) else public_sitemap
-    if os.path.exists(target_path):
+
+    if not os.path.exists(target_path):
+        raise HTTPException(status_code=404, detail="Sitemap not found")
+
+    try:
+        sitemap_ns = "http://www.sitemaps.org/schemas/sitemap/0.9"
+        xhtml_ns = "http://www.w3.org/1999/xhtml"
+        ET.register_namespace("", sitemap_ns)
+        ET.register_namespace("xhtml", xhtml_ns)
+
+        tree = ET.parse(target_path)
+        root = tree.getroot()
+
+        existing_locs = set()
+        for url_node in root.findall(f"{{{sitemap_ns}}}url"):
+            loc_node = url_node.find(f"{{{sitemap_ns}}}loc")
+            if loc_node is not None and loc_node.text:
+                existing_locs.add(loc_node.text.strip())
+
+        articles = global_content_manager.get_blog_articles()
+        locales = ["fa", "en", "tr", "ar"]
+
+        for article in articles:
+            if article.get("published") is True:
+                raw_slug = article.get("slug") or article.get("id")
+                if not raw_slug or not isinstance(raw_slug, str) or not raw_slug.strip():
+                    continue
+                clean_slug = raw_slug.strip()
+
+                for lang in locales:
+                    article_url = f"https://yartrader.com/{lang}/blog/{clean_slug}"
+                    if article_url in existing_locs:
+                        continue
+                    existing_locs.add(article_url)
+
+                    url_node = ET.SubElement(root, f"{{{sitemap_ns}}}url")
+                    loc_elem = ET.SubElement(url_node, f"{{{sitemap_ns}}}loc")
+                    loc_elem.text = article_url
+
+                    pub_date = article.get("published_at") or article.get("date")
+                    if pub_date and isinstance(pub_date, str) and pub_date.strip():
+                        lastmod_elem = ET.SubElement(url_node, f"{{{sitemap_ns}}}lastmod")
+                        lastmod_elem.text = pub_date.strip().split("T")[0]
+
+                    changefreq_elem = ET.SubElement(url_node, f"{{{sitemap_ns}}}changefreq")
+                    changefreq_elem.text = "daily"
+
+                    priority_elem = ET.SubElement(url_node, f"{{{sitemap_ns}}}priority")
+                    priority_elem.text = "0.8"
+
+                    for alt_lang in locales:
+                        alt_url = f"https://yartrader.com/{alt_lang}/blog/{clean_slug}"
+                        ET.SubElement(url_node, f"{{{xhtml_ns}}}link", {
+                            "rel": "alternate",
+                            "hreflang": alt_lang,
+                            "href": alt_url
+                        })
+                    ET.SubElement(url_node, f"{{{xhtml_ns}}}link", {
+                        "rel": "alternate",
+                        "hreflang": "x-default",
+                        "href": f"https://yartrader.com/en/blog/{clean_slug}"
+                    })
+
+        xml_bytes = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+        return Response(content=xml_bytes, media_type="application/xml")
+    except Exception as e:
+        logger.error(f"Error generating dynamic sitemap: {e}")
         with open(target_path, "r", encoding="utf-8") as f:
             content = f.read()
         return Response(content=content, media_type="application/xml")
-    raise HTTPException(status_code=404, detail="Sitemap not found")
 
 
 @app.api_route("/robots.txt", methods=["GET", "HEAD"])
