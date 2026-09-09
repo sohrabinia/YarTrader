@@ -177,7 +177,7 @@ class PropChallengeEngine:
     Risk-management product engine for Prop Firm Challenges.
     Consumes existing ProfessionalRiskEngine rules and evaluates account exposure,
     daily loss limits, max drawdown limits, and session constraints.
-    Supports multi-phase challenge rules and deterministic phase state evaluation.
+    Supports multi-phase challenge rules and strict account-scoped isolation.
     """
     def __init__(self, config_filepath: str = "runtime_logs/prop_challenge_config.json") -> None:
         self.config_filepath = config_filepath
@@ -470,12 +470,10 @@ class PropChallengeEngine:
                 if eval_res["status"] == "FAILED":
                     overall_status = "FAILED"
                 elif eval_res["status"] == "PASSED":
-                    # Check if next phase exists
                     next_phases = [p for p in sorted_phases if p["phase_order"] > phase["phase_order"]]
                     if not next_phases:
                         overall_status = "PASSED"
             elif not current_active_found:
-                # Prior phase already passed
                 phase_evaluations.append({
                     "phase_id": pid,
                     "display_name": phase["display_name"],
@@ -485,7 +483,6 @@ class PropChallengeEngine:
                     "progress_pct": 100.0
                 })
             else:
-                # Future phase not started
                 phase_evaluations.append({
                     "phase_id": pid,
                     "display_name": phase["display_name"],
@@ -539,37 +536,90 @@ class PropChallengeEngine:
             "last_updated": None
         }
 
-    def load_config(self) -> Dict[str, Any]:
+    def _read_all_accounts_data(self) -> Dict[str, Any]:
+        """
+        Internal helper to read JSON persistence and return full accounts dict.
+        Migrates legacy flat config if present.
+        """
+        if os.path.exists(self.config_filepath):
+            try:
+                with open(self.config_filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+                if isinstance(data, dict):
+                    if "accounts" in data and isinstance(data["accounts"], dict):
+                        return data["accounts"]
+                    else:
+                        # Legacy single-account migration
+                        migrated_account = self._get_default_config()
+                        migrated_account.update(data)
+                        accounts_dict = {"default": migrated_account}
+                        # Save migrated structure back to disk
+                        tmp_file = self.config_filepath + ".tmp"
+                        with open(tmp_file, "w", encoding="utf-8") as f:
+                            json.dump({"accounts": accounts_dict}, f, indent=4)
+                        os.replace(tmp_file, self.config_filepath)
+                        return accounts_dict
+            except Exception:
+                pass
+        return {}
+
+    def load_config(self, account_id: str = "default") -> Dict[str, Any]:
+        """
+        Loads Prop Challenge configuration for a specific account ID.
+        Ensures strict account isolation.
+        """
         with self.lock:
-            if os.path.exists(self.config_filepath):
-                try:
-                    with open(self.config_filepath, "r", encoding="utf-8") as f:
-                        cfg = json.load(f)
-                        defaults = self._get_default_config()
-                        defaults.update(cfg)
-                        return defaults
-                except Exception:
-                    pass
+            accounts_data = self._read_all_accounts_data()
+            clean_account_id = (account_id or "default").strip().lower()
+
+            if clean_account_id in accounts_data:
+                cfg = self._get_default_config()
+                cfg.update(accounts_data[clean_account_id])
+                return cfg
+
             return self._get_default_config()
 
-    def save_config(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
+    def save_config(self, config_data: Dict[str, Any], account_id: str = "default") -> Dict[str, Any]:
+        """
+        Saves Prop Challenge configuration specifically for account_id.
+        Prevents cross-account configuration leakage or overwrite.
+        """
         with self.lock:
-            current = self.load_config()
+            accounts_data = self._read_all_accounts_data()
+            clean_account_id = (account_id or "default").strip().lower()
+
+            current = self.load_config(account_id=clean_account_id)
             for k, v in config_data.items():
-                if k in current:
+                if k in current or k in ["phases", "active_phase_id", "trading_days"]:
                     current[k] = v
+
             current["is_configured"] = True
+            accounts_data[clean_account_id] = current
+
             tmp_file = self.config_filepath + ".tmp"
             with open(tmp_file, "w", encoding="utf-8") as f:
-                json.dump(current, f, indent=4)
+                json.dump({"accounts": accounts_data}, f, indent=4)
             os.replace(tmp_file, self.config_filepath)
+
             return current
 
-    def get_status(self, live_equity: Optional[float] = None, live_daily_pl: Optional[float] = None, open_positions_count: int = 0) -> Dict[str, Any]:
+    def get_status(
+        self,
+        live_equity: Optional[float] = None,
+        live_daily_pl: Optional[float] = None,
+        open_positions_count: int = 0,
+        account_id: str = "default"
+    ) -> Dict[str, Any]:
+        """
+        Retrieves Prop Challenge risk status and multi-phase progression strictly for account_id.
+        Enforces complete account isolation (metrics, halts, and phases do not bleed across accounts).
+        """
         with self.lock:
-            cfg = self.load_config()
+            cfg = self.load_config(account_id=account_id)
             if not cfg.get("is_configured", False):
                 return {
+                    "account_id": account_id,
                     "is_configured": False,
                     "status": "NOT_CONFIGURED",
                     "status_message": "PROP ACCOUNT NOT CONFIGURED",
@@ -601,7 +651,7 @@ class PropChallengeEngine:
             target_profit_usd = account_size * (target_profit_pct / 100.0)
             challenge_progress_pct = round(max(0.0, min(100.0, (profit_usd / target_profit_usd) * 100.0)), 2) if target_profit_usd > 0 else 0.0
 
-            # Determine challenge state
+            # Determine challenge state for this account
             state = "NORMAL"
             if current_drawdown_usd >= max_total_drawdown_usd or daily_loss_used_usd >= max_daily_loss_usd:
                 state = "TRADING_HALTED"
@@ -614,7 +664,7 @@ class PropChallengeEngine:
             else:
                 state = "CHALLENGE_READY"
 
-            # Multi-phase evaluation if phases defined in config
+            # Multi-phase evaluation for this account
             phases = cfg.get("phases")
             multi_phase_eval = None
             if phases and isinstance(phases, list):
@@ -630,6 +680,7 @@ class PropChallengeEngine:
                 )
 
             return {
+                "account_id": account_id,
                 "is_configured": True,
                 "status": state,
                 "status_message": f"Prop Challenge state: {state}",

@@ -4240,6 +4240,7 @@ def get_subscription_plans_endpoint():
 from pydantic import BaseModel
 
 class PropConfigPayload(BaseModel):
+    account_id: Optional[str] = None
     prop_firm_name: Optional[str] = "Generic Prop Firm"
     account_number: Optional[str] = ""
     account_size: float = 100000.0
@@ -4252,6 +4253,39 @@ class PropConfigPayload(BaseModel):
     session_rules: Optional[str] = "ALLOW_ALL_SESSIONS"
     overnight_rule: Optional[str] = "FLAT_BEFORE_CLOSE"
     news_rule: Optional[str] = "NO_NEW_ENTRIES_AROUND_HIGH_IMPACT"
+    phases: Optional[List[Dict[str, Any]]] = None
+
+
+def resolve_prop_account_id(
+    request: Request,
+    explicit_account_id: Optional[str] = None,
+    token: Optional[str] = None
+) -> str:
+    """
+    Resolves the canonical account ID for Prop Challenge operations.
+    Enforces that authenticated users can only access their own account state.
+    """
+    auth_header = request.headers.get("authorization")
+    session_token = token
+    if auth_header and auth_header.startswith("Bearer "):
+        session_token = auth_header[7:].strip()
+
+    if session_token:
+        session = global_auth_service.validate_session(session_token)
+        if session and session.get("email"):
+            authenticated_account_id = session["email"].strip().lower()
+
+            if explicit_account_id and explicit_account_id.strip().lower() != authenticated_account_id:
+                if session.get("role") != "ADMIN":
+                    raise HTTPException(status_code=403, detail="Forbidden: Cannot access another user's prop challenge state")
+                return explicit_account_id.strip().lower()
+
+            return authenticated_account_id
+
+    if explicit_account_id and explicit_account_id.strip():
+        return explicit_account_id.strip().lower()
+
+    return "default"
 
 
 @app.get("/api/prop/presets")
@@ -4267,28 +4301,39 @@ def get_prop_presets_catalog_endpoint():
 
 @app.get("/api/prop/challenge")
 def get_prop_challenge_status_endpoint(
+    request: Request,
     equity: Optional[float] = None,
     daily_pl: Optional[float] = None,
-    open_positions: int = 0
+    open_positions: int = 0,
+    account_id: Optional[str] = None,
+    token: Optional[str] = Query(None)
 ):
     """Retrieves current Prop Firm Challenge risk status and rule compliance."""
+    resolved_account_id = resolve_prop_account_id(request, explicit_account_id=account_id, token=token)
     from src.Risk.Services.prop_challenge_engine import prop_challenge_engine
     return prop_challenge_engine.get_status(
         live_equity=equity,
         live_daily_pl=daily_pl,
-        open_positions_count=open_positions
+        open_positions_count=open_positions,
+        account_id=resolved_account_id
     )
 
 
 @app.post("/api/prop/config")
-def update_prop_challenge_config_endpoint(payload: PropConfigPayload):
+def update_prop_challenge_config_endpoint(
+    request: Request,
+    payload: PropConfigPayload,
+    token: Optional[str] = Query(None)
+):
     """Updates configurable Prop Firm Challenge rules and activates challenge monitoring."""
+    resolved_account_id = resolve_prop_account_id(request, explicit_account_id=payload.account_id, token=token)
     from src.Risk.Services.prop_challenge_engine import prop_challenge_engine
-    updated = prop_challenge_engine.save_config(payload.model_dump())
+    updated = prop_challenge_engine.save_config(payload.model_dump(), account_id=resolved_account_id)
     return {
         "status": "Success",
         "message": "Prop Firm Challenge parameters updated successfully.",
-        "config": updated
+        "config": updated,
+        "account_id": resolved_account_id
     }
 
 @app.post("/api/validation/run")

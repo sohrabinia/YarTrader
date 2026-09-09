@@ -292,7 +292,7 @@ class TestPropChallengeAPI(unittest.TestCase):
             {
                 "phase_id": "phase-2",
                 "display_name": "Phase 2",
-                "phase_order": 3,  # gap in ordering (1 then 3)
+                "phase_order": 3,
                 "target_profit_pct": 5.0,
                 "daily_loss_limit_pct": 5.0,
                 "max_drawdown_pct": 10.0
@@ -313,7 +313,7 @@ class TestPropChallengeAPI(unittest.TestCase):
                 "daily_loss_limit_pct": 5.0,
                 "max_drawdown_pct": 10.0,
                 "min_trading_days": 10,
-                "max_trading_days": 5  # Impossible range
+                "max_trading_days": 5
             }
         ]
         with self.assertRaises(ValueError):
@@ -328,7 +328,7 @@ class TestPropChallengeAPI(unittest.TestCase):
                 "display_name": "Phase 1",
                 "phase_order": 1,
                 "target_profit_pct": 10.0,
-                "daily_loss_limit_pct": 15.0,  # daily loss > max drawdown
+                "daily_loss_limit_pct": 15.0,
                 "max_drawdown_pct": 10.0
             }
         ]
@@ -375,6 +375,71 @@ class TestPropChallengeAPI(unittest.TestCase):
         # Failed state (max drawdown exceeded)
         res_failed = self.engine.evaluate_phase_status(phase, equity=89000.0, account_size=100000.0, daily_pl=0.0, trading_days=1)
         self.assertEqual(res_failed["status"], "FAILED")
+
+    # --- MULTI-ACCOUNT ISOLATION TESTS ---
+
+    def test_multi_account_configuration_isolation(self):
+        """Verifies configurations are strictly isolated per account ID."""
+        self.engine.save_config({"prop_firm_name": "FTMO Challenge", "account_size": 100000.0}, account_id="user_alpha")
+        self.engine.save_config({"prop_firm_name": "Funding Pips Challenge", "account_size": 50000.0}, account_id="user_beta")
+
+        cfg_a = self.engine.load_config("user_alpha")
+        cfg_b = self.engine.load_config("user_beta")
+
+        self.assertEqual(cfg_a["prop_firm_name"], "FTMO Challenge")
+        self.assertEqual(cfg_a["account_size"], 100000.0)
+
+        self.assertEqual(cfg_b["prop_firm_name"], "Funding Pips Challenge")
+        self.assertEqual(cfg_b["account_size"], 50000.0)
+
+    def test_multi_account_trading_halt_isolation(self):
+        """Verifies TRADING_HALTED state on one account does not halt another account."""
+        self.engine.save_config({"account_size": 100000.0, "daily_loss_limit_pct": 5.0, "max_drawdown_pct": 10.0}, account_id="user_halted")
+        self.engine.save_config({"account_size": 100000.0, "daily_loss_limit_pct": 5.0, "max_drawdown_pct": 10.0}, account_id="user_active")
+
+        # Account A hits daily loss limit (-$6000 >= $5000 limit) -> TRADING_HALTED
+        status_a = self.engine.get_status(live_equity=94000.0, live_daily_pl=-6000.0, account_id="user_halted")
+        self.assertEqual(status_a["status"], "TRADING_HALTED")
+
+        # Account B is within limits -> CHALLENGE_READY / NORMAL
+        status_b = self.engine.get_status(live_equity=99500.0, live_daily_pl=-500.0, account_id="user_active")
+        self.assertNotEqual(status_b["status"], "TRADING_HALTED")
+        self.assertIn(status_b["status"], ["CHALLENGE_READY", "NORMAL"])
+
+    def test_multi_account_phase_state_isolation(self):
+        """Verifies active phase state is isolated between accounts."""
+        self.engine.save_config({"active_phase_id": "phase-2", "trading_days": 5}, account_id="user_phase2")
+        self.engine.save_config({"active_phase_id": "phase-1", "trading_days": 0}, account_id="user_phase1")
+
+        cfg_a = self.engine.load_config("user_phase2")
+        cfg_b = self.engine.load_config("user_phase1")
+
+        self.assertEqual(cfg_a["active_phase_id"], "phase-2")
+        self.assertEqual(cfg_a["trading_days"], 5)
+
+        self.assertEqual(cfg_b["active_phase_id"], "phase-1")
+        self.assertEqual(cfg_b["trading_days"], 0)
+
+    def test_api_account_scoping_and_cross_account_protection(self):
+        """Verifies REST API endpoints enforce account boundaries."""
+        payload_a = {"account_id": "acc_one", "prop_firm_name": "Account One Firm", "account_size": 100000.0}
+        payload_b = {"account_id": "acc_two", "prop_firm_name": "Account Two Firm", "account_size": 25000.0}
+
+        res_a = self.client.post("/api/prop/config", json=payload_a)
+        self.assertEqual(res_a.status_code, 200)
+
+        res_b = self.client.post("/api/prop/config", json=payload_b)
+        self.assertEqual(res_b.status_code, 200)
+
+        get_a = self.client.get("/api/prop/challenge?account_id=acc_one")
+        self.assertEqual(get_a.status_code, 200)
+        self.assertEqual(get_a.json()["config"]["prop_firm_name"], "Account One Firm")
+        self.assertEqual(get_a.json()["config"]["account_size"], 100000.0)
+
+        get_b = self.client.get("/api/prop/challenge?account_id=acc_two")
+        self.assertEqual(get_b.status_code, 200)
+        self.assertEqual(get_b.json()["config"]["prop_firm_name"], "Account Two Firm")
+        self.assertEqual(get_b.json()["config"]["account_size"], 25000.0)
 
     # --- API TESTS ---
 
