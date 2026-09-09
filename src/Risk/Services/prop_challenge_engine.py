@@ -1,13 +1,105 @@
 import os
 import json
+import re
 import threading
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
 
 DISCLAIMER_TEXT = (
     "The YarTrader Prop Firm Challenge Plan provides objective risk control monitoring and compliance gates. "
     "It strictly does NOT guarantee passing prop firm evaluations, profits, approvals, or financial returns."
 )
+
+DEFAULT_PRESETS_CATALOG: List[Dict[str, Any]] = [
+    {
+        "preset_id": "ftmo-100k-illustrative",
+        "display_name": "FTMO $100,000 Standard (Illustrative)",
+        "account_size": 100000.0,
+        "target_profit_pct": 10.0,
+        "daily_loss_limit_pct": 5.0,
+        "max_drawdown_pct": 10.0,
+        "risk_per_trade_pct": 1.0,
+        "max_exposure_pct": 3.0,
+        "max_concurrent_positions": 3,
+        "phase_rules": {
+            "phase_1_target_pct": 10.0,
+            "phase_2_target_pct": 5.0,
+            "min_trading_days": 4
+        },
+        "restrictions": {
+            "overnight_rule": "ALLOW_OVERNIGHT",
+            "news_rule": "RESTRICT_HIGH_IMPACT",
+            "session_rules": "ALLOW_ALL_SESSIONS"
+        },
+        "compatibility": {
+            "supported_platforms": ["MT5"],
+            "supported_symbols": ["XAUUSD"]
+        },
+        "status": "illustrative",
+        "source": "FTMO Evaluation Parameters (Illustrative Reference)",
+        "source_url": "https://ftmo.com/en/objectives/",
+        "retrieved_at": "2026-09-01T00:00:00Z"
+    },
+    {
+        "preset_id": "funding-pips-100k-illustrative",
+        "display_name": "Funding Pips $100,000 2-Step (Illustrative)",
+        "account_size": 100000.0,
+        "target_profit_pct": 8.0,
+        "daily_loss_limit_pct": 5.0,
+        "max_drawdown_pct": 10.0,
+        "risk_per_trade_pct": 1.0,
+        "max_exposure_pct": 3.0,
+        "max_concurrent_positions": 5,
+        "phase_rules": {
+            "phase_1_target_pct": 8.0,
+            "phase_2_target_pct": 5.0,
+            "min_trading_days": 0
+        },
+        "restrictions": {
+            "overnight_rule": "ALLOW_OVERNIGHT",
+            "news_rule": "ALLOW_NEWS",
+            "session_rules": "ALLOW_ALL_SESSIONS"
+        },
+        "compatibility": {
+            "supported_platforms": ["MT5"],
+            "supported_symbols": ["XAUUSD"]
+        },
+        "status": "illustrative",
+        "source": "Funding Pips Evaluation Parameters (Illustrative Reference)",
+        "source_url": "https://fundingpips.com/",
+        "retrieved_at": "2026-09-01T00:00:00Z"
+    },
+    {
+        "preset_id": "generic-standard-50k-illustrative",
+        "display_name": "Generic Standard $50,000 (Illustrative)",
+        "account_size": 50000.0,
+        "target_profit_pct": 10.0,
+        "daily_loss_limit_pct": 5.0,
+        "max_drawdown_pct": 10.0,
+        "risk_per_trade_pct": 1.0,
+        "max_exposure_pct": 3.0,
+        "max_concurrent_positions": 3,
+        "phase_rules": {
+            "phase_1_target_pct": 10.0,
+            "phase_2_target_pct": 5.0,
+            "min_trading_days": 5
+        },
+        "restrictions": {
+            "overnight_rule": "FLAT_BEFORE_CLOSE",
+            "news_rule": "NO_NEW_ENTRIES_AROUND_HIGH_IMPACT",
+            "session_rules": "ALLOW_ALL_SESSIONS"
+        },
+        "compatibility": {
+            "supported_platforms": ["MT5"],
+            "supported_symbols": ["XAUUSD"]
+        },
+        "status": "illustrative",
+        "source": "YarTrader Baseline Risk Specification",
+        "source_url": None,
+        "retrieved_at": "2026-09-01T00:00:00Z"
+    }
+]
+
 
 class PropChallengeEngine:
     """
@@ -20,6 +112,96 @@ class PropChallengeEngine:
         self.lock = threading.RLock()
         self.risk_engine = ProfessionalRiskEngine()
         os.makedirs(os.path.dirname(self.config_filepath), exist_ok=True)
+
+    def validate_preset_definition(self, preset: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validates standard rules and mandatory provenance metadata for a prop-firm preset.
+        Raises ValueError if any rule or metadata constraint is violated.
+        """
+        if not isinstance(preset, dict):
+            raise ValueError("Preset definition must be a dictionary")
+
+        preset_id = preset.get("preset_id")
+        if not preset_id or not isinstance(preset_id, str) or not re.match(r"^[a-zA-Z0-9_-]+$", preset_id):
+            raise ValueError(f"Invalid or malformed preset_id: {preset_id}")
+
+        display_name = preset.get("display_name")
+        if not display_name or not isinstance(display_name, str) or not display_name.strip():
+            raise ValueError("Preset must have a non-empty display_name")
+
+        account_size = preset.get("account_size")
+        if account_size is None or not isinstance(account_size, (int, float)) or isinstance(account_size, bool) or account_size <= 0:
+            raise ValueError(f"account_size must be a positive number: {account_size}")
+
+        target_profit_pct = preset.get("target_profit_pct")
+        if target_profit_pct is None or not isinstance(target_profit_pct, (int, float)) or isinstance(target_profit_pct, bool) or target_profit_pct <= 0 or target_profit_pct > 100:
+            raise ValueError(f"target_profit_pct must be between 0 and 100: {target_profit_pct}")
+
+        daily_loss_limit_pct = preset.get("daily_loss_limit_pct")
+        if daily_loss_limit_pct is None or not isinstance(daily_loss_limit_pct, (int, float)) or isinstance(daily_loss_limit_pct, bool) or daily_loss_limit_pct <= 0 or daily_loss_limit_pct > 100:
+            raise ValueError(f"daily_loss_limit_pct must be between 0 and 100: {daily_loss_limit_pct}")
+
+        max_drawdown_pct = preset.get("max_drawdown_pct")
+        if max_drawdown_pct is None or not isinstance(max_drawdown_pct, (int, float)) or isinstance(max_drawdown_pct, bool) or max_drawdown_pct <= 0 or max_drawdown_pct > 100:
+            raise ValueError(f"max_drawdown_pct must be between 0 and 100: {max_drawdown_pct}")
+
+        risk_per_trade_pct = preset.get("risk_per_trade_pct")
+        if risk_per_trade_pct is not None:
+            if not isinstance(risk_per_trade_pct, (int, float)) or isinstance(risk_per_trade_pct, bool) or risk_per_trade_pct <= 0 or risk_per_trade_pct > 100:
+                raise ValueError(f"risk_per_trade_pct must be between 0 and 100: {risk_per_trade_pct}")
+
+        max_exposure_pct = preset.get("max_exposure_pct")
+        if max_exposure_pct is not None:
+            if not isinstance(max_exposure_pct, (int, float)) or isinstance(max_exposure_pct, bool) or max_exposure_pct <= 0 or max_exposure_pct > 100:
+                raise ValueError(f"max_exposure_pct must be between 0 and 100: {max_exposure_pct}")
+
+        max_concurrent_positions = preset.get("max_concurrent_positions")
+        if max_concurrent_positions is not None:
+            if not isinstance(max_concurrent_positions, int) or isinstance(max_concurrent_positions, bool) or max_concurrent_positions < 1:
+                raise ValueError(f"max_concurrent_positions must be an integer >= 1: {max_concurrent_positions}")
+
+        # Contradictory risk constraint checks
+        if daily_loss_limit_pct > max_drawdown_pct:
+            raise ValueError(f"Contradictory rule: daily_loss_limit_pct ({daily_loss_limit_pct}%) cannot exceed max_drawdown_pct ({max_drawdown_pct}%)")
+
+        if risk_per_trade_pct is not None and risk_per_trade_pct > daily_loss_limit_pct:
+            raise ValueError(f"Contradictory rule: risk_per_trade_pct ({risk_per_trade_pct}%) cannot exceed daily_loss_limit_pct ({daily_loss_limit_pct}%)")
+
+        if max_exposure_pct is not None and risk_per_trade_pct is not None and max_exposure_pct < risk_per_trade_pct:
+            raise ValueError(f"Contradictory rule: max_exposure_pct ({max_exposure_pct}%) cannot be less than risk_per_trade_pct ({risk_per_trade_pct}%)")
+
+        # Mandatory provenance metadata checks
+        status = preset.get("status")
+        if status not in ["verified", "illustrative", "deprecated"]:
+            raise ValueError(f"Invalid provenance status: '{status}'. Must be one of ['verified', 'illustrative', 'deprecated']")
+
+        source = preset.get("source")
+        if not source or not isinstance(source, str) or not source.strip():
+            raise ValueError("Missing mandatory provenance field 'source'")
+
+        retrieved_at = preset.get("retrieved_at") or preset.get("effective_at")
+        if not retrieved_at or not isinstance(retrieved_at, str) or not retrieved_at.strip():
+            raise ValueError("Missing mandatory provenance timestamp ('retrieved_at' or 'effective_at')")
+
+        return preset
+
+    def get_presets_catalog(self) -> List[Dict[str, Any]]:
+        """
+        Returns all valid presets in the catalog.
+        """
+        validated_catalog = []
+        for preset in DEFAULT_PRESETS_CATALOG:
+            validated_catalog.append(self.validate_preset_definition(preset))
+        return validated_catalog
+
+    def get_preset_by_id(self, preset_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves a specific preset by its unique ID.
+        """
+        for preset in self.get_presets_catalog():
+            if preset["preset_id"] == preset_id:
+                return preset
+        return None
 
     def _get_default_config(self) -> Dict[str, Any]:
         return {

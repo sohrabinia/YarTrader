@@ -4254,6 +4254,17 @@ class PropConfigPayload(BaseModel):
     news_rule: Optional[str] = "NO_NEW_ENTRIES_AROUND_HIGH_IMPACT"
 
 
+@app.get("/api/prop/presets")
+def get_prop_presets_catalog_endpoint():
+    """Retrieves standard read-only Prop-Firm challenge presets catalog with provenance metadata."""
+    from src.Risk.Services.prop_challenge_engine import prop_challenge_engine
+    presets = prop_challenge_engine.get_presets_catalog()
+    return {
+        "presets": presets,
+        "total": len(presets)
+    }
+
+
 @app.get("/api/prop/challenge")
 def get_prop_challenge_status_endpoint(
     equity: Optional[float] = None,

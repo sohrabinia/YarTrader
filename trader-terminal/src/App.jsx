@@ -178,6 +178,8 @@ function MainApp() {
 
   // Prop Challenge states
   const [propChallengeData, setPropChallengeData] = useState(null);
+  const [propPresets, setPropPresets] = useState([]);
+  const [selectedPresetId, setSelectedPresetId] = useState('custom');
   const [propConfigForm, setPropConfigForm] = useState({
     prop_firm_name: 'Generic Prop Firm',
     account_number: '',
@@ -611,8 +613,20 @@ function MainApp() {
     }
   };
 
+  const fetchPropPresets = async () => {
+    try {
+      const res = await apiService.get('/api/prop/presets');
+      if (res && Array.isArray(res.presets)) {
+        setPropPresets(res.presets);
+      }
+    } catch (err) {
+      console.warn('Prop Presets catalog unavailable:', err);
+    }
+  };
+
   const fetchPropChallengeStatus = async () => {
     try {
+      fetchPropPresets();
       const res = await apiService.get('/api/prop/challenge');
 
       if (res && typeof res === 'object') {
@@ -1196,6 +1210,52 @@ function MainApp() {
 
                 {/* Rules Configuration Form */}
                 <form onSubmit={handleSavePropConfig} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop: '15px' }}>
+                  <div style={{ gridColumn: '1 / -1', marginBottom: '5px' }}>
+                    <label className="form-label">{lang === 'fa' ? 'انتخاب قالب چالش (Preset Catalog)' : 'Challenge Preset (Catalog)'}</label>
+                    <select
+                      className="form-control"
+                      value={selectedPresetId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedPresetId(val);
+                        if (val !== 'custom') {
+                          const preset = propPresets.find(p => p.preset_id === val);
+                          if (preset) {
+                            setPropConfigForm(prev => ({
+                              ...prev,
+                              prop_firm_name: preset.display_name,
+                              account_size: preset.account_size,
+                              target_profit_pct: preset.target_profit_pct,
+                              daily_loss_limit_pct: preset.daily_loss_limit_pct,
+                              max_drawdown_pct: preset.max_drawdown_pct,
+                              risk_per_trade_pct: preset.risk_per_trade_pct || 1.0,
+                              max_exposure_pct: preset.max_exposure_pct || 3.0,
+                              max_concurrent_positions: preset.max_concurrent_positions || 3,
+                              session_rules: preset.restrictions?.session_rules || 'ALLOW_ALL_SESSIONS',
+                              overnight_rule: preset.restrictions?.overnight_rule || 'FLAT_BEFORE_CLOSE',
+                              news_rule: preset.restrictions?.news_rule || 'NO_NEW_ENTRIES_AROUND_HIGH_IMPACT'
+                            }));
+                          }
+                        }
+                      }}
+                    >
+                      <option value="custom">{lang === 'fa' ? 'سفارشی (Custom Configuration)' : 'Custom Configuration'}</option>
+                      {propPresets.map(preset => (
+                        <option key={preset.preset_id} value={preset.preset_id}>
+                          {preset.display_name} ({preset.status === 'illustrative' ? (lang === 'fa' ? 'نمایشی/Illustrative' : 'Illustrative') : preset.status})
+                        </option>
+                      ))}
+                    </select>
+                    {selectedPresetId !== 'custom' && (() => {
+                      const activePreset = propPresets.find(p => p.preset_id === selectedPresetId);
+                      if (!activePreset) return null;
+                      return (
+                        <div style={{ marginTop: '6px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          📌 <strong>{lang === 'fa' ? 'منبع/اعتبار:' : 'Provenance:'}</strong> {activePreset.source} ({activePreset.status}) | <strong>{lang === 'fa' ? 'زمان بازخوانی:' : 'Retrieved:'}</strong> {activePreset.retrieved_at}
+                        </div>
+                      );
+                    })()}
+                  </div>
                   <div>
                     <label className="form-label">{lang === 'fa' ? 'نام شرکت پراپ / اکانت' : 'Prop Firm Designation'}</label>
                     <input
