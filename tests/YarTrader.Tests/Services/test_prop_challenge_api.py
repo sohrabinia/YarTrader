@@ -1,12 +1,17 @@
 import unittest
 from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app
+from src.Application.Dashboard.auth_service import global_auth_service
 from src.Risk.Services.prop_challenge_engine import PropChallengeEngine, DISCLAIMER_TEXT
 
 class TestPropChallengeAPI(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
         self.engine = PropChallengeEngine(config_filepath="test_runtime_logs/test_prop_config.json")
+
+    def _create_session(self, email: str, role: str = "USER") -> str:
+        user_obj = {"email": email.lower(), "role": role, "name": email.split("@")[0]}
+        return global_auth_service.create_session(user_obj)
 
     def test_unconfigured_prop_challenge_status(self):
         """Verifies that unconfigured prop challenge returns NOT_CONFIGURED status."""
@@ -420,26 +425,71 @@ class TestPropChallengeAPI(unittest.TestCase):
         self.assertEqual(cfg_b["active_phase_id"], "phase-1")
         self.assertEqual(cfg_b["trading_days"], 0)
 
-    def test_api_account_scoping_and_cross_account_protection(self):
-        """Verifies REST API endpoints enforce account boundaries."""
-        payload_a = {"account_id": "acc_one", "prop_firm_name": "Account One Firm", "account_size": 100000.0}
-        payload_b = {"account_id": "acc_two", "prop_firm_name": "Account Two Firm", "account_size": 25000.0}
+    # --- CTO MANDATED SECURITY TESTS (TEST A THROUGH TEST E) ---
 
-        res_a = self.client.post("/api/prop/config", json=payload_a)
-        self.assertEqual(res_a.status_code, 200)
+    def test_security_a_own_account_access(self):
+        """Test A: Authenticated User A accesses their own account state (200 OK)."""
+        token_a = self._create_session("user_a@yartrader.app")
+        headers = {"Authorization": f"Bearer {token_a}"}
 
-        res_b = self.client.post("/api/prop/config", json=payload_b)
+        res = self.client.get("/api/prop/challenge", headers=headers)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["account_id"], "user_a@yartrader.app")
+
+    def test_security_b_cross_account_read_forbidden(self):
+        """Test B: Authenticated User A attempting to read User B's state gets HTTP 403."""
+        token_a = self._create_session("user_a@yartrader.app")
+        self._create_session("user_b@yartrader.app")
+        headers = {"Authorization": f"Bearer {token_a}"}
+
+        res = self.client.get("/api/prop/challenge?account_id=user_b@yartrader.app", headers=headers)
+        self.assertEqual(res.status_code, 403)
+        self.assertIn("Forbidden", res.json()["detail"])
+
+    def test_security_c_cross_account_write_forbidden(self):
+        """Test C: Authenticated User A attempting to write User B's config gets HTTP 403 and User B remains unchanged."""
+        token_a = self._create_session("user_a@yartrader.app")
+        token_b = self._create_session("user_b@yartrader.app")
+
+        # Save initial config for User B
+        self.client.post("/api/prop/config", json={"account_size": 100000.0, "prop_firm_name": "Original User B Firm"}, headers={"Authorization": f"Bearer {token_b}"})
+
+        # User A attempts to overwrite User B's config
+        malicious_payload = {
+            "account_id": "user_b@yartrader.app",
+            "account_size": 50000.0,
+            "prop_firm_name": "Hacked Firm Name"
+        }
+        res = self.client.post("/api/prop/config", json=malicious_payload, headers={"Authorization": f"Bearer {token_a}"})
+        self.assertEqual(res.status_code, 403)
+
+        # Verify User B's state remains strictly unchanged
+        res_b = self.client.get("/api/prop/challenge", headers={"Authorization": f"Bearer {token_b}"})
         self.assertEqual(res_b.status_code, 200)
+        self.assertEqual(res_b.json()["config"]["prop_firm_name"], "Original User B Firm")
+        self.assertEqual(res_b.json()["config"]["account_size"], 100000.0)
 
-        get_a = self.client.get("/api/prop/challenge?account_id=acc_one")
-        self.assertEqual(get_a.status_code, 200)
-        self.assertEqual(get_a.json()["config"]["prop_firm_name"], "Account One Firm")
-        self.assertEqual(get_a.json()["config"]["account_size"], 100000.0)
+    def test_security_d_unauthenticated_arbitrary_account_access_denied(self):
+        """Test D: Request without valid authentication passing arbitrary account_id gets HTTP 401."""
+        res_get = self.client.get("/api/prop/challenge?account_id=user_b@yartrader.app")
+        self.assertEqual(res_get.status_code, 401)
 
-        get_b = self.client.get("/api/prop/challenge?account_id=acc_two")
-        self.assertEqual(get_b.status_code, 200)
-        self.assertEqual(get_b.json()["config"]["prop_firm_name"], "Account Two Firm")
-        self.assertEqual(get_b.json()["config"]["account_size"], 25000.0)
+        res_post = self.client.post("/api/prop/config", json={"account_id": "user_b@yartrader.app", "account_size": 50000.0})
+        self.assertEqual(res_post.status_code, 401)
+
+    def test_security_e_admin_cross_account_access_allowed(self):
+        """Test E: Authenticated Admin accessing another account is permitted."""
+        token_admin = self._create_session("admin@yartrader.app", role="ADMIN")
+        token_b = self._create_session("user_b@yartrader.app")
+
+        # Set User B config
+        self.client.post("/api/prop/config", json={"account_size": 100000.0, "prop_firm_name": "User B Firm"}, headers={"Authorization": f"Bearer {token_b}"})
+
+        # Admin reads User B state
+        res_admin_get = self.client.get("/api/prop/challenge?account_id=user_b@yartrader.app", headers={"Authorization": f"Bearer {token_admin}"})
+        self.assertEqual(res_admin_get.status_code, 200)
+        self.assertEqual(res_admin_get.json()["account_id"], "user_b@yartrader.app")
+        self.assertEqual(res_admin_get.json()["config"]["prop_firm_name"], "User B Firm")
 
     # --- API TESTS ---
 

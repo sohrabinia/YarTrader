@@ -4263,7 +4263,8 @@ def resolve_prop_account_id(
 ) -> str:
     """
     Resolves the canonical account ID for Prop Challenge operations.
-    Enforces that authenticated users can only access their own account state.
+    Enforces that authenticated users can only access their own account state
+    and unauthenticated requests cannot access arbitrary accounts.
     """
     auth_header = request.headers.get("authorization")
     session_token = token
@@ -4275,15 +4276,28 @@ def resolve_prop_account_id(
         if session and session.get("email"):
             authenticated_account_id = session["email"].strip().lower()
 
-            if explicit_account_id and explicit_account_id.strip().lower() != authenticated_account_id:
-                if session.get("role") != "ADMIN":
-                    raise HTTPException(status_code=403, detail="Forbidden: Cannot access another user's prop challenge state")
-                return explicit_account_id.strip().lower()
+            if explicit_account_id and explicit_account_id.strip():
+                clean_explicit = explicit_account_id.strip().lower()
+                if clean_explicit != authenticated_account_id:
+                    if session.get("role") == "ADMIN":
+                        return clean_explicit
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Forbidden: Cannot access another user's prop challenge state"
+                    )
 
             return authenticated_account_id
 
+        raise HTTPException(status_code=401, detail="Authentication session token is invalid or expired")
+
+    # Unauthenticated request handling
     if explicit_account_id and explicit_account_id.strip():
-        return explicit_account_id.strip().lower()
+        clean_explicit = explicit_account_id.strip().lower()
+        if clean_explicit != "default":
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required to access specific user account challenge state"
+            )
 
     return "default"
 
