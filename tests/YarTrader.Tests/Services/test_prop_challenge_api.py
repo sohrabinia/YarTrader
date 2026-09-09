@@ -76,6 +76,7 @@ class TestPropChallengeAPI(unittest.TestCase):
             self.assertIn("max_drawdown_pct", p)
             self.assertIn("status", p)
             self.assertIn("source", p)
+            self.assertIn("phases", p)
             self.assertTrue("retrieved_at" in p or "effective_at" in p)
 
     def test_preset_status_valid(self):
@@ -218,10 +219,167 @@ class TestPropChallengeAPI(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.engine.validate_preset_definition(preset)
 
+    # --- MULTI-PHASE SPECIFIC TESTS ---
+
+    def test_multi_phase_model_validation(self):
+        """Verifies multi-phase preset validation with 2 phases."""
+        preset = self._sample_valid_preset()
+        preset["phases"] = [
+            {
+                "phase_id": "phase-1",
+                "display_name": "Phase 1 - Evaluation",
+                "phase_order": 1,
+                "phase_type": "evaluation",
+                "target_profit_pct": 10.0,
+                "daily_loss_limit_pct": 5.0,
+                "max_drawdown_pct": 10.0,
+                "min_trading_days": 4,
+                "max_trading_days": 30
+            },
+            {
+                "phase_id": "phase-2",
+                "display_name": "Phase 2 - Verification",
+                "phase_order": 2,
+                "phase_type": "verification",
+                "target_profit_pct": 5.0,
+                "daily_loss_limit_pct": 5.0,
+                "max_drawdown_pct": 10.0,
+                "min_trading_days": 4,
+                "max_trading_days": 60
+            }
+        ]
+        validated = self.engine.validate_preset_definition(preset)
+        self.assertEqual(len(validated["phases"]), 2)
+        self.assertEqual(validated["phases"][0]["phase_id"], "phase-1")
+        self.assertEqual(validated["phases"][1]["phase_id"], "phase-2")
+
+    def test_duplicate_phase_ids_rejected(self):
+        """Verifies duplicate phase IDs within a preset are rejected."""
+        preset = self._sample_valid_preset()
+        preset["phases"] = [
+            {
+                "phase_id": "phase-1",
+                "display_name": "Phase 1",
+                "phase_order": 1,
+                "target_profit_pct": 10.0,
+                "daily_loss_limit_pct": 5.0,
+                "max_drawdown_pct": 10.0
+            },
+            {
+                "phase_id": "phase-1",
+                "display_name": "Duplicate Phase 1",
+                "phase_order": 2,
+                "target_profit_pct": 5.0,
+                "daily_loss_limit_pct": 5.0,
+                "max_drawdown_pct": 10.0
+            }
+        ]
+        with self.assertRaises(ValueError):
+            self.engine.validate_preset_definition(preset)
+
+    def test_invalid_phase_ordering_rejected(self):
+        """Verifies non-sequential or duplicate phase ordering is rejected."""
+        preset = self._sample_valid_preset()
+        preset["phases"] = [
+            {
+                "phase_id": "phase-1",
+                "display_name": "Phase 1",
+                "phase_order": 1,
+                "target_profit_pct": 10.0,
+                "daily_loss_limit_pct": 5.0,
+                "max_drawdown_pct": 10.0
+            },
+            {
+                "phase_id": "phase-2",
+                "display_name": "Phase 2",
+                "phase_order": 3,  # gap in ordering (1 then 3)
+                "target_profit_pct": 5.0,
+                "daily_loss_limit_pct": 5.0,
+                "max_drawdown_pct": 10.0
+            }
+        ]
+        with self.assertRaises(ValueError):
+            self.engine.validate_preset_definition(preset)
+
+    def test_invalid_trading_day_range_rejected(self):
+        """Verifies max_trading_days < min_trading_days is rejected."""
+        preset = self._sample_valid_preset()
+        preset["phases"] = [
+            {
+                "phase_id": "phase-1",
+                "display_name": "Phase 1",
+                "phase_order": 1,
+                "target_profit_pct": 10.0,
+                "daily_loss_limit_pct": 5.0,
+                "max_drawdown_pct": 10.0,
+                "min_trading_days": 10,
+                "max_trading_days": 5  # Impossible range
+            }
+        ]
+        with self.assertRaises(ValueError):
+            self.engine.validate_preset_definition(preset)
+
+    def test_contradictory_phase_rules_rejected(self):
+        """Verifies contradictory risk rules inside a phase are rejected."""
+        preset = self._sample_valid_preset()
+        preset["phases"] = [
+            {
+                "phase_id": "phase-1",
+                "display_name": "Phase 1",
+                "phase_order": 1,
+                "target_profit_pct": 10.0,
+                "daily_loss_limit_pct": 15.0,  # daily loss > max drawdown
+                "max_drawdown_pct": 10.0
+            }
+        ]
+        with self.assertRaises(ValueError):
+            self.engine.validate_preset_definition(preset)
+
+    def test_single_phase_backward_compatibility(self):
+        """Verifies single-phase preset without explicit 'phases' field gets converted to 1-phase list."""
+        preset = self._sample_valid_preset()
+        self.assertNotIn("phases", preset)
+        validated = self.engine.validate_preset_definition(preset)
+        self.assertIn("phases", validated)
+        self.assertEqual(len(validated["phases"]), 1)
+        self.assertEqual(validated["phases"][0]["phase_id"], "phase-1")
+        self.assertEqual(validated["phases"][0]["target_profit_pct"], 10.0)
+
+    def test_deterministic_phase_transitions(self):
+        """Verifies deterministic phase evaluation status transitions."""
+        phase = {
+            "phase_id": "phase-1",
+            "display_name": "Phase 1 - Evaluation",
+            "phase_order": 1,
+            "target_profit_pct": 10.0,
+            "daily_loss_limit_pct": 5.0,
+            "max_drawdown_pct": 10.0,
+            "min_trading_days": 4
+        }
+
+        # Active state (profit 0%)
+        res = self.engine.evaluate_phase_status(phase, equity=100000.0, account_size=100000.0, daily_pl=0.0, trading_days=0)
+        self.assertEqual(res["status"], "ACTIVE")
+        self.assertEqual(res["progress_pct"], 0.0)
+
+        # Active state (target reached but min_trading_days not met)
+        res_pending_days = self.engine.evaluate_phase_status(phase, equity=110000.0, account_size=100000.0, daily_pl=0.0, trading_days=2)
+        self.assertEqual(res_pending_days["status"], "ACTIVE")
+        self.assertEqual(res_pending_days["progress_pct"], 100.0)
+
+        # Passed state (target reached and min_trading_days met)
+        res_passed = self.engine.evaluate_phase_status(phase, equity=110000.0, account_size=100000.0, daily_pl=0.0, trading_days=4)
+        self.assertEqual(res_passed["status"], "PASSED")
+        self.assertEqual(res_passed["progress_pct"], 100.0)
+
+        # Failed state (max drawdown exceeded)
+        res_failed = self.engine.evaluate_phase_status(phase, equity=89000.0, account_size=100000.0, daily_pl=0.0, trading_days=1)
+        self.assertEqual(res_failed["status"], "FAILED")
+
     # --- API TESTS ---
 
     def test_get_presets_endpoint(self):
-        """Verifies GET /api/prop/presets returns HTTP 200, valid schema, stable IDs, and provenance."""
+        """Verifies GET /api/prop/presets returns HTTP 200, valid schema, stable IDs, and multi-phase structure."""
         res = self.client.get("/api/prop/presets")
         self.assertEqual(res.status_code, 200)
         data = res.json()
@@ -235,6 +393,8 @@ class TestPropChallengeAPI(unittest.TestCase):
             self.assertIn("display_name", preset)
             self.assertIn("status", preset)
             self.assertIn("source", preset)
+            self.assertIn("phases", preset)
+            self.assertGreater(len(preset["phases"]), 0)
             self.assertIn(preset["status"], ["verified", "illustrative", "deprecated"])
 
     def test_get_presets_endpoint_is_read_only(self):

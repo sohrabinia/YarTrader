@@ -668,7 +668,8 @@ function MainApp() {
         max_concurrent_positions: Number(propConfigForm.max_concurrent_positions) || 1,
         session_rules: propConfigForm.session_rules || 'ALLOW_ALL_SESSIONS',
         overnight_rule: propConfigForm.overnight_rule || 'FLAT_BEFORE_CLOSE',
-        news_rule: propConfigForm.news_rule || 'NO_NEW_ENTRIES_AROUND_HIGH_IMPACT'
+        news_rule: propConfigForm.news_rule || 'NO_NEW_ENTRIES_AROUND_HIGH_IMPACT',
+        phases: propConfigForm.phases || null
       };
 
       const res = await apiService.post('/api/prop/config', payload);
@@ -1233,7 +1234,8 @@ function MainApp() {
                               max_concurrent_positions: preset.max_concurrent_positions || 3,
                               session_rules: preset.restrictions?.session_rules || 'ALLOW_ALL_SESSIONS',
                               overnight_rule: preset.restrictions?.overnight_rule || 'FLAT_BEFORE_CLOSE',
-                              news_rule: preset.restrictions?.news_rule || 'NO_NEW_ENTRIES_AROUND_HIGH_IMPACT'
+                              news_rule: preset.restrictions?.news_rule || 'NO_NEW_ENTRIES_AROUND_HIGH_IMPACT',
+                              phases: preset.phases
                             }));
                           }
                         }
@@ -1250,8 +1252,27 @@ function MainApp() {
                       const activePreset = propPresets.find(p => p.preset_id === selectedPresetId);
                       if (!activePreset) return null;
                       return (
-                        <div style={{ marginTop: '6px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          📌 <strong>{lang === 'fa' ? 'منبع/اعتبار:' : 'Provenance:'}</strong> {activePreset.source} ({activePreset.status}) | <strong>{lang === 'fa' ? 'زمان بازخوانی:' : 'Retrieved:'}</strong> {activePreset.retrieved_at}
+                        <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '6px' }}>
+                          {activePreset.phases && activePreset.phases.length > 0 && (
+                            <div style={{ marginBottom: '8px' }}>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '6px', color: 'var(--primary)' }}>
+                                {lang === 'fa' ? 'مراحل چالش (Multi-Phase Rules):' : 'Challenge Phases (Multi-Phase Rules):'}
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
+                                {activePreset.phases.map(ph => (
+                                  <div key={ph.phase_id} style={{ padding: '8px', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                    <div style={{ fontWeight: '600' }}>{ph.display_name}</div>
+                                    <div>{lang === 'fa' ? 'هدف سود:' : 'Target:'} {ph.target_profit_pct}%</div>
+                                    <div>{lang === 'fa' ? 'حد ضرر روزانه:' : 'Daily Loss:'} {ph.daily_loss_limit_pct}%</div>
+                                    <div>{lang === 'fa' ? 'افت سرمایه:' : 'Max Drawdown:'} {ph.max_drawdown_pct}%</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            📌 <strong>{lang === 'fa' ? 'منبع/اعتبار:' : 'Provenance:'}</strong> {activePreset.source} ({activePreset.status}) | <strong>{lang === 'fa' ? 'زمان بازخوانی:' : 'Retrieved:'}</strong> {activePreset.retrieved_at}
+                          </div>
                         </div>
                       );
                     })()}
