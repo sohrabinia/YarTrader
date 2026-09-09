@@ -247,6 +247,25 @@ class TestContentMarketingPhase15(unittest.TestCase):
             res_pub_anon = self.client.post(f"/api/admin/content/blog/{item_id}/publish", json={"published": True})
             self.assertIn(res_pub_anon.status_code, (401, 403))
 
+    def test_22_update_content_item_unknown_fields_rejected(self) -> None:
+        item = {"title": "Field Hardening Test", "content": "Field Hardening Body"}
+        created = self.manager.add_content_item("blog", item)
+
+        # Attempting to update with unknown fields raises ValidationException
+        with self.assertRaises(ValidationException):
+            self.manager.update_content_item("blog", created["id"], {"title": "Valid Title", "is_admin": True})
+
+        with self.assertRaises(ValidationException):
+            self.manager.update_content_item("blog", created["id"], {"title": "Valid Title", "random_field": "unexpected"})
+
+    def test_23_update_content_item_published_none_rejected(self) -> None:
+        item = {"title": "Published None Test", "content": "Body Text", "published": True}
+        created = self.manager.add_content_item("blog", item)
+
+        # Attempting to update published with None raises ValidationException
+        with self.assertRaises(ValidationException):
+            self.manager.update_content_item("blog", created["id"], {"published": None})
+
 
 if __name__ == "__main__":
     unittest.main()

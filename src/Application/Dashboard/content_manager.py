@@ -177,6 +177,18 @@ class ContentManager:
         if "domain" in updates and updates["domain"] != domain:
             raise ValidationException("Content domain is immutable.")
 
+        # Reject unknown fields not in domain allowlist
+        allowed_fields = {
+            "blog": {"id", "domain", "title", "content", "summary", "author", "category", "date", "published_at", "tags", "slug", "published"},
+            "news": {"id", "domain", "title", "content", "summary", "source", "category", "published_at", "tags", "slug", "published"},
+            "guide": {"id", "domain", "title", "content", "summary", "category", "tags", "slug", "published"},
+            "faq": {"id", "domain", "question", "answer", "category", "published"}
+        }.get(domain, set())
+
+        for key in updates:
+            if key not in allowed_fields:
+                raise ValidationException(f"Unsupported update field '{key}' for domain '{domain}'.")
+
         # Title & content validation for blog/news/guide if updated
         merged_title = updates.get("title", target_item.get("title"))
         merged_content = updates.get("content", target_item.get("content"))
@@ -213,7 +225,7 @@ class ContentManager:
         # Publication semantics validation if published field is included
         if "published" in updates:
             pub_val = updates["published"]
-            if pub_val is not None and not isinstance(pub_val, bool):
+            if pub_val is None or not isinstance(pub_val, bool):
                 raise ValidationException("Published field must be a boolean True or False.")
 
         # Apply updates in-memory (preserving un-updated fields)
