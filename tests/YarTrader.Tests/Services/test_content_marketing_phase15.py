@@ -128,6 +128,125 @@ class TestContentMarketingPhase15(unittest.TestCase):
         res_detail = self.client.get(f"/api/blog/{unique_slug}")
         self.assertEqual(res_detail.status_code, 404)
 
+    def test_14_update_content_item_valid_succeeds(self) -> None:
+        item = {"title": "Original Title", "content": "Original Content", "slug": "orig-slug", "published": True}
+        created = self.manager.add_content_item("blog", item)
+
+        updates = {"title": "Updated Title", "summary": "Updated Summary"}
+        updated = self.manager.update_content_item("blog", created["id"], updates)
+
+        self.assertEqual(updated["title"], "Updated Title")
+        self.assertEqual(updated["summary"], "Updated Summary")
+        self.assertEqual(updated["content"], "Original Content")  # Preserved
+        self.assertEqual(updated["slug"], "orig-slug")  # Preserved
+
+    def test_15_update_content_item_non_existent_raises_exception(self) -> None:
+        with self.assertRaises(ValidationException):
+            self.manager.update_content_item("blog", "non-existent-id", {"title": "New Title"})
+
+    def test_16_update_content_item_immutable_id_and_domain_rejected(self) -> None:
+        item = {"title": "Immutable Test", "content": "Content Body"}
+        created = self.manager.add_content_item("blog", item)
+
+        with self.assertRaises(ValidationException):
+            self.manager.update_content_item("blog", created["id"], {"id": "different-id"})
+
+        with self.assertRaises(ValidationException):
+            self.manager.update_content_item("blog", created["id"], {"domain": "news"})
+
+    def test_17_update_content_item_invalid_title_or_content_rejected(self) -> None:
+        item = {"title": "Title Test", "content": "Body Test"}
+        created = self.manager.add_content_item("blog", item)
+
+        with self.assertRaises(ValidationException):
+            self.manager.update_content_item("blog", created["id"], {"title": "   "})
+
+        with self.assertRaises(ValidationException):
+            self.manager.update_content_item("blog", created["id"], {"content": ""})
+
+    def test_18_update_content_item_same_slug_succeeds_duplicate_slug_rejected(self) -> None:
+        item1 = {"title": "Article 1", "content": "Content 1", "slug": "slug-alpha"}
+        item2 = {"title": "Article 2", "content": "Content 2", "slug": "slug-beta"}
+
+        created1 = self.manager.add_content_item("blog", item1)
+        created2 = self.manager.add_content_item("blog", item2)
+
+        # Updating item1 with its own current slug succeeds
+        up1 = self.manager.update_content_item("blog", created1["id"], {"slug": "slug-alpha", "title": "Article 1 Updated"})
+        self.assertEqual(up1["title"], "Article 1 Updated")
+
+        # Updating item1 to item2's slug raises ValidationException
+        with self.assertRaises(ValidationException):
+            self.manager.update_content_item("blog", created1["id"], {"slug": "slug-beta"})
+
+    def test_19_delete_content_item_succeeds_non_existent_raises(self) -> None:
+        item = {"title": "To Be Deleted", "content": "Content to delete"}
+        created = self.manager.add_content_item("blog", item)
+
+        deleted = self.manager.delete_content_item("blog", created["id"])
+        self.assertEqual(deleted["id"], created["id"])
+
+        # Subsequent deletion raises ValidationException
+        with self.assertRaises(ValidationException):
+            self.manager.delete_content_item("blog", created["id"])
+
+    def test_20_toggle_publish_status_semantics(self) -> None:
+        item = {"title": "Toggle Article", "content": "Toggle Content", "slug": "toggle-slug", "published": True}
+        created = self.manager.add_content_item("blog", item)
+
+        # Unpublish -> False
+        unpub = self.manager.toggle_publish_status("blog", created["id"], False)
+        self.assertFalse(unpub["published"])
+
+        # Publish -> True
+        repub = self.manager.toggle_publish_status("blog", created["id"], True)
+        self.assertTrue(repub["published"])
+
+        # Non-boolean publication state raises ValidationException
+        with self.assertRaises(ValidationException):
+            self.manager.update_content_item("blog", created["id"], {"published": "true"})
+
+    def test_21_admin_update_delete_publish_api_endpoints_authorized_and_protected(self) -> None:
+        # Create initial item via API
+        item = {"title": "API Lifecycle Article", "content": "API Body", "slug": "api-lifecycle-slug", "published": False}
+        res_create = self.client.post(f"/api/admin/content?token={self.admin_token}", json={"domain": "blog", "item": item})
+        self.assertEqual(res_create.status_code, 200)
+        item_id = res_create.json()["item"]["id"]
+
+        # PUT Update via API with Admin token -> 200
+        res_update = self.client.put(f"/api/admin/content/blog/{item_id}?token={self.admin_token}", json={"updates": {"title": "API Title Updated"}})
+        self.assertEqual(res_update.status_code, 200)
+        self.assertEqual(res_update.json()["item"]["title"], "API Title Updated")
+
+        # POST Publish via API with Admin token -> 200
+        res_pub = self.client.post(f"/api/admin/content/blog/{item_id}/publish?token={self.admin_token}", json={"published": True})
+        self.assertEqual(res_pub.status_code, 200)
+        self.assertTrue(res_pub.json()["item"]["published"])
+
+        # Public list now includes published article
+        res_list = self.client.get("/api/blog")
+        self.assertEqual(res_list.status_code, 200)
+        self.assertTrue(any(a.get("id") == item_id for a in res_list.json()))
+
+        # DELETE via API with Admin token -> 200
+        res_del = self.client.delete(f"/api/admin/content/blog/{item_id}?token={self.admin_token}")
+        self.assertEqual(res_del.status_code, 200)
+
+        # Subsequent PUT/DELETE returns 404
+        res_del_404 = self.client.delete(f"/api/admin/content/blog/{item_id}?token={self.admin_token}")
+        self.assertEqual(res_del_404.status_code, 404)
+
+        # Unauthenticated endpoints fail closed under production
+        with patch.dict(os.environ, {"YARTRADER_ENV": "production"}):
+            res_put_anon = self.client.put(f"/api/admin/content/blog/{item_id}", json={"updates": {"title": "Hacked"}})
+            self.assertIn(res_put_anon.status_code, (401, 403))
+
+            res_del_anon = self.client.delete(f"/api/admin/content/blog/{item_id}")
+            self.assertIn(res_del_anon.status_code, (401, 403))
+
+            res_pub_anon = self.client.post(f"/api/admin/content/blog/{item_id}/publish", json={"published": True})
+            self.assertIn(res_pub_anon.status_code, (401, 403))
+
 
 if __name__ == "__main__":
     unittest.main()

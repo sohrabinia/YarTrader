@@ -147,7 +147,107 @@ class ContentManager:
         if domain not in self.data:
             self.data[domain] = []
         if not item.get("id"):
-            item["id"] = f"{domain}-{int(datetime.now(timezone.utc).timestamp())}"
+            import time
+            item["id"] = f"{domain}-{int(time.time() * 1000000)}"
         self.data[domain].insert(0, item)
         self.save_db()
         return item
+
+    def update_content_item(self, domain: str, item_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        from src.Infrastructure.exceptions import ValidationException
+
+        if domain not in ("blog", "news", "faq", "guide"):
+            raise ValidationException(f"Unsupported domain '{domain}'.")
+
+        items = self.data.get(domain, [])
+        target_idx = -1
+        for idx, item in enumerate(items):
+            if str(item.get("id")) == str(item_id):
+                target_idx = idx
+                break
+
+        if target_idx == -1:
+            raise ValidationException(f"Item '{item_id}' not found in domain '{domain}'.")
+
+        target_item = items[target_idx]
+
+        # Reject immutable field modification attempts
+        if "id" in updates and str(updates["id"]) != str(item_id):
+            raise ValidationException("Item ID is immutable.")
+        if "domain" in updates and updates["domain"] != domain:
+            raise ValidationException("Content domain is immutable.")
+
+        # Title & content validation for blog/news/guide if updated
+        merged_title = updates.get("title", target_item.get("title"))
+        merged_content = updates.get("content", target_item.get("content"))
+        if domain in ("blog", "news", "guide"):
+            if "title" in updates:
+                if not merged_title or not isinstance(merged_title, str) or not merged_title.strip():
+                    raise ValidationException("Content item title must be a non-empty string.")
+            if "content" in updates:
+                if not merged_content or not isinstance(merged_content, str) or not merged_content.strip():
+                    raise ValidationException("Content item content must be a non-empty string.")
+
+        # FAQ validation
+        if domain == "faq":
+            if "question" in updates:
+                q = updates["question"]
+                if not q or not isinstance(q, str) or not q.strip():
+                    raise ValidationException("FAQ question must be a non-empty string.")
+            if "answer" in updates:
+                a = updates["answer"]
+                if not a or not isinstance(a, str) or not a.strip():
+                    raise ValidationException("FAQ answer must be a non-empty string.")
+
+        # Slug uniqueness validation if slug is modified or provided
+        if "slug" in updates:
+            new_slug = updates["slug"]
+            if new_slug and isinstance(new_slug, str) and new_slug.strip():
+                clean_slug = new_slug.strip().lower()
+                for existing in items:
+                    if str(existing.get("id")) != str(item_id):
+                        ex_slug = existing.get("slug")
+                        if ex_slug and isinstance(ex_slug, str) and ex_slug.strip().lower() == clean_slug:
+                            raise ValidationException(f"Duplicate slug '{clean_slug}' in domain '{domain}'.")
+
+        # Publication semantics validation if published field is included
+        if "published" in updates:
+            pub_val = updates["published"]
+            if pub_val is not None and not isinstance(pub_val, bool):
+                raise ValidationException("Published field must be a boolean True or False.")
+
+        # Apply updates in-memory (preserving un-updated fields)
+        for key, val in updates.items():
+            if key not in ("id", "domain"):
+                target_item[key] = val
+
+        self.save_db()
+        return target_item
+
+    def delete_content_item(self, domain: str, item_id: str) -> Dict[str, Any]:
+        from src.Infrastructure.exceptions import ValidationException
+
+        if domain not in ("blog", "news", "faq", "guide"):
+            raise ValidationException(f"Unsupported domain '{domain}'.")
+
+        items = self.data.get(domain, [])
+        target_idx = -1
+        for idx, item in enumerate(items):
+            if str(item.get("id")) == str(item_id):
+                target_idx = idx
+                break
+
+        if target_idx == -1:
+            raise ValidationException(f"Item '{item_id}' not found in domain '{domain}'.")
+
+        removed_item = items.pop(target_idx)
+        self.save_db()
+        return removed_item
+
+    def toggle_publish_status(self, domain: str, item_id: str, published: bool) -> Dict[str, Any]:
+        from src.Infrastructure.exceptions import ValidationException
+
+        if not isinstance(published, bool):
+            raise ValidationException("Publication state must be a boolean True or False.")
+
+        return self.update_content_item(domain, item_id, {"published": published})

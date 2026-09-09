@@ -5937,6 +5937,62 @@ def admin_manage_content(payload: AdminContentPayload, token: Optional[str] = Qu
     return {"status": "Success", "domain": payload.domain, "item": created}
 
 
+class AdminContentUpdatePayload(BaseModel):
+    updates: Dict[str, Any]
+
+
+class AdminContentPublishPayload(BaseModel):
+    published: bool
+
+
+@app.put("/api/admin/content/{domain}/{item_id}")
+def admin_update_content(domain: str, item_id: str, payload: AdminContentUpdatePayload, token: Optional[str] = Query(None)):
+    """Admin endpoint for updating an existing content item."""
+    check_admin_guard(token)
+    if domain not in ("blog", "news", "faq", "guide"):
+        raise HTTPException(status_code=400, detail="Invalid content domain.")
+    try:
+        updated = global_content_manager.update_content_item(domain, item_id, payload.updates)
+        return {"status": "Success", "domain": domain, "item": updated}
+    except ValidationException as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
+
+
+@app.delete("/api/admin/content/{domain}/{item_id}")
+def admin_delete_content(domain: str, item_id: str, token: Optional[str] = Query(None)):
+    """Admin endpoint for deleting an existing content item."""
+    check_admin_guard(token)
+    if domain not in ("blog", "news", "faq", "guide"):
+        raise HTTPException(status_code=400, detail="Invalid content domain.")
+    try:
+        deleted = global_content_manager.delete_content_item(domain, item_id)
+        return {"status": "Success", "domain": domain, "deleted_item": deleted}
+    except ValidationException as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
+
+
+@app.post("/api/admin/content/{domain}/{item_id}/publish")
+def admin_publish_content(domain: str, item_id: str, payload: AdminContentPublishPayload, token: Optional[str] = Query(None)):
+    """Admin endpoint for toggling publication status of an existing content item."""
+    check_admin_guard(token)
+    if domain not in ("blog", "news", "faq", "guide"):
+        raise HTTPException(status_code=400, detail="Invalid content domain.")
+    try:
+        updated = global_content_manager.toggle_publish_status(domain, item_id, payload.published)
+        return {"status": "Success", "domain": domain, "item": updated}
+    except ValidationException as e:
+        msg = str(e)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
+
+
 class CreateTicketPayload(BaseModel):
     subject: str
     category: str
