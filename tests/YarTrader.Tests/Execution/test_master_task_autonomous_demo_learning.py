@@ -83,6 +83,53 @@ def test_trade_journal_persistence(tmp_path):
     assert mgr_reload.get_all_records()[0].trade_id == "TR-001"
 
 
+def test_trade_journal_utf8_bom_compatibility(tmp_path):
+    import json
+    journal_file = os.path.join(str(tmp_path), "trade_journal_bom.json")
+    record_data = [{
+        "decision_id": "DEC-002",
+        "trade_id": "TR-002",
+        "cycle_id": "CYC-002",
+        "symbol": "XAUUSD",
+        "timeframe": "M15",
+        "direction": "SELL",
+        "planned_entry": 2500.0,
+        "planned_sl": 2510.0,
+        "planned_tp": 2480.0,
+        "planned_rr": 2.0,
+        "actual_entry": 2500.0,
+        "actual_exit": 2480.0,
+        "volume": 0.01,
+        "confidence": 0.80,
+        "reasoning": ["BOM test"],
+        "evidence": {},
+        "order_ticket": "10002",
+        "deal_ticket": "20002",
+        "open_time": "2026-08-22T00:00:00",
+        "close_time": "2026-08-22T01:00:00",
+        "exit_reason": "Take Profit Hit",
+        "pnl": 20.0,
+        "pnl_percent": 2.0,
+        "mfe": 20.0,
+        "mae": 0.0,
+        "duration": 60.0,
+        "market_regime": "BEARISH",
+        "result": "WIN",
+        "configuration_version": "1.2.0"
+    }]
+
+    # Write JSON file with UTF-8 BOM prefix
+    with open(journal_file, "wb") as f:
+        f.write("\ufeff".encode("utf-8"))
+        f.write(json.dumps(record_data).encode("utf-8"))
+
+    # Load with TradeJournalManager
+    mgr = TradeJournalManager(journal_file=journal_file)
+    records = mgr.get_all_records()
+    assert len(records) == 1
+    assert records[0].trade_id == "TR-002"
+
+
 def test_outcome_analyzer_classification():
     cls_good = OutcomeAnalyzer.classify_trade_outcome("BUY", 2600.0, 2590.0, 2620.0, 2620.0, 20.0, 1.0, "WIN")
     assert cls_good["classification"] == "GOOD_ENTRY"

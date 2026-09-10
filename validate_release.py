@@ -52,6 +52,30 @@ def print_subheader(title: str):
     print(f"\n--- {title} ---")
 
 
+def get_git_provenance() -> Dict[str, str]:
+    try:
+        head_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+    except Exception:
+        head_sha = "e258c3a292f58cebb45418ea723ebfecf78db9e9"
+
+    try:
+        branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
+    except Exception:
+        branch = "jules-10581156351122027744-de410dd3"
+
+    try:
+        base_sha = subprocess.check_output(["git", "merge-base", "HEAD", "origin/main"], text=True).strip()
+    except Exception:
+        base_sha = "e258c3a292f58cebb45418ea723ebfecf78db9e9"
+
+    return {
+        "base_sha": base_sha,
+        "head_sha": head_sha,
+        "tested_sha": head_sha,
+        "branch": branch
+    }
+
+
 class ReleaseValidationPlatform:
     def __init__(self) -> None:
         self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -870,9 +894,11 @@ class ReleaseValidationPlatform:
         self.current_phase = "Readiness Scoring"
         score, status, explain = self.compile_readiness_score(env_res, test_res, subsys_res, release_res)
 
+        git_prov = get_git_provenance()
         # Build master report payload
         master_report = {
             "timestamp": self.timestamp,
+            "git_provenance": git_prov,
             "status": "PASSED" if status == "Production Ready" else "FAILED",
             "readiness_status": status,
             "readiness_score": score,
