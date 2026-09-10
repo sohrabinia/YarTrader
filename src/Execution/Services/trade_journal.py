@@ -84,7 +84,7 @@ class TradeJournalManager:
     def _load_journal(self) -> List[TradeJournalRecord]:
         if os.path.exists(self.journal_file):
             try:
-                with open(self.journal_file, "r", encoding="utf-8") as f:
+                with open(self.journal_file, "r", encoding="utf-8-sig") as f:
                     data = json.load(f)
                     return [TradeJournalRecord.from_dict(d) for d in data]
             except Exception as e:
