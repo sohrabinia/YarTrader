@@ -425,9 +425,13 @@ class ReleaseValidationPlatform:
         try:
             client = TestClient(app)
 
-            # Test 1: Version contract endpoint
+            # Test 1: Version contract endpoint & Runtime SHA Identity Gate
             ver_resp = client.get("/api/version")
-            ver_ok = (ver_resp.status_code == 200 and "version" in ver_resp.json() and "commit" in ver_resp.json())
+            ver_data = ver_resp.json() if ver_resp.status_code == 200 else {}
+            running_sha = ver_data.get("commit", "")
+            expected_sha = get_git_provenance()["head_sha"]
+            sha_match = (running_sha == expected_sha)
+            ver_ok = (ver_resp.status_code == 200 and "version" in ver_data and sha_match)
 
             # Test 2: Prop authorization gating (401 without token)
             prop_resp = client.get("/api/prop/challenge")
