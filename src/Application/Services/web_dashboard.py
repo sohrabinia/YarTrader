@@ -6028,3 +6028,53 @@ def chatbot_assistant_explain(payload: ChatPrompt, lang: str = "fa"):
         "status": "YarTrader Cognitive AI Active",
         "timestamp": datetime.now().isoformat()
     }
+
+
+# ==============================================================================
+# YARTRADER.OPERATOR PRODUCTION ADAPTER REST API ENDPOINTS
+# ==============================================================================
+from src.Application.Services.operator_adapter import global_operator_adapter, OperatorTaskStatus
+
+class OperatorTaskSubmitPayload(BaseModel):
+    task_description: str
+    metadata: Optional[Dict[str, Any]] = None
+
+@app.get("/api/admin/operator/status")
+def get_operator_status(token: Optional[str] = Query(None)):
+    """
+    Exposes runtime status, OS compatibility, and connection health for YarTrader.Operator.
+    Guarded strictly by check_admin_guard authorization.
+    """
+    admin_session = check_admin_guard(token)
+    health = global_operator_adapter.get_runtime_health()
+    return {
+        "status": "Success",
+        "admin_identity": {
+            "email": admin_session.get("email"),
+            "role": admin_session.get("role")
+        },
+        "operator_health": health
+    }
+
+@app.post("/api/admin/operator/tasks")
+def submit_operator_task(payload: OperatorTaskSubmitPayload, token: Optional[str] = Query(None)):
+    """
+    Submits a task to the YarTrader.Operator runtime gateway.
+    Propagates server-side authenticated Admin identity and fails closed if runtime is unreachable.
+    """
+    admin_session = check_admin_guard(token)
+    task_res = global_operator_adapter.submit_task(
+        admin_identity=admin_session,
+        task_description=payload.task_description,
+        metadata=payload.metadata
+    )
+    return task_res
+
+@app.get("/api/admin/operator/tasks/{task_id}")
+def get_operator_task_details(task_id: str, token: Optional[str] = Query(None)):
+    """
+    Queries execution details and state of a submitted task from YarTrader.Operator.
+    Guarded strictly by check_admin_guard authorization.
+    """
+    admin_session = check_admin_guard(token)
+    return global_operator_adapter.get_task_status(admin_identity=admin_session, task_id=task_id)
