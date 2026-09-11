@@ -217,13 +217,22 @@ class ReleaseValidationPlatform:
         cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"]
         self.log(f"Running automated tests command: {' '.join(cmd_args)}")
 
+        pytest_timeout_sec = int(os.environ.get("PYTEST_TIMEOUT_SEC", os.environ.get("VALIDATOR_TIMEOUT_SEC", 1800)))
+        is_timeout = False
+
         try:
             env = dict(os.environ)
             env["PYTHONPATH"] = "."
-            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=420, env=env)
+            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=pytest_timeout_sec, env=env)
             stdout = res.stdout
             stderr = res.stderr
             return_code = res.returncode
+        except subprocess.TimeoutExpired as te:
+            is_timeout = True
+            self.log(f"Test execution timed out after {pytest_timeout_sec} seconds.", "ERROR")
+            stdout = te.stdout or ""
+            stderr = te.stderr or f"TimeoutExpired: pytest execution exceeded {pytest_timeout_sec}s"
+            return_code = -2
         except Exception as e:
             self.log(f"Test run execution failed: {str(e)}", "ERROR")
             stdout = ""
@@ -232,6 +241,19 @@ class ReleaseValidationPlatform:
 
         elapsed = time.perf_counter() - start_time
         self.log(f"Test execution completed in {round(elapsed, 2)} seconds.")
+
+        if is_timeout:
+            test_results = {
+                "total": 0,
+                "passed": 0,
+                "failed": 1,
+                "skipped": 0,
+                "warnings": 0,
+                "duration_sec": round(elapsed, 2),
+                "status": "TIMEOUT",
+                "details": f"Pytest execution timed out after {pytest_timeout_sec} seconds"
+            }
+            return test_results, [{"test": "pytest_suite_timeout", "reason": f"Pytest execution exceeded timeout threshold of {pytest_timeout_sec}s"}]
 
         total_tests = 0
         passed = 0
@@ -244,7 +266,7 @@ class ReleaseValidationPlatform:
         lines = stdout.splitlines()
         summary_line = ""
         for line in lines:
-            if "passed in" in line or "failed" in line or "skipped" in line:
+            if "passed" in line or "failed" in line or "skipped" in line:
                 if line.startswith("===") or line.startswith("!!!"):
                     summary_line = line
                     break
