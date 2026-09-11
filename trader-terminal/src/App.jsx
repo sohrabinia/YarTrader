@@ -361,7 +361,7 @@ function MainApp() {
 
   // Auth & Routing Guard
   useEffect(() => {
-    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/learning';
+    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath.startsWith('/admin') || routePath.startsWith('/learning');
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
       showNotification(
@@ -369,7 +369,7 @@ function MainApp() {
         'warning'
       );
     }
-    if (routePath === '/admin' && token && role !== 'ADMIN') {
+    if (routePath.startsWith('/admin') && token && role !== 'ADMIN') {
       showNotification(
         lang === 'fa' ? 'دسترسی فقط برای کاربران با نقش مدیریت (ADMIN) مجاز است.' : 'Admin role is required.',
         'warning'
@@ -437,7 +437,7 @@ function MainApp() {
       fetchExecutionIntelligence();
     } else if (routePath.startsWith('/learning')) {
       fetchLearningMatrix();
-    } else if (routePath === '/admin' && role === 'ADMIN') {
+    } else if (routePath.startsWith('/admin') && role === 'ADMIN') {
       fetchAdminSymbols();
       fetchAdminReports();
       fetchStatus();
@@ -1012,7 +1012,7 @@ function MainApp() {
           {token && <a href={`/${lang}/signals`} className={`sidebar-link ${routePath === '/signals' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/signals'); }}>{t('nav_signals')}</a>}
           {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
           {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
-          {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
+          {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath.startsWith('/admin') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {token && (
@@ -1828,7 +1828,7 @@ function MainApp() {
           )}
 
           {/* UPGRADED ADMIN OPERATIONAL CONTROL & OBSERVABILITY CENTER */}
-          {routePath === '/admin' && role === 'ADMIN' && (
+          {(routePath === '/admin' || routePath.startsWith('/admin')) && role === 'ADMIN' && (
             <div id="shell-admin">
               {/* Top Navigation Sub-tabs for Admin Drill-down */}
               <div className="card" style={{ borderBottom: '2px solid var(--border-dark)', marginBottom: '20px', paddingBottom: '10px' }}>
