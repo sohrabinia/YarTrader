@@ -1073,6 +1073,7 @@ VALID_PUBLIC_SUBPATHS = {
 @app.api_route("/forgot-password", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/execution-intel", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/admin", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/admin/operator", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/blog", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/news", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/faq", methods=["GET", "HEAD"], response_class=HTMLResponse)
