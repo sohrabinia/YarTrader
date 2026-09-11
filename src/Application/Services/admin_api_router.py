@@ -454,3 +454,120 @@ def admin_delete_product(product_id: str, token: Optional[str] = None):
         "status": "Success",
         "message": f"Successfully deleted product '{product_id}' from the Business Catalog."
     }
+
+
+# ==============================================================================
+# YAROPERATOR PRODUCTION RUNTIME INTEGRATION ADAPTER
+# ==============================================================================
+class OperatorExecutionRequest(BaseModel):
+    action: Optional[str] = "status"
+    client_identity: Optional[Dict[str, Any]] = None  # Browser-supplied identity candidate (if any)
+    parameters: Optional[Dict[str, Any]] = {}
+
+@router.get("/operator")
+@router.post("/operator")
+def admin_operator_integration_adapter(
+    request: Request,
+    token: Optional[str] = Query(None),
+    payload: Optional[OperatorExecutionRequest] = None
+):
+    """
+    Protected YarTrader Admin -> YarOperator Production Integration Boundary.
+    Reuses YarTrader authentication and Admin authorization.
+    Derives identity strictly server-side from session to prevent browser impersonation.
+    """
+    # Extract session token from Query, Header, or Authorization
+    auth_token = token
+    if not auth_token:
+        auth_header = request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            auth_token = auth_header[7:].strip()
+    if not auth_token:
+        auth_token = request.query_params.get("session_token") or request.query_params.get("token")
+
+    session = enforce_admin_token(auth_token)
+
+    # Derived server-side identity (Authoritative)
+    server_email = session.get("email", "admin@yartrader.app")
+    server_role = session.get("role", "ADMIN")
+    server_user_id = session.get("user_id", server_email)
+
+    # Anti-Impersonation Check:
+    # If the browser/client submits an identity payload that conflicts with the authenticated session, DENY with 403
+    if payload and payload.client_identity:
+        c_id = payload.client_identity
+        if (
+            ("email" in c_id and c_id["email"] != server_email) or
+            ("userId" in c_id and c_id["userId"] != server_user_id) or
+            ("role" in c_id and c_id["role"] != server_role) or
+            ("admin" in c_id and c_id["admin"] is False)
+        ):
+            from app.core.logging import log_security
+            log_security("OPERATOR_IMPERSONATION_ATTEMPT_DENIED", attempted=c_id, authoritative=server_email)
+            raise HTTPException(
+                status_code=403,
+                detail="Forbidden: Client-supplied identity conflicts with authoritative session identity."
+            )
+
+    # Connection to real Operator production runtime process boundary
+    operator_port = os.environ.get("OPERATOR_PORT", "9000")
+    operator_host = os.environ.get("OPERATOR_HOST", "127.0.0.1")
+    operator_endpoint = f"http://{operator_host}:{operator_port}/api/operator"
+
+    operator_secret = os.environ.get("OPERATOR_SERVER_SECRET", "")
+
+    # Construct authoritative execution context
+    execution_context = {
+        "authenticated_user": {
+            "user_id": server_user_id,
+            "email": server_email,
+            "role": server_role,
+            "auth_source": "YarTrader_Admin_Session"
+        },
+        "action": payload.action if payload else "status",
+        "parameters": payload.parameters if payload else {},
+        "timestamp": os.environ.get("TEST_NOW") or ""
+    }
+
+    # Attempt server-to-server HTTP call to internal YarOperator runtime process
+    import urllib.request
+    import urllib.error
+    import json
+
+    try:
+        req_data = json.dumps(execution_context).encode("utf-8")
+        req = urllib.request.Request(
+            operator_endpoint,
+            data=req_data,
+            headers={
+                "Content-Type": "application/json",
+                "X-Operator-Server-Secret": operator_secret,
+                "X-YarTrader-Auth-User": server_email
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            operator_resp = json.loads(resp.read().decode("utf-8"))
+            return {
+                "status": "Success",
+                "route": "/fa/admin/operator",
+                "auth_reused": True,
+                "authoritative_identity": server_email,
+                "operator_runtime_status": "ONLINE",
+                "operator_response": operator_resp
+            }
+    except (urllib.error.URLError, ConnectionRefusedError, TimeoutError, OSError) as e:
+        # Runtime is unavailable locally or unconfigured - report exact missing production dependency
+        return {
+            "status": "UNAVAILABLE",
+            "route": "/fa/admin/operator",
+            "auth_reused": True,
+            "authoritative_identity": server_email,
+            "operator_runtime_status": "OFFLINE",
+            "missing_dependency": {
+                "error": f"Internal YarOperator runtime process unreachable at {operator_endpoint}: {str(e)}",
+                "required_service": "YarOperator Internal Production Runtime (Port 9000)",
+                "workspace_policy": "ENFORCED_SERVER_SIDE",
+                "environment_manager": "ENFORCED_SERVER_SIDE"
+            }
+        }

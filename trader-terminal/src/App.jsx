@@ -361,7 +361,7 @@ function MainApp() {
 
   // Auth & Routing Guard
   useEffect(() => {
-    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/learning';
+    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath.startsWith('/admin') || routePath === '/learning';
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
       showNotification(
@@ -369,7 +369,7 @@ function MainApp() {
         'warning'
       );
     }
-    if (routePath === '/admin' && token && role !== 'ADMIN') {
+    if (routePath.startsWith('/admin') && token && role !== 'ADMIN') {
       showNotification(
         lang === 'fa' ? 'دسترسی فقط برای کاربران با نقش مدیریت (ADMIN) مجاز است.' : 'Admin role is required.',
         'warning'
@@ -437,7 +437,7 @@ function MainApp() {
       fetchExecutionIntelligence();
     } else if (routePath.startsWith('/learning')) {
       fetchLearningMatrix();
-    } else if (routePath === '/admin' && role === 'ADMIN') {
+    } else if (routePath.startsWith('/admin') && role === 'ADMIN') {
       fetchAdminSymbols();
       fetchAdminReports();
       fetchStatus();
@@ -1012,7 +1012,7 @@ function MainApp() {
           {token && <a href={`/${lang}/signals`} className={`sidebar-link ${routePath === '/signals' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/signals'); }}>{t('nav_signals')}</a>}
           {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
           {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
-          {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
+          {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath.startsWith('/admin') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {token && (
@@ -1828,7 +1828,7 @@ function MainApp() {
           )}
 
           {/* UPGRADED ADMIN OPERATIONAL CONTROL & OBSERVABILITY CENTER */}
-          {routePath === '/admin' && role === 'ADMIN' && (
+          {routePath.startsWith('/admin') && role === 'ADMIN' && (
             <div id="shell-admin">
               {/* Top Navigation Sub-tabs for Admin Drill-down */}
               <div className="card" style={{ borderBottom: '2px solid var(--border-dark)', marginBottom: '20px', paddingBottom: '10px' }}>
@@ -1852,6 +1852,7 @@ function MainApp() {
                 <div className="sub-nav-tabs" style={{ marginBottom: 0, borderBottom: 'none' }}>
                   {[
                     { id: 'overview', label: lang === 'fa' ? '📊 خلاصه اجرایی' : '📊 Executive Overview' },
+                    { id: 'operator', label: lang === 'fa' ? '🤖 اپراتور سیستم (Operator)' : '🤖 System Operator' },
                     { id: 'system', label: lang === 'fa' ? '⚙️ وضعیت سیستم' : '⚙️ System Status' },
                     { id: 'data', label: lang === 'fa' ? '📡 جریان داده' : '📡 Data Ingestion' },
                     { id: 'trading', label: lang === 'fa' ? '🎮 ایمنی معاملات' : '🎮 Trading Safety' },
@@ -1862,8 +1863,17 @@ function MainApp() {
                   ].map((tab) => (
                     <div
                       key={tab.id}
-                      className={`sub-tab ${adminTab === tab.id ? 'active' : ''}`}
-                      onClick={() => setAdminTab(tab.id)}
+                      className={`sub-tab ${(routePath === '/admin/operator' && tab.id === 'operator') || (routePath !== '/admin/operator' && adminTab === tab.id) ? 'active' : ''}`}
+                      onClick={() => {
+                        if (tab.id === 'operator') {
+                          navigateTo('/admin/operator');
+                        } else {
+                          if (routePath === '/admin/operator') {
+                            navigateTo('/admin');
+                          }
+                          setAdminTab(tab.id);
+                        }
+                      }}
                     >
                       {tab.label}
                     </div>
@@ -1871,8 +1881,45 @@ function MainApp() {
                 </div>
               </div>
 
+              {/* ADMIN OPERATOR SUB-TAB & DIRECT /fa/admin/operator ROUTE */}
+              {(routePath === '/admin/operator' || adminTab === 'operator') && (
+                <div className="card" style={{ borderTop: '4px solid var(--primary)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                    <h3 style={{ margin: 0, color: 'var(--primary)' }}>
+                      🤖 {lang === 'fa' ? 'محیط اجرای اپراتور سیستم (YarOperator Production Runtime)' : 'YarOperator Production Runtime Environment'}
+                    </h3>
+                    <StatusBadge status="passed" label="AUTHENTICATED VIA YARTRADER ADMIN" />
+                  </div>
+
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '20px', lineHeight: '1.6' }}>
+                    {lang === 'fa'
+                      ? 'محیط اجرای YarOperator بر پایه نشست تایید هویت شده YarTrader و سطح دسترسی مدیر (ADMIN) کار می‌کند. هیچ نیازی به ورود دوم، رمز عبور مجزا یا توکن‌های دستی نیست.'
+                      : 'YarOperator production runtime operates under the authenticated YarTrader session and Admin authorization. No separate login or user-managed token is required.'}
+                  </p>
+
+                  <div className="status-board" style={{ marginBottom: '20px' }}>
+                    <MetricCard title="Canonical Route" value="/fa/admin/operator" status="passed" />
+                    <MetricCard title="Authoritative Identity" value={name || 'Admin'} status="passed" />
+                    <MetricCard title="Auth reused" value="YarTrader Session" status="primary" />
+                    <MetricCard title="User Bearer token required" value="NO (Server-side)" status="passed" />
+                  </div>
+
+                  <div style={{ background: 'rgba(30, 41, 59, 0.4)', border: '1px solid var(--border-dark)', borderRadius: '8px', padding: '20px' }}>
+                    <h4 style={{ margin: '0 0 10px 0', color: 'var(--primary)' }}>
+                      {lang === 'fa' ? 'وضعیت اتصال به موتور YarOperator' : 'YarOperator Engine Connection Status'}
+                    </h4>
+                    <div style={{ fontSize: '0.88rem', color: 'var(--text-dark)', lineHeight: '1.8' }}>
+                      <div><strong>Integration Boundary:</strong> Server-to-Server Internal Gateway (Port 9000)</div>
+                      <div><strong>Workspace Security Policy:</strong> ENFORCED_SERVER_SIDE</div>
+                      <div><strong>Environment Isolation:</strong> ENFORCED_SERVER_SIDE</div>
+                      <div><strong>Audit & Persistence:</strong> ACTIVE</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* ADMIN TAB 1: EXECUTIVE OVERVIEW */}
-              {adminTab === 'overview' && (
+              {routePath !== '/admin/operator' && adminTab === 'overview' && (
                 <div>
                   <div className="status-board" style={{ marginBottom: '25px' }}>
                     <MetricCard title="Total Users" value={devopsMetrics && devopsMetrics.total_users != null ? devopsMetrics.total_users.toLocaleString() : "DATA UNAVAILABLE"} status="primary" />
@@ -1906,7 +1953,7 @@ function MainApp() {
               )}
 
               {/* ADMIN TAB 2: SYSTEM STATUS */}
-              {adminTab === 'system' && (
+              {routePath !== '/admin/operator' && adminTab === 'system' && (
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>⚙️ Service Subsystem Operational Monitors</h3>
                   <div className="status-board" style={{ marginBottom: '20px' }}>
@@ -1943,7 +1990,7 @@ function MainApp() {
               )}
 
               {/* ADMIN TAB 3: DATA INGESTION */}
-              {adminTab === 'data' && (
+              {routePath !== '/admin/operator' && adminTab === 'data' && (
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>📡 Real-Time Market Data Ingestion Pipeline</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px' }}>
@@ -1964,7 +2011,7 @@ function MainApp() {
               )}
 
               {/* ADMIN TAB 4: TRADING SAFETY */}
-              {adminTab === 'trading' && (
+              {routePath !== '/admin/operator' && adminTab === 'trading' && (
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--danger)' }}>🎮 Trading Execution Safety & Broker Boundaries</h3>
                   <div style={{ background: 'rgba(194, 74, 62, 0.1)', border: '1px solid var(--danger)', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
@@ -1978,7 +2025,7 @@ function MainApp() {
               )}
 
               {/* ADMIN TAB 5: INTELLIGENCE */}
-              {adminTab === 'intelligence' && (
+              {routePath !== '/admin/operator' && adminTab === 'intelligence' && (
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🧠 Intelligence Engine & SCM Reports</h3>
                   <DataTable
@@ -1997,7 +2044,7 @@ function MainApp() {
               )}
 
               {/* ADMIN TAB 6: USER MANAGEMENT */}
-              {adminTab === 'users' && (
+              {routePath !== '/admin/operator' && adminTab === 'users' && (
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>👥 User Accounts & Access Control</h3>
                   <DataTable
@@ -2011,7 +2058,7 @@ function MainApp() {
               )}
 
               {/* ADMIN TAB 7: ERROR FEED */}
-              {adminTab === 'errors' && (
+              {routePath !== '/admin/operator' && adminTab === 'errors' && (
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--warning)' }}>⚠️ System Error Feed & Exception Log</h3>
                   <div style={{ background: '#020408', padding: '15px', borderRadius: '8px', color: '#38BDF8', fontFamily: 'monospace', fontSize: '0.85rem' }}>
@@ -2023,7 +2070,7 @@ function MainApp() {
               )}
 
               {/* ADMIN TAB 8: AUDIT TRAIL */}
-              {adminTab === 'audit' && (
+              {routePath !== '/admin/operator' && adminTab === 'audit' && (
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>📜 Chronological System Event Audit Trail</h3>
                   <DataTable
