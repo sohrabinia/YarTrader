@@ -116,3 +116,76 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         self.assertNotIn("password", str(data))
         self.assertNotIn("token", str(data))
         self.assertNotIn("secret", str(data))
+
+    def test_risk_approved_volume_invariant_in_mt5_adapter(self) -> None:
+        """Verifies that RealMT5BrokerAdapter strictly enforces risk-approved volume without silent alteration."""
+        from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter, OrderRequest
+
+        adapter = RealMT5BrokerAdapter()
+        mock_mt5 = MagicMock()
+        adapter._mt5 = mock_mt5
+        adapter._initialized = True
+
+        # Mock account info
+        acc_info = MagicMock()
+        acc_info.login = int(adapter.TARGET_ACCOUNT)
+        acc_info.server = adapter.TARGET_SERVER
+        acc_info.trade_mode = 0  # DEMO
+        acc_info.trade_allowed = True
+        mock_mt5.account_info.return_value = acc_info
+
+        # Mock symbol info with min=0.01, max=100.0, step=0.01
+        sym_info = MagicMock()
+        sym_info.volume_min = 0.01
+        sym_info.volume_max = 100.0
+        sym_info.volume_step = 0.01
+        sym_info.filling_mode = 1
+        mock_mt5.symbol_info.return_value = sym_info
+
+        # Mock tick
+        tick = MagicMock()
+        tick.bid = 2000.00
+        tick.ask = 2000.50
+        tick.volume = 100
+        tick.time = 1700000000
+        mock_mt5.symbol_info_tick.return_value = tick
+
+        # Mock order check
+        check_res = MagicMock()
+        check_res.retcode = 0  # Success
+        mock_mt5.order_check.return_value = check_res
+
+        # Mock order result
+        res = MagicMock()
+        res.retcode = 10009  # TRADE_RETCODE_DONE
+        res.order = 12345
+        res.deal = 67890
+        res.price = 2000.50
+        res.volume = 0.05
+        res.comment = "Success"
+        mock_mt5.order_send.return_value = res
+
+        # 1. Exact conforming volume (0.05) -> passes unchanged to order_send
+        req_valid = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.05, Price=2000.50)
+        res_valid = adapter.send_order_to_broker(req_valid)
+        self.assertIn(res_valid.Status, ["Placed", "Closed", "SUCCESS", "PLACED"])
+        sent_trade_req = mock_mt5.order_send.call_args[0][0]
+        self.assertEqual(sent_trade_req["volume"], 0.05)
+
+        # 2. Below minimum volume (0.005) -> fails closed with ValidationException
+        req_below = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.005, Price=2000.50)
+        with self.assertRaises(ValidationException) as ctx_below:
+            adapter.send_order_to_broker(req_below)
+        self.assertIn("below broker minimum", str(ctx_below.exception))
+
+        # 3. Above maximum volume (150.0) -> fails closed with ValidationException
+        req_above = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=150.0, Price=2000.50)
+        with self.assertRaises(ValidationException) as ctx_above:
+            adapter.send_order_to_broker(req_above)
+        self.assertIn("exceeds broker maximum", str(ctx_above.exception))
+
+        # 4. Step mismatch (0.015 with step=0.01) -> fails closed with ValidationException
+        req_step = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.015, Price=2000.50)
+        with self.assertRaises(ValidationException) as ctx_step:
+            adapter.send_order_to_broker(req_step)
+        self.assertIn("not aligned with broker volume step", str(ctx_step.exception))

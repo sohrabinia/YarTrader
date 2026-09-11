@@ -246,14 +246,34 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         else:
             raise ValidationException(f"Unsupported OrderType: '{request.OrderType}'")
 
-        # Validate minimum volume safe bounds
-        vol_min = getattr(sym_info, "volume_min", 0.01)
-        vol_step = getattr(sym_info, "volume_step", 0.01)
-        vol_max = getattr(sym_info, "volume_max", 100.0)
-        volume = max(vol_min, min(request.Volume, vol_max))
-        # Align to step
-        if vol_step > 0:
-            volume = round(round(volume / vol_step) * vol_step, 4)
+        # Validate risk-approved volume strictly against broker constraints without silent alteration
+        vol_min = getattr(sym_info, "volume_min", None)
+        vol_max = getattr(sym_info, "volume_max", None)
+        vol_step = getattr(sym_info, "volume_step", None)
+
+        if not isinstance(vol_min, (int, float)) or not isinstance(vol_max, (int, float)) or not isinstance(vol_step, (int, float)) or type(vol_min).__name__ == "MagicMock":
+            raise ValidationException(
+                f"SRE Security Gate Violation: Broker symbol metadata for '{request.Symbol}' is missing or invalid."
+            )
+
+        requested_vol = float(request.Volume)
+        if requested_vol < float(vol_min):
+            raise ValidationException(
+                f"SRE Security Gate Violation: Requested volume {requested_vol} is below broker minimum {vol_min}."
+            )
+        if requested_vol > float(vol_max):
+            raise ValidationException(
+                f"SRE Security Gate Violation: Requested volume {requested_vol} exceeds broker maximum {vol_max}."
+            )
+        if float(vol_step) > 0:
+            steps = round(requested_vol / float(vol_step))
+            expected_vol = round(steps * float(vol_step), 6)
+            if abs(requested_vol - expected_vol) > 1e-5:
+                raise ValidationException(
+                    f"SRE Security Gate Violation: Requested volume {requested_vol} is not aligned with broker volume step {vol_step}."
+                )
+
+        volume = requested_vol
 
         # Sanitize comment and resolve filling mode
         sanitized_comment = self._sanitize_comment(request.Comment)

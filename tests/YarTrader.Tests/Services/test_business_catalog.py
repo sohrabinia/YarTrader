@@ -160,8 +160,8 @@ class TestBusinessCatalogSystem:
     def test_admin_authorization_gating(self):
         client = TestClient(app)
 
-        # 1. Invalid token must be rejected with 403 Forbidden
-        response = client.get("/api/admin/business/catalog?token=invalid_token")
+        # 1. Invalid token must be rejected
+        response = client.get("/api/admin/business/catalog", headers={"Authorization": "Bearer invalid_token"})
         assert response.status_code == 403
 
         # 2. Regular user token must be forbidden
@@ -174,7 +174,7 @@ class TestBusinessCatalogSystem:
         }
         token = global_auth_service.create_session(user_obj, "user-agent-test", "127.0.0.1")
 
-        response = client.get(f"/api/admin/business/catalog?token={token}")
+        response = client.get("/api/admin/business/catalog", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 403
         assert "Forbidden" in response.json()["detail"]
 
@@ -186,6 +186,6 @@ class TestBusinessCatalogSystem:
             "tier": "INSTITUTIONAL"
         }
         admin_token = global_auth_service.create_session(admin_obj, "user-agent-test", "127.0.0.1")
-        response = client.get(f"/api/admin/business/catalog?token={admin_token}")
+        response = client.get("/api/admin/business/catalog", headers={"Authorization": f"Bearer {admin_token}"})
         assert response.status_code == 200
         assert len(response.json()) >= 7

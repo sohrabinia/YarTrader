@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import threading
 from typing import Dict, Any, Optional
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
@@ -14,6 +15,7 @@ class PropChallengeEngine:
     Risk-management product engine for Prop Firm Challenges.
     Consumes existing ProfessionalRiskEngine rules and evaluates account exposure,
     daily loss limits, max drawdown limits, and session constraints.
+    Supports user-scoped configuration to prevent cross-account mutation.
     """
     def __init__(self, config_filepath: str = "runtime_logs/prop_challenge_config.json") -> None:
         self.config_filepath = config_filepath
@@ -21,9 +23,17 @@ class PropChallengeEngine:
         self.risk_engine = ProfessionalRiskEngine()
         os.makedirs(os.path.dirname(self.config_filepath), exist_ok=True)
 
-    def _get_default_config(self) -> Dict[str, Any]:
+    def _get_user_config_filepath(self, user_id: Optional[str] = None) -> str:
+        if not user_id:
+            return self.config_filepath
+        sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', user_id.lower())
+        directory = os.path.dirname(self.config_filepath)
+        return os.path.join(directory, f"prop_challenge_{sanitized}.json")
+
+    def _get_default_config(self, user_id: Optional[str] = None) -> Dict[str, Any]:
         return {
             "is_configured": False,
+            "owner_user_id": user_id or "default",
             "prop_firm_name": "Generic Prop Firm",
             "account_number": "",
             "account_size": 100000.0,
@@ -39,35 +49,45 @@ class PropChallengeEngine:
             "last_updated": None
         }
 
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self, user_id: Optional[str] = None) -> Dict[str, Any]:
         with self.lock:
-            if os.path.exists(self.config_filepath):
+            filepath = self._get_user_config_filepath(user_id)
+            if os.path.exists(filepath):
                 try:
-                    with open(self.config_filepath, "r", encoding="utf-8") as f:
+                    with open(filepath, "r", encoding="utf-8") as f:
                         cfg = json.load(f)
-                        defaults = self._get_default_config()
+                        defaults = self._get_default_config(user_id)
                         defaults.update(cfg)
                         return defaults
                 except Exception:
                     pass
-            return self._get_default_config()
+            return self._get_default_config(user_id)
 
-    def save_config(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
+    def save_config(self, config_data: Dict[str, Any], user_id: Optional[str] = None) -> Dict[str, Any]:
         with self.lock:
-            current = self.load_config()
+            current = self.load_config(user_id)
             for k, v in config_data.items():
                 if k in current:
                     current[k] = v
             current["is_configured"] = True
-            tmp_file = self.config_filepath + ".tmp"
+            current["owner_user_id"] = user_id or "default"
+            filepath = self._get_user_config_filepath(user_id)
+            tmp_file = filepath + ".tmp"
             with open(tmp_file, "w", encoding="utf-8") as f:
                 json.dump(current, f, indent=4)
-            os.replace(tmp_file, self.config_filepath)
+            os.replace(tmp_file, filepath)
             return current
 
-    def get_status(self, live_equity: Optional[float] = None, live_daily_pl: Optional[float] = None, open_positions_count: int = 0) -> Dict[str, Any]:
+    def get_status(
+        self,
+        user_id: Optional[str] = None,
+        live_equity: Optional[float] = None,
+        live_daily_pl: Optional[float] = None,
+        open_positions_count: int = 0,
+        source_type: str = "SERVER_BROKER"
+    ) -> Dict[str, Any]:
         with self.lock:
-            cfg = self.load_config()
+            cfg = self.load_config(user_id)
             if not cfg.get("is_configured", False):
                 return {
                     "is_configured": False,
@@ -118,6 +138,7 @@ class PropChallengeEngine:
                 "status": state,
                 "status_message": f"Prop Challenge state: {state}",
                 "disclaimer": DISCLAIMER_TEXT,
+                "data_source": source_type,
                 "config": cfg,
                 "metrics": {
                     "account_size": account_size,
@@ -131,7 +152,8 @@ class PropChallengeEngine:
                     "remaining_drawdown": round(remaining_drawdown, 2),
                     "open_positions": open_positions_count,
                     "max_concurrent_positions": cfg.get("max_concurrent_positions", 3),
-                    "challenge_progress_pct": challenge_progress_pct
+                    "challenge_progress_pct": challenge_progress_pct,
+                    "data_source": source_type
                 }
             }
 

@@ -130,9 +130,10 @@ def run_autonomous_demo_cycle(
                 f"Entry=${unified_sig.entry_price:.2f}, SL=${unified_sig.stop_loss:.2f}, TP=${unified_sig.take_profit:.2f}, RR={unified_sig.risk_reward:.2f}"
             )
 
-            # Check if MT5 process is connected on Windows host
+            # Check if MT5 process and active account are connected on host
             term_info = adapter.get_terminal_info()
-            if term_info and term_info.get("connected") and getattr(adapter, "_initialized", False):
+            acc_info = adapter.get_account_info()
+            if term_info and term_info.get("connected") and getattr(adapter, "_initialized", False) and acc_info is not None:
                 req = OrderRequest(
                     Symbol=sym,
                     OrderType=unified_sig.direction.title(),

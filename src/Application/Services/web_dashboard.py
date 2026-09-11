@@ -23,6 +23,7 @@ HISTORY_DIR = "history"
 # Import production logging functions
 from app.core.logging import log_event, log_audit, log_intelligence_decision
 from src.Application.Runtime.runtime_state import central_runtime_state
+from src.Infrastructure.Configuration.environment import EnvironmentType, get_current_environment
 from src.Infrastructure.version import get_application_version_info
 from src.Application.Services.telegram_auth import verify_telegram_authorization
 from src.Application.Dashboard.content_manager import ContentManager
@@ -56,6 +57,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def add_security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    csp_value = (
+        "default-src 'self'; "
+        "connect-src 'self' ws: wss:; "
+        "img-src 'self' data: blob: https:; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' data: https://fonts.gstatic.com; "
+        "script-src 'self' 'unsafe-inline'; "
+        "frame-src 'self' https://accounts.google.com;"
+    )
+    response.headers["Content-Security-Policy"] = csp_value
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    return response
 
 # Mount three isolated production-grade SaaS routers
 locales_dir = "trader-terminal/dist/locales" if os.path.exists("trader-terminal/dist/locales") else ("trader-terminal/public/locales" if os.path.exists("trader-terminal/public/locales") else "locales")
@@ -119,21 +138,41 @@ MOCK_BLOG_ARTICLES = [
     }
 ]
 
-def check_admin_guard(session_token: Optional[str] = None):
-    """Enforces strict JWT / session role check, fallback gracefully in testing/validation mode."""
-    is_production = os.environ.get("YARTRADER_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production" or os.environ.get("RG_ENV") == "production"
+def check_admin_guard(request_or_token: Any = None, session_token: Optional[str] = None):
+    """Enforces strict JWT / session role check, requiring Authorization: Bearer <token> in production."""
+    env = get_current_environment()
+    is_production = (env == EnvironmentType.PRODUCTION)
     from app.core.logging import log_security
 
-    log_token = f"{session_token[:8]}..." if session_token else None
+    bearer_token = None
+    query_token = None
 
-    if not session_token:
+    if isinstance(request_or_token, Request):
+        request = request_or_token
+        query_token = session_token
+        auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+        if auth_header and auth_header.lower().startswith("bearer "):
+            bearer_token = auth_header[7:].strip()
+        if not query_token:
+            query_token = request.query_params.get("token") or request.query_params.get("session_token")
+    else:
+        request = None
+        query_token = request_or_token or session_token
+
+    if is_production and query_token and not bearer_token:
+        log_security("AUTHORIZATION_DENIED", reason="Admin token via query parameter forbidden in production")
+        raise HTTPException(status_code=401, detail="Admin authorization via query parameter is forbidden in production. Use Authorization: Bearer <token>.")
+
+    effective_token = bearer_token or query_token
+    log_token = f"{effective_token[:8]}..." if effective_token else None
+
+    if not effective_token:
         if is_production:
             log_security("AUTHORIZATION_DENIED", reason="Authentication token is missing")
             raise HTTPException(status_code=401, detail="Authentication token is missing")
-        # Graceful validation/testing override to prevent breaking the release pipeline checks
         return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
 
-    session = global_auth_service.validate_session(session_token)
+    session = global_auth_service.validate_session(effective_token)
     if not session or session.get("role") != "ADMIN":
         log_security("AUTHORIZATION_DENIED", token=log_token, email=session.get("email") if session else None)
         raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
@@ -4254,26 +4293,89 @@ class PropConfigPayload(BaseModel):
     news_rule: Optional[str] = "NO_NEW_ENTRIES_AROUND_HIGH_IMPACT"
 
 
+def _get_authenticated_prop_user(request: Request, session_token: Optional[str] = None) -> Dict[str, Any]:
+    token = None
+    auth_header = request.headers.get("authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+    if not token and session_token:
+        token = session_token
+    if not token:
+        token = request.query_params.get("session_token") or request.query_params.get("token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication session token is required for Prop Challenge operations.")
+    user = global_auth_service.get_session_user(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+    return user
+
+
 @app.get("/api/prop/challenge")
 def get_prop_challenge_status_endpoint(
+    request: Request,
     equity: Optional[float] = None,
     daily_pl: Optional[float] = None,
-    open_positions: int = 0
+    open_positions: int = 0,
+    simulated_equity: Optional[float] = None,
+    simulated_daily_pl: Optional[float] = None,
+    session_token: Optional[str] = None
 ):
-    """Retrieves current Prop Firm Challenge risk status and rule compliance."""
+    """Retrieves authenticated user's Prop Firm Challenge risk status and rule compliance."""
+    user = _get_authenticated_prop_user(request, session_token)
+    user_email = user["email"]
+
     from src.Risk.Services.prop_challenge_engine import prop_challenge_engine
+
+    source_type = "SERVER_BROKER"
+    eval_equity = None
+    eval_daily_pl = None
+
+    if simulated_equity is not None or simulated_daily_pl is not None:
+        source_type = "SIMULATION"
+        eval_equity = simulated_equity if simulated_equity is not None else equity
+        eval_daily_pl = simulated_daily_pl if simulated_daily_pl is not None else daily_pl
+    else:
+        # Attempt to fetch authoritative live server-side account state
+        try:
+            from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
+            adapter = RealMT5BrokerAdapter()
+            acc_info = adapter.get_account_info()
+            if acc_info and acc_info.get("equity") is not None:
+                eval_equity = float(acc_info["equity"])
+                eval_daily_pl = float(acc_info.get("profit", 0.0))
+                source_type = "SERVER_BROKER"
+        except Exception:
+            pass
+
+        if eval_equity is None:
+            if equity is not None or daily_pl is not None:
+                source_type = "SIMULATION"
+                eval_equity = equity
+                eval_daily_pl = daily_pl
+            else:
+                source_type = "SERVER_BROKER"
+
     return prop_challenge_engine.get_status(
-        live_equity=equity,
-        live_daily_pl=daily_pl,
-        open_positions_count=open_positions
+        user_id=user_email,
+        live_equity=eval_equity,
+        live_daily_pl=eval_daily_pl,
+        open_positions_count=open_positions,
+        source_type=source_type
     )
 
 
 @app.post("/api/prop/config")
-def update_prop_challenge_config_endpoint(payload: PropConfigPayload):
-    """Updates configurable Prop Firm Challenge rules and activates challenge monitoring."""
+def update_prop_challenge_config_endpoint(
+    request: Request,
+    payload: PropConfigPayload,
+    session_token: Optional[str] = None
+):
+    """Updates authenticated user's configurable Prop Firm Challenge rules."""
+    user = _get_authenticated_prop_user(request, session_token)
+    user_email = user["email"]
+
     from src.Risk.Services.prop_challenge_engine import prop_challenge_engine
-    updated = prop_challenge_engine.save_config(payload.model_dump())
+    updated = prop_challenge_engine.save_config(payload.model_dump(), user_id=user_email)
     return {
         "status": "Success",
         "message": "Prop Firm Challenge parameters updated successfully.",
@@ -5310,18 +5412,21 @@ def get_user_reports(market: Optional[str] = None, horizon: Optional[str] = None
 
 
 @app.get("/api/user/statements")
-def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str] = None, token: Optional[str] = Query(None)):
+def get_user_statements(request: Request, period: Optional[str] = "30d", account_id: Optional[str] = None, token: Optional[str] = Query(None)):
     """Exposes formal user financial account statements with opening/closing balances, realized/unrealized P&L, fees, and trade ledgers."""
-    is_production = os.environ.get("YARTRADER_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production" or os.environ.get("RG_ENV") == "production"
+    auth_header = request.headers.get("authorization") if request else None
+    bearer_token = auth_header[7:].strip() if (auth_header and auth_header.lower().startswith("bearer ")) else None
+    effective_token = bearer_token or token
 
     session = None
-    if token:
-        session = global_auth_service.validate_session(token)
+    if effective_token:
+        session = global_auth_service.validate_session(effective_token)
 
     if not session:
-        if is_production or token is not None:
+        env = get_current_environment()
+        is_production = (env == EnvironmentType.PRODUCTION)
+        if is_production or effective_token is not None:
             raise HTTPException(status_code=401, detail="Authentication token missing or invalid")
-        # Testing/validation mode fallback when token is omitted
         session = {"email": "test-user@yartrader.app", "role": "USER", "user_id": "DEMO-ACC-7890"}
 
     user_email = session.get("email", "test-user@yartrader.app")
@@ -5416,10 +5521,10 @@ def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str]
 
 
 @app.get("/api/admin/statements")
-def get_admin_statements(period: Optional[str] = "30d", token: Optional[str] = Query(None)):
+def get_admin_statements(request: Request, period: Optional[str] = "30d", token: Optional[str] = Query(None)):
     """Exposes administrative aggregate statement overview across all system trading accounts."""
-    admin_session = check_admin_guard(token)
-    user_stmt = get_user_statements(period=period, account_id="SYSTEM-AGGREGATE", token=token)
+    admin_session = check_admin_guard(request, token)
+    user_stmt = get_user_statements(request, period=period, account_id="SYSTEM-AGGREGATE", token=token)
 
     users_count = len(getattr(global_auth_service.repo, "users", {})) or 1
     active_positions = 0
@@ -5485,7 +5590,9 @@ def register_user(payload: RegisterPayload):
     subject = "Verify Your YarTrader Account"
     verification_url = f"/api/auth/verify-email?token={raw_token}"
     body = f"Hello {user['name']},\n\nPlease verify your YarTrader account by clicking the link: {verification_url}"
-    send_saas_email(email_clean, subject, body)
+    email_sent = send_saas_email(email_clean, subject, body)
+    if not email_sent and get_current_environment() == EnvironmentType.PRODUCTION:
+        raise HTTPException(status_code=503, detail="Email delivery service is currently unavailable.")
 
     return {
         "status": "Success",
@@ -5554,7 +5661,9 @@ def forgot_password_recovery(payload: ForgotPasswordPayload):
     subject = "Reset Your YarTrader Password"
     reset_url = f"#/reset-password?token={raw_token}"
     body = f"Hello {user['name']},\n\nYou requested a password reset. Please use the following token to reset your password: {raw_token}\nOr use the link: {reset_url}"
-    send_saas_email(payload.email.lower(), subject, body)
+    email_sent = send_saas_email(payload.email.lower(), subject, body)
+    if not email_sent and get_current_environment() == EnvironmentType.PRODUCTION:
+        raise HTTPException(status_code=503, detail="Email delivery service is currently unavailable.")
 
     return {
         "status": "Success",
