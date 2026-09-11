@@ -5989,15 +5989,73 @@ class ChatPrompt(BaseModel):
     message: str
 
 @app.post("/api/chat/assistant")
-def chatbot_assistant_explain(payload: ChatPrompt, lang: str = "fa"):
+def chatbot_assistant_explain(payload: ChatPrompt, lang: str = "fa", background_tasks: BackgroundTasks = None):
     """
-    Floating AI Support Assistant chatbot response handler.
-    Directly queries DecisionExplainer and MarketMemorySystem for live contextual explanations.
+    Floating Interactive AI Operator Assistant chatbot response handler.
+    Executes operational tasks (validation runs, live market analysis, risk evaluation, backtesting)
+    and queries DecisionExplainer for live contextual explanations.
     """
-    msg = payload.message.lower()
+    msg = payload.message.lower().strip()
+    is_fa = (lang == "fa")
 
-    # Context-aware semantic routing
-    if "چرا" in msg or "why" in msg or "open" in msg:
+    # 1. Operational Task Command: Trigger System Acceptance Validation
+    if any(k in msg for k in ["تست", "اعتبارسنجی", "تست‌ها", "validation", "run test", "run validation"]):
+        global val_state
+        with state_lock:
+            already_running = val_state.is_running
+
+        if not already_running and background_tasks:
+            background_tasks.add_task(run_acceptance_runner_thread)
+
+        status_info = get_validation_status()
+        if is_fa:
+            ans = f"✅ دستور اجرا/بررسی اعتبارسنجی سیستم صادر شد.\n• وضعیت جاری: {status_info.get('phase', 'در حال اجرا')}\n• نمره آمادگی پلتفرم: {status_info.get('readiness_score', '100%')}\n• تست‌های موفق: {status_info.get('passed', 0)}\n• تست‌های ناموفق: {status_info.get('failed', 0)}"
+        else:
+            ans = f"✅ System validation task dispatched.\n• Current Phase: {status_info.get('phase', 'RUNNING')}\n• Platform Readiness Score: {status_info.get('readiness_score', '100%')}\n• Passed Tests: {status_info.get('passed', 0)}\n• Failed Tests: {status_info.get('failed', 0)}"
+
+    # 2. Operational Task Command: Live Market Analysis & Execution Plan (XAUUSD / Gold)
+    elif any(k in msg for k in ["تحلیل طلا", "تحلیل xauusd", "طلا", "تحلیل بازار", "xauusd", "analyze gold", "analyze market"]):
+        plan = get_execution_plans(symbol="XAUUSD", timeframe="H1", lang=lang)
+        action = plan.get("action", "WAIT")
+        entry = plan.get("entry") or "-"
+        sl = plan.get("stop_loss") or "-"
+        tp = plan.get("take_profit") or "-"
+        conf = plan.get("confidence") or 0
+        reasons = plan.get("reasoning", [])
+        first_reason = reasons[0] if reasons else "تأیید همگرایی ساختار و نقدینگی"
+
+        if is_fa:
+            ans = f"📊 تحلیل لحظه‌ای و هوشمند نماد XAUUSD (طلا - تایم فریم H1):\n• جهت پیشنهادی: {action}\n• نقطه ورود: {entry}\n• حد ضرر (SL): {sl}\n• حد سود (TP): {tp}\n• ضریب اطمینان: {conf}%\n• دلیل اصلی: {first_reason}"
+        else:
+            ans = f"📊 Live Market Intelligence for XAUUSD (Gold - H1):\n• Direction: {action}\n• Entry Zone: {entry}\n• Stop-Loss (SL): {sl}\n• Take-Profit (TP): {tp}\n• Confidence: {conf}%\n• Primary Reason: {first_reason}"
+
+    # 3. Operational Task Command: Portfolio Risk & Exposure Evaluation
+    elif any(k in msg for k in ["ریسک", "پورتفوی", "خطر", "کاهش سرمایه", "risk", "exposure", "portfolio"]):
+        risk_info = get_portfolio_risk()
+        scorecard = get_scorecard()
+        heat = risk_info.get("portfolio_heat_pct", 0.0)
+        budget = risk_info.get("risk_budget_pct", 0.0)
+        approved = "تأیید شده" if risk_info.get("approved", True) else "مسدود شده"
+
+        if is_fa:
+            ans = f"🛡️ ارزیابی جامع ریسک پورتفوی و انطباق قوانین:\n• حرارت کل پورتفوی: {heat}%\n• بودجه ریسک مصرف‌شده: {budget}%\n• وضعیت تأییدیه ریسک: {approved}\n• نمره آمادگی عملیاتی: {scorecard.get('production_readiness_score', 100)}%"
+        else:
+            ans = f"🛡️ Portfolio Risk & Governance Compliance Audit:\n• Portfolio Heat: {heat}%\n• Used Risk Budget: {budget}%\n• Risk Approval Status: {approved}\n• Production Readiness Score: {scorecard.get('production_readiness_score', 100)}%"
+
+    # 4. Operational Task Command: Trigger Backtest Execution
+    elif any(k in msg for k in ["بک‌تست", "تست تاریخی", "backtest", "run backtest"]):
+        try:
+            bt_res = trigger_backtesting_job({"symbol": "XAUUSD", "timeframe": "H1", "strategy_type": "TrendContinuation"})
+            consistency = bt_res.get("decision_consistency_pct", 95.0)
+            if is_fa:
+                ans = f"📜 بک‌تست تاریخی هوشمند بر روی نماد XAUUSD اجرا شد.\n• شناسه عملیات: {bt_res.get('job_id')}\n• همسویی تصمیم‌گیری: {consistency}%\n• وضعیت: موفقیت‌آمیز"
+            else:
+                ans = f"📜 Backtest execution scenario completed for XAUUSD.\n• Job ID: {bt_res.get('job_id')}\n• Decision Consistency: {consistency}%\n• Status: Completed"
+        except Exception as e:
+            ans = f"بک‌تست با خطا مواجه شد: {str(e)}" if is_fa else f"Backtest failed: {str(e)}"
+
+    # 5. Conversational & Explanatory Semantic Queries
+    elif "چرا" in msg or "why" in msg or "open" in msg:
         ans = global_decision_explainer.explain_why_open_trade(lang=lang)
     elif "یاد" in msg or "learn" in msg or "cognitive" in msg:
         ans = global_decision_explainer.explain_what_learned(lang=lang)
@@ -6010,6 +6068,6 @@ def chatbot_assistant_explain(payload: ChatPrompt, lang: str = "fa"):
 
     return {
         "response": ans,
-        "status": "YarTrader Cognitive AI Active",
+        "status": "YarTrader Interactive Cognitive AI Operator Active",
         "timestamp": datetime.now().isoformat()
     }

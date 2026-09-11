@@ -2163,19 +2163,21 @@ function MainApp() {
               <div ref={chatMessagesEndRef} />
             </div>
 
-            {/* Quick Context-Aware Prompts */}
+            {/* Quick Interactive Operational Task Prompts */}
             <div style={{ display: 'flex', gap: '6px', padding: '6px 12px', overflowX: 'auto', background: 'rgba(15, 23, 42, 0.4)', borderTop: '1px solid var(--border-dark)' }}>
               {[
-                { label: lang === 'fa' ? 'دلیل این تصمیم؟' : 'Why this decision?', text: 'چرا این تصمیم گرفته شد؟' },
-                { label: lang === 'fa' ? 'یادگیری هوش؟' : 'What is learned?', text: 'سیستم از بازار چه چیزی یاد گرفته؟' },
-                { label: lang === 'fa' ? 'علت عدم معامله؟' : 'Why no trade?', text: 'چرا معامله صورت نگرفت؟' }
+                { label: lang === 'fa' ? 'اجرای تست سیستم' : 'Run Test', text: 'اجرای اعتبارسنجی سیستم' },
+                { label: lang === 'fa' ? 'تحلیل طلا' : 'Analyze Gold', text: 'تحلیل لحظه‌ای طلا XAUUSD' },
+                { label: lang === 'fa' ? 'ارزیابی ریسک' : 'Audit Risk', text: 'بررسی ریسک پورتفوی' },
+                { label: lang === 'fa' ? 'اجرای بک‌تست' : 'Run Backtest', text: 'اجرای بک‌تست تاریخی' },
+                { label: lang === 'fa' ? 'علت تصمیم؟' : 'Why decision?', text: 'چرا این تصمیم گرفته شد؟' }
               ].map((qp, qpIdx) => (
                 <button
                   key={qpIdx}
                   type="button"
                   style={{ whiteSpace: 'nowrap', fontSize: '0.75em', padding: '3px 8px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', cursor: 'pointer' }}
                   onClick={() => {
-                    setChatInput(qp.text);
+                    sendChatMessage(qp.text);
                   }}
                 >
                   ⚡ {qp.label}
