@@ -2063,32 +2063,20 @@ function MainApp() {
           {/* AUTHENTICATION VIEWS */}
           {routePath === '/login' && (
             <div id="shell-login">
-              <form className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }} onSubmit={handleLogin}>
-                <h2 style={{ marginTop: 0, color: 'var(--primary)', textAlign: 'center' }}>{t('login_title')}</h2>
-
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                  <button type="button" className="social-btn social-google" style={{ flex: 1 }} onClick={() => handleSocialLogin('Google')}>Google</button>
-                  <button type="button" className="social-btn social-apple" style={{ flex: 1 }} onClick={() => handleSocialLogin('Apple')}>Apple</button>
-                  <button type="button" className="social-btn social-telegram" style={{ flex: 1, backgroundColor: '#0088cc', color: '#ffffff' }} onClick={() => handleSocialLogin('Telegram')}>Telegram</button>
+              <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)', textAlign: 'center' }}>
+                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('login_title')}</h2>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '25px', fontSize: '0.9em' }}>
+                  {lang === 'fa' ? 'ورود به YarTrader منحصراً از طریق حساب گوگل انجام می‌شود.' : 'Sign in to YarTrader is exclusively supported via Google Account.'}
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                  <button type="button" className="btn" style={{ minWidth: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }} onClick={() => handleSocialLogin('Google')}>
+                    <span>🔍</span> {lang === 'fa' ? 'ورود با حساب گوگل' : 'Sign In with Google'}
+                  </button>
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">{t('email_label')}</label>
-                  <input className="input-field" type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required placeholder={t('email_placeholder')} />
+                <div style={{ marginTop: '20px', fontSize: '0.8em', color: 'var(--text-muted)' }}>
+                  {lang === 'fa' ? 'امنیت ورود شما توسط Google Identity Services تضمین می‌گردد.' : 'Your identity is securely verified via Google Identity Services.'}
                 </div>
-                <div className="form-group" style={{ marginBottom: '10px' }}>
-                  <label className="form-label">{t('password_label')}</label>
-                  <input className="input-field" type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} required placeholder={t('password_placeholder')} />
-                </div>
-                <div style={{ textAlign: 'end', marginBottom: '20px' }}>
-                  <a href="#/forgot-password" style={{ color: 'var(--primary)', fontSize: '0.85em', textDecoration: 'none' }}>{t('forgot_link')}</a>
-                </div>
-                <button type="submit" className="btn" style={{ width: '100%' }}>{t('login_btn')}</button>
-
-                <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.9em' }}>
-                  <a href="#/register" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>{t('no_account')}</a>
-                </div>
-              </form>
+              </div>
             </div>
           )}
 
