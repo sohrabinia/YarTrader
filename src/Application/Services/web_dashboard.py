@@ -3388,30 +3388,14 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
 
             <!-- AUTH VIEWS -->
             <div id="shell-login" style="display: none;">
-                <div class="card" style="max-width: 450px; margin: 40px auto; border-top: 5px solid var(--primary);">
-                    <h2 style="margin-top:0; color: var(--primary); text-align: center;" data-i18n="login_title">Sign In to Your Account</h2>
-
-                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                        <button class="social-btn social-google" style="flex: 1;" onclick="mockSocialLogin('Google')">Google</button>
-                        <button class="social-btn social-apple" style="flex: 1;" onclick="mockSocialLogin('Apple')">Apple</button>
-                        <button class="social-btn social-telegram" style="flex: 1; background-color: #0088cc; color: white;" onclick="mockSocialLogin('Telegram')">Telegram</button>
+                <div class="card" style="max-width: 450px; margin: 40px auto; border-top: 5px solid var(--primary); text-align: center;">
+                    <h2 style="margin-top:0; color: var(--primary);" data-i18n="login_title">Sign In to Your Account</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 25px; font-size: 0.9em;">Sign in to YarTrader is exclusively supported via Google Account.</p>
+                    <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+                        <button class="btn" style="min-width: 220px;" onclick="mockSocialLogin('Google')">🔍 Sign In with Google</button>
                     </div>
-
-                    <div class="form-group">
-                        <label class="form-label" data-i18n="email_label">Email Address</label>
-                        <input class="input-field" type="email" id="login-email" placeholder="Enter your email address" data-i18n="email_placeholder" />
-                    </div>
-                    <div class="form-group" style="margin-bottom: 10px;">
-                        <label class="form-label" data-i18n="password_label">Password</label>
-                        <input class="input-field" type="password" id="login-pass" placeholder="Enter your password" data-i18n="password_placeholder" />
-                    </div>
-                    <div style="text-align: end; margin-bottom: 20px;">
-                        <a href="#/forgot-password" style="color: var(--primary); font-size: 0.85em; text-decoration: none;" data-i18n="forgot_link">Forgot password?</a>
-                    </div>
-                    <button class="btn" style="width: 100%;" onclick="submitLogin()" data-i18n="login_btn">Sign In</button>
-
-                    <div style="text-align: center; margin-top: 20px; font-size: 0.9em;">
-                        <a href="#/register" style="color: var(--text-muted); text-decoration: none;" data-i18n="no_account">Don't have an account? Register</a>
+                    <div style="margin-top: 20px; font-size: 0.8em; color: var(--text-muted);">
+                        Your identity is securely verified via Google Identity Services.
                     </div>
                 </div>
             </div>
