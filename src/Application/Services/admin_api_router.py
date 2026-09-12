@@ -9,38 +9,45 @@ router = APIRouter(prefix="/api/admin", tags=["Admin SRE Operations API"])
 # Import secure shared global auth service to prevent state isolation leaks
 from src.Application.Dashboard.auth_service import global_auth_service
 
-def enforce_admin_token(token: Optional[str] = None):
-    """Enforces strict role-based access control, rejecting non-ADMIN accounts with 403 Forbidden."""
-    is_production = os.environ.get("YARTRADER_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production" or os.environ.get("RG_ENV") == "production"
+def enforce_admin_token(req_or_tok: Any = None, token: Optional[str] = None):
+    """Enforces strict Bearer role-based access control with zero test-admin fallbacks."""
     from app.core.logging import log_security
 
-    log_token = f"{token[:8]}..." if token else None
+    request: Optional[Request] = req_or_tok if isinstance(req_or_tok, Request) else None
+    tok: Optional[str] = req_or_tok if isinstance(req_or_tok, str) else token
 
-    if not token:
-        if is_production:
-            log_security("AUTHORIZATION_DENIED", reason="Authentication token is missing")
-            raise HTTPException(status_code=401, detail="Authentication token is missing")
-        # Fallback testing mode override
-        return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
+    if request:
+        if any(param in request.query_params for param in ["token", "session_token", "authorization"]):
+            log_security("AUTHORIZATION_DENIED", reason="Query string token parameter rejected")
+            raise HTTPException(status_code=401, detail="Query string token parameters are strictly forbidden. Use Bearer header.")
 
-    if token == "mock_social_token":
-        if is_production:
-            log_security("AUTHORIZATION_DENIED", token=log_token, reason="Mock social token forbidden in production")
-            raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
-        else:
-            return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
+        auth_header = request.headers.get("authorization")
+        if auth_header:
+            if not auth_header.startswith("Bearer "):
+                log_security("AUTHORIZATION_DENIED", reason="Malformed Authorization header scheme")
+                raise HTTPException(status_code=401, detail="Invalid Authorization header scheme. Expected 'Bearer <token>'.")
+            tok = auth_header[7:].strip()
 
-    session = global_auth_service.validate_session(token)
-    if not session or session.get("role") != "ADMIN":
-        log_security("AUTHORIZATION_DENIED", token=log_token, email=session.get("email") if session else None)
+    if not tok:
+        log_security("AUTHORIZATION_DENIED", reason="Authentication token is missing")
+        raise HTTPException(status_code=401, detail="Authentication token is missing")
+
+    session = global_auth_service.validate_session(tok)
+    if not session:
+        log_security("AUTHORIZATION_DENIED", reason="Invalid session token")
+        raise HTTPException(status_code=401, detail="Invalid or expired session token")
+
+    if session.get("role") != "ADMIN":
+        log_security("AUTHORIZATION_DENIED", token=f"{tok[:8]}...", email=session.get("email"))
         raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
+
     return session
 
 # 1. Active Symbol Management (Bounded to max 30)
 @router.get("/symbols")
-def get_admin_symbols(token: Optional[str] = None):
+def get_admin_symbols(request: Request):
     """Lists currently registered active symbols and validates maximum limits ceiling."""
-    enforce_admin_token(token)
+    enforce_admin_token(request)
     from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
     registry_inst = SymbolRegistry.get_instance()
     registry = registry_inst.get_all_registered()
