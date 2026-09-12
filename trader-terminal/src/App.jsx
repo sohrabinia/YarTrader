@@ -24,6 +24,7 @@ import DashboardView from './views/DashboardView.jsx';
 import IntelligenceView from './views/IntelligenceView.jsx';
 import DemoView from './views/DemoView.jsx';
 import AdminView from './views/AdminView.jsx';
+import OperatorView from './views/OperatorView.jsx';
 import GuideView from './views/GuideView.jsx';
 import FaqView from './views/FaqView.jsx';
 
@@ -361,7 +362,7 @@ function MainApp() {
 
   // Auth & Routing Guard
   useEffect(() => {
-    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/learning';
+    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath.startsWith('/admin') || routePath === '/learning';
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
       showNotification(
@@ -369,7 +370,7 @@ function MainApp() {
         'warning'
       );
     }
-    if (routePath === '/admin' && token && role !== 'ADMIN') {
+    if (routePath.startsWith('/admin') && token && role !== 'ADMIN') {
       showNotification(
         lang === 'fa' ? 'دسترسی فقط برای کاربران با نقش مدیریت (ADMIN) مجاز است.' : 'Admin role is required.',
         'warning'
@@ -1012,7 +1013,14 @@ function MainApp() {
           {token && <a href={`/${lang}/signals`} className={`sidebar-link ${routePath === '/signals' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/signals'); }}>{t('nav_signals')}</a>}
           {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
           {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
-          {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
+          {token && role === 'ADMIN' && (
+            <>
+              <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>
+              <a href={`/${lang}/admin/operator`} className={`sidebar-link ${routePath === '/admin/operator' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin/operator'); }}>
+                {lang === 'fa' ? '🤖 اپراتور سیستم' : '🤖 YarOperator'}
+              </a>
+            </>
+          )}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {token && (
@@ -1827,6 +1835,11 @@ function MainApp() {
             </div>
           )}
 
+          {/* OPERATOR DIRECT ROUTE VIEW */}
+          {routePath.startsWith('/admin/operator') && role === 'ADMIN' && (
+            <OperatorView t={t} lang={lang} />
+          )}
+
           {/* UPGRADED ADMIN OPERATIONAL CONTROL & OBSERVABILITY CENTER */}
           {routePath === '/admin' && role === 'ADMIN' && (
             <div id="shell-admin">
@@ -1858,7 +1871,8 @@ function MainApp() {
                     { id: 'intelligence', label: lang === 'fa' ? '🧠 سیگنال و مدل' : '🧠 Intelligence' },
                     { id: 'users', label: lang === 'fa' ? '👥 کاربران' : '👥 User Management' },
                     { id: 'errors', label: lang === 'fa' ? '⚠️ خطاها و هشدارها' : '⚠️ Error Feed' },
-                    { id: 'audit', label: lang === 'fa' ? '📜 دفتر ثبت وقایع (Audit)' : '📜 Audit Trail' }
+                    { id: 'audit', label: lang === 'fa' ? '📜 دفتر ثبت وقایع (Audit)' : '📜 Audit Trail' },
+                    { id: 'operator', label: lang === 'fa' ? '🤖 اپراتور YarOperator' : '🤖 YarOperator Engine' }
                   ].map((tab) => (
                     <div
                       key={tab.id}
@@ -2023,6 +2037,10 @@ function MainApp() {
               )}
 
               {/* ADMIN TAB 8: AUDIT TRAIL */}
+              {adminTab === 'operator' && (
+                <OperatorView t={t} lang={lang} />
+              )}
+
               {adminTab === 'audit' && (
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>📜 Chronological System Event Audit Trail</h3>

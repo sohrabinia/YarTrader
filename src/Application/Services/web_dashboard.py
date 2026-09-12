@@ -7,7 +7,7 @@ import subprocess
 import platform
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Query
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Query, Header
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -119,21 +119,33 @@ MOCK_BLOG_ARTICLES = [
     }
 ]
 
-def check_admin_guard(session_token: Optional[str] = None):
-    """Enforces strict JWT / session role check, fallback gracefully in testing/validation mode."""
+def check_admin_guard(
+    session_token: Optional[str] = None,
+    authorization: Optional[str] = Header(None, alias="Authorization")
+):
+    """Enforces strict JWT / session role check with Bearer token extraction."""
+    token = session_token
+    auth_header = authorization if isinstance(authorization, str) else None
+    if not token and auth_header:
+        if auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "").strip()
+        else:
+            token = auth_header.strip()
+    elif token and token.startswith("Bearer "):
+        token = token.replace("Bearer ", "").strip()
+
     is_production = os.environ.get("YARTRADER_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production" or os.environ.get("RG_ENV") == "production"
     from app.core.logging import log_security
 
-    log_token = f"{session_token[:8]}..." if session_token else None
+    log_token = f"{token[:8]}..." if token else None
 
-    if not session_token:
+    if not token:
         if is_production:
             log_security("AUTHORIZATION_DENIED", reason="Authentication token is missing")
             raise HTTPException(status_code=401, detail="Authentication token is missing")
-        # Graceful validation/testing override to prevent breaking the release pipeline checks
         return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
 
-    session = global_auth_service.validate_session(session_token)
+    session = global_auth_service.validate_session(token)
     if not session or session.get("role") != "ADMIN":
         log_security("AUTHORIZATION_DENIED", token=log_token, email=session.get("email") if session else None)
         raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
@@ -1073,6 +1085,7 @@ VALID_PUBLIC_SUBPATHS = {
 @app.api_route("/forgot-password", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/execution-intel", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/admin", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/admin/{path:path}", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/blog", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/news", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/faq", methods=["GET", "HEAD"], response_class=HTMLResponse)
@@ -6028,3 +6041,73 @@ def chatbot_assistant_explain(payload: ChatPrompt, lang: str = "fa"):
         "status": "YarTrader Cognitive AI Active",
         "timestamp": datetime.now().isoformat()
     }
+
+
+# ==============================================================================
+# YARTRADER OPERATOR INTEGRATION ENDPOINTS
+# ==============================================================================
+class OperatorTaskSubmissionPayload(BaseModel):
+    task_description: str
+    workspace_id: Optional[str] = "yartrader"
+    metadata: Optional[Dict[str, Any]] = None
+
+@app.get("/api/admin/operator/status")
+def get_operator_status(
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    token: Optional[str] = Query(None)
+):
+    """
+    Evaluates and returns real runtime health status of YarTrader.Operator runtime gateway.
+    Guarded by check_admin_guard.
+    """
+    session = check_admin_guard(session_token=token, authorization=authorization)
+    from src.Application.Services.operator_adapter import global_operator_adapter
+    return global_operator_adapter.get_runtime_health()
+
+@app.post("/api/admin/operator/tasks")
+def submit_operator_task(
+    payload: OperatorTaskSubmissionPayload,
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    token: Optional[str] = Query(None)
+):
+    """
+    Submits a real task to YarTrader.Operator runtime.
+    Guarded by check_admin_guard.
+    """
+    session = check_admin_guard(session_token=token, authorization=authorization)
+    from src.Application.Services.operator_adapter import global_operator_adapter
+    return global_operator_adapter.submit_task(
+        admin_identity=session,
+        task_description=payload.task_description,
+        metadata=payload.metadata
+    )
+
+@app.get("/api/admin/operator/tasks/{task_id}")
+def get_operator_task_status(
+    task_id: str,
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    token: Optional[str] = Query(None)
+):
+    """
+    Queries task status and result from YarTrader.Operator runtime.
+    Guarded by check_admin_guard.
+    """
+    session = check_admin_guard(session_token=token, authorization=authorization)
+    from src.Application.Services.operator_adapter import global_operator_adapter
+    return global_operator_adapter.get_task_status(
+        admin_identity=session,
+        task_id=task_id
+    )
+
+@app.get("/api/admin/operator/tasks")
+def list_operator_tasks(
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    token: Optional[str] = Query(None)
+):
+    """
+    Lists active and historical tasks from YarTrader.Operator.
+    Guarded by check_admin_guard.
+    """
+    session = check_admin_guard(session_token=token, authorization=authorization)
+    from src.Application.Services.operator_adapter import global_operator_adapter
+    return global_operator_adapter.get_all_tasks(admin_identity=session)
