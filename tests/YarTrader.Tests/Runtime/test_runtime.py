@@ -44,12 +44,29 @@ class TestTradeYarRuntimeAndConfiguration(unittest.TestCase):
     # --- Configuration Subsystem Tests ---
 
     def test_environment_resolution(self) -> None:
-        """Verify fallback and resolution of EnvironmentType from env vars."""
+        """Verify fallback and fail-closed resolution of EnvironmentType from env vars."""
+        os.environ.pop("YARTRADER_ENV", None)
         os.environ["TRADEYAR_ENV"] = "simulation"
         self.assertEqual(get_current_environment(), EnvironmentType.SIMULATION)
 
-        os.environ["TRADEYAR_ENV"] = "invalid_environment"
+        os.environ["TRADEYAR_ENV"] = "development"
         self.assertEqual(get_current_environment(), EnvironmentType.DEVELOPMENT)
+
+        os.environ["TRADEYAR_ENV"] = "test"
+        self.assertEqual(get_current_environment(), EnvironmentType.TEST)
+
+        os.environ["TRADEYAR_ENV"] = "production"
+        self.assertEqual(get_current_environment(), EnvironmentType.PRODUCTION)
+
+        # Unknown environment fails closed to PRODUCTION
+        os.environ["TRADEYAR_ENV"] = "invalid_environment"
+        self.assertEqual(get_current_environment(), EnvironmentType.PRODUCTION)
+
+        # Missing environment fails closed to PRODUCTION
+        os.environ.pop("TRADEYAR_ENV", None)
+        os.environ.pop("YARTRADER_ENV", None)
+        os.environ.pop("RG_ENV", None)
+        self.assertEqual(get_current_environment(), EnvironmentType.PRODUCTION)
 
     def test_settings_by_environment(self) -> None:
         """Verify environment-specific settings load with appropriate defaults."""

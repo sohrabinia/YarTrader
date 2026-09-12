@@ -1,9 +1,9 @@
 # YarTrader Autonomous Financial Intelligence Platform
 
 ## Overview
-The **YarTrader Platform** is a production-ready, highly-decoupled, and strictly non-trading Autonomous Financial Intelligence Platform. Built using **Python 3.12**, it adheres strictly to the **APES-FIN Clean Architecture** standard, ensuring absolute domain isolation with **zero execution leakage**.
+The **YarTrader Platform** is a production-ready, highly-decoupled Autonomous Financial Intelligence Platform. Built using **Python 3.12**, it adheres strictly to the **APES-FIN Clean Architecture** standard, ensuring absolute domain isolation and execution safety.
 
-This system is strictly descriptive, analytical, and diagnostic; it contains **zero execution or trade placement logic**.
+YarTrader supports real MT5 DEMO execution while maintaining zero real-money/live execution (`LIVE_TRADING_ENABLED = False` hard-locked).
 
 ---
 
