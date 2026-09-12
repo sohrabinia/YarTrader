@@ -124,15 +124,16 @@ class AuthService:
         self.lockout_store = lockout_store or LockoutAuditStore()
         self.lock = threading.Lock()
 
-    def hash_password(self, password: str, salt: str = "salt123", iterations: int = 100000) -> str:
-        """Standard PBKDF2-SHA256 hashing."""
+    def hash_password(self, password: str, salt: Optional[str] = None, iterations: int = 100000) -> str:
+        """Standard PBKDF2-SHA256 hashing with per-password cryptographically random salt."""
+        effective_salt = salt if salt else secrets.token_hex(16)
         dk = hashlib.pbkdf2_hmac(
             'sha256',
             password.encode('utf-8'),
-            salt.encode('utf-8'),
+            effective_salt.encode('utf-8'),
             iterations
         )
-        return f"pbkdf2_sha256${iterations}${salt}${dk.hex()}"
+        return f"pbkdf2_sha256${iterations}${effective_salt}${dk.hex()}"
 
     def verify_password(self, password: str, hashed_password: str) -> bool:
         if not hashed_password:
@@ -313,25 +314,37 @@ global_auth_service = AuthService()
 
 def send_saas_email(to_email: str, subject: str, body: str) -> bool:
     """
-    Sends SaaS system emails. If SMTP environment configurations are available,
-    delivers via real SMTP. Otherwise, falls back to logging mock emails to disk.
+    Sends SaaS system emails.
+    In production, requires valid SMTP configuration; missing/invalid SMTP fails closed.
+    In production, raw reset/verification tokens are never written to log files.
     """
     import smtplib
+    import re
     from email.mime.text import MIMEText
     from datetime import datetime
+    from src.Infrastructure.Configuration.environment import EnvironmentType, get_current_environment
+
+    env = get_current_environment()
+    is_prod = (env == EnvironmentType.PRODUCTION)
 
     smtp_host = os.environ.get("SMTP_HOST")
     smtp_port = os.environ.get("SMTP_PORT")
     smtp_user = os.environ.get("SMTP_USERNAME")
     smtp_pass = os.environ.get("SMTP_PASSWORD")
 
-    log_file = "runtime_logs/mock_emails.log"
-    os.makedirs(os.path.dirname(log_file), exist_ok=True)
-    log_record = f"=== EMAIL SEND ===\nTimestamp: {datetime.now().isoformat()}\nTo: {to_email}\nSubject: {subject}\nBody: {body}\n==================\n\n"
-    with open(log_file, "a", encoding="utf-8") as f:
-        f.write(log_record)
+    has_smtp = bool(smtp_host and smtp_port and smtp_user and smtp_pass)
 
-    if smtp_host and smtp_port and smtp_user and smtp_pass:
+    if not is_prod:
+        # Non-production: sanitize tokens in body before logging mock email
+        sanitized_body = re.sub(r'token=[A-Za-z0-9_-]+', 'token=[REDACTED_TOKEN]', body)
+        sanitized_body = re.sub(r'token:\s*[A-Za-z0-9_-]+', 'token: [REDACTED_TOKEN]', sanitized_body)
+        log_file = "runtime_logs/mock_emails.log"
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        log_record = f"=== EMAIL SEND ({env.value.upper()}) ===\nTimestamp: {datetime.now().isoformat()}\nTo: {to_email}\nSubject: {subject}\nBody: {sanitized_body}\n==================\n\n"
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(log_record)
+
+    if has_smtp:
         try:
             msg = MIMEText(body)
             msg["Subject"] = subject
@@ -350,4 +363,8 @@ def send_saas_email(to_email: str, subject: str, body: str) -> bool:
             except Exception:
                 pass
             return False
+
+    if is_prod:
+        return False
+
     return True

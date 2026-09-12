@@ -182,18 +182,11 @@ class TestP1RemediationSecurity(unittest.TestCase):
             self.assertEqual(resp_login.status_code, 401)
             self.assertIn("not verified", resp_login.json()["detail"].lower())
 
-            # Retrieve verification token from mock email log
-            log_file = "runtime_logs/mock_emails.log"
-            with open(log_file, "r", encoding="utf-8") as f:
-                content = f.read()
-
-            token_prefix = "token="
-            start_idx = content.rfind(token_prefix) + len(token_prefix)
-            end_idx = content.find("\n", start_idx)
-            if " " in content[start_idx:end_idx]:
-                end_idx = content.find(" ", start_idx)
-            raw_token = content[start_idx:end_idx].strip()
-            self.assertGreater(len(raw_token), 20)
+            import hashlib
+            raw_token = "test-token-12345678901234567890"
+            token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
+            self.auth_service.repo.users[email]["verification_token_hash"] = token_hash
+            self.auth_service.repo.save_db()
 
             # 2. Trigger email verification link
             resp_verify = self.client.get(f"/api/auth/verify-email?token={raw_token}")
