@@ -3393,8 +3393,6 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
 
                     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
                         <button class="social-btn social-google" style="flex: 1;" onclick="mockSocialLogin('Google')">Google</button>
-                        <button class="social-btn social-apple" style="flex: 1;" onclick="mockSocialLogin('Apple')">Apple</button>
-                        <button class="social-btn social-telegram" style="flex: 1; background-color: #0088cc; color: white;" onclick="mockSocialLogin('Telegram')">Telegram</button>
                     </div>
 
                     <div class="form-group">
@@ -3422,8 +3420,6 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
 
                     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
                         <button class="social-btn social-google" style="flex: 1;" onclick="mockSocialLogin('Google')">Google</button>
-                        <button class="social-btn social-apple" style="flex: 1;" onclick="mockSocialLogin('Apple')">Apple</button>
-                        <button class="social-btn social-telegram" style="flex: 1; background-color: #0088cc; color: white;" onclick="mockSocialLogin('Telegram')">Telegram</button>
                     </div>
 
                     <div class="form-group">

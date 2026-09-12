@@ -2068,8 +2068,6 @@ function MainApp() {
 
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
                   <button type="button" className="social-btn social-google" style={{ flex: 1 }} onClick={() => handleSocialLogin('Google')}>Google</button>
-                  <button type="button" className="social-btn social-apple" style={{ flex: 1 }} onClick={() => handleSocialLogin('Apple')}>Apple</button>
-                  <button type="button" className="social-btn social-telegram" style={{ flex: 1, backgroundColor: '#0088cc', color: '#ffffff' }} onClick={() => handleSocialLogin('Telegram')}>Telegram</button>
                 </div>
 
                 <div className="form-group">
@@ -2099,7 +2097,6 @@ function MainApp() {
 
                 <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
                   <button type="button" className="social-btn social-google" style={{ flex: 1 }} onClick={() => handleSocialLogin('Google')}>Google</button>
-                  <button type="button" className="social-btn social-apple" style={{ flex: 1 }} onClick={() => handleSocialLogin('Apple')}>Apple</button>
                 </div>
 
                 <div className="form-group">
