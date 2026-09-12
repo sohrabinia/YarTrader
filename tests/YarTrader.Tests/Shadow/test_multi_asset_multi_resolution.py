@@ -97,7 +97,8 @@ class TestMultiAssetMultiResolutionCognitive(unittest.TestCase):
         self.engine.update_market_ticks("XAUUSD", 1985.0)
 
         # Query Admin Reports API
-        resp = self.client.get("/api/admin/reports?symbol=XAUUSD")
+        admin_token = global_auth_service.create_session({"email": "admin@tradeyar.ai", "role": "ADMIN"})
+        resp = self.client.get("/api/admin/reports?symbol=XAUUSD", headers={"Authorization": f"Bearer {admin_token}"})
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         # Since v8.0 instantiates the 5 default timeframe contexts (1, 4, 16, 64, 256) per active symbol

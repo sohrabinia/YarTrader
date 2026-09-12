@@ -7,7 +7,7 @@ from src.ShadowTrading.Engine.TimeEngine import CustomTimeEngine
 from src.ShadowTrading.Engine.BehaviorEngine import MarketBehaviorEngine
 from src.ShadowTrading.Engine.BaseNodeDetector import BaseNodeDetector, BaseStructure, NodeStructure
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine, ShadowTrade
-from src.Application.Services.web_dashboard import app
+from src.Application.Services.web_dashboard import app, global_auth_service
 
 class TestAutonomousShadowTradingEngine(unittest.TestCase):
     """
@@ -151,7 +151,8 @@ class TestAutonomousShadowTradingEngine(unittest.TestCase):
             pattern="Base Compression Shift"
         )
 
-        response = self.client.get("/api/admin/shadow-trades")
+        admin_token = global_auth_service.create_session({"email": "admin@tradeyar.ai", "role": "ADMIN"})
+        response = self.client.get("/api/admin/shadow-trades", headers={"Authorization": f"Bearer {admin_token}"})
         self.assertEqual(response.status_code, 200)
         data = response.json()
 

@@ -37,6 +37,45 @@ def _get_service_log_file() -> str:
     os.makedirs(service_log_dir, exist_ok=True)
     return os.path.join(service_log_dir, "service.log")
 
+LOCK_FILE = "runtime_logs/yartrader_service.pid"
+
+def check_and_acquire_pid_lock() -> bool:
+    """Detects running duplicate service.py processes using PID lock file."""
+    os.makedirs("runtime_logs", exist_ok=True)
+    if os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, "r", encoding="utf-8") as f:
+                old_pid_str = f.read().strip()
+            if old_pid_str.isdigit():
+                old_pid = int(old_pid_str)
+                if old_pid != os.getpid():
+                    try:
+                        os.kill(old_pid, 0)
+                        log_service_message(f"Duplicate service.py process detected (PID {old_pid} is running).")
+                        return False
+                    except (OSError, ProcessLookupError):
+                        pass
+        except Exception:
+            pass
+
+    try:
+        with open(LOCK_FILE, "w", encoding="utf-8") as f:
+            f.write(str(os.getpid()))
+        return True
+    except Exception as e:
+        log_service_message(f"Failed to write PID lock file: {e}")
+        return True
+
+def release_pid_lock() -> None:
+    try:
+        if os.path.exists(LOCK_FILE):
+            with open(LOCK_FILE, "r", encoding="utf-8") as f:
+                pid_str = f.read().strip()
+            if pid_str == str(os.getpid()):
+                os.remove(LOCK_FILE)
+    except Exception:
+        pass
+
 def log_service_message(message: str) -> None:
     """Logs dedicated service messages directly to TradeYarStorageRoot/Logs/service/service.log and main application.log."""
     timestamp = datetime.now().isoformat()
@@ -98,6 +137,8 @@ class YarTraderServiceHost:
         """Starts all background processes, API, and worker threads."""
         if self.is_running:
             return
+        if not check_and_acquire_pid_lock():
+            raise RuntimeError("Duplicate service.py process detected. Exiting to prevent state corruption.")
         self.is_running = True
         self.fastapi_ready = False
 
@@ -191,6 +232,7 @@ class YarTraderServiceHost:
         if not self.is_running:
             return
         self.is_running = False
+        release_pid_lock()
         self.fastapi_ready = False
 
         log_service_message("Shutdown Requested")

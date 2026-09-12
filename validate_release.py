@@ -52,6 +52,22 @@ def print_subheader(title: str):
     print(f"\n--- {title} ---")
 
 
+def get_git_provenance() -> Dict[str, str]:
+    try:
+        head_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+        branch = subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True).strip()
+        base_sha = subprocess.check_output(["git", "merge-base", "HEAD", "origin/main"], text=True).strip()
+    except Exception as e:
+        raise RuntimeError(f"Release Validator Security Violation: Unable to resolve actual Git provenance ({e}). Failing closed.")
+
+    return {
+        "base_sha": base_sha,
+        "head_sha": head_sha,
+        "tested_sha": head_sha,
+        "branch": branch
+    }
+
+
 class ReleaseValidationPlatform:
     def __init__(self) -> None:
         self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -193,13 +209,22 @@ class ReleaseValidationPlatform:
         cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"]
         self.log(f"Running automated tests command: {' '.join(cmd_args)}")
 
+        pytest_timeout_sec = int(os.environ.get("PYTEST_TIMEOUT_SEC", os.environ.get("VALIDATOR_TIMEOUT_SEC", 1800)))
+        is_timeout = False
+
         try:
             env = dict(os.environ)
             env["PYTHONPATH"] = "."
-            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=420, env=env)
+            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=pytest_timeout_sec, env=env)
             stdout = res.stdout
             stderr = res.stderr
             return_code = res.returncode
+        except subprocess.TimeoutExpired as te:
+            is_timeout = True
+            self.log(f"Test execution timed out after {pytest_timeout_sec} seconds.", "ERROR")
+            stdout = te.stdout or ""
+            stderr = te.stderr or f"TimeoutExpired: pytest execution exceeded {pytest_timeout_sec}s"
+            return_code = -2
         except Exception as e:
             self.log(f"Test run execution failed: {str(e)}", "ERROR")
             stdout = ""
@@ -208,6 +233,19 @@ class ReleaseValidationPlatform:
 
         elapsed = time.perf_counter() - start_time
         self.log(f"Test execution completed in {round(elapsed, 2)} seconds.")
+
+        if is_timeout:
+            test_results = {
+                "total": 0,
+                "passed": 0,
+                "failed": 1,
+                "skipped": 0,
+                "warnings": 0,
+                "duration_sec": round(elapsed, 2),
+                "status": "TIMEOUT",
+                "details": f"Pytest execution timed out after {pytest_timeout_sec} seconds"
+            }
+            return test_results, [{"test": "pytest_suite_timeout", "reason": f"Pytest execution exceeded timeout threshold of {pytest_timeout_sec}s"}]
 
         total_tests = 0
         passed = 0
@@ -220,7 +258,7 @@ class ReleaseValidationPlatform:
         lines = stdout.splitlines()
         summary_line = ""
         for line in lines:
-            if "passed in" in line or "failed" in line or "skipped" in line:
+            if "passed" in line or "failed" in line or "skipped" in line:
                 if line.startswith("===") or line.startswith("!!!"):
                     summary_line = line
                     break
@@ -240,12 +278,16 @@ class ReleaseValidationPlatform:
 
             total_tests = passed + failed + skipped
         else:
-            if return_code == 0:
-                passed = 1280
-                total_tests = 1280
+            if return_code == 0 and passed > 0:
+                total_tests = passed
             else:
-                failed = 1
-                total_tests = 1
+                failed = max(1, failed)
+                passed = 0
+                total_tests = failed
+
+        if return_code != 0 and failed == 0:
+            failed = 1
+            total_tests = passed + failed + skipped
 
         if failed > 0:
             self.log(f"Detected {failed} test failures! Initiating automatic root cause investigation...", "WARNING")
@@ -348,22 +390,23 @@ class ReleaseValidationPlatform:
         self.log("Running direct subsystem compliance audits...")
         validations = {}
 
-        # 1. Runtime validation (Lifecycle, launcher, scheduler)
-        from src.Application.Runtime.lifecycle import RuntimeLifecycle
-        from src.Application.Runtime.launcher import RuntimeLauncher
+        # 1. Runtime validation (Real HTTP smoke check against frontend status & lifecycle)
+        from fastapi.testclient import TestClient
+        from src.Application.Services.web_dashboard import app
         try:
-            lifecycle = RuntimeLifecycle()
-            launcher = RuntimeLauncher()
+            client = TestClient(app)
+            status_resp = client.get("/api/runtime/frontend-status")
+            runtime_ok = (status_resp.status_code == 200 and status_resp.json().get("api") == "connected")
             validations["runtime"] = {
-                "name": "Runtime Lifecycle",
-                "status": "PASSED",
-                "details": "Launcher and thread-safe operational status verified healthy"
+                "name": "Runtime Lifecycle & HTTP Smoke",
+                "status": "PASSED" if runtime_ok else "FAILED",
+                "details": "Real runtime HTTP frontend status endpoint returned connected status" if runtime_ok else "Runtime status endpoint unreachable or disconnected"
             }
         except Exception as e:
             validations["runtime"] = {
-                "name": "Runtime Lifecycle",
+                "name": "Runtime Lifecycle & HTTP Smoke",
                 "status": "FAILED",
-                "details": f"Runtime failed to initiate: {str(e)}"
+                "details": f"Runtime HTTP smoke test failed: {str(e)}"
             }
 
         # 2. Security validation (AST scans)
@@ -379,33 +422,47 @@ class ReleaseValidationPlatform:
         except Exception as e:
             validations["security"] = {"name": "Security & Forbidden Tokens Scan", "status": "FAILED", "details": str(e)}
 
-        # 3. Compliance validation (APES-FIN non-trading checks)
+        # 3. Compliance validation (DEMO Execution & Real-Money Safety Boundary)
         from src.Application.Audit.audit import ComplianceAuditor
         try:
             ca = ComplianceAuditor()
             comp_report = ca.audit_compliance(".")
             validations["compliance"] = {
-                "name": "APES-FIN Passive Compliance Scan",
+                "name": "MT5 DEMO Execution & Zero Real-Money Risk Gate",
                 "status": "PASSED" if comp_report.is_passed else "FAILED",
-                "details": "Conformity to 100% passive non-trading guidelines verified" if comp_report.is_passed else f"Compliance alerts: {comp_report.details.get('non_compliance_alerts')}"
+                "details": "Verified MT5 DEMO execution support while maintaining hard-locked zero real-money risk" if comp_report.is_passed else f"Compliance alerts: {comp_report.details.get('non_compliance_alerts')}"
             }
         except Exception as e:
-            validations["compliance"] = {"name": "APES-FIN Passive Compliance Scan", "status": "FAILED", "details": str(e)}
+            validations["compliance"] = {"name": "MT5 DEMO Execution & Zero Real-Money Risk Gate", "status": "FAILED", "details": str(e)}
 
-        # 4. REST API validation (Endpoints schemas and routes status)
-        from src.Application.Services.api import ServiceOrchestrator, ServiceRequestDTO
+        # 4. REST API validation (Real FastAPI Contract & Authorization Gating)
         try:
-            orchestrator = ServiceOrchestrator()
-            req = ServiceRequestDTO("client_1", "secret_token_1", {"asset": "EURUSD"})
-            resp = orchestrator.handle_request("/v1/intelligence", req)
-            api_ok = (resp.status_code == 200 and resp.data.get("sentiment") == "bullish")
+            client = TestClient(app)
+
+            # Test 1: Version contract endpoint & Runtime SHA Identity Gate
+            ver_resp = client.get("/api/version")
+            ver_data = ver_resp.json() if ver_resp.status_code == 200 else {}
+            running_sha = ver_data.get("commit", "")
+            expected_sha = get_git_provenance()["head_sha"]
+            sha_match = (running_sha == expected_sha)
+            ver_ok = (ver_resp.status_code == 200 and "version" in ver_data and sha_match)
+
+            # Test 2: Prop authorization gating (401 without token)
+            prop_resp = client.get("/api/prop/challenge")
+            prop_gated = (prop_resp.status_code == 401)
+
+            # Test 3: Admin authorization gating (401 without token)
+            admin_resp = client.get("/api/admin/symbols")
+            admin_gated = (admin_resp.status_code == 401)
+
+            api_ok = ver_ok and prop_gated and admin_gated
             validations["api"] = {
-                "name": "REST API Schema Routing",
+                "name": "REST API Contract & Authorization Gating",
                 "status": "PASSED" if api_ok else "FAILED",
-                "details": "Validated endpoints schemas, authorizations and serialization scopes"
+                "details": "Validated version metadata, Prop authorization gating, and Admin Bearer gating" if api_ok else f"API contract validation failed (version={ver_ok}, prop_gate={prop_gated}, admin_gate={admin_gated})"
             }
         except Exception as e:
-            validations["api"] = {"name": "REST API Schema Routing", "status": "FAILED", "details": str(e)}
+            validations["api"] = {"name": "REST API Contract & Authorization Gating", "status": "FAILED", "details": str(e)}
 
         # 5. Research Pipeline Validation
         from src.Research.Features.pipeline import FeaturePipeline
@@ -505,14 +562,20 @@ class ReleaseValidationPlatform:
         doc_score = 100.0 if release["docs"]["status"] == "PASSED" else 80.0
         scores.append(doc_score)
 
-        final_score = sum(scores) / len(scores)
-
-        is_ready = (
-            final_score >= 90.0 and
-            tests["failed"] == 0 and
-            subsys["security"]["status"] == "PASSED" and
-            subsys["compliance"]["status"] == "PASSED"
+        has_hard_veto = (
+            tests.get("failed", 0) > 0 or
+            subsys.get("security", {}).get("status") != "PASSED" or
+            subsys.get("compliance", {}).get("status") != "PASSED" or
+            subsys.get("api", {}).get("status") != "PASSED" or
+            subsys.get("runtime", {}).get("status") != "PASSED"
         )
+
+        if has_hard_veto:
+            final_score = 0.0
+            is_ready = False
+        else:
+            final_score = sum(scores) / len(scores)
+            is_ready = (final_score >= 90.0)
 
         readiness = "Production Ready" if is_ready else "Not Ready"
         explanation = (
@@ -849,9 +912,11 @@ class ReleaseValidationPlatform:
         self.current_phase = "Readiness Scoring"
         score, status, explain = self.compile_readiness_score(env_res, test_res, subsys_res, release_res)
 
+        git_prov = get_git_provenance()
         # Build master report payload
         master_report = {
             "timestamp": self.timestamp,
+            "git_provenance": git_prov,
             "status": "PASSED" if status == "Production Ready" else "FAILED",
             "readiness_status": status,
             "readiness_score": score,

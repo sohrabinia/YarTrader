@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from src.Application.Services.web_dashboard import app
+from src.Application.Services.web_dashboard import app, global_auth_service
 
 client = TestClient(app)
 
@@ -86,6 +86,11 @@ def test_user_ticket_lifecycle():
     all_tickets = manager.list_all_tickets_admin()
     assert len(all_tickets) >= 1
 
-    res_admin_status = client.post(f"/api/admin/tickets/{ticket_id}/status", json={"status": "RESOLVED"})
+    admin_token = global_auth_service.create_session({"email": "admin@yartrader.app", "role": "ADMIN"})
+    res_admin_status = client.post(
+        f"/api/admin/tickets/{ticket_id}/status",
+        json={"status": "RESOLVED"},
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
     assert res_admin_status.status_code == 200
     assert res_admin_status.json()["status"] == "RESOLVED"
