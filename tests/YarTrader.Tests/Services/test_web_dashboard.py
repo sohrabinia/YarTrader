@@ -13,6 +13,16 @@ class TestWebDashboardFastAPI(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.client = TestClient(app)
 
+    def test_security_headers_and_csp(self):
+        """Verifies Content-Security-Policy and security headers on HTTP responses."""
+        resp = self.client.get("/api/runtime/frontend-status")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("Content-Security-Policy", resp.headers)
+        csp = resp.headers["Content-Security-Policy"]
+        self.assertIn("default-src 'self'", csp)
+        self.assertEqual(resp.headers.get("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(resp.headers.get("X-Frame-Options"), "SAMEORIGIN")
+
     def test_get_dashboard_spa(self):
         """Verifies SPA root pages render successfully with HTML contents across localized and static paths."""
         for path in [
@@ -227,11 +237,11 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertEqual(resp_cross.status_code, 403)
 
         # 3. Normal user accessing admin statements -> 403 Forbidden
-        resp_admin_denied = self.client.get(f"/api/admin/statements?period=30d&token={user_token}")
+        resp_admin_denied = self.client.get("/api/admin/statements?period=30d", headers={"Authorization": f"Bearer {user_token}"})
         self.assertEqual(resp_admin_denied.status_code, 403)
 
         # 4. Admin accessing admin statements -> 200 OK
-        resp_admin = self.client.get(f"/api/admin/statements?period=30d&token={admin_token}")
+        resp_admin = self.client.get("/api/admin/statements?period=30d", headers={"Authorization": f"Bearer {admin_token}"})
         self.assertEqual(resp_admin.status_code, 200)
         data_admin = resp_admin.json()
         self.assertEqual(data_admin["account_id"], "SYSTEM-AGGREGATE")

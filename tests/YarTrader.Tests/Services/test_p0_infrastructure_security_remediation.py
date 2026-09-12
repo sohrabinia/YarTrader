@@ -137,7 +137,7 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
 
     def test_anonymous_access_to_admin_endpoints_is_unauthorized(self) -> None:
         """Verifies that accessing administrative endpoints without a token fails closed in production-like environment."""
-        with patch.dict(os.environ, {"TRADEYAR_ENV": "production"}):
+        with patch.dict(os.environ, {"YARTRADER_ENV": "production", "TRADEYAR_ENV": "production"}):
             # No token passed -> 401 Unauthorized
             response = self.client.get("/api/admin/symbols")
             self.assertEqual(response.status_code, 401)
@@ -154,15 +154,15 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
         token = global_auth_service.create_session(user_session)
 
         try:
-            # 1. Standard user token -> 403 Forbidden
-            response = self.client.get(f"/api/admin/symbols?token={token}")
+            # 1. Standard user token via Bearer header -> 403 Forbidden
+            response = self.client.get("/api/admin/symbols", headers={"Authorization": f"Bearer {token}"})
             self.assertEqual(response.status_code, 403)
             self.assertIn("Forbidden", response.json()["detail"])
         finally:
             global_auth_service.logout(token)
 
     def test_admin_user_has_full_privileged_access(self) -> None:
-        """Verifies that an administrator user token has full authorized access (200 OK)."""
+        """Verifies that an administrator user token has full authorized access (200 OK) via Bearer header."""
         from src.Application.Dashboard.auth_service import global_auth_service
         admin_session = {
             "email": "sre-admin@yartrader.app",
@@ -173,9 +173,19 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
         token = global_auth_service.create_session(admin_session)
 
         try:
-            # 1. Admin user token -> 200 OK
-            response = self.client.get(f"/api/admin/symbols?token={token}")
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["max_limit"], 30)
+            # 1. Query parameter token rejected in production
+            with patch.dict(os.environ, {"YARTRADER_ENV": "production"}):
+                response_qp = self.client.get(f"/api/admin/symbols?token={token}")
+                self.assertEqual(response_qp.status_code, 401)
+                self.assertIn("forbidden in production", response_qp.json()["detail"])
+
+                # 2. Invalid Bearer token -> 403 Forbidden
+                response_invalid = self.client.get("/api/admin/symbols", headers={"Authorization": "Bearer invalid_token_123"})
+                self.assertEqual(response_invalid.status_code, 403)
+
+                # 3. Valid Bearer admin token -> 200 OK
+                response_bearer = self.client.get("/api/admin/symbols", headers={"Authorization": f"Bearer {token}"})
+                self.assertEqual(response_bearer.status_code, 200)
+                self.assertEqual(response_bearer.json()["max_limit"], 30)
         finally:
             global_auth_service.logout(token)

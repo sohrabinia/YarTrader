@@ -3,6 +3,9 @@ from unittest.mock import MagicMock
 
 import os
 
+os.environ.setdefault("YARTRADER_ENV", "test")
+os.environ.setdefault("RG_DB_SECURE_TOKEN", "test_db_secure_token_12345")
+
 # Setup global mock for MetaTrader5 if not available, so that all tests can run and import it cleanly
 FORCE_MOCK_MT5 = "pytest" in sys.modules or "unittest" in sys.modules or os.environ.get("TRADEYAR_ENV") == "test"
 
