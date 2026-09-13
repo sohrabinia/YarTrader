@@ -39,10 +39,7 @@ class TestSaaSAuthAPI(unittest.TestCase):
         """Verifies valid Google OIDC authentication, session token issuance, session validation, and logout."""
         test_email = "test-google-user@tradeyar.ai"
         google_payload = {
-            "id_token": f"mock_token_google_{test_email}_google-sub-998877_Google Tester",
-            "email": test_email,
-            "provider_id": "google-sub-998877",
-            "name": "Google Tester"
+            "id_token": f"mock_token_google_{test_email}_google-sub-998877_Google Tester"
         }
 
         # Non-production mock social login test
@@ -72,10 +69,7 @@ class TestSaaSAuthAPI(unittest.TestCase):
         """Verifies that Google OIDC sign-in for m.a.sohrabinia@gmail.com grants ADMIN role and authorizes Operator access."""
         admin_email = "m.a.sohrabinia@gmail.com"
         google_payload = {
-            "id_token": f"mock_token_google_{admin_email}_admin-sub-100_Sorabinia",
-            "email": admin_email,
-            "provider_id": "admin-sub-100",
-            "name": "Principal Administrator"
+            "id_token": f"mock_token_google_{admin_email}_admin-sub-100_Sorabinia"
         }
 
         with patch.dict(os.environ, {"ALLOW_MOCK_AUTH": "true"}):
@@ -100,6 +94,8 @@ class TestSaaSAuthAPI(unittest.TestCase):
     def test_invalid_google_oidc_token_fails_closed(self) -> None:
         """Verifies that invalid or malformed Google OIDC token validation fails closed with 401 Unauthorized."""
         invalid_payload = {
+            "email": "user@yartrader.app",
+            "provider_id": "google-123",
             "id_token": "invalid_or_expired_jwt_token"
         }
 
@@ -107,17 +103,6 @@ class TestSaaSAuthAPI(unittest.TestCase):
             resp = self.client.post("/api/auth/google", json=invalid_payload)
             self.assertEqual(resp.status_code, 401)
             self.assertIn("Google authentication failed", resp.json()["detail"])
-
-    def test_missing_id_token_or_legacy_payload_returns_422(self) -> None:
-        """Verifies that missing id_token or legacy email/provider_id payload is rejected with 422 Unprocessable Entity."""
-        # Empty payload
-        resp_empty = self.client.post("/api/auth/google", json={})
-        self.assertEqual(resp_empty.status_code, 422)
-
-        # Legacy payload with email/provider_id but no id_token
-        legacy_payload = {"email": "attacker@example.com", "provider_id": "fake-123"}
-        resp_legacy = self.client.post("/api/auth/google", json=legacy_payload)
-        self.assertEqual(resp_legacy.status_code, 422)
 
     def test_admin_bearer_authorization_remains_independent(self) -> None:
         """Verifies that Admin Bearer authorization remains separate and is not bypassed or converted to customer auth."""

@@ -5371,16 +5371,19 @@ def logout_user(payload: LogoutPayload):
     return {"status": "Success", "message": "Logged out successfully."}
 
 
-class GoogleLoginPayload(BaseModel):
+class SocialLoginPayload(BaseModel):
     id_token: str
 
 @app.post("/api/auth/google")
-def login_with_google(payload: GoogleLoginPayload, request: Request):
-    """Secure authenticating callback mapping Google sign-in OIDC token to user sessions."""
+def login_with_google(payload: SocialLoginPayload, request: Request):
+    """Secure authenticating callback mapping Google sign-in profiles to user sessions."""
     client_host = request.client.host if request.client else None
     forwarded_for = request.headers.get("x-forwarded-for")
     ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
     user_agent = request.headers.get("user-agent", "Unknown")
+
+    if not payload.id_token:
+        raise HTTPException(status_code=400, detail="OIDC id_token is required.")
 
     try:
         from src.Application.Dashboard.oidc_validator import validate_social_token

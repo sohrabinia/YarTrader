@@ -18,10 +18,7 @@ class TestModernFeaturesIntegration(unittest.TestCase):
     def test_social_login_google_only(self) -> None:
         # Test Google Auth
         google_payload = {
-            "id_token": "mock_token_google_test-google@tradeyar.ai_google-12345_Google User",
-            "email": "test-google@tradeyar.ai",
-            "provider_id": "google-12345",
-            "name": "Google User"
+            "id_token": "mock_token_google_test-google@tradeyar.ai_google-12345_Google User"
         }
         with patch.dict(os.environ, {"ALLOW_MOCK_AUTH": "true"}):
             resp = self.client.post("/api/auth/google", json=google_payload)
