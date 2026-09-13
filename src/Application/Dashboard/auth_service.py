@@ -124,6 +124,34 @@ class AuthService:
         self.lockout_store = lockout_store or LockoutAuditStore()
         self.lock = threading.Lock()
 
+    def hash_password(self, password: str) -> str:
+        salt = secrets.token_hex(16)
+        pwd_hash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000).hex()
+        return f"pbkdf2_sha256$100000${salt}${pwd_hash}"
+
+    def verify_password(self, password: str, stored_hash: str) -> bool:
+        if not stored_hash or not stored_hash.startswith("pbkdf2_sha256$"):
+            return False
+        try:
+            parts = stored_hash.split("$")
+            if len(parts) != 4:
+                return False
+            iterations = int(parts[1])
+            salt = parts[2]
+            expected_hash = parts[3]
+            calculated_hash = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), iterations).hex()
+            return hmac.compare_digest(calculated_hash, expected_hash)
+        except Exception:
+            return False
+
+    def authenticate_credentials(self, email: str, password: str) -> Optional[Dict[str, Any]]:
+        user = self.repo.get_user_by_email(email)
+        if not user:
+            return None
+        if not self.verify_password(password, user.get("password_hash", "")):
+            return None
+        return user
+
     def authenticate_social(self, email: str, provider: str, provider_id: str, name: str = "") -> Dict[str, Any]:
         """
         Maps or signs up a social account and binds it to user profile.

@@ -123,8 +123,8 @@ class TestP1RemediationSecurity(unittest.TestCase):
         resp_reset = self.client.post("/api/auth/reset-password", json={"token": "tkn", "new_password": "p"})
         self.assertIn(resp_reset.status_code, (404, 405))
 
-        resp_reg = self.client.post("/api/auth/register", json={"email": "a@b.com", "password": "p"})
-        self.assertIn(resp_reg.status_code, (404, 405))
+        resp_reg = self.client.post("/api/auth/register", json={"email": "a@b.com", "password": "ValidSecurePassword123!"})
+        self.assertEqual(resp_reg.status_code, 200)
 
         resp_verify = self.client.get("/api/auth/verify-email?token=tkn")
         self.assertIn(resp_verify.status_code, (404, 405))

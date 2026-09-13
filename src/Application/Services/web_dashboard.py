@@ -5371,8 +5371,100 @@ def logout_user(payload: LogoutPayload):
     return {"status": "Success", "message": "Logged out successfully."}
 
 
+class RegisterPayload(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = ""
+
+class LoginPayload(BaseModel):
+    email: str
+    password: str
+
 class SocialLoginPayload(BaseModel):
     id_token: str
+
+@app.post("/api/auth/register")
+def register_user(payload: RegisterPayload, request: Request):
+    """Registers a new user account with email and password."""
+    email_clean = payload.email.strip().lower()
+    if not email_clean or "@" not in email_clean or "." not in email_clean.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="Invalid email address format.")
+
+    if not payload.password or len(payload.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
+
+    existing_user = global_auth_service.repo.get_user_by_email(email_clean)
+    password_hash = global_auth_service.hash_password(payload.password)
+    is_admin = global_auth_service.repo.is_admin_email(email_clean)
+
+    if existing_user:
+        if not existing_user.get("password_hash") or is_admin:
+            existing_user["password_hash"] = password_hash
+            if is_admin:
+                existing_user["role"] = "ADMIN"
+                existing_user["tier"] = "INSTITUTIONAL"
+            global_auth_service.repo.save_db()
+            user = existing_user
+        else:
+            raise HTTPException(status_code=400, detail="User with this email already exists.")
+    else:
+        role = "ADMIN" if is_admin else "USER"
+        tier = "INSTITUTIONAL" if is_admin else "FREE"
+
+        user = global_auth_service.repo.create_user(
+            email=email_clean,
+            password_hash=password_hash,
+            role=role,
+            name=payload.name or email_clean.split("@")[0].capitalize()
+        )
+        user["tier"] = tier
+
+    client_host = request.client.host if request.client else None
+    forwarded_for = request.headers.get("x-forwarded-for")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
+    user_agent = request.headers.get("user-agent", "Unknown")
+
+    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
+    return {
+        "status": "Success",
+        "session_token": token,
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"],
+            "tier": user.get("tier", "FREE"),
+            "user_id": user.get("user_id", user["email"])
+        }
+    }
+
+@app.post("/api/auth/login")
+def login_user(payload: LoginPayload, request: Request):
+    """Authenticates existing user with email and password."""
+    email_clean = payload.email.strip().lower()
+    if not email_clean or not payload.password:
+        raise HTTPException(status_code=400, detail="Email and password are required.")
+
+    user = global_auth_service.authenticate_credentials(email_clean, payload.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    client_host = request.client.host if request.client else None
+    forwarded_for = request.headers.get("x-forwarded-for")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
+    user_agent = request.headers.get("user-agent", "Unknown")
+
+    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
+    return {
+        "status": "Success",
+        "session_token": token,
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"],
+            "tier": user.get("tier", "FREE"),
+            "user_id": user.get("user_id", user["email"])
+        }
+    }
 
 @app.post("/api/auth/google")
 def login_with_google(payload: SocialLoginPayload, request: Request):

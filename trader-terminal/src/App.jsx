@@ -356,7 +356,7 @@ function MainApp() {
 
   // Auth & Routing Guard
   useEffect(() => {
-    if ((routePath === '/register' || routePath === '/forgot-password')) {
+    if (routePath === '/forgot-password') {
       navigateTo('/login');
       return;
     }
@@ -2003,18 +2003,93 @@ function MainApp() {
           )}
 
           {/* AUTHENTICATION VIEWS */}
-          {routePath === '/login' && (
+          {(routePath === '/login' || routePath === '/register') && (
             <div id="shell-login">
-              <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)', textAlign: 'center' }}>
-                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('login_title')}</h2>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '25px', fontSize: '0.9em' }}>
-                  {lang === 'fa' ? 'ورود و ثبت‌نام منحصراً از طریق حساب گوگل / جیمیل انجام می‌شود.' : 'Sign in and account creation are strictly managed via Google Account OIDC.'}
+              <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }}>
+                <h2 style={{ marginTop: 0, color: 'var(--primary)', textAlign: 'center' }}>
+                  {routePath === '/register' ? (lang === 'fa' ? 'ایجاد حساب جدید' : 'Create an Account') : t('login_title')}
+                </h2>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '20px', fontSize: '0.9em', textAlign: 'center' }}>
+                  {lang === 'fa' ? 'ورود با ایمیل/رمز عبور یا حساب گوگل' : 'Sign in with your Email/Password or Google Account OIDC.'}
                 </p>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
-                  <button type="button" className="social-btn social-google" style={{ width: '100%', padding: '14px', fontSize: '1em', justifyContent: 'center' }} onClick={() => handleSocialLogin('Google')}>
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  const form = e.target;
+                  const email = form.email.value;
+                  const password = form.password.value;
+                  const name = form.name ? form.name.value : '';
+                  const endpoint = routePath === '/register' ? '/api/auth/register' : '/api/auth/login';
+                  try {
+                    const res = await fetch(endpoint, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ email, password, name })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      showToast(data.detail || 'Authentication failed', 'error');
+                      return;
+                    }
+                    if (data.session_token) {
+                      useAuthStore.setSession(data.session_token, data.user.role, data.user.name);
+                      setToken(data.session_token);
+                      setRole(data.user.role);
+                      setName(data.user.name);
+                      showToast(lang === 'fa' ? 'خوش آمدید!' : 'Authentication successful!', 'success');
+                      navigateTo('/dashboard');
+                    }
+                  } catch (err) {
+                    showToast(err.message, 'error');
+                  }
+                }}>
+                  {routePath === '/register' && (
+                    <div style={{ marginBottom: '15px' }}>
+                      <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9em' }}>{lang === 'fa' ? 'نام' : 'Full Name'}</label>
+                      <input type="text" name="name" className="form-control" style={{ width: '100%', padding: '10px' }} placeholder="Trader Name" />
+                    </div>
+                  )}
+                  <div style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9em' }}>{lang === 'fa' ? 'ایمیل' : 'Email Address'}</label>
+                    <input type="email" name="email" required className="form-control" style={{ width: '100%', padding: '10px' }} placeholder="trader@example.com" />
+                  </div>
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.9em' }}>{lang === 'fa' ? 'رمز عبور' : 'Password'}</label>
+                    <input type="password" name="password" required className="form-control" style={{ width: '100%', padding: '10px' }} placeholder="••••••••" />
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '12px', fontSize: '1em', marginBottom: '15px' }}>
+                    {routePath === '/register' ? (lang === 'fa' ? 'ثبت‌نام' : 'Register Account') : (lang === 'fa' ? 'ورود' : 'Sign In')}
+                  </button>
+                </form>
+
+                <div style={{ textAlign: 'center', margin: '15px 0', position: 'relative' }}>
+                  <span style={{ background: 'var(--card-bg, #1a1e24)', padding: '0 10px', color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                    {lang === 'fa' ? 'یا' : 'OR'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '15px' }}>
+                  <button type="button" className="social-btn social-google" style={{ width: '100%', padding: '12px', fontSize: '0.95em', justifyContent: 'center' }} onClick={() => handleSocialLogin('Google')}>
                     <span>🌐</span> Continue with Google
                   </button>
+                </div>
+
+                <div style={{ textAlign: 'center', marginTop: '15px', fontSize: '0.9em' }}>
+                  {routePath === '/login' ? (
+                    <span>
+                      {lang === 'fa' ? 'حساب کاربری ندارید؟ ' : "Don't have an account? "}
+                      <a href={`/${lang}/register`} onClick={(e) => { e.preventDefault(); navigateTo('/register'); }} style={{ color: 'var(--primary)', fontWeight: 'bold' }}>
+                        {lang === 'fa' ? 'ثبت‌نام کنید' : 'Register here'}
+                      </a>
+                    </span>
+                  ) : (
+                    <span>
+                      {lang === 'fa' ? 'قبلاً ثبت‌نام کرده‌اید؟ ' : 'Already have an account? '}
+                      <a href={`/${lang}/login`} onClick={(e) => { e.preventDefault(); navigateTo('/login'); }} style={{ color: 'var(--primary)', fontWeight: 'bold' }}>
+                        {lang === 'fa' ? 'وارد شوید' : 'Sign in here'}
+                      </a>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

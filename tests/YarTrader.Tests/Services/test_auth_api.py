@@ -16,30 +16,95 @@ class TestSaaSAuthAPI(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.client = TestClient(app)
 
-    def test_legacy_customer_auth_endpoints_unreachable(self) -> None:
-        """Verifies that all legacy email/password customer auth endpoints return 404/405 Not Found/Method Not Allowed."""
-        legacy_endpoints = [
-            ("POST", "/api/auth/login", {"email": "user@yartrader.app", "password": "Password123!"}),
-            ("POST", "/api/auth/register", {"email": "user@yartrader.app", "password": "Password123!", "name": "User"}),
+    def setUp(self) -> None:
+        global_auth_service.active_sessions = {}
+        for test_email in ["newtrader@example.com", "test-google-user@tradeyar.ai"]:
+            if test_email in global_auth_service.repo.users:
+                del global_auth_service.repo.users[test_email]
+
+    def test_disabled_customer_auth_endpoints_unreachable(self) -> None:
+        """Verifies that disabled social/auxiliary endpoints (apple, telegram, forgot-password, reset-password, verify-email) return 404/405."""
+        disabled_endpoints = [
             ("POST", "/api/auth/forgot-password", {"email": "user@yartrader.app"}),
             ("GET", "/api/auth/verify-email?token=xyz123", None),
             ("POST", "/api/auth/reset-password", {"token": "xyz123", "new_password": "NewPassword123!"}),
             ("POST", "/api/auth/apple", {"email": "a@b.com", "provider_id": "123"}),
-            ("POST", "/api/auth/telegram", {"id": 123, "auth_date": 1, "hash": "x"})
+            ("POST", "/api/auth/telegram", {"id": 123, "auth_date": 1, "hash": "x"}),
+            ("POST", "/api/user/link-telegram", {"telegram_id": 12345})
         ]
 
-        for method, url, payload in legacy_endpoints:
+        for method, url, payload in disabled_endpoints:
             if method == "POST":
                 resp = self.client.post(url, json=payload)
             else:
                 resp = self.client.get(url)
             self.assertIn(resp.status_code, (404, 405), f"Endpoint {url} should be unreachable but returned {resp.status_code}")
 
+    def test_email_password_registration_and_login_lifecycle(self) -> None:
+        """Verifies valid email/password registration, login, duplicate email rejection, weak password rejection, and role assignment."""
+        reg_email = "newtrader@example.com"
+        reg_pass = "SecurePass123!"
+
+        # Weak password failure
+        weak_resp = self.client.post("/api/auth/register", json={"email": reg_email, "password": "short"})
+        self.assertEqual(weak_resp.status_code, 400)
+
+        # Invalid email failure
+        inv_email_resp = self.client.post("/api/auth/register", json={"email": "invalid-email", "password": reg_pass})
+        self.assertEqual(inv_email_resp.status_code, 400)
+
+        # Successful Registration
+        reg_resp = self.client.post("/api/auth/register", json={"email": reg_email, "password": reg_pass, "name": "New Trader"})
+        self.assertEqual(reg_resp.status_code, 200)
+        reg_data = reg_resp.json()
+        self.assertEqual(reg_data["status"], "Success")
+        self.assertTrue(reg_data["session_token"].startswith("tkn-"))
+        self.assertEqual(reg_data["user"]["email"], reg_email)
+        self.assertEqual(reg_data["user"]["role"], "USER")
+
+        # Duplicate Registration Rejection
+        dup_resp = self.client.post("/api/auth/register", json={"email": reg_email, "password": reg_pass})
+        self.assertEqual(dup_resp.status_code, 400)
+
+        # Wrong Password Login Rejection
+        wrong_login_resp = self.client.post("/api/auth/login", json={"email": reg_email, "password": "WrongPassword!"})
+        self.assertEqual(wrong_login_resp.status_code, 401)
+
+        # Successful Login
+        login_resp = self.client.post("/api/auth/login", json={"email": reg_email, "password": reg_pass})
+        self.assertEqual(login_resp.status_code, 200)
+        login_data = login_resp.json()
+        self.assertEqual(login_data["status"], "Success")
+        self.assertTrue(login_data["session_token"].startswith("tkn-"))
+
+    def test_admin_email_password_login_grants_admin_role(self) -> None:
+        """Verifies that registering/logging in with designated administrator email grants ADMIN role."""
+        admin_email = "m.a.sohrabinia@gmail.com"
+        admin_pass = "AdminSecurePass123!"
+
+        reg_resp = self.client.post("/api/auth/register", json={"email": admin_email, "password": admin_pass, "name": "Administrator"})
+        self.assertEqual(reg_resp.status_code, 200)
+        reg_data = reg_resp.json()
+        self.assertEqual(reg_data["user"]["role"], "ADMIN")
+
+        login_resp = self.client.post("/api/auth/login", json={"email": admin_email, "password": admin_pass})
+        self.assertEqual(login_resp.status_code, 200)
+        login_data = login_resp.json()
+        self.assertEqual(login_data["user"]["role"], "ADMIN")
+
+        token = login_data["session_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        op_resp = self.client.get("/api/admin/operator/status", headers=headers)
+        self.assertEqual(op_resp.status_code, 200)
+
     def test_google_oidc_authentication_and_session_lifecycle(self) -> None:
         """Verifies valid Google OIDC authentication, session token issuance, session validation, and logout."""
         test_email = "test-google-user@tradeyar.ai"
         google_payload = {
-            "id_token": f"mock_token_google_{test_email}_google-sub-998877_Google Tester"
+            "id_token": f"mock_token_google_{test_email}_google-sub-998877_Google Tester",
+            "email": test_email,
+            "provider_id": "google-sub-998877",
+            "name": "Google Tester"
         }
 
         # Non-production mock social login test
