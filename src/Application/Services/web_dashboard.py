@@ -119,24 +119,40 @@ MOCK_BLOG_ARTICLES = [
     }
 ]
 
-def check_admin_guard(session_token: Optional[str] = None):
-    """Enforces strict JWT / session role check, fallback gracefully in testing/validation mode."""
-    is_production = os.environ.get("YARTRADER_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production" or os.environ.get("RG_ENV") == "production"
+def check_admin_guard(req_or_tok: Any = None, session_token: Optional[str] = None):
+    """Enforces strict Bearer JWT / session role check with zero test-admin fallbacks."""
     from app.core.logging import log_security
 
-    log_token = f"{session_token[:8]}..." if session_token else None
+    request: Optional[Request] = req_or_tok if isinstance(req_or_tok, Request) else None
+    token: Optional[str] = req_or_tok if isinstance(req_or_tok, str) else session_token
 
-    if not session_token:
-        if is_production:
-            log_security("AUTHORIZATION_DENIED", reason="Authentication token is missing")
-            raise HTTPException(status_code=401, detail="Authentication token is missing")
-        # Graceful validation/testing override to prevent breaking the release pipeline checks
-        return {"email": "test-admin@yartrader.app", "role": "ADMIN"}
+    if request:
+        if any(param in request.query_params for param in ["token", "session_token", "authorization"]):
+            log_security("AUTHORIZATION_DENIED", reason="Query string token parameter rejected")
+            raise HTTPException(status_code=401, detail="Query string token parameters are strictly forbidden. Use Bearer header.")
 
-    session = global_auth_service.validate_session(session_token)
-    if not session or session.get("role") != "ADMIN":
-        log_security("AUTHORIZATION_DENIED", token=log_token, email=session.get("email") if session else None)
+        auth_header = request.headers.get("authorization")
+        if auth_header:
+            if not auth_header.startswith("Bearer "):
+                log_security("AUTHORIZATION_DENIED", reason="Malformed Authorization header scheme")
+                raise HTTPException(status_code=401, detail="Invalid Authorization header scheme. Expected 'Bearer <token>'.")
+            token = auth_header[7:].strip()
+            if not token:
+                raise HTTPException(status_code=401, detail="Empty Bearer token provided.")
+
+    if not token:
+        log_security("AUTHORIZATION_DENIED", reason="Authentication token is missing")
+        raise HTTPException(status_code=401, detail="Authentication token is missing")
+
+    session = global_auth_service.validate_session(token)
+    if not session:
+        log_security("AUTHORIZATION_DENIED", reason="Invalid session token")
+        raise HTTPException(status_code=401, detail="Invalid or expired session token")
+
+    if session.get("role") != "ADMIN":
+        log_security("AUTHORIZATION_DENIED", token=f"{token[:8]}...", email=session.get("email"))
         raise HTTPException(status_code=403, detail="Forbidden: Administrator privilege required")
+
     return session
 
 research_tracker = {
@@ -3393,8 +3409,6 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
 
                     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
                         <button class="social-btn social-google" style="flex: 1;" onclick="mockSocialLogin('Google')">Google</button>
-                        <button class="social-btn social-apple" style="flex: 1;" onclick="mockSocialLogin('Apple')">Apple</button>
-                        <button class="social-btn social-telegram" style="flex: 1; background-color: #0088cc; color: white;" onclick="mockSocialLogin('Telegram')">Telegram</button>
                     </div>
 
                     <div class="form-group">
@@ -3422,8 +3436,6 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
 
                     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
                         <button class="social-btn social-google" style="flex: 1;" onclick="mockSocialLogin('Google')">Google</button>
-                        <button class="social-btn social-apple" style="flex: 1;" onclick="mockSocialLogin('Apple')">Apple</button>
-                        <button class="social-btn social-telegram" style="flex: 1; background-color: #0088cc; color: white;" onclick="mockSocialLogin('Telegram')">Telegram</button>
                     </div>
 
                     <div class="form-group">
@@ -4944,14 +4956,70 @@ def get_system_frontend_status():
 
 
 # ==============================================================================
+# YARTRADER OPERATOR INTEGRATION ENDPOINTS
+# ==============================================================================
+class OperatorTaskSubmissionPayload(BaseModel):
+    task_description: str
+    workspace_id: Optional[str] = "yartrader"
+    metadata: Optional[Dict[str, Any]] = None
+
+@app.get("/api/admin/operator/status")
+def get_operator_status(request: Request):
+    """
+    Evaluates and returns real runtime health status of YarTrader.Operator runtime gateway.
+    Guarded by check_admin_guard.
+    """
+    session = check_admin_guard(request)
+    from src.Application.Services.operator_adapter import global_operator_adapter
+    return global_operator_adapter.get_runtime_health()
+
+@app.post("/api/admin/operator/tasks")
+def submit_operator_task(payload: OperatorTaskSubmissionPayload, request: Request):
+    """
+    Submits a real task to YarTrader.Operator runtime.
+    Guarded by check_admin_guard.
+    """
+    session = check_admin_guard(request)
+    from src.Application.Services.operator_adapter import global_operator_adapter
+    return global_operator_adapter.submit_task(
+        admin_identity=session,
+        task_description=payload.task_description,
+        metadata=payload.metadata
+    )
+
+@app.get("/api/admin/operator/tasks/{task_id}")
+def get_operator_task_status(task_id: str, request: Request):
+    """
+    Queries task status and result from YarTrader.Operator runtime.
+    Guarded by check_admin_guard.
+    """
+    session = check_admin_guard(request)
+    from src.Application.Services.operator_adapter import global_operator_adapter
+    return global_operator_adapter.get_task_status(
+        admin_identity=session,
+        task_id=task_id
+    )
+
+@app.get("/api/admin/operator/tasks")
+def list_operator_tasks(request: Request):
+    """
+    Lists active and historical tasks from YarTrader.Operator.
+    Guarded by check_admin_guard.
+    """
+    session = check_admin_guard(request)
+    from src.Application.Services.operator_adapter import global_operator_adapter
+    return global_operator_adapter.get_all_tasks(admin_identity=session)
+
+
+# ==============================================================================
 # AUTONOMOUS SHADOW TRADING INTELLIGENCE SEPARATED API LAYER
 # ==============================================================================
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
 
 @app.get("/api/admin/symbols")
-def get_admin_symbols(token: Optional[str] = None):
+def get_admin_symbols(request: Request):
     """Lists current active symbols and allows registering a new symbol dynamically."""
-    check_admin_guard(token)
+    check_admin_guard(request)
     from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
     registry_inst = SymbolRegistry.get_instance()
     registry = registry_inst.get_all_registered()
@@ -5691,178 +5759,7 @@ def login_with_google(payload: SocialLoginPayload, request: Request):
         }
     }
 
-@app.post("/api/auth/apple")
-def login_with_apple(payload: SocialLoginPayload, request: Request):
-    """Secure authenticating callback mapping Apple sign-in profiles to user sessions."""
-    is_production = (os.environ.get("TRADEYAR_ENV") == "production" or
-                     os.environ.get("RG_ENV") == "production")
-
-    client_host = request.client.host if request.client else None
-    forwarded_for = request.headers.get("x-forwarded-for")
-    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
-    user_agent = request.headers.get("user-agent", "Unknown")
-
-    id_token = payload.id_token if hasattr(payload, "id_token") else None
-
-    if not id_token:
-        if is_production:
-            raise HTTPException(status_code=400, detail="OIDC id_token is required in production.")
-        email = payload.email
-        provider_id = payload.provider_id
-        name = payload.name or ""
-    else:
-        try:
-            from src.Application.Dashboard.oidc_validator import validate_social_token
-            decoded = validate_social_token(id_token, "apple")
-            email = decoded.get("email")
-            provider_id = decoded.get("sub")
-            name = decoded.get("name") or payload.name or ""
-            if not email or not provider_id:
-                raise HTTPException(status_code=401, detail="Token missing required claims (email, sub).")
-        except Exception as e:
-            raise HTTPException(status_code=401, detail=f"Apple authentication failed: {str(e)}")
-
-    user = global_auth_service.authenticate_social(
-        email=email,
-        provider="apple",
-        provider_id=provider_id,
-        name=name
-    )
-    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
-    return {
-        "status": "Success",
-        "session_token": token,
-        "user": {
-            "email": user["email"],
-            "name": user["name"],
-            "role": user["role"]
-        }
-    }
-
-
-class TelegramAuthPayload(BaseModel):
-    id: int
-    first_name: Optional[str] = ""
-    last_name: Optional[str] = ""
-    username: Optional[str] = ""
-    photo_url: Optional[str] = ""
-    auth_date: int
-    hash: str
-    email: Optional[str] = None
-
-
-class TelegramLinkPayload(BaseModel):
-    id: int
-    first_name: Optional[str] = ""
-    last_name: Optional[str] = ""
-    username: Optional[str] = ""
-    photo_url: Optional[str] = ""
-    auth_date: int
-    hash: str
-
-
-@app.post("/api/auth/telegram")
-def login_with_telegram(payload: TelegramAuthPayload, request: Request):
-    """
-    Cryptographically verifies Telegram sign-in payload server-side and maps to session.
-    Secrets are kept server-side; signatures are verified using HMAC-SHA256.
-    """
-    payload_dict = payload.model_dump()
-    is_valid, err_msg = verify_telegram_authorization(payload_dict)
-    if not is_valid:
-        raise HTTPException(status_code=401, detail=f"Telegram authentication failed: {err_msg}")
-
-    telegram_id_str = str(payload.id)
-    repo = global_auth_service.repo
-
-    # Check if user already exists by telegram_id
-    user = repo.get_user_by_telegram_id(telegram_id_str)
-
-    client_host = request.client.host if request.client else None
-    forwarded_for = request.headers.get("x-forwarded-for")
-    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
-    user_agent = request.headers.get("user-agent", "Unknown")
-
-    if not user:
-        # Determine email or create default telegram email
-        if payload.email:
-            target_email = payload.email.lower()
-            existing_user = repo.get_user_by_email(target_email)
-            if existing_user:
-                # Attempting to map to existing user
-                success, link_err, linked_user = repo.link_telegram_account(
-                    email=target_email,
-                    telegram_id=telegram_id_str,
-                    telegram_meta=payload_dict
-                )
-                if not success:
-                    raise HTTPException(status_code=400, detail=link_err)
-                user = linked_user
-
-        if not user:
-            # Create new user for Telegram identity
-            tg_name = (f"{payload.first_name or ''} {payload.last_name or ''}").strip() or payload.username or f"Telegram User {telegram_id_str}"
-            tg_email = f"telegram_{telegram_id_str}@yartrader.app"
-            user = repo.create_user(email=tg_email, password_hash="", role="USER", name=tg_name)
-            repo.link_telegram_account(email=tg_email, telegram_id=telegram_id_str, telegram_meta=payload_dict)
-
-    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
-
-    return {
-        "status": "Success",
-        "session_token": token,
-        "user": {
-            "email": user["email"],
-            "name": user["name"],
-            "role": user["role"],
-            "telegram_id": telegram_id_str
-        }
-    }
-
-
-@app.post("/api/user/link-telegram")
-def link_telegram_account(payload: TelegramLinkPayload, request: Request):
-    """
-    Links a verified Telegram identity to an active authenticated user session.
-    Rejects linking if Telegram ID is already linked to another account.
-    """
-    payload_dict = payload.model_dump()
-    is_valid, err_msg = verify_telegram_authorization(payload_dict)
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=f"Telegram verification failed: {err_msg}")
-
-    # Extract user session token from Authorization header or param
-    auth_header = request.headers.get("authorization")
-    token = None
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header[7:].strip()
-    if not token:
-        token = request.query_params.get("session_token")
-
-    if not token:
-        raise HTTPException(status_code=401, detail="Authentication session token is required.")
-
-    session_user = global_auth_service.get_session_user(token)
-    if not session_user:
-        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
-
-    email = session_user["email"]
-    telegram_id_str = str(payload.id)
-
-    success, link_msg, updated_user = global_auth_service.repo.link_telegram_account(
-        email=email,
-        telegram_id=telegram_id_str,
-        telegram_meta=payload_dict
-    )
-
-    if not success:
-        raise HTTPException(status_code=400, detail=link_msg)
-
-    return {
-        "status": "Success",
-        "message": link_msg,
-        "telegram_id": telegram_id_str
-    }
+# Unsupported customer login routes (Apple, Telegram) strictly removed per YarTrader Auth Governance.
 
 
 @app.get("/api/blog")

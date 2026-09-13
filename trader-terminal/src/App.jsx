@@ -24,6 +24,7 @@ import DashboardView from './views/DashboardView.jsx';
 import IntelligenceView from './views/IntelligenceView.jsx';
 import DemoView from './views/DemoView.jsx';
 import AdminView from './views/AdminView.jsx';
+import OperatorView from './views/OperatorView.jsx';
 import GuideView from './views/GuideView.jsx';
 import FaqView from './views/FaqView.jsx';
 
@@ -560,7 +561,7 @@ function MainApp() {
 
   const handleSocialLogin = (provider) => {
     if (provider === 'Google') {
-      const clientId = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || (typeof window !== 'undefined' && window.YARTRADER_CONFIG && window.YARTRADER_CONFIG.GOOGLE_CLIENT_ID);
+      const clientId = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_CLIENT_ID) || (typeof window !== 'undefined' && window.YARTRADER_CONFIG && window.YARTRADER_CONFIG.GOOGLE_CLIENT_ID) || '490592533355-ddluip7tl1f4e8mac58iofmpompohcld.apps.googleusercontent.com';
 
       if (!clientId) {
         showNotification(
@@ -2061,82 +2062,20 @@ function MainApp() {
           )}
 
           {/* AUTHENTICATION VIEWS */}
-          {routePath === '/login' && (
+          {(routePath === '/login' || routePath === '/register' || routePath === '/forgot-password') && (
             <div id="shell-login">
-              <form className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }} onSubmit={handleLogin}>
-                <h2 style={{ marginTop: 0, color: 'var(--primary)', textAlign: 'center' }}>{t('login_title')}</h2>
+              <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)', textAlign: 'center' }}>
+                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('login_title')}</h2>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '30px', fontSize: '0.95em' }}>
+                  {lang === 'fa' ? 'جهت ورود به سامانه YarTrader، از حساب گوگل استفاده نمایید.' : 'Please sign in to YarTrader using your Google Account.'}
+                </p>
 
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                  <button type="button" className="social-btn social-google" style={{ flex: 1 }} onClick={() => handleSocialLogin('Google')}>Google</button>
-                  <button type="button" className="social-btn social-apple" style={{ flex: 1 }} onClick={() => handleSocialLogin('Apple')}>Apple</button>
-                  <button type="button" className="social-btn social-telegram" style={{ flex: 1, backgroundColor: '#0088cc', color: '#ffffff' }} onClick={() => handleSocialLogin('Telegram')}>Telegram</button>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px' }}>
+                  <button type="button" className="btn social-btn social-google" style={{ width: '100%', padding: '12px 20px', fontSize: '1.05em', fontWeight: 'bold' }} onClick={() => handleSocialLogin('Google')}>
+                    {lang === 'fa' ? 'ورود با Google' : 'Continue with Google'}
+                  </button>
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">{t('email_label')}</label>
-                  <input className="input-field" type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required placeholder={t('email_placeholder')} />
-                </div>
-                <div className="form-group" style={{ marginBottom: '10px' }}>
-                  <label className="form-label">{t('password_label')}</label>
-                  <input className="input-field" type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} required placeholder={t('password_placeholder')} />
-                </div>
-                <div style={{ textAlign: 'end', marginBottom: '20px' }}>
-                  <a href="#/forgot-password" style={{ color: 'var(--primary)', fontSize: '0.85em', textDecoration: 'none' }}>{t('forgot_link')}</a>
-                </div>
-                <button type="submit" className="btn" style={{ width: '100%' }}>{t('login_btn')}</button>
-
-                <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.9em' }}>
-                  <a href="#/register" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>{t('no_account')}</a>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {routePath === '/register' && (
-            <div id="shell-register">
-              <form className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }} onSubmit={handleRegister}>
-                <h2 style={{ marginTop: 0, color: 'var(--primary)', textAlign: 'center' }}>{t('register_title')}</h2>
-
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                  <button type="button" className="social-btn social-google" style={{ flex: 1 }} onClick={() => handleSocialLogin('Google')}>Google</button>
-                  <button type="button" className="social-btn social-apple" style={{ flex: 1 }} onClick={() => handleSocialLogin('Apple')}>Apple</button>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">{t('name_label')}</label>
-                  <input className="input-field" type="text" value={registerName} onChange={(e) => setRegisterName(e.target.value)} required placeholder={t('name_placeholder')} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('email_label')}</label>
-                  <input className="input-field" type="email" value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} required placeholder={t('email_placeholder')} />
-                </div>
-                <div className="form-group" style={{ marginBottom: '25px' }}>
-                  <label className="form-label">{t('password_label')}</label>
-                  <input className="input-field" type="password" value={registerPass} onChange={(e) => setRegisterPass(e.target.value)} required placeholder={t('password_placeholder')} />
-                </div>
-                <button type="submit" className="btn" style={{ width: '100%' }}>{t('register_btn')}</button>
-
-                <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.9em' }}>
-                  <a href="#/login" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>{t('has_account')}</a>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {routePath === '/forgot-password' && (
-            <div id="shell-forgot">
-              <form className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }} onSubmit={handleForgot}>
-                <h2 style={{ marginTop: 0, color: 'var(--primary)', textAlign: 'center' }}>{t('forgot_title')}</h2>
-                <div className="form-group" style={{ marginBottom: '25px' }}>
-                  <label className="form-label">{t('email_label')}</label>
-                  <input className="input-field" type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} required placeholder={t('email_placeholder')} />
-                </div>
-                <button type="submit" className="btn" style={{ width: '100%' }}>{t('forgot_btn')}</button>
-
-                <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.9em' }}>
-                  <a href="#/login" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>{t('has_account')}</a>
-                </div>
-              </form>
+              </div>
             </div>
           )}
         </div>
