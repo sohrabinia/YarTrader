@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app, global_auth_service
 
@@ -14,14 +15,16 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         # Clear mock session states
         global_auth_service.active_sessions = {}
 
-    def test_social_login_google_and_apple(self) -> None:
+    def test_social_login_google_only(self) -> None:
         # Test Google Auth
         google_payload = {
+            "id_token": "mock_token_google_test-google@tradeyar.ai_google-12345_Google User",
             "email": "test-google@tradeyar.ai",
             "provider_id": "google-12345",
             "name": "Google User"
         }
-        resp = self.client.post("/api/auth/google", json=google_payload)
+        with patch.dict(os.environ, {"ALLOW_MOCK_AUTH": "true"}):
+            resp = self.client.post("/api/auth/google", json=google_payload)
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data["status"], "Success")
@@ -29,18 +32,14 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         self.assertEqual(data["user"]["email"], "test-google@tradeyar.ai")
         self.assertEqual(data["user"]["role"], "USER")
 
-        # Test Apple Auth
+        # Test Apple Auth returns 404 Not Found
         apple_payload = {
             "email": "test-apple@tradeyar.ai",
             "provider_id": "apple-67890",
             "name": "Apple User"
         }
         resp2 = self.client.post("/api/auth/apple", json=apple_payload)
-        self.assertEqual(resp2.status_code, 200)
-        data2 = resp2.json()
-        self.assertEqual(data2["status"], "Success")
-        self.assertIn("session_token", data2)
-        self.assertEqual(data2["user"]["email"], "test-apple@tradeyar.ai")
+        self.assertEqual(resp2.status_code, 404)
 
     def test_pristine_blog_endpoints(self) -> None:
         # List blog articles
@@ -80,29 +79,29 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         self.assertIsNotNone(data2["response"])
 
     def test_jwt_admin_route_guards(self) -> None:
-        # 1. Create a regular USER session
+        # 1. Query string token parameter on admin endpoints MUST be rejected with 401
         user_data = {
             "email": "user@tradeyar.ai",
-            "password_hash": "",
             "role": "USER",
             "name": "Standard Trader"
         }
         user_token = global_auth_service.create_session(user_data)
+        resp_qs = self.client.get(f"/api/admin/shadow-trades?token={user_token}")
+        self.assertEqual(resp_qs.status_code, 401)
 
-        # 2. Query admin endpoint with USER token (MUST be blocked with 403 Forbidden)
-        resp1 = self.client.get(f"/api/admin/shadow-trades?token={user_token}")
+        # 2. Query admin endpoint with USER Bearer token (MUST be blocked with 403 Forbidden)
+        resp1 = self.client.get("/api/admin/shadow-trades", headers={"Authorization": f"Bearer {user_token}"})
         self.assertEqual(resp1.status_code, 403)
         self.assertEqual(resp1.json()["detail"], "Forbidden: Administrator privilege required")
 
         # 3. Create an ADMIN session
         admin_data = {
             "email": "admin@tradeyar.ai",
-            "password_hash": "",
             "role": "ADMIN",
             "name": "Super Admin"
         }
         admin_token = global_auth_service.create_session(admin_data)
 
-        # 4. Query admin endpoint with ADMIN token (MUST succeed with 200 OK)
-        resp2 = self.client.get(f"/api/admin/shadow-trades?token={admin_token}")
+        # 4. Query admin endpoint with ADMIN Bearer token (MUST succeed with 200 OK)
+        resp2 = self.client.get("/api/admin/shadow-trades", headers={"Authorization": f"Bearer {admin_token}"})
         self.assertEqual(resp2.status_code, 200)

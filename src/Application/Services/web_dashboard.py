@@ -24,7 +24,6 @@ HISTORY_DIR = "history"
 from app.core.logging import log_event, log_audit, log_intelligence_decision
 from src.Application.Runtime.runtime_state import central_runtime_state
 from src.Infrastructure.version import get_application_version_info
-from src.Application.Services.telegram_auth import verify_telegram_authorization
 from src.Application.Dashboard.content_manager import ContentManager
 from src.Application.Dashboard.ticket_manager import TicketManager
 
@@ -1810,8 +1809,12 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
             localStorage.setItem('yartrader_theme', isLight ? 'light' : 'dark');
         }
 
-        function mockSocialLogin(provider) {
-            showNotification(currentLang === 'fa' ? `ورود با ${provider} در محیط آزمایشی شبیه‌سازی شد.` : `Social login with ${provider} simulated in sandbox mode.`, "success");
+        function handleGoogleSignIn() {
+            if (window.google && window.google.accounts && window.google.accounts.id) {
+                window.google.accounts.id.prompt();
+            } else {
+                showNotification(currentLang === 'fa' ? 'جهت ورود با گوگل، پیکربندی GOOGLE_CLIENT_ID لازم است.' : 'GOOGLE_CLIENT_ID environment configuration is required for Google Sign-In.', "error");
+            }
         }
 
         function showNotification(msg, type = "success") {
@@ -1831,8 +1834,8 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
             // Hide all shells
             const shells = [
                 'shell-marketing', 'shell-features', 'shell-pricing', 'shell-blog',
-                'shell-terminal', 'shell-admin', 'shell-login', 'shell-register',
-                'shell-forgot', 'shell-unauthorized', 'shell-execution-intel'
+                'shell-terminal', 'shell-admin', 'shell-login',
+                'shell-unauthorized', 'shell-execution-intel'
             ];
             shells.forEach(s => {
                 const el = document.getElementById(s);
@@ -1905,21 +1908,13 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
                     document.getElementById('shell-login').style.display = 'block';
                     document.getElementById('link-login').classList.add('active');
                 }
-            } else if (hash === '#/register') {
-                if (token) {
-                    window.location.hash = '#/dashboard';
-                } else {
-                    document.getElementById('shell-register').style.display = 'block';
-                    document.getElementById('link-register').classList.add('active');
-                }
-            } else if (hash === '#/forgot-password') {
-                document.getElementById('shell-forgot').style.display = 'block';
+            } else if (hash === '#/register' || hash === '#/forgot-password') {
+                window.location.hash = '#/login';
             }
         }
 
         function updateAuthSidebar(token, name) {
             const loginLink = document.getElementById('link-login');
-            const registerLink = document.getElementById('link-register');
             const logoutLink = document.getElementById('link-logout');
             const termLink = document.getElementById('link-terminal');
             const execIntelLink = document.getElementById('link-execution-intel');
@@ -1928,7 +1923,6 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
 
             if (token) {
                 if (loginLink) loginLink.style.display = 'none';
-                if (registerLink) registerLink.style.display = 'none';
                 if (logoutLink) logoutLink.style.display = 'flex';
                 if (termLink) termLink.style.display = 'flex';
                 if (execIntelLink) execIntelLink.style.display = 'flex';
@@ -1946,92 +1940,11 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
                 }
             } else {
                 if (loginLink) loginLink.style.display = 'flex';
-                if (registerLink) registerLink.style.display = 'flex';
                 if (logoutLink) logoutLink.style.display = 'none';
                 if (termLink) termLink.style.display = 'none';
                 if (execIntelLink) execIntelLink.style.display = 'none';
                 if (adminLink) adminLink.style.display = 'none';
                 if (userBadge) userBadge.style.display = 'none';
-            }
-        }
-
-        // Auth Operations
-        async function submitLogin() {
-            const email = document.getElementById('login-email').value.trim();
-            const pass = document.getElementById('login-pass').value.trim();
-            if (!email || !pass) {
-                showNotification(currentLang === 'fa' ? 'تمام فیلدها را کامل کنید.' : 'Please enter both email and password.', 'warning');
-                return;
-            }
-
-            try {
-                const resp = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email, password: pass })
-                });
-                const data = await resp.json();
-                if (resp.status >= 400) {
-                    showNotification(data.detail || "Authentication failed.", "error");
-                } else {
-                    localStorage.setItem('yartrader_token', data.session_token);
-                    localStorage.setItem('yartrader_role', data.user.role);
-                    localStorage.setItem('yartrader_name', data.user.name);
-                    localStorage.setItem('yartrader_email', data.user.email);
-                    showNotification((currentLang === 'fa' ? 'خوش آمدید، ' : 'Welcome, ') + data.user.name);
-                    window.location.hash = '#/dashboard';
-                    handleRoute();
-                }
-            } catch (e) {
-                showNotification("Network error. Could not authenticate.", "error");
-            }
-        }
-
-        async function submitRegister() {
-            const name = document.getElementById('register-name').value.trim();
-            const email = document.getElementById('register-email').value.trim();
-            const pass = document.getElementById('register-pass').value.trim();
-            if (!email || !pass) {
-                showNotification(currentLang === 'fa' ? 'تمام فیلدها را کامل کنید.' : 'Please enter both email and password.', 'warning');
-                return;
-            }
-
-            try {
-                const resp = await fetch('/api/auth/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email, password: pass, name: name })
-                });
-                const data = await resp.json();
-                if (resp.status >= 400) {
-                    showNotification(data.detail || "Registration failed.", "error");
-                } else {
-                    showNotification(currentLang === 'fa' ? 'ثبت‌نام با موفقیت انجام شد. لطفا وارد شوید.' : "Registration successful! Please login.");
-                    window.location.hash = '#/login';
-                }
-            } catch (e) {
-                showNotification("Network error. Could not register account.", "error");
-            }
-        }
-
-        async function submitForgot() {
-            const email = document.getElementById('forgot-email').value.trim();
-            if (!email) {
-                showNotification(currentLang === 'fa' ? 'لطفا آدرس ایمیل را وارد کنید.' : 'Please enter your email.', 'warning');
-                return;
-            }
-
-            try {
-                const resp = await fetch('/api/auth/forgot-password', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email })
-                });
-                const data = await resp.json();
-                showNotification(data.message || "Simulated password reset sent.");
-                document.getElementById('forgot-email').value = '';
-            } catch (e) {
-                showNotification("Network error.", "error");
             }
         }
 
@@ -2785,7 +2698,6 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
             <div style="margin-top: auto; border-top: 1px solid var(--border-dark); padding-top: 15px; display: flex; flex-direction: column; gap: 10px;">
                 <div id="user-profile-badge" style="display: none; padding: 10px; background-color: rgba(79, 70, 229, 0.1); border-radius: 6px; font-weight: bold; text-align: center; color: var(--primary);"></div>
                 <a href="#/login" class="sidebar-link" id="link-login" data-i18n="nav_login">🔑 Sign In</a>
-                <a href="#/register" class="sidebar-link" id="link-register" data-i18n="nav_register">📝 Register</a>
                 <a href="javascript:void(0)" class="sidebar-link" id="link-logout" style="display: none;" onclick="submitLogout()" data-i18n="nav_logout">🚪 Sign Out</a>
             </div>
         </div>
@@ -3404,71 +3316,14 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
 
             <!-- AUTH VIEWS -->
             <div id="shell-login" style="display: none;">
-                <div class="card" style="max-width: 450px; margin: 40px auto; border-top: 5px solid var(--primary);">
-                    <h2 style="margin-top:0; color: var(--primary); text-align: center;" data-i18n="login_title">Sign In to Your Account</h2>
+                <div class="card" style="max-width: 450px; margin: 40px auto; border-top: 5px solid var(--primary); text-align: center;">
+                    <h2 style="margin-top:0; color: var(--primary);" data-i18n="login_title">Sign In to Your Account</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 25px; font-size: 0.9em;">
+                        Customer authentication is strictly managed via Google Account OIDC.
+                    </p>
 
                     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                        <button class="social-btn social-google" style="flex: 1;" onclick="mockSocialLogin('Google')">Google</button>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" data-i18n="email_label">Email Address</label>
-                        <input class="input-field" type="email" id="login-email" placeholder="Enter your email address" data-i18n="email_placeholder" />
-                    </div>
-                    <div class="form-group" style="margin-bottom: 10px;">
-                        <label class="form-label" data-i18n="password_label">Password</label>
-                        <input class="input-field" type="password" id="login-pass" placeholder="Enter your password" data-i18n="password_placeholder" />
-                    </div>
-                    <div style="text-align: end; margin-bottom: 20px;">
-                        <a href="#/forgot-password" style="color: var(--primary); font-size: 0.85em; text-decoration: none;" data-i18n="forgot_link">Forgot password?</a>
-                    </div>
-                    <button class="btn" style="width: 100%;" onclick="submitLogin()" data-i18n="login_btn">Sign In</button>
-
-                    <div style="text-align: center; margin-top: 20px; font-size: 0.9em;">
-                        <a href="#/register" style="color: var(--text-muted); text-decoration: none;" data-i18n="no_account">Don't have an account? Register</a>
-                    </div>
-                </div>
-            </div>
-
-            <div id="shell-register" style="display: none;">
-                <div class="card" style="max-width: 450px; margin: 40px auto; border-top: 5px solid var(--primary);">
-                    <h2 style="margin-top:0; color: var(--primary); text-align: center;" data-i18n="register_title">Create Your SaaS Account</h2>
-
-                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                        <button class="social-btn social-google" style="flex: 1;" onclick="mockSocialLogin('Google')">Google</button>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label" data-i18n="name_label">Full Name</label>
-                        <input class="input-field" type="text" id="register-name" placeholder="Enter your full name" data-i18n="name_placeholder" />
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" data-i18n="email_label">Email Address</label>
-                        <input class="input-field" type="email" id="register-email" placeholder="Enter your email address" data-i18n="email_placeholder" />
-                    </div>
-                    <div class="form-group" style="margin-bottom: 25px;">
-                        <label class="form-label" data-i18n="password_label">Password</label>
-                        <input class="input-field" type="password" id="register-pass" placeholder="Enter your password" data-i18n="password_placeholder" />
-                    </div>
-                    <button class="btn" style="width: 100%;" onclick="submitRegister()" data-i18n="register_btn">Register</button>
-
-                    <div style="text-align: center; margin-top: 20px; font-size: 0.9em;">
-                        <a href="#/login" style="color: var(--text-muted); text-decoration: none;" data-i18n="has_account">Already have an account? Sign In</a>
-                    </div>
-                </div>
-            </div>
-
-            <div id="shell-forgot" style="display: none;">
-                <div class="card" style="max-width: 450px; margin: 40px auto; border-top: 5px solid var(--primary);">
-                    <h2 style="margin-top:0; color: var(--primary); text-align: center;" data-i18n="forgot_title">Reset Your Password</h2>
-                    <div class="form-group" style="margin-bottom: 25px;">
-                        <label class="form-label" data-i18n="email_label">Email Address</label>
-                        <input class="input-field" type="email" id="forgot-email" placeholder="Enter your email address" data-i18n="email_placeholder" />
-                    </div>
-                    <button class="btn" style="width: 100%;" onclick="submitForgot()" data-i18n="forgot_btn">Send Reset Link</button>
-
-                    <div style="text-align: center; margin-top: 20px; font-size: 0.9em;">
-                        <a href="#/login" style="color: var(--text-muted); text-decoration: none;" data-i18n="has_account">Already have an account? Sign In</a>
+                        <button class="social-btn social-google" style="flex: 1; padding: 14px; font-size: 1em;" onclick="handleGoogleSignIn()">🌐 Continue with Google</button>
                     </div>
                 </div>
             </div>
@@ -5043,9 +4898,9 @@ def get_admin_symbols(request: Request):
     }
 
 @app.get("/api/admin/timeframes")
-def get_admin_timeframes(token: Optional[str] = None):
+def get_admin_timeframes(request: Request):
     """Lists all active isolated SymbolTimeContext domains."""
-    check_admin_guard(token)
+    check_admin_guard(request)
     engine = PredictiveShadowEngine.get_instance()
     return {
         "contexts": [ctx.to_dict() for ctx in engine.contexts.values()],
@@ -5053,9 +4908,9 @@ def get_admin_timeframes(token: Optional[str] = None):
     }
 
 @app.get("/api/admin/reports")
-def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[int] = None, token: Optional[str] = None):
+def get_admin_reports(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     """Generates separate unmerged SCM intelligence reports per context."""
-    check_admin_guard(token)
+    check_admin_guard(request)
     engine = PredictiveShadowEngine.get_instance()
 
     reports = []
@@ -5075,9 +4930,9 @@ def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[int] = N
     }
 
 @app.get("/api/admin/shadow-trades")
-def get_admin_shadow_trades(symbol: Optional[str] = None, timeframe: Optional[int] = None, token: Optional[str] = None):
+def get_admin_shadow_trades(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     """Exposes full detailed data of shadow trades for supervision and debugging."""
-    check_admin_guard(token)
+    check_admin_guard(request)
     engine = PredictiveShadowEngine.get_instance()
 
     trades_list = engine.trades
@@ -5089,9 +4944,9 @@ def get_admin_shadow_trades(symbol: Optional[str] = None, timeframe: Optional[in
     return [t.to_dict() for t in trades_list]
 
 @app.get("/api/admin/memory")
-def get_admin_memory_view(symbol: Optional[str] = None, timeframe: Optional[int] = None, token: Optional[str] = None):
+def get_admin_memory_view(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     """Exposes all internal memory layers (Raw, Experience, Pattern, Concept) filterable by isolated context."""
-    check_admin_guard(token)
+    check_admin_guard(request)
     engine = PredictiveShadowEngine.get_instance()
 
     bases = engine.bases
@@ -5125,9 +4980,9 @@ def get_admin_memory_view(symbol: Optional[str] = None, timeframe: Optional[int]
     }
 
 @app.get("/api/admin/judge")
-def get_admin_judge_panel(symbol: Optional[str] = None, timeframe: Optional[int] = None, token: Optional[str] = None):
+def get_admin_judge_panel(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     """Exposes explanations on why trades were created and why they succeeded/failed."""
-    check_admin_guard(token)
+    check_admin_guard(request)
     engine = PredictiveShadowEngine.get_instance()
 
     trades_list = engine.trades
@@ -5159,9 +5014,9 @@ def get_admin_judge_panel(symbol: Optional[str] = None, timeframe: Optional[int]
     }
 
 @app.get("/api/admin/patterns")
-def get_admin_patterns_view(symbol: Optional[str] = None, timeframe: Optional[int] = None, token: Optional[str] = None):
+def get_admin_patterns_view(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     """Exposes pattern success rates, failed patterns, and weight changes per isolated context."""
-    check_admin_guard(token)
+    check_admin_guard(request)
     engine = PredictiveShadowEngine.get_instance()
 
     pattern_stats = {}
@@ -5506,196 +5361,8 @@ def get_admin_statements(period: Optional[str] = "30d", token: Optional[str] = Q
 # ==============================================================================
 from pydantic import BaseModel
 
-class RegisterPayload(BaseModel):
-    email: str
-    password: str
-    name: Optional[str] = ""
-
-class LoginPayload(BaseModel):
-    email: str
-    password: str
-
-class ForgotPasswordPayload(BaseModel):
-    email: str
-
 class LogoutPayload(BaseModel):
     token: str
-
-class ResetPasswordPayload(BaseModel):
-    token: str
-    new_password: str
-
-@app.post("/api/auth/register")
-def register_user(payload: RegisterPayload):
-    """SaaS client registration using PBKDF2-SHA256."""
-    repo = global_auth_service.repo
-    email_clean = payload.email.lower()
-    if repo.get_user_by_email(email_clean):
-        raise HTTPException(status_code=400, detail="Account with this email already exists.")
-
-    password_hash = global_auth_service.hash_password(payload.password)
-    user = repo.create_user(email=email_clean, password_hash=password_hash, role="USER", name=payload.name)
-
-    # Generate secure email verification token
-    import secrets
-    import hashlib
-    raw_token = secrets.token_urlsafe(32)
-    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
-    expires_at = time.time() + 86400.0  # 24 hours expiration
-
-    user["verification_token_hash"] = token_hash
-    user["verification_token_expires"] = expires_at
-    repo.users[email_clean] = user
-    repo.save_db()
-
-    # Send verification email
-    from src.Application.Dashboard.auth_service import send_saas_email
-    subject = "Verify Your YarTrader Account"
-    verification_url = f"/api/auth/verify-email?token={raw_token}"
-    body = f"Hello {user['name']},\n\nPlease verify your YarTrader account by clicking the link: {verification_url}"
-    send_saas_email(email_clean, subject, body)
-
-    return {
-        "status": "Success",
-        "message": "User registered successfully. Please check your email to verify your account.",
-        "user": {
-            "email": user["email"],
-            "name": user["name"],
-            "role": user["role"]
-        }
-    }
-
-@app.post("/api/auth/login")
-def login_user(payload: LoginPayload, request: Request):
-    """Secure credentials login returning an active session token."""
-    client_host = request.client.host if request.client else None
-    forwarded_for = request.headers.get("x-forwarded-for")
-    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
-    user_agent = request.headers.get("user-agent", "Unknown")
-
-    try:
-        user = global_auth_service.authenticate_credentials(
-            payload.email,
-            payload.password,
-            ip_address=ip_address,
-            user_agent=user_agent
-        )
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
-
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
-
-    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
-    return {
-        "status": "Success",
-        "session_token": token,
-        "user": {
-            "email": user["email"],
-            "name": user["name"],
-            "role": user["role"]
-        }
-    }
-
-@app.post("/api/auth/forgot-password")
-def forgot_password_recovery(payload: ForgotPasswordPayload):
-    """Simulates sending standard SaaS reset link securely."""
-    import secrets
-    import hashlib
-    repo = global_auth_service.repo
-    user = repo.get_user_by_email(payload.email)
-    if not user:
-        return {"status": "Success", "message": "If this email is registered, a password recovery link has been sent."}
-
-    # Generate secure reset token
-    raw_token = secrets.token_urlsafe(32)
-    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
-    expires_at = time.time() + 3600.0  # 1 hour expiration
-
-    user["reset_token_hash"] = token_hash
-    user["reset_token_expires"] = expires_at
-    repo.users[payload.email.lower()] = user
-    repo.save_db()
-
-    # Send reset link email
-    from src.Application.Dashboard.auth_service import send_saas_email
-    subject = "Reset Your YarTrader Password"
-    reset_url = f"#/reset-password?token={raw_token}"
-    body = f"Hello {user['name']},\n\nYou requested a password reset. Please use the following token to reset your password: {raw_token}\nOr use the link: {reset_url}"
-    send_saas_email(payload.email.lower(), subject, body)
-
-    return {
-        "status": "Success",
-        "message": "Password recovery email has been sent successfully."
-    }
-
-@app.get("/api/auth/verify-email")
-def verify_email(token: str):
-    """Verifies a user email using the secure registration token."""
-    import hashlib
-    repo = global_auth_service.repo
-    raw_token = token.strip()
-    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
-
-    target_user = None
-    for email, user in repo.users.items():
-        if user.get("verification_token_hash") == token_hash:
-            target_user = user
-            break
-
-    if not target_user:
-        raise HTTPException(status_code=400, detail="Invalid or expired verification token.")
-
-    expires = target_user.get("verification_token_expires", 0.0)
-    if time.time() > expires:
-        raise HTTPException(status_code=400, detail="Verification token has expired.")
-
-    target_user["is_verified"] = True
-    target_user["verification_token_hash"] = None
-    target_user["verification_token_expires"] = 0.0
-
-    repo.users[target_user["email"].lower()] = target_user
-    repo.save_db()
-
-    return HTMLResponse(
-        content="<h2>Email Verified Successfully!</h2><p>Your account is now active. You can now login to YarTrader.</p>"
-    )
-
-@app.post("/api/auth/reset-password")
-def reset_password_endpoint(payload: ResetPasswordPayload):
-    """Accepts a secure reset token and updates the user password, invalidating the token."""
-    import hashlib
-    repo = global_auth_service.repo
-    raw_token = payload.token.strip()
-
-    token_hash = hashlib.sha256(raw_token.encode('utf-8')).hexdigest()
-
-    target_user = None
-    for email, user in repo.users.items():
-        if user.get("reset_token_hash") == token_hash:
-            target_user = user
-            break
-
-    if not target_user:
-        raise HTTPException(status_code=400, detail="Invalid or expired password reset token.")
-
-    expires = target_user.get("reset_token_expires", 0.0)
-    if time.time() > expires:
-        raise HTTPException(status_code=400, detail="Password reset token has expired.")
-
-    new_pw = payload.new_password.strip()
-    if len(new_pw) < 8:
-        raise HTTPException(status_code=400, detail="Password must be at least 8 characters long.")
-
-    hashed_password = global_auth_service.hash_password(new_pw)
-    target_user["password_hash"] = hashed_password
-    target_user["reset_token_hash"] = None
-    target_user["reset_token_expires"] = 0.0
-
-    repo.users[target_user["email"].lower()] = target_user
-    repo.save_db()
-
-    return {"status": "Success", "message": "Password has been successfully reset."}
 
 @app.post("/api/auth/logout")
 def logout_user(payload: LogoutPayload):
@@ -5725,22 +5392,18 @@ def login_with_google(payload: SocialLoginPayload, request: Request):
     id_token = payload.id_token if hasattr(payload, "id_token") else None
 
     if not id_token:
-        if is_production:
-            raise HTTPException(status_code=400, detail="OIDC id_token is required in production.")
-        email = payload.email
-        provider_id = payload.provider_id
-        name = payload.name or ""
-    else:
-        try:
-            from src.Application.Dashboard.oidc_validator import validate_social_token
-            decoded = validate_social_token(id_token, "google")
-            email = decoded.get("email")
-            provider_id = decoded.get("sub")
-            name = decoded.get("name") or payload.name or ""
-            if not email or not provider_id:
-                raise HTTPException(status_code=401, detail="Token missing required claims (email, sub).")
-        except Exception as e:
-            raise HTTPException(status_code=401, detail=f"Google authentication failed: {str(e)}")
+        raise HTTPException(status_code=400, detail="OIDC id_token is required.")
+
+    try:
+        from src.Application.Dashboard.oidc_validator import validate_social_token
+        decoded = validate_social_token(id_token, "google")
+        email = decoded.get("email")
+        provider_id = decoded.get("sub")
+        name = decoded.get("name") or payload.name or ""
+        if not email or not provider_id:
+            raise HTTPException(status_code=401, detail="Token missing required claims (email, sub).")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Google authentication failed: {str(e)}")
 
     user = global_auth_service.authenticate_social(
         email=email,

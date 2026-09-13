@@ -89,39 +89,15 @@ class AuthRepository:
     def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         return self.users.get(email.lower())
 
-    def get_user_by_telegram_id(self, telegram_id: str) -> Optional[Dict[str, Any]]:
-        target_id = str(telegram_id)
-        for email, user in self.users.items():
-            providers = user.get("social_providers", {})
-            if str(providers.get("telegram")) == target_id or str(user.get("telegram_id")) == target_id:
-                return user
-        return None
-
-    def link_telegram_account(self, email: str, telegram_id: str, telegram_meta: Optional[Dict[str, Any]] = None) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    def is_admin_email(self, email: str) -> bool:
         email_clean = email.lower()
-        target_id = str(telegram_id)
+        default_admin = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "")).lower()
+        admin_list = {"m.a.sohrabinia@gmail.com", "m.a.sorabinia@gmail.com", "admin@yartrader.app"}
+        if default_admin:
+            admin_list.add(default_admin)
+        return email_clean in admin_list
 
-        # Rejection check: Ensure telegram_id is not already linked to another user
-        existing_owner = self.get_user_by_telegram_id(target_id)
-        if existing_owner and existing_owner.get("email", "").lower() != email_clean:
-            return False, "Telegram identity is already linked to another account.", None
-
-        user = self.get_user_by_email(email_clean)
-        if not user:
-            user = self.create_user(email_clean, password_hash="", name="")
-
-        if "social_providers" not in user:
-            user["social_providers"] = {}
-
-        user["social_providers"]["telegram"] = target_id
-        user["telegram_id"] = target_id
-        if telegram_meta:
-            user["telegram_meta"] = telegram_meta
-
-        self.save_db()
-        return True, "Telegram account linked successfully.", user
-
-    def create_user(self, email: str, password_hash: str, role: str = "USER", name: str = "") -> Dict[str, Any]:
+    def create_user(self, email: str, password_hash: str = "", role: str = "USER", name: str = "") -> Dict[str, Any]:
         email_clean = email.lower()
         user_data = {
             "email": email_clean,
@@ -142,8 +118,16 @@ class AuthRepository:
 
     def link_social_account(self, email: str, provider: str, provider_id: str) -> Dict[str, Any]:
         user = self.get_user_by_email(email)
+        is_admin = self.is_admin_email(email)
+        default_role = "ADMIN" if is_admin else "USER"
+        default_tier = "INSTITUTIONAL" if is_admin else "FREE"
+
         if not user:
-            user = self.create_user(email, password_hash="", name="")
+            user = self.create_user(email, password_hash="", role=default_role, name="")
+            user["tier"] = default_tier
+        elif is_admin and user.get("role") != "ADMIN":
+            user["role"] = "ADMIN"
+            user["tier"] = "INSTITUTIONAL"
 
         user["social_providers"][provider] = provider_id
         self.save_db()

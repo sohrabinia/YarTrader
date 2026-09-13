@@ -112,98 +112,22 @@ class TestP1RemediationSecurity(unittest.TestCase):
             self.assertEqual(resp.status_code, 200)
 
     # -------------------------------------------------------------------------
-    # P1-2 PASSWORD RESET VERIFICATION TESTS
+    # P1-2 LEGACY AUTH ENDPOINTS UNREACHABLE TESTS
     # -------------------------------------------------------------------------
 
-    def test_password_reset_flow_lifecycle(self) -> None:
-        """Verifies full forgot password token generation, hashing, secure verification, reset, and token invalidation."""
-        email = "forgot@yartrader.app"
-        user = self.repo.create_user(email=email, password_hash="hash123", role="USER", name="User")
-        user["is_verified"] = True
-        self.repo.users[email] = user
-        self.repo.save_db()
+    def test_legacy_auth_endpoints_unreachable(self) -> None:
+        """Verifies that legacy password reset, registration, and email verification endpoints return 404/405."""
+        resp_forgot = self.client.post("/api/auth/forgot-password", json={"email": "forgot@yartrader.app"})
+        self.assertIn(resp_forgot.status_code, (404, 405))
 
-        # 1. Forgot password request (with mocks to prevent SMTP errors)
-        with patch("src.Application.Services.web_dashboard.global_auth_service", self.auth_service):
-            resp_forgot = self.client.post("/api/auth/forgot-password", json={"email": email})
-            self.assertEqual(resp_forgot.status_code, 200)
+        resp_reset = self.client.post("/api/auth/reset-password", json={"token": "tkn", "new_password": "p"})
+        self.assertIn(resp_reset.status_code, (404, 405))
 
-            # Retrieve raw token from mock email log
-            log_file = "runtime_logs/mock_emails.log"
-            self.assertTrue(os.path.exists(log_file))
-            with open(log_file, "r", encoding="utf-8") as f:
-                content = f.read()
+        resp_reg = self.client.post("/api/auth/register", json={"email": "a@b.com", "password": "p"})
+        self.assertIn(resp_reg.status_code, (404, 405))
 
-            # Extract token
-            self.assertIn("Reset Your YarTrader Password", content)
-            token_prefix = "token to reset your password: "
-            start_idx = content.rfind(token_prefix) + len(token_prefix)
-            end_idx = content.find("\n", start_idx)
-            raw_token = content[start_idx:end_idx].strip()
-            self.assertGreater(len(raw_token), 20)
-
-            # 2. Reset password using valid token
-            reset_payload = {
-                "token": raw_token,
-                "new_password": "NewSecurePassword123!"
-            }
-            resp_reset = self.client.post("/api/auth/reset-password", json=reset_payload)
-            self.assertEqual(resp_reset.status_code, 200)
-            self.assertEqual(resp_reset.json()["status"], "Success")
-
-            # 3. Check password updated and token is invalidated
-            updated_user = self.repo.get_user_by_email(email)
-            self.assertIsNone(updated_user.get("reset_token_hash"))
-            self.assertTrue(self.auth_service.verify_password("NewSecurePassword123!", updated_user["password_hash"]))
-
-            # 4. Attempt reuse of token must fail
-            resp_reuse = self.client.post("/api/auth/reset-password", json=reset_payload)
-            self.assertEqual(resp_reuse.status_code, 400)
-            self.assertIn("invalid or expired", resp_reuse.json()["detail"].lower())
-
-    # -------------------------------------------------------------------------
-    # P1-3 EMAIL VERIFICATION LOOP TESTS
-    # -------------------------------------------------------------------------
-
-    def test_unverified_registration_fails_authentication_until_verified(self) -> None:
-        """Verifies new registrants default to unverified, are blocked from login, and can login only after verify-email."""
-        email = "unverified-test@yartrader.app"
-        pw = "Password123!"
-
-        # 1. Register unverified user
-        reg_payload = {"email": email, "password": pw, "name": "Test User"}
-        with patch("src.Application.Services.web_dashboard.global_auth_service", self.auth_service):
-            resp_reg = self.client.post("/api/auth/register", json=reg_payload)
-            self.assertEqual(resp_reg.status_code, 200)
-
-            # Unverified account should fail login
-            login_payload = {"email": email, "password": pw}
-            resp_login = self.client.post("/api/auth/login", json=login_payload)
-            self.assertEqual(resp_login.status_code, 401)
-            self.assertIn("not verified", resp_login.json()["detail"].lower())
-
-            # Retrieve verification token from mock email log
-            log_file = "runtime_logs/mock_emails.log"
-            with open(log_file, "r", encoding="utf-8") as f:
-                content = f.read()
-
-            token_prefix = "token="
-            start_idx = content.rfind(token_prefix) + len(token_prefix)
-            end_idx = content.find("\n", start_idx)
-            if " " in content[start_idx:end_idx]:
-                end_idx = content.find(" ", start_idx)
-            raw_token = content[start_idx:end_idx].strip()
-            self.assertGreater(len(raw_token), 20)
-
-            # 2. Trigger email verification link
-            resp_verify = self.client.get(f"/api/auth/verify-email?token={raw_token}")
-            self.assertEqual(resp_verify.status_code, 200)
-            self.assertIn("Verified", resp_verify.text)
-
-            # 3. Successful verification permits normal authentication
-            resp_login_success = self.client.post("/api/auth/login", json=login_payload)
-            self.assertEqual(resp_login_success.status_code, 200)
-            self.assertEqual(resp_login_success.json()["status"], "Success")
+        resp_verify = self.client.get("/api/auth/verify-email?token=tkn")
+        self.assertIn(resp_verify.status_code, (404, 405))
 
     # -------------------------------------------------------------------------
     # P1-4 BACKUP AND RESTORE AUTOMATION TESTS
