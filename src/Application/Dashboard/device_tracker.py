@@ -85,11 +85,11 @@ class DeviceTracker:
             return False
 
     def is_session_revoked(self, token: str) -> bool:
-        """Returns True if the session has been explicitly revoked or is inactive."""
+        """Returns True if the session has been explicitly revoked."""
         with self.lock:
             data = self._load()
             session = data["sessions"].get(token)
-            if not session or session.get("state") != "ACTIVE":
+            if session and session.get("state") == "REVOKED":
                 return True
             return False
 

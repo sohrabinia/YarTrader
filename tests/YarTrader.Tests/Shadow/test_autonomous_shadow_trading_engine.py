@@ -139,6 +139,9 @@ class TestAutonomousShadowTradingEngine(unittest.TestCase):
 
     # Test 6: Admin API exposes full data
     def test_admin_api_exposes_full_data(self) -> None:
+        from src.Application.Dashboard.auth_service import global_auth_service
+        admin_token = global_auth_service.create_session({"email": "admin@yartrader.app", "role": "ADMIN"})
+
         self.engine.create_predictive_order(
             symbol="XAUUSD",
             direction="LONG",
@@ -151,7 +154,7 @@ class TestAutonomousShadowTradingEngine(unittest.TestCase):
             pattern="Base Compression Shift"
         )
 
-        response = self.client.get("/api/admin/shadow-trades")
+        response = self.client.get("/api/admin/shadow-trades", headers={"Authorization": f"Bearer {admin_token}"})
         self.assertEqual(response.status_code, 200)
         data = response.json()
 

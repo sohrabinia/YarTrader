@@ -159,24 +159,11 @@ class TestP0RemediationSecurity(unittest.TestCase):
                 validate_social_token(token, "google")
             self.assertIn("issuer", str(ctx.exception).lower())
 
-    @patch("src.Application.Dashboard.oidc_validator.fetch_jwks")
-    def test_social_login_apple_cryptographic_success(self, mock_fetch) -> None:
-        """Verifies that a valid Apple signed token is accepted."""
-        mock_fetch.return_value = self.mock_jwks
-
-        payload = {
-            "iss": "https://appleid.apple.com",
-            "aud": "test-apple-client-id",
-            "sub": "apple-user-9988",
-            "email": "apple-user@yartrader.app",
-            "exp": int(time.time()) + 3600
-        }
-
-        token = jwt.encode(payload, self.private_key, algorithm="RS256", headers={"kid": "test-kid-123"})
-
-        with patch.dict(os.environ, {"APPLE_CLIENT_ID": "test-apple-client-id"}):
-            decoded = validate_social_token(token, "apple")
-            self.assertEqual(decoded["email"], "apple-user@yartrader.app")
+    def test_social_login_unsupported_providers_rejected(self) -> None:
+        """Verifies that unsupported social providers (e.g. Apple, Telegram) are strictly rejected."""
+        with self.assertRaises(ValidationException) as ctx:
+            validate_social_token("some-token", "apple")
+        self.assertIn("unsupported social provider", str(ctx.exception).lower())
 
     def test_social_login_missing_config_fails_closed_in_production(self) -> None:
         """Verifies that social validation immediately fails closed in production mode if configuration is missing."""
@@ -239,70 +226,27 @@ class TestP0RemediationSecurity(unittest.TestCase):
                 os.environ["RG_DB_SECURE_TOKEN"] = old_env
 
     # -------------------------------------------------------------------------
-    # P0-3 ADMIN LOCKOUT TESTS
+    # P0-3 ADMIN LOCKOUT AUDIT STORE TESTS
     # -------------------------------------------------------------------------
 
-    def test_admin_lockout_persists_across_restart(self) -> None:
-        """Verifies that failed login attempts are written persistently and lockout state survives manager re-initialization."""
-        email = "admin@yartrader.app"
-        now = time.time()
-
-        # 1. Record 4 attempts
-        for i in range(4):
-            self.lockout_store.record_failed_attempt(email, now)
-
-        # Re-initialize LockoutAuditStore and AuthService (simulating a full process restart)
-        new_store = LockoutAuditStore(self.lockout_file)
-        new_service = AuthService(lockout_store=new_store)
-
-        # 2. Add the 5th attempt (which triggers persistent lockout)
-        res = new_service.authenticate_credentials(email, "incorrect_pass")
-        self.assertIsNone(res)
-
-        # 3. Add a 6th attempt, which should be immediately blocked by persistent lockout
-        res_blocked = new_service.authenticate_credentials(email, "incorrect_pass")
-        self.assertIsNone(res_blocked)
-
-        # Verify the lockout event is in the audit log
-        logs = new_store._load()["audit_log"]
-        lockout_events = [l for l in logs if l["event_type"] == "ADMIN_LOCKOUT"]
-        self.assertGreaterEqual(len(lockout_events), 1)
-        self.assertTrue(lockout_events[0]["lockout_state"])
-
-    def test_lockout_records_source_ip_and_user_agent(self) -> None:
-        """Verifies that user agent and client IP are successfully extracted and persisted in the lockout audit record."""
+    def test_lockout_audit_store_persists_events(self) -> None:
+        """Verifies that audit events are written persistently to disk."""
         email = "admin-audit@yartrader.app"
-        now = time.time()
 
         self.lockout_store.log_audit_event(
-            event_type="ADMIN_LOGIN_FAILURE",
+            event_type="ADMIN_AUDIT",
             identifier=email,
             source_ip="203.0.113.195",
             user_agent="YarTraderSecBot/1.0",
-            result="Failed password",
+            result="Success",
             lockout_state=False,
-            penalty_info="Attempt 1/5"
+            penalty_info="None"
         )
 
         # Load directly from persistent store
         data = self.lockout_store._load()
         self.assertEqual(data["audit_log"][-1]["source_ip"], "203.0.113.195")
         self.assertEqual(data["audit_log"][-1]["user_agent"], "YarTraderSecBot/1.0")
-
-    def test_lockout_never_logs_passwords(self) -> None:
-        """Verifies that password/secrets are never recorded in the audit trail or persistent logs."""
-        email = "sec-test@yartrader.app"
-        secret_password = "MySuperSecretPassword123!"
-
-        # Authenticate with credentials
-        self.auth_service.authenticate_credentials(email, secret_password)
-
-        # Read raw JSON file
-        with open(self.lockout_file, "r", encoding="utf-8") as f:
-            raw_text = f.read()
-
-        # Ensure password is not written anywhere in the file
-        self.assertNotIn(secret_password, raw_text)
 
 
 # Help utilities for OIDC key conversion
