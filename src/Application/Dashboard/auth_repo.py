@@ -89,6 +89,14 @@ class AuthRepository:
     def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         return self.users.get(email.lower())
 
+    def is_admin_email(self, email: str) -> bool:
+        email_clean = email.lower()
+        default_admin = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "")).lower()
+        admin_list = {"m.a.sohrabinia@gmail.com", "m.a.sorabinia@gmail.com", "admin@yartrader.app"}
+        if default_admin:
+            admin_list.add(default_admin)
+        return email_clean in admin_list
+
     def create_user(self, email: str, password_hash: str = "", role: str = "USER", name: str = "") -> Dict[str, Any]:
         email_clean = email.lower()
         user_data = {
@@ -110,8 +118,16 @@ class AuthRepository:
 
     def link_social_account(self, email: str, provider: str, provider_id: str) -> Dict[str, Any]:
         user = self.get_user_by_email(email)
+        is_admin = self.is_admin_email(email)
+        default_role = "ADMIN" if is_admin else "USER"
+        default_tier = "INSTITUTIONAL" if is_admin else "FREE"
+
         if not user:
-            user = self.create_user(email, password_hash="", name="")
+            user = self.create_user(email, password_hash="", role=default_role, name="")
+            user["tier"] = default_tier
+        elif is_admin and user.get("role") != "ADMIN":
+            user["role"] = "ADMIN"
+            user["tier"] = "INSTITUTIONAL"
 
         user["social_providers"][provider] = provider_id
         self.save_db()

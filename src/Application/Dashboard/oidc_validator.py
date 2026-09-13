@@ -90,9 +90,14 @@ def validate_social_token(token: str, provider: str) -> Dict[str, Any]:
             raise ValidationException("Mock authentication disabled. ALLOW_MOCK_AUTH=true flag required in non-production environments.")
         parts = token.split("_")
         if len(parts) >= 5:
-            email = parts[2]
-            provider_id = parts[3]
-            name = parts[4] if len(parts) > 4 else "Mock User"
+            if len(parts) >= 6:
+                email = parts[3]
+                provider_id = parts[4]
+                name = parts[5]
+            else:
+                email = parts[2]
+                provider_id = parts[3]
+                name = parts[4] if len(parts) > 4 else "Mock User"
             return {
                 "email": email,
                 "sub": provider_id,

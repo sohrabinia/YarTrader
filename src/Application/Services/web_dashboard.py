@@ -1809,8 +1809,12 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
             localStorage.setItem('yartrader_theme', isLight ? 'light' : 'dark');
         }
 
-        function mockSocialLogin(provider) {
-            showNotification(currentLang === 'fa' ? `ورود با ${provider} در محیط آزمایشی شبیه‌سازی شد.` : `Social login with ${provider} simulated in sandbox mode.`, "success");
+        function handleGoogleSignIn() {
+            if (window.google && window.google.accounts && window.google.accounts.id) {
+                window.google.accounts.id.prompt();
+            } else {
+                showNotification(currentLang === 'fa' ? 'جهت ورود با گوگل، پیکربندی GOOGLE_CLIENT_ID لازم است.' : 'GOOGLE_CLIENT_ID environment configuration is required for Google Sign-In.', "error");
+            }
         }
 
         function showNotification(msg, type = "success") {
@@ -3319,7 +3323,7 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
                     </p>
 
                     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                        <button class="social-btn social-google" style="flex: 1; padding: 14px; font-size: 1em;" onclick="mockSocialLogin('Google')">🌐 Continue with Google</button>
+                        <button class="social-btn social-google" style="flex: 1; padding: 14px; font-size: 1em;" onclick="handleGoogleSignIn()">🌐 Continue with Google</button>
                     </div>
                 </div>
             </div>
@@ -5388,22 +5392,18 @@ def login_with_google(payload: SocialLoginPayload, request: Request):
     id_token = payload.id_token if hasattr(payload, "id_token") else None
 
     if not id_token:
-        if is_production:
-            raise HTTPException(status_code=400, detail="OIDC id_token is required in production.")
-        email = payload.email
-        provider_id = payload.provider_id
-        name = payload.name or ""
-    else:
-        try:
-            from src.Application.Dashboard.oidc_validator import validate_social_token
-            decoded = validate_social_token(id_token, "google")
-            email = decoded.get("email")
-            provider_id = decoded.get("sub")
-            name = decoded.get("name") or payload.name or ""
-            if not email or not provider_id:
-                raise HTTPException(status_code=401, detail="Token missing required claims (email, sub).")
-        except Exception as e:
-            raise HTTPException(status_code=401, detail=f"Google authentication failed: {str(e)}")
+        raise HTTPException(status_code=400, detail="OIDC id_token is required.")
+
+    try:
+        from src.Application.Dashboard.oidc_validator import validate_social_token
+        decoded = validate_social_token(id_token, "google")
+        email = decoded.get("email")
+        provider_id = decoded.get("sub")
+        name = decoded.get("name") or payload.name or ""
+        if not email or not provider_id:
+            raise HTTPException(status_code=401, detail="Token missing required claims (email, sub).")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Google authentication failed: {str(e)}")
 
     user = global_auth_service.authenticate_social(
         email=email,

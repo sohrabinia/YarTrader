@@ -39,13 +39,15 @@ class TestSaaSAuthAPI(unittest.TestCase):
         """Verifies valid Google OIDC authentication, session token issuance, session validation, and logout."""
         test_email = "test-google-user@tradeyar.ai"
         google_payload = {
+            "id_token": f"mock_token_google_{test_email}_google-sub-998877_Google Tester",
             "email": test_email,
             "provider_id": "google-sub-998877",
             "name": "Google Tester"
         }
 
         # Non-production mock social login test
-        resp = self.client.post("/api/auth/google", json=google_payload)
+        with patch.dict(os.environ, {"ALLOW_MOCK_AUTH": "true"}):
+            resp = self.client.post("/api/auth/google", json=google_payload)
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data["status"], "Success")
@@ -65,6 +67,35 @@ class TestSaaSAuthAPI(unittest.TestCase):
 
         # Session should now be invalidated
         self.assertIsNone(global_auth_service.validate_session(token))
+
+    def test_admin_google_oidc_login_grants_admin_role_and_operator_access(self) -> None:
+        """Verifies that Google OIDC sign-in for m.a.sohrabinia@gmail.com grants ADMIN role and authorizes Operator access."""
+        admin_email = "m.a.sohrabinia@gmail.com"
+        google_payload = {
+            "id_token": f"mock_token_google_{admin_email}_admin-sub-100_Sorabinia",
+            "email": admin_email,
+            "provider_id": "admin-sub-100",
+            "name": "Principal Administrator"
+        }
+
+        with patch.dict(os.environ, {"ALLOW_MOCK_AUTH": "true"}):
+            resp = self.client.post("/api/auth/google", json=google_payload)
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["status"], "Success")
+        token = data["session_token"]
+
+        # Verify session has ADMIN role server-side
+        session = global_auth_service.validate_session(token)
+        self.assertIsNotNone(session)
+        self.assertEqual(session["email"], admin_email)
+        self.assertEqual(session["role"], "ADMIN")
+
+        # Verify Operator access with Bearer session token
+        headers = {"Authorization": f"Bearer {token}"}
+        op_resp = self.client.get("/api/admin/operator/status", headers=headers)
+        self.assertEqual(op_resp.status_code, 200)
 
     def test_invalid_google_oidc_token_fails_closed(self) -> None:
         """Verifies that invalid or malformed Google OIDC token validation fails closed with 401 Unauthorized."""

@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app, global_auth_service
 
@@ -17,11 +18,13 @@ class TestModernFeaturesIntegration(unittest.TestCase):
     def test_social_login_google_only(self) -> None:
         # Test Google Auth
         google_payload = {
+            "id_token": "mock_token_google_test-google@tradeyar.ai_google-12345_Google User",
             "email": "test-google@tradeyar.ai",
             "provider_id": "google-12345",
             "name": "Google User"
         }
-        resp = self.client.post("/api/auth/google", json=google_payload)
+        with patch.dict(os.environ, {"ALLOW_MOCK_AUTH": "true"}):
+            resp = self.client.post("/api/auth/google", json=google_payload)
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data["status"], "Success")
