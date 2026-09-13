@@ -24,8 +24,7 @@ export default function CommandPalette({ lang = 'fa', t = (k) => k, navigateTo =
     { label: t('nav_demo') || 'MT5 Demo Terminal (#52961173)', path: '/demo', icon: '🎮', group: 'Trading' },
     { label: t('nav_learning') || 'Pattern Memory & Learning Matrix', path: '/learning', icon: '🧠', group: 'Intelligence' },
     { label: t('nav_admin') || 'SRE Admin Operational Control Center', path: '/admin', icon: '🛡️', group: 'Administration' },
-    { label: t('nav_login') || 'Sign In', path: '/login', icon: '🔑', group: 'Auth' },
-    { label: t('nav_register') || 'Sign Up', path: '/register', icon: '📝', group: 'Auth' }
+    { label: t('nav_login') || 'Sign In', path: '/login', icon: '🔑', group: 'Auth' }
   ];
 
   const filteredRoutes = routes.filter((r) =>

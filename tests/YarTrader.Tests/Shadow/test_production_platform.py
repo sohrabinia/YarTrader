@@ -75,7 +75,7 @@ class TestProductionPlatformSaaS(unittest.TestCase):
 
         # Attempting the 31st symbol context registration MUST trigger ValueError via REST POST endpoint
         payload = {"symbol": "SYM31", "timeframe": 64}
-        resp = self.client.post(f"/api/admin/symbols?token={admin_token}", json=payload)
+        resp = self.client.post("/api/admin/symbols", json=payload, headers={"Authorization": f"Bearer {admin_token}"})
         self.assertEqual(resp.status_code, 400)
         self.assertIn("Hard SRE limit reached", resp.json()["detail"])
 
@@ -84,12 +84,12 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         user_token = global_auth_service.create_session({"email": "trader@tradeyar.ai", "role": "USER"})
 
         # Normal users attempting SRE admin actions MUST be blocked with 403 Forbidden
-        resp1 = self.client.get(f"/api/admin/symbols?token={user_token}")
+        resp1 = self.client.get("/api/admin/symbols", headers={"Authorization": f"Bearer {user_token}"})
         self.assertEqual(resp1.status_code, 403)
         self.assertIn("Forbidden", resp1.json()["detail"])
 
         payload = {"symbol": "XAUUSD", "timeframe": 64}
-        resp2 = self.client.post(f"/api/admin/symbols?token={user_token}", json=payload)
+        resp2 = self.client.post("/api/admin/symbols", json=payload, headers={"Authorization": f"Bearer {user_token}"})
         self.assertEqual(resp2.status_code, 403)
 
     def test_independent_per_timeframe_analytics(self) -> None:
@@ -106,7 +106,7 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         self.engine.update_market_ticks("XAUUSD", 1985.0)
 
         # Retrieve distinct, unmerged timeframe reports
-        resp = self.client.get(f"/api/admin/reports?symbol=XAUUSD&token={admin_token}")
+        resp = self.client.get("/api/admin/reports?symbol=XAUUSD", headers={"Authorization": f"Bearer {admin_token}"})
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         # Since v8.0 instantiates 5 default contexts + 1 custom 1024 context = 6 contexts

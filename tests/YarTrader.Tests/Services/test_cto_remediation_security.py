@@ -29,7 +29,7 @@ class TestCTORemediationSecurity(unittest.TestCase):
 
     def test_query_string_token_rejected_on_admin_endpoint(self):
         """Verify query-string tokens on admin endpoints are rejected with HTTP 401."""
-        admin_user = global_auth_service.repo.create_user("admin_qs@yartrader.app", password_hash="pass", role="ADMIN", name="Admin QS")
+        admin_user = global_auth_service.repo.create_user("admin_qs@yartrader.app", role="ADMIN", name="Admin QS")
         user_session = global_auth_service.create_session(admin_user)
         res = self.client.get(f"/api/admin/symbols?token={user_session}")
         self.assertEqual(res.status_code, 401)
@@ -37,8 +37,8 @@ class TestCTORemediationSecurity(unittest.TestCase):
 
     def test_bearer_token_admin_authorization(self):
         """Verify Bearer token authorization works for admin and rejects non-admin."""
-        non_admin_user = global_auth_service.repo.create_user("user_bearer@yartrader.app", password_hash="pass", role="USER", name="User Bearer")
-        admin_user = global_auth_service.repo.create_user("admin_bearer@yartrader.app", password_hash="pass", role="ADMIN", name="Admin Bearer")
+        non_admin_user = global_auth_service.repo.create_user("user_bearer@yartrader.app", role="USER", name="User Bearer")
+        admin_user = global_auth_service.repo.create_user("admin_bearer@yartrader.app", role="ADMIN", name="Admin Bearer")
         non_admin_token = global_auth_service.create_session(non_admin_user)
         admin_token = global_auth_service.create_session(admin_user)
 
@@ -56,18 +56,6 @@ class TestCTORemediationSecurity(unittest.TestCase):
         self.assertFalse(res["success"])
         self.assertIsNone(res["task_id"])
         self.assertEqual(res["status"], OperatorTaskStatus.BLOCKED.value)
-
-    def test_email_login_accepts_non_gmail_address(self):
-        """Verify email+password login works for non-Gmail addresses like Yahoo and Outlook."""
-        raw_pass = "TestPass123!"
-        hashed_pass = global_auth_service.hash_password(raw_pass)
-        user_yahoo = global_auth_service.repo.create_user("trader@yahoo.com", password_hash=hashed_pass, role="USER", name="Yahoo User")
-        user_yahoo["is_verified"] = True
-        global_auth_service.repo.save_db()
-
-        res_yahoo = self.client.post("/api/auth/login", json={"email": "trader@yahoo.com", "password": raw_pass})
-        self.assertEqual(res_yahoo.status_code, 200)
-        self.assertIn("session_token", res_yahoo.json())
 
 if __name__ == "__main__":
     unittest.main()

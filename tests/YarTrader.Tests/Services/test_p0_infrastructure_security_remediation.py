@@ -155,7 +155,7 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
 
         try:
             # 1. Standard user token -> 403 Forbidden
-            response = self.client.get(f"/api/admin/symbols?token={token}")
+            response = self.client.get("/api/admin/symbols", headers={"Authorization": f"Bearer {token}"})
             self.assertEqual(response.status_code, 403)
             self.assertIn("Forbidden", response.json()["detail"])
         finally:
@@ -174,7 +174,7 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
 
         try:
             # 1. Admin user token -> 200 OK
-            response = self.client.get(f"/api/admin/symbols?token={token}")
+            response = self.client.get("/api/admin/symbols", headers={"Authorization": f"Bearer {token}"})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["max_limit"], 30)
         finally:

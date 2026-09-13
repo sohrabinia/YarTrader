@@ -97,7 +97,8 @@ class TestMultiAssetMultiResolutionCognitive(unittest.TestCase):
         self.engine.update_market_ticks("XAUUSD", 1985.0)
 
         # Query Admin Reports API
-        resp = self.client.get("/api/admin/reports?symbol=XAUUSD")
+        admin_token = global_auth_service.create_session({"email": "admin@tradeyar.ai", "role": "ADMIN"})
+        resp = self.client.get("/api/admin/reports?symbol=XAUUSD", headers={"Authorization": f"Bearer {admin_token}"})
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         # Since v8.0 instantiates the 5 default timeframe contexts (1, 4, 16, 64, 256) per active symbol
@@ -127,10 +128,13 @@ class TestMultiAssetMultiResolutionCognitive(unittest.TestCase):
         self.assertEqual(user_resp.status_code, 200)
         self.assertEqual(len(user_resp.json()), 4)
 
-        # Query Admin Symbols without token (fails in real settings, but check check_admin_guard block)
-        # Create regular user token
+        # Query Admin Symbols without token (fails with 401 Unauthorized)
+        unauth_resp = self.client.get("/api/admin/symbols")
+        self.assertEqual(unauth_resp.status_code, 401)
+
+        # Query Admin Symbols with regular user Bearer token (fails with 403 Forbidden)
         user_token = global_auth_service.create_session({"email": "trader@tradeyar.ai", "role": "USER"})
-        admin_resp = self.client.get(f"/api/admin/symbols?token={user_token}")
+        admin_resp = self.client.get("/api/admin/symbols", headers={"Authorization": f"Bearer {user_token}"})
         self.assertEqual(admin_resp.status_code, 403)
 
     # Test 6: Enforcement of the 30 active symbols limit

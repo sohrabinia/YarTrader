@@ -246,12 +246,6 @@ function MainApp() {
   const [selectedAuditTrail, setSelectedAuditTrail] = useState(null);
 
   // Auth Forms states
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPass, setLoginPass] = useState('');
-  const [registerName, setRegisterName] = useState('');
-  const [registerEmail, setRegisterEmail] = useState('');
-  const [registerPass, setRegisterPass] = useState('');
-  const [forgotEmail, setForgotEmail] = useState('');
 
   // Floating Chatbot state
   const [chatOpen, setChatOpen] = useState(false);
@@ -362,6 +356,10 @@ function MainApp() {
 
   // Auth & Routing Guard
   useEffect(() => {
+    if ((routePath === '/register' || routePath === '/forgot-password')) {
+      navigateTo('/login');
+      return;
+    }
     const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/learning';
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
@@ -459,62 +457,6 @@ function MainApp() {
   };
 
   // Auth Operations
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await apiService.post('/api/auth/login', {
-        email: loginEmail,
-        password: loginPass
-      });
-      const tokenVal = res.session_token || res.token;
-      const roleVal = (res.user && res.user.role) || res.role || 'USER';
-      const nameVal = (res.user && res.user.name) || res.username || 'Elite Trader';
-
-      localStorage.setItem('yartrader_token', tokenVal);
-      localStorage.setItem('yartrader_role', roleVal);
-      localStorage.setItem('yartrader_name', nameVal);
-      setToken(tokenVal);
-      setRole(roleVal);
-      setName(nameVal);
-      showNotification(lang === 'fa' ? 'ورود با موفقیت انجام شد.' : 'Successfully signed in.', 'success');
-      navigateTo('/dashboard');
-    } catch (err) {
-      showNotification(err.message, 'failed');
-    }
-  };
-
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    try {
-      await apiService.post('/api/auth/register', {
-        name: registerName,
-        username: registerName,
-        email: registerEmail,
-        password: registerPass
-      });
-      showNotification(
-        lang === 'fa' ? 'ثبت‌نام با موفقیت انجام شد. لطفاً وارد شوید.' : 'Successfully registered. Please login.',
-        'success'
-      );
-      navigateTo('/login');
-    } catch (err) {
-      showNotification(err.message, 'failed');
-    }
-  };
-
-  const handleForgot = async (e) => {
-    e.preventDefault();
-    try {
-      await apiService.post('/api/auth/forgot-password', { email: forgotEmail });
-      showNotification(
-        lang === 'fa' ? 'لینک بازیابی رمز عبور ارسال شد.' : 'Reset link has been sent.',
-        'success'
-      );
-    } catch (err) {
-      showNotification(err.message, 'failed');
-    }
-  };
-
   const handleLogout = async () => {
     try {
       const currentToken = localStorage.getItem('yartrader_token') || token || '';
@@ -1022,7 +964,6 @@ function MainApp() {
               </div>
             )}
             {!token && <a href={`/${lang}/login`} className={`sidebar-link ${routePath === '/login' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/login'); }}>{t('nav_login')}</a>}
-            {!token && <a href={`/${lang}/register`} className={`sidebar-link ${routePath === '/register' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/register'); }}>{t('nav_register')}</a>}
             {token && (
               <button type="button" className="sidebar-link w-full text-left border-none bg-transparent cursor-pointer" onClick={handleLogout}>
                 {t('nav_logout')}
@@ -2064,77 +2005,18 @@ function MainApp() {
           {/* AUTHENTICATION VIEWS */}
           {routePath === '/login' && (
             <div id="shell-login">
-              <form className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }} onSubmit={handleLogin}>
-                <h2 style={{ marginTop: 0, color: 'var(--primary)', textAlign: 'center' }}>{t('login_title')}</h2>
+              <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)', textAlign: 'center' }}>
+                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('login_title')}</h2>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '25px', fontSize: '0.9em' }}>
+                  {lang === 'fa' ? 'ورود و ثبت‌نام منحصراً از طریق حساب گوگل / جیمیل انجام می‌شود.' : 'Sign in and account creation are strictly managed via Google Account OIDC.'}
+                </p>
 
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                  <button type="button" className="social-btn social-google" style={{ flex: 1 }} onClick={() => handleSocialLogin('Google')}>Google</button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
+                  <button type="button" className="social-btn social-google" style={{ width: '100%', padding: '14px', fontSize: '1em', justifyContent: 'center' }} onClick={() => handleSocialLogin('Google')}>
+                    <span>🌐</span> Continue with Google
+                  </button>
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">{t('email_label')}</label>
-                  <input className="input-field" type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required placeholder={t('email_placeholder')} />
-                </div>
-                <div className="form-group" style={{ marginBottom: '10px' }}>
-                  <label className="form-label">{t('password_label')}</label>
-                  <input className="input-field" type="password" value={loginPass} onChange={(e) => setLoginPass(e.target.value)} required placeholder={t('password_placeholder')} />
-                </div>
-                <div style={{ textAlign: 'end', marginBottom: '20px' }}>
-                  <a href="#/forgot-password" style={{ color: 'var(--primary)', fontSize: '0.85em', textDecoration: 'none' }}>{t('forgot_link')}</a>
-                </div>
-                <button type="submit" className="btn" style={{ width: '100%' }}>{t('login_btn')}</button>
-
-                <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.9em' }}>
-                  <a href="#/register" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>{t('no_account')}</a>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {routePath === '/register' && (
-            <div id="shell-register">
-              <form className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }} onSubmit={handleRegister}>
-                <h2 style={{ marginTop: 0, color: 'var(--primary)', textAlign: 'center' }}>{t('register_title')}</h2>
-
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                  <button type="button" className="social-btn social-google" style={{ flex: 1 }} onClick={() => handleSocialLogin('Google')}>Google</button>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">{t('name_label')}</label>
-                  <input className="input-field" type="text" value={registerName} onChange={(e) => setRegisterName(e.target.value)} required placeholder={t('name_placeholder')} />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('email_label')}</label>
-                  <input className="input-field" type="email" value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} required placeholder={t('email_placeholder')} />
-                </div>
-                <div className="form-group" style={{ marginBottom: '25px' }}>
-                  <label className="form-label">{t('password_label')}</label>
-                  <input className="input-field" type="password" value={registerPass} onChange={(e) => setRegisterPass(e.target.value)} required placeholder={t('password_placeholder')} />
-                </div>
-                <button type="submit" className="btn" style={{ width: '100%' }}>{t('register_btn')}</button>
-
-                <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.9em' }}>
-                  <a href="#/login" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>{t('has_account')}</a>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {routePath === '/forgot-password' && (
-            <div id="shell-forgot">
-              <form className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }} onSubmit={handleForgot}>
-                <h2 style={{ marginTop: 0, color: 'var(--primary)', textAlign: 'center' }}>{t('forgot_title')}</h2>
-                <div className="form-group" style={{ marginBottom: '25px' }}>
-                  <label className="form-label">{t('email_label')}</label>
-                  <input className="input-field" type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} required placeholder={t('email_placeholder')} />
-                </div>
-                <button type="submit" className="btn" style={{ width: '100%' }}>{t('forgot_btn')}</button>
-
-                <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.9em' }}>
-                  <a href="#/login" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>{t('has_account')}</a>
-                </div>
-              </form>
+              </div>
             </div>
           )}
         </div>

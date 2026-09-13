@@ -77,9 +77,9 @@ class SymbolRegistration(BaseModel):
     timeframes: Optional[List[str]] = None
 
 @router.post("/symbols")
-def register_new_active_symbol_context(payload: SymbolRegistration, token: Optional[str] = None):
+def register_new_active_symbol_context(payload: SymbolRegistration, request: Request, token: Optional[str] = None):
     """SRE administrative action to dynamically spin up a new SymbolTimeContext."""
-    session = enforce_admin_token(token)
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
     admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
     registry_inst = SymbolRegistry.get_instance()
@@ -105,9 +105,9 @@ def register_new_active_symbol_context(payload: SymbolRegistration, token: Optio
 
 # 3. Independent Per-Context Reporting & Analytics
 @router.get("/reports")
-def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[Any] = None, token: Optional[str] = None):
+def get_admin_reports(request: Request, symbol: Optional[str] = None, timeframe: Optional[Any] = None, token: Optional[str] = None):
     """Generates distinct separate reports per timeframe and symbol without mixing statistics."""
-    enforce_admin_token(token)
+    enforce_admin_token(request if request.headers.get("authorization") else token)
     engine = PredictiveShadowEngine.get_instance()
 
     target_symbol = symbol.upper() if symbol else "XAUUSD"
@@ -162,9 +162,9 @@ def get_admin_reports(symbol: Optional[str] = None, timeframe: Optional[Any] = N
 
 # 4. SRE Backup snapshot operation
 @router.post("/backup")
-def trigger_backup_snapshot(token: Optional[str] = None):
+def trigger_backup_snapshot(request: Request, token: Optional[str] = None):
     """SRE administrative action to trigger an atomic snapshot backup of persistent state."""
-    session = enforce_admin_token(token)
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
     admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Application.Runtime.backup_manager import BackupManager
     manager = BackupManager()
@@ -183,9 +183,9 @@ class RestorePayload(BaseModel):
     filename: str
 
 @router.post("/restore")
-def trigger_restore(payload: RestorePayload, token: Optional[str] = None):
+def trigger_restore(payload: RestorePayload, request: Request, token: Optional[str] = None):
     """SRE administrative action to safely restore persistent state from a backup archive."""
-    session = enforce_admin_token(token)
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
     admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Application.Runtime.backup_manager import BackupManager
     manager = BackupManager()
@@ -218,9 +218,9 @@ class LedgerReversalPayload(BaseModel):
     reason: str
 
 @router.post("/ledger/transaction")
-def admin_post_transaction(payload: LedgerTransactionPayload, token: Optional[str] = None):
+def admin_post_transaction(payload: LedgerTransactionPayload, request: Request, token: Optional[str] = None):
     """Posts a balanced double-entry transaction atomically."""
-    enforce_admin_token(token)
+    enforce_admin_token(request if request.headers.get("authorization") else token)
     from src.Application.Dashboard.ledger_manager import LedgerManager
     manager = LedgerManager()
     entries_dict = [entry.dict() for entry in payload.entries]
@@ -235,9 +235,9 @@ def admin_post_transaction(payload: LedgerTransactionPayload, token: Optional[st
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/ledger/reverse")
-def admin_reverse_transaction(payload: LedgerReversalPayload, token: Optional[str] = None):
+def admin_reverse_transaction(payload: LedgerReversalPayload, request: Request, token: Optional[str] = None):
     """Performs a reversal compensating transaction to correct a posted ledger transaction."""
-    enforce_admin_token(token)
+    enforce_admin_token(request if request.headers.get("authorization") else token)
     from src.Application.Dashboard.ledger_manager import LedgerManager
     manager = LedgerManager()
     try:
@@ -290,17 +290,17 @@ class TicketStatusPayload(BaseModel):
     priority: Optional[str] = None
 
 @router.get("/tickets")
-def admin_list_tickets(page: int = Query(1, ge=1), limit: int = Query(20, le=50), token: Optional[str] = None):
+def admin_list_tickets(request: Request, page: int = Query(1, ge=1), limit: int = Query(20, le=50), token: Optional[str] = None):
     """Lists all support tickets globally for administrative action."""
-    enforce_admin_token(token)
+    enforce_admin_token(request if request.headers.get("authorization") else token)
     from src.Application.Dashboard.ticket_manager import TicketManager
     manager = TicketManager()
     return manager.list_all_tickets_admin(page=page, limit=limit)
 
 @router.post("/tickets/{ticket_id}/reply")
-def admin_reply_to_ticket(ticket_id: str, payload: AdminReplyPayload, token: Optional[str] = None):
+def admin_reply_to_ticket(ticket_id: str, payload: AdminReplyPayload, request: Request, token: Optional[str] = None):
     """Appends an administrative SRE response reply message to the support ticket."""
-    enforce_admin_token(token)
+    enforce_admin_token(request if request.headers.get("authorization") else token)
     from src.Application.Dashboard.ticket_manager import TicketManager
     manager = TicketManager()
     try:
@@ -314,9 +314,9 @@ def admin_reply_to_ticket(ticket_id: str, payload: AdminReplyPayload, token: Opt
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post("/tickets/{ticket_id}/status")
-def admin_update_ticket_status(ticket_id: str, payload: TicketStatusPayload, token: Optional[str] = None):
+def admin_update_ticket_status(ticket_id: str, payload: TicketStatusPayload, request: Request, token: Optional[str] = None):
     """Updates status or priority of a support ticket administratively."""
-    enforce_admin_token(token)
+    enforce_admin_token(request if request.headers.get("authorization") else token)
     from src.Application.Dashboard.ticket_manager import TicketManager
     manager = TicketManager()
     try:
@@ -333,12 +333,12 @@ def admin_update_ticket_status(ticket_id: str, payload: TicketStatusPayload, tok
 # P2-5 — REVENUE BUSINESS ANALYTICS ADMIN ENDPOINTS
 # ==============================================================================
 @router.get("/analytics/revenue")
-def get_revenue_business_analytics(token: Optional[str] = None):
+def get_revenue_business_analytics(request: Request = None, token: Optional[str] = None):
     """
     Computes real, non-synthetic revenue and SaaS business analytics metrics
     derived dynamically from actual, persisted billing data.
     """
-    enforce_admin_token(token)
+    enforce_admin_token(request if (request and request.headers.get("authorization")) else token)
     from src.Application.Dashboard.billing_manager import BillingManager
     manager = BillingManager()
 
@@ -423,17 +423,17 @@ class AdminProductPayload(BaseModel):
     featured: bool = False
 
 @router.get("/business/catalog")
-def admin_get_business_catalog(token: Optional[str] = None):
+def admin_get_business_catalog(request: Request, token: Optional[str] = None):
     """Retrieves all products from the Business Catalog, including invisible/draft ones."""
-    session = enforce_admin_token(token)
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
     from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
     manager = BusinessCatalogManager()
     return manager.list_products(include_invisible=True)
 
 @router.post("/business/catalog")
-def admin_save_product(payload: AdminProductPayload, token: Optional[str] = None):
+def admin_save_product(payload: AdminProductPayload, request: Request, token: Optional[str] = None):
     """Creates or updates a product in the authoritative Business Catalog."""
-    session = enforce_admin_token(token)
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
     admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
     manager = BusinessCatalogManager()
@@ -448,9 +448,9 @@ def admin_save_product(payload: AdminProductPayload, token: Optional[str] = None
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/business/catalog/{product_id}")
-def admin_delete_product(product_id: str, token: Optional[str] = None):
+def admin_delete_product(product_id: str, request: Request, token: Optional[str] = None):
     """Deletes/archives a product from the Business Catalog."""
-    session = enforce_admin_token(token)
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
     admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
     manager = BusinessCatalogManager()
