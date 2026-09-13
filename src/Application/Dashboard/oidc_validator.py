@@ -9,12 +9,10 @@ from cryptography.hazmat.backends import default_backend
 from src.Infrastructure.exceptions import ValidationException
 
 GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
-APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"
 
-# In-memory JWKS cache to avoid hitting Google/Apple on every request
+# In-memory JWKS cache to avoid hitting Google on every request
 _jwks_cache: Dict[str, Dict[str, Any]] = {
-    "google": {"keys": [], "expires_at": 0.0},
-    "apple": {"keys": [], "expires_at": 0.0}
+    "google": {"keys": [], "expires_at": 0.0}
 }
 
 def decode_base64url(s: str) -> bytes:
@@ -69,7 +67,7 @@ def fetch_jwks(provider: str, url: str) -> list:
 
 def validate_social_token(token: str, provider: str) -> Dict[str, Any]:
     """
-    Cryptographically validates Google or Apple OIDC ID token.
+    Cryptographically validates Google OIDC ID token.
     Enforces signature verification, issuer validation, audience verification, and expiration.
     Fails closed on any discrepancy.
     """
@@ -82,19 +80,16 @@ def validate_social_token(token: str, provider: str) -> Dict[str, Any]:
         client_id = os.environ.get("GOOGLE_CLIENT_ID")
         expected_issuers = ["accounts.google.com", "https://accounts.google.com"]
         jwks_url = GOOGLE_JWKS_URL
-    elif provider == "apple":
-        client_id = os.environ.get("APPLE_CLIENT_ID")
-        expected_issuers = ["https://appleid.apple.com"]
-        jwks_url = APPLE_JWKS_URL
     else:
         raise ValidationException(f"Unsupported social provider '{provider}'.")
 
-    # In development/test mode, accept mock tokens prefixed with 'mock_token_' for test isolation
-    if not is_production and token.startswith("mock_token_"):
-        # Format of mock_token_: mock_token_<email>_<provider_id>_<name>
+    # Mock tokens strictly fail-closed by default. Mock authentication is ONLY permitted if ALLOW_MOCK_AUTH == "true"
+    allow_mock_auth = os.environ.get("ALLOW_MOCK_AUTH", "").strip().lower() == "true"
+    if token.startswith("mock_token_"):
+        if not allow_mock_auth or is_production:
+            raise ValidationException("Mock authentication disabled. ALLOW_MOCK_AUTH=true flag required in non-production environments.")
         parts = token.split("_")
         if len(parts) >= 5:
-            # mock_token_email_provider_id_name
             email = parts[2]
             provider_id = parts[3]
             name = parts[4] if len(parts) > 4 else "Mock User"
