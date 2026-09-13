@@ -69,7 +69,10 @@ class TestSaaSAuthAPI(unittest.TestCase):
         """Verifies that Google OIDC sign-in for m.a.sohrabinia@gmail.com grants ADMIN role and authorizes Operator access."""
         admin_email = "m.a.sohrabinia@gmail.com"
         google_payload = {
-            "id_token": f"mock_token_google_{admin_email}_admin-sub-100_Sorabinia"
+            "id_token": f"mock_token_google_{admin_email}_admin-sub-100_Sorabinia",
+            "email": admin_email,
+            "provider_id": "admin-sub-100",
+            "name": "Principal Administrator"
         }
 
         with patch.dict(os.environ, {"ALLOW_MOCK_AUTH": "true"}):
