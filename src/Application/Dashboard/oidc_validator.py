@@ -77,7 +77,7 @@ def validate_social_token(token: str, provider: str) -> Dict[str, Any]:
 
     # Fetch configured Client ID from settings or environment
     if provider == "google":
-        client_id = os.environ.get("GOOGLE_CLIENT_ID")
+        client_id = (os.environ.get("GOOGLE_CLIENT_ID") or "").strip()
         expected_issuers = ["accounts.google.com", "https://accounts.google.com"]
         jwks_url = GOOGLE_JWKS_URL
     else:
@@ -106,9 +106,9 @@ def validate_social_token(token: str, provider: str) -> Dict[str, Any]:
             }
         raise ValidationException("Malformed mock token payload.")
 
-    # Enforce config presence in production
-    if is_production and not client_id:
-        raise ValidationException(f"Production Configuration Error: Missing Client ID for {provider.upper()}.")
+    # Enforce config presence
+    if not client_id:
+        raise ValidationException(f"Configuration Error: GOOGLE_CLIENT_ID environment variable is missing or unconfigured for {provider.upper()}.")
 
     try:
         # 1. Decode header to extract Key ID (kid)

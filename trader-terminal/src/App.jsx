@@ -572,10 +572,13 @@ function MainApp() {
 
       if (typeof window !== 'undefined' && window.google && window.google.accounts && window.google.accounts.id) {
         try {
-          window.google.accounts.id.initialize({
-            client_id: clientId,
-            callback: handleGoogleAuthResponse
-          });
+          if (!window._yartrader_gis_initialized) {
+            window.google.accounts.id.initialize({
+              client_id: clientId,
+              callback: handleGoogleAuthResponse
+            });
+            window._yartrader_gis_initialized = true;
+          }
           window.google.accounts.id.prompt();
         } catch (err) {
           showNotification(
