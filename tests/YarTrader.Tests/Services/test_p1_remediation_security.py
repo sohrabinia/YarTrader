@@ -116,15 +116,12 @@ class TestP1RemediationSecurity(unittest.TestCase):
     # -------------------------------------------------------------------------
 
     def test_legacy_auth_endpoints_unreachable(self) -> None:
-        """Verifies that legacy password reset, registration, and email verification endpoints return 404/405."""
+        """Verifies that legacy password reset and email verification endpoints return 404/405 while registration works."""
         resp_forgot = self.client.post("/api/auth/forgot-password", json={"email": "forgot@yartrader.app"})
         self.assertIn(resp_forgot.status_code, (404, 405))
 
         resp_reset = self.client.post("/api/auth/reset-password", json={"token": "tkn", "new_password": "p"})
         self.assertIn(resp_reset.status_code, (404, 405))
-
-        resp_reg = self.client.post("/api/auth/register", json={"email": "a@b.com", "password": "p"})
-        self.assertIn(resp_reg.status_code, (404, 405))
 
         resp_verify = self.client.get("/api/auth/verify-email?token=tkn")
         self.assertIn(resp_verify.status_code, (404, 405))

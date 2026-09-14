@@ -1,4 +1,5 @@
 import os
+import uuid
 import unittest
 from unittest.mock import patch
 from fastapi.testclient import TestClient
@@ -16,11 +17,9 @@ class TestSaaSAuthAPI(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.client = TestClient(app)
 
-    def test_legacy_customer_auth_endpoints_unreachable(self) -> None:
-        """Verifies that all legacy email/password customer auth endpoints return 404/405 Not Found/Method Not Allowed."""
-        legacy_endpoints = [
-            ("POST", "/api/auth/login", {"email": "user@yartrader.app", "password": "Password123!"}),
-            ("POST", "/api/auth/register", {"email": "user@yartrader.app", "password": "Password123!", "name": "User"}),
+    def test_forbidden_customer_auth_endpoints_unreachable(self) -> None:
+        """Verifies that non-standard customer auth endpoints (apple, telegram, forgot-password, reset-password, verify-email) return 404/405."""
+        forbidden_endpoints = [
             ("POST", "/api/auth/forgot-password", {"email": "user@yartrader.app"}),
             ("GET", "/api/auth/verify-email?token=xyz123", None),
             ("POST", "/api/auth/reset-password", {"token": "xyz123", "new_password": "NewPassword123!"}),
@@ -28,12 +27,107 @@ class TestSaaSAuthAPI(unittest.TestCase):
             ("POST", "/api/auth/telegram", {"id": 123, "auth_date": 1, "hash": "x"})
         ]
 
-        for method, url, payload in legacy_endpoints:
+        for method, url, payload in forbidden_endpoints:
             if method == "POST":
                 resp = self.client.post(url, json=payload)
             else:
                 resp = self.client.get(url)
             self.assertIn(resp.status_code, (404, 405), f"Endpoint {url} should be unreachable but returned {resp.status_code}")
+
+    def test_email_password_registration_and_login_flow(self) -> None:
+        """Verifies working email/password registration, login, wrong password rejection, and duplicate email rejection."""
+        import uuid
+        test_email = f"newtrader-{uuid.uuid4().hex[:6]}@yartrader.app"
+        test_password = "SecurePassword123!"
+
+        # 1. Registration Success
+        reg_resp = self.client.post("/api/auth/register", json={
+            "email": test_email,
+            "password": test_password,
+            "name": "New Trader"
+        })
+        self.assertEqual(reg_resp.status_code, 200)
+        reg_data = reg_resp.json()
+        self.assertEqual(reg_data["status"], "Success")
+        self.assertTrue(reg_data["session_token"].startswith("tkn-"))
+        self.assertEqual(reg_data["user"]["email"], test_email)
+        self.assertEqual(reg_data["user"]["role"], "USER")
+
+        # 2. Duplicate Registration Rejection
+        dup_resp = self.client.post("/api/auth/register", json={
+            "email": test_email,
+            "password": test_password,
+            "name": "Duplicate Trader"
+        })
+        self.assertEqual(dup_resp.status_code, 400)
+        self.assertIn("already exists", dup_resp.json()["detail"])
+
+        # 3. Wrong Password Rejection
+        wrong_resp = self.client.post("/api/auth/login", json={
+            "email": test_email,
+            "password": "WrongPassword999!"
+        })
+        self.assertEqual(wrong_resp.status_code, 401)
+        self.assertIn("Invalid email or password", wrong_resp.json()["detail"])
+
+        # 4. Login Success
+        login_resp = self.client.post("/api/auth/login", json={
+            "email": test_email,
+            "password": test_password
+        })
+        self.assertEqual(login_resp.status_code, 200)
+        login_data = login_resp.json()
+        self.assertEqual(login_data["status"], "Success")
+        token = login_data["session_token"]
+
+        # Verify session model matches Google login
+        session = global_auth_service.validate_session(token)
+        self.assertIsNotNone(session)
+        self.assertEqual(session["email"], test_email)
+        self.assertEqual(session["role"], "USER")
+
+    def test_admin_role_granted_via_email_login_and_operator_authorization(self) -> None:
+        """Verifies that registering or logging in via email as m.a.sohrabinia@gmail.com grants ADMIN role and authorizes Operator access."""
+        admin_email = "admin-email-test@yartrader.app"
+        admin_password = "AdminSecurePassword123!"
+
+        # Mock is_admin_email to classify admin_email as admin for test isolation
+        with patch.object(global_auth_service.repo, "is_admin_email", side_effect=lambda email: email.lower() in (admin_email, "m.a.sohrabinia@gmail.com")):
+            reg_resp = self.client.post("/api/auth/register", json={
+                "email": admin_email,
+                "password": admin_password,
+                "name": "Principal Administrator"
+            })
+            if reg_resp.status_code == 400:
+                reg_resp = self.client.post("/api/auth/login", json={
+                    "email": admin_email,
+                    "password": admin_password
+                })
+
+            self.assertEqual(reg_resp.status_code, 200)
+            admin_token = reg_resp.json()["session_token"]
+
+        # Verify session has ADMIN role
+        session = global_auth_service.validate_session(admin_token)
+        self.assertIsNotNone(session)
+        self.assertEqual(session["email"], admin_email)
+        self.assertEqual(session["role"], "ADMIN")
+
+        # Verify Admin can access Operator status endpoint
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        op_resp = self.client.get("/api/admin/operator/status", headers=headers)
+        self.assertIn(op_resp.status_code, (200, 503))
+
+        # Verify normal USER receives 403 Forbidden on Operator endpoint
+        user_reg_email = f"normaluser-{uuid.uuid4().hex[:6]}@yartrader.app"
+        user_reg = self.client.post("/api/auth/register", json={
+            "email": user_reg_email,
+            "password": "UserPass123!",
+            "name": "Normal User"
+        })
+        user_token = user_reg.json()["session_token"]
+        user_op_resp = self.client.get("/api/admin/operator/status", headers={"Authorization": f"Bearer {user_token}"})
+        self.assertEqual(user_op_resp.status_code, 403)
 
     def test_google_oidc_authentication_and_session_lifecycle(self) -> None:
         """Verifies valid Google OIDC authentication, session token issuance, session validation, and logout."""
