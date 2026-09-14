@@ -246,6 +246,11 @@ function MainApp() {
   const [selectedAuditTrail, setSelectedAuditTrail] = useState(null);
 
   // Auth Forms states
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authSubmitting, setAuthPasswordSubmitting] = useState(false);
 
   // Floating Chatbot state
   const [chatOpen, setChatOpen] = useState(false);
@@ -454,6 +459,58 @@ function MainApp() {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
     localStorage.setItem('yartrader_theme', nextTheme);
+  };
+
+  // Email / Password Auth Operations
+  const handleEmailAuthSubmit = async (e) => {
+    e.preventDefault();
+    if (!authEmail || !authPassword) {
+      showNotification(lang === 'fa' ? 'لطفاً ایمیل و رمز عبور را وارد کنید.' : 'Email and password are required.', 'warning');
+      return;
+    }
+
+    if (authMode === 'register' && authPassword.length < 6) {
+      showNotification(lang === 'fa' ? 'رمز عبور باید حداقل ۶ کاراکتر باشد.' : 'Password must be at least 6 characters.', 'warning');
+      return;
+    }
+
+    setAuthPasswordSubmitting(true);
+    try {
+      const endpoint = authMode === 'register' ? '/api/auth/register' : '/api/auth/login';
+      const payload = authMode === 'register'
+        ? { email: authEmail, password: authPassword, name: authName }
+        : { email: authEmail, password: authPassword };
+
+      const res = await apiService.post(endpoint, payload);
+      const tokenVal = res.session_token || res.token;
+      const roleVal = (res.user && res.user.role) || res.role || 'USER';
+      const nameVal = (res.user && res.user.name) || res.username || authName || authEmail.split('@')[0];
+
+      localStorage.setItem('yartrader_token', tokenVal);
+      localStorage.setItem('yartrader_role', roleVal);
+      localStorage.setItem('yartrader_name', nameVal);
+      setToken(tokenVal);
+      setRole(roleVal);
+      setName(nameVal);
+
+      showNotification(
+        authMode === 'register'
+          ? (lang === 'fa' ? 'ثبت‌نام با موفقیت انجام شد.' : 'Registration successful.')
+          : (lang === 'fa' ? 'ورود با موفقیت انجام شد.' : 'Sign in successful.'),
+        'success'
+      );
+      setAuthEmail('');
+      setAuthPassword('');
+      setAuthName('');
+      navigateTo('/dashboard');
+    } catch (err) {
+      showNotification(
+        err.message || (lang === 'fa' ? 'خطا در احراز هویت.' : 'Authentication failed.'),
+        'failed'
+      );
+    } finally {
+      setAuthPasswordSubmitting(false);
+    }
   };
 
   // Auth Operations
@@ -2005,14 +2062,82 @@ function MainApp() {
           {/* AUTHENTICATION VIEWS */}
           {routePath === '/login' && (
             <div id="shell-login">
-              <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)', textAlign: 'center' }}>
-                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('login_title')}</h2>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '25px', fontSize: '0.9em' }}>
-                  {lang === 'fa' ? 'ورود و ثبت‌نام منحصراً از طریق حساب گوگل / جیمیل انجام می‌شود.' : 'Sign in and account creation are strictly managed via Google Account OIDC.'}
-                </p>
+              <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }}>
+                <div style={{ display: 'flex', borderBottom: '1px solid var(--border-dark)', marginBottom: '20px' }}>
+                  <button
+                    type="button"
+                    className={`sub-tab ${authMode === 'login' ? 'active' : ''}`}
+                    style={{ flex: 1, paddingBottom: '12px', textAlign: 'center', background: 'none', border: 'none', fontSize: '1em', fontWeight: 'bold' }}
+                    onClick={() => setAuthMode('login')}
+                  >
+                    {t('login_title') || (lang === 'fa' ? 'ورود' : 'Sign In')}
+                  </button>
+                  <button
+                    type="button"
+                    className={`sub-tab ${authMode === 'register' ? 'active' : ''}`}
+                    style={{ flex: 1, paddingBottom: '12px', textAlign: 'center', background: 'none', border: 'none', fontSize: '1em', fontWeight: 'bold' }}
+                    onClick={() => setAuthMode('register')}
+                  >
+                    {lang === 'fa' ? 'ثبت‌نام' : 'Register'}
+                  </button>
+                </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
-                  <button type="button" className="social-btn social-google" style={{ width: '100%', padding: '14px', fontSize: '1em', justifyContent: 'center' }} onClick={() => handleSocialLogin('Google')}>
+                {/* Email / Password Form */}
+                <form onSubmit={handleEmailAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
+                  {authMode === 'register' && (
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label className="form-label">{lang === 'fa' ? 'نام و نام خانوادگی' : 'Full Name'}</label>
+                      <input
+                        type="text"
+                        className="input-field"
+                        placeholder={lang === 'fa' ? 'نام شما' : 'Your Name'}
+                        value={authName}
+                        onChange={(e) => setAuthName(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">{lang === 'fa' ? 'آدرس ایمیل' : 'Email Address'}</label>
+                    <input
+                      type="email"
+                      className="input-field"
+                      placeholder="user@example.com"
+                      required
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label">{lang === 'fa' ? 'رمز عبور' : 'Password'}</label>
+                    <input
+                      type="password"
+                      className="input-field"
+                      placeholder="••••••••"
+                      required
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                    />
+                  </div>
+
+                  <button type="submit" className="btn" style={{ width: '100%', padding: '12px', fontSize: '1em' }} disabled={authSubmitting}>
+                    {authSubmitting
+                      ? (lang === 'fa' ? 'در حال پردازش...' : 'Processing...')
+                      : (authMode === 'register'
+                          ? (lang === 'fa' ? 'ایجاد حساب کاربری' : 'Create Account')
+                          : (lang === 'fa' ? 'ورود به حساب' : 'Sign In'))}
+                  </button>
+                </form>
+
+                <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0', color: 'var(--text-muted)', fontSize: '0.85em' }}>
+                  <div style={{ flex: 1, height: '1px', background: 'var(--border-dark)' }}></div>
+                  <span style={{ padding: '0 10px' }}>{lang === 'fa' ? 'یا' : 'OR'}</span>
+                  <div style={{ flex: 1, height: '1px', background: 'var(--border-dark)' }}></div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <button type="button" className="social-btn social-google" style={{ width: '100%', padding: '12px', fontSize: '0.95em', justifyContent: 'center' }} onClick={() => handleSocialLogin('Google')}>
                     <span>🌐</span> Continue with Google
                   </button>
                 </div>

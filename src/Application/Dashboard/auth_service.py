@@ -124,6 +124,64 @@ class AuthService:
         self.lockout_store = lockout_store or LockoutAuditStore()
         self.lock = threading.Lock()
 
+    @staticmethod
+    def hash_password(password: str) -> str:
+        """Hashes a plain text password using PBKDF2-SHA256 with per-password salt."""
+        salt = secrets.token_hex(16)
+        iterations = 100000
+        key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), iterations)
+        return f"pbkdf2_sha256${iterations}${salt}${key.hex()}"
+
+    @staticmethod
+    def verify_password(password: str, hashed: str) -> bool:
+        """Verifies a password against PBKDF2-SHA256 hash using constant-time comparison."""
+        if not hashed or not isinstance(hashed, str):
+            return False
+        parts = hashed.split('$')
+        if len(parts) != 4 or parts[0] != 'pbkdf2_sha256':
+            return False
+        try:
+            iterations = int(parts[1])
+            salt = parts[2]
+            expected_hash = parts[3]
+            key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), iterations)
+            return hmac.compare_digest(key.hex(), expected_hash)
+        except Exception:
+            return False
+
+    def register_user(self, email: str, password: str, name: str = "") -> Dict[str, Any]:
+        """Registers a new user account with secure password storage and auto-admin assignment."""
+        email_clean = email.strip().lower()
+        if self.repo.get_user_by_email(email_clean):
+            from src.Infrastructure.exceptions import ValidationException
+            raise ValidationException("Email address is already registered.")
+
+        role = "ADMIN" if self.repo.is_admin_email(email_clean) else "USER"
+        pw_hash = self.hash_password(password)
+        user = self.repo.create_user(email=email_clean, password_hash=pw_hash, role=role, name=name)
+        if self.repo.is_admin_email(email_clean):
+            user["role"] = "ADMIN"
+            user["tier"] = "INSTITUTIONAL"
+            self.repo.save_db()
+        return user
+
+    def login_user(self, email: str, password: str) -> Optional[Dict[str, Any]]:
+        """Authenticates email and password credentials."""
+        email_clean = email.strip().lower()
+        user = self.repo.get_user_by_email(email_clean)
+        if not user or not user.get("password_hash"):
+            return None
+
+        if not self.verify_password(password, user["password_hash"]):
+            return None
+
+        if self.repo.is_admin_email(email_clean) and user.get("role") != "ADMIN":
+            user["role"] = "ADMIN"
+            user["tier"] = "INSTITUTIONAL"
+            self.repo.save_db()
+
+        return user
+
     def authenticate_social(self, email: str, provider: str, provider_id: str, name: str = "") -> Dict[str, Any]:
         """
         Maps or signs up a social account and binds it to user profile.
