@@ -388,14 +388,6 @@ body.light-theme .input-field, body.light-theme .select-field {
     background-color: #F1F5F9;
 }
 
-.social-apple {
-    background-color: #000000;
-    color: #FFFFFF;
-}
-.social-apple:hover {
-    background-color: #1E293B;
-}
-
 .logs-box {
     background-color: #020408;
     border: 1px solid var(--border-dark);
