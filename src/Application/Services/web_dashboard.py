@@ -5359,7 +5359,7 @@ def get_admin_statements(period: Optional[str] = "30d", token: Optional[str] = Q
 # ==============================================================================
 # SECURE SOCIAL AUTHENTICATION & BLOG REST API ENDPOINTS
 # ==============================================================================
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 class LogoutPayload(BaseModel):
     token: str
@@ -5371,9 +5371,86 @@ def logout_user(payload: LogoutPayload):
     return {"status": "Success", "message": "Logged out successfully."}
 
 
-class SocialLoginPayload(BaseModel):
+class RegisterPayload(BaseModel):
     email: str
-    provider_id: str
+    password: str
+    name: Optional[str] = ""
+
+@app.post("/api/auth/register")
+def register_with_email(payload: RegisterPayload, request: Request):
+    """Secure customer registration via email and password."""
+    email = (payload.email or "").strip().lower()
+    password = payload.password or ""
+    name = (payload.name or "").strip()
+
+    if not email or "@" not in email or "." not in email:
+        raise HTTPException(status_code=400, detail="Invalid email address format.")
+
+    if not password or len(password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long.")
+
+    try:
+        user = global_auth_service.register_user(email=email, password=password, name=name)
+    except Exception as e:
+        from src.Infrastructure.exceptions import ValidationException
+        if isinstance(e, ValidationException) or "already registered" in str(e).lower():
+            raise HTTPException(status_code=400, detail="An account with this email address already exists.")
+        raise HTTPException(status_code=400, detail=str(e))
+
+    client_host = request.client.host if request.client else None
+    forwarded_for = request.headers.get("x-forwarded-for")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
+    user_agent = request.headers.get("user-agent", "Unknown")
+
+    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
+    return {
+        "status": "Success",
+        "session_token": token,
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"]
+        }
+    }
+
+
+class LoginPayload(BaseModel):
+    email: str
+    password: str
+
+@app.post("/api/auth/login")
+def login_with_email(payload: LoginPayload, request: Request):
+    """Secure customer login via email and password."""
+    email = (payload.email or "").strip().lower()
+    password = payload.password or ""
+
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required.")
+
+    user = global_auth_service.login_user(email=email, password=password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    client_host = request.client.host if request.client else None
+    forwarded_for = request.headers.get("x-forwarded-for")
+    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
+    user_agent = request.headers.get("user-agent", "Unknown")
+
+    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
+    return {
+        "status": "Success",
+        "session_token": token,
+        "user": {
+            "email": user["email"],
+            "name": user["name"],
+            "role": user["role"]
+        }
+    }
+
+
+class SocialLoginPayload(BaseModel):
+    email: Optional[str] = None
+    provider_id: Optional[str] = None
     name: Optional[str] = ""
     id_token: Optional[str] = None
 

@@ -30,7 +30,15 @@ export const apiService = {
     });
     if (!resp.ok) {
       const errData = await resp.json().catch(() => ({}));
-      throw new Error(errData.detail || `API Error: ${resp.status}`);
+      let message = `API Error: ${resp.status}`;
+      if (typeof errData.detail === "string") {
+        message = errData.detail;
+      } else if (Array.isArray(errData.detail)) {
+        message = errData.detail
+          .map(e => e.msg || JSON.stringify(e))
+          .join("; ");
+      }
+      throw new Error(message);
     }
     return resp.json();
   }
