@@ -101,7 +101,10 @@ class TestSaaSAuthAPI(unittest.TestCase):
         """Verifies valid Google OIDC authentication, session token issuance, session validation, and logout."""
         test_email = "test-google-user@tradeyar.ai"
         google_payload = {
-            "id_token": f"mock_token_google_{test_email}_google-sub-998877_Google Tester"
+            "id_token": f"mock_token_google_{test_email}_google-sub-998877_Google Tester",
+            "email": test_email,
+            "provider_id": "google-sub-998877",
+            "name": "Google Tester"
         }
 
         # Non-production mock social login test
