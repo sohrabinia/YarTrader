@@ -5449,8 +5449,8 @@ def login_with_email(payload: LoginPayload, request: Request):
 
 
 class SocialLoginPayload(BaseModel):
-    email: str
-    provider_id: str
+    email: Optional[str] = None
+    provider_id: Optional[str] = None
     name: Optional[str] = ""
     id_token: Optional[str] = None
 

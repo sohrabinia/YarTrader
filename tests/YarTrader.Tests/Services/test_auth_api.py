@@ -204,6 +204,18 @@ class TestSaaSAuthAPI(unittest.TestCase):
             self.assertEqual(resp.status_code, 401)
             self.assertIn("Google authentication failed", resp.json()["detail"])
 
+    def test_google_oidc_id_token_only_payload_reaches_validation_layer(self) -> None:
+        """Verifies that sending an id_token-only payload to /api/auth/google is NOT rejected with 422, but reaches validation (401)."""
+        id_token_only_payload = {
+            "id_token": "fake.jwt.token"
+        }
+
+        with patch("src.Application.Dashboard.oidc_validator.validate_social_token", side_effect=Exception("Token verification failed")):
+            resp = self.client.post("/api/auth/google", json=id_token_only_payload)
+            self.assertEqual(resp.status_code, 401)
+            self.assertNotEqual(resp.status_code, 422)
+            self.assertIn("Google authentication failed", resp.json()["detail"])
+
     def test_admin_bearer_authorization_remains_independent(self) -> None:
         """Verifies that Admin Bearer authorization remains separate and is not bypassed or converted to customer auth."""
         # Unauthenticated request fails
