@@ -1423,6 +1423,15 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
             transform: scale(1.02);
         }
 
+        .social-apple {
+            background-color: #000000;
+            color: #FFFFFF;
+        }
+        .social-apple:hover {
+            background-color: #1E293B;
+            transform: scale(1.02);
+        }
+
         .logs-box {
             background-color: #020408;
             border: 1px solid var(--border-dark);
