@@ -123,7 +123,12 @@ class TestP1RemediationSecurity(unittest.TestCase):
         resp_reset = self.client.post("/api/auth/reset-password", json={"token": "tkn", "new_password": "p"})
         self.assertIn(resp_reset.status_code, (404, 405))
 
-        resp_reg = self.client.post("/api/auth/register", json={"email": "a@b.com", "password": "ValidSecurePassword123!"})
+        reg_email = "p1-reg-test@yartrader.app"
+        from src.Application.Services.web_dashboard import global_auth_service
+        if reg_email in global_auth_service.repo.users:
+            del global_auth_service.repo.users[reg_email]
+
+        resp_reg = self.client.post("/api/auth/register", json={"email": reg_email, "password": "ValidSecurePassword123!"})
         self.assertEqual(resp_reg.status_code, 200)
 
         resp_verify = self.client.get("/api/auth/verify-email?token=tkn")

@@ -18,7 +18,7 @@ class TestSaaSAuthAPI(unittest.TestCase):
 
     def setUp(self) -> None:
         global_auth_service.active_sessions = {}
-        for test_email in ["newtrader@example.com", "test-google-user@tradeyar.ai"]:
+        for test_email in ["newtrader@example.com", "test-google-user@tradeyar.ai", "m.a.sohrabinia@gmail.com"]:
             if test_email in global_auth_service.repo.users:
                 del global_auth_service.repo.users[test_email]
 
@@ -101,10 +101,7 @@ class TestSaaSAuthAPI(unittest.TestCase):
         """Verifies valid Google OIDC authentication, session token issuance, session validation, and logout."""
         test_email = "test-google-user@tradeyar.ai"
         google_payload = {
-            "id_token": f"mock_token_google_{test_email}_google-sub-998877_Google Tester",
-            "email": test_email,
-            "provider_id": "google-sub-998877",
-            "name": "Google Tester"
+            "id_token": f"mock_token_google_{test_email}_google-sub-998877_Google Tester"
         }
 
         # Non-production mock social login test
@@ -134,10 +131,7 @@ class TestSaaSAuthAPI(unittest.TestCase):
         """Verifies that Google OIDC sign-in for m.a.sohrabinia@gmail.com grants ADMIN role and authorizes Operator access."""
         admin_email = "m.a.sohrabinia@gmail.com"
         google_payload = {
-            "id_token": f"mock_token_google_{admin_email}_admin-sub-100_Sorabinia",
-            "email": admin_email,
-            "provider_id": "admin-sub-100",
-            "name": "Principal Administrator"
+            "id_token": f"mock_token_google_{admin_email}_admin-sub-100_Sorabinia"
         }
 
         with patch.dict(os.environ, {"ALLOW_MOCK_AUTH": "true"}):
@@ -162,8 +156,6 @@ class TestSaaSAuthAPI(unittest.TestCase):
     def test_invalid_google_oidc_token_fails_closed(self) -> None:
         """Verifies that invalid or malformed Google OIDC token validation fails closed with 401 Unauthorized."""
         invalid_payload = {
-            "email": "user@yartrader.app",
-            "provider_id": "google-123",
             "id_token": "invalid_or_expired_jwt_token"
         }
 

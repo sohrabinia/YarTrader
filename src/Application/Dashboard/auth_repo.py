@@ -92,8 +92,8 @@ class AuthRepository:
     def is_admin_email(self, email: str) -> bool:
         email_clean = email.lower()
         default_admin = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "")).lower()
-        admin_list = {"m.a.sohrabinia@gmail.com", "m.a.sorabinia@gmail.com", "admin@yartrader.app"}
-        if default_admin:
+        admin_list = {"m.a.sohrabinia@gmail.com"}
+        if default_admin and default_admin != "admin-disabled@yartrader.app":
             admin_list.add(default_admin)
         return email_clean in admin_list
 
