@@ -10,8 +10,8 @@ This audit provides an exhaustive, forensic, and objective evaluation of the **Y
 * **Current HEAD**: `87a130dd6ed20992833b9e02999aabd657fbb5f4`
 * **Origin/Main Link**: Fully merged with latest PRs (#152, #148, #151).
 * **Working Tree**: `Clean`
-* **Production Deployment URL**: `https://yartrader.vercel.app/`
-* **Production Deployment Status**: Functional SPA serving static builds from `trader-terminal/dist` with wildcard redirect fallback rules and API reverse proxies to `tradeyar.ai`.
+* **Canonical Production Deployment URL**: `https://yartrader.com/`
+* **Production Deployment Status**: Functional self-hosted deployment serving static production builds from `trader-terminal/dist` with native SPA fallbacks (Legacy Vercel preview host fully deprecated and removed).
 
 ---
 
@@ -22,7 +22,7 @@ This audit provides an exhaustive, forensic, and objective evaluation of the **Y
 ---
 
 ## 3. AUDIT OF THE DEPLOYED PRODUCTION WEBSITE
-We audited `https://yartrader.vercel.app/` as an anonymous guest and compared its behaviors against the repository codebase.
+*(Historical Note: The original site audit was performed on legacy preview host `https://yartrader.vercel.app/` prior to migrating all production traffic to `https://yartrader.com/`)*. We audited the application as an anonymous guest and compared its behaviors against the repository codebase.
 
 * **What a new visitor understands within 10 seconds:**
   * **What is YarTrader?** A high-performance, indicator-free cognitive trading intelligence terminal.

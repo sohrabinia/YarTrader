@@ -7,16 +7,16 @@ This report documents the repository-wide scanning, debugging, stabilization pas
 - **Active Branch**: `fix-production-connectivity`
 - **Platform Readiness Score**: 100.0%
 - **Conflict Resolution Summary**: 0 merge conflicts found or active repository-wide (including PR #116).
-- **Frontend Target**: https://yartrader.vercel.app/ (Dynamic Vercel Production Application)
+- **Frontend Target**: https://yartrader.com/ (Canonical Production Application Host; Legacy Vercel Deprecated)
 - **Verification Evidence**: Automated tests, frontend compilation, and regulatory compliance audits pass with a perfect 100% success rate.
 
 ---
 
 ## 2. Issues Found & Resolutions Applied (Connectivity Audit)
 
-### A. Missing Backend CORS Configuration
-- **Issue**: The FastAPI backend had no CORS middleware configured, causing the decoupled Vercel deployment on `https://yartrader.vercel.app` to be blocked by modern browser CORS policies.
-- **Resolution**: Integrated `CORSMiddleware` in `src/Application/Services/web_dashboard.py` with `allow_origins=["*"]`, `allow_credentials=False` (since authentication is fully managed via JWT authorization headers), `allow_methods=["*"]`, and `allow_headers=["*"]`. This guarantees seamless and browser-compliant cross-origin requests.
+### A. Backend CORS Configuration (Historical Context)
+- **Issue**: During early decoupled testing, the FastAPI backend required CORS configuration for browser cross-origin requests.
+- **Resolution**: `CORSMiddleware` in `src/Application/Services/web_dashboard.py` was configured with allowed production origins (`https://yartrader.com`, `https://www.yartrader.com`) and local development origins, `allow_credentials=False` (as authentication uses JWT headers), `allow_methods=["*"]`, and `allow_headers=["*"]`.
 
 ### B. Static Metric Handlers on Landing Page (`#/`)
 - **Issue**: On route load of the landing page, `App.jsx` rendered static placeholder metrics (`30`, `125k+`, `99.9%`) and made zero API calls to the real YarTrader runtime.

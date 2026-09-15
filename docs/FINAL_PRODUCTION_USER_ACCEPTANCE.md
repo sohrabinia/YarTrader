@@ -1,13 +1,13 @@
-# YarTrader Final Production User Acceptance Report
+# YarTrader Final Production User Acceptance Report (Historical)
 
-This document registers the official end-to-end production acceptance audit and full site activation verification for the YarTrader platform.
+> **HISTORICAL NOTICE**: This document registers a legacy pre-migration user acceptance report. Vercel hosting has been completely deprecated and removed from YarTrader's active architecture. Current canonical production is hosted on **https://yartrader.com**.
 
 ---
 
 ## 1. Production Deployment Metadata
 
-* **Production URL**: `https://yartrader.vercel.app/`
-* **Vercel Deployment URL**: `https://yartrader-git-jules-7100938248304571989-ede2dad5-yar-trader.vercel.app/`
+* **Canonical Production URL**: `https://yartrader.com/`
+* **Legacy Preview Host**: `yartrader.vercel.app` (SUPERSEDED / DEPRECATED)
 * **Commit SHA**: `81b9e45cabb02093d04e09f2928863cda96ca3c3`
 * **Vercel Deployment ID**: `6sqm1zcLKW41b689dXGthweK8SDp`
 * **Deployment Timestamp**: `2026-08-10 03:09am UTC`
