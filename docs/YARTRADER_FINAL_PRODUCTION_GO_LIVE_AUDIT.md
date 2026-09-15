@@ -112,7 +112,7 @@ Following a forensic, read-only audit of the `main` branch, we have established 
 
 ## 17. CORS & Connectivity
 * **Status**: `PASS`
-* **Evidence**: Backend service includes `CORSMiddleware` with `allow_origins=["*"]` and credentials disabled, fully allowing decoupled deployments (such as Vercel) to interact cleanly with same-origin or cross-origin backend hosts.
+* **Evidence**: Backend service includes `CORSMiddleware` with explicit production origin support, allowing decoupled frontend interfaces to interact cleanly with the self-hosted backend host (`https://yartrader.com`).
 
 ---
 

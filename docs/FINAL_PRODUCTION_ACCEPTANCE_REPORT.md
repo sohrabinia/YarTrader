@@ -1,15 +1,17 @@
-# YarTrader Production Acceptance & Forensic Integration Report
+# YarTrader Production Acceptance & Forensic Integration Report (Historical)
 
-This document registers the final production-level integration and acceptance validation audits for YarTrader, auditing routing fallbacks, Same-Origin proxies, dynamic Business Catalog billing cards, SRE Admin consoles, and data pipelines.
+> **HISTORICAL NOTICE**: This document records a legacy pre-migration production acceptance audit. Vercel hosting has been completely deprecated and removed from YarTrader's active architecture. Current canonical production is hosted on **https://yartrader.com**.
+
+This document registers the historical production-level integration and acceptance validation audits for YarTrader.
 
 ---
 
-## I. Production Deployment Status Baseline
+## I. Production Deployment Status Baseline (Legacy Preview Environment)
 
 | Property | Value |
 | :--- | :--- |
-| **Production URL** | `https://yartrader.vercel.app` |
-| **Deployment URL** | `https://yartrader-git-jules-7100938248304571989-ede2dad5-yar-trader.vercel.app/` |
+| **Canonical Production URL** | `https://yartrader.com` |
+| **Legacy Deployment Host** | `yartrader.vercel.app` (SUPERSEDED / DEPRECATED) |
 | **Commit SHA** | `81b9e45cabb02093d04e09f2928863cda96ca3c3` |
 | **Vercel Deployment ID** | `6sqm1zcLKW41b689dXGthweK8SDp` |
 | **Vercel Deployment Status** | `Ready` (Cleanly built and active) |

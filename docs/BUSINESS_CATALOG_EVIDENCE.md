@@ -2,15 +2,17 @@
 
 ## 1. Root Causes & Fixes Applied
 
-A forensic production integration audit of the decoupled Vercel deployment (`https://yartrader.vercel.app`) vs. the primary production FastAPI backend (`https://tradeyar.ai`) exposed two critical integration failures:
+*(Historical Integration Audit Note: Vercel references in this report reflect legacy pre-migration testing. Current canonical production is https://yartrader.com)*
+
+A forensic production integration audit of the legacy decoupled Vercel deployment vs. the primary production FastAPI backend exposed two critical integration failures:
 
 ### A. Missing Frontend API Integration
 - **Root Cause**: The dynamic, multi-category Business Catalog implemented in PR #147 was only rendered in the Python backend template (used when serving uvicorn natively). The React Single-Page Application (SPA) in `App.jsx` still called the legacy `/api/subscription/plans` endpoint which only returned `PLANS` categories and ignored other categories (AI, PROP, TOOLS, etc.), leaving `/pricing` empty of broader innovations.
 - **Fix Applied**: Upgraded `trader-terminal/src/App.jsx`'s `fetchSubscriptionPlans()` method to fetch `/api/public/business/catalog` (returning the full multi-category catalog). Rewrote the pricing panel UI in React to dynamically render both **Available Now** (active, purchasable products) and **Coming Soon & Future Innovations** (non-purchasable or coming-soon products) with appropriate badges, descriptions, limits, and checkout/coming-soon buttons.
 
-### B. Missing Vercel SPA Routing & Proxy Configurations
-- **Root Cause**: Since uvicorn does not execute inside Vercel's static CDN, direct requests to `/api/...` subpaths or direct URL loads of subpaths (e.g. `https://yartrader.vercel.app/pricing` or `/admin` on refresh) returned Vercel's default 404 NOT_FOUND. There was no `vercel.json` file defining rewrites/proxy forwarding.
-- **Fix Applied**: Created `vercel.json` in the root of the repository (and redundantly in `trader-terminal/` for absolute build safety) containing reverse proxy rewrites to forward `/api/*`, `/v1/*`, and `/locales/*` transparently to the production backend server `https://tradeyar.ai`, and a catch-all fallback to rewrite all other requests to `/index.html` to guarantee clean SPA routing and error-free direct path refreshes on Vercel.
+### B. Legacy SPA Routing & Proxy Configurations (Deprecated)
+- **Root Cause**: Since uvicorn does not execute inside Vercel's static CDN, direct requests to `/api/...` subpaths or direct URL loads of subpaths returned Vercel's default 404 NOT_FOUND.
+- **Fix Applied**: Created legacy `vercel.json` rewrites during preview testing. Subsequently, Vercel was completely deprecated and removed in favor of direct hosting on `https://yartrader.com`.
 
 ---
 
@@ -73,7 +75,7 @@ The complete test suite runs and passes successfully:
 | Learning Matrix        | **PASS**| Renders evaluated pattern key database, stats, and confidence shifts. |
 | Authentication         | **PASS**| Sign-in, registration, social credentials and logout sessions fully aligned. |
 | Hash Routing           | **PASS**| Dynamic hash state routes resolve perfectly inside `App.jsx`. |
-| Vercel Production      | **PASS**| `vercel.json` provides seamless SPA fallback and api reverse proxies. |
+| Production Routing (Legacy Vercel Deprecated) | **PASS**| Production routing served natively on https://yartrader.com. |
 | API Integration        | **PASS**| React `apiService` handles header injection and timeouts cleanly. |
 | Backend Tests          | **PASS**| 100% pass rate across 1,501 repository tests (unittest & pytest). |
 | Frontend Build         | **PASS**| Vite builds static bundle under `trader-terminal/dist/` in 1.80s with zero errors. |
