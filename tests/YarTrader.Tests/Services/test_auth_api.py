@@ -86,6 +86,39 @@ class TestSaaSAuthAPI(unittest.TestCase):
         self.assertEqual(session["email"], test_email)
         self.assertEqual(session["role"], "USER")
 
+    def test_social_user_password_setting_recovery_flow(self) -> None:
+        """Verifies that an existing account created via Google login without password can attach a password via registration form."""
+        social_email = f"social-user-{uuid.uuid4().hex[:6]}@gmail.com"
+
+        # 1. User created via Google sign in (password_hash is empty)
+        social_user = global_auth_service.authenticate_social(
+            email=social_email,
+            provider="google",
+            provider_id=f"google-sub-{uuid.uuid4().hex[:6]}",
+            name="Social User"
+        )
+        self.assertEqual(social_user["email"], social_email)
+        self.assertEqual(social_user["password_hash"], "")
+
+        # 2. User registers password for existing social account
+        new_password = "PasswordForSocial123!"
+        reg_resp = self.client.post("/api/auth/register", json={
+            "email": social_email,
+            "password": new_password,
+            "name": "Social User Password Set"
+        })
+        self.assertEqual(reg_resp.status_code, 200)
+        reg_data = reg_resp.json()
+        self.assertEqual(reg_data["status"], "Success")
+
+        # 3. User can now login with email and password!
+        login_resp = self.client.post("/api/auth/login", json={
+            "email": social_email,
+            "password": new_password
+        })
+        self.assertEqual(login_resp.status_code, 200)
+        self.assertEqual(login_resp.json()["user"]["email"], social_email)
+
     def test_admin_role_granted_via_email_login_and_operator_authorization(self) -> None:
         """Verifies that registering or logging in via email as m.a.sohrabinia@gmail.com grants ADMIN role and authorizes Operator access."""
         admin_email = "admin-email-test@yartrader.app"

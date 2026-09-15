@@ -150,9 +150,19 @@ class AuthService:
             return False
 
     def register_user(self, email: str, password: str, name: str = "") -> Dict[str, Any]:
-        """Registers a new user account with secure password storage and auto-admin assignment."""
+        """Registers a new user account or attaches a password credential if account exists without a password."""
         email_clean = email.strip().lower()
-        if self.repo.get_user_by_email(email_clean):
+        existing_user = self.repo.get_user_by_email(email_clean)
+        if existing_user:
+            if not existing_user.get("password_hash"):
+                existing_user["password_hash"] = self.hash_password(password)
+                if name and not existing_user.get("name"):
+                    existing_user["name"] = name
+                if self.repo.is_admin_email(email_clean):
+                    existing_user["role"] = "ADMIN"
+                    existing_user["tier"] = "INSTITUTIONAL"
+                self.repo.save_db()
+                return existing_user
             from src.Infrastructure.exceptions import ValidationException
             raise ValidationException("Email address is already registered.")
 
