@@ -56,7 +56,7 @@ GO
 
 ## Phase 3 Recommendations
 * Proceed directly with launching the public beta on production infrastructure.
-* Ensure secret environment variables are injected securely via Vercel and SRE Docker run configurations.
+* Ensure secret environment variables are injected securely via production environment and SRE Docker run configurations.
 
 ---
 

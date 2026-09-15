@@ -38,9 +38,9 @@
 
 ---
 
-## 4. Vercel Routing Matrix (`vercel.json`)
-- Same-origin routing forwards `/api/*`, `/v1/*`, and `/locales/*` transparently to the production backend server `https://tradeyar.ai`.
-- The wildcard SPA fallback resolves all other routes dynamically to `/index.html` to prevent 404 NOT_FOUND errors on refreshing or direct path loading.
+## 4. Production Routing & SPA Fallback (Legacy Vercel Matrix Replaced)
+- **Current Production Architecture**: Public traffic routes directly to the self-hosted production gateway on `https://yartrader.com`.
+- **Legacy Vercel Routing Matrix (`vercel.json`)**: Previously, same-origin routing forwarded `/api/*`, `/v1/*`, and `/locales/*` and resolved SPA routes via `vercel.json` rewrites. This legacy Vercel configuration has been completely deprecated and removed. All SPA routing and API proxying are handled natively on `https://yartrader.com`.
 
 ---
 

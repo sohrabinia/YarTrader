@@ -97,6 +97,7 @@ class AuthRepository:
         Synchronizes missing password credential for an existing recognized Admin account.
         Rules:
         - Applied strictly to recognized Admin identities (is_admin_email).
+        - Enforces Admin role (ADMIN) and tier (INSTITUTIONAL) invariants.
         - Existing non-empty password_hash is NEVER overwritten.
         - Synchronizes strictly from authoritative environment variables.
         - Fails closed if production admin password hash is missing/unavailable.
@@ -116,6 +117,8 @@ class AuthRepository:
         modified = False
         if user.get("role") != "ADMIN":
             user["role"] = "ADMIN"
+            modified = True
+        if user.get("tier") != "INSTITUTIONAL":
             user["tier"] = "INSTITUTIONAL"
             modified = True
 

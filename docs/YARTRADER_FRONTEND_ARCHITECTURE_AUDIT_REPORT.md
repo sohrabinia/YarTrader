@@ -119,7 +119,7 @@ Comparing the current implementation against the target **YarTrader Autonomous F
 #### Option B (RECOMMENDED): Modular React 18 + Vite + TypeScript + Tailwind CSS + shadcn/ui
 * **Why Option B is Superior:**
   1. YarTrader terminal is an **interactive financial dashboard SPA** operating heavily on client-side state, local WebSocket feeds, and WebGL/Canvas charting.
-  2. Retains the fast Vite build system (1.6s build time verified) and seamless Vercel/Static SPA deployment.
+  2. Retains the fast Vite build system (1.6s build time verified) and seamless self-hosted Static SPA deployment.
   3. Incremental migration path from `App.jsx` to a modular folder architecture without disrupting existing FastAPI backend endpoints.
 
 ### 2. Recommended Directory & Modular Architecture

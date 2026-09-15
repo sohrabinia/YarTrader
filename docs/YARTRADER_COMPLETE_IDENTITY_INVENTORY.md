@@ -270,8 +270,8 @@ Total occurrences detected: 1620
 | `docs/BRAND/TRUST_AND_PROOF_FRAMEWORK.md` | 52 | `> *"We do not hand you a fake million-dollar demo account to feed a false sense of succ...` | Documentation Identity | MIGRATE |
 | `docs/BRAND/TRUST_AND_PROOF_FRAMEWORK.md` | 55 | `> *"Our platform is built for SRE-level durability. Operating as a native background se...` | Documentation Identity | MIGRATE |
 | `docs/BRAND/TRUST_AND_PROOF_FRAMEWORK.md` | 58 | `> *"No hidden formulas. No 'trust the algorithm' black boxes. TradeYar AI’s Explainable...` | Documentation Identity | MIGRATE |
-| `docs/BUSINESS_CATALOG_EVIDENCE.md` | 5 | `A forensic production integration audit of the decoupled Vercel deployment (`https://ya...` | Documentation Identity | MIGRATE |
-| `docs/BUSINESS_CATALOG_EVIDENCE.md` | 13 | `- **Fix Applied**: Created `vercel.json` in the root of the repository (and redundantly...` | Documentation Identity | MIGRATE |
+| `docs/BUSINESS_CATALOG_EVIDENCE.md` | 5 | `*(Historical Integration Audit Note: Vercel references reflect legacy pre-migration testing...` | Documentation Identity | HISTORICAL |
+| `docs/BUSINESS_CATALOG_EVIDENCE.md` | 13 | `- **Fix Applied**: Created legacy `vercel.json` rewrites during preview testing...` | Documentation Identity | HISTORICAL |
 | `docs/BUSINESS_CATALOG_EVIDENCE.md` | 54 | `- **Catalog Specific Tests**: Verified under `tests/TRADEYAR_AI.Tests/Services/test_bus...` | Documentation Identity | MIGRATE |
 | `docs/CERTIFICATION/EXECUTION_INTELLIGENCE_CERTIFICATION_REPORT.md` | 1 | `# TradeYar AI Execution Intelligence Certification Report` | Documentation Identity | MIGRATE |
 | `docs/CERTIFICATION/EXECUTION_INTELLIGENCE_CERTIFICATION_REPORT.md` | 3 | `This document officially certifies the end-to-end production verification of the **Trad...` | Documentation Identity | MIGRATE |
@@ -321,8 +321,8 @@ Total occurrences detected: 1620
 | `docs/FINAL_PLATFORM_STATUS.md` | 3 | `This status report registers the finalized integration status and production readiness ...` | Documentation Identity | MIGRATE |
 | `docs/FINAL_PLATFORM_STATUS.md` | 28 | `- **Secure local storage**: persistent authentication token (`tradeyar_token`) and role...` | Documentation Identity | MIGRATE |
 | `docs/FINAL_PRODUCTION_ACCEPTANCE_REPORT.md` | 16 | `\| **Backend API URL** \| `https://tradeyar.ai` (Parked at GoDaddy) \|` | Documentation Identity | MIGRATE |
-| `docs/FINAL_PRODUCTION_ACCEPTANCE_REPORT.md` | 40 | `Browser network and CORS inspections were conducted on the Vercel same-origin `/api/*` ...` | Documentation Identity | MIGRATE |
-| `docs/FINAL_PRODUCTION_ACCEPTANCE_REPORT.md` | 68 | `- **Diagnosis**: All same-origin proxies (`/api/*`) on the deployed Vercel site fail wi...` | Documentation Identity | MIGRATE |
+| `docs/FINAL_PRODUCTION_ACCEPTANCE_REPORT.md` | 40 | `Browser network and CORS inspections were conducted on same-origin `/api/*` ...` | Documentation Identity | HISTORICAL |
+| `docs/FINAL_PRODUCTION_ACCEPTANCE_REPORT.md` | 68 | `- **Diagnosis**: All same-origin proxies (`/api/*`) on legacy host fail wi...` | Documentation Identity | HISTORICAL |
 | `docs/FINAL_PRODUCTION_ACCEPTANCE_REPORT.md` | 69 | `- **Impact**: Until the GoDaddy domain parking is removed and the FastAPI app is active...` | Documentation Identity | MIGRATE |
 | `docs/FINAL_PRODUCTION_ACCEPTANCE_REPORT.md` | 100 | `- **GoDaddy Domain Parking**: The production backend API gateway domain `https://tradey...` | Documentation Identity | MIGRATE |
 | `docs/FINAL_PRODUCTION_ACCEPTANCE_REPORT.md` | 101 | `- **Resolution**: Point the DNS records of `tradeyar.ai` to the live hosted FastAPI ins...` | Documentation Identity | MIGRATE |

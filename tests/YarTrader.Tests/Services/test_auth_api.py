@@ -17,6 +17,17 @@ class TestSaaSAuthAPI(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.client = TestClient(app)
 
+    def setUp(self) -> None:
+        """Takes an in-memory snapshot of global_auth_service.repo.users for test state isolation."""
+        import copy
+        self._auth_db_snapshot = copy.deepcopy(global_auth_service.repo.users)
+
+    def tearDown(self) -> None:
+        """Restores in-memory and on-disk auth DB to pre-test snapshot preventing test pollution."""
+        import copy
+        global_auth_service.repo.users = copy.deepcopy(self._auth_db_snapshot)
+        global_auth_service.repo.save_db()
+
     def test_forbidden_customer_auth_endpoints_unreachable(self) -> None:
         """Verifies that non-standard customer auth endpoints (apple, telegram, forgot-password, reset-password, verify-email) return 404/405."""
         forbidden_endpoints = [
@@ -376,7 +387,7 @@ class TestSaaSAuthAPI(unittest.TestCase):
 
     def test_admin_password_login_and_session_verification(self) -> None:
         """
-        Verifies full Admin password authentication lifecycle:
+        Verifies full Admin password authentication lifecycle (Scenarios D, E, F, G, H):
         1. Valid Admin credentials succeed and return session with ADMIN role.
         2. Wrong password fails with 401.
         3. Unknown email fails with 401.
@@ -391,11 +402,12 @@ class TestSaaSAuthAPI(unittest.TestCase):
         with patch.dict(os.environ, {"YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH": admin_hash}):
             # Ensure admin password hash is set via sync
             user = global_auth_service.repo.get_user_by_email(admin_email)
-            if user:
-                user["password_hash"] = ""
-                global_auth_service.repo.save_db()
+            if not user:
+                user = global_auth_service.repo.create_user(email=admin_email, password_hash="", role="ADMIN")
+            user["password_hash"] = ""
+            global_auth_service.repo.save_db()
 
-            # 1. Invalid Password Rejection
+            # 1. Invalid Password Rejection (Scenario D)
             wrong_pw_resp = self.client.post("/api/auth/login", json={
                 "email": admin_email,
                 "password": "WrongPassword999!"
@@ -403,7 +415,7 @@ class TestSaaSAuthAPI(unittest.TestCase):
             self.assertEqual(wrong_pw_resp.status_code, 401)
             self.assertIn("Invalid email or password", wrong_pw_resp.json()["detail"])
 
-            # 2. Unknown Email Rejection
+            # 2. Unknown Email Rejection (Scenario E)
             unknown_email_resp = self.client.post("/api/auth/login", json={
                 "email": "nonexistent-admin@yartrader.app",
                 "password": admin_password
@@ -428,12 +440,12 @@ class TestSaaSAuthAPI(unittest.TestCase):
             self.assertEqual(session["email"], admin_email)
             self.assertEqual(session["role"], "ADMIN")
 
-            # 5. Access Protected Admin Endpoint
+            # 5. Access Protected Admin Endpoint (Scenario F)
             headers = {"Authorization": f"Bearer {admin_token}"}
             symbols_resp = self.client.get("/api/admin/symbols", headers=headers)
             self.assertEqual(symbols_resp.status_code, 200)
 
-            # 6. Logout Invalidates Session
+            # 6. Logout Invalidates Session (Scenario H)
             logout_resp = self.client.post("/api/auth/logout", json={"token": admin_token})
             self.assertEqual(logout_resp.status_code, 200)
             self.assertIsNone(global_auth_service.validate_session(admin_token))
@@ -454,6 +466,8 @@ class TestSaaSAuthAPI(unittest.TestCase):
 
         # Set custom password on existing admin account
         user = global_auth_service.repo.get_user_by_email(admin_email)
+        if not user:
+            user = global_auth_service.repo.create_user(email=admin_email, password_hash="", role="ADMIN")
         user["password_hash"] = custom_hash
         global_auth_service.repo.save_db()
 
@@ -509,11 +523,11 @@ class TestSaaSAuthAPI(unittest.TestCase):
 
     def test_existing_admin_account_with_empty_password_hash_synchronizes_and_authenticates(self) -> None:
         """
-        Explicitly proves the actual existing-Admin scenario:
+        Explicitly proves Scenarios A, K, L, M, N:
         existing Admin account + password_hash == "" + recognized Admin identity
         ↓
         credential synchronization → email/password login → real Admin session → protected Admin endpoint
-        Verifies that user_id, social_providers, and customer data are preserved.
+        Verifies that user_id (K), social_providers (L), Google sub (M), and Tier Invariant (N) are preserved.
         """
         admin_email = "m.a.sohrabinia@gmail.com"
         target_uid = "existing-admin-uid-123"
@@ -521,7 +535,7 @@ class TestSaaSAuthAPI(unittest.TestCase):
         admin_pass = "AdminSpecificPass123!"
         admin_hash = global_auth_service.hash_password(admin_pass)
 
-        # 1. Setup existing Admin account in repo with empty password hash (simulating pre-existing Google OIDC account)
+        # 1. Setup existing Admin account in repo with empty password hash and non-institutional tier (testing N)
         repo_user = global_auth_service.repo.get_user_by_email(admin_email)
         if not repo_user:
             repo_user = global_auth_service.repo.create_user(email=admin_email, password_hash="", role="ADMIN")
@@ -529,6 +543,7 @@ class TestSaaSAuthAPI(unittest.TestCase):
         repo_user["user_id"] = target_uid
         repo_user["social_providers"] = dict(target_social)
         repo_user["role"] = "ADMIN"
+        repo_user["tier"] = "FREE"  # Will test Scenario N: Admin tier invariant
         global_auth_service.repo.save_db()
 
         # Confirm account state before login attempt
@@ -547,12 +562,13 @@ class TestSaaSAuthAPI(unittest.TestCase):
             self.assertEqual(data["status"], "Success")
             admin_token = data["session_token"]
 
-            # 3. Prove Account Identity & Data Preservation
+            # 3. Prove Account Identity & Data Preservation (K, L, M) and Tier Invariant (N)
             updated_user = global_auth_service.repo.get_user_by_email(admin_email)
             self.assertNotEqual(updated_user["password_hash"], "")
-            self.assertEqual(updated_user["user_id"], target_uid)
-            self.assertEqual(updated_user["social_providers"], target_social)
+            self.assertEqual(updated_user["user_id"], target_uid)  # K
+            self.assertEqual(updated_user["social_providers"], target_social)  # L & M
             self.assertEqual(updated_user["role"], "ADMIN")
+            self.assertEqual(updated_user["tier"], "INSTITUTIONAL")  # N
 
             # 4. Prove Server-Side Session Identity & Protected Route Access
             session = global_auth_service.validate_session(admin_token)
@@ -563,3 +579,18 @@ class TestSaaSAuthAPI(unittest.TestCase):
             headers = {"Authorization": f"Bearer {admin_token}"}
             symbols_resp = self.client.get("/api/admin/symbols", headers=headers)
             self.assertEqual(symbols_resp.status_code, 200)
+
+    def test_test_state_isolation_prevents_persistent_corruption(self) -> None:
+        """
+        Explicitly proves Scenario O:
+        Test state mutations are restored by tearDown, preventing persistent auth.json corruption.
+        """
+        initial_count = len(global_auth_service.repo.users)
+        temp_email = f"temp-test-{uuid.uuid4().hex[:6]}@yartrader.app"
+        global_auth_service.repo.create_user(email=temp_email, password_hash="test", role="USER")
+        self.assertEqual(len(global_auth_service.repo.users), initial_count + 1)
+
+        # Force tearDown invocation
+        self.tearDown()
+        self.assertEqual(len(global_auth_service.repo.users), initial_count)
+        self.assertIsNone(global_auth_service.repo.get_user_by_email(temp_email))
