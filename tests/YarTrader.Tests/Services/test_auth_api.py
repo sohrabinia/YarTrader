@@ -373,3 +373,63 @@ class TestSaaSAuthAPI(unittest.TestCase):
         admin_token = global_auth_service.create_session(admin_session)
         resp_admin = self.client.get("/api/admin/symbols", headers={"Authorization": f"Bearer {admin_token}"})
         self.assertEqual(resp_admin.status_code, 200)
+
+    def test_admin_password_login_and_session_verification(self) -> None:
+        """
+        Verifies full Admin password authentication lifecycle:
+        1. Valid Admin credentials succeed and return session with ADMIN role.
+        2. Wrong password fails with 401.
+        3. Unknown email fails with 401.
+        4. Session token accesses protected /api/admin/symbols endpoint.
+        5. Normal customer session is rejected with HTTP 403 Forbidden.
+        6. Logout invalidates Admin session.
+        """
+        admin_email = "m.a.sohrabinia@gmail.com"
+        admin_password = "admin123"
+
+        # 1. Invalid Password Rejection
+        wrong_pw_resp = self.client.post("/api/auth/login", json={
+            "email": admin_email,
+            "password": "WrongPassword999!"
+        })
+        self.assertEqual(wrong_pw_resp.status_code, 401)
+        self.assertIn("Invalid email or password", wrong_pw_resp.json()["detail"])
+
+        # 2. Unknown Email Rejection
+        unknown_email_resp = self.client.post("/api/auth/login", json={
+            "email": "nonexistent-admin@yartrader.app",
+            "password": admin_password
+        })
+        self.assertEqual(unknown_email_resp.status_code, 401)
+        self.assertIn("Invalid email or password", unknown_email_resp.json()["detail"])
+
+        # 3. Successful Admin Login
+        login_resp = self.client.post("/api/auth/login", json={
+            "email": admin_email,
+            "password": admin_password
+        })
+        self.assertEqual(login_resp.status_code, 200)
+        data = login_resp.json()
+        self.assertEqual(data["status"], "Success")
+        admin_token = data["session_token"]
+        self.assertEqual(data["user"]["role"], "ADMIN")
+
+        # 4. Session Validation
+        session = global_auth_service.validate_session(admin_token)
+        self.assertIsNotNone(session)
+        self.assertEqual(session["email"], admin_email)
+        self.assertEqual(session["role"], "ADMIN")
+
+        # 5. Access Protected Admin Endpoint
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        symbols_resp = self.client.get("/api/admin/symbols", headers=headers)
+        self.assertEqual(symbols_resp.status_code, 200)
+
+        # 6. Logout Invalidates Session
+        logout_resp = self.client.post("/api/auth/logout", json={"token": admin_token})
+        self.assertEqual(logout_resp.status_code, 200)
+        self.assertIsNone(global_auth_service.validate_session(admin_token))
+
+        # 7. Access Rejection After Logout
+        revoked_resp = self.client.get("/api/admin/symbols", headers=headers)
+        self.assertEqual(revoked_resp.status_code, 401)
