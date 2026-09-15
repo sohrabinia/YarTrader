@@ -77,7 +77,7 @@ def validate_social_token(token: str, provider: str) -> Dict[str, Any]:
 
     # Fetch configured Client ID from settings or environment
     if provider == "google":
-        client_id = os.environ.get("GOOGLE_CLIENT_ID")
+        client_id = (os.environ.get("GOOGLE_CLIENT_ID") or os.environ.get("YARTRADER_GOOGLE_CLIENT_ID") or "").strip()
         expected_issuers = ["accounts.google.com", "https://accounts.google.com"]
         jwks_url = GOOGLE_JWKS_URL
     else:
@@ -106,9 +106,9 @@ def validate_social_token(token: str, provider: str) -> Dict[str, Any]:
             }
         raise ValidationException("Malformed mock token payload.")
 
-    # Enforce config presence in production
-    if is_production and not client_id:
-        raise ValidationException(f"Production Configuration Error: Missing Client ID for {provider.upper()}.")
+    # Enforce config presence
+    if not client_id:
+        raise ValidationException(f"Configuration Error: GOOGLE_CLIENT_ID environment variable is missing or unconfigured for {provider.upper()}.")
 
     try:
         # 1. Decode header to extract Key ID (kid)
@@ -151,6 +151,19 @@ def validate_social_token(token: str, provider: str) -> Dict[str, Any]:
         raise ValidationException(f"Social token has expired: {str(e)}")
     except jwt.InvalidSignatureError as e:
         raise ValidationException(f"Social token signature verification failed: {str(e)}")
+    except jwt.InvalidAudienceError as e:
+        # Extract unverified audience for safe diagnostic error details without exposing secrets
+        try:
+            unverified = jwt.decode(token, options={"verify_signature": False, "verify_aud": False})
+            token_aud = unverified.get("aud")
+            token_azp = unverified.get("azp")
+            raise ValidationException(
+                f"Social token validation error: Audience mismatch. "
+                f"Server expected client_id fingerprint '...{client_id[-12:] if len(client_id) >= 12 else client_id}', "
+                f"token contains aud='{token_aud}', azp='{token_azp}'."
+            )
+        except Exception:
+            raise ValidationException(f"Social token validation error: Audience doesn't match: {str(e)}")
     except jwt.InvalidTokenError as e:
         raise ValidationException(f"Social token validation error: {str(e)}")
     except Exception as e:
