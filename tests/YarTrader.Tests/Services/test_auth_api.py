@@ -433,3 +433,57 @@ class TestSaaSAuthAPI(unittest.TestCase):
         # 7. Access Rejection After Logout
         revoked_resp = self.client.get("/api/admin/symbols", headers=headers)
         self.assertEqual(revoked_resp.status_code, 401)
+
+    def test_existing_admin_account_with_empty_password_hash_synchronizes_and_authenticates(self) -> None:
+        """
+        Explicitly proves the actual existing-Admin scenario:
+        existing Admin account + password_hash == "" + recognized Admin identity
+        ↓
+        credential synchronization → email/password login → real Admin session → protected Admin endpoint
+        Verifies that user_id, social_providers, and customer data are preserved.
+        """
+        admin_email = "m.a.sohrabinia@gmail.com"
+        target_uid = "existing-admin-uid-123"
+        target_social = {"google": "google-sub-456"}
+
+        # 1. Setup existing Admin account in repo with empty password hash (simulating pre-existing Google OIDC account)
+        repo_user = global_auth_service.repo.users.get(admin_email)
+        if not repo_user:
+            repo_user = global_auth_service.repo.create_user(email=admin_email, password_hash="", role="ADMIN")
+        repo_user["password_hash"] = ""
+        repo_user["user_id"] = target_uid
+        repo_user["social_providers"] = dict(target_social)
+        repo_user["role"] = "ADMIN"
+        global_auth_service.repo.save_db()
+
+        # Confirm account state before login attempt
+        unauth_user = global_auth_service.repo.users[admin_email]
+        self.assertEqual(unauth_user["password_hash"], "")
+        self.assertEqual(unauth_user["user_id"], target_uid)
+
+        # 2. Perform Admin Login via Email + Password
+        login_resp = self.client.post("/api/auth/login", json={
+            "email": admin_email,
+            "password": "admin123"
+        })
+        self.assertEqual(login_resp.status_code, 200)
+        data = login_resp.json()
+        self.assertEqual(data["status"], "Success")
+        admin_token = data["session_token"]
+
+        # 3. Prove Account Identity & Data Preservation
+        updated_user = global_auth_service.repo.get_user_by_email(admin_email)
+        self.assertNotEqual(updated_user["password_hash"], "")
+        self.assertEqual(updated_user["user_id"], target_uid)
+        self.assertEqual(updated_user["social_providers"], target_social)
+        self.assertEqual(updated_user["role"], "ADMIN")
+
+        # 4. Prove Server-Side Session Identity & Protected Route Access
+        session = global_auth_service.validate_session(admin_token)
+        self.assertIsNotNone(session)
+        self.assertEqual(session["email"], admin_email)
+        self.assertEqual(session["role"], "ADMIN")
+
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        symbols_resp = self.client.get("/api/admin/symbols", headers=headers)
+        self.assertEqual(symbols_resp.status_code, 200)

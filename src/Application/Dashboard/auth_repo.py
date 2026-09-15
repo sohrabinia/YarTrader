@@ -88,14 +88,17 @@ class AuthRepository:
                         user["role"] = "ADMIN"
                         user["tier"] = "INSTITUTIONAL"
                         modified = True
-                    if admin_pw_hash and admin_pw_hash not in ("*", "placeholder", ""):
-                        if user.get("password_hash") != admin_pw_hash:
+                    # Preserve existing password_hash if already set; synchronize only if missing/empty
+                    if not user.get("password_hash"):
+                        if admin_pw_hash and admin_pw_hash not in ("*", "placeholder", ""):
                             user["password_hash"] = admin_pw_hash
                             modified = True
-                    elif not is_production:
-                        if not user.get("password_hash") or user.get("password_hash") == legacy_mock_hash:
+                        elif not is_production:
                             user["password_hash"] = valid_mock_hash
                             modified = True
+                    elif not is_production and user.get("password_hash") == legacy_mock_hash:
+                        user["password_hash"] = valid_mock_hash
+                        modified = True
             if modified:
                 with open(self.filepath, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=4)
@@ -128,14 +131,17 @@ class AuthRepository:
             admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH"))
             legacy_mock_hash = "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d"
             valid_mock_hash = "pbkdf2_sha256$100000$salt123$86e9d16fc8c4acfd7fd913eb477a8ccbf2860caff146d2396d195473a848a444"
-            if admin_pw_hash and admin_pw_hash not in ("*", "placeholder", ""):
-                if user.get("password_hash") != admin_pw_hash:
+            # Preserve existing non-empty password_hash; synchronize only if missing/empty
+            if not user.get("password_hash"):
+                if admin_pw_hash and admin_pw_hash not in ("*", "placeholder", ""):
                     user["password_hash"] = admin_pw_hash
                     modified = True
-            elif not is_production:
-                if not user.get("password_hash") or user.get("password_hash") == legacy_mock_hash:
+                elif not is_production:
                     user["password_hash"] = valid_mock_hash
                     modified = True
+            elif not is_production and user.get("password_hash") == legacy_mock_hash:
+                user["password_hash"] = valid_mock_hash
+                modified = True
             if modified:
                 self.save_db()
         return user
