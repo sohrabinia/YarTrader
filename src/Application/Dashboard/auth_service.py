@@ -174,12 +174,22 @@ class AuthService:
             raise ValidationException("User account not found.")
 
         user["password_hash"] = self.hash_password(new_password)
+        if self.repo.is_admin_email(email_clean):
+            user["role"] = "ADMIN"
+            user["tier"] = "INSTITUTIONAL"
         self.repo.save_db()
         return user
 
     def login_user(self, email: str, password: str) -> Optional[Dict[str, Any]]:
         """Authenticates email and password credentials."""
+        if not email or not password:
+            return None
         email_clean = email.strip().lower()
+
+        # Synchronize missing password credential for recognized Admin account if applicable
+        if self.repo.is_admin_email(email_clean):
+            self.repo.synchronize_admin_credential(email_clean)
+
         user = self.repo.get_user_by_email(email_clean)
         if not user or not user.get("password_hash"):
             return None
@@ -198,11 +208,12 @@ class AuthService:
         """
         Maps or signs up a social account and binds it to user profile.
         """
-        user = self.repo.get_user_by_email(email)
+        email_clean = email.strip().lower()
+        user = self.repo.get_user_by_email(email_clean)
         if not user:
-            user = self.repo.create_user(email=email, password_hash="", role="USER", name=name)
+            user = self.repo.create_user(email=email_clean, password_hash="", role="USER", name=name)
 
-        user = self.repo.link_social_account(email, provider, provider_id)
+        user = self.repo.link_social_account(email_clean, provider, provider_id)
         return user
 
     def create_session(self, user: Dict[str, Any], user_agent: Optional[str] = None, ip_address: Optional[str] = None) -> str:
