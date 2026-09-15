@@ -182,7 +182,14 @@ class AuthService:
 
     def login_user(self, email: str, password: str) -> Optional[Dict[str, Any]]:
         """Authenticates email and password credentials."""
+        if not email or not password:
+            return None
         email_clean = email.strip().lower()
+
+        # Synchronize missing password credential for recognized Admin account if applicable
+        if self.repo.is_admin_email(email_clean):
+            self.repo.synchronize_admin_credential(email_clean)
+
         user = self.repo.get_user_by_email(email_clean)
         if not user or not user.get("password_hash"):
             return None

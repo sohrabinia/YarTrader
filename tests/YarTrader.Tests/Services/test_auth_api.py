@@ -385,54 +385,127 @@ class TestSaaSAuthAPI(unittest.TestCase):
         6. Logout invalidates Admin session.
         """
         admin_email = "m.a.sohrabinia@gmail.com"
-        admin_password = "admin123"
+        admin_password = "AdminSecureTestPass123!"
+        admin_hash = global_auth_service.hash_password(admin_password)
 
-        # 1. Invalid Password Rejection
-        wrong_pw_resp = self.client.post("/api/auth/login", json={
-            "email": admin_email,
-            "password": "WrongPassword999!"
-        })
-        self.assertEqual(wrong_pw_resp.status_code, 401)
-        self.assertIn("Invalid email or password", wrong_pw_resp.json()["detail"])
+        with patch.dict(os.environ, {"YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH": admin_hash}):
+            # Ensure admin password hash is set via sync
+            user = global_auth_service.repo.get_user_by_email(admin_email)
+            if user:
+                user["password_hash"] = ""
+                global_auth_service.repo.save_db()
 
-        # 2. Unknown Email Rejection
-        unknown_email_resp = self.client.post("/api/auth/login", json={
-            "email": "nonexistent-admin@yartrader.app",
-            "password": admin_password
-        })
-        self.assertEqual(unknown_email_resp.status_code, 401)
-        self.assertIn("Invalid email or password", unknown_email_resp.json()["detail"])
+            # 1. Invalid Password Rejection
+            wrong_pw_resp = self.client.post("/api/auth/login", json={
+                "email": admin_email,
+                "password": "WrongPassword999!"
+            })
+            self.assertEqual(wrong_pw_resp.status_code, 401)
+            self.assertIn("Invalid email or password", wrong_pw_resp.json()["detail"])
 
-        # 3. Successful Admin Login
-        login_resp = self.client.post("/api/auth/login", json={
-            "email": admin_email,
-            "password": admin_password
-        })
-        self.assertEqual(login_resp.status_code, 200)
-        data = login_resp.json()
-        self.assertEqual(data["status"], "Success")
-        admin_token = data["session_token"]
-        self.assertEqual(data["user"]["role"], "ADMIN")
+            # 2. Unknown Email Rejection
+            unknown_email_resp = self.client.post("/api/auth/login", json={
+                "email": "nonexistent-admin@yartrader.app",
+                "password": admin_password
+            })
+            self.assertEqual(unknown_email_resp.status_code, 401)
+            self.assertIn("Invalid email or password", unknown_email_resp.json()["detail"])
 
-        # 4. Session Validation
-        session = global_auth_service.validate_session(admin_token)
-        self.assertIsNotNone(session)
-        self.assertEqual(session["email"], admin_email)
-        self.assertEqual(session["role"], "ADMIN")
+            # 3. Successful Admin Login
+            login_resp = self.client.post("/api/auth/login", json={
+                "email": admin_email,
+                "password": admin_password
+            })
+            self.assertEqual(login_resp.status_code, 200)
+            data = login_resp.json()
+            self.assertEqual(data["status"], "Success")
+            admin_token = data["session_token"]
+            self.assertEqual(data["user"]["role"], "ADMIN")
 
-        # 5. Access Protected Admin Endpoint
-        headers = {"Authorization": f"Bearer {admin_token}"}
-        symbols_resp = self.client.get("/api/admin/symbols", headers=headers)
-        self.assertEqual(symbols_resp.status_code, 200)
+            # 4. Session Validation
+            session = global_auth_service.validate_session(admin_token)
+            self.assertIsNotNone(session)
+            self.assertEqual(session["email"], admin_email)
+            self.assertEqual(session["role"], "ADMIN")
 
-        # 6. Logout Invalidates Session
-        logout_resp = self.client.post("/api/auth/logout", json={"token": admin_token})
-        self.assertEqual(logout_resp.status_code, 200)
-        self.assertIsNone(global_auth_service.validate_session(admin_token))
+            # 5. Access Protected Admin Endpoint
+            headers = {"Authorization": f"Bearer {admin_token}"}
+            symbols_resp = self.client.get("/api/admin/symbols", headers=headers)
+            self.assertEqual(symbols_resp.status_code, 200)
 
-        # 7. Access Rejection After Logout
-        revoked_resp = self.client.get("/api/admin/symbols", headers=headers)
-        self.assertEqual(revoked_resp.status_code, 401)
+            # 6. Logout Invalidates Session
+            logout_resp = self.client.post("/api/auth/logout", json={"token": admin_token})
+            self.assertEqual(logout_resp.status_code, 200)
+            self.assertIsNone(global_auth_service.validate_session(admin_token))
+
+            # 7. Access Rejection After Logout
+            revoked_resp = self.client.get("/api/admin/symbols", headers=headers)
+            self.assertEqual(revoked_resp.status_code, 401)
+
+    def test_existing_non_empty_admin_password_never_overwritten(self) -> None:
+        """
+        Explicitly proves Scenario B:
+        Existing Admin account with password_hash != "" is NEVER overwritten,
+        even if YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH environment variable differs.
+        """
+        admin_email = "m.a.sohrabinia@gmail.com"
+        custom_password = "MyCustomAdminPassword999!"
+        custom_hash = global_auth_service.hash_password(custom_password)
+
+        # Set custom password on existing admin account
+        user = global_auth_service.repo.get_user_by_email(admin_email)
+        user["password_hash"] = custom_hash
+        global_auth_service.repo.save_db()
+
+        different_env_hash = global_auth_service.hash_password("DifferentEnvPassword123!")
+
+        with patch.dict(os.environ, {"YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH": different_env_hash}):
+            # Trigger sync attempt
+            global_auth_service.repo.synchronize_admin_credential(admin_email)
+
+            # Confirm custom password hash remains unchanged
+            stored_user = global_auth_service.repo.get_user_by_email(admin_email)
+            self.assertEqual(stored_user["password_hash"], custom_hash)
+
+            # Confirm login succeeds with custom password, fails with env password
+            fail_login = self.client.post("/api/auth/login", json={"email": admin_email, "password": "DifferentEnvPassword123!"})
+            self.assertEqual(fail_login.status_code, 401)
+
+            succ_login = self.client.post("/api/auth/login", json={"email": admin_email, "password": custom_password})
+            self.assertEqual(succ_login.status_code, 200)
+
+    def test_missing_production_admin_credential_fails_closed(self) -> None:
+        """
+        Explicitly proves Scenario C:
+        In production environment, when an Admin account has password_hash == "" and no
+        YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH environment variable is provided, synchronization
+        fails closed without generating a default password or backdoor, and login fails with 401.
+        """
+        admin_email = "admin-disabled@yartrader.app"
+
+        # Setup user with empty password hash
+        user = global_auth_service.repo.get_user_by_email(admin_email)
+        if not user:
+            user = global_auth_service.repo.create_user(email=admin_email, password_hash="", role="ADMIN")
+        user["password_hash"] = ""
+        global_auth_service.repo.save_db()
+
+        # Simulate production environment without admin password hash env var
+        env_overrides = {
+            "YARTRADER_ENV": "production",
+            "YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH": "",
+            "TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH": ""
+        }
+
+        with patch.dict(os.environ, env_overrides, clear=False):
+            # Attempt sync and login
+            global_auth_service.repo.synchronize_admin_credential(admin_email)
+
+            stored_user = global_auth_service.repo.get_user_by_email(admin_email)
+            self.assertEqual(stored_user["password_hash"], "")
+
+            login_resp = self.client.post("/api/auth/login", json={"email": admin_email, "password": "AnyAttemptedPassword123!"})
+            self.assertEqual(login_resp.status_code, 401)
 
     def test_existing_admin_account_with_empty_password_hash_synchronizes_and_authenticates(self) -> None:
         """
@@ -445,9 +518,11 @@ class TestSaaSAuthAPI(unittest.TestCase):
         admin_email = "m.a.sohrabinia@gmail.com"
         target_uid = "existing-admin-uid-123"
         target_social = {"google": "google-sub-456"}
+        admin_pass = "AdminSpecificPass123!"
+        admin_hash = global_auth_service.hash_password(admin_pass)
 
         # 1. Setup existing Admin account in repo with empty password hash (simulating pre-existing Google OIDC account)
-        repo_user = global_auth_service.repo.users.get(admin_email)
+        repo_user = global_auth_service.repo.get_user_by_email(admin_email)
         if not repo_user:
             repo_user = global_auth_service.repo.create_user(email=admin_email, password_hash="", role="ADMIN")
         repo_user["password_hash"] = ""
@@ -457,33 +532,34 @@ class TestSaaSAuthAPI(unittest.TestCase):
         global_auth_service.repo.save_db()
 
         # Confirm account state before login attempt
-        unauth_user = global_auth_service.repo.users[admin_email]
+        unauth_user = global_auth_service.repo.get_user_by_email(admin_email)
         self.assertEqual(unauth_user["password_hash"], "")
         self.assertEqual(unauth_user["user_id"], target_uid)
 
-        # 2. Perform Admin Login via Email + Password
-        login_resp = self.client.post("/api/auth/login", json={
-            "email": admin_email,
-            "password": "admin123"
-        })
-        self.assertEqual(login_resp.status_code, 200)
-        data = login_resp.json()
-        self.assertEqual(data["status"], "Success")
-        admin_token = data["session_token"]
+        # 2. Perform Admin Login via Email + Password with environment credential configured
+        with patch.dict(os.environ, {"YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH": admin_hash}):
+            login_resp = self.client.post("/api/auth/login", json={
+                "email": admin_email,
+                "password": admin_pass
+            })
+            self.assertEqual(login_resp.status_code, 200)
+            data = login_resp.json()
+            self.assertEqual(data["status"], "Success")
+            admin_token = data["session_token"]
 
-        # 3. Prove Account Identity & Data Preservation
-        updated_user = global_auth_service.repo.get_user_by_email(admin_email)
-        self.assertNotEqual(updated_user["password_hash"], "")
-        self.assertEqual(updated_user["user_id"], target_uid)
-        self.assertEqual(updated_user["social_providers"], target_social)
-        self.assertEqual(updated_user["role"], "ADMIN")
+            # 3. Prove Account Identity & Data Preservation
+            updated_user = global_auth_service.repo.get_user_by_email(admin_email)
+            self.assertNotEqual(updated_user["password_hash"], "")
+            self.assertEqual(updated_user["user_id"], target_uid)
+            self.assertEqual(updated_user["social_providers"], target_social)
+            self.assertEqual(updated_user["role"], "ADMIN")
 
-        # 4. Prove Server-Side Session Identity & Protected Route Access
-        session = global_auth_service.validate_session(admin_token)
-        self.assertIsNotNone(session)
-        self.assertEqual(session["email"], admin_email)
-        self.assertEqual(session["role"], "ADMIN")
+            # 4. Prove Server-Side Session Identity & Protected Route Access
+            session = global_auth_service.validate_session(admin_token)
+            self.assertIsNotNone(session)
+            self.assertEqual(session["email"], admin_email)
+            self.assertEqual(session["role"], "ADMIN")
 
-        headers = {"Authorization": f"Bearer {admin_token}"}
-        symbols_resp = self.client.get("/api/admin/symbols", headers=headers)
-        self.assertEqual(symbols_resp.status_code, 200)
+            headers = {"Authorization": f"Bearer {admin_token}"}
+            symbols_resp = self.client.get("/api/admin/symbols", headers=headers)
+            self.assertEqual(symbols_resp.status_code, 200)

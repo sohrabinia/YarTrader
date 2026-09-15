@@ -24,10 +24,10 @@ class AuthRepository:
         if not os.path.exists(self.filepath):
             # Derive primary administrator details safely without exposing personal identities
             admin_email = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "admin-disabled@yartrader.app")).strip().lower()
+            admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH", ""))
 
             # Seed default admin and user accounts
             if is_production:
-                admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH"))
                 if not admin_pw_hash or admin_pw_hash in ("*", "placeholder", ""):
                     raise ValidationException(
                         "Production Configuration Error: YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH / TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH must be configured with a secure, non-empty PBKDF2 hash."
@@ -51,7 +51,7 @@ class AuthRepository:
                 default_data = {
                     admin_email: {
                         "email": admin_email,
-                        "password_hash": "pbkdf2_sha256$100000$salt123$86e9d16fc8c4acfd7fd913eb477a8ccbf2860caff146d2396d195473a848a444", # mock for 'admin123'
+                        "password_hash": admin_pw_hash if (admin_pw_hash and admin_pw_hash not in ("*", "placeholder")) else "",
                         "role": "ADMIN",
                         "name": "Principal Supervisor",
                         "social_providers": {},
@@ -60,7 +60,7 @@ class AuthRepository:
                     },
                     "trader@yartrader.app": {
                         "email": "trader@yartrader.app",
-                        "password_hash": "pbkdf2_sha256$100000$salt123$86e9d16fc8c4acfd7fd913eb477a8ccbf2860caff146d2396d195473a848a444", # mock for 'trader123' (matches admin123/trader123 mock pass)
+                        "password_hash": "",
                         "role": "USER",
                         "name": "Elite Trader",
                         "social_providers": {},
@@ -74,35 +74,7 @@ class AuthRepository:
 
         try:
             with open(self.filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            # Synchronize admin role and password credential for configured admin accounts
-            modified = False
-            admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH"))
-            legacy_mock_hash = "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d"
-            valid_mock_hash = "pbkdf2_sha256$100000$salt123$86e9d16fc8c4acfd7fd913eb477a8ccbf2860caff146d2396d195473a848a444"
-
-            for email, user in data.items():
-                if self.is_admin_email(email):
-                    if user.get("role") != "ADMIN":
-                        user["role"] = "ADMIN"
-                        user["tier"] = "INSTITUTIONAL"
-                        modified = True
-                    # Preserve existing password_hash if already set; synchronize only if missing/empty
-                    if not user.get("password_hash"):
-                        if admin_pw_hash and admin_pw_hash not in ("*", "placeholder", ""):
-                            user["password_hash"] = admin_pw_hash
-                            modified = True
-                        elif not is_production:
-                            user["password_hash"] = valid_mock_hash
-                            modified = True
-                    elif not is_production and user.get("password_hash") == legacy_mock_hash:
-                        user["password_hash"] = valid_mock_hash
-                        modified = True
-            if modified:
-                with open(self.filepath, "w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=4)
-            return data
+                return json.load(f)
         except Exception as e:
             logger.error(f"Error loading auth database, fallback to empty: {e}")
             return {}
@@ -115,35 +87,48 @@ class AuthRepository:
             logger.error(f"Error saving auth database: {e}")
 
     def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """Pure lookup method returning user record without mutation side-effects."""
         if not email or not isinstance(email, str):
             return None
+        return self.users.get(email.strip().lower())
+
+    def synchronize_admin_credential(self, email: str) -> Optional[Dict[str, Any]]:
+        """
+        Synchronizes missing password credential for an existing recognized Admin account.
+        Rules:
+        - Applied strictly to recognized Admin identities (is_admin_email).
+        - Existing non-empty password_hash is NEVER overwritten.
+        - Synchronizes strictly from authoritative environment variables.
+        - Fails closed if production admin password hash is missing/unavailable.
+        - Preserves user_id, email, social_providers, role, tier, and customer data.
+        """
+        if not email or not isinstance(email, str):
+            return None
+
         email_clean = email.strip().lower()
+        if not self.is_admin_email(email_clean):
+            return None
+
         user = self.users.get(email_clean)
-        if user and self.is_admin_email(email_clean):
-            modified = False
-            if user.get("role") != "ADMIN":
-                user["role"] = "ADMIN"
-                user["tier"] = "INSTITUTIONAL"
-                modified = True
-            is_production = (os.environ.get("YARTRADER_ENV") == "production" or
-                             os.environ.get("TRADEYAR_ENV") == "production" or
-                             os.environ.get("RG_ENV") == "production")
+        if not user:
+            return None
+
+        modified = False
+        if user.get("role") != "ADMIN":
+            user["role"] = "ADMIN"
+            user["tier"] = "INSTITUTIONAL"
+            modified = True
+
+        # Existing password_hash MUST NEVER be overwritten
+        if not user.get("password_hash"):
             admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH"))
-            legacy_mock_hash = "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d"
-            valid_mock_hash = "pbkdf2_sha256$100000$salt123$86e9d16fc8c4acfd7fd913eb477a8ccbf2860caff146d2396d195473a848a444"
-            # Preserve existing non-empty password_hash; synchronize only if missing/empty
-            if not user.get("password_hash"):
-                if admin_pw_hash and admin_pw_hash not in ("*", "placeholder", ""):
-                    user["password_hash"] = admin_pw_hash
-                    modified = True
-                elif not is_production:
-                    user["password_hash"] = valid_mock_hash
-                    modified = True
-            elif not is_production and user.get("password_hash") == legacy_mock_hash:
-                user["password_hash"] = valid_mock_hash
+            if admin_pw_hash and admin_pw_hash not in ("*", "placeholder", ""):
+                user["password_hash"] = admin_pw_hash
                 modified = True
-            if modified:
-                self.save_db()
+
+        if modified:
+            self.save_db()
+
         return user
 
     def is_admin_email(self, email: str) -> bool:
