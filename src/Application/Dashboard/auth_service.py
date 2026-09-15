@@ -150,19 +150,9 @@ class AuthService:
             return False
 
     def register_user(self, email: str, password: str, name: str = "") -> Dict[str, Any]:
-        """Registers a new user account or attaches a password credential if account exists without a password."""
+        """Registers a new user account with secure password storage and auto-admin assignment."""
         email_clean = email.strip().lower()
-        existing_user = self.repo.get_user_by_email(email_clean)
-        if existing_user:
-            if not existing_user.get("password_hash"):
-                existing_user["password_hash"] = self.hash_password(password)
-                if name and not existing_user.get("name"):
-                    existing_user["name"] = name
-                if self.repo.is_admin_email(email_clean):
-                    existing_user["role"] = "ADMIN"
-                    existing_user["tier"] = "INSTITUTIONAL"
-                self.repo.save_db()
-                return existing_user
+        if self.repo.get_user_by_email(email_clean):
             from src.Infrastructure.exceptions import ValidationException
             raise ValidationException("Email address is already registered.")
 
@@ -173,6 +163,18 @@ class AuthService:
             user["role"] = "ADMIN"
             user["tier"] = "INSTITUTIONAL"
             self.repo.save_db()
+        return user
+
+    def set_user_password(self, email: str, new_password: str) -> Dict[str, Any]:
+        """Sets or updates the PBKDF2-SHA256 password credential for an existing user account."""
+        email_clean = email.strip().lower()
+        user = self.repo.get_user_by_email(email_clean)
+        if not user:
+            from src.Infrastructure.exceptions import ValidationException
+            raise ValidationException("User account not found.")
+
+        user["password_hash"] = self.hash_password(new_password)
+        self.repo.save_db()
         return user
 
     def login_user(self, email: str, password: str) -> Optional[Dict[str, Any]]:
