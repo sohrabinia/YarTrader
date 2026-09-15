@@ -86,6 +86,146 @@ class TestSaaSAuthAPI(unittest.TestCase):
         self.assertEqual(session["email"], test_email)
         self.assertEqual(session["role"], "USER")
 
+    def test_registration_security_boundary_rejection_for_existing_accounts(self) -> None:
+        """
+        Verifies that /register strictly REJECTS attempts for existing emails (Google accounts, Admin accounts, and Password accounts)
+        without mutating passwords or granting admin access.
+        """
+        import uuid
+
+        # Test A: Existing Google account + /register -> Rejected with 400
+        google_email = f"existing-google-{uuid.uuid4().hex[:6]}@gmail.com"
+        google_sub = f"sub-{uuid.uuid4().hex[:6]}"
+        google_user = global_auth_service.authenticate_social(
+            email=google_email,
+            provider="google",
+            provider_id=google_sub,
+            name="Google Existing User"
+        )
+        self.assertEqual(google_user["password_hash"], "")
+
+        reg_google_resp = self.client.post("/api/auth/register", json={
+            "email": google_email,
+            "password": "AttemptedPassword123!",
+            "name": "Attacker"
+        })
+        self.assertEqual(reg_google_resp.status_code, 400)
+        self.assertIn("already exists", reg_google_resp.json()["detail"])
+
+        # Confirm account was NOT mutated
+        unmutated_google_user = global_auth_service.repo.get_user_by_email(google_email)
+        self.assertEqual(unmutated_google_user["password_hash"], "")
+        self.assertEqual(unmutated_google_user["email"], google_email)
+
+        # Test B: Existing admin account + /register -> Rejected with 400
+        admin_email = f"admin-{uuid.uuid4().hex[:6]}@yartrader.app"
+        admin_orig_pw = "OriginalAdminPass123!"
+        admin_user = global_auth_service.register_user(email=admin_email, password=admin_orig_pw, name="Admin User")
+        admin_orig_hash = admin_user["password_hash"]
+
+        reg_admin_resp = self.client.post("/api/auth/register", json={
+            "email": admin_email,
+            "password": "AttackerPassword999!",
+            "name": "Attacker"
+        })
+        self.assertEqual(reg_admin_resp.status_code, 400)
+        self.assertIn("already exists", reg_admin_resp.json()["detail"])
+
+        # Confirm admin password hash was NOT overwritten
+        unmutated_admin = global_auth_service.repo.get_user_by_email(admin_email)
+        self.assertEqual(unmutated_admin["password_hash"], admin_orig_hash)
+
+    def test_cross_account_password_modification_rejected(self) -> None:
+        """
+        Verifies that an authenticated user A cannot update user B's password credential.
+        Asserts HTTP 403 Forbidden and confirms user B's password and identity remain unchanged.
+        """
+        import uuid
+
+        # User A (Attacker / Authenticated User)
+        email_a = f"usera-{uuid.uuid4().hex[:6]}@gmail.com"
+        user_a = global_auth_service.authenticate_social(email=email_a, provider="google", provider_id="sub-a")
+        token_a = global_auth_service.create_session(user_a)
+
+        # User B (Target / Victim)
+        email_b = f"userb-{uuid.uuid4().hex[:6]}@gmail.com"
+        user_b = global_auth_service.authenticate_social(email=email_b, provider="google", provider_id="sub-b")
+        self.assertEqual(user_b["password_hash"], "")
+
+        # User A attempts to set password for User B
+        attack_resp = self.client.post(
+            "/api/auth/set-password",
+            headers={"Authorization": f"Bearer {token_a}"},
+            json={"email": email_b, "new_password": "AttackerSecretPass123!"}
+        )
+        self.assertEqual(attack_resp.status_code, 403)
+        self.assertIn("Cross-account password modification is strictly prohibited", attack_resp.json()["detail"])
+
+        # Confirm User B's password was NOT set or mutated
+        victim_account = global_auth_service.repo.get_user_by_email(email_b)
+        self.assertEqual(victim_account["password_hash"], "")
+
+    def test_authenticated_password_recovery_flow_preserves_identity_and_data(self) -> None:
+        """
+        Verifies that an authenticated Google user can establish a password credential via /api/auth/set-password.
+        Asserts that user_id, email, social_providers (Google sub), role, and customer data are preserved,
+        and that unauthenticated recovery attempts are rejected.
+        """
+        import uuid
+        test_email = f"google-recovery-{uuid.uuid4().hex[:6]}@gmail.com"
+        google_sub = f"google-sub-{uuid.uuid4().hex[:6]}"
+
+        # 1. User signs up via Google OIDC
+        user = global_auth_service.authenticate_social(
+            email=test_email,
+            provider="google",
+            provider_id=google_sub,
+            name="Google Account Owner"
+        )
+        orig_social_providers = dict(user.get("social_providers", {}))
+        self.assertEqual(user["password_hash"], "")
+
+        # 2. Unauthenticated password reset attempt -> 401 Unauthorized
+        unauth_resp = self.client.post("/api/auth/set-password", json={
+            "new_password": "NewPassword123!"
+        })
+        self.assertEqual(unauth_resp.status_code, 401)
+
+        # 3. Create authenticated session for the Google user
+        token = global_auth_service.create_session(user)
+
+        # 4. Authenticated password update -> 200 Success
+        new_password = "NewPasswordForGoogleAccount123!"
+        auth_resp = self.client.post(
+            "/api/auth/set-password",
+            headers={"Authorization": f"Bearer {token}"},
+            json={"new_password": new_password}
+        )
+        self.assertEqual(auth_resp.status_code, 200)
+        self.assertEqual(auth_resp.json()["status"], "Success")
+
+        # 5. Assert Identity & Account Preservation
+        updated_user = global_auth_service.repo.get_user_by_email(test_email)
+        self.assertEqual(updated_user["email"], test_email)
+        self.assertEqual(updated_user["social_providers"], orig_social_providers)
+        self.assertNotEqual(updated_user["password_hash"], "")
+
+        # 6. Verify Email/Password Login works
+        login_resp = self.client.post("/api/auth/login", json={
+            "email": test_email,
+            "password": new_password
+        })
+        self.assertEqual(login_resp.status_code, 200)
+        self.assertEqual(login_resp.json()["user"]["email"], test_email)
+
+        # 7. Verify Google Sign-In still works
+        google_session = global_auth_service.authenticate_social(
+            email=test_email,
+            provider="google",
+            provider_id=google_sub
+        )
+        self.assertEqual(google_session["email"], test_email)
+
     def test_admin_role_granted_via_email_login_and_operator_authorization(self) -> None:
         """Verifies that registering or logging in via email as m.a.sohrabinia@gmail.com grants ADMIN role and authorizes Operator access."""
         admin_email = "admin-email-test@yartrader.app"

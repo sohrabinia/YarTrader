@@ -165,6 +165,18 @@ class AuthService:
             self.repo.save_db()
         return user
 
+    def set_user_password(self, email: str, new_password: str) -> Dict[str, Any]:
+        """Sets or updates the PBKDF2-SHA256 password credential for an existing user account."""
+        email_clean = email.strip().lower()
+        user = self.repo.get_user_by_email(email_clean)
+        if not user:
+            from src.Infrastructure.exceptions import ValidationException
+            raise ValidationException("User account not found.")
+
+        user["password_hash"] = self.hash_password(new_password)
+        self.repo.save_db()
+        return user
+
     def login_user(self, email: str, password: str) -> Optional[Dict[str, Any]]:
         """Authenticates email and password credentials."""
         email_clean = email.strip().lower()

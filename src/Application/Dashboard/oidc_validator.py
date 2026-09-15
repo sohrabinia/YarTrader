@@ -152,18 +152,21 @@ def validate_social_token(token: str, provider: str) -> Dict[str, Any]:
     except jwt.InvalidSignatureError as e:
         raise ValidationException(f"Social token signature verification failed: {str(e)}")
     except jwt.InvalidAudienceError as e:
-        # Extract unverified audience for safe diagnostic error details without exposing secrets
+        # Extract unverified audience safely for clear diagnostic reporting without exposing secrets
+        token_aud = "unknown"
+        token_azp = "unknown"
         try:
             unverified = jwt.decode(token, options={"verify_signature": False, "verify_aud": False})
             token_aud = unverified.get("aud")
             token_azp = unverified.get("azp")
-            raise ValidationException(
-                f"Social token validation error: Audience mismatch. "
-                f"Server expected client_id fingerprint '...{client_id[-12:] if len(client_id) >= 12 else client_id}', "
-                f"token contains aud='{token_aud}', azp='{token_azp}'."
-            )
         except Exception:
-            raise ValidationException(f"Social token validation error: Audience doesn't match: {str(e)}")
+            pass
+
+        fp = client_id[-12:] if len(client_id) >= 12 else client_id
+        raise ValidationException(
+            f"Audience mismatch. Server expected client_id fingerprint '...{fp}', "
+            f"token contains aud='{token_aud}', azp='{token_azp}'."
+        )
     except jwt.InvalidTokenError as e:
         raise ValidationException(f"Social token validation error: {str(e)}")
     except Exception as e:
