@@ -139,6 +139,46 @@ class TestP0RemediationSecurity(unittest.TestCase):
             self.assertIn("audience", str(ctx.exception).lower())
 
     @patch("src.Application.Dashboard.oidc_validator.fetch_jwks")
+    def test_social_login_google_unstripped_client_id_normalized(self, mock_fetch) -> None:
+        """Verifies that client_id with trailing whitespace/newlines is normalized and accepted."""
+        mock_fetch.return_value = self.mock_jwks
+
+        payload = {
+            "iss": "https://accounts.google.com",
+            "aud": "test-google-client-id",
+            "sub": "google-user-12345",
+            "email": "google-user@yartrader.app",
+            "exp": int(time.time()) + 3600,
+            "email_verified": True
+        }
+
+        token = jwt.encode(payload, self.private_key, algorithm="RS256", headers={"kid": "test-kid-123"})
+
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": " test-google-client-id\n "}):
+            decoded = validate_social_token(token, "google")
+            self.assertEqual(decoded["email"], "google-user@yartrader.app")
+
+    @patch("src.Application.Dashboard.oidc_validator.fetch_jwks")
+    def test_social_login_google_fallback_client_id(self, mock_fetch) -> None:
+        """Verifies that YARTRADER_GOOGLE_CLIENT_ID fallback is used when GOOGLE_CLIENT_ID is missing."""
+        mock_fetch.return_value = self.mock_jwks
+
+        payload = {
+            "iss": "https://accounts.google.com",
+            "aud": "fallback-client-id",
+            "sub": "google-user-12345",
+            "email": "google-user@yartrader.app",
+            "exp": int(time.time()) + 3600,
+            "email_verified": True
+        }
+
+        token = jwt.encode(payload, self.private_key, algorithm="RS256", headers={"kid": "test-kid-123"})
+
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "", "YARTRADER_GOOGLE_CLIENT_ID": "fallback-client-id"}):
+            decoded = validate_social_token(token, "google")
+            self.assertEqual(decoded["email"], "google-user@yartrader.app")
+
+    @patch("src.Application.Dashboard.oidc_validator.fetch_jwks")
     def test_social_login_google_wrong_issuer_rejected(self, mock_fetch) -> None:
         """Verifies that a token from an unverified/attacker issuer is strictly rejected."""
         mock_fetch.return_value = self.mock_jwks
