@@ -5421,6 +5421,7 @@ class LoginPayload(BaseModel):
 class SetPasswordPayload(BaseModel):
     new_password: str
     token: Optional[str] = None
+    email: Optional[str] = None
 
 @app.post("/api/auth/set-password")
 def set_account_password(payload: SetPasswordPayload, request: Request):
@@ -5439,9 +5440,15 @@ def set_account_password(payload: SetPasswordPayload, request: Request):
     if not session:
         raise HTTPException(status_code=401, detail="Invalid or expired session token.")
 
-    email = session.get("email")
-    if not email:
+    session_email = session.get("email")
+    if not session_email:
         raise HTTPException(status_code=400, detail="Invalid session identity.")
+
+    # Cross-Account Security Gate: Disallow modifying another user's password!
+    if payload.email and payload.email.strip().lower() != session_email.strip().lower():
+        raise HTTPException(status_code=403, detail="Forbidden: Cross-account password modification is strictly prohibited.")
+
+    email = session_email
 
     new_password = payload.new_password or ""
     if not new_password or len(new_password) < 6:

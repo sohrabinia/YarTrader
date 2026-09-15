@@ -135,6 +135,36 @@ class TestSaaSAuthAPI(unittest.TestCase):
         unmutated_admin = global_auth_service.repo.get_user_by_email(admin_email)
         self.assertEqual(unmutated_admin["password_hash"], admin_orig_hash)
 
+    def test_cross_account_password_modification_rejected(self) -> None:
+        """
+        Verifies that an authenticated user A cannot update user B's password credential.
+        Asserts HTTP 403 Forbidden and confirms user B's password and identity remain unchanged.
+        """
+        import uuid
+
+        # User A (Attacker / Authenticated User)
+        email_a = f"usera-{uuid.uuid4().hex[:6]}@gmail.com"
+        user_a = global_auth_service.authenticate_social(email=email_a, provider="google", provider_id="sub-a")
+        token_a = global_auth_service.create_session(user_a)
+
+        # User B (Target / Victim)
+        email_b = f"userb-{uuid.uuid4().hex[:6]}@gmail.com"
+        user_b = global_auth_service.authenticate_social(email=email_b, provider="google", provider_id="sub-b")
+        self.assertEqual(user_b["password_hash"], "")
+
+        # User A attempts to set password for User B
+        attack_resp = self.client.post(
+            "/api/auth/set-password",
+            headers={"Authorization": f"Bearer {token_a}"},
+            json={"email": email_b, "new_password": "AttackerSecretPass123!"}
+        )
+        self.assertEqual(attack_resp.status_code, 403)
+        self.assertIn("Cross-account password modification is strictly prohibited", attack_resp.json()["detail"])
+
+        # Confirm User B's password was NOT set or mutated
+        victim_account = global_auth_service.repo.get_user_by_email(email_b)
+        self.assertEqual(victim_account["password_hash"], "")
+
     def test_authenticated_password_recovery_flow_preserves_identity_and_data(self) -> None:
         """
         Verifies that an authenticated Google user can establish a password credential via /api/auth/set-password.
