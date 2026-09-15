@@ -17,17 +17,17 @@ class AuthRepository:
         self.users: Dict[str, Dict[str, Any]] = self._load_db()
 
     def _load_db(self) -> Dict[str, Dict[str, Any]]:
-        if not os.path.exists(self.filepath):
-            is_production = (os.environ.get("YARTRADER_ENV") == "production" or
-                             os.environ.get("TRADEYAR_ENV") == "production" or
-                             os.environ.get("RG_ENV") == "production")
+        is_production = (os.environ.get("YARTRADER_ENV") == "production" or
+                         os.environ.get("TRADEYAR_ENV") == "production" or
+                         os.environ.get("RG_ENV") == "production")
 
+        if not os.path.exists(self.filepath):
             # Derive primary administrator details safely without exposing personal identities
-            admin_email = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "admin-disabled@yartrader.app")).lower()
+            admin_email = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "admin-disabled@yartrader.app")).strip().lower()
+            admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH", ""))
 
             # Seed default admin and user accounts
             if is_production:
-                admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH"))
                 if not admin_pw_hash or admin_pw_hash in ("*", "placeholder", ""):
                     raise ValidationException(
                         "Production Configuration Error: YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH / TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH must be configured with a secure, non-empty PBKDF2 hash."
@@ -51,7 +51,7 @@ class AuthRepository:
                 default_data = {
                     admin_email: {
                         "email": admin_email,
-                        "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'admin123'
+                        "password_hash": admin_pw_hash if (admin_pw_hash and admin_pw_hash not in ("*", "placeholder")) else "",
                         "role": "ADMIN",
                         "name": "Principal Supervisor",
                         "social_providers": {},
@@ -60,7 +60,7 @@ class AuthRepository:
                     },
                     "trader@yartrader.app": {
                         "email": "trader@yartrader.app",
-                        "password_hash": "pbkdf2_sha256$100000$salt123$409c9f7a77e8a9f6d63bc72a4e2ef309f4e24eb87cfd6537dbbfa34563e46c7d", # mock for 'trader123'
+                        "password_hash": "",
                         "role": "USER",
                         "name": "Elite Trader",
                         "social_providers": {},
@@ -87,11 +87,58 @@ class AuthRepository:
             logger.error(f"Error saving auth database: {e}")
 
     def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
-        return self.users.get(email.lower())
+        """Pure lookup method returning user record without mutation side-effects."""
+        if not email or not isinstance(email, str):
+            return None
+        return self.users.get(email.strip().lower())
+
+    def synchronize_admin_credential(self, email: str) -> Optional[Dict[str, Any]]:
+        """
+        Synchronizes missing password credential for an existing recognized Admin account.
+        Rules:
+        - Applied strictly to recognized Admin identities (is_admin_email).
+        - Enforces Admin role (ADMIN) and tier (INSTITUTIONAL) invariants.
+        - Existing non-empty password_hash is NEVER overwritten.
+        - Synchronizes strictly from authoritative environment variables.
+        - Fails closed if production admin password hash is missing/unavailable.
+        - Preserves user_id, email, social_providers, role, tier, and customer data.
+        """
+        if not email or not isinstance(email, str):
+            return None
+
+        email_clean = email.strip().lower()
+        if not self.is_admin_email(email_clean):
+            return None
+
+        user = self.users.get(email_clean)
+        if not user:
+            return None
+
+        modified = False
+        if user.get("role") != "ADMIN":
+            user["role"] = "ADMIN"
+            modified = True
+        if user.get("tier") != "INSTITUTIONAL":
+            user["tier"] = "INSTITUTIONAL"
+            modified = True
+
+        # Existing password_hash MUST NEVER be overwritten
+        if not user.get("password_hash"):
+            admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH"))
+            if admin_pw_hash and admin_pw_hash not in ("*", "placeholder", ""):
+                user["password_hash"] = admin_pw_hash
+                modified = True
+
+        if modified:
+            self.save_db()
+
+        return user
 
     def is_admin_email(self, email: str) -> bool:
-        email_clean = email.lower()
-        default_admin = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "")).lower()
+        if not email or not isinstance(email, str):
+            return False
+        email_clean = email.strip().lower()
+        default_admin = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "")).strip().lower()
         admin_list = {"m.a.sohrabinia@gmail.com", "m.a.sorabinia@gmail.com", "admin@yartrader.app"}
         if default_admin:
             admin_list.add(default_admin)

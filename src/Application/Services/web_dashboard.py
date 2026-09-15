@@ -5378,13 +5378,16 @@ class RegisterPayload(BaseModel):
 
 @app.post("/api/auth/register")
 def register_with_email(payload: RegisterPayload, request: Request):
-    """Secure customer registration via email and password."""
+    """Secure registration endpoint enforcing Google-Only authentication for customers."""
     email = (payload.email or "").strip().lower()
     password = payload.password or ""
     name = (payload.name or "").strip()
 
     if not email or "@" not in email or "." not in email:
         raise HTTPException(status_code=400, detail="Invalid email address format.")
+
+    if not global_auth_service.repo.is_admin_email(email):
+        raise HTTPException(status_code=400, detail="Customer registration requires Google Sign-In. Use 'Continue with Google'.")
 
     if not password or len(password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters long.")
@@ -5470,12 +5473,15 @@ def set_account_password(payload: SetPasswordPayload, request: Request):
 
 @app.post("/api/auth/login")
 def login_with_email(payload: LoginPayload, request: Request):
-    """Secure customer login via email and password."""
+    """Secure login endpoint enforcing Google-Only authentication for customers while preserving Admin password auth."""
     email = (payload.email or "").strip().lower()
     password = payload.password or ""
 
     if not email or not password:
         raise HTTPException(status_code=400, detail="Email and password are required.")
+
+    if not global_auth_service.repo.is_admin_email(email):
+        raise HTTPException(status_code=400, detail="Customer authentication requires Google Sign-In. Use 'Continue with Google'.")
 
     user = global_auth_service.login_user(email=email, password=password)
     if not user:
