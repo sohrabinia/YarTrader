@@ -594,3 +594,45 @@ class TestSaaSAuthAPI(unittest.TestCase):
         self.tearDown()
         self.assertEqual(len(global_auth_service.repo.users), initial_count)
         self.assertIsNone(global_auth_service.repo.get_user_by_email(temp_email))
+
+    def test_admin_list_users_returns_registered_and_google_users(self) -> None:
+        """
+        Verifies that GET /api/admin/users lists all registered user accounts (including Google OIDC users),
+        requires ADMIN role authorization, and rejects non-admin/unauthenticated access.
+        """
+        # 1. Register a Google user
+        google_email = f"google-user-{uuid.uuid4().hex[:6]}@gmail.com"
+        google_sub = f"sub-google-{uuid.uuid4().hex[:6]}"
+        global_auth_service.authenticate_social(
+            email=google_email,
+            provider="google",
+            provider_id=google_sub,
+            name="Google Test User"
+        )
+
+        # 2. Unauthenticated access fails
+        unauth_resp = self.client.get("/api/admin/users")
+        self.assertEqual(unauth_resp.status_code, 401)
+
+        # 3. User role access fails with 403
+        user_session = {"email": "user@yartrader.app", "role": "USER", "user_id": "usr-normal"}
+        user_token = global_auth_service.create_session(user_session)
+        user_resp = self.client.get("/api/admin/users", headers={"Authorization": f"Bearer {user_token}"})
+        self.assertEqual(user_resp.status_code, 403)
+
+        # 4. Admin role access succeeds and contains the Google user
+        admin_session = {"email": "admin@yartrader.app", "role": "ADMIN", "user_id": "adm-sre"}
+        admin_token = global_auth_service.create_session(admin_session)
+        admin_resp = self.client.get("/api/admin/users", headers={"Authorization": f"Bearer {admin_token}"})
+        self.assertEqual(admin_resp.status_code, 200)
+        data = admin_resp.json()
+        self.assertEqual(data["status"], "Success")
+        self.assertGreaterEqual(data["count"], 1)
+
+        emails = [u["email"] for u in data["users"]]
+        self.assertIn(google_email, emails)
+
+        # Verify Google user details
+        google_user_item = next(u for u in data["users"] if u["email"] == google_email)
+        self.assertEqual(google_user_item["name"], "Google Test User")
+        self.assertIn("google", google_user_item["social_providers"])
