@@ -1171,8 +1171,49 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
 
     def test_missing_or_invalid_digits_fails_closed(self) -> None:
         """
-        Test F: Verifies that if authoritative symbol digits precision is missing or invalid,
-        the adapter fails closed with a ValidationException without inventing hardcoded precision.
+        Test F: Verifies that if authoritative symbol digits precision is missing or invalid
+        (None, bool, non-int, or negative int), the adapter fails closed with a ValidationException
+        without inventing hardcoded precision fallback.
+        """
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        adapter._initialized = True
+
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+        mock_tick = MagicMock(bid=2500.50, ask=2500.60)
+
+        mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+        adapter._mt5 = mock_mt5
+
+        invalid_digits_values = [None, True, False, "2", 2.5, -1]
+
+        for inv_digits in invalid_digits_values:
+            mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0)
+            if inv_digits is None:
+                del mock_sym.digits
+            else:
+                mock_sym.digits = inv_digits
+
+            mock_mt5.symbol_info.return_value = mock_sym
+
+            req = OrderRequest(
+                Symbol="XAUUSD",
+                OrderType="BUY",
+                Volume=0.01,
+                Price=2500.1234,
+                Comment="Fail Closed Test"
+            )
+
+            with self.assertRaises(ValidationException, msg=f"Failed to fail closed for digits={inv_digits}") as ctx:
+                adapter.send_order_to_broker(req)
+
+            self.assertIn("authoritative digits precision is missing or invalid", str(ctx.exception))
+
+    def test_digits_zero_precision_allowed_and_normalized(self) -> None:
+        """
+        Test G: Verifies that digits=0 is explicitly allowed as valid integer precision,
+        normalizing price, SL, and TP to integer values without error.
         """
         adapter = RealMT5BrokerAdapter(auto_initialize=False)
         adapter._initialized = True
@@ -1180,27 +1221,74 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5 = MagicMock()
         mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
 
-        # Symbol info with invalid digits attribute (-1)
-        mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=-1)
-        mock_tick = MagicMock(bid=2500.50, ask=2500.60)
+        # Symbol contract with digits = 0 (e.g. BTCUSD or JP225)
+        mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=0, filling_mode=2)
+        mock_tick = MagicMock(bid=50000.0, ask=50001.0)
 
         mock_mt5.account_info.return_value = mock_acc
         mock_mt5.symbol_info.return_value = mock_sym
         mock_mt5.symbol_info_tick.return_value = mock_tick
+        mock_mt5.ORDER_TYPE_BUY = 0
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.ORDER_FILLING_IOC = 1
+        mock_mt5.ORDER_FILLING_RETURN = 2
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        captured_reqs = []
+
+        def mock_order_check(req):
+            captured_reqs.append(req.copy())
+            check_obj = MagicMock()
+            check_obj.retcode = 10009
+            check_obj.comment = "OK"
+            return check_obj
+
+        mock_mt5.order_check.side_effect = mock_order_check
+        mock_mt5.order_send.return_value = MagicMock(retcode=10009, comment="Done", order=99999, deal=88888, price=50001.0, volume=0.01)
         adapter._mt5 = mock_mt5
 
         req = OrderRequest(
-            Symbol="XAUUSD",
+            Symbol="BTCUSD",
             OrderType="BUY",
             Volume=0.01,
-            Price=2500.1234,
-            Comment="Fail Closed Test"
+            Price=50000.8,
+            StopLoss=49000.4,
+            TakeProfit=51000.6,
+            Comment="Zero Digits Test"
         )
 
-        with self.assertRaises(ValidationException) as ctx:
-            adapter.send_order_to_broker(req)
+        resp = adapter.send_order_to_broker(req)
+        self.assertEqual(resp.Status, "Placed")
+        self.assertTrue(len(captured_reqs) > 0)
 
-        self.assertIn("authoritative digits precision is missing or invalid", str(ctx.exception))
+        sent_req = captured_reqs[0]
+        # Assert price, SL, and TP normalized to 0 decimals (integer values)
+        self.assertEqual(sent_req["price"], 50001.0)
+        self.assertEqual(sent_req["sl"], 49000.0)
+        self.assertEqual(sent_req["tp"], 51001.0)
+
+    def test_get_symbol_info_without_digits_fallback(self) -> None:
+        """
+        Test H: Verifies that get_symbol_info returns digits=None when sym.digits is missing or invalid,
+        without introducing a silent fallback to 2.
+        """
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        adapter._initialized = True
+
+        mock_mt5 = MagicMock()
+        mock_sym_no_digits = MagicMock(spec=["name", "volume_min", "volume_step", "volume_max", "trade_mode", "select", "point"])
+        mock_sym_no_digits.name = "XAUUSD"
+        mock_sym_no_digits.select = True
+
+        mock_mt5.symbol_info.return_value = mock_sym_no_digits
+        adapter._mt5 = mock_mt5
+
+        info = adapter.get_symbol_info("XAUUSD")
+        self.assertIsNotNone(info)
+        self.assertIn("digits", info)
+        self.assertIsNone(info["digits"])
 
 
 if __name__ == "__main__":
