@@ -234,6 +234,7 @@ function MainApp() {
   const [registerTf, setRegisterTf] = useState('64');
   const [adminSymbols, setAdminSymbols] = useState([]);
   const [adminReports, setAdminReports] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
   const [devopsStatus, setDevopsStatus] = useState({});
   const [devopsMetrics, setDevopsMetrics] = useState({});
   const [validationHistory, setValidationHistory] = useState([]);
@@ -444,6 +445,7 @@ function MainApp() {
     } else if (routePath === '/admin' && role === 'ADMIN') {
       fetchAdminSymbols();
       fetchAdminReports();
+      fetchAdminUsers();
       fetchStatus();
     }
   }, [routePath, selectedAsset, role, activeHorizon]);
@@ -787,6 +789,17 @@ function MainApp() {
     } catch (err) {
       console.error(err);
       setAdminReports([]);
+    }
+  };
+
+  const fetchAdminUsers = async () => {
+    try {
+      const res = await apiService.get('/api/admin/users');
+      const usrList = res.users || res || [];
+      setAdminUsers(Array.isArray(usrList) ? usrList : []);
+    } catch (err) {
+      console.error(err);
+      setAdminUsers([]);
     }
   };
 
@@ -2000,11 +2013,18 @@ function MainApp() {
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>👥 User Accounts & Access Control</h3>
                   <DataTable
-                    headers={['User ID', 'Name', 'Email', 'Role', 'Subscription Tier', 'Status']}
-                    rows={[
-                      ['usr-admin-01', <strong>SRE Administrator</strong>, 'admin@yartrader.app', <StatusBadge status="warning" label="ADMIN" />, 'Institutional Tier', <span className="status-passed">Active</span>],
-                      ['usr-trader-02', <strong>Elite Trader</strong>, 'trader@yartrader.app', <StatusBadge status="neutral" label="USER" />, 'Professional Tier', <span className="status-passed">Active</span>]
-                    ]}
+                    headers={['Name', 'Email', 'Role', 'Subscription Tier', 'Auth Providers', 'Status']}
+                    rows={adminUsers.map(u => [
+                      <strong>{u.name || u.email.split('@')[0]}</strong>,
+                      u.email,
+                      <StatusBadge status={u.role === 'ADMIN' ? 'warning' : 'neutral'} label={u.role} />,
+                      `${u.tier || 'FREE'} Tier`,
+                      u.social_providers && u.social_providers.length > 0
+                        ? u.social_providers.map(p => p.toUpperCase()).join(', ')
+                        : 'EMAIL/PASSWORD',
+                      <span className="status-passed">{u.status || 'Active'}</span>
+                    ])}
+                    emptyMessage="No registered user accounts found."
                   />
                 </div>
               )}

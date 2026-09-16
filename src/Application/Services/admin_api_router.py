@@ -461,3 +461,29 @@ def admin_delete_product(product_id: str, request: Request, token: Optional[str]
         "status": "Success",
         "message": f"Successfully deleted product '{product_id}' from the Business Catalog."
     }
+
+
+# ==============================================================================
+# SRE ADMIN USER MANAGEMENT ENDPOINTS
+# ==============================================================================
+@router.get("/users")
+def admin_list_users(request: Request, token: Optional[str] = None):
+    """Lists registered user accounts for administrative access control and management."""
+    enforce_admin_token(request if request.headers.get("authorization") else token)
+    users_raw = getattr(global_auth_service.repo, "users", {})
+    user_list = []
+    for email, user in users_raw.items():
+        user_list.append({
+            "email": user.get("email", email),
+            "name": user.get("name", ""),
+            "role": user.get("role", "USER"),
+            "tier": user.get("tier", "FREE"),
+            "is_verified": bool(user.get("is_verified", False)),
+            "social_providers": list((user.get("social_providers") or {}).keys()),
+            "status": "ACTIVE"
+        })
+    return {
+        "status": "Success",
+        "count": len(user_list),
+        "users": user_list
+    }
