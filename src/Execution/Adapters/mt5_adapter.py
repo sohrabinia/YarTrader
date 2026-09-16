@@ -147,13 +147,18 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         # Select symbol in Market Watch if not selected
         if not getattr(sym, "select", False):
             self._mt5.symbol_select(symbol, True)
+        raw_digits = getattr(sym, "digits", None) if not isinstance(sym, dict) else sym.get("digits")
+        if raw_digits is None or isinstance(raw_digits, bool) or not isinstance(raw_digits, int) or raw_digits < 0:
+            digits = None
+        else:
+            digits = raw_digits
         return sym._asdict() if hasattr(sym, "_asdict") else {
             "name": getattr(sym, "name", symbol),
             "volume_min": getattr(sym, "volume_min", 0.01),
             "volume_step": getattr(sym, "volume_step", 0.01),
             "volume_max": getattr(sym, "volume_max", 100.0),
             "trade_mode": getattr(sym, "trade_mode", 0),
-            "digits": getattr(sym, "digits", 2),
+            "digits": digits,
             "point": getattr(sym, "point", 0.01),
         }
 
