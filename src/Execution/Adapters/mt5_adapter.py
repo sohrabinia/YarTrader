@@ -255,17 +255,24 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if vol_step > 0:
             volume = round(round(volume / vol_step) * vol_step, 4)
 
+        # Extract authoritative decimal precision (digits) from live symbol contract
+        raw_digits = getattr(sym_info, "digits", None) if not isinstance(sym_info, dict) else sym_info.get("digits")
+        if raw_digits is None or isinstance(raw_digits, bool) or not isinstance(raw_digits, int) or raw_digits < 0:
+            raise ValidationException(f"Symbol '{request.Symbol}' authoritative digits precision is missing or invalid.")
+        digits = raw_digits
+
         # Sanitize comment and resolve filling mode
         sanitized_comment = self._sanitize_comment(request.Comment)
         filling_mode = self._resolve_filling_mode(mt5, request.Symbol, sym_info)
 
-        # Build MT5 order request structure
+        # Build MT5 order request structure with authoritative digits precision normalization
+        price_norm = round(float(price), digits)
         trade_req = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": request.Symbol,
             "volume": float(volume),
             "type": mt5_action_type,
-            "price": float(price),
+            "price": price_norm,
             "deviation": request.Deviation,
             "magic": request.Magic,
             "comment": sanitized_comment,
@@ -275,11 +282,25 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         if request.OrderType.upper() == "CLOSE" and request.PositionTicket:
             trade_req["position"] = int(request.PositionTicket)
+        else:
+            if request.StopLoss is not None and not isinstance(request.StopLoss, bool) and float(request.StopLoss) > 0:
+                trade_req["sl"] = round(float(request.StopLoss), digits)
+            if request.TakeProfit is not None and not isinstance(request.TakeProfit, bool) and float(request.TakeProfit) > 0:
+                trade_req["tp"] = round(float(request.TakeProfit), digits)
 
-        if request.StopLoss and request.StopLoss > 0:
-            trade_req["sl"] = float(request.StopLoss)
-        if request.TakeProfit and request.TakeProfit > 0:
-            trade_req["tp"] = float(request.TakeProfit)
+            # Validate broker stop level distance constraint if specified
+            stops_level = getattr(sym_info, "trade_stops_level", 0) if not isinstance(sym_info, dict) else sym_info.get("trade_stops_level", 0)
+            point = getattr(sym_info, "point", 0.01) if not isinstance(sym_info, dict) else sym_info.get("point", 0.01)
+            if stops_level and isinstance(stops_level, int) and stops_level > 0 and point and isinstance(point, (int, float)) and point > 0:
+                min_dist = stops_level * point
+                if "sl" in trade_req and abs(price_norm - trade_req["sl"]) < min_dist - 1e-7:
+                    raise ValidationException(
+                        f"StopLoss distance ({abs(price_norm - trade_req['sl']):.{digits}f}) violates symbol '{request.Symbol}' trade_stops_level ({min_dist:.{digits}f})."
+                    )
+                if "tp" in trade_req and abs(trade_req["tp"] - price_norm) < min_dist - 1e-7:
+                    raise ValidationException(
+                        f"TakeProfit distance ({abs(trade_req['tp'] - price_norm):.{digits}f}) violates symbol '{request.Symbol}' trade_stops_level ({min_dist:.{digits}f})."
+                    )
 
         # Build candidate filling modes (preferred resolved mode first, then remaining)
         fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)

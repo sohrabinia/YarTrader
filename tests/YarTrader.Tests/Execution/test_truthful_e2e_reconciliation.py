@@ -113,7 +113,7 @@ def test_order_check_fail_closed():
     mock_mt5 = MagicMock()
     mock_mt5.TRADE_RETCODE_DONE = 10009
     mock_mt5.TRADE_RETCODE_PLACED = 10008
-    mock_mt5.symbol_info.return_value = MagicMock(visible=True, volume_min=0.01, volume_step=0.01, volume_max=100.0)
+    mock_mt5.symbol_info.return_value = MagicMock(visible=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2)
     mock_mt5.symbol_info_tick.return_value = MagicMock(bid=2600.0, ask=2600.5)
 
     # Simulated failed order_check (retcode 10014 = INVALID_VOLUME)
@@ -167,7 +167,7 @@ def test_order_check_success_allows_order_send():
     adapter._initialized = True
 
     mock_mt5 = MagicMock()
-    mock_mt5.symbol_info.return_value = MagicMock(visible=True, volume_min=0.01, volume_step=0.01, volume_max=100.0)
+    mock_mt5.symbol_info.return_value = MagicMock(visible=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2)
     mock_mt5.symbol_info_tick.return_value = MagicMock(bid=2600.0, ask=2600.5)
 
     mock_check_res = MagicMock()
