@@ -69,6 +69,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_mt5.symbol_info.return_value = mock_sym
 
         mock_tick = MagicMock()
@@ -164,6 +165,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_sym.filling_mode = 1  # BITCOIN filling_mode = 1 (SYMBOL_FILLING_FOK)
         mock_mt5.symbol_info.return_value = mock_sym
 
@@ -232,6 +234,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_sym.filling_mode = 1
         mock_mt5.symbol_info.return_value = mock_sym
 
@@ -292,6 +295,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_mt5.symbol_info.return_value = mock_sym
 
         mock_tick = MagicMock()
@@ -335,6 +339,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_mt5.symbol_info.return_value = mock_sym
 
         mock_tick = MagicMock()
@@ -393,6 +398,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_mt5.symbol_info.return_value = mock_sym
 
         mock_tick = MagicMock()
@@ -445,6 +451,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_sym.filling_mode = 1
         mock_mt5.symbol_info.return_value = mock_sym
 
@@ -511,6 +518,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_sym.filling_mode = 2  # SYMBOL_FILLING_IOC (bit 1 = 2)
         mock_mt5.symbol_info.return_value = mock_sym
 
@@ -561,6 +569,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_mt5.symbol_info.return_value = mock_sym
 
         mock_tick = MagicMock()
@@ -609,6 +618,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_sym.filling_mode = 1  # FOK preferred
         mock_mt5.symbol_info.return_value = mock_sym
 
@@ -680,6 +690,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_sym.filling_mode = 1
         mock_mt5.symbol_info.return_value = mock_sym
 
@@ -730,6 +741,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_sym.volume_min = 0.01
         mock_sym.volume_step = 0.01
         mock_sym.volume_max = 100.0
+        mock_sym.digits = 2
         mock_sym.filling_mode = 1
         mock_mt5.symbol_info.return_value = mock_sym
 
@@ -884,6 +896,311 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         fail, fail_msg = reconcile_pnl(mismatched_mt5, journal)
         self.assertFalse(fail)
         self.assertIn("Net PnL mismatch", fail_msg)
+
+    def test_xauusd_price_sl_tp_digits_normalization_two_digits(self) -> None:
+        """
+        Test A: Verifies that send_order_to_broker normalizes unrounded 4-decimal price, SL, and TP
+        to exact symbol digits precision (digits=2 for XAUUSD) before calling order_check.
+        """
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        adapter._initialized = True
+
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+
+        # XAUUSD symbol contract with digits = 2
+        mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2, filling_mode=2)
+        mock_tick = MagicMock(bid=2500.50, ask=2500.60)
+
+        mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.symbol_info.return_value = mock_sym
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+        mock_mt5.ORDER_TYPE_BUY = 0
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.ORDER_FILLING_IOC = 1
+        mock_mt5.ORDER_FILLING_RETURN = 2
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        captured_reqs = []
+
+        def mock_order_check(req):
+            captured_reqs.append(req.copy())
+            check_obj = MagicMock()
+            check_obj.retcode = 10009
+            check_obj.comment = "OK"
+            return check_obj
+
+        mock_mt5.order_check.side_effect = mock_order_check
+        mock_mt5.order_send.return_value = MagicMock(retcode=10009, comment="Done", order=12345, deal=67890, price=2500.12, volume=0.01)
+        adapter._mt5 = mock_mt5
+
+        req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="BUY",
+            Volume=0.01,
+            Price=2500.1234,      # Unrounded 4-decimal entry price
+            StopLoss=2475.1234,   # Unrounded 4-decimal StopLoss
+            TakeProfit=2525.1234, # Unrounded 4-decimal TakeProfit
+            Comment="Precision Test"
+        )
+
+        resp = adapter.send_order_to_broker(req)
+        self.assertEqual(resp.Status, "Placed")
+        self.assertTrue(len(captured_reqs) > 0)
+
+        sent_req = captured_reqs[0]
+        # Assert normalized to 2 decimal places matching sym_info.digits = 2
+        self.assertEqual(sent_req["price"], 2500.12)
+        self.assertEqual(sent_req["sl"], 2475.12)
+        self.assertEqual(sent_req["tp"], 2525.12)
+
+    def test_dynamic_symbol_precision_three_and_five_digits(self) -> None:
+        """
+        Test B: Verifies that the execution adapter uses dynamic symbol precision (digits=3 and digits=5)
+        rather than a hard-coded 2 digits.
+        """
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        adapter._initialized = True
+
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+
+        # Symbol contract with digits = 3
+        mock_sym_3 = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=3, filling_mode=2)
+        mock_tick_3 = MagicMock(bid=160.123, ask=160.125)
+
+        mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.symbol_info.return_value = mock_sym_3
+        mock_mt5.symbol_info_tick.return_value = mock_tick_3
+        mock_mt5.ORDER_TYPE_BUY = 0
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.ORDER_FILLING_IOC = 1
+        mock_mt5.ORDER_FILLING_RETURN = 2
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        captured_reqs = []
+
+        def mock_order_check(req):
+            captured_reqs.append(req.copy())
+            check_obj = MagicMock()
+            check_obj.retcode = 10009
+            check_obj.comment = "OK"
+            return check_obj
+
+        mock_mt5.order_check.side_effect = mock_order_check
+        mock_mt5.order_send.return_value = MagicMock(retcode=10009, comment="Done", order=12346, deal=67891, price=160.126, volume=0.01)
+        adapter._mt5 = mock_mt5
+
+        req = OrderRequest(
+            Symbol="EURJPY",
+            OrderType="BUY",
+            Volume=0.01,
+            Price=160.12567,     # 5 decimals -> should round to 3
+            StopLoss=158.12345,  # 5 decimals -> should round to 3
+            TakeProfit=162.98765, # 5 decimals -> should round to 3
+            Comment="Precision 3"
+        )
+
+        resp = adapter.send_order_to_broker(req)
+        self.assertEqual(resp.Status, "Placed")
+        sent_req = captured_reqs[0]
+
+        self.assertEqual(sent_req["price"], 160.126)
+        self.assertEqual(sent_req["sl"], 158.123)
+        self.assertEqual(sent_req["tp"], 162.988)
+
+    def test_buy_and_sell_order_precision_normalization(self) -> None:
+        """
+        Test C: Verifies that both BUY and SELL direction order requests are normalized
+        to symbol digits precision.
+        """
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        adapter._initialized = True
+
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+        mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2, filling_mode=2)
+        mock_tick = MagicMock(bid=2500.50, ask=2500.60)
+
+        mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.symbol_info.return_value = mock_sym
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+        mock_mt5.ORDER_TYPE_SELL = 1
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.ORDER_FILLING_IOC = 1
+        mock_mt5.ORDER_FILLING_RETURN = 2
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        captured_reqs = []
+
+        def mock_order_check(req):
+            captured_reqs.append(req.copy())
+            check_obj = MagicMock()
+            check_obj.retcode = 10009
+            check_obj.comment = "OK"
+            return check_obj
+
+        mock_mt5.order_check.side_effect = mock_order_check
+        mock_mt5.order_send.return_value = MagicMock(retcode=10009, comment="Done", order=12348, deal=67893, price=2500.50, volume=0.01)
+        adapter._mt5 = mock_mt5
+
+        req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="SELL",
+            Volume=0.01,
+            Price=2500.5049,
+            StopLoss=2525.5049,
+            TakeProfit=2475.5049,
+            Comment="SELL Precision"
+        )
+
+        resp = adapter.send_order_to_broker(req)
+        self.assertEqual(resp.Status, "Placed")
+        sent_req = captured_reqs[0]
+
+        self.assertEqual(sent_req["price"], 2500.50)
+        self.assertEqual(sent_req["sl"], 2525.50)
+        self.assertEqual(sent_req["tp"], 2475.50)
+
+    def test_close_order_normalizes_price_without_sl_tp_injection(self) -> None:
+        """
+        Test D: Verifies that CLOSE order requests normalize the execution price to symbol digits
+        and do NOT inject SL or TP parameters into the order request structure.
+        """
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        adapter._initialized = True
+
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+        mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2, filling_mode=2)
+        mock_tick = MagicMock(bid=2500.50, ask=2500.60)
+        mock_pos = MagicMock(ticket=123456, type=0) # POSITION_TYPE_BUY
+
+        mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.symbol_info.return_value = mock_sym
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+        mock_mt5.positions_get.return_value = [mock_pos]
+        mock_mt5.POSITION_TYPE_BUY = 0
+        mock_mt5.ORDER_TYPE_SELL = 1
+        mock_mt5.TRADE_ACTION_DEAL = 1
+        mock_mt5.ORDER_TIME_GTC = 0
+        mock_mt5.ORDER_FILLING_FOK = 0
+        mock_mt5.ORDER_FILLING_IOC = 1
+        mock_mt5.ORDER_FILLING_RETURN = 2
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+
+        captured_reqs = []
+
+        def mock_order_check(req):
+            captured_reqs.append(req.copy())
+            check_obj = MagicMock()
+            check_obj.retcode = 10009
+            check_obj.comment = "OK"
+            return check_obj
+
+        mock_mt5.order_check.side_effect = mock_order_check
+        mock_mt5.order_send.return_value = MagicMock(retcode=10009, comment="Closed", order=12349, deal=67894, price=2500.50, volume=0.01)
+
+        # Mock position check after close to simulate flat
+        def mock_get_positions(symbol=None, ticket=None):
+            return []
+        adapter.get_positions = mock_get_positions
+        adapter._mt5 = mock_mt5
+
+        req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="CLOSE",
+            Volume=0.01,
+            PositionTicket="123456",
+            StopLoss=2475.0,  # Should NOT be injected into CLOSE request
+            TakeProfit=2525.0, # Should NOT be injected into CLOSE request
+            Comment="YarClose"
+        )
+
+        resp = adapter.send_order_to_broker(req)
+        self.assertEqual(resp.Status, "Placed")
+        sent_req = captured_reqs[0]
+
+        # Assert SL and TP are NOT present in CLOSE request structure
+        self.assertNotIn("sl", sent_req)
+        self.assertNotIn("tp", sent_req)
+        self.assertEqual(sent_req["price"], 2500.50)
+        self.assertEqual(sent_req["position"], 123456)
+
+    def test_trade_stops_level_distance_constraint(self) -> None:
+        """
+        Test E: Verifies that if requested StopLoss/TakeProfit is closer to entry price than
+        the broker's trade_stops_level, send_order_to_broker fails closed with ValidationException.
+        """
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        adapter._initialized = True
+
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+
+        # Symbol contract with trade_stops_level = 50 points ($0.50 for XAUUSD point=0.01)
+        mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2, point=0.01, trade_stops_level=50, filling_mode=2)
+        mock_tick = MagicMock(bid=2500.50, ask=2500.60)
+
+        mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.symbol_info.return_value = mock_sym
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+        mock_mt5.ORDER_TYPE_BUY = 0
+        adapter._mt5 = mock_mt5
+
+        # StopLoss is only $0.20 away (20 points < 50 points minimum distance)
+        too_close_req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="BUY",
+            Volume=0.01,
+            Price=2500.60,
+            StopLoss=2500.40,
+            Comment="Too Close SL"
+        )
+
+        with self.assertRaises(ValidationException) as ctx:
+            adapter.send_order_to_broker(too_close_req)
+
+        self.assertIn("violates symbol 'XAUUSD' trade_stops_level", str(ctx.exception))
+
+    def test_missing_or_invalid_digits_fails_closed(self) -> None:
+        """
+        Test F: Verifies that if authoritative symbol digits precision is missing or invalid,
+        the adapter fails closed with a ValidationException without inventing hardcoded precision.
+        """
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        adapter._initialized = True
+
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+
+        # Symbol info with invalid digits attribute (-1)
+        mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=-1)
+        mock_tick = MagicMock(bid=2500.50, ask=2500.60)
+
+        mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.symbol_info.return_value = mock_sym
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+        adapter._mt5 = mock_mt5
+
+        req = OrderRequest(
+            Symbol="XAUUSD",
+            OrderType="BUY",
+            Volume=0.01,
+            Price=2500.1234,
+            Comment="Fail Closed Test"
+        )
+
+        with self.assertRaises(ValidationException) as ctx:
+            adapter.send_order_to_broker(req)
+
+        self.assertIn("authoritative digits precision is missing or invalid", str(ctx.exception))
 
 
 if __name__ == "__main__":
