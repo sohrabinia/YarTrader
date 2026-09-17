@@ -21,8 +21,9 @@ class TestDataBoundaryAndMemorySafety(unittest.TestCase):
         self.provider = MT5DataProvider()
 
     def test_30_instrument_path_bypasses_legacy_technical_analysis_pipeline(self):
+        from unittest.mock import patch
+
         runtime = ResearchRuntime(symbol="EURUSD", timeframe="H1")
-        # Assert default research engine is PrimitiveMarketResearchEngine
         self.assertIsInstance(
             runtime.research_engine,
             PrimitiveMarketResearchEngine,
@@ -34,15 +35,17 @@ class TestDataBoundaryAndMemorySafety(unittest.TestCase):
             "30-instrument research path MUST NOT default to FeatureExtractionResearchEngine"
         )
 
-        res = runtime.run_once()
+        # Patch legacy TechnicalAnalysisEngine.analyze and FeatureExtractionResearchEngine.analyze_market to raise if invoked
+        with patch("src.Research.analysis_pipeline.TechnicalAnalysisEngine.analyze", side_effect=AssertionError("LEGACY_PIPELINE_INVOKED")), \
+             patch("src.Research.MarketAnalysis.Services.services.FeatureExtractionResearchEngine.analyze_market", side_effect=AssertionError("LEGACY_ENGINE_INVOKED")):
+            res = runtime.run_once()
+
         self.assertIsNotNone(res)
         self.assertEqual(res.Request.Asset, "EURUSD")
 
-        # Assert indicator_independent flag is set in findings
         findings = res.Findings
         self.assertTrue(findings.get("indicator_independent"), "Findings must mark indicator_independent=True")
 
-        # Assert primitive observation contains strictly raw market facts
         prim_obs = findings.get("primitive_observation", {})
         self.assertIn("latest_price", prim_obs)
         self.assertIn("high", prim_obs)
