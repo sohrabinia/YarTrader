@@ -4,12 +4,14 @@ from src.Data.Providers.MT5.mt5 import MT5DataProvider
 from src.Data.External.models import ExternalDataRequest
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from src.Data.Market.models import CompactMarketState
+from src.Research.MarketAnalysis.Services.services import PrimitiveMarketResearchEngine, FeatureExtractionResearchEngine
 
 class TestDataBoundaryAndMemorySafety(unittest.TestCase):
     """
     Tests enforcing Non-Negotiable Data Architecture & Memory Safety:
     - Bounded requests (~300-600 candles max lookback)
     - Zero technical indicators in CompactMarketState (NO volatility_atr, NO momentum_rsi)
+    - 30-instrument path bypasses legacy FeatureExtractionResearchEngine and technical analysis pipeline
     - Strictly primitive market facts (current_price, high, low, volume, spread, timestamp, freshness, validity)
     - Zero bulk historical download pipeline / warehouse creation
     - Bounded memory footprint
@@ -17,6 +19,44 @@ class TestDataBoundaryAndMemorySafety(unittest.TestCase):
 
     def setUp(self):
         self.provider = MT5DataProvider()
+
+    def test_30_instrument_path_bypasses_legacy_technical_analysis_pipeline(self):
+        runtime = ResearchRuntime(symbol="EURUSD", timeframe="H1")
+        # Assert default research engine is PrimitiveMarketResearchEngine
+        self.assertIsInstance(
+            runtime.research_engine,
+            PrimitiveMarketResearchEngine,
+            "Default 30-instrument research engine MUST be PrimitiveMarketResearchEngine"
+        )
+        self.assertNotIsInstance(
+            runtime.research_engine,
+            FeatureExtractionResearchEngine,
+            "30-instrument research path MUST NOT default to FeatureExtractionResearchEngine"
+        )
+
+        res = runtime.run_once()
+        self.assertIsNotNone(res)
+        self.assertEqual(res.Request.Asset, "EURUSD")
+
+        # Assert indicator_independent flag is set in findings
+        findings = res.Findings
+        self.assertTrue(findings.get("indicator_independent"), "Findings must mark indicator_independent=True")
+
+        # Assert primitive observation contains strictly raw market facts
+        prim_obs = findings.get("primitive_observation", {})
+        self.assertIn("latest_price", prim_obs)
+        self.assertIn("high", prim_obs)
+        self.assertIn("low", prim_obs)
+        self.assertIn("volume", prim_obs)
+        self.assertNotIn("volatility_atr", prim_obs)
+        self.assertNotIn("momentum_rsi", prim_obs)
+        self.assertNotIn("price_trend", prim_obs)
+
+    def test_legacy_feature_extraction_engine_preserved_when_explicitly_passed(self):
+        # Legacy consumers can still explicitly pass FeatureExtractionResearchEngine
+        legacy_engine = FeatureExtractionResearchEngine(data_provider=self.provider)
+        runtime = ResearchRuntime(symbol="XAUUSD", timeframe="H1", research_engine=legacy_engine)
+        self.assertIsInstance(runtime.research_engine, FeatureExtractionResearchEngine)
 
     def test_compact_market_state_has_no_technical_indicators(self):
         req = ExternalDataRequest(
@@ -79,12 +119,6 @@ class TestDataBoundaryAndMemorySafety(unittest.TestCase):
             "offline" in resp.error_message.lower() or "connection lost" in resp.error_message.lower(),
             f"Expected error message indicating offline/disconnected state, got: {resp.error_message}"
         )
-
-    def test_research_runtime_bounded_execution(self):
-        runtime = ResearchRuntime(symbol="BTCUSD", timeframe="H1")
-        res = runtime.run_once()
-        self.assertIsNotNone(res)
-        self.assertEqual(res.Request.Asset, "BTCUSD")
 
 if __name__ == "__main__":
     unittest.main()

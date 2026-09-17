@@ -3,6 +3,8 @@ from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app
 from src.Intelligence.Execution.alignment import MultiTimeframeAlignmentEngine
 from src.Application.Runtime.research_runtime import ResearchRuntime
+from src.Research.MarketAnalysis.Services.services import FeatureExtractionResearchEngine
+from src.Data.MarketData.Providers.providers import MetaTrader5Provider
 from src.Core.timeframes import SUPPORTED_TIMEFRAMES
 
 class TestMultiTimeframeSupport(unittest.TestCase):
@@ -57,10 +59,11 @@ class TestMultiTimeframeSupport(unittest.TestCase):
         """
         timeframes = ["M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
         for tf in timeframes:
-            # Create a research runtime context
+            # Create a research runtime context with FeatureExtractionResearchEngine for legacy timeframe tests
             runtime = ResearchRuntime(
                 symbol="XAUUSD",
                 timeframe=tf,
+                research_engine=FeatureExtractionResearchEngine(data_provider=MetaTrader5Provider()),
                 evidence_dir="test_timeframe_logs"
             )
             # Run the analytical pipeline and assert success

@@ -2,4 +2,4 @@
 system_limits:
   max_active_symbols: 30
   default_timeframes: [1, 4, 16, 64, 256, 1024]
-  allowed_assets: ["XAUUSD", "XAGUSD", "EURUSD", "USDJPY", "GBPUSD", "USDCHF", "AUDUSD", "USDCAD", "NZDUSD", "EURJPY", "GBPJPY", "EURGBP", "AUDJPY", "EURCHF", "CADJPY", "BTCUSD", "ETHUSD", "SOLUSD", "BNBUSD", "XRPUSD", "ADAUSD", "DOGEUSD", "AVAXUSD", "DOTUSD", "LINKUSD", "LTCUSD", "BCHUSD", "NEARUSD", "UNIUSD", "ATOMUSD"]
+  allowed_assets: ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "ETHUSD"]

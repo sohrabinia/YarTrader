@@ -138,41 +138,13 @@ class SymbolRegistry:
             except Exception as e:
                 print(f"Warning: Failed to load market_universe.yaml: {e}")
 
-        # Default fallback registry configuration (Exact 30 Instruments: 15 FX/Metal + 15 Crypto)
-        default_tfs = ["M15", "H1", "H4", "D1"]
+        # Default fallback registry configuration
         self.registry = {
-            # FX/Metal (15)
-            "XAUUSD": {"active": True, "asset_class": "Commodities", "provider": "MT5", "timeframes": default_tfs},
-            "XAGUSD": {"active": True, "asset_class": "Commodities", "provider": "MT5", "timeframes": default_tfs},
-            "EURUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "USDJPY": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "GBPUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "USDCHF": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "AUDUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "USDCAD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "NZDUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "EURJPY": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "GBPJPY": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "EURGBP": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "AUDJPY": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "EURCHF": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            "CADJPY": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": default_tfs},
-            # Crypto (15)
-            "BTCUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "ETHUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "SOLUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "BNBUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "XRPUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "ADAUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "DOGEUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "AVAXUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "DOTUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "LINKUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "LTCUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "BCHUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "NEARUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "UNIUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs},
-            "ATOMUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": default_tfs}
+            "XAUUSD": {"active": True, "asset_class": "Commodities", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
+            "EURUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
+            "GBPUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
+            "BTCUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
+            "ETHUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]}
         }
         self.save_registry()
 

@@ -7,18 +7,19 @@ from src.Infrastructure.exceptions import ValidationException
 from src.Data.MarketData.Providers.providers import MetaTrader5Provider
 from src.Data.MarketData.Models.models import MarketDataRequest
 from src.Research.MarketAnalysis.Models.models import ResearchRequest, ResearchResult
-from src.Research.MarketAnalysis.Services.services import FeatureExtractionResearchEngine
+from src.Research.MarketAnalysis.Services.services import FeatureExtractionResearchEngine, PrimitiveMarketResearchEngine
+from src.Research.MarketAnalysis.Interfaces.interfaces import IResearchEngine
 
 class ResearchRuntime:
     """
     Autonomous Non-Trading Research Runtime.
     Polls real-time market data from read-only MetaTrader 5 adapter,
-    triggers passive feature calculation, and executes the research analysis pipeline.
+    triggers indicator-independent research analysis, and manages runtime snapshot states.
     """
     def __init__(
         self,
         provider: Optional[MetaTrader5Provider] = None,
-        research_engine: Optional[FeatureExtractionResearchEngine] = None,
+        research_engine: Optional[IResearchEngine] = None,
         symbol: str = "XAUUSD",
         timeframe: str = "H1",
         evidence_dir: Optional[str] = None,
@@ -26,7 +27,7 @@ class ResearchRuntime:
         asset_class: str = "Forex"
     ) -> None:
         self._provider = provider or MetaTrader5Provider()
-        self._research_engine = research_engine or FeatureExtractionResearchEngine(data_provider=self._provider)
+        self._research_engine = research_engine or PrimitiveMarketResearchEngine(data_provider=self._provider)
         self._symbol = symbol
         self._timeframe = timeframe
 
@@ -54,7 +55,7 @@ class ResearchRuntime:
         return self._provider
 
     @property
-    def research_engine(self) -> FeatureExtractionResearchEngine:
+    def research_engine(self) -> IResearchEngine:
         return self._research_engine
 
     @property
@@ -159,7 +160,7 @@ class ResearchRuntime:
             result = self._research_engine.analyze_market(research_req)
 
             # 6. Verify outputs and confirm features are generated
-            features_generated = "feature_set" in result.Findings
+            features_generated = ("feature_set" in result.Findings) or ("primitive_observation" in result.Findings)
             self._log_evidence(f"Features Generated: {str(features_generated).lower()}")
             self._log_evidence("Research Completed: true")
 

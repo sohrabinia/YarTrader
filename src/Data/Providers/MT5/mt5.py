@@ -41,14 +41,12 @@ if not MT5_AVAILABLE:
         mock_mt5.last_error.return_value = (0, "Success")
 
         def mock_symbol_info(symbol):
-            if not symbol or not isinstance(symbol, str):
-                return None
-            if symbol.startswith("UNAVAIL") or symbol.startswith("INVALID") or symbol.startswith("NONEXISTENT"):
-                return None
-            from unittest.mock import MagicMock
-            sym_obj = MagicMock()
-            sym_obj.name = symbol
-            return sym_obj
+            if symbol in ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]:
+                from unittest.mock import MagicMock
+                sym_obj = MagicMock()
+                sym_obj.name = symbol
+                return sym_obj
+            return None
         mock_mt5.symbol_info.side_effect = mock_symbol_info
 
         mock_mt5.TIMEFRAME_M1 = 1
