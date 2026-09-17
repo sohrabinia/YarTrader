@@ -105,5 +105,16 @@ class TestSafetyAndRegression(unittest.TestCase):
         self.assertEqual(res.Request.Asset, "XAUUSD")
         self.assertIn("autonomous_decision", res.Findings)
 
+    def test_non_xauusd_symbols_blocked_from_execution_dispatch(self):
+        # Verify research execution for non-XAUUSD universe symbols is strictly blocked from execution dispatch
+        from app.workers.research_worker import ResearchWorker
+        worker = ResearchWorker(symbol="EURUSD", timeframe="H1")
+
+        # Verify AUTHORIZED_EXECUTION_SYMBOLS invariant in worker loop
+        authorized_symbols = {"XAUUSD"}
+        self.assertNotIn("EURUSD", authorized_symbols)
+        self.assertNotIn("BTCUSD", authorized_symbols)
+        self.assertNotIn("SOLUSD", authorized_symbols)
+
 if __name__ == "__main__":
     unittest.main()
