@@ -1290,6 +1290,101 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertIn("digits", info)
         self.assertIsNone(info["digits"])
 
+    def test_get_account_info_normalizes_margin_free_to_free_margin_asdict_path(self) -> None:
+        """
+        Regression Test: Verifies that native MT5 account_info() with _asdict() exposing margin_free
+        is correctly normalized to expose 'free_margin' in get_account_info() while preserving
+        identity fields (login, server, trade_mode, equity).
+        """
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        adapter._initialized = True
+
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock()
+        mock_acc._asdict.return_value = {
+            "login": 52961173,
+            "server": "Alpari-MT5-Demo",
+            "trade_mode": 0,
+            "equity": 10000.0,
+            "balance": 10000.0,
+            "margin_free": 8500.50,
+            "profit": 0.0,
+            "currency": "USD",
+            "leverage": 100
+        }
+        mock_mt5.account_info.return_value = mock_acc
+        adapter._mt5 = mock_mt5
+
+        acc_dict = adapter.get_account_info()
+
+        self.assertIsNotNone(acc_dict)
+        self.assertEqual(acc_dict["login"], 52961173)
+        self.assertEqual(acc_dict["server"], "Alpari-MT5-Demo")
+        self.assertEqual(acc_dict["trade_mode"], 0)
+        self.assertEqual(acc_dict["equity"], 10000.0)
+        self.assertEqual(acc_dict["margin_free"], 8500.50)
+        self.assertEqual(acc_dict["free_margin"], 8500.50)
+
+    def test_get_account_info_normalizes_margin_free_object_fallback_path(self) -> None:
+        """
+        Regression Test: Verifies that MT5 account_info() object without _asdict() exposes margin_free
+        and is correctly mapped to 'free_margin' in get_account_info().
+        """
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        adapter._initialized = True
+
+        mock_mt5 = MagicMock()
+        # Non-asdict mock object
+        class MockAccountInfo:
+            login = 52961173
+            server = "Alpari-MT5-Demo"
+            trade_mode = 0
+            equity = 12000.0
+            balance = 12000.0
+            profit = 0.0
+            currency = "USD"
+            leverage = 100
+            margin_free = 9400.25
+
+        mock_mt5.account_info.return_value = MockAccountInfo()
+        adapter._mt5 = mock_mt5
+
+        acc_dict = adapter.get_account_info()
+
+        self.assertIsNotNone(acc_dict)
+        self.assertEqual(acc_dict["login"], 52961173)
+        self.assertEqual(acc_dict["server"], "Alpari-MT5-Demo")
+        self.assertEqual(acc_dict["trade_mode"], 0)
+        self.assertEqual(acc_dict["equity"], 12000.0)
+        self.assertEqual(acc_dict["margin_free"], 9400.25)
+        self.assertEqual(acc_dict["free_margin"], 9400.25)
+
+    def test_get_account_info_missing_margin_free_returns_none_free_margin(self) -> None:
+        """
+        Regression Test: Verifies that if MT5 account_info() provides no margin_free value,
+        'free_margin' is absent and no fallback/default/equity value is fabricated (fail-closed).
+        """
+        adapter = RealMT5BrokerAdapter(auto_initialize=False)
+        adapter._initialized = True
+
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock(spec=["_asdict"])
+        mock_acc._asdict.return_value = {
+            "login": 52961173,
+            "server": "Alpari-MT5-Demo",
+            "trade_mode": 0,
+            "equity": 10000.0,
+            "balance": 10000.0,
+        }
+        mock_mt5.account_info.return_value = mock_acc
+        adapter._mt5 = mock_mt5
+
+        acc_dict = adapter.get_account_info()
+
+        self.assertIsNotNone(acc_dict)
+        self.assertNotIn("margin_free", acc_dict)
+        self.assertNotIn("free_margin", acc_dict)
+
 
 if __name__ == "__main__":
     unittest.main()
