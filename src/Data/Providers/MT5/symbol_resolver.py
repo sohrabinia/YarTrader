@@ -106,17 +106,6 @@ class MT5SymbolResolver:
         except Exception:
             pass
 
-        # 3. Check mock context or pytest deterministic match
-        from unittest.mock import MagicMock
-        is_mock = isinstance(mt5, MagicMock) or type(mt5).__name__ == "MagicMock"
-        if is_mock or "pytest" in sys.modules or "unittest" in sys.modules:
-            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-            reg_symbols = SymbolRegistry.get_instance().get_all_registered()
-            if clean_sym in reg_symbols:
-                with self._lock:
-                    self._cache[clean_sym] = clean_sym
-                return clean_sym
-
         logger.warning(f"[MT5SymbolResolver] Failed to resolve canonical symbol '{canonical_symbol}' on active MT5 broker. Returning None.")
         return None
 

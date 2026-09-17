@@ -47,3 +47,24 @@ class MarketDataResponse:
     metadata: MarketDataMetadata
     is_success: bool = True
     error_message: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class CompactMarketState:
+    """
+    Compact derived market state calculated immediately adjacent to the MT5 adapter boundary.
+    Exposes essential indicators/features without transferring or persisting raw historical candle series.
+    """
+    symbol: str
+    timeframe: str
+    timestamp: datetime
+    current_price: float
+    high: float
+    low: float
+    volume: float
+    volatility_atr: float
+    trend_state: str  # "bullish", "bearish", "neutral"
+    momentum_rsi: float
+    data_freshness_sec: float
+    is_valid: bool
+    bar_count: int

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from src.Data.External.interfaces import IDataProvider
 from src.Data.External.models import DataSourceType, DataProviderMetadata, ExternalDataRequest, ExternalDataResponse, ProviderHealthStatus
-from src.Data.Market.models import MarketInstrument, CandleRecord, MarketDataMetadata, MarketDataRequest, MarketDataResponse
+from src.Data.Market.models import MarketInstrument, CandleRecord, MarketDataMetadata, MarketDataRequest, MarketDataResponse, CompactMarketState
 from src.Infrastructure.exceptions import ValidationException
 
 import os
@@ -173,7 +173,110 @@ class MT5ConnectionHealth:
 
 
 class MT5DataMapper:
-    """Maps raw MT5 rates structures into standardized CandleRecord models."""
+    """Maps raw MT5 rates structures into standardized CandleRecord models and CompactMarketState metrics."""
+
+    def extract_compact_state(self, symbol: str, timeframe: str, raw_rates: List[Dict[str, Any]]) -> CompactMarketState:
+        """
+        Calculates compact derived market state metrics immediately adjacent to the MT5 adapter boundary.
+        Extracts ATR volatility, trend state, RSI momentum, price, and freshness metrics from raw rates.
+        """
+        if not raw_rates:
+            return CompactMarketState(
+                symbol=symbol,
+                timeframe=timeframe,
+                timestamp=datetime.now(),
+                current_price=0.0,
+                high=0.0,
+                low=0.0,
+                volume=0.0,
+                volatility_atr=0.0,
+                trend_state="neutral",
+                momentum_rsi=50.0,
+                data_freshness_sec=999999.0,
+                is_valid=False,
+                bar_count=0
+            )
+
+        candles = self.map_rates_to_candles(raw_rates)
+        if not candles:
+            return CompactMarketState(
+                symbol=symbol,
+                timeframe=timeframe,
+                timestamp=datetime.now(),
+                current_price=0.0,
+                high=0.0,
+                low=0.0,
+                volume=0.0,
+                volatility_atr=0.0,
+                trend_state="neutral",
+                momentum_rsi=50.0,
+                data_freshness_sec=999999.0,
+                is_valid=False,
+                bar_count=0
+            )
+
+        latest = candles[-1]
+        bars_count = len(candles)
+
+        current_price = latest.close
+        high = max(c.high for c in candles)
+        low = min(c.low for c in candles)
+        volume = sum(c.volume for c in candles)
+
+        tr_list = []
+        for i in range(1, len(candles)):
+            prev_close = candles[i-1].close
+            c = candles[i]
+            tr = max(c.high - c.low, abs(c.high - prev_close), abs(c.low - prev_close))
+            tr_list.append(tr)
+        volatility_atr = (sum(tr_list[-14:]) / len(tr_list[-14:])) if tr_list else (high - low)
+
+        ma14 = sum(c.close for c in candles[-14:]) / min(len(candles), 14)
+        if current_price > ma14 * 1.001:
+            trend_state = "bullish"
+        elif current_price < ma14 * 0.999:
+            trend_state = "bearish"
+        else:
+            trend_state = "neutral"
+
+        gains, losses = [], []
+        for i in range(1, len(candles)):
+            diff = candles[i].close - candles[i-1].close
+            if diff >= 0:
+                gains.append(diff)
+                losses.append(0.0)
+            else:
+                gains.append(0.0)
+                losses.append(abs(diff))
+
+        avg_gain = (sum(gains[-14:]) / 14) if len(gains) >= 14 else (sum(gains) / max(1, len(gains)))
+        avg_loss = (sum(losses[-14:]) / 14) if len(losses) >= 14 else (sum(losses) / max(1, len(losses)))
+
+        if avg_loss == 0:
+            momentum_rsi = 100.0 if avg_gain > 0 else 50.0
+        else:
+            rs = avg_gain / avg_loss
+            momentum_rsi = 100.0 - (100.0 / (1.0 + rs))
+
+        now_ts = datetime.now()
+        freshness_sec = max(0.0, (now_ts - latest.timestamp).total_seconds()) if latest.timestamp else 0.0
+
+        return CompactMarketState(
+            symbol=symbol,
+            timeframe=timeframe,
+            timestamp=latest.timestamp,
+            current_price=current_price,
+            high=high,
+            low=low,
+            volume=volume,
+            volatility_atr=volatility_atr,
+            trend_state=trend_state,
+            momentum_rsi=momentum_rsi,
+            data_freshness_sec=freshness_sec,
+            is_valid=True,
+            bar_count=bars_count
+        )
+
     def map_rates_to_candles(self, raw_rates: List[Dict[str, Any]]) -> List[CandleRecord]:
         candles = []
         for rate in raw_rates:
@@ -670,6 +773,27 @@ class MT5DataProvider(IDataProvider):
                 is_success=False,
                 error_message=f"Exception in fetch_data: {str(e)}"
             )
+
+    def fetch_compact_market_state(self, request: ExternalDataRequest) -> CompactMarketState:
+        """Fetches market rates and derives a compact market state object at the adapter boundary."""
+        resp = self.fetch_data(request)
+        if not resp.is_success or not resp.raw_data:
+            return CompactMarketState(
+                symbol=request.symbol,
+                timeframe=request.timeframe,
+                timestamp=datetime.now(),
+                current_price=0.0,
+                high=0.0,
+                low=0.0,
+                volume=0.0,
+                volatility_atr=0.0,
+                trend_state="neutral",
+                momentum_rsi=50.0,
+                data_freshness_sec=999999.0,
+                is_valid=False,
+                bar_count=0
+            )
+        return self._mapper.extract_compact_state(request.symbol, request.timeframe, resp.raw_data)
 
     def fetch_market_data(self, request: MarketDataRequest) -> MarketDataResponse:
         """Advanced typed market data fetch handler."""

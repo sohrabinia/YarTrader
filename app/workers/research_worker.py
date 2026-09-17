@@ -255,6 +255,13 @@ class ResearchWorker:
                         print("Features: Generated")
                         print("Research: Completed\n")
 
+                        # Execution Authorization Gate: Researching 30 instruments does NOT authorize execution on all 30 instruments.
+                        # Execution dispatch is strictly restricted to authorized execution symbols (XAUUSD).
+                        AUTHORIZED_EXECUTION_SYMBOLS = {"XAUUSD"}
+                        if symbol.upper() not in AUTHORIZED_EXECUTION_SYMBOLS:
+                            print(f"[ResearchWorker] Symbol {symbol} research completed. Execution dispatch SKIPPED (symbol not in AUTHORIZED_EXECUTION_SYMBOLS).")
+                            continue
+
                         # DEMO Execution Bridge: Consume AutonomousTradingDecision with Kill Switch, RR, and Cooldown gates
                         auto_dec = res.Findings.get("autonomous_decision", {})
                         action = auto_dec.get("action", "WAIT")
