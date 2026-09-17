@@ -153,6 +153,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         """Fetches symbol information from MT5."""
         if not self._mt5:
             return None
+        from src.Data.Providers.MT5.symbol_resolver import MT5SymbolResolver
+        resolved_sym = MT5SymbolResolver.get_instance().resolve_symbol(symbol)
+        if resolved_sym:
+            symbol = resolved_sym
         sym = self._mt5.symbol_info(symbol)
         if sym is None:
             return None
@@ -178,6 +182,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         """Fetches latest real tick for symbol."""
         if not self._mt5:
             return None
+        from src.Data.Providers.MT5.symbol_resolver import MT5SymbolResolver
+        resolved_sym = MT5SymbolResolver.get_instance().resolve_symbol(symbol)
+        if resolved_sym:
+            symbol = resolved_sym
         tick = self._mt5.symbol_info_tick(symbol)
         if tick is None:
             return None
@@ -225,15 +233,18 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         self.verify_safety_and_account(operation_type="DEMO")
 
         mt5 = self._mt5
-        # 2. Validate Symbol
-        sym_info = mt5.symbol_info(request.Symbol)
+        # 2. Resolve & Validate Symbol
+        from src.Data.Providers.MT5.symbol_resolver import MT5SymbolResolver
+        target_symbol = MT5SymbolResolver.get_instance().resolve_symbol(request.Symbol) or request.Symbol
+
+        sym_info = mt5.symbol_info(target_symbol)
         if sym_info is None:
             raise ValidationException(f"Symbol '{request.Symbol}' is not available in MT5 terminal.")
 
         if not getattr(sym_info, "visible", True):
-            mt5.symbol_select(request.Symbol, True)
+            mt5.symbol_select(target_symbol, True)
 
-        tick = mt5.symbol_info_tick(request.Symbol)
+        tick = mt5.symbol_info_tick(target_symbol)
         if tick is None or getattr(tick, "bid", 0) <= 0 or getattr(tick, "ask", 0) <= 0:
             raise ValidationException(f"Real tick for symbol '{request.Symbol}' is unavailable or invalid.")
 
@@ -286,7 +297,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         price_norm = round(float(price), digits)
         trade_req = {
             "action": mt5.TRADE_ACTION_DEAL,
-            "symbol": request.Symbol,
+            "symbol": target_symbol,
             "volume": float(volume),
             "type": mt5_action_type,
             "price": price_norm,
@@ -436,6 +447,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             return None
         kwargs = {}
         if symbol:
+            from src.Data.Providers.MT5.symbol_resolver import MT5SymbolResolver
+            resolved_sym = MT5SymbolResolver.get_instance().resolve_symbol(symbol)
+            if resolved_sym:
+                symbol = resolved_sym
             kwargs["symbol"] = symbol
         if ticket:
             kwargs["ticket"] = int(ticket)

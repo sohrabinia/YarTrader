@@ -41,12 +41,14 @@ if not MT5_AVAILABLE:
         mock_mt5.last_error.return_value = (0, "Success")
 
         def mock_symbol_info(symbol):
-            if symbol in ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]:
-                from unittest.mock import MagicMock
-                sym_obj = MagicMock()
-                sym_obj.name = symbol
-                return sym_obj
-            return None
+            if not symbol or not isinstance(symbol, str):
+                return None
+            if symbol.startswith("UNAVAIL") or symbol.startswith("INVALID") or symbol.startswith("NONEXISTENT"):
+                return None
+            from unittest.mock import MagicMock
+            sym_obj = MagicMock()
+            sym_obj.name = symbol
+            return sym_obj
         mock_mt5.symbol_info.side_effect = mock_symbol_info
 
         mock_mt5.TIMEFRAME_M1 = 1
@@ -494,11 +496,27 @@ class MT5DataProvider(IDataProvider):
                 server_name=actual_server or "Alpari-MT5-Demo"
             )
 
+            # Resolve canonical symbol to actual MT5 broker symbol via centralized MT5SymbolResolver
+            from src.Data.Providers.MT5.symbol_resolver import MT5SymbolResolver
+            resolved_symbol = MT5SymbolResolver.get_instance().resolve_symbol(request.symbol)
+
+            if not resolved_symbol:
+                err_msg = f"Symbol '{request.symbol}' cannot be resolved on MT5 broker."
+                logger.error(err_msg)
+                return ExternalDataResponse(
+                    request_id=request.request_id or "id",
+                    provider_id=self._metadata.provider_id,
+                    raw_data=[],
+                    is_success=False,
+                    error_message=err_msg
+                )
+
             # Validate symbol availability using mt5.symbol_info
             try:
-                sym_info = mt5.symbol_info(request.symbol)
+                sym_info = mt5.symbol_info(resolved_symbol)
             except Exception:
                 sym_info = None
+            target_symbol = resolved_symbol
 
             if sym_info is None:
                 if is_production:
@@ -536,14 +554,14 @@ class MT5DataProvider(IDataProvider):
                     is_success=True
                 )
 
-            rates = mt5.copy_rates_range(request.symbol, mt5_tf, start_dt, end_dt)
+            rates = mt5.copy_rates_range(target_symbol, mt5_tf, start_dt, end_dt)
             if rates is None:
                 err_code, err_msg = mt5.last_error()
 
                 # Improve error logging as requested
                 logger.error(
                     f"MT5 copy_rates_range failed.\n"
-                    f"Symbol={request.symbol}\n"
+                    f"Symbol={target_symbol}\n"
                     f"Timeframe={request.timeframe}\n"
                     f"Start={start_dt}\n"
                     f"End={end_dt}\n"
@@ -560,11 +578,11 @@ class MT5DataProvider(IDataProvider):
                 calculated_bars = int(max(1, duration_secs // (tf_mins * 60) + 2))
 
                 # Fallback Step 1: Try copy_rates_from
-                rates = mt5.copy_rates_from(request.symbol, mt5_tf, end_dt, calculated_bars)
+                rates = mt5.copy_rates_from(target_symbol, mt5_tf, end_dt, calculated_bars)
 
                 # Fallback Step 2: Try copy_rates_from_pos
                 if rates is None or len(rates) == 0:
-                    rates = mt5.copy_rates_from_pos(request.symbol, mt5_tf, 0, calculated_bars)
+                    rates = mt5.copy_rates_from_pos(target_symbol, mt5_tf, 0, calculated_bars)
 
                 if rates is None:
                     detailed_error = (

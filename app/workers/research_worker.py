@@ -233,10 +233,6 @@ class ResearchWorker:
                     if not self.is_running:
                         break
 
-                    # Phase 1 Scope Boundary: Trading Core & execution dispatch are strictly XAUUSD ONLY
-                    if symbol.upper() != "XAUUSD":
-                        continue
-
                     try:
                         print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
 
