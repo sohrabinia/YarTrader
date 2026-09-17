@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from src.Data.External.interfaces import IDataProvider
 from src.Data.External.models import DataSourceType, DataProviderMetadata, ExternalDataRequest, ExternalDataResponse, ProviderHealthStatus
-from src.Data.Market.models import MarketInstrument, CandleRecord, MarketDataMetadata, MarketDataRequest, MarketDataResponse
+from src.Data.Market.models import MarketInstrument, CandleRecord, MarketDataMetadata, MarketDataRequest, MarketDataResponse, CompactMarketState
 from src.Infrastructure.exceptions import ValidationException
 
 import os
@@ -171,7 +171,70 @@ class MT5ConnectionHealth:
 
 
 class MT5DataMapper:
-    """Maps raw MT5 rates structures into standardized CandleRecord models."""
+    """Maps raw MT5 rates structures into standardized CandleRecord models and CompactMarketState facts."""
+
+    def extract_compact_state(self, symbol: str, timeframe: str, raw_rates: List[Dict[str, Any]]) -> CompactMarketState:
+        """
+        Extracts compact market state containing strictly primitive market facts immediately adjacent to MT5 adapter boundary.
+        Contains NO technical indicators (NO ATR, NO RSI, NO MA, NO indicator-derived trend/momentum).
+        """
+        if not raw_rates:
+            return CompactMarketState(
+                symbol=symbol,
+                timeframe=timeframe,
+                timestamp=datetime.now(),
+                current_price=0.0,
+                high=0.0,
+                low=0.0,
+                volume=0.0,
+                spread=0.0,
+                data_freshness_sec=999999.0,
+                is_valid=False,
+                bar_count=0
+            )
+
+        candles = self.map_rates_to_candles(raw_rates)
+        if not candles:
+            return CompactMarketState(
+                symbol=symbol,
+                timeframe=timeframe,
+                timestamp=datetime.now(),
+                current_price=0.0,
+                high=0.0,
+                low=0.0,
+                volume=0.0,
+                spread=0.0,
+                data_freshness_sec=999999.0,
+                is_valid=False,
+                bar_count=0
+            )
+
+        latest = candles[-1]
+        bars_count = len(candles)
+
+        current_price = latest.close
+        high = max(c.high for c in candles)
+        low = min(c.low for c in candles)
+        volume = sum(c.volume for c in candles)
+        spread = max(0.0, latest.high - latest.low)
+
+        now_ts = datetime.now()
+        freshness_sec = max(0.0, (now_ts - latest.timestamp).total_seconds()) if latest.timestamp else 0.0
+
+        return CompactMarketState(
+            symbol=symbol,
+            timeframe=timeframe,
+            timestamp=latest.timestamp,
+            current_price=current_price,
+            high=high,
+            low=low,
+            volume=volume,
+            spread=spread,
+            data_freshness_sec=freshness_sec,
+            is_valid=True,
+            bar_count=bars_count
+        )
+
     def map_rates_to_candles(self, raw_rates: List[Dict[str, Any]]) -> List[CandleRecord]:
         candles = []
         for rate in raw_rates:
@@ -652,6 +715,25 @@ class MT5DataProvider(IDataProvider):
                 is_success=False,
                 error_message=f"Exception in fetch_data: {str(e)}"
             )
+
+    def fetch_compact_market_state(self, request: ExternalDataRequest) -> CompactMarketState:
+        """Fetches market rates and derives an indicator-free compact market state object at the adapter boundary."""
+        resp = self.fetch_data(request)
+        if not resp.is_success or not resp.raw_data:
+            return CompactMarketState(
+                symbol=request.symbol,
+                timeframe=request.timeframe,
+                timestamp=datetime.now(),
+                current_price=0.0,
+                high=0.0,
+                low=0.0,
+                volume=0.0,
+                spread=0.0,
+                data_freshness_sec=999999.0,
+                is_valid=False,
+                bar_count=0
+            )
+        return self._mapper.extract_compact_state(request.symbol, request.timeframe, resp.raw_data)
 
     def fetch_market_data(self, request: MarketDataRequest) -> MarketDataResponse:
         """Advanced typed market data fetch handler."""

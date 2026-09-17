@@ -47,3 +47,23 @@ class MarketDataResponse:
     metadata: MarketDataMetadata
     is_success: bool = True
     error_message: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class CompactMarketState:
+    """
+    Compact market state containing primitive broker/market facts immediately adjacent to the MT5 adapter boundary.
+    Contains strictly primitive market facts (prices, volume, spread, timestamp, freshness, validity)
+    and NO technical indicators (NO ATR, NO RSI, NO MA, NO indicator-derived trend/momentum).
+    """
+    symbol: str
+    timeframe: str
+    timestamp: datetime
+    current_price: float
+    high: float
+    low: float
+    volume: float
+    spread: float
+    data_freshness_sec: float
+    is_valid: bool
+    bar_count: int

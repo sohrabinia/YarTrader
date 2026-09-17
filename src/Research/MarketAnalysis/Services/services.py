@@ -96,6 +96,163 @@ class ResearchHistory:
         return [r for r in self._records if r.Request.Asset == asset_id]
 
 
+class PrimitiveMarketResearchEngine(IResearchEngine):
+    """
+    Indicator-Independent Research Engine for the 30-Instrument Market Universe.
+    Consumes primitive broker market facts and ExecutionIntelligenceCore context evaluation
+    WITHOUT invoking technical indicators (NO ATR, NO RSI, NO MA, NO TechnicalAnalysisEngine).
+    """
+
+    def __init__(
+        self,
+        data_provider: IMarketDataProvider,
+        base_engine: Optional[IResearchEngine] = None
+    ) -> None:
+        self._data_provider = data_provider
+        if base_engine is None:
+            from src.Research.Engine.services import ResearchEngine
+            self._base_engine = ResearchEngine()
+        else:
+            self._base_engine = base_engine
+
+    @property
+    def data_provider(self) -> IMarketDataProvider:
+        return self._data_provider
+
+    def analyze_market(self, request: ResearchRequest) -> ResearchResult:
+        """
+        Retrieves primitive market data and context intelligence without technical indicators.
+        """
+        timeframe = request.Context.get("timeframe", "H1")
+        data_req = MarketDataRequest(
+            Asset=request.Asset,
+            StartTime=request.StartTime,
+            EndTime=request.EndTime,
+            Timeframe=timeframe
+        )
+
+        try:
+            market_data_response = self._data_provider.retrieve_market_data(data_req)
+        except Exception as e:
+            raise ValidationException(
+                f"Validation Error: Failed to fetch market data for primitive research: {str(e)}"
+            ) from e
+
+        data_points = market_data_response.DataPoints
+        if not data_points:
+            raise ValidationException(f"Received empty market data points for {request.Asset}")
+
+        latest_dp = data_points[-1]
+        candles_dicts = [
+            {
+                "timestamp": dp.Timestamp.isoformat() if hasattr(dp.Timestamp, "isoformat") else str(dp.Timestamp),
+                "open": float(dp.Open),
+                "high": float(dp.High),
+                "low": float(dp.Low),
+                "close": float(dp.Close),
+                "volume": float(dp.Volume)
+            }
+            for dp in data_points
+        ]
+
+        import time
+        cycle_id = f"cyc-{request.Asset.upper()}-{timeframe.upper()}-{int(time.time())}"
+        decision_id = f"DEC-{request.Asset.upper()}-{timeframe.upper()}-{int(time.time())}"
+
+        try:
+            from src.Intelligence.Execution.core import ExecutionIntelligenceCore
+            from src.Decision.Models.models import AutonomousTradingDecision
+
+            intel_core = ExecutionIntelligenceCore.get_instance()
+            intel_res = intel_core.evaluate_context(
+                symbol=request.Asset,
+                timeframe=timeframe,
+                candles=candles_dicts
+            )
+
+            plan = intel_res.get("plan", {})
+            action = str(plan.get("action", "WAIT")).upper()
+            if action not in ["BUY", "SELL", "WAIT", "AVOID"]:
+                action = "WAIT"
+
+            auto_decision = AutonomousTradingDecision(
+                decision_id=decision_id,
+                cycle_id=cycle_id,
+                action=action,
+                symbol=request.Asset,
+                timeframe=timeframe,
+                entry=float(plan.get("entry", 0.0)),
+                stop_loss=float(plan.get("stop_loss", 0.0)),
+                take_profit=float(plan.get("take_profit", 0.0)),
+                volume=0.01,
+                risk_reward=float(plan.get("risk_reward", 0.0)),
+                confidence=float(plan.get("confidence", 0.0)),
+                reasoning=plan.get("reasoning", ["Indicator-independent primitive evaluation"]),
+                evidence={
+                    "narrative": intel_res.get("narrative", {}),
+                    "liquidity": intel_res.get("liquidity", {}),
+                    "zones": intel_res.get("zones", {}),
+                    "alignment": intel_res.get("alignment", {}),
+                    "latest_price": candles_dicts[-1]["close"]
+                },
+                risk_status="APPROVED" if action in ["BUY", "SELL"] else "CHECKED",
+                execution_status="PENDING" if action in ["BUY", "SELL"] else "SKIPPED",
+                configuration_version="1.2.0",
+                timestamp=datetime.now().isoformat()
+            )
+            auto_dec_dict = auto_decision.to_dict()
+        except Exception:
+            intel_res = {}
+            auto_dec_dict = {
+                "action": "WAIT",
+                "confidence": 0.0,
+                "reasoning": ["Default primitive evaluation"]
+            }
+
+        primitive_observation = {
+            "symbol": request.Asset,
+            "timeframe": timeframe,
+            "latest_price": float(latest_dp.Close),
+            "high": float(max(dp.High for dp in data_points)),
+            "low": float(min(dp.Low for dp in data_points)),
+            "volume": float(sum(dp.Volume for dp in data_points)),
+            "bar_count": len(data_points),
+            "timestamp": latest_dp.Timestamp.isoformat() if hasattr(latest_dp.Timestamp, "isoformat") else str(latest_dp.Timestamp)
+        }
+
+        findings = {
+            "asset_id": request.Asset,
+            "period_start": request.StartTime.isoformat(),
+            "period_end": request.EndTime.isoformat(),
+            "research_context": request.Context,
+            "status": "completed",
+            "indicator_independent": True,
+            "feature_set": {
+                "asset_id": request.Asset,
+                "start_time": request.StartTime.isoformat(),
+                "end_time": request.EndTime.isoformat(),
+                "features_count": 0,
+                "mode": "primitive_indicator_free"
+            },
+            "primitive_observation": primitive_observation,
+            "autonomous_decision": auto_dec_dict,
+            "intel_summary": intel_res,
+            "pipeline_outputs": {
+                "technical_analysis": {"candles": candles_dicts, "bar_count": len(candles_dicts)},
+                "smart_interpretation": {"confidence": float(auto_dec_dict.get("confidence", 50.0)), "bias": "Neutral"}
+            }
+        }
+
+        conf_score = float(auto_dec_dict.get("confidence", 50.0)) / 100.0
+
+        return ResearchResult(
+            Request=request,
+            Findings=findings,
+            ConfidenceScore=conf_score,
+            CreatedAt=datetime.now()
+        )
+
+
 class FeatureExtractionResearchEngine(IResearchEngine):
     """
     Decorator/Adapter implementing IResearchEngine that orchestrates feature extraction

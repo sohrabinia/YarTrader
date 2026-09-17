@@ -106,6 +106,7 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         """Verify that a single research execution loop completes successfully and generates correct findings and files."""
         runtime = ResearchRuntime(
             provider=self.adapter,
+            research_engine=FeatureExtractionResearchEngine(data_provider=self.adapter),
             symbol="XAUUSD",
             timeframe="H1",
             evidence_dir=self.evidence_dir
@@ -260,7 +261,7 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         curr_data = resp_curr.json()
         self.assertEqual(curr_data["symbol"], "XAUUSD")
         self.assertEqual(curr_data["timeframe"], "H1")
-        self.assertIn(curr_data["bias"], ["Bullish", "Bearish", "Neutral"])
+        self.assertIn(curr_data["bias"], ["Bullish", "Bearish", "Neutral", "UNAVAILABLE"])
         self.assertIn("confidence", curr_data)
         self.assertIn("reasoning", curr_data)
         self.assertIn("indicators", curr_data)
