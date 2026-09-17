@@ -52,8 +52,9 @@ class MarketDataResponse:
 @dataclass(frozen=True)
 class CompactMarketState:
     """
-    Compact derived market state calculated immediately adjacent to the MT5 adapter boundary.
-    Exposes essential indicators/features without transferring or persisting raw historical candle series.
+    Compact market state containing primitive broker/market facts immediately adjacent to the MT5 adapter boundary.
+    Contains strictly primitive market facts (prices, volume, spread, timestamp, freshness, validity)
+    and NO technical indicators (NO ATR, NO RSI, NO MA, NO indicator-derived trend/momentum).
     """
     symbol: str
     timeframe: str
@@ -62,9 +63,7 @@ class CompactMarketState:
     high: float
     low: float
     volume: float
-    volatility_atr: float
-    trend_state: str  # "bullish", "bearish", "neutral"
-    momentum_rsi: float
+    spread: float
     data_freshness_sec: float
     is_valid: bool
     bar_count: int

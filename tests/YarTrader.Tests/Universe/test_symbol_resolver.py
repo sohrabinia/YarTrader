@@ -7,7 +7,6 @@ class TestMT5SymbolResolver(unittest.TestCase):
     Tests for Centralized MT5 Symbol Resolver:
     - Canonical symbol mapping
     - Broker suffix handling (e.g. 'EURUSDm', 'EURUSD.a')
-    - Broker prefix handling
     - Unavailable symbols return None / fail closed
     - Ambiguous or malformed inputs return None / fail closed
     """
@@ -50,7 +49,6 @@ class TestMT5SymbolResolver(unittest.TestCase):
             self.assertEqual(resolved, "EURUSDm")
 
     def test_unavailable_symbol_fails_closed(self):
-        # Symbol not in registry and not in MT5 return None
         resolved = self.resolver.resolve_symbol("UNAVAIL_XYZ_PAIR")
         self.assertIsNone(resolved, "Unavailable symbol must return None (fail closed)")
 

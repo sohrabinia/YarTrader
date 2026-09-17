@@ -173,12 +173,12 @@ class MT5ConnectionHealth:
 
 
 class MT5DataMapper:
-    """Maps raw MT5 rates structures into standardized CandleRecord models and CompactMarketState metrics."""
+    """Maps raw MT5 rates structures into standardized CandleRecord models and CompactMarketState facts."""
 
     def extract_compact_state(self, symbol: str, timeframe: str, raw_rates: List[Dict[str, Any]]) -> CompactMarketState:
         """
-        Calculates compact derived market state metrics immediately adjacent to the MT5 adapter boundary.
-        Extracts ATR volatility, trend state, RSI momentum, price, and freshness metrics from raw rates.
+        Extracts compact market state containing strictly primitive market facts immediately adjacent to MT5 adapter boundary.
+        Contains NO technical indicators (NO ATR, NO RSI, NO MA, NO indicator-derived trend/momentum).
         """
         if not raw_rates:
             return CompactMarketState(
@@ -189,9 +189,7 @@ class MT5DataMapper:
                 high=0.0,
                 low=0.0,
                 volume=0.0,
-                volatility_atr=0.0,
-                trend_state="neutral",
-                momentum_rsi=50.0,
+                spread=0.0,
                 data_freshness_sec=999999.0,
                 is_valid=False,
                 bar_count=0
@@ -207,9 +205,7 @@ class MT5DataMapper:
                 high=0.0,
                 low=0.0,
                 volume=0.0,
-                volatility_atr=0.0,
-                trend_state="neutral",
-                momentum_rsi=50.0,
+                spread=0.0,
                 data_freshness_sec=999999.0,
                 is_valid=False,
                 bar_count=0
@@ -222,41 +218,7 @@ class MT5DataMapper:
         high = max(c.high for c in candles)
         low = min(c.low for c in candles)
         volume = sum(c.volume for c in candles)
-
-        tr_list = []
-        for i in range(1, len(candles)):
-            prev_close = candles[i-1].close
-            c = candles[i]
-            tr = max(c.high - c.low, abs(c.high - prev_close), abs(c.low - prev_close))
-            tr_list.append(tr)
-        volatility_atr = (sum(tr_list[-14:]) / len(tr_list[-14:])) if tr_list else (high - low)
-
-        ma14 = sum(c.close for c in candles[-14:]) / min(len(candles), 14)
-        if current_price > ma14 * 1.001:
-            trend_state = "bullish"
-        elif current_price < ma14 * 0.999:
-            trend_state = "bearish"
-        else:
-            trend_state = "neutral"
-
-        gains, losses = [], []
-        for i in range(1, len(candles)):
-            diff = candles[i].close - candles[i-1].close
-            if diff >= 0:
-                gains.append(diff)
-                losses.append(0.0)
-            else:
-                gains.append(0.0)
-                losses.append(abs(diff))
-
-        avg_gain = (sum(gains[-14:]) / 14) if len(gains) >= 14 else (sum(gains) / max(1, len(gains)))
-        avg_loss = (sum(losses[-14:]) / 14) if len(losses) >= 14 else (sum(losses) / max(1, len(losses)))
-
-        if avg_loss == 0:
-            momentum_rsi = 100.0 if avg_gain > 0 else 50.0
-        else:
-            rs = avg_gain / avg_loss
-            momentum_rsi = 100.0 - (100.0 / (1.0 + rs))
+        spread = max(0.0, latest.high - latest.low)
 
         now_ts = datetime.now()
         freshness_sec = max(0.0, (now_ts - latest.timestamp).total_seconds()) if latest.timestamp else 0.0
@@ -269,9 +231,7 @@ class MT5DataMapper:
             high=high,
             low=low,
             volume=volume,
-            volatility_atr=volatility_atr,
-            trend_state=trend_state,
-            momentum_rsi=momentum_rsi,
+            spread=spread,
             data_freshness_sec=freshness_sec,
             is_valid=True,
             bar_count=bars_count
@@ -599,27 +559,11 @@ class MT5DataProvider(IDataProvider):
                 server_name=actual_server or "Alpari-MT5-Demo"
             )
 
-            # Resolve canonical symbol to actual MT5 broker symbol via centralized MT5SymbolResolver
-            from src.Data.Providers.MT5.symbol_resolver import MT5SymbolResolver
-            resolved_symbol = MT5SymbolResolver.get_instance().resolve_symbol(request.symbol)
-
-            if not resolved_symbol:
-                err_msg = f"Symbol '{request.symbol}' cannot be resolved on MT5 broker."
-                logger.error(err_msg)
-                return ExternalDataResponse(
-                    request_id=request.request_id or "id",
-                    provider_id=self._metadata.provider_id,
-                    raw_data=[],
-                    is_success=False,
-                    error_message=err_msg
-                )
-
             # Validate symbol availability using mt5.symbol_info
             try:
-                sym_info = mt5.symbol_info(resolved_symbol)
+                sym_info = mt5.symbol_info(request.symbol)
             except Exception:
                 sym_info = None
-            target_symbol = resolved_symbol
 
             if sym_info is None:
                 if is_production:
@@ -657,14 +601,14 @@ class MT5DataProvider(IDataProvider):
                     is_success=True
                 )
 
-            rates = mt5.copy_rates_range(target_symbol, mt5_tf, start_dt, end_dt)
+            rates = mt5.copy_rates_range(request.symbol, mt5_tf, start_dt, end_dt)
             if rates is None:
                 err_code, err_msg = mt5.last_error()
 
                 # Improve error logging as requested
                 logger.error(
                     f"MT5 copy_rates_range failed.\n"
-                    f"Symbol={target_symbol}\n"
+                    f"Symbol={request.symbol}\n"
                     f"Timeframe={request.timeframe}\n"
                     f"Start={start_dt}\n"
                     f"End={end_dt}\n"
@@ -681,11 +625,11 @@ class MT5DataProvider(IDataProvider):
                 calculated_bars = int(max(1, duration_secs // (tf_mins * 60) + 2))
 
                 # Fallback Step 1: Try copy_rates_from
-                rates = mt5.copy_rates_from(target_symbol, mt5_tf, end_dt, calculated_bars)
+                rates = mt5.copy_rates_from(request.symbol, mt5_tf, end_dt, calculated_bars)
 
                 # Fallback Step 2: Try copy_rates_from_pos
                 if rates is None or len(rates) == 0:
-                    rates = mt5.copy_rates_from_pos(target_symbol, mt5_tf, 0, calculated_bars)
+                    rates = mt5.copy_rates_from_pos(request.symbol, mt5_tf, 0, calculated_bars)
 
                 if rates is None:
                     detailed_error = (
@@ -775,7 +719,7 @@ class MT5DataProvider(IDataProvider):
             )
 
     def fetch_compact_market_state(self, request: ExternalDataRequest) -> CompactMarketState:
-        """Fetches market rates and derives a compact market state object at the adapter boundary."""
+        """Fetches market rates and derives an indicator-free compact market state object at the adapter boundary."""
         resp = self.fetch_data(request)
         if not resp.is_success or not resp.raw_data:
             return CompactMarketState(
@@ -786,9 +730,7 @@ class MT5DataProvider(IDataProvider):
                 high=0.0,
                 low=0.0,
                 volume=0.0,
-                volatility_atr=0.0,
-                trend_state="neutral",
-                momentum_rsi=50.0,
+                spread=0.0,
                 data_freshness_sec=999999.0,
                 is_valid=False,
                 bar_count=0

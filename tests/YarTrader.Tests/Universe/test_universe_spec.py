@@ -12,7 +12,6 @@ class TestUniverseSpecification(unittest.TestCase):
     """
 
     def setUp(self):
-        # Reset SymbolRegistry singleton state for clean isolation
         SymbolRegistry._instance = None
         self.registry = SymbolRegistry.get_instance()
 

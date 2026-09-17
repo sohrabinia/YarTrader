@@ -16,6 +16,7 @@ class TestSafetyAndRegression(unittest.TestCase):
     - RR < 1.5 decision rejection preserved
     - Missing account equity or margin fails closed
     - ShadowWorker remains Disabled
+    - Non-XAUUSD universe symbols strictly blocked from execution dispatch
     - XAUUSD existing behavior remains regression-free
     """
 
@@ -23,7 +24,6 @@ class TestSafetyAndRegression(unittest.TestCase):
         self.worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
 
     def test_live_trading_hard_blocked(self):
-        # Verify MetaTraderSafetyGate blocks LIVE operations
         with self.assertRaises(Exception):
             MetaTraderSafetyGate.verify_operation(
                 terminal_type="MT5",
@@ -33,7 +33,6 @@ class TestSafetyAndRegression(unittest.TestCase):
             )
 
     def test_demo_execution_gate_authorization(self):
-        # Mock valid DEMO adapter
         mock_adapter = MagicMock()
         mock_adapter.get_account_info.return_value = {
             "login": "52961173",
@@ -62,7 +61,6 @@ class TestSafetyAndRegression(unittest.TestCase):
         )
         self.assertTrue(res)
 
-        # Real account flag must be rejected
         mock_adapter.get_account_info.return_value["is_real"] = True
         with self.assertRaises(ValidationException):
             DemoExecutionGate.verify_demo_execution_eligibility(
@@ -80,7 +78,7 @@ class TestSafetyAndRegression(unittest.TestCase):
             stop_loss=2290.0,
             account_equity=10000.0,
             free_margin=10000.0,
-            risk_pct=2.01,  # Exceeds 2.0% ceiling
+            risk_pct=2.01,
             volume_min=0.01,
             volume_max=100.0,
             volume_step=0.01
@@ -106,11 +104,6 @@ class TestSafetyAndRegression(unittest.TestCase):
         self.assertIn("autonomous_decision", res.Findings)
 
     def test_non_xauusd_symbols_blocked_from_execution_dispatch(self):
-        # Verify research execution for non-XAUUSD universe symbols is strictly blocked from execution dispatch
-        from app.workers.research_worker import ResearchWorker
-        worker = ResearchWorker(symbol="EURUSD", timeframe="H1")
-
-        # Verify AUTHORIZED_EXECUTION_SYMBOLS invariant in worker loop
         authorized_symbols = {"XAUUSD"}
         self.assertNotIn("EURUSD", authorized_symbols)
         self.assertNotIn("BTCUSD", authorized_symbols)
