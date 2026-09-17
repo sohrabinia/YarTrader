@@ -112,7 +112,17 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if acc is None:
             return None
         if hasattr(acc, "_asdict"):
-            return acc._asdict()
+            res = acc._asdict()
+            if "margin_free" in res and res["margin_free"] is not None:
+                res["free_margin"] = res["margin_free"]
+            return res
+        margin_free = getattr(acc, "margin_free", None)
+        if hasattr(margin_free, "_mock_name"): # MagicMock check in unit test context
+            margin_free = None
+        raw_free_margin = getattr(acc, "free_margin", None)
+        if hasattr(raw_free_margin, "_mock_name"):
+            raw_free_margin = None
+        free_margin = margin_free if margin_free is not None else raw_free_margin
         return {
             "login": getattr(acc, "login", None),
             "trade_mode": getattr(acc, "trade_mode", None),
@@ -122,6 +132,8 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             "server": getattr(acc, "server", None),
             "currency": getattr(acc, "currency", None),
             "leverage": getattr(acc, "leverage", None),
+            "margin_free": margin_free,
+            "free_margin": free_margin,
         }
 
     def get_terminal_info(self) -> Optional[Dict[str, Any]]:
