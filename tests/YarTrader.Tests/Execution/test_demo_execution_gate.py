@@ -1,4 +1,5 @@
 import unittest
+import os
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from src.Execution.Safety.demo_execution_gate import DemoExecutionGate
@@ -144,6 +145,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         self.assertIsNone(acc)
 
     @patch("time.sleep", return_value=None)
+    @patch.dict(os.environ, {"AUTONOMOUS_DEMO_TRADING_ENABLED": "true"})
     @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
     def test_13_adversarial_account_and_free_margin_call_count_zero(self, mock_sizing, mock_sleep):
         """Test 13: Invalid/missing free margin or equity produce sizing call count == 0 and execution call count == 0."""
@@ -196,7 +198,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
                 }
             }
             mock_runtime.run_once.return_value = mock_run_res
-            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            mock_runtime.provider.delegate.get_connection_health.return_value = MagicMock(connected=True, server="Demo", ping_ms=10.0)
             worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
             worker.is_running = True
@@ -215,6 +217,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             self.assertNotIn("XAUUSD", worker.last_executed_signal, f"Case {idx+1} updated last_executed_signal unexpectedly")
 
     @patch("time.sleep", return_value=None)
+    @patch.dict(os.environ, {"AUTONOMOUS_DEMO_TRADING_ENABLED": "true"})
     @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
     def test_14_invalid_symbol_volume_limits_finite_checks(self, mock_sizing, mock_sleep):
         """Test 14: Non-finite or <=0 symbol volume limits (min, max, step) produce sizing call count == 0 and execution call count == 0."""
@@ -257,7 +260,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
                 }
             }
             mock_runtime.run_once.return_value = mock_run_res
-            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            mock_runtime.provider.delegate.get_connection_health.return_value = MagicMock(connected=True, server="Demo", ping_ms=10.0)
             worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
             worker.is_running = True
@@ -275,6 +278,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             self.assertEqual(mock_demo.execute_demo_decision.call_count, 0, f"Symbol Case {idx+1} failed execution call count expectation")
 
     @patch("time.sleep", return_value=None)
+    @patch.dict(os.environ, {"AUTONOMOUS_DEMO_TRADING_ENABLED": "true"})
     @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
     def test_15_reversal_volume_authority_and_rejection_state(self, mock_sizing, mock_sleep):
         """Test 15: Reversal volume input is ignored entirely (sizing computes volume) and failed execution status does NOT mutate state."""
@@ -313,7 +317,9 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
         mock_runtime = MagicMock()
         initial_run_res = MagicMock()
+        initial_run_res.Request.EndTime = datetime.now()
         initial_run_res.Findings = {
+            "pipeline_outputs": {"technical_analysis": {"candles": [{"time": 123}]}},
             "autonomous_decision": {
                 "action": "SELL",
                 "entry": 2500.0,
@@ -324,7 +330,9 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             }
         }
         reassess_run_res = MagicMock()
+        reassess_run_res.Request.EndTime = datetime.now()
         reassess_run_res.Findings = {
+            "pipeline_outputs": {"technical_analysis": {"candles": [{"time": 123}]}},
             "autonomous_decision": {
                 "action": "SELL",
                 "entry": 2500.0,
@@ -336,18 +344,18 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             }
         }
         mock_runtime.run_once.side_effect = [initial_run_res, reassess_run_res]
-        mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+        mock_runtime.provider.delegate.get_connection_health.return_value = MagicMock(connected=True, server="Demo", ping_ms=10.0)
         worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
         worker.is_running = True
-        def stop_loop_after_one(*args, **kwargs):
-            if not hasattr(stop_loop_after_one, "called"):
-                stop_loop_after_one.called = True
-                return [("XAUUSD", "H1", "Commodities", "MT5")]
-            worker.is_running = False
-            return [("XAUUSD", "H1", "Commodities", "MT5")]
 
-        with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+        def side_effect_run_once():
+            if mock_runtime.run_once.call_count == 2:
+                worker.is_running = False
+
+        mock_runtime.run_once.side_effect = lambda *a, **kw: (side_effect_run_once(), [initial_run_res, reassess_run_res][mock_runtime.run_once.call_count - 1])[1]
+
+        with patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Commodities", "MT5")]):
             worker._run_loop()
 
         # Assertions
