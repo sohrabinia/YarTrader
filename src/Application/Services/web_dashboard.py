@@ -5539,15 +5539,36 @@ def login_with_google(payload: SocialLoginPayload, request: Request):
         name=name
     )
     token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
+
+    # Issue authoritative identity assertion
+    from src.Application.Dashboard.identity_authority import global_identity_authority
+    identity_assertion = global_identity_authority.issue_identity_assertion(
+        user_id=user.get("user_id", user["email"]),
+        google_sub=user.get("google_sub", provider_id),
+        owner_id=user.get("owner_id"),
+        workspace_id=user.get("workspace_id")
+    )
+
     return {
         "status": "Success",
         "session_token": token,
+        "identity_assertion": identity_assertion,
         "user": {
+            "user_id": user.get("user_id"),
+            "owner_id": user.get("owner_id"),
+            "workspace_id": user.get("workspace_id"),
             "email": user["email"],
             "name": user["name"],
             "role": user["role"]
         }
     }
+
+@app.get("/.well-known/jwks.json")
+@app.get("/api/auth/jwks")
+def get_auth_jwks():
+    """Exposes authoritative public key material formatted as standard JWKS for downstream token verification."""
+    from src.Application.Dashboard.identity_authority import global_identity_authority
+    return global_identity_authority.key_manager.get_jwks()
 
 # Unsupported customer login routes (Apple, Telegram) strictly removed per YarTrader Auth Governance.
 

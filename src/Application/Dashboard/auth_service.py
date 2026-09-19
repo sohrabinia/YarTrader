@@ -219,11 +219,14 @@ class AuthService:
     def create_session(self, user: Dict[str, Any], user_agent: Optional[str] = None, ip_address: Optional[str] = None) -> str:
         token = f"tkn-{secrets.token_hex(24)}"
         self.active_sessions[token] = {
+            "user_id": user.get("user_id", user["email"]),
+            "owner_id": user.get("owner_id", user.get("user_id", user["email"])),
+            "workspace_id": user.get("workspace_id", "yartrader-main"),
+            "google_sub": user.get("google_sub"),
             "email": user["email"],
             "role": user.get("role", "USER"),
             "name": user.get("name", ""),
-            "tier": user.get("tier", "FREE"),
-            "user_id": user.get("user_id", user["email"])
+            "tier": user.get("tier", "FREE")
         }
 
         # Persistently record active session login
