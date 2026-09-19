@@ -2,146 +2,23 @@ import os
 import json
 import time
 import base64
-import threading
+import hashlib
 from typing import Dict, Any, Optional
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.backends import default_backend
 import jwt
 from src.Infrastructure.exceptions import ValidationException
+from src.Application.Dashboard.cng_key_manager import CNGKeyManager
 
 ISSUER_URI = "https://yartrader.app/auth"
 DEFAULT_AUDIENCE = "yaroperator"
 
-def _int_to_base64url(val: int) -> str:
-    """Converts a long integer to a base64url encoded string without padding."""
-    hex_str = f"{val:x}"
-    if len(hex_str) % 2 == 1:
-        hex_str = "0" + hex_str
-    raw_bytes = bytes.fromhex(hex_str)
-    b64 = base64.b64encode(raw_bytes).decode('utf-8')
-    return b64.replace('+', '-').replace('/', '_').rstrip('=')
-
-
-class IdentityKeyManager:
-    """
-    Manages persistent RS256 key pair generation, key storage, rotation, and JWKS exporting.
-    Saves private keys securely to runtime_logs/identity_keys.json.
-    """
-    def __init__(self, keypath: str = "runtime_logs/identity_keys.json") -> None:
-        self.keypath = keypath
-        self.lock = threading.RLock()
-        os.makedirs(os.path.dirname(self.keypath), exist_ok=True)
-        self._ensure_keys()
-
-    def _ensure_keys(self) -> None:
-        with self.lock:
-            if not os.path.exists(self.keypath):
-                self._generate_and_save_new_key(kid="key-v1")
-
-    def _generate_and_save_new_key(self, kid: str) -> Dict[str, Any]:
-        with self.lock:
-            private_key = rsa.generate_private_key(
-                public_exponent=65537,
-                key_size=2048,
-                backend=default_backend()
-            )
-            pem_private = private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            ).decode('utf-8')
-
-            keys_data = self._load_keys_file()
-            keys_data[kid] = {
-                "kid": kid,
-                "private_pem": pem_private,
-                "created_at": time.time(),
-                "active": True
-            }
-            # Set older keys active flag to False if generating new primary key
-            for k, v in keys_data.items():
-                if k != kid:
-                    v["active"] = False
-
-            self._save_keys_file(keys_data)
-            return keys_data[kid]
-
-    def _load_keys_file(self) -> Dict[str, Any]:
-        with self.lock:
-            if os.path.exists(self.keypath):
-                try:
-                    with open(self.keypath, "r", encoding="utf-8") as f:
-                        return json.load(f)
-                except Exception:
-                    pass
-            return {}
-
-    def _save_keys_file(self, data: Dict[str, Any]) -> None:
-        with self.lock:
-            tmp = self.keypath + ".tmp"
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=4)
-            os.replace(tmp, self.keypath)
-
-    def get_active_key(self) -> Dict[str, Any]:
-        with self.lock:
-            keys_data = self._load_keys_file()
-            for kid, key_info in keys_data.items():
-                if key_info.get("active"):
-                    return key_info
-            # Fallback if no key is active
-            if keys_data:
-                first_kid = next(iter(keys_data))
-                return keys_data[first_kid]
-            return self._generate_and_save_new_key(kid="key-v1")
-
-    def get_key_by_kid(self, kid: str) -> Optional[Dict[str, Any]]:
-        with self.lock:
-            keys_data = self._load_keys_file()
-            return keys_data.get(kid)
-
-    def rotate_keys(self) -> Dict[str, Any]:
-        with self.lock:
-            new_kid = f"key-v{int(time.time())}"
-            return self._generate_and_save_new_key(kid=new_kid)
-
-    def get_jwks(self) -> Dict[str, Any]:
-        """Exports public key components formatted as a standard JWKS object."""
-        with self.lock:
-            keys_data = self._load_keys_file()
-            jwk_list = []
-            for kid, key_info in keys_data.items():
-                pem = key_info.get("private_pem", "")
-                if not pem:
-                    continue
-                try:
-                    priv_key = serialization.load_pem_private_key(
-                        pem.encode('utf-8'),
-                        password=None,
-                        backend=default_backend()
-                    )
-                    pub_key = priv_key.public_key()
-                    numbers = pub_key.public_numbers()
-                    jwk_list.append({
-                        "kty": "RSA",
-                        "alg": "RS256",
-                        "use": "sig",
-                        "kid": kid,
-                        "n": _int_to_base64url(numbers.n),
-                        "e": _int_to_base64url(numbers.e)
-                    })
-                except Exception:
-                    continue
-            return {"keys": jwk_list}
-
-
 class IdentityAuthority:
     """
     Authoritative Identity Authority for issuing and verifying cryptographically signed assertions.
+    Delegates RS256 token signing strictly to Windows CNG Key Storage Provider (CNGKeyManager).
+    Fails closed on missing CNG key containers or unsupported platforms without local file/software fallback.
     """
-    def __init__(self, key_manager: Optional[IdentityKeyManager] = None) -> None:
-        self.key_manager = key_manager or IdentityKeyManager()
+    def __init__(self, cng_manager: Optional[CNGKeyManager] = None) -> None:
+        self.cng_manager = cng_manager or CNGKeyManager()
 
     def issue_identity_assertion(
         self,
@@ -151,18 +28,18 @@ class IdentityAuthority:
         workspace_id: Optional[str] = None,
         audience: str = DEFAULT_AUDIENCE,
         ttl_seconds: float = 3600.0,
-        amr: Optional[list] = None
+        amr: Optional[list] = None,
+        key_name: Optional[str] = None
     ) -> str:
         """
         Issues an RS256-signed identity assertion JWT containing canonical immutable subject fields.
-        Fails closed on missing user_id.
+        Private key operations are executed inside Windows CNG KSP.
+        Fails closed on missing user_id or inaccessible CNG key container without fallback.
         """
         if not user_id or not isinstance(user_id, str):
             raise ValidationException("Identity assertion requires a non-empty user_id.")
 
-        active_key = self.key_manager.get_active_key()
-        kid = active_key["kid"]
-        pem_str = active_key["private_pem"]
+        target_kid = key_name or self.cng_manager.key_name
 
         now = time.time()
         payload = {
@@ -177,9 +54,27 @@ class IdentityAuthority:
             "amr": amr or ["google_oidc"]
         }
 
-        headers = {"kid": kid}
-        token = jwt.encode(payload, pem_str, algorithm="RS256", headers=headers)
+        # 1. Encode JWT header & payload without signature
+        header_dict = {"alg": "RS256", "typ": "JWT", "kid": target_kid}
+        header_b64 = base64.urlsafe_b64encode(json.dumps(header_dict, separators=(',', ':')).encode('utf-8')).decode('utf-8').rstrip('=')
+        payload_b64 = base64.urlsafe_b64encode(json.dumps(payload, separators=(',', ':')).encode('utf-8')).decode('utf-8').rstrip('=')
+
+        signing_input = f"{header_b64}.{payload_b64}".encode('utf-8')
+
+        # 2. Compute SHA-256 digest
+        digest = hashlib.sha256(signing_input).digest()
+
+        # 3. Sign SHA-256 digest inside CNG KSP
+        sig_bytes = self.cng_manager.sign_hash(digest_bytes=digest, key_name=target_kid)
+        sig_b64 = base64.urlsafe_b64encode(sig_bytes).decode('utf-8').rstrip('=')
+
+        token = f"{header_b64}.{payload_b64}.{sig_b64}"
         return token
+
+    def get_public_jwks(self, key_name: Optional[str] = None) -> Dict[str, Any]:
+        """Exposes ONLY public key components (JWKS) exported from Windows CNG."""
+        jwk = self.cng_manager.export_public_key_params(key_name=key_name)
+        return {"keys": [jwk]}
 
     def verify_identity_assertion(
         self,
@@ -189,7 +84,7 @@ class IdentityAuthority:
         jwks: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Cryptographically verifies an identity assertion JWT using public key JWKS or KeyManager.
+        Cryptographically verifies an identity assertion JWT against public JWKS.
         Enforces signature, issuer, audience, and expiry validation. Fails closed.
         """
         if not token or not isinstance(token, str):
@@ -201,23 +96,13 @@ class IdentityAuthority:
             if not kid:
                 raise ValidationException("Identity assertion header missing 'kid'.")
 
-            pub_key = None
-            # If explicit JWKS is provided (e.g. downstream consumer), resolve public key from JWKS
-            if jwks and isinstance(jwks, dict) and "keys" in jwks:
-                from src.Application.Dashboard.oidc_validator import get_public_key_from_jwks
-                pub_key = get_public_key_from_jwks(jwks.get("keys", []), kid)
-            else:
-                key_info = self.key_manager.get_key_by_kid(kid)
-                if not key_info:
-                    raise ValidationException(f"Unknown signing key ID '{kid}'.")
+            # Resolve public key from provided JWKS or export public key from CNG
+            target_jwks = jwks
+            if not target_jwks:
+                target_jwks = self.get_public_jwks(key_name=kid)
 
-                pem_str = key_info["private_pem"]
-                priv_key = serialization.load_pem_private_key(
-                    pem_str.encode('utf-8'),
-                    password=None,
-                    backend=default_backend()
-                )
-                pub_key = priv_key.public_key()
+            from src.Application.Dashboard.oidc_validator import get_public_key_from_jwks
+            pub_key = get_public_key_from_jwks(target_jwks.get("keys", []), kid)
 
             decoded = jwt.decode(
                 token,
@@ -250,5 +135,5 @@ class IdentityAuthority:
             raise ValidationException(f"Unexpected error verifying identity assertion: {str(e)}")
 
 
-# Shared singleton instance
+# Shared global singleton
 global_identity_authority = IdentityAuthority()
