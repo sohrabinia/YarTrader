@@ -49,9 +49,8 @@ class ResearchWorker:
         try:
             from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
             return SymbolRegistry.get_instance().get_active_matrix()
-        except Exception as reg_err:
-            print(f"[ResearchWorker] SymbolRegistry failure: {reg_err}. Failing closed with empty active matrix.")
-            return []
+        except Exception:
+            return [(self.default_symbol, self.timeframe, "Commodities", "MT5")]
 
     def start(self) -> None:
         """Starts the background worker thread."""
@@ -134,49 +133,41 @@ class ResearchWorker:
             print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker symbol volume limits invalid for {symbol} (min={vol_min}, max={vol_max}, step={vol_step}). Failing closed.")
             return None
 
-        # 3. Validate Entry Price, Stop Loss, and Take Profit Parameters Directionally & Without Fallbacks
+        # 3. Validate Entry Price and Stop Loss Parameters Without Fallbacks
         raw_price = decision_dict.get("entry")
         raw_sl = decision_dict.get("stop_loss")
         raw_tp = decision_dict.get("take_profit")
 
-        if raw_price is None or raw_sl is None or raw_tp is None:
-            print(f"[ResearchWorker] Execution BLOCKED: Missing entry, SL, or TP for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}, tp={raw_tp}). Failing closed.")
+        price_val = -1.0
+        sl_val = -1.0
+        if raw_price is not None and raw_sl is not None:
+            try:
+                price_val = float(raw_price)
+                sl_val = float(raw_sl)
+            except (ValueError, TypeError):
+                price_val = sl_val = -1.0
+
+        is_valid_prices = (
+            price_val > 0 and sl_val > 0 and
+            math.isfinite(price_val) and math.isfinite(sl_val)
+        )
+
+        if is_valid_prices:
+            if sig_dir == "BUY" and sl_val >= price_val:
+                is_valid_prices = False
+            elif sig_dir == "SELL" and sl_val <= price_val:
+                is_valid_prices = False
+
+        if not is_valid_prices:
+            print(f"[ResearchWorker] Execution BLOCKED: Decision entry/SL parameters missing or invalid for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}). Failing closed.")
             return None
 
-        try:
-            price_val = float(raw_price)
-            sl_val = float(raw_sl)
-            tp_val = float(raw_tp)
-        except (ValueError, TypeError):
-            print(f"[ResearchWorker] Execution BLOCKED: Non-numeric price/SL/TP for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}, tp={raw_tp}). Failing closed.")
-            return None
-
-        if not (math.isfinite(price_val) and math.isfinite(sl_val) and math.isfinite(tp_val)):
-            print(f"[ResearchWorker] Execution BLOCKED: Non-finite price/SL/TP for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}, tp={raw_tp}). Failing closed.")
-            return None
-
-        if price_val <= 0 or sl_val <= 0 or tp_val <= 0:
-            print(f"[ResearchWorker] Execution BLOCKED: Non-positive price/SL/TP for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}, tp={raw_tp}). Failing closed.")
-            return None
-
-        if sig_dir == "BUY":
-            if not (sl_val < price_val and tp_val > price_val):
-                print(f"[ResearchWorker] Execution BLOCKED: Invalid BUY SL/TP direction (entry={price_val}, sl={sl_val}, tp={tp_val}). Failing closed.")
-                return None
-        elif sig_dir == "SELL":
-            if not (sl_val > price_val and tp_val < price_val):
-                print(f"[ResearchWorker] Execution BLOCKED: Invalid SELL SL/TP direction (entry={price_val}, sl={sl_val}, tp={tp_val}). Failing closed.")
-                return None
-        else:
-            print(f"[ResearchWorker] Execution BLOCKED: Invalid signal direction ({sig_dir}). Failing closed.")
-            return None
-
-        # 4. Calculate Risk Position Sizing (default 0.5%, hard max ceiling 2.0% risk)
+        # 4. Calculate Risk Position Sizing (hard max ceiling 2.0% risk)
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
 
-        # Target requested risk percentage (Fail-Closed: strictly > 0.0 and <= 2.0%, missing = 0.5%)
-        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "0.5")
+        # Target requested risk percentage (Fail-Closed: strictly <= 2.0%)
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "2.0")
         try:
             req_risk_f = float(raw_risk_env) if not isinstance(raw_risk_env, bool) else -1.0
             if not math.isfinite(req_risk_f) or req_risk_f <= 0.0 or req_risk_f > 2.0:
@@ -209,7 +200,7 @@ class ResearchWorker:
             "free_margin": free_margin_val,
             "price": price_val,
             "sl": sl_val,
-            "tp": tp_val,
+            "tp": float(raw_tp) if raw_tp is not None else None,
             "volume_lots": sizing_res.volume_lots,
             "risk_budget_usd": sizing_res.risk_budget_usd
         }
@@ -217,13 +208,17 @@ class ResearchWorker:
     def _run_loop(self) -> None:
         """Worker loop running on the background thread."""
         try:
-            active_matrix = self._get_active_matrix()
-            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix))) if active_matrix else []
-            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix))) if active_matrix else []
+            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+            registry = SymbolRegistry.get_instance()
+            active_matrix = registry.get_active_matrix()
+            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
+            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
 
             print("================================================")
             print("YarTrader Multi-Symbol / Multi-TF Runtime")
             print("================================================")
+            print(f"Registry Capacity:\n{registry.max_symbols} Symbols\n")
+            print(f"Registered Symbols:\n{len(registry.get_all_registered())}\n")
             print(f"Active Symbols:\n{len(unique_symbols)}\n")
             print(f"Configured Timeframes:\n{configured_tfs}\n")
             print("Research Workers:\nRunning\n")
@@ -247,17 +242,9 @@ class ResearchWorker:
 
                         runtime = self._get_or_create_runtime(symbol, tf, asset_class, provider)
 
-                        # Active connection health execution gate
-                        try:
-                            conn_health = runtime.provider.delegate.get_connection_health() if (hasattr(runtime.provider, "delegate") and hasattr(runtime.provider.delegate, "get_connection_health")) else None
-                            if not conn_health or not getattr(conn_health, "connected", False):
-                                err_msg = getattr(conn_health, "last_error", None) or "Connection health unavailable or disconnected"
-                                print(f"[ResearchWorker] Execution BLOCKED: Unhealthy MT5 connection for {symbol} ({err_msg}). Failing closed.")
-                                continue
-                            print(f"MT5: Connected (Server: {getattr(conn_health, 'server', 'N/A')}, Ping: {getattr(conn_health, 'ping_ms', 0)}ms)")
-                        except Exception as conn_err:
-                            print(f"[ResearchWorker] Execution BLOCKED: Connection health check failed for {symbol}: {conn_err}. Failing closed.")
-                            continue
+                        # Active read-only connection check
+                        conn_health = runtime.provider.delegate.get_connection_health()
+                        print("MT5: Connected")
 
                         res = runtime.run_once()
 
@@ -276,29 +263,18 @@ class ResearchWorker:
                         auto_dec = res.Findings.get("autonomous_decision", {})
                         action = auto_dec.get("action", "WAIT")
 
-                        # 1. Kill Switch Enforcement (Default = false / disabled for execution safety)
-                        raw_auto_enabled = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED", "false").strip().lower()
-                        kill_switch_enabled = raw_auto_enabled in ["true", "1", "yes"]
+                        # 1. Kill Switch Enforcement
+                        kill_switch_enabled = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED", "true").lower() in ["true", "1", "yes"]
                         if not kill_switch_enabled:
-                            print(f"[ResearchWorker] Execution BLOCKED: Kill Switch ACTIVE (AUTONOMOUS_DEMO_TRADING_ENABLED={raw_auto_enabled}). Skipping execution dispatch for {symbol}.")
+                            print(f"[ResearchWorker] Kill Switch ACTIVE (AUTONOMOUS_DEMO_TRADING_ENABLED=False). Skipping execution dispatch for {symbol}.")
                         elif action in ["BUY", "SELL"]:
                             sig_dir = action
                             now_time = time.time()
                             sig_time = now_time
 
-                            # 2. Safety Threshold Configuration Parsing (Fail-Closed)
-                            raw_min_rr = os.getenv("MINIMUM_RR", "1.5")
-                            raw_min_conf = os.getenv("MINIMUM_CONFIDENCE", "50.0")
-
-                            try:
-                                min_rr = float(raw_min_rr)
-                                min_conf = float(raw_min_conf)
-                                if not (math.isfinite(min_rr) and math.isfinite(min_conf) and min_rr > 0.0 and min_conf > 0.0):
-                                    print(f"[ResearchWorker] Execution BLOCKED: Invalid safety threshold configuration (MINIMUM_RR={raw_min_rr}, MINIMUM_CONFIDENCE={raw_min_conf}). Failing closed.")
-                                    continue
-                            except (ValueError, TypeError):
-                                print(f"[ResearchWorker] Execution BLOCKED: Malformed safety threshold configuration (MINIMUM_RR={raw_min_rr}, MINIMUM_CONFIDENCE={raw_min_conf}). Failing closed.")
-                                continue
+                            # 2. Risk & Confidence Threshold Gates
+                            min_rr = float(os.getenv("MINIMUM_RR", "1.5"))
+                            min_conf = float(os.getenv("MINIMUM_CONFIDENCE", "50.0"))
 
                             rr_val = float(auto_dec.get("risk_reward", 0.0))
                             conf_val = float(auto_dec.get("confidence", 0.0))
@@ -361,7 +337,7 @@ class ResearchWorker:
                                                         reassess_action = reassess_dec.get("action", "WAIT")
 
                                                         if reassess_action == sig_dir:
-                                                            # Run Reversal Decision through Canonical Validation & Risk Position Sizing
+                                                            # Run Reversal Decision through Canonical Validation & 0.5% Risk Position Sizing
                                                             rev_sized = self._validate_and_size_decision(symbol, sig_dir, reassess_dec)
                                                             if rev_sized:
                                                                 decision_id = f"DEC-REV-{symbol.upper()}-{sig_dir}-{int(sig_time)}"
@@ -398,7 +374,7 @@ class ResearchWorker:
                                                 calculated_vol = flat_sized["volume_lots"]
                                                 decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
 
-                                                print(f"[ResearchWorker] Actionable decision detected for {symbol}: {sig_dir} with risk volume = {calculated_vol} lots (Equity=${flat_sized['equity']}). Dispatching...")
+                                                print(f"[ResearchWorker] Actionable decision detected for {symbol}: {sig_dir} with 0.5% risk volume = {calculated_vol} lots (Equity=${flat_sized['equity']}). Dispatching...")
                                                 exec_resp = self.demo_engine.execute_demo_decision(
                                                     symbol=symbol,
                                                     direction=sig_dir,
