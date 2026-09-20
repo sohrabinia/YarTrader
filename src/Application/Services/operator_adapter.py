@@ -9,6 +9,7 @@ import urllib.error
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 logger = logging.getLogger("YarTrader.OperatorAdapter")
 
@@ -31,9 +32,16 @@ class YarTraderOperatorAdapter:
     """
 
     def __init__(self, host: Optional[str] = None, port: Optional[int] = None, timeout_sec: float = 5.0):
-        self.host = host or os.environ.get("YARTRADER_OPERATOR_HOST", "127.0.0.1")
-        self.port = int(port or os.environ.get("YARTRADER_OPERATOR_PORT", "8890"))
-        self.base_url = f"http://{self.host}:{self.port}"
+        runtime_url = os.environ.get("YAROPERATOR_RUNTIME_URL", "").strip()
+        if runtime_url:
+            self.base_url = runtime_url.rstrip("/")
+            parsed = urlparse(self.base_url)
+            self.host = parsed.hostname or "127.0.0.1"
+            self.port = parsed.port or 8080
+        else:
+            self.host = host or os.environ.get("YARTRADER_OPERATOR_HOST", "127.0.0.1")
+            self.port = int(port or os.environ.get("YARTRADER_OPERATOR_PORT", "8080"))
+            self.base_url = f"http://{self.host}:{self.port}"
         self.timeout_sec = float(os.environ.get("YARTRADER_OPERATOR_TIMEOUT", str(timeout_sec)))
 
     def _get_server_secret(self) -> str:
@@ -92,10 +100,16 @@ class YarTraderOperatorAdapter:
 
         return health_info
 
-    def submit_task(self, admin_identity: Dict[str, Any], task_description: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def submit_task(
+        self,
+        admin_identity: Dict[str, Any],
+        task_description: str,
+        workspace_id: str = "yartrader",
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
         Submits an authenticated task from YarTrader Admin to YarTrader.Operator runtime.
-        Propagates verified YarTrader identity server-side. Fails closed if runtime unavailable or secret missing.
+        Propagates verified YarTrader identity and workspace server-side. Fails closed if runtime unavailable or secret missing.
         """
         if not admin_identity or admin_identity.get("role") != "ADMIN" or not admin_identity.get("email"):
             return {
@@ -120,8 +134,9 @@ class YarTraderOperatorAdapter:
                 "email": admin_identity["email"],
                 "name": admin_identity.get("name", "Administrator"),
                 "role": admin_identity.get("role"),
-                "authenticated_via": "YarTrader_Google_OIDC"
+                "authenticated_via": admin_identity.get("authenticated_via", "YarTrader_Google_OIDC")
             },
+            "workspace_id": workspace_id or "yartrader",
             "task_description": task_description,
             "metadata": metadata or {},
             "submitted_at": datetime.now(timezone.utc).isoformat()
