@@ -1,4 +1,5 @@
 import os
+import json
 import unittest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
@@ -9,20 +10,20 @@ class TestOperatorAdminIntegration(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
 
-    def test_operator_default_port_is_8080(self):
-        """Verify default host is 127.0.0.1 and port is 8080 without stale 8890 assumption."""
+    def test_operator_default_port_is_3000(self):
+        """Verify default host is 127.0.0.1 and port is 3000 matching YarOperator M12 contract."""
         with patch.dict(os.environ, {}, clear=True):
             adapter = YarTraderOperatorAdapter()
             self.assertEqual(adapter.host, "127.0.0.1")
-            self.assertEqual(adapter.port, 8080)
-            self.assertEqual(adapter.base_url, "http://127.0.0.1:8080")
+            self.assertEqual(adapter.port, 3000)
+            self.assertEqual(adapter.base_url, "http://127.0.0.1:3000")
 
     def test_operator_runtime_url_env_override(self):
         """Verify YAROPERATOR_RUNTIME_URL environment variable is respected."""
-        with patch.dict(os.environ, {"YAROPERATOR_RUNTIME_URL": "http://127.0.0.1:8080"}):
+        with patch.dict(os.environ, {"YAROPERATOR_RUNTIME_URL": "http://127.0.0.1:3000"}):
             adapter = YarTraderOperatorAdapter()
-            self.assertEqual(adapter.base_url, "http://127.0.0.1:8080")
-            self.assertEqual(adapter.port, 8080)
+            self.assertEqual(adapter.base_url, "http://127.0.0.1:3000")
+            self.assertEqual(adapter.port, 3000)
 
     def test_operator_status_endpoint_admin_required(self):
         """Verify GET /api/admin/operator/status requires admin authorization."""
@@ -42,7 +43,7 @@ class TestOperatorAdminIntegration(unittest.TestCase):
         self.assertEqual(res_admin.status_code, 200)
         json_data = res_admin.json()
         self.assertIn("operator_runtime", json_data)
-        self.assertEqual(json_data["port"], 8080)
+        self.assertEqual(json_data["port"], 3000)
 
     def test_operator_task_submission_admin(self):
         """Verify POST /api/admin/operator/tasks handles admin task submissions."""
@@ -51,62 +52,65 @@ class TestOperatorAdminIntegration(unittest.TestCase):
         payload = {"task_description": "Deploy YarOperator service worker", "workspace_id": "yartrader"}
         res = self.client.post("/api/admin/operator/tasks", json=payload, headers={"Authorization": f"Bearer {admin_token}"})
         self.assertEqual(res.status_code, 200)
-        # Without secret, fails closed with task_id=None
+        # Without secret/token, fails closed with task_id=None
         self.assertIsNone(res.json()["task_id"])
 
-    def test_operator_task_submission_workspace_propagation(self):
-        """Verify workspace_id is forwarded to YarOperator task payload."""
-        admin_identity = {"email": "admin_ws@yartrader.app", "role": "ADMIN", "name": "Admin WS"}
+    def test_m12_chat_endpoint_contract_and_workspace_propagation(self):
+        """Verify POST /api/v1/operator/chat is called with Bearer token, rawCommandText, ownerId, and workspaceId='yartrader'."""
+        admin_identity = {"email": "admin_m12@yartrader.app", "role": "ADMIN", "name": "Admin M12"}
         adapter = YarTraderOperatorAdapter()
 
-        with patch.dict(os.environ, {"OPERATOR_SERVER_SECRET": "test_secret_123"}):
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "m12_bearer_token_xyz", "OPERATOR_OWNER_ID": "owner_yartrader_prod"}):
             with patch("urllib.request.urlopen") as mock_urlopen:
                 mock_response = MagicMock()
-                mock_response.status = 201
-                mock_response.read.return_value = b'{"status": "Created", "task_id": "task_1001"}'
+                mock_response.status = 200
+                mock_response.read.return_value = b'{"taskId": "task_m12_777", "status": "Completed", "output": "Execution successful"}'
                 mock_urlopen.return_value.__enter__.return_value = mock_response
 
                 res = adapter.submit_task(
                     admin_identity=admin_identity,
-                    task_description="Execute risk audit",
-                    workspace_id="custom_workspace"
+                    task_description="Execute risk assessment",
+                    workspace_id="yartrader"
                 )
 
                 self.assertTrue(res["success"])
-                self.assertEqual(res["task_id"], "task_1001")
+                self.assertEqual(res["task_id"], "task_m12_777")
+                self.assertEqual(res["result"], "Execution successful")
 
-                # Verify Request object sent to urllib
+                # Verify urllib Request sent to M12 POST /api/v1/operator/chat
                 call_args = mock_urlopen.call_args[0]
                 req = call_args[0]
-                import json
-                sent_body = json.loads(req.data.decode("utf-8"))
-                self.assertEqual(sent_body["workspace_id"], "custom_workspace")
-                self.assertEqual(sent_body["requested_by"]["email"], "admin_ws@yartrader.app")
-                self.assertEqual(req.headers.get("X-operator-server-secret"), "test_secret_123")
+                self.assertTrue(req.full_url.endswith("/api/v1/operator/chat"))
+                self.assertEqual(req.headers.get("Authorization"), "Bearer m12_bearer_token_xyz")
 
-    def test_secret_never_returned_in_api_responses(self):
-        """Verify OPERATOR_SERVER_SECRET is never returned in API payloads."""
-        secret_val = "SUPER_SECRET_OPERATOR_KEY_999"
+                sent_body = json.loads(req.data.decode("utf-8"))
+                self.assertEqual(sent_body["workspaceId"], "yartrader")
+                self.assertEqual(sent_body["ownerId"], "owner_yartrader_prod")
+                self.assertEqual(sent_body["rawCommandText"], "Execute risk assessment")
+                self.assertEqual(sent_body["environmentId"], "production")
+
+    def test_bearer_token_never_returned_in_api_responses(self):
+        """Verify OPERATOR_OWNER_TOKEN / OPERATOR_SERVER_SECRET is never returned in API responses."""
+        token_val = "SECRET_BEARER_TOKEN_NEVER_LEAK_123"
         admin = global_auth_service.repo.create_user("admin_sec@yartrader.app", password_hash="pass", role="ADMIN", name="Admin")
         admin_token = global_auth_service.create_session(admin)
 
-        with patch.dict(os.environ, {"OPERATOR_SERVER_SECRET": secret_val}):
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": token_val}):
             res = self.client.get("/api/admin/operator/status", headers={"Authorization": f"Bearer {admin_token}"})
-            res_str = res.text
-            self.assertNotIn(secret_val, res_str)
+            self.assertNotIn(token_val, res.text)
 
     def test_unreachable_runtime_fails_closed(self):
-        """Verify unreachable YarOperator runtime fails closed with status UNAVAILABLE/FAILED."""
+        """Verify unreachable YarOperator M12 runtime fails closed with status UNAVAILABLE/FAILED."""
         adapter = YarTraderOperatorAdapter()
         admin_identity = {"email": "admin_fail@yartrader.app", "role": "ADMIN"}
 
-        with patch.dict(os.environ, {"OPERATOR_SERVER_SECRET": "test_secret"}):
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "test_token"}):
             with patch("urllib.request.urlopen", side_effect=OSError("Connection refused")):
                 health = adapter.get_runtime_health()
                 self.assertFalse(health["connected"])
                 self.assertEqual(health["status"], "UNAVAILABLE")
 
-                task_res = adapter.submit_task(admin_identity, "Test task")
+                task_res = adapter.submit_task(admin_identity, "Test command")
                 self.assertFalse(task_res["success"])
                 self.assertEqual(task_res["status"], OperatorTaskStatus.FAILED.value)
 

@@ -138,7 +138,7 @@ export default function OperatorView({ t, lang = 'fa' }) {
           </div>
           <div className="text-xs text-slate-400 space-y-1">
             <div><strong>OS:</strong> {operatorStatus?.os_environment || 'Linux/Windows'}</div>
-            <div><strong>Host:</strong> {operatorStatus?.host || '127.0.0.1'}:{operatorStatus?.port || 8080}</div>
+            <div><strong>Host:</strong> {operatorStatus?.host || '127.0.0.1'}:{operatorStatus?.port || 3000}</div>
           </div>
         </div>
 
