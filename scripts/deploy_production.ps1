@@ -169,6 +169,30 @@ if (-not (Test-Path $EnvFile)) {
 }
 
 # ------------------------------------------------------------------------------
+# STEP 3.5: IIS Reverse Proxy & web.config Remediation
+# ------------------------------------------------------------------------------
+Write-Host "`n[+] Step 3.5: Executing IIS Reverse Proxy Setup & web.config Remediation..." -ForegroundColor Cyan
+
+$IISProxyScript = Join-Path $PSScriptRoot "setup_iis_reverse_proxy.ps1"
+
+if (-not (Test-Path $IISProxyScript)) {
+    Write-Error "Deployment Failed: Required IIS reverse proxy setup script '$IISProxyScript' was not found!"
+    Exit 1
+}
+
+try {
+    & $IISProxyScript
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Deployment Failed: IIS reverse proxy setup script exited with code $LASTEXITCODE!"
+        Exit 1
+    }
+    Write-Host "  [OK] IIS reverse proxy remediation completed successfully." -ForegroundColor Green
+} catch {
+    Write-Error "Deployment Failed: IIS reverse proxy setup encountered a critical exception: $_"
+    Exit 1
+}
+
+# ------------------------------------------------------------------------------
 # STEP 4: Windows Service Verification
 # ------------------------------------------------------------------------------
 Write-Host "`n[+] Step 4: Checking YarTrader Windows Service..." -ForegroundColor Cyan
