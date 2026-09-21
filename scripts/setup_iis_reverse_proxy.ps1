@@ -5,9 +5,9 @@
 # It automates creating the IIS Website, Application Pool, configuring URL Rewrite rules,
 # writing the secure web.config with enterprise security headers, and setting up static caching.
 
-$SiteName = "YarTrader"
-$AppPoolName = "YarTraderPool"
-$PhysicalPath = "C:\inetpub\wwwroot\TradeYarAI"
+$SiteName = "Default Web Site"
+$AppPoolName = "DefaultAppPool"
+$PhysicalPath = "C:\inetpub\wwwroot"
 $StagingPath = "C:\inetpub\YarTrader-Edge-Staging"
 $BackendUrl = "http://127.0.0.1:8000"
 
@@ -235,15 +235,27 @@ if ($isAdmin -and $IISModule) {
             Write-Host "  [OK] Application Pool '$AppPoolName' already exists." -ForegroundColor Green
         }
 
-        # Check Site
-        if (-not (Test-Path "IIS:\Sites\$SiteName")) {
+        # Check Site physicalPath dynamically
+        if (Test-Path "IIS:\Sites\$SiteName") {
+            $SitePhysicalPath = (Get-ItemProperty "IIS:\Sites\$SiteName").physicalPath
+            if ($SitePhysicalPath -and (Test-Path $SitePhysicalPath)) {
+                $PhysicalPath = $SitePhysicalPath
+                Write-Host "  [OK] Dynamically resolved IIS '$SiteName' physicalPath: $PhysicalPath" -ForegroundColor Green
+            } else {
+                Write-Host "  [OK] Website '$SiteName' exists. Reconfiguring root path to $PhysicalPath..." -ForegroundColor Green
+                Set-ItemProperty "IIS:\Sites\$SiteName" -Name physicalPath -Value $PhysicalPath
+            }
+        } elseif (Test-Path "IIS:\Sites\TradeYarAI") {
+            $SiteName = "TradeYarAI"
+            $SitePhysicalPath = (Get-ItemProperty "IIS:\Sites\$SiteName").physicalPath
+            if ($SitePhysicalPath -and (Test-Path $SitePhysicalPath)) {
+                $PhysicalPath = $SitePhysicalPath
+                Write-Host "  [OK] Dynamically resolved IIS '$SiteName' physicalPath: $PhysicalPath" -ForegroundColor Green
+            }
+        } else {
             Write-Host "  [INFO] Creating IIS Website '$SiteName'..." -ForegroundColor Yellow
-            # Create site binding HTTP port 80. Real production SSL must bind Port 443.
             New-Website -Name $SiteName -PhysicalPath $PhysicalPath -Port 80 -ApplicationPool $AppPoolName | Out-Null
             Write-Host "  [OK] Created Website: $SiteName on port 80." -ForegroundColor Green
-        } else {
-            Write-Host "  [OK] Website '$SiteName' already exists. Reconfiguring root path..." -ForegroundColor Green
-            Set-ItemProperty "IIS:\Sites\$SiteName" -Name physicalPath -Value $PhysicalPath
         }
 
         # Configure ARR (Application Request Routing) Proxy settings
