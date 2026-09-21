@@ -45,6 +45,24 @@ def test_four_localized_spa_routes():
             res_head = client.head(url)
             assert res_head.status_code == 200, f"Failed HEAD for {url}"
 
+def test_operator_route_served_by_yartrader_spa():
+    """Verify /Operator and /operator are served directly by YarTrader SPA (returns index.html, not YarOperator proxy)."""
+    res_upper = client.get("/Operator")
+    assert res_upper.status_code == 200
+    assert "text/html" in res_upper.headers.get("content-type", "").lower()
+    assert "YarTrader" in res_upper.text
+    assert "YarOperator — Executive Assistant" not in res_upper.text
+
+    res_lower = client.get("/operator")
+    assert res_lower.status_code == 200
+    assert "text/html" in res_lower.headers.get("content-type", "").lower()
+    assert "YarTrader" in res_lower.text
+
+def test_no_browser_facing_v1_operator_routes():
+    """Verify YarTrader FastAPI does not expose raw browser-facing /api/v1/operator routes."""
+    res = client.get("/api/v1/operator/chat")
+    assert res.status_code == 404
+
 def test_de_locale_removed():
     """Verify German (/de) public route is removed or disallowed as active public SEO locale."""
     res = client.get("/de")
@@ -56,6 +74,47 @@ def test_api_404_isolation():
     assert res.status_code == 404
     assert res.headers.get("content-type") == "application/json"
     assert res.json() == {"detail": "Not Found"}
+
+def test_iis_powershell_script_template_rules():
+    """Verify setup_iis_reverse_proxy.ps1 contains no rewrite rules targeting port 3000 and resolves physicalPath before writing."""
+    import os
+    script_path = "scripts/setup_iis_reverse_proxy.ps1"
+    assert os.path.exists(script_path)
+    with open(script_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Rule 1: No rewrite target to 3000 in rewrite actions or URLs
+    assert "url=\"http://127.0.0.1:3000" not in content
+    assert "url=\"${BackendUrl}/{R:1}\"" in content or "url=\"http://127.0.0.1:8000" in content
+
+    # Rule 2: PhysicalPath resolution occurs BEFORE Web.config generation/writing
+    step1_pos = content.find("STEP 1: RESOLVE IIS SITE PHYSICAL PATH")
+    step2_pos = content.find("STEP 2: GENERATE RE-MEDIATED WEB.CONFIG")
+    assert step1_pos != -1 and step2_pos != -1
+    assert step1_pos < step2_pos
+
+    # Rule 3: Conditional HTTPS handling based on $HasHttpsBinding
+    assert "$HasHttpsBinding" in content
+    assert "Redirect HTTP to HTTPS" in content
+
+    # Rule 4: Fail-closed exception handling (Exit 1 on inspection catch block, no fallback assignment)
+    catch_pos = content.find("catch {")
+    assert catch_pos != -1
+    catch_block = content[catch_pos:catch_pos+350]
+    assert "Exit 1" in catch_block
+    assert "$ResolvedProductionPath = $DefaultProductionPath" not in catch_block
+
+    # Rule 5: Fail-closed non-admin/missing module path & staging write failure
+    else_pos = content.find("WebAdministration module is missing")
+    assert else_pos != -1
+    else_block = content[else_pos:else_pos+300]
+    assert "Exit 1" in else_block
+    assert "Refusing to fall back" in else_block
+
+    staging_catch_pos = content.find("Unable to write staging IIS web.config file!")
+    assert staging_catch_pos != -1
+    staging_catch_block = content[staging_catch_pos:staging_catch_pos+200]
+    assert "Exit 1" in staging_catch_block
 
 def test_protected_trading_core_untouched():
     """Verify LIVE_TRADING_ENABLED remains hard-locked to False."""
