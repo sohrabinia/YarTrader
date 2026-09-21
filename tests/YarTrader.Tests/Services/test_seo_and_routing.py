@@ -97,6 +97,13 @@ def test_iis_powershell_script_template_rules():
     assert "$HasHttpsBinding" in content
     assert "Redirect HTTP to HTTPS" in content
 
+    # Rule 4: Fail-closed exception handling (Exit 1 on inspection catch block, no fallback assignment)
+    catch_pos = content.find("catch {")
+    assert catch_pos != -1
+    catch_block = content[catch_pos:catch_pos+350]
+    assert "Exit 1" in catch_block
+    assert "$ResolvedProductionPath = $DefaultProductionPath" not in catch_block
+
 def test_protected_trading_core_untouched():
     """Verify LIVE_TRADING_ENABLED remains hard-locked to False."""
     import os

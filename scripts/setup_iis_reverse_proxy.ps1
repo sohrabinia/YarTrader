@@ -39,10 +39,10 @@ if ($isAdmin -and $IISModule) {
         # Resolve Production Site Path & Bindings
         $TargetSite = $null
         if (Test-Path "IIS:\Sites\$SiteName") {
-            $TargetSite = Get-Item "IIS:\Sites\$SiteName"
+            $TargetSite = Get-Item "IIS:\Sites\$SiteName" -ErrorAction Stop
         } elseif (Test-Path "IIS:\Sites\TradeYarAI") {
             $SiteName = "TradeYarAI"
-            $TargetSite = Get-Item "IIS:\Sites\$SiteName"
+            $TargetSite = Get-Item "IIS:\Sites\$SiteName" -ErrorAction Stop
         }
 
         if ($TargetSite) {
@@ -51,8 +51,8 @@ if ($isAdmin -and $IISModule) {
                 $ResolvedProductionPath = $SitePath
                 Write-Host "  [OK] Resolved live IIS site '$SiteName' physicalPath: $ResolvedProductionPath" -ForegroundColor Green
             } else {
-                Write-Host "  [WARN] IIS site physicalPath '$SitePath' does not exist on disk. Failing closed." -ForegroundColor Red
-                Write-Error "Deployment Failed: Resolved IIS physicalPath '$SitePath' is invalid or missing!"
+                Write-Host "  [FAIL] IIS site '$SiteName' exists but physicalPath '$SitePath' is invalid or missing on disk!" -ForegroundColor Red
+                Write-Error "Deployment Failed: Resolved IIS physicalPath '$SitePath' for site '$SiteName' is invalid or missing!"
                 Exit 1
             }
 
@@ -66,21 +66,26 @@ if ($isAdmin -and $IISModule) {
             }
             Write-Host "  [INFO] Production site HTTPS binding detected: $HasHttpsBinding" -ForegroundColor Yellow
         } else {
-            Write-Host "  [INFO] IIS site '$SiteName' does not exist yet. Will use default path: $DefaultProductionPath" -ForegroundColor Yellow
+            Write-Host "  [INFO] IIS site '$SiteName' does not exist in IIS manager yet. Using default initial path: $DefaultProductionPath" -ForegroundColor Yellow
             $ResolvedProductionPath = $DefaultProductionPath
         }
 
-        # Check Staging Site Bindings if Staging Site exists in IIS
+        # Check Staging Site Bindings & physicalPath if Staging Site exists in IIS
         if (Test-Path "IIS:\Sites\YarTrader-Edge-Staging") {
-            $StagingSite = Get-Item "IIS:\Sites\YarTrader-Edge-Staging"
+            $StagingSite = Get-Item "IIS:\Sites\YarTrader-Edge-Staging" -ErrorAction Stop
             if ($StagingSite.physicalPath -and (Test-Path $StagingSite.physicalPath)) {
                 $StagingPath = $StagingSite.physicalPath
                 Write-Host "  [OK] Resolved live IIS staging site physicalPath: $StagingPath" -ForegroundColor Green
+            } else {
+                Write-Host "  [FAIL] IIS staging site 'YarTrader-Edge-Staging' exists but physicalPath '$($StagingSite.physicalPath)' is invalid or missing on disk!" -ForegroundColor Red
+                Write-Error "Deployment Failed: Resolved IIS staging physicalPath '$($StagingSite.physicalPath)' is invalid or missing!"
+                Exit 1
             }
         }
     } catch {
-        Write-Host "  [WARN] Exception during IIS WebAdministration inspection: $_" -ForegroundColor Yellow
-        Write-Host "         Using default production path: $DefaultProductionPath" -ForegroundColor Yellow
+        Write-Host "  [FAIL] Critical Exception during IIS WebAdministration site inspection: $_" -ForegroundColor Red
+        Write-Error "Deployment Failed: Unable to inspect IIS site configuration safely! Exiting to prevent fail-open path resolution."
+        Exit 1
     }
 } else {
     Write-Host "  [INFO] WebAdministration unavailable or not running as Administrator." -ForegroundColor Yellow
