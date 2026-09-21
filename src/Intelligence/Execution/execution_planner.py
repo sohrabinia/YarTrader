@@ -149,7 +149,7 @@ class ExecutionIntelligencePlanner:
                 "candle_count": candle_count,
                 "latest_candle_timestamp": latest_candle_timestamp,
                 "context_identity": context_identity,
-                "risk_budget_percent": 0.5,
+                "risk_budget_percent": 1.0,
                 "decision_cycle_id": decision_cycle_id
             }
         }

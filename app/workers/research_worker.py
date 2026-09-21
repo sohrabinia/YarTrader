@@ -166,8 +166,8 @@ class ResearchWorker:
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
 
-        # Target requested risk percentage (Fail-Closed: strictly <= 2.0%)
-        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "2.0")
+        # Target requested risk percentage (Fail-Closed: target 1.0%, strictly <= 2.0%)
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "1.0")
         try:
             req_risk_f = float(raw_risk_env) if not isinstance(raw_risk_env, bool) else -1.0
             if not math.isfinite(req_risk_f) or req_risk_f <= 0.0 or req_risk_f > 2.0:

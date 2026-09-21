@@ -11,34 +11,33 @@ import pytest
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, PositionSizingResult
 
 
-def test_a_point_five_percent_risk_budget_calculation():
+def test_one_percent_default_risk_budget_calculation():
     engine = ProfessionalRiskEngine()
 
-    # Account Equity = $10,000 -> 0.5% Risk Budget = $50.00
+    # Account Equity = $10,000 -> Default 1.0% Risk Budget = $100.00
     res10k = engine.evaluate_equity_risk_and_position_size(
         symbol="XAUUSD",
         direction="BUY",
         entry_price=2500.0,
         stop_loss=2490.0,  # $10 SL distance -> $1000 risk per lot (+ $7 commission) = $1007
         account_equity=10000.0,
-        free_margin=10000.0,
-        risk_pct=0.5
+        free_margin=10000.0
     )
     assert res10k.is_valid is True
-    assert res10k.risk_budget_usd == 50.0
+    assert res10k.risk_budget_usd == 100.0
 
-    # Account Equity = $20,000 -> 0.5% Risk Budget = $100.00
-    res20k = engine.evaluate_equity_risk_and_position_size(
+    # Risk exceeding 2.0% hard ceiling must fail closed
+    res_high = engine.evaluate_equity_risk_and_position_size(
         symbol="XAUUSD",
         direction="BUY",
         entry_price=2500.0,
         stop_loss=2490.0,
-        account_equity=20000.0,
-        free_margin=20000.0,
-        risk_pct=0.5
+        account_equity=10000.0,
+        free_margin=10000.0,
+        risk_pct=3.0
     )
-    assert res20k.is_valid is True
-    assert res20k.risk_budget_usd == 100.0
+    assert res_high.is_valid is False
+    assert "exceeds maximum allowable ceiling" in res_high.rejection_reason
 
 
 def test_b_stop_distance_volume_scaling():

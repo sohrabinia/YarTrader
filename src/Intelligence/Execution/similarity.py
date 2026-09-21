@@ -2,7 +2,7 @@
 YarTrader Scale-Invariant Structural Similarity Engine
 ======================================================
 Computes mathematical similarity between current market structure signatures
-and historical patterns using ATR-normalized displacement and scale-invariant normalized geometry.
+and historical patterns using pure price range normalized geometry (NO ATR or technical indicators).
 
 Tests requirement:
 4500 shape A, 4600 shape A, 5000 shape A -> high structural similarity.
@@ -16,7 +16,7 @@ import math
 class PatternSimilarityIntelligenceEngine:
     """
     Computes scale-invariant mathematical similarity between market structure signatures
-    using ATR-normalized displacement and range-normalized shape vectors.
+    using pure price range normalized shape vectors (indicator-independent).
     """
 
     def __init__(self, threshold: float = 0.70) -> None:
@@ -25,20 +25,16 @@ class PatternSimilarityIntelligenceEngine:
     def normalize_signature_geometry(
         self,
         prices: List[float],
-        atr: Optional[float] = None
+        atr: Optional[float] = None  # Deprecated parameter ignored for backward signature compatibility
     ) -> List[float]:
         """
-        Transforms raw price array into a scale-invariant geometric shape vector:
-        1. If ATR is available and positive: (price_i - reference_price) / ATR
-        2. Else if range > 0: (price_i - min_price) / (max_price - min_price)
-        3. Else: zero vector.
+        Transforms raw price array into a scale-invariant geometric shape vector strictly using raw price range:
+        1. If range > 0: (price_i - min_price) / (max_price - min_price)
+        2. Else: zero vector.
+        Calculated strictly without technical indicators (NO ATR, NO RSI, NO MA).
         """
         if not prices:
             return []
-
-        ref_p = prices[0]
-        if atr is not None and atr > 0:
-            return [round((p - ref_p) / atr, 4) for p in prices]
 
         min_p = min(prices)
         max_p = max(prices)
@@ -56,11 +52,12 @@ class PatternSimilarityIntelligenceEngine:
     ) -> Dict[str, Any]:
         """
         Compares current normalized geometry signature to list of historical patterns.
+        Strictly indicator-independent structure comparison.
         """
         if not current_signature:
             return self._empty_similarity()
 
-        curr_norm = self.normalize_signature_geometry(current_signature, atr=atr)
+        curr_norm = self.normalize_signature_geometry(current_signature)
 
         similar_matches = []
         best_match = None
@@ -71,8 +68,7 @@ class PatternSimilarityIntelligenceEngine:
             if not hist_sig:
                 continue
 
-            hist_atr = pat.get("atr")
-            hist_norm = self.normalize_signature_geometry(hist_sig, atr=hist_atr)
+            hist_norm = self.normalize_signature_geometry(hist_sig)
 
             if len(hist_norm) != len(curr_norm):
                 # Interpolate or slice if needed, or skip mismatched lengths

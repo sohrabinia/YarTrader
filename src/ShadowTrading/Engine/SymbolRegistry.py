@@ -1,8 +1,16 @@
 import os
 import json
+import threading
 from typing import Dict, List, Any, Tuple
 
 REGISTRY_FILE = "runtime_logs/symbols_registry.json"
+
+CANONICAL_30_SYMBOLS = {
+    "XAUUSD", "XAGUSD", "EURUSD", "USDJPY", "GBPUSD", "USDCHF", "AUDUSD", "USDCAD",
+    "NZDUSD", "EURJPY", "GBPJPY", "EURGBP", "AUDJPY", "EURCHF", "CADJPY",
+    "BTCUSD", "ETHUSD", "SOLUSD", "BNBUSD", "XRPUSD", "ADAUSD", "DOGEUSD", "AVAXUSD",
+    "DOTUSD", "LINKUSD", "LTCUSD", "BCHUSD", "NEARUSD", "UNIUSD", "ATOMUSD"
+}
 
 def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
     """Pure-Python YAML parser for market_universe.yaml mapping."""
@@ -51,13 +59,11 @@ def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
     return {"market_universe": result}
 
 
-import threading
-
 class SymbolRegistry:
     """
     Manages active symbols, their asset class classification, and assigned timeframes dynamically.
-    Enforces maximum active symbols universe limit dynamically resolved from system_limits.yaml.
-    Persists config cleanly across restarts.
+    Enforces canonical exact 30-symbol set invariant. Fails closed if market universe configuration
+    is missing, malformed, or violates exact 30-symbol set equality.
     """
     _instance = None
     _singleton_lock = threading.Lock()
@@ -90,63 +96,63 @@ class SymbolRegistry:
         os.makedirs("runtime_logs", exist_ok=True)
         self.load_registry()
 
-    def _enforce_max_active_limit(self) -> None:
-        """Enforces that the total active symbols in the registry does not exceed max_symbols limit."""
-        core_priorities = {"XAUUSD", "EURUSD", "GBPUSD", "BTCUSD", "ETHUSD"}
-        active_symbols = [sym for sym, info in self.registry.items() if info.get("active", True)]
-
-        if len(active_symbols) > self.max_symbols:
-            non_core_actives = [sym for sym in active_symbols if sym not in core_priorities]
-            to_deactivate_count = len(active_symbols) - self.max_symbols
-            # Deactivate from the end of non_core list to bring total active to max_symbols
-            for sym in non_core_actives[-to_deactivate_count:]:
-                self.registry[sym]["active"] = False
+    def _validate_canonical_30_invariant(self, symbols_dict: Dict[str, Any]) -> None:
+        """Enforces exact set equality with CANONICAL_30_SYMBOLS."""
+        loaded_symbols = set(sym.upper() for sym in symbols_dict.keys())
+        if loaded_symbols != CANONICAL_30_SYMBOLS:
+            missing = CANONICAL_30_SYMBOLS - loaded_symbols
+            extra = loaded_symbols - CANONICAL_30_SYMBOLS
+            raise ValueError(
+                f"Market universe canonical exact-30 invariant violated! "
+                f"Count: {len(loaded_symbols)}/30. Missing: {missing}. Extra: {extra}."
+            )
 
     def load_registry(self) -> None:
         with self.lock:
-            # Check if saved registry config file exists
-            if os.path.exists(REGISTRY_FILE):
-                try:
-                    with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
-                        self.registry = json.load(f)
-                    self._enforce_max_active_limit()
-                    self.save_registry()
-                    return
-                except Exception:
-                    pass
+            yaml_path = "config/market_universe.yaml"
+            if not os.path.exists(yaml_path):
+                raise RuntimeError(f"Fail Closed: Configuration file '{yaml_path}' is missing.")
 
-        # Load from config/market_universe.yaml if exists
-        yaml_path = "config/market_universe.yaml"
-        if os.path.exists(yaml_path):
             try:
                 with open(yaml_path, "r", encoding="utf-8") as f:
                     content = f.read()
                 universe_data = parse_market_universe_yaml(content)
 
                 market_data = universe_data.get("market_universe", {})
+                yaml_registry = {}
                 for asset_class, symbols in market_data.items():
                     for sym, info in symbols.items():
-                        self.registry[sym.upper()] = {
+                        yaml_registry[sym.upper()] = {
                             "active": info.get("enabled", True),
                             "asset_class": asset_class,
                             "provider": info.get("provider", "MT5"),
-                            "timeframes": info.get("timeframes", ["H1", "H4"])
+                            "timeframes": info.get("timeframes", ["M15", "H1", "H4", "D1"])
                         }
-                self._enforce_max_active_limit()
-                self.save_registry()
-                return
-            except Exception as e:
-                print(f"Warning: Failed to load market_universe.yaml: {e}")
 
-        # Default fallback registry configuration
-        self.registry = {
-            "XAUUSD": {"active": True, "asset_class": "Commodities", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
-            "EURUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
-            "GBPUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
-            "BTCUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
-            "ETHUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]}
-        }
-        self.save_registry()
+                # Validate canonical 30 invariant on loaded YAML configuration
+                self._validate_canonical_30_invariant(yaml_registry)
+            except Exception as e:
+                raise RuntimeError(f"Fail Closed: Failed to load/validate '{yaml_path}': {e}") from e
+
+            # Check if saved registry state exists, but ensure canonical 30 set is preserved
+            if os.path.exists(REGISTRY_FILE):
+                try:
+                    with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
+                        persisted_data = json.load(f)
+
+                    # Persisted data must match exact 30 canonical symbols
+                    persisted_set = set(k.upper() for k in persisted_data.keys())
+                    if persisted_set == CANONICAL_30_SYMBOLS:
+                        self.registry = persisted_data
+                        self.save_registry()
+                        return
+                    else:
+                        print("Warning: Stale persisted registry mismatched canonical 30 symbols. Overwriting with YAML baseline.")
+                except Exception:
+                    pass
+
+            self.registry = yaml_registry
+            self.save_registry()
 
     def save_registry(self) -> None:
         with self.lock:
@@ -189,9 +195,8 @@ class SymbolRegistry:
     def register_symbol(self, symbol: str, timeframes: List[str], asset_class: str = "Forex", provider: str = "MT5") -> None:
         with self.lock:
             symbol_upper = symbol.upper()
-            active_count = sum(1 for sym, info in self.registry.items() if info.get("active", True) and sym != symbol_upper)
-            if active_count >= self.max_symbols:
-                raise ValueError(f"Hard SRE limit reached: Maximum {self.max_symbols} active symbols allowed concurrent execution.")
+            if symbol_upper not in CANONICAL_30_SYMBOLS:
+                raise ValueError(f"Symbol '{symbol_upper}' is not part of canonical 30 symbol universe.")
 
             self.registry[symbol_upper] = {
                 "active": True,
@@ -205,9 +210,5 @@ class SymbolRegistry:
         with self.lock:
             symbol_upper = symbol.upper()
             if symbol_upper in self.registry:
-                if active:
-                    active_count = sum(1 for sym, info in self.registry.items() if info.get("active", True) and sym != symbol_upper)
-                    if active_count >= self.max_symbols:
-                        raise ValueError(f"Hard SRE limit reached: Maximum {self.max_symbols} active symbols allowed concurrent execution.")
                 self.registry[symbol_upper]["active"] = active
                 self.save_registry()
