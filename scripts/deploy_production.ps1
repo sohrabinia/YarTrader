@@ -169,6 +169,31 @@ if (-not (Test-Path $EnvFile)) {
 }
 
 # ------------------------------------------------------------------------------
+# STEP 3.5: IIS Reverse Proxy & Security Policy Remediation
+# ------------------------------------------------------------------------------
+Write-Host "`n[+] Step 3.5: Applying IIS Reverse Proxy & Security Policy Remediation..." -ForegroundColor Cyan
+
+$IISProxyScript = Join-Path $PSScriptRoot "setup_iis_reverse_proxy.ps1"
+
+if (-not (Test-Path $IISProxyScript)) {
+    Write-Error "Deployment Failed: IIS remediation script '$IISProxyScript' does not exist!"
+    Exit 1
+}
+
+try {
+    Write-Host "  [INFO] Executing IIS remediation script: $IISProxyScript" -ForegroundColor Yellow
+    & $IISProxyScript
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Deployment Failed: IIS remediation script failed with exit code $LASTEXITCODE"
+        Exit 1
+    }
+    Write-Host "  [OK] IIS reverse proxy remediation applied successfully." -ForegroundColor Green
+} catch {
+    Write-Error "Deployment Failed: IIS remediation script execution encountered an exception: $_"
+    Exit 1
+}
+
+# ------------------------------------------------------------------------------
 # STEP 4: Windows Service Verification
 # ------------------------------------------------------------------------------
 Write-Host "`n[+] Step 4: Checking YarTrader Windows Service..." -ForegroundColor Cyan
