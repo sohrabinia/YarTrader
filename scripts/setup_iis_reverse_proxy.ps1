@@ -17,10 +17,6 @@ Write-Host "==========================================================" -Foregro
 
 # Check Administrator Privileges
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $isAdmin) {
-    Write-Host "[-] WARNING: This script was not executed as an Administrator!" -ForegroundColor Yellow
-    Write-Host "    WebAdministration and IIS commands will likely fail. Running in Local Configuration Generator mode." -ForegroundColor Yellow
-}
 
 $IISModule = Get-Module -ListAvailable -Name WebAdministration
 $HasHttpsBinding = $false
@@ -88,8 +84,9 @@ if ($isAdmin -and $IISModule) {
         Exit 1
     }
 } else {
-    Write-Host "  [INFO] WebAdministration unavailable or not running as Administrator." -ForegroundColor Yellow
-    Write-Host "         Using default target production path: $DefaultProductionPath" -ForegroundColor Green
+    Write-Host "  [FAIL] WebAdministration module is missing or script is not running as Administrator!" -ForegroundColor Red
+    Write-Error "Deployment Failed: IIS reverse proxy configuration requires Administrator privileges and the WebAdministration module! Refusing to fall back to unverified default path."
+    Exit 1
 }
 
 # Fail-closed validation for production directory
@@ -286,7 +283,9 @@ if (Test-Path $StagingPath) {
         [System.IO.File]::WriteAllText($StagingWebConfigPath, $WebConfigContent)
         Write-Host "  [OK] Synchronized Staging web.config at: $StagingWebConfigPath" -ForegroundColor Green
     } catch {
-        Write-Host "  [WARN] Failed to write Staging web.config: $_" -ForegroundColor Yellow
+        Write-Host "  [FAIL] Critical Error: Failed to write Staging web.config or 503.html to '$StagingPath': $_" -ForegroundColor Red
+        Write-Error "Deployment Failed: Unable to write staging IIS web.config file! Exiting fail-closed."
+        Exit 1
     }
 }
 
@@ -295,45 +294,43 @@ if (Test-Path $StagingPath) {
 # ------------------------------------------------------------------------------
 Write-Host "`n[+] Step 3: Registering IIS Site, App Pool, and ARR Settings..." -ForegroundColor Cyan
 
-if ($isAdmin -and $IISModule) {
-    try {
-        # Check App Pool
-        if (-not (Test-Path "IIS:\AppPools\$AppPoolName")) {
-            Write-Host "  [INFO] Creating Application Pool '$AppPoolName'..." -ForegroundColor Yellow
-            $pool = New-Item "IIS:\AppPools\$AppPoolName"
-            $pool.managedRuntimeVersion = "" # No Managed Code for reverse proxy pool
-            $pool | Set-Item
-            Write-Host "  [OK] Created App Pool: $AppPoolName (No Managed Code)" -ForegroundColor Green
-        } else {
-            Write-Host "  [OK] Application Pool '$AppPoolName' already exists." -ForegroundColor Green
-        }
-
-        # Check Site
-        if (-not (Test-Path "IIS:\Sites\$SiteName")) {
-            Write-Host "  [INFO] Creating IIS Website '$SiteName'..." -ForegroundColor Yellow
-            New-Website -Name $SiteName -PhysicalPath $ResolvedProductionPath -Port 80 -ApplicationPool $AppPoolName | Out-Null
-            Write-Host "  [OK] Created Website: $SiteName on port 80." -ForegroundColor Green
-        } else {
-            Write-Host "  [OK] Website '$SiteName' already exists. Physical path set to: $ResolvedProductionPath" -ForegroundColor Green
-            Set-ItemProperty "IIS:\Sites\$SiteName" -Name physicalPath -Value $ResolvedProductionPath
-        }
-
-        # Configure ARR (Application Request Routing) Proxy settings
-        Write-Host "  [INFO] Configuring IIS Application Request Routing (ARR) Proxy..." -ForegroundColor Yellow
-        $AppCmdPath = Join-Path $env:SystemRoot "System32\inetsrv\appcmd.exe"
-        if (Test-Path $AppCmdPath) {
-            & $AppCmdPath set config -section:system.webServer/proxy /enabled:"True" /commit:apphost | Out-Null
-            & $AppCmdPath set config -section:system.webServer/proxy /preserveHostHeader:"True" /commit:apphost | Out-Null
-            Write-Host "  [OK] ARR Proxy Enabled and PreserveHostHeader configured." -ForegroundColor Green
-        } else {
-            Write-Host "  [WARN] appcmd.exe not found. Please ensure URL Rewrite & ARR are installed manually!" -ForegroundColor Yellow
-        }
-
-    } catch {
-        Write-Host "  [WARN] Exception during IIS site configuration: $_" -ForegroundColor Yellow
+try {
+    # Check App Pool
+    if (-not (Test-Path "IIS:\AppPools\$AppPoolName")) {
+        Write-Host "  [INFO] Creating Application Pool '$AppPoolName'..." -ForegroundColor Yellow
+        $pool = New-Item "IIS:\AppPools\$AppPoolName"
+        $pool.managedRuntimeVersion = "" # No Managed Code for reverse proxy pool
+        $pool | Set-Item
+        Write-Host "  [OK] Created App Pool: $AppPoolName (No Managed Code)" -ForegroundColor Green
+    } else {
+        Write-Host "  [OK] Application Pool '$AppPoolName' already exists." -ForegroundColor Green
     }
-} else {
-    Write-Host "  [INFO] Skipping WebAdministration configuration (Not Admin or module missing)." -ForegroundColor Yellow
+
+    # Check Site
+    if (-not (Test-Path "IIS:\Sites\$SiteName")) {
+        Write-Host "  [INFO] Creating IIS Website '$SiteName'..." -ForegroundColor Yellow
+        New-Website -Name $SiteName -PhysicalPath $ResolvedProductionPath -Port 80 -ApplicationPool $AppPoolName | Out-Null
+        Write-Host "  [OK] Created Website: $SiteName on port 80." -ForegroundColor Green
+    } else {
+        Write-Host "  [OK] Website '$SiteName' already exists. Physical path set to: $ResolvedProductionPath" -ForegroundColor Green
+        Set-ItemProperty "IIS:\Sites\$SiteName" -Name physicalPath -Value $ResolvedProductionPath
+    }
+
+    # Configure ARR (Application Request Routing) Proxy settings
+    Write-Host "  [INFO] Configuring IIS Application Request Routing (ARR) Proxy..." -ForegroundColor Yellow
+    $AppCmdPath = Join-Path $env:SystemRoot "System32\inetsrv\appcmd.exe"
+    if (Test-Path $AppCmdPath) {
+        & $AppCmdPath set config -section:system.webServer/proxy /enabled:"True" /commit:apphost | Out-Null
+        & $AppCmdPath set config -section:system.webServer/proxy /preserveHostHeader:"True" /commit:apphost | Out-Null
+        Write-Host "  [OK] ARR Proxy Enabled and PreserveHostHeader configured." -ForegroundColor Green
+    } else {
+        Write-Host "  [WARN] appcmd.exe not found. Please ensure URL Rewrite & ARR are installed manually!" -ForegroundColor Yellow
+    }
+
+} catch {
+    Write-Host "  [FAIL] Critical Error during IIS site registration: $_" -ForegroundColor Red
+    Write-Error "Deployment Failed: Unable to configure IIS website or application pool!"
+    Exit 1
 }
 
 Write-Host "`n==========================================================" -ForegroundColor Green

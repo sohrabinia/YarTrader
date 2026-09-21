@@ -104,6 +104,18 @@ def test_iis_powershell_script_template_rules():
     assert "Exit 1" in catch_block
     assert "$ResolvedProductionPath = $DefaultProductionPath" not in catch_block
 
+    # Rule 5: Fail-closed non-admin/missing module path & staging write failure
+    else_pos = content.find("WebAdministration module is missing")
+    assert else_pos != -1
+    else_block = content[else_pos:else_pos+300]
+    assert "Exit 1" in else_block
+    assert "Refusing to fall back" in else_block
+
+    staging_catch_pos = content.find("Unable to write staging IIS web.config file!")
+    assert staging_catch_pos != -1
+    staging_catch_block = content[staging_catch_pos:staging_catch_pos+200]
+    assert "Exit 1" in staging_catch_block
+
 def test_protected_trading_core_untouched():
     """Verify LIVE_TRADING_ENABLED remains hard-locked to False."""
     import os
