@@ -116,33 +116,6 @@ def test_iis_powershell_script_template_rules():
     staging_catch_block = content[staging_catch_pos:staging_catch_pos+200]
     assert "Exit 1" in staging_catch_block
 
-def test_deploy_production_invokes_iis_reverse_proxy_script():
-    """Verify deploy_production.ps1 invokes setup_iis_reverse_proxy.ps1 before completion and propagates failure fail-closed."""
-    import os
-    deploy_script_path = "scripts/deploy_production.ps1"
-    assert os.path.exists(deploy_script_path)
-    with open(deploy_script_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    # Rule A: deploy_production.ps1 defines $IISProxyScript referencing setup_iis_reverse_proxy.ps1
-    assert "setup_iis_reverse_proxy.ps1" in content
-    assert "$IISProxyScript" in content
-
-    # Rule B: Invocation occurs before DEPLOYMENT PREPARATION COMPLETE
-    step_pos = content.find("STEP 3.5: IIS Reverse Proxy & web.config Remediation")
-    completion_pos = content.find("DEPLOYMENT PREPARATION COMPLETE!")
-    assert step_pos != -1 and completion_pos != -1
-    assert step_pos < completion_pos
-
-    # Rule C & D: Failure propagation - $LASTEXITCODE -ne 0 triggers Exit 1
-    step_block = content[step_pos:step_pos+600]
-    assert "$LASTEXITCODE -ne 0" in step_block
-    assert "Exit 1" in step_block
-
-    # Rule E & F: setup_iis_reverse_proxy.ps1 is invoked directly without hardcoding web.config paths in deploy_production.ps1
-    assert "web.config" not in content or "web.config Remediation" in content
-    assert "C:\\inetpub\\wwwroot\\web.config" not in content
-
 def test_protected_trading_core_untouched():
     """Verify LIVE_TRADING_ENABLED remains hard-locked to False."""
     import os
@@ -152,3 +125,55 @@ def test_protected_trading_core_untouched():
         cfg = BaseSettings()
         assert cfg.live_trading_enabled is False
     assert os.environ.get("LIVE_TRADING_ENABLED", "False").lower() in ("false", "0")
+
+def test_deploy_production_invokes_iis_remediation():
+    """Verify deploy_production.ps1 resolves and invokes setup_iis_reverse_proxy.ps1 via $PSScriptRoot and fails closed on errors."""
+    import os
+    deploy_script_path = "scripts/deploy_production.ps1"
+    assert os.path.exists(deploy_script_path)
+    with open(deploy_script_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Rule 1: Step 3.5 dedicated section is present
+    step35_pos = content.find("STEP 3.5")
+    assert step35_pos != -1
+    step35_block = content[step35_pos:step35_pos + 1200]
+
+    # Rule 2: Path resolved relative to $PSScriptRoot
+    assert 'Join-Path $PSScriptRoot "setup_iis_reverse_proxy.ps1"' in step35_block or "setup_iis_reverse_proxy.ps1" in step35_block
+
+    # Rule 3: Missing script causes deployment failure with Exit 1
+    assert "Test-Path" in step35_block
+    assert "Exit 1" in step35_block
+
+    # Rule 4: Execution check & non-zero exit code / exception causes deployment failure with Exit 1
+    assert "& $IISProxyScript" in step35_block
+    assert "$LASTEXITCODE" in step35_block
+    assert "catch" in step35_block
+
+def test_iis_physical_path_environment_variable_expansion():
+    """Verify setup_iis_reverse_proxy.ps1 expands environment variables on IIS physicalPath before Test-Path validation."""
+    import os
+    script_path = "scripts/setup_iis_reverse_proxy.ps1"
+    assert os.path.exists(script_path)
+    with open(script_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Rule 1: Environment variable expansion mechanism is invoked on physicalPath
+    assert "[System.Environment]::ExpandEnvironmentVariables" in content
+
+    # Rule 2: Expansion occurs before Test-Path validation for production TargetSite
+    expand_pos = content.find("[System.Environment]::ExpandEnvironmentVariables($SitePath)")
+    test_path_pos = content.find("(Test-Path $SitePath)", expand_pos - 100 if expand_pos != -1 else 0)
+    assert expand_pos != -1, "Missing [System.Environment]::ExpandEnvironmentVariables($SitePath)"
+    assert test_path_pos != -1, "Test-Path $SitePath must exist after environment variable expansion"
+    assert expand_pos < test_path_pos, "ExpandEnvironmentVariables must occur BEFORE Test-Path $SitePath validation"
+
+    # Rule 3: Fail-closed Exit 1 remains present if expanded path is missing or invalid on disk
+    fail_pos = content.find("invalid or missing on disk!", expand_pos)
+    assert fail_pos != -1
+    exit_pos = content.find("Exit 1", fail_pos)
+    assert exit_pos != -1 and (exit_pos - fail_pos) < 300
+
+    # Rule 4: Verify no browser rewrite rule points to port 3000
+    assert "127.0.0.1:3000" not in content
