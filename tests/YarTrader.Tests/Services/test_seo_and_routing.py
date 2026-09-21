@@ -125,3 +125,28 @@ def test_protected_trading_core_untouched():
         cfg = BaseSettings()
         assert cfg.live_trading_enabled is False
     assert os.environ.get("LIVE_TRADING_ENABLED", "False").lower() in ("false", "0")
+
+def test_deploy_production_invokes_iis_remediation():
+    """Verify deploy_production.ps1 resolves and invokes setup_iis_reverse_proxy.ps1 via $PSScriptRoot and fails closed on errors."""
+    import os
+    deploy_script_path = "scripts/deploy_production.ps1"
+    assert os.path.exists(deploy_script_path)
+    with open(deploy_script_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Rule 1: Step 3.5 dedicated section is present
+    step35_pos = content.find("STEP 3.5")
+    assert step35_pos != -1
+    step35_block = content[step35_pos:step35_pos + 1200]
+
+    # Rule 2: Path resolved relative to $PSScriptRoot
+    assert 'Join-Path $PSScriptRoot "setup_iis_reverse_proxy.ps1"' in step35_block or "setup_iis_reverse_proxy.ps1" in step35_block
+
+    # Rule 3: Missing script causes deployment failure with Exit 1
+    assert "Test-Path" in step35_block
+    assert "Exit 1" in step35_block
+
+    # Rule 4: Execution check & non-zero exit code / exception causes deployment failure with Exit 1
+    assert "& $IISProxyScript" in step35_block
+    assert "$LASTEXITCODE" in step35_block
+    assert "catch" in step35_block
