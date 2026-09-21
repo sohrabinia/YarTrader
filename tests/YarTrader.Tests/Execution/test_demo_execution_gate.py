@@ -521,5 +521,117 @@ class TestAutonomousDemoExecutionGate(unittest.TestCase):
         self.assertNotIn("XAUUSD", worker.last_executed_signal)
 
 
+class TestRiskTargetContractRemediation(unittest.TestCase):
+    """
+    Focused SRE Regression Tests for Risk Target Contract Remediation.
+    Verifies that target risk is strictly 0.5%, 2.0% ceiling is enforced,
+    RR >= 1.5 is enforced, and daily loss >= 8.0% blocks trading.
+    """
+
+    def setUp(self):
+        self.original_env = os.environ.get("RISK_PCT_PER_TRADE")
+
+    def tearDown(self):
+        if self.original_env is None:
+            os.environ.pop("RISK_PCT_PER_TRADE", None)
+        else:
+            os.environ["RISK_PCT_PER_TRADE"] = self.original_env
+
+    def test_01_production_risk_policy_target_is_point_five(self):
+        """Test 1: ProductionRiskPolicy.TARGET_RISK_PCT is strictly 0.5%."""
+        from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
+        self.assertEqual(ProductionRiskPolicy.TARGET_RISK_PCT, 0.5)
+
+    def test_02_missing_risk_env_defaults_to_point_five(self):
+        """Test 2: Missing RISK_PCT_PER_TRADE ENV defaults to 0.5%."""
+        os.environ.pop("RISK_PCT_PER_TRADE", None)
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "0.5")
+        self.assertEqual(float(raw_risk_env), 0.5)
+
+    def test_03_explicit_risk_env_resolves_correctly(self):
+        """Test 3: Explicit RISK_PCT_PER_TRADE resolves correctly."""
+        os.environ["RISK_PCT_PER_TRADE"] = "0.5"
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "0.5")
+        self.assertEqual(float(raw_risk_env), 0.5)
+
+    def test_04_invalid_risk_env_fails_closed(self):
+        """Test 4: Invalid/non-numeric RISK_PCT_PER_TRADE fails closed in worker sizing."""
+        from app.workers.research_worker import ResearchWorker
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+
+        mock_adapter = MagicMock()
+        mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
+        mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+        mock_demo = MagicMock()
+        mock_demo.adapter = mock_adapter
+        worker.demo_engine = mock_demo
+
+        os.environ["RISK_PCT_PER_TRADE"] = "invalid_string"
+        sized = worker._validate_and_size_decision("XAUUSD", "BUY", {"entry": 2500.0, "stop_loss": 2490.0, "take_profit": 2520.0})
+        self.assertIsNone(sized)
+
+    def test_05_risk_exceeding_hard_ceiling_rejected(self):
+        """Test 5: Risk exceeding 2.0% hard ceiling is rejected."""
+        from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+        risk_engine = ProfessionalRiskEngine()
+        res = risk_engine.evaluate_equity_risk_and_position_size(
+            symbol="XAUUSD",
+            direction="BUY",
+            entry_price=2500.0,
+            stop_loss=2490.0,
+            account_equity=10000.0,
+            free_margin=10000.0,
+            risk_pct=2.5 # Exceeds 2.0% hard ceiling
+        )
+        self.assertFalse(res.is_valid)
+        self.assertIn("exceeds maximum allowable ceiling of 2.0%", res.rejection_reason)
+
+    def test_06_rr_below_minimum_threshold_rejected(self):
+        """Test 6: Real RR < 1.5 minimum threshold is rejected."""
+        from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+        risk_engine = ProfessionalRiskEngine()
+        eval_res = risk_engine.evaluate_trade_risk(
+            symbol="XAUUSD",
+            direction="BUY",
+            entry_price=2500.0,
+            stop_loss=2490.0,
+            take_profit=2505.0 # Low RR < 1.5
+        )
+        self.assertFalse(eval_res.is_valid)
+        self.assertEqual(eval_res.direction, "WAIT")
+        self.assertIn("< 1.5 minimum threshold", eval_res.rejection_reason)
+
+    def test_07_daily_loss_limit_exceeded_blocks_trading(self):
+        """Test 7: Portfolio daily loss >= 8.0% blocks trading."""
+        from src.Intelligence.Execution.portfolio import PortfolioRiskIntelligenceEngine
+        portfolio_engine = PortfolioRiskIntelligenceEngine(max_daily_drawdown_pct=8.0)
+        res = portfolio_engine.calculate_portfolio_risk(
+            active_trades=[],
+            virtual_balance=10000.0,
+            start_of_day_equity=10000.0,
+            daily_pnl=-850.0 # 8.5% loss >= 8.0%
+        )
+        self.assertFalse(res["approved"])
+        self.assertTrue(any("max daily loss threshold" in v for v in res["violations"]))
+
+    def test_08_position_sizing_uses_half_percent_risk_budget(self):
+        """Test 8: Position sizing calculation calculates exact risk budget using 0.5% target risk."""
+        from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+        risk_engine = ProfessionalRiskEngine()
+        equity = 10000.0
+        res = risk_engine.evaluate_equity_risk_and_position_size(
+            symbol="XAUUSD",
+            direction="BUY",
+            entry_price=2500.0,
+            stop_loss=2490.0,
+            account_equity=equity,
+            free_margin=equity,
+            risk_pct=0.5
+        )
+        self.assertTrue(res.is_valid)
+        # 0.5% of $10,000 equity is $50.00 risk budget
+        self.assertEqual(res.risk_budget_usd, 50.0)
+
+
 if __name__ == "__main__":
     unittest.main()

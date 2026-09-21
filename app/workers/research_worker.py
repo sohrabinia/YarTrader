@@ -2,6 +2,7 @@ import os
 import time
 import math
 import threading
+import traceback
 from datetime import datetime
 from typing import Optional, Dict, Any
 from src.Application.Runtime.research_runtime import ResearchRuntime
@@ -189,8 +190,8 @@ class ResearchWorker:
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
 
-        # Target requested risk percentage (Fail-Closed: target 1.0%, strictly <= 2.0%)
-        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "1.0")
+        # Target requested risk percentage (Fail-Closed: target 0.5%, strictly <= 2.0%)
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "0.5")
         try:
             req_risk_f = float(raw_risk_env) if not isinstance(raw_risk_env, bool) else -1.0
             if not math.isfinite(req_risk_f) or req_risk_f <= 0.0 or req_risk_f > 2.0:
@@ -434,6 +435,14 @@ class ResearchWorker:
                         self.error_count += 1
                         self.status = "RECOVERING"
                         central_runtime_state.update_state("research_status", "Recovering")
+                        tb_str = traceback.format_exc()
+                        err_msg = f"[ResearchWorker] Loop exception on {symbol} {tf} ({type(e).__name__}): {str(e)}"
+                        print(err_msg)
+                        try:
+                            from app.core.logging import log_event
+                            log_event("ERROR", err_msg, traceback=tb_str, symbol=symbol, timeframe=tf, source="research_worker")
+                        except Exception:
+                            pass
                         # Graceful quick delay before next asset if error happens
                         time.sleep(0.5)
 
