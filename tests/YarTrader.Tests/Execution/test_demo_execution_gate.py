@@ -359,5 +359,83 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         self.assertNotIn("XAUUSD", worker.last_executed_signal)
 
 
+    @patch("time.sleep", return_value=None)
+    @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
+    def test_16_autonomous_demo_trading_enabled_env_fail_closed_contract(self, mock_sizing, mock_sleep):
+        """Test 16: AUTONOMOUS_DEMO_TRADING_ENABLED env fail-closed contract.
+        Absent, empty, whitespace, false, 0, no, or unknown value MUST block execution.
+        Only explicit 'true', '1', or 'yes' allows execution.
+        """
+        import os
+        from app.workers.research_worker import ResearchWorker
+        from src.Risk.Services.professional_risk_engine import PositionSizingResult
+
+        mock_sizing.return_value = PositionSizingResult(
+            is_valid=True,
+            volume_lots=0.1,
+            risk_budget_usd=100.0,
+            risk_pct=1.0,
+            margin_required_usd=1000.0,
+            free_margin_usd=10000.0,
+            effective_be_price=2500.0,
+            rejection_reason=""
+        )
+
+        invalid_envs = [
+            None,            # absent
+            "",              # empty
+            "   ",           # whitespace
+            "false",         # false
+            "0",             # 0
+            "no",            # no
+            "off",           # off
+            "enabled",       # unknown
+            "random_string"  # unknown
+        ]
+
+        for env_val in invalid_envs:
+            worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+
+            mock_adapter = MagicMock()
+            mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
+            mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+
+            mock_demo = MagicMock()
+            mock_demo.adapter = mock_adapter
+            mock_demo.get_active_positions.return_value = []
+            worker.demo_engine = mock_demo
+
+            mock_runtime = MagicMock()
+            mock_run_res = MagicMock()
+            mock_run_res.Findings = {
+                "autonomous_decision": {
+                    "action": "BUY",
+                    "entry": 2500.0,
+                    "stop_loss": 2490.0,
+                    "take_profit": 2520.0,
+                    "risk_reward": 2.0,
+                    "confidence": 80.0
+                }
+            }
+            mock_runtime.run_once.return_value = mock_run_res
+            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            worker.runtimes[("XAUUSD", "H1")] = mock_runtime
+
+            # Set environment variable
+            with patch.dict(os.environ, {} if env_val is None else {"AUTONOMOUS_DEMO_TRADING_ENABLED": env_val}, clear=True):
+                worker.is_running = True
+                def stop_loop_after_one(*args, **kwargs):
+                    if not hasattr(stop_loop_after_one, "called"):
+                        stop_loop_after_one.called = True
+                        return [("XAUUSD", "H1", "Commodities", "MT5")]
+                    worker.is_running = False
+                    return [("XAUUSD", "H1", "Commodities", "MT5")]
+
+                with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+                    worker._run_loop()
+
+            self.assertEqual(mock_demo.execute_demo_decision.call_count, 0, f"ENV '{env_val}' unexpectedly allowed execution dispatch!")
+
+
 if __name__ == "__main__":
     unittest.main()

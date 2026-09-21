@@ -11,9 +11,9 @@ class PortfolioRiskIntelligenceEngine:
         max_heat_pct: float = 6.0,
         max_concentration_pct: float = 30.0,
         max_correlation_exposure_pct: float = 15.0,
-        max_risk_per_trade_pct: float = 0.5,
+        max_risk_per_trade_pct: float = 1.0,
         max_strategy_exposure_ceiling_pct: float = 3.0,
-        max_daily_drawdown_pct: float = 10.0,
+        max_daily_drawdown_pct: float = 8.0,
         start_of_day_equity: Optional[float] = None,
         daily_pnl: float = 0.0
     ) -> None:

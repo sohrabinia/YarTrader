@@ -166,8 +166,8 @@ class ResearchWorker:
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
 
-        # Target requested risk percentage (Fail-Closed: strictly <= 2.0%)
-        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "2.0")
+        # Target requested risk percentage (Fail-Closed: target 1.0%, strictly <= 2.0%)
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "1.0")
         try:
             req_risk_f = float(raw_risk_env) if not isinstance(raw_risk_env, bool) else -1.0
             if not math.isfinite(req_risk_f) or req_risk_f <= 0.0 or req_risk_f > 2.0:
@@ -263,8 +263,14 @@ class ResearchWorker:
                         auto_dec = res.Findings.get("autonomous_decision", {})
                         action = auto_dec.get("action", "WAIT")
 
-                        # 1. Kill Switch Enforcement
-                        kill_switch_enabled = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED", "true").lower() in ["true", "1", "yes"]
+                        # 1. Kill Switch Enforcement (Fail-Closed: ENV absent, empty, whitespace, or non-true -> DISABLED)
+                        raw_env = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED")
+                        if raw_env is not None and isinstance(raw_env, str):
+                            clean_val = raw_env.strip().lower()
+                            kill_switch_enabled = clean_val in ["true", "1", "yes"]
+                        else:
+                            kill_switch_enabled = False
+
                         if not kill_switch_enabled:
                             print(f"[ResearchWorker] Kill Switch ACTIVE (AUTONOMOUS_DEMO_TRADING_ENABLED=False). Skipping execution dispatch for {symbol}.")
                         elif action in ["BUY", "SELL"]:
