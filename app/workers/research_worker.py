@@ -8,6 +8,29 @@ from src.Application.Runtime.research_runtime import ResearchRuntime
 from src.Application.Runtime.runtime_state import central_runtime_state
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
 
+
+def is_autonomous_demo_enabled() -> bool:
+    """
+    Fail-closed parser/gate for AUTONOMOUS_DEMO_TRADING_ENABLED.
+    Strict Security Contract:
+    - missing / absent -> False (BLOCK)
+    - empty / None / whitespace -> False (BLOCK)
+    - "false", "0", "no", "off", "1", "yes", unknown values -> False (BLOCK)
+    - explicit "true" (case-insensitive, trimmed) -> True (ENABLE)
+    - any parsing exception -> False (BLOCK)
+    """
+    try:
+        raw_val = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED")
+        if raw_val is None:
+            return False
+        cleaned = raw_val.strip().lower()
+        if cleaned == "true":
+            return True
+        return False
+    except Exception:
+        return False
+
+
 class ResearchWorker:
     """Manages the background research worker polling loop."""
     def __init__(self, symbol: str = "XAUUSD", timeframe: str = "H1", interval_sec: float = 60.0, cooldown_sec: float = 300.0) -> None:
@@ -264,7 +287,7 @@ class ResearchWorker:
                         action = auto_dec.get("action", "WAIT")
 
                         # 1. Kill Switch Enforcement
-                        kill_switch_enabled = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED", "true").lower() in ["true", "1", "yes"]
+                        kill_switch_enabled = is_autonomous_demo_enabled()
                         if not kill_switch_enabled:
                             print(f"[ResearchWorker] Kill Switch ACTIVE (AUTONOMOUS_DEMO_TRADING_ENABLED=False). Skipping execution dispatch for {symbol}.")
                         elif action in ["BUY", "SELL"]:

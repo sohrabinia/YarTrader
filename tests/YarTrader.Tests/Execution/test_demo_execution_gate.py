@@ -1,7 +1,9 @@
+import os
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from src.Execution.Safety.demo_execution_gate import DemoExecutionGate
+from app.workers.research_worker import is_autonomous_demo_enabled
 from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
 from src.Execution.Models.models import OrderRequest, OrderResponse
 from src.Infrastructure.exceptions import ValidationException
@@ -14,6 +16,8 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
     """
 
     def setUp(self):
+        self.original_env = os.environ.get("AUTONOMOUS_DEMO_TRADING_ENABLED")
+        os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "true"
         self.mock_adapter = MagicMock()
         self.mock_adapter.get_account_info.return_value = {
             "login": "52961173",
@@ -32,6 +36,12 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             "volume_max": 100.0,
             "volume_step": 0.01
         }
+
+    def tearDown(self):
+        if self.original_env is None:
+            os.environ.pop("AUTONOMOUS_DEMO_TRADING_ENABLED", None)
+        else:
+            os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = self.original_env
 
     def test_01_real_live_execution_rejected(self):
         """Test 1: REAL_LIVE operation is hard-blocked."""
@@ -356,6 +366,158 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         # Verify volume passed to execute_demo_decision is 0.85 (from sizing), NOT 999.9 (from decision dict)
         self.assertEqual(mock_demo.execute_demo_decision.call_args[1]["volume"], 0.85)
         # Verify state was NOT mutated because execution Status was 'Failed'
+        self.assertNotIn("XAUUSD", worker.last_executed_signal)
+
+
+class TestAutonomousDemoExecutionGate(unittest.TestCase):
+    """
+    Focused SRE Regression Tests for Autonomous DEMO Execution Gate.
+    Enforces strict security contract for AUTONOMOUS_DEMO_TRADING_ENABLED.
+    """
+
+    def setUp(self):
+        self.original_env = os.environ.get("AUTONOMOUS_DEMO_TRADING_ENABLED")
+
+    def tearDown(self):
+        if self.original_env is None:
+            os.environ.pop("AUTONOMOUS_DEMO_TRADING_ENABLED", None)
+        else:
+            os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = self.original_env
+
+    def test_01_env_absent_blocked(self):
+        os.environ.pop("AUTONOMOUS_DEMO_TRADING_ENABLED", None)
+        self.assertFalse(is_autonomous_demo_enabled())
+
+    def test_02_env_empty_blocked(self):
+        os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = ""
+        self.assertFalse(is_autonomous_demo_enabled())
+
+    def test_03_env_whitespace_blocked(self):
+        os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "   "
+        self.assertFalse(is_autonomous_demo_enabled())
+
+    def test_04_env_false_blocked(self):
+        os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "false"
+        self.assertFalse(is_autonomous_demo_enabled())
+
+    def test_05_env_zero_blocked(self):
+        os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "0"
+        self.assertFalse(is_autonomous_demo_enabled())
+
+    def test_06_env_no_blocked(self):
+        os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "no"
+        self.assertFalse(is_autonomous_demo_enabled())
+
+    def test_07_env_off_blocked(self):
+        os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "off"
+        self.assertFalse(is_autonomous_demo_enabled())
+
+    def test_08_unknown_values_blocked(self):
+        for val in ["1", "yes", "maybe", "ENABLED", "true123", "invalid"]:
+            os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = val
+            self.assertFalse(is_autonomous_demo_enabled(), f"Value '{val}' should be BLOCKED")
+
+    def test_09_explicit_true_enabled(self):
+        for val in ["true", "TRUE", "True", "  true  ", "  TRUE\t"]:
+            os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = val
+            self.assertTrue(is_autonomous_demo_enabled(), f"Value '{val}' should be ENABLED")
+
+    def test_10_non_xauusd_remains_blocked(self):
+        """Non-XAUUSD symbols are strictly blocked from execution dispatch regardless of ENV."""
+        from app.workers.research_worker import ResearchWorker
+        os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "true"
+        worker = ResearchWorker(symbol="EURUSD", timeframe="H1")
+
+        mock_demo = MagicMock()
+        worker.demo_engine = mock_demo
+
+        mock_runtime = MagicMock()
+        mock_run_res = MagicMock()
+        mock_run_res.Findings = {
+            "autonomous_decision": {
+                "action": "BUY",
+                "entry": 1.0850,
+                "stop_loss": 1.0800,
+                "take_profit": 1.0950,
+                "risk_reward": 2.0,
+                "confidence": 80.0
+            }
+        }
+        mock_runtime.run_once.return_value = mock_run_res
+        mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+        worker.runtimes[("EURUSD", "H1")] = mock_runtime
+
+        worker.is_running = True
+        def stop_after_one(*args, **kwargs):
+            if not hasattr(stop_after_one, "called"):
+                stop_after_one.called = True
+                return [("EURUSD", "H1", "Forex", "MT5")]
+            worker.is_running = False
+            return [("EURUSD", "H1", "Forex", "MT5")]
+
+        with patch.object(worker, "_get_active_matrix", side_effect=stop_after_one):
+            worker._run_loop()
+
+        self.assertEqual(mock_demo.execute_demo_decision.call_count, 0)
+
+    def test_11_live_execution_remains_impossible(self):
+        """Verify MetaTraderSafetyGate hard blocks REAL_LIVE operations."""
+        from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
+        from src.Infrastructure.exceptions import ValidationException
+        with self.assertRaises(ValidationException) as ctx:
+            MetaTraderSafetyGate.verify_operation(terminal_type="MT5", operation_type="REAL_LIVE")
+        self.assertIn("Real Live Trading is hard-disabled", str(ctx.exception))
+
+    @patch("time.sleep", return_value=None)
+    def test_12_spying_dispatch_blocked_when_env_absent(self, mock_sleep):
+        """
+        CRITICAL SPYING TEST:
+        When action = BUY/SELL and AUTONOMOUS_DEMO_TRADING_ENABLED is absent,
+        prove that execute_demo_decision is NEVER called at the order dispatch boundary.
+        """
+        from app.workers.research_worker import ResearchWorker
+        os.environ.pop("AUTONOMOUS_DEMO_TRADING_ENABLED", None)
+
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+
+        mock_adapter = MagicMock()
+        mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
+        mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+
+        mock_demo = MagicMock()
+        mock_demo.adapter = mock_adapter
+        mock_demo.get_active_positions.return_value = []
+        worker.demo_engine = mock_demo
+
+        mock_runtime = MagicMock()
+        mock_run_res = MagicMock()
+        mock_run_res.Findings = {
+            "autonomous_decision": {
+                "action": "SELL",
+                "entry": 2500.0,
+                "stop_loss": 2510.0,
+                "take_profit": 2480.0,
+                "risk_reward": 2.0,
+                "confidence": 85.0
+            }
+        }
+        mock_runtime.run_once.return_value = mock_run_res
+        mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+        worker.runtimes[("XAUUSD", "H1")] = mock_runtime
+
+        worker.is_running = True
+        def stop_after_one(*args, **kwargs):
+            if not hasattr(stop_after_one, "called"):
+                stop_after_one.called = True
+                return [("XAUUSD", "H1", "Commodities", "MT5")]
+            worker.is_running = False
+            return [("XAUUSD", "H1", "Commodities", "MT5")]
+
+        with patch.object(worker, "_get_active_matrix", side_effect=stop_after_one):
+            worker._run_loop()
+
+        # Proves execution dispatch was NOT called when ENV was absent!
+        self.assertEqual(mock_demo.execute_demo_decision.call_count, 0)
         self.assertNotIn("XAUUSD", worker.last_executed_signal)
 
 
