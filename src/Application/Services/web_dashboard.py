@@ -1067,7 +1067,7 @@ def get_robots_txt():
 # ==============================================================================
 VALID_PUBLIC_SUBPATHS = {
     "", "features", "pricing", "guide", "faq", "blog", "news", "about", "contact",
-    "support", "dashboard", "admin", "live", "demo", "shadow", "backtest",
+    "support", "dashboard", "admin", "operator", "Operator", "live", "demo", "shadow", "backtest",
     "signals", "execution-intel", "learning", "login", "register", "forgot-password"
 }
 
@@ -1088,6 +1088,8 @@ VALID_PUBLIC_SUBPATHS = {
 @app.api_route("/forgot-password", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/execution-intel", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/admin", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/Operator", methods=["GET", "HEAD"], response_class=HTMLResponse)
+@app.api_route("/operator", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/blog", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/news", methods=["GET", "HEAD"], response_class=HTMLResponse)
 @app.api_route("/faq", methods=["GET", "HEAD"], response_class=HTMLResponse)
