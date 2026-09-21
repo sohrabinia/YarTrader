@@ -20,6 +20,24 @@ class TestDataBoundaryAndMemorySafety(unittest.TestCase):
     def setUp(self):
         self.provider = MT5DataProvider()
 
+    def test_canonical_exact_30_symbol_universe_invariant(self):
+        from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry, CANONICAL_30_SYMBOLS
+        registry = SymbolRegistry.get_instance()
+        registered = registry.get_all_registered()
+
+        # Assert exact set equality
+        registered_symbols = set(registered.keys())
+        self.assertEqual(len(registered_symbols), 30)
+        self.assertEqual(registered_symbols, CANONICAL_30_SYMBOLS)
+
+        # Assert specific required symbols exist and extraneous symbols do not exist
+        self.assertIn("XAUUSD", registered_symbols)
+        self.assertIn("EURGBP", registered_symbols)
+        self.assertIn("EURCHF", registered_symbols)
+        self.assertIn("CADJPY", registered_symbols)
+        self.assertNotIn("USOIL", registered_symbols)
+        self.assertNotIn("NAS100", registered_symbols)
+
     def test_30_instrument_path_bypasses_legacy_technical_analysis_pipeline(self):
         from unittest.mock import patch
 

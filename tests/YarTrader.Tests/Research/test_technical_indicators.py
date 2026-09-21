@@ -100,3 +100,17 @@ def test_oscillating_series_macd_and_rsi():
     assert res["macd_histogram"] is not None
     assert res["rsi"] is not None
     assert 0.0 <= res["rsi"] <= 100.0
+
+
+def test_pattern_similarity_indicator_free_normalization():
+    from src.Intelligence.Execution.similarity import PatternSimilarityIntelligenceEngine
+    sim_engine = PatternSimilarityIntelligenceEngine()
+
+    prices = [100.0, 105.0, 95.0, 110.0]
+    norm = sim_engine.normalize_signature_geometry(prices)
+
+    assert len(norm) == 4
+    assert norm[2] == 0.0
+    assert norm[3] == 1.0
+    assert abs(norm[0] - 0.3333) < 0.01
+    assert abs(norm[1] - 0.6667) < 0.01

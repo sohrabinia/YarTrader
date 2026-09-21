@@ -5,6 +5,15 @@ from datetime import datetime, timezone
 
 from src.Risk.Models.campaign import CampaignLeg, TradeCampaign
 
+
+class ProductionRiskPolicy:
+    """Single authoritative production risk policy for YarTrader."""
+    TARGET_RISK_PCT: float = 1.0
+    HARD_CEILING_RISK_PCT: float = 2.0
+    MINIMUM_RR: float = 1.5
+    MAX_DAILY_LOSS_PCT: float = 8.0
+
+
 @dataclass
 class RiskEvaluationResult:
     is_valid: bool
@@ -103,7 +112,7 @@ class ProfessionalRiskEngine:
         stop_loss: float,
         account_equity: float,
         free_margin: float,
-        risk_pct: float = 0.5,
+        risk_pct: float = 1.0,
         leverage: float = 100.0,
         spread_pip: float = 1.0,
         commission_per_lot: float = 7.0,
@@ -115,8 +124,8 @@ class ProfessionalRiskEngine:
     ) -> PositionSizingResult:
         """
         Enforces Free Margin Sequence:
-        Risk Budget (default 0.5%) -> Stop Distance -> Position Size -> Broker Constraint Check -> Free Margin Check -> Execution.
-        Calculates position size strictly against Account Equity (0.5% per trade).
+        Risk Budget (default 1.0%) -> Stop Distance -> Position Size -> Broker Constraint Check -> Free Margin Check -> Execution.
+        Calculates position size strictly against Account Equity (1.0% target per trade, 2.0% ceiling).
         """
         try:
             risk_pct_f = float(risk_pct) if not isinstance(risk_pct, bool) else -1.0
@@ -164,7 +173,7 @@ class ProfessionalRiskEngine:
         friction_dist = (spread_pip + estimated_slippage_pip) * pip_size
         net_sl_dist = raw_sl_dist + friction_dist
 
-        # Calculate volume in lots based on actual 0.5% risk budget
+        # Calculate volume in lots based on actual 1.0% risk budget
         risk_per_lot = (net_sl_dist * contract_size) + commission_per_lot
         if risk_per_lot <= 0:
             return PositionSizingResult(
@@ -339,7 +348,7 @@ class ProfessionalRiskEngine:
         stop_loss: float,
         take_profit: float,
         account_balance: float = 10000.0,
-        risk_percentage: float = 0.5,
+        risk_percentage: float = 1.0,
         spread_pip: float = 1.0,
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,

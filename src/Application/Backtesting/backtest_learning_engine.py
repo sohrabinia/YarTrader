@@ -109,10 +109,37 @@ class BacktestAndLearningEngine:
                 open_position["mae"] = mae
 
                 if exit_reason:
-                    # Close position
+                    # Close position with execution friction (spread + commission)
                     pnl_dist = (exit_price - open_position["entry"]) if pos_direction == "BUY" else (open_position["entry"] - exit_price)
                     multiplier = 100.0 if "XAU" in symbol.upper() else 10000.0
-                    trade_pnl = pnl_dist * open_position["volume"] * multiplier
+                    raw_pnl = pnl_dist * open_position["volume"] * multiplier
+
+                    # Asset-Class Specific Execution Friction Model
+                    sym_upper = symbol.upper()
+                    vol = open_position["volume"]
+
+                    if "XAU" in sym_upper:
+                        # Gold: $0.20 spread ($20/lot) + $7/lot commission
+                        spread_cost_usd = 0.20 * vol * 100.0
+                        commission_cost_usd = 7.0 * vol
+                        total_friction_usd = spread_cost_usd + commission_cost_usd
+                    elif "XAG" in sym_upper:
+                        # Silver: $0.02 spread ($100/lot on 5000 oz) + $7/lot commission
+                        spread_cost_usd = 0.02 * vol * 5000.0
+                        commission_cost_usd = 7.0 * vol
+                        total_friction_usd = spread_cost_usd + commission_cost_usd
+                    elif any(c in sym_upper for c in ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK", "LTC", "BCH", "NEAR", "UNI", "ATOM"]):
+                        # Crypto: 0.10% (10 bps) combined fee/spread on trade value
+                        notional_value_usd = exit_price * vol
+                        total_friction_usd = notional_value_usd * 0.0010
+                    else:
+                        # Forex: 1.0 pip spread + $7/lot commission
+                        pip_dist = 0.01 if "JPY" in sym_upper else 0.0001
+                        spread_cost_usd = 1.0 * pip_dist * vol * 100000.0
+                        commission_cost_usd = 7.0 * vol
+                        total_friction_usd = spread_cost_usd + commission_cost_usd
+
+                    trade_pnl = raw_pnl - total_friction_usd
                     balance += trade_pnl
                     equity = balance
 
