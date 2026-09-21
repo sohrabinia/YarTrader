@@ -303,7 +303,9 @@ function MainApp() {
       '/pricing': `${t('pricing_title') || 'Pricing'} | YarTrader`,
       '/blog': `${t('nav_blog') || 'Research Blog'} | YarTrader`,
       '/guide': `${t('guide_title') || 'User Guide'} | YarTrader`,
-      '/faq': `${t('faq_title') || 'FAQ'} | YarTrader`
+      '/faq': `${t('faq_title') || 'FAQ'} | YarTrader`,
+      '/Operator': `Operator | YarTrader`,
+      '/operator': `Operator | YarTrader`
     };
     const activeTitle = titles[routePath] || titles['/'];
     document.title = activeTitle;
@@ -366,7 +368,7 @@ function MainApp() {
       navigateTo('/login');
       return;
     }
-    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/learning';
+    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/Operator' || routePath === '/operator' || routePath === '/learning';
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
       showNotification(
@@ -374,7 +376,7 @@ function MainApp() {
         'warning'
       );
     }
-    if (routePath === '/admin' && token && role !== 'ADMIN') {
+    if ((routePath === '/admin' || routePath === '/Operator' || routePath === '/operator') && token && role !== 'ADMIN') {
       showNotification(
         lang === 'fa' ? 'دسترسی فقط برای کاربران با نقش مدیریت (ADMIN) مجاز است.' : 'Admin role is required.',
         'warning'
@@ -1026,6 +1028,7 @@ function MainApp() {
           {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
           {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
           {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
+          {token && role === 'ADMIN' && <a href={`/${lang}/Operator`} className={`sidebar-link ${routePath === '/Operator' || routePath === '/operator' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/Operator'); }}>🤖 {lang === 'fa' ? 'اپراتور' : 'Operator'}</a>}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {token && (
@@ -1836,6 +1839,13 @@ function MainApp() {
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* YAROPERATOR AUTONOMOUS INTERFACE VIEW */}
+          {(routePath === '/Operator' || routePath === '/operator') && role === 'ADMIN' && (
+            <div id="shell-operator">
+              <OperatorView t={t} lang={lang} />
             </div>
           )}
 

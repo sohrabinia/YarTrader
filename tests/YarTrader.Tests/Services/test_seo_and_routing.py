@@ -45,6 +45,24 @@ def test_four_localized_spa_routes():
             res_head = client.head(url)
             assert res_head.status_code == 200, f"Failed HEAD for {url}"
 
+def test_operator_route_served_by_yartrader_spa():
+    """Verify /Operator and /operator are served directly by YarTrader SPA (returns index.html, not YarOperator proxy)."""
+    res_upper = client.get("/Operator")
+    assert res_upper.status_code == 200
+    assert "text/html" in res_upper.headers.get("content-type", "").lower()
+    assert "YarTrader" in res_upper.text
+    assert "YarOperator — Executive Assistant" not in res_upper.text
+
+    res_lower = client.get("/operator")
+    assert res_lower.status_code == 200
+    assert "text/html" in res_lower.headers.get("content-type", "").lower()
+    assert "YarTrader" in res_lower.text
+
+def test_no_browser_facing_v1_operator_routes():
+    """Verify YarTrader FastAPI does not expose raw browser-facing /api/v1/operator routes."""
+    res = client.get("/api/v1/operator/chat")
+    assert res.status_code == 404
+
 def test_de_locale_removed():
     """Verify German (/de) public route is removed or disallowed as active public SEO locale."""
     res = client.get("/de")

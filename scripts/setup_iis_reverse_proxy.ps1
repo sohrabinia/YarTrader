@@ -1,13 +1,14 @@
-# PowerShell IIS Reverse Proxy Automation Script for TradeYar AI
-# Location: C:\Projects\TradeYar_AI\scripts\setup_iis_reverse_proxy.ps1
+# PowerShell IIS Reverse Proxy Automation Script for YarTrader
+# Location: C:\Projects\YarTrader\scripts\setup_iis_reverse_proxy.ps1
 #
 # Idempotency Rule: This script can be run multiple times safely.
 # It automates creating the IIS Website, Application Pool, configuring URL Rewrite rules,
 # writing the secure web.config with enterprise security headers, and setting up static caching.
 
-$SiteName = "TradeYarAI"
-$AppPoolName = "TradeYarPool"
+$SiteName = "YarTrader"
+$AppPoolName = "YarTraderPool"
 $PhysicalPath = "C:\inetpub\wwwroot\TradeYarAI"
+$StagingPath = "C:\inetpub\YarTrader-Edge-Staging"
 $BackendUrl = "http://127.0.0.1:8000"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -116,12 +117,11 @@ $WebConfigPath = Join-Path $PhysicalPath "web.config"
 $WebConfigContent = @"
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  TradeYar AI v3.2 — Enterprise IIS Reverse Proxy web.config
-  This file configures:
-    1. URL Rewrite rules from Public HTTPS to Local FastAPI (Port 8000).
-    2. Enterprise Security Headers (HSTS, clickjacking protection, mime-sniffing block).
-    3. Static Content compression and Cache-Control rules.
-    4. HTTP 502/503 Graceful custom error page routing.
+  YarTrader Enterprise IIS Reverse Proxy web.config
+  M-294 Remediation: Direct browser access to standalone YarOperator (port 3000)
+  is strictly forbidden at the IIS boundary. All browser traffic, including /Operator,
+  /operator, /api/v1/operator/*, and /auth/*, is directed exclusively to YarTrader
+  FastAPI (Port 8000), which serves the SPA and guards API endpoints server-side.
 -->
 <configuration>
   <system.webServer>
@@ -129,6 +129,9 @@ $WebConfigContent = @"
     <!-- 1. URL Rewrite Module Rules -->
     <rewrite>
       <rules>
+        <!-- Clear any stale legacy or conflicting rules -->
+        <clear />
+
         <!-- Rule 1: Redirect HTTP to HTTPS (Required for production SSL) -->
         <rule name="Redirect HTTP to HTTPS" stopProcessing="true">
           <match url="(.*)" />
@@ -138,8 +141,8 @@ $WebConfigContent = @"
           <action type="Redirect" url="https://{HTTP_HOST}/{R:1}" redirectType="Permanent" />
         </rule>
 
-        <!-- Rule 2: Reverse Proxy all other requests to FastAPI backend on Port 8000 -->
-        <rule name="Reverse Proxy to FastAPI" stopProcessing="true">
+        <!-- Rule 2: Reverse Proxy all public requests to YarTrader on Port 8000 -->
+        <rule name="Reverse Proxy to YarTrader FastAPI" stopProcessing="true">
           <match url="(.*)" />
           <conditions>
             <add input="{HTTPS}" pattern="on" ignoreCase="true" />
@@ -195,6 +198,15 @@ $WebConfigContent = @"
 try {
     [System.IO.File]::WriteAllText($WebConfigPath, $WebConfigContent)
     Write-Host "  [OK] Generated secure Web.config at: $WebConfigPath" -ForegroundColor Green
+
+    # Also deploy/remediate staging directory web.config if path exists or can be created
+    if (Test-Path $StagingPath) {
+        $StagingWebConfig = Join-Path $StagingPath "web.config"
+        [System.IO.File]::WriteAllText($StagingWebConfig, $WebConfigContent)
+        $Staging503 = Join-Path $StagingPath "503.html"
+        [System.IO.File]::WriteAllText($Staging503, $503Content)
+        Write-Host "  [OK] Synchronized remediated Web.config to Staging at: $StagingWebConfig" -ForegroundColor Green
+    }
 } catch {
     Write-Error "Failed to write Web.config file!"
     Exit 1
