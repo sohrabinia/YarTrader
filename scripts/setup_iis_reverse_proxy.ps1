@@ -2,12 +2,12 @@
 # Location: C:\Projects\YarTrader\scripts\setup_iis_reverse_proxy.ps1
 #
 # Idempotency Rule: This script can be run multiple times safely.
-# It automates creating the IIS Website, Application Pool, configuring URL Rewrite rules,
-# writing the secure web.config with enterprise security headers, and setting up static caching.
+# It automates resolving IIS physical paths, checking SSL bindings, configuring URL Rewrite rules,
+# writing secure web.config files with enterprise security headers, and setting up static caching.
 
 $SiteName = "Default Web Site"
 $AppPoolName = "DefaultAppPool"
-$PhysicalPath = "C:\inetpub\wwwroot"
+$DefaultProductionPath = "C:\inetpub\wwwroot"
 $StagingPath = "C:\inetpub\YarTrader-Edge-Staging"
 $BackendUrl = "http://127.0.0.1:8000"
 
@@ -22,34 +22,94 @@ if (-not $isAdmin) {
     Write-Host "    WebAdministration and IIS commands will likely fail. Running in Local Configuration Generator mode." -ForegroundColor Yellow
 }
 
-# ------------------------------------------------------------------------------
-# STEP 1: Ensure Physical Directory and Secure Web.config
-# ------------------------------------------------------------------------------
-Write-Host "`n[+] Step 1: Creating Physical Site Folder and web.config..." -ForegroundColor Cyan
+$IISModule = Get-Module -ListAvailable -Name WebAdministration
+$HasHttpsBinding = $false
+$ResolvedProductionPath = $DefaultProductionPath
 
-if (-not (Test-Path $PhysicalPath)) {
+# ------------------------------------------------------------------------------
+# STEP 1: RESOLVE IIS SITE PHYSICAL PATH AND BINDINGS BEFORE WRITING WEB.CONFIG
+# ------------------------------------------------------------------------------
+Write-Host "`n[+] Step 1: Resolving IIS Site Physical Path & SSL Bindings..." -ForegroundColor Cyan
+
+if ($isAdmin -and $IISModule) {
     try {
-        New-Item -ItemType Directory -Force -Path $PhysicalPath | Out-Null
-        Write-Host "  [OK] Created directory: $PhysicalPath" -ForegroundColor Green
-    } catch {
-        $PhysicalPath = Join-Path (Split-Path -Parent $PSScriptRoot) "iis_publish"
-        if (-not (Test-Path $PhysicalPath)) {
-            New-Item -ItemType Directory -Force -Path $PhysicalPath | Out-Null
+        Import-Module WebAdministration -ErrorAction Stop
+        Write-Host "  [OK] WebAdministration module loaded successfully." -ForegroundColor Green
+
+        # Resolve Production Site Path & Bindings
+        $TargetSite = $null
+        if (Test-Path "IIS:\Sites\$SiteName") {
+            $TargetSite = Get-Item "IIS:\Sites\$SiteName"
+        } elseif (Test-Path "IIS:\Sites\TradeYarAI") {
+            $SiteName = "TradeYarAI"
+            $TargetSite = Get-Item "IIS:\Sites\$SiteName"
         }
-        Write-Host "  [WARN] Failed to write in C:\inetpub. Using fallback directory: $PhysicalPath" -ForegroundColor Yellow
+
+        if ($TargetSite) {
+            $SitePath = $TargetSite.physicalPath
+            if ($SitePath -and (Test-Path $SitePath)) {
+                $ResolvedProductionPath = $SitePath
+                Write-Host "  [OK] Resolved live IIS site '$SiteName' physicalPath: $ResolvedProductionPath" -ForegroundColor Green
+            } else {
+                Write-Host "  [WARN] IIS site physicalPath '$SitePath' does not exist on disk. Failing closed." -ForegroundColor Red
+                Write-Error "Deployment Failed: Resolved IIS physicalPath '$SitePath' is invalid or missing!"
+                Exit 1
+            }
+
+            # Check if any HTTPS binding exists on the resolved production site
+            $Bindings = Get-WebBinding -Name $SiteName -ErrorAction SilentlyContinue
+            foreach ($b in $Bindings) {
+                if ($b.protocol -eq "https") {
+                    $HasHttpsBinding = $true
+                    break
+                }
+            }
+            Write-Host "  [INFO] Production site HTTPS binding detected: $HasHttpsBinding" -ForegroundColor Yellow
+        } else {
+            Write-Host "  [INFO] IIS site '$SiteName' does not exist yet. Will use default path: $DefaultProductionPath" -ForegroundColor Yellow
+            $ResolvedProductionPath = $DefaultProductionPath
+        }
+
+        # Check Staging Site Bindings if Staging Site exists in IIS
+        if (Test-Path "IIS:\Sites\YarTrader-Edge-Staging") {
+            $StagingSite = Get-Item "IIS:\Sites\YarTrader-Edge-Staging"
+            if ($StagingSite.physicalPath -and (Test-Path $StagingSite.physicalPath)) {
+                $StagingPath = $StagingSite.physicalPath
+                Write-Host "  [OK] Resolved live IIS staging site physicalPath: $StagingPath" -ForegroundColor Green
+            }
+        }
+    } catch {
+        Write-Host "  [WARN] Exception during IIS WebAdministration inspection: $_" -ForegroundColor Yellow
+        Write-Host "         Using default production path: $DefaultProductionPath" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "  [OK] Physical directory exists: $PhysicalPath" -ForegroundColor Green
+    Write-Host "  [INFO] WebAdministration unavailable or not running as Administrator." -ForegroundColor Yellow
+    Write-Host "         Using default target production path: $DefaultProductionPath" -ForegroundColor Green
 }
 
-$503Path = Join-Path $PhysicalPath "503.html"
+# Fail-closed validation for production directory
+if (-not (Test-Path $ResolvedProductionPath)) {
+    try {
+        New-Item -ItemType Directory -Force -Path $ResolvedProductionPath -ErrorAction Stop | Out-Null
+        Write-Host "  [OK] Created production directory: $ResolvedProductionPath" -ForegroundColor Green
+    } catch {
+        Write-Error "Deployment Failed: Unable to create or access production directory '$ResolvedProductionPath'!"
+        Exit 1
+    }
+}
+
+# ------------------------------------------------------------------------------
+# STEP 2: GENERATE RE-MEDIATED WEB.CONFIG TEMPLATE & 503 ERROR PAGE
+# ------------------------------------------------------------------------------
+Write-Host "`n[+] Step 2: Writing web.config & 503.html to resolved IIS paths..." -ForegroundColor Cyan
+
 $503Content = @"
 <!DOCTYPE html>
 <html lang="fa">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سامانه موقتاً در دسترس نیست | TradeYar AI</title>
+    <title>سامانه موقتاً در دسترس نیست | YarTrader</title>
     <style>
         body {
             font-family: 'Tahoma', 'Segoe UI', Arial, sans-serif;
@@ -90,12 +150,12 @@ $503Content = @"
 <body>
     <div class="container">
         <h1>سامانه موقتاً در دسترس نیست (خطای ۵۰۳)</h1>
-        <p>کاربر گرامی، موتور اجرای پس‌زمینه TradeYar AI در حال حاضر آفلاین است، در حال راه‌اندازی مجدد است، یا عملیات نگهداری SRE بر روی آن در حال انجام است.</p>
+        <p>کاربر گرامی، موتور اجرای پس‌زمینه YarTrader در حال حاضر آفلاین است، در حال راه‌اندازی مجدد است، یا عملیات نگهداری SRE بر روی آن در حال انجام است.</p>
         <p>لطفاً چند لحظه دیگر مجدداً تلاش نمایید. از شکیبایی شما سپاسگزاریم.</p>
 
         <div class="english">
             <h2 style="color: #1d3557; font-size: 1.4em;">Service Temporarily Unavailable (503 Error)</h2>
-            <p>The downstream TradeYar AI background execution service is currently offline, restarting, or undergoing active SRE maintenance.</p>
+            <p>The downstream YarTrader background execution service is currently offline, restarting, or undergoing active SRE maintenance.</p>
             <p>Please try again in a few moments. Thank you for your patience.</p>
         </div>
     </div>
@@ -103,17 +163,38 @@ $503Content = @"
 </html>
 "@
 
-try {
-    [System.IO.File]::WriteAllText($503Path, $503Content)
-    Write-Host "  [OK] Generated custom 503 error page at: $503Path" -ForegroundColor Green
-} catch {
-    Write-Error "Failed to write 503.html file!"
-    Exit 1
+# Construct Rewrite Rules conditionally based on SSL availability
+$RewriteRulesXml = ""
+if ($HasHttpsBinding) {
+    $RewriteRulesXml = @"
+        <!-- Rule 1: Redirect HTTP to HTTPS (Active HTTPS Binding Detected) -->
+        <rule name="Redirect HTTP to HTTPS" stopProcessing="true">
+          <match url="(.*)" />
+          <conditions>
+            <add input="{HTTPS}" pattern="off" ignoreCase="true" />
+          </conditions>
+          <action type="Redirect" url="https://{HTTP_HOST}/{R:1}" redirectType="Permanent" />
+        </rule>
+
+        <!-- Rule 2: Reverse Proxy HTTPS requests to YarTrader FastAPI on Port 8000 -->
+        <rule name="Reverse Proxy to YarTrader FastAPI" stopProcessing="true">
+          <match url="(.*)" />
+          <conditions>
+            <add input="{HTTPS}" pattern="on" ignoreCase="true" />
+          </conditions>
+          <action type="Rewrite" url="${BackendUrl}/{R:1}" logRewrittenUrl="true" />
+        </rule>
+"@
+} else {
+    $RewriteRulesXml = @"
+        <!-- Rule 1: Reverse Proxy HTTP requests directly to YarTrader FastAPI on Port 8000 -->
+        <rule name="Reverse Proxy to YarTrader FastAPI" stopProcessing="true">
+          <match url="(.*)" />
+          <action type="Rewrite" url="${BackendUrl}/{R:1}" logRewrittenUrl="true" />
+        </rule>
+"@
 }
 
-$WebConfigPath = Join-Path $PhysicalPath "web.config"
-
-# Complete production-ready web.config template
 $WebConfigContent = @"
 <?xml version="1.0" encoding="utf-8"?>
 <!--
@@ -131,24 +212,7 @@ $WebConfigContent = @"
       <rules>
         <!-- Clear any stale legacy or conflicting rules -->
         <clear />
-
-        <!-- Rule 1: Redirect HTTP to HTTPS (Required for production SSL) -->
-        <rule name="Redirect HTTP to HTTPS" stopProcessing="true">
-          <match url="(.*)" />
-          <conditions>
-            <add input="{HTTPS}" pattern="off" ignoreCase="true" />
-          </conditions>
-          <action type="Redirect" url="https://{HTTP_HOST}/{R:1}" redirectType="Permanent" />
-        </rule>
-
-        <!-- Rule 2: Reverse Proxy all public requests to YarTrader on Port 8000 -->
-        <rule name="Reverse Proxy to YarTrader FastAPI" stopProcessing="true">
-          <match url="(.*)" />
-          <conditions>
-            <add input="{HTTPS}" pattern="on" ignoreCase="true" />
-          </conditions>
-          <action type="Rewrite" url="${BackendUrl}/{R:1}" logRewrittenUrl="true" />
-        </rule>
+$RewriteRulesXml
       </rules>
     </rewrite>
 
@@ -195,35 +259,39 @@ $WebConfigContent = @"
 </configuration>
 "@
 
-try {
-    [System.IO.File]::WriteAllText($WebConfigPath, $WebConfigContent)
-    Write-Host "  [OK] Generated secure Web.config at: $WebConfigPath" -ForegroundColor Green
+# Write Production web.config and 503.html
+$Prod503Path = Join-Path $ResolvedProductionPath "503.html"
+$ProdWebConfigPath = Join-Path $ResolvedProductionPath "web.config"
 
-    # Also deploy/remediate staging directory web.config if path exists or can be created
-    if (Test-Path $StagingPath) {
-        $StagingWebConfig = Join-Path $StagingPath "web.config"
-        [System.IO.File]::WriteAllText($StagingWebConfig, $WebConfigContent)
-        $Staging503 = Join-Path $StagingPath "503.html"
-        [System.IO.File]::WriteAllText($Staging503, $503Content)
-        Write-Host "  [OK] Synchronized remediated Web.config to Staging at: $StagingWebConfig" -ForegroundColor Green
-    }
+try {
+    [System.IO.File]::WriteAllText($Prod503Path, $503Content)
+    [System.IO.File]::WriteAllText($ProdWebConfigPath, $WebConfigContent)
+    Write-Host "  [OK] Written Production web.config at: $ProdWebConfigPath" -ForegroundColor Green
 } catch {
-    Write-Error "Failed to write Web.config file!"
+    Write-Error "Failed to write Production web.config or 503.html file!"
     Exit 1
 }
 
-# ------------------------------------------------------------------------------
-# STEP 2: Configure IIS (Requires Administrator and WebAdministration Module)
-# ------------------------------------------------------------------------------
-Write-Host "`n[+] Step 2: Registering IIS Site and App Pool..." -ForegroundColor Cyan
+# Write Staging web.config and 503.html if Staging path exists or can be created
+if (Test-Path $StagingPath) {
+    try {
+        $Staging503Path = Join-Path $StagingPath "503.html"
+        $StagingWebConfigPath = Join-Path $StagingPath "web.config"
+        [System.IO.File]::WriteAllText($Staging503Path, $503Content)
+        [System.IO.File]::WriteAllText($StagingWebConfigPath, $WebConfigContent)
+        Write-Host "  [OK] Synchronized Staging web.config at: $StagingWebConfigPath" -ForegroundColor Green
+    } catch {
+        Write-Host "  [WARN] Failed to write Staging web.config: $_" -ForegroundColor Yellow
+    }
+}
 
-$IISModule = Get-Module -ListAvailable -Name WebAdministration
+# ------------------------------------------------------------------------------
+# STEP 3: CONFIGURE IIS SITE AND APP POOL IF ADMIN
+# ------------------------------------------------------------------------------
+Write-Host "`n[+] Step 3: Registering IIS Site, App Pool, and ARR Settings..." -ForegroundColor Cyan
 
 if ($isAdmin -and $IISModule) {
     try {
-        Import-Module WebAdministration
-        Write-Host "  [OK] WebAdministration module loaded successfully." -ForegroundColor Green
-
         # Check App Pool
         if (-not (Test-Path "IIS:\AppPools\$AppPoolName")) {
             Write-Host "  [INFO] Creating Application Pool '$AppPoolName'..." -ForegroundColor Yellow
@@ -235,34 +303,20 @@ if ($isAdmin -and $IISModule) {
             Write-Host "  [OK] Application Pool '$AppPoolName' already exists." -ForegroundColor Green
         }
 
-        # Check Site physicalPath dynamically
-        if (Test-Path "IIS:\Sites\$SiteName") {
-            $SitePhysicalPath = (Get-ItemProperty "IIS:\Sites\$SiteName").physicalPath
-            if ($SitePhysicalPath -and (Test-Path $SitePhysicalPath)) {
-                $PhysicalPath = $SitePhysicalPath
-                Write-Host "  [OK] Dynamically resolved IIS '$SiteName' physicalPath: $PhysicalPath" -ForegroundColor Green
-            } else {
-                Write-Host "  [OK] Website '$SiteName' exists. Reconfiguring root path to $PhysicalPath..." -ForegroundColor Green
-                Set-ItemProperty "IIS:\Sites\$SiteName" -Name physicalPath -Value $PhysicalPath
-            }
-        } elseif (Test-Path "IIS:\Sites\TradeYarAI") {
-            $SiteName = "TradeYarAI"
-            $SitePhysicalPath = (Get-ItemProperty "IIS:\Sites\$SiteName").physicalPath
-            if ($SitePhysicalPath -and (Test-Path $SitePhysicalPath)) {
-                $PhysicalPath = $SitePhysicalPath
-                Write-Host "  [OK] Dynamically resolved IIS '$SiteName' physicalPath: $PhysicalPath" -ForegroundColor Green
-            }
-        } else {
+        # Check Site
+        if (-not (Test-Path "IIS:\Sites\$SiteName")) {
             Write-Host "  [INFO] Creating IIS Website '$SiteName'..." -ForegroundColor Yellow
-            New-Website -Name $SiteName -PhysicalPath $PhysicalPath -Port 80 -ApplicationPool $AppPoolName | Out-Null
+            New-Website -Name $SiteName -PhysicalPath $ResolvedProductionPath -Port 80 -ApplicationPool $AppPoolName | Out-Null
             Write-Host "  [OK] Created Website: $SiteName on port 80." -ForegroundColor Green
+        } else {
+            Write-Host "  [OK] Website '$SiteName' already exists. Physical path set to: $ResolvedProductionPath" -ForegroundColor Green
+            Set-ItemProperty "IIS:\Sites\$SiteName" -Name physicalPath -Value $ResolvedProductionPath
         }
 
         # Configure ARR (Application Request Routing) Proxy settings
         Write-Host "  [INFO] Configuring IIS Application Request Routing (ARR) Proxy..." -ForegroundColor Yellow
         $AppCmdPath = Join-Path $env:SystemRoot "System32\inetsrv\appcmd.exe"
         if (Test-Path $AppCmdPath) {
-            # Enable proxy functionality
             & $AppCmdPath set config -section:system.webServer/proxy /enabled:"True" /commit:apphost | Out-Null
             & $AppCmdPath set config -section:system.webServer/proxy /preserveHostHeader:"True" /commit:apphost | Out-Null
             Write-Host "  [OK] ARR Proxy Enabled and PreserveHostHeader configured." -ForegroundColor Green
@@ -271,15 +325,13 @@ if ($isAdmin -and $IISModule) {
         }
 
     } catch {
-        Write-Host "  [WARN] Exception occurred during IIS PowerShell configuration: $_" -ForegroundColor Yellow
-        Write-Host "         Web.config has been generated. Please manually verify site and pool bindings in IIS." -ForegroundColor Yellow
+        Write-Host "  [WARN] Exception during IIS site configuration: $_" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "  [INFO] Skipping WebAdministration configuration (Not on Windows, not Admin, or IIS WebAdministration missing)." -ForegroundColor Yellow
-    Write-Host "         Enterprise Web.config file has been safely written for local validation." -ForegroundColor Green
+    Write-Host "  [INFO] Skipping WebAdministration configuration (Not Admin or module missing)." -ForegroundColor Yellow
 }
 
 Write-Host "`n==========================================================" -ForegroundColor Green
 Write-Host "IIS REVERSE PROXY SETUP COMPLETE!" -ForegroundColor Green
-Write-Host "Web.config path: $WebConfigPath" -ForegroundColor Green
+Write-Host "Production web.config: $ProdWebConfigPath" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green

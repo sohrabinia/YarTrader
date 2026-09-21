@@ -75,6 +75,28 @@ def test_api_404_isolation():
     assert res.headers.get("content-type") == "application/json"
     assert res.json() == {"detail": "Not Found"}
 
+def test_iis_powershell_script_template_rules():
+    """Verify setup_iis_reverse_proxy.ps1 contains no rewrite rules targeting port 3000 and resolves physicalPath before writing."""
+    import os
+    script_path = "scripts/setup_iis_reverse_proxy.ps1"
+    assert os.path.exists(script_path)
+    with open(script_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Rule 1: No rewrite target to 3000 in rewrite actions or URLs
+    assert "url=\"http://127.0.0.1:3000" not in content
+    assert "url=\"${BackendUrl}/{R:1}\"" in content or "url=\"http://127.0.0.1:8000" in content
+
+    # Rule 2: PhysicalPath resolution occurs BEFORE Web.config generation/writing
+    step1_pos = content.find("STEP 1: RESOLVE IIS SITE PHYSICAL PATH")
+    step2_pos = content.find("STEP 2: GENERATE RE-MEDIATED WEB.CONFIG")
+    assert step1_pos != -1 and step2_pos != -1
+    assert step1_pos < step2_pos
+
+    # Rule 3: Conditional HTTPS handling based on $HasHttpsBinding
+    assert "$HasHttpsBinding" in content
+    assert "Redirect HTTP to HTTPS" in content
+
 def test_protected_trading_core_untouched():
     """Verify LIVE_TRADING_ENABLED remains hard-locked to False."""
     import os
