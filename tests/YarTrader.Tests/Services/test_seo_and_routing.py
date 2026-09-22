@@ -150,3 +150,50 @@ def test_deploy_production_invokes_iis_remediation():
     assert "& $IISProxyScript" in step35_block
     assert "$LASTEXITCODE" in step35_block
     assert "catch" in step35_block
+
+def test_iis_physical_path_environment_variable_expansion():
+    """Verify IIS physicalPath environment variables are expanded before Test-Path."""
+    import os
+
+    script_path = "scripts/setup_iis_reverse_proxy.ps1"
+    assert os.path.exists(script_path)
+
+    with open(script_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    expand_pos = content.find(
+        "[System.Environment]::ExpandEnvironmentVariables($SitePath)"
+    )
+    test_path_pos = content.find(
+        "(Test-Path $SitePath)", expand_pos
+    )
+
+    assert expand_pos != -1, (
+        "Missing ExpandEnvironmentVariables($SitePath)"
+    )
+    assert test_path_pos != -1, (
+        "Test-Path $SitePath must exist after environment expansion"
+    )
+    assert expand_pos < test_path_pos, (
+        "Environment variable expansion must occur before Test-Path"
+    )
+
+    staging_expand_pos = content.find(
+        "[System.Environment]::ExpandEnvironmentVariables($StagingSitePath)"
+    )
+    staging_test_path_pos = content.find(
+        "(Test-Path $StagingSitePath)", staging_expand_pos
+    )
+
+    assert staging_expand_pos != -1, (
+        "Missing ExpandEnvironmentVariables($StagingSitePath)"
+    )
+    assert staging_test_path_pos != -1, (
+        "Test-Path $StagingSitePath must exist after environment expansion"
+    )
+    assert staging_expand_pos < staging_test_path_pos, (
+        "Staging environment variable expansion must occur before Test-Path"
+    )
+
+    assert "Exit 1" in content
+    assert "127.0.0.1:3000" not in content
