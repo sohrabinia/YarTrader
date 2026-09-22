@@ -241,8 +241,8 @@ $RewriteRulesXml
         <add name="X-XSS-Protection" value="1; mode=block" />
         <!-- Referrer Policy -->
         <add name="Referrer-Policy" value="strict-origin-when-cross-origin" />
-        <!-- Content Security Policy (Basic restrictive CSP template) -->
-        <add name="Content-Security-Policy" value="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; connect-src 'self' ws: wss:; img-src 'self' data: blob:;" />
+        <!-- Content Security Policy (Scoped template with Google Identity Services & Vazirmatn Font support) -->
+        <add name="Content-Security-Policy" value="default-src 'self' 'unsafe-inline' 'unsafe-eval' data:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com/gsi/client; frame-src 'self' https://accounts.google.com/; connect-src 'self' ws: wss: https://accounts.google.com/gsi/; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style https://cdn.jsdelivr.net; font-src 'self' data: https://cdn.jsdelivr.net; img-src 'self' data: blob: https://*.googleusercontent.com https://*.gstatic.com;" />
       </customHeaders>
     </httpProtocol>
 
