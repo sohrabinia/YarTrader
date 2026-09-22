@@ -1,6 +1,7 @@
 import os
 import json
 import unittest
+import tempfile
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app, global_auth_service
@@ -19,11 +20,66 @@ class TestOperatorAdminIntegration(unittest.TestCase):
             self.assertEqual(adapter.base_url, "http://127.0.0.1:3000")
 
     def test_operator_runtime_url_env_override(self):
-        """Verify YAROPERATOR_RUNTIME_URL environment variable is respected."""
+        """Verify YAROPERATOR_RUNTIME_URL environment variable is respected when loopback."""
         with patch.dict(os.environ, {"YAROPERATOR_RUNTIME_URL": "http://127.0.0.1:3000"}):
             adapter = YarTraderOperatorAdapter()
             self.assertEqual(adapter.base_url, "http://127.0.0.1:3000")
             self.assertEqual(adapter.port, 3000)
+
+    def test_external_runtime_url_fails_closed_in_adapter(self):
+        """Verify external non-loopback runtime URLs are rejected fail-closed in submit_task and get_runtime_health."""
+        admin_identity = {"email": "admin_ext@yartrader.app", "role": "ADMIN"}
+        with patch.dict(os.environ, {"YAROPERATOR_RUNTIME_URL": "http://8.8.8.8:3000", "OPERATOR_OWNER_TOKEN": "tok", "OPERATOR_OWNER_ID": "owner_sohrab"}):
+            adapter = YarTraderOperatorAdapter()
+
+            # submit_task should be blocked
+            res = adapter.submit_task(admin_identity, "Execute task")
+            self.assertFalse(res["success"])
+            self.assertEqual(res["status"], OperatorTaskStatus.BLOCKED.value)
+            self.assertIn("local loopback endpoint", res["error"])
+
+            # get_runtime_health should return UNAVAILABLE
+            health = adapter.get_runtime_health()
+            self.assertFalse(health["connected"])
+            self.assertEqual(health["status"], "UNAVAILABLE")
+            self.assertIn("local loopback endpoint", health["details"])
+
+    def test_config_status_reports_missing_runtime_url_when_env_var_absent(self):
+        """Verify config_status reports YAROPERATOR_RUNTIME_URL as missing when env var is absent, despite default fallback."""
+        admin_identity = {"email": "admin_cfg@yartrader.app", "role": "ADMIN"}
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "tok_123", "OPERATOR_OWNER_ID": "owner_sohrab"}, clear=True):
+            adapter = YarTraderOperatorAdapter()
+            health = adapter.get_runtime_health()
+            self.assertEqual(health["config_status"]["YAROPERATOR_RUNTIME_URL"], "missing")
+            self.assertEqual(health["config_status"]["OPERATOR_OWNER_ID"], "configured")
+            self.assertEqual(health["config_status"]["OPERATOR_OWNER_TOKEN"], "configured")
+
+        # When set, should report configured
+        with patch.dict(os.environ, {"YAROPERATOR_RUNTIME_URL": "http://127.0.0.1:3000", "OPERATOR_OWNER_TOKEN": "tok_123", "OPERATOR_OWNER_ID": "owner_sohrab"}):
+            adapter = YarTraderOperatorAdapter()
+            health = adapter.get_runtime_health()
+            self.assertEqual(health["config_status"]["YAROPERATOR_RUNTIME_URL"], "configured")
+
+    def test_secret_token_loaded_from_acl_file_when_env_absent(self):
+        """Verify OPERATOR_OWNER_TOKEN is safely loaded from secrets/operator_owner_token.secret file if env var is missing."""
+        secret_dir = os.path.join(os.getcwd(), "secrets")
+        secret_file = os.path.join(secret_dir, "operator_owner_token.secret")
+
+        os.makedirs(secret_dir, exist_ok=True)
+        try:
+            with open(secret_file, "w", encoding="utf-8") as f:
+                f.write("SECRET_FILE_TOKEN_VAL_123")
+
+            with patch.dict(os.environ, {"OPERATOR_OWNER_ID": "owner_sohrab"}, clear=True):
+                adapter = YarTraderOperatorAdapter()
+                token = adapter._get_bearer_token()
+                self.assertEqual(token, "SECRET_FILE_TOKEN_VAL_123")
+        finally:
+            if os.path.exists(secret_file):
+                try:
+                    os.remove(secret_file)
+                except Exception:
+                    pass
 
     def test_missing_owner_id_fails_closed(self):
         """Verify task submission fails closed if OPERATOR_OWNER_ID is not explicitly configured."""
@@ -36,20 +92,37 @@ class TestOperatorAdminIntegration(unittest.TestCase):
             self.assertIsNone(res["task_id"])
             self.assertIn("OPERATOR_OWNER_ID", res["error"])
 
+    def test_missing_owner_token_fails_closed(self):
+        """Verify task submission fails closed if OPERATOR_OWNER_TOKEN is not explicitly configured."""
+        adapter = YarTraderOperatorAdapter()
+        admin_identity = {"email": "admin_no_token@yartrader.app", "role": "ADMIN"}
+        with patch.dict(os.environ, {"OPERATOR_OWNER_ID": "owner_sohrab"}, clear=True):
+            res = adapter.submit_task(admin_identity, "Execute task")
+            self.assertFalse(res["success"])
+            self.assertEqual(res["status"], OperatorTaskStatus.BLOCKED.value)
+            self.assertIsNone(res["task_id"])
+            self.assertIn("OPERATOR_OWNER_TOKEN", res["error"])
+
+    def test_canonical_owner_id_sohrab(self):
+        """Verify configured owner ID resolves to canonical owner_sohrab."""
+        with patch.dict(os.environ, {"OPERATOR_OWNER_ID": "owner_sohrab"}):
+            adapter = YarTraderOperatorAdapter()
+            self.assertEqual(adapter._get_owner_id(), "owner_sohrab")
+
     def test_workspace_mismatch_fails_closed(self):
         """Verify workspace_id other than 'yartrader' is rejected immediately."""
         adapter = YarTraderOperatorAdapter()
         admin_identity = {"email": "admin_ws@yartrader.app", "role": "ADMIN"}
-        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "token_123", "OPERATOR_OWNER_ID": "owner_123"}):
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "token_123", "OPERATOR_OWNER_ID": "owner_sohrab"}):
             res = adapter.submit_task(admin_identity, "Execute task", workspace_id="unauthorized_workspace")
             self.assertFalse(res["success"])
             self.assertEqual(res["status"], OperatorTaskStatus.BLOCKED.value)
             self.assertIn("Only 'yartrader' workspace is permitted", res["error"])
 
-    def test_health_check_does_not_execute_commands(self):
-        """Verify get_runtime_health() performs a socket connection probe and does NOT call POST /api/v1/operator/chat."""
+    def test_health_check_does_not_execute_commands_and_reports_config_status(self):
+        """Verify get_runtime_health() performs a socket connection probe, reports config_status, and does NOT call POST /api/v1/operator/chat."""
         adapter = YarTraderOperatorAdapter()
-        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "token_123", "OPERATOR_OWNER_ID": "owner_123"}):
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "token_123", "OPERATOR_OWNER_ID": "owner_sohrab", "YAROPERATOR_RUNTIME_URL": "http://127.0.0.1:3000"}):
             with patch("urllib.request.urlopen") as mock_urlopen:
                 with patch("socket.create_connection") as mock_socket:
                     mock_sock_inst = MagicMock()
@@ -58,6 +131,9 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                     health = adapter.get_runtime_health()
                     self.assertTrue(health["connected"])
                     self.assertEqual(health["status"], "ONLINE")
+                    self.assertEqual(health["config_status"]["OPERATOR_OWNER_ID"], "configured")
+                    self.assertEqual(health["config_status"]["YAROPERATOR_RUNTIME_URL"], "configured")
+                    self.assertEqual(health["config_status"]["OPERATOR_OWNER_TOKEN"], "configured")
 
                     # Crucial assertion: urllib.request.urlopen must NEVER be called during health checks
                     mock_urlopen.assert_not_called()
@@ -81,7 +157,7 @@ class TestOperatorAdminIntegration(unittest.TestCase):
             }
         }
 
-        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "m12_token_val", "OPERATOR_OWNER_ID": "owner_prod_01"}):
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "m12_token_val", "OPERATOR_OWNER_ID": "owner_sohrab"}):
             with patch("urllib.request.urlopen") as mock_urlopen:
                 mock_resp = MagicMock()
                 mock_resp.status = 200
@@ -103,20 +179,46 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                 self.assertEqual(req.headers.get("Authorization"), "Bearer m12_token_val")
 
                 body = json.loads(req.data.decode("utf-8"))
-                self.assertEqual(body["ownerId"], "owner_prod_01")
+                self.assertEqual(body["ownerId"], "owner_sohrab")
                 self.assertEqual(body["workspaceId"], "yartrader")
                 self.assertEqual(body["rawCommandText"], "Run audit")
                 self.assertEqual(body["environmentId"], "production")
 
     def test_bearer_token_never_returned_in_api_responses(self):
-        """Verify OPERATOR_OWNER_TOKEN is never returned in API responses."""
+        """Verify OPERATOR_OWNER_TOKEN is never returned in API responses or diagnostic status."""
         token_val = "SUPER_SECRET_BEARER_TOKEN_999"
         admin = global_auth_service.repo.create_user("admin_sec@yartrader.app", password_hash="pass", role="ADMIN", name="Admin")
         admin_token = global_auth_service.create_session(admin)
 
-        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": token_val, "OPERATOR_OWNER_ID": "owner_123"}):
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": token_val, "OPERATOR_OWNER_ID": "owner_sohrab", "YAROPERATOR_RUNTIME_URL": "http://127.0.0.1:3000"}):
             res = self.client.get("/api/admin/operator/status", headers={"Authorization": f"Bearer {admin_token}"})
             self.assertNotIn(token_val, res.text)
+            self.assertIn('"OPERATOR_OWNER_TOKEN":"configured"', res.text)
+
+    def test_deployment_scripts_do_not_contain_secret_literals_or_plaintext_registry(self):
+        """Verify deployment PowerShell scripts do not pass plaintext token in NSSM args or SCM registry."""
+        deploy_script_path = os.path.join(os.path.dirname(__file__), "../../../scripts/deploy_service.ps1")
+        install_script_path = os.path.join(os.path.dirname(__file__), "../../../scripts/install_service.ps1")
+
+        for script_path in (deploy_script_path, install_script_path):
+            with open(script_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                self.assertNotIn("SUPER_SECRET", content)
+                self.assertNotIn("token_val", content)
+                self.assertNotIn('OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"', content)
+                self.assertIn('operator_owner_token.secret', content)
+                self.assertIn('icacls.exe', content)
+
+    def test_deployment_scripts_do_not_accept_operator_owner_token_parameter(self):
+        """Verify param(...) block in PowerShell deployment scripts does NOT accept OperatorOwnerToken CLI parameter."""
+        deploy_script_path = os.path.join(os.path.dirname(__file__), "../../../scripts/deploy_service.ps1")
+        install_script_path = os.path.join(os.path.dirname(__file__), "../../../scripts/install_service.ps1")
+
+        for script_path in (deploy_script_path, install_script_path):
+            with open(script_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                param_block = content.split("param(")[1].split(")")[0]
+                self.assertNotIn("OperatorOwnerToken", param_block)
 
     def test_no_local_fake_task_history(self):
         """Verify task history and status endpoints report unsupported state rather than local fake history."""

@@ -30,7 +30,7 @@ class YarTraderOperatorAdapter:
     Production Adapter/Gateway connecting YarTrader Admin to YarOperator M12 runtime.
     Strictly handles server-side bearer authentication (OPERATOR_OWNER_TOKEN), owner ID verification (OPERATOR_OWNER_ID),
     authoritative workspace enforcement (workspaceId='yartrader'), POST /api/v1/operator/chat command dispatch,
-    non-executing health probes, timeout bounds, and fail-closed error handling without exposing secrets.
+    non-executing health probes, timeout bounds, loopback/internal runtime URL enforcement, and fail-closed error handling without exposing secrets.
     """
 
     def __init__(self, host: Optional[str] = None, port: Optional[int] = None, timeout_sec: float = 5.0):
@@ -46,10 +46,37 @@ class YarTraderOperatorAdapter:
             self.base_url = f"http://{self.host}:{self.port}"
         self.timeout_sec = float(os.environ.get("YARTRADER_OPERATOR_TIMEOUT", str(timeout_sec)))
 
+    def _is_loopback_url(self, url: str) -> bool:
+        if not url:
+            return False
+        try:
+            parsed = urlparse(url)
+            if parsed.scheme not in ("http", "https"):
+                return False
+            hostname = (parsed.hostname or "").lower()
+            return hostname in ("127.0.0.1", "localhost", "::1")
+        except Exception:
+            return False
+
     def _get_bearer_token(self) -> str:
         token = os.environ.get("OPERATOR_OWNER_TOKEN", "").strip()
         if not token:
             token = os.environ.get("OPERATOR_SERVER_SECRET", "").strip()
+        if not token:
+            # Fallback to reading ACL-restricted secret file
+            secret_paths = [
+                os.path.join(os.getcwd(), "secrets", "operator_owner_token.secret"),
+                "C:\\Projects\\YarTrader\\secrets\\operator_owner_token.secret",
+            ]
+            for path in secret_paths:
+                if os.path.isfile(path):
+                    try:
+                        with open(path, "r", encoding="utf-8") as f:
+                            token = f.read().strip()
+                            if token:
+                                break
+                    except Exception as e:
+                        logger.warning(f"Failed to read secret file at {path}: {str(e)}")
         return token
 
     def _get_owner_id(self) -> str:
@@ -59,10 +86,34 @@ class YarTraderOperatorAdapter:
         """
         Evaluates connectivity and environment compatibility of the YarOperator M12 runtime.
         Performs a non-executing socket connectivity probe without executing any commands on M12.
-        Fails closed if OPERATOR_OWNER_TOKEN or OPERATOR_OWNER_ID is unconfigured.
+        Includes a safe diagnostic configuration check reporting configured/missing status for required env vars.
+        Fails closed if YAROPERATOR_RUNTIME_URL is non-loopback or if OPERATOR_OWNER_TOKEN or OPERATOR_OWNER_ID is unconfigured.
         """
         token = self._get_bearer_token()
         owner_id = self._get_owner_id()
+        raw_runtime_url = os.environ.get("YAROPERATOR_RUNTIME_URL", "").strip()
+
+        config_status = {
+            "OPERATOR_OWNER_ID": "configured" if owner_id else "missing",
+            "YAROPERATOR_RUNTIME_URL": "configured" if raw_runtime_url else "missing",
+            "OPERATOR_OWNER_TOKEN": "configured" if token else "missing"
+        }
+
+        # Enforce loopback/internal URL rule
+        if not self._is_loopback_url(self.base_url):
+            return {
+                "operator_runtime": "YarOperator M12",
+                "os_environment": platform.system(),
+                "windows_compatible": platform.system() == "Windows" or True,
+                "host": self.host,
+                "port": self.port,
+                "config_status": config_status,
+                "connected": False,
+                "status": "UNAVAILABLE",
+                "details": "YAROPERATOR_RUNTIME_URL must point strictly to a local loopback endpoint (127.0.0.1 or localhost). External URL rejected fail-closed.",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+
         if not token or not owner_id:
             return {
                 "operator_runtime": "YarOperator M12",
@@ -70,6 +121,7 @@ class YarTraderOperatorAdapter:
                 "windows_compatible": platform.system() == "Windows" or True,
                 "host": self.host,
                 "port": self.port,
+                "config_status": config_status,
                 "connected": False,
                 "status": "UNAVAILABLE",
                 "details": "OPERATOR_OWNER_TOKEN and OPERATOR_OWNER_ID must both be explicitly configured. Server-to-server request blocked.",
@@ -82,6 +134,7 @@ class YarTraderOperatorAdapter:
             "windows_compatible": platform.system() == "Windows" or True,
             "host": self.host,
             "port": self.port,
+            "config_status": config_status,
             "connected": False,
             "status": "UNAVAILABLE",
             "details": "YarOperator M12 external runtime service port is unreachable.",
@@ -111,7 +164,7 @@ class YarTraderOperatorAdapter:
     ) -> Dict[str, Any]:
         """
         Submits an authenticated command from YarTrader Admin to YarOperator M12 runtime via POST /api/v1/operator/chat.
-        Enforces explicit OPERATOR_OWNER_ID and authoritative workspaceId='yartrader'. Fails closed if missing or mismatched.
+        Enforces explicit OPERATOR_OWNER_ID, loopback endpoint rule, and authoritative workspaceId='yartrader'. Fails closed if missing or mismatched.
         """
         if not admin_identity or admin_identity.get("role") != "ADMIN" or not admin_identity.get("email"):
             return {
@@ -127,6 +180,15 @@ class YarTraderOperatorAdapter:
                 "success": False,
                 "status": OperatorTaskStatus.BLOCKED.value,
                 "error": "Forbidden: Invalid or unauthorized workspace_id. Only 'yartrader' workspace is permitted.",
+                "task_id": None
+            }
+
+        # Loopback endpoint guard
+        if not self._is_loopback_url(self.base_url):
+            return {
+                "success": False,
+                "status": OperatorTaskStatus.BLOCKED.value,
+                "error": "Forbidden: YAROPERATOR_RUNTIME_URL must point to a local loopback endpoint (127.0.0.1 or localhost). External URL rejected fail-closed.",
                 "task_id": None
             }
 
