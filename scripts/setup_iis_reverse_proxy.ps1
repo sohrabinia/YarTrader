@@ -43,6 +43,10 @@ if ($isAdmin -and $IISModule) {
 
         if ($TargetSite) {
             $SitePath = $TargetSite.physicalPath
+            if ($SitePath) {
+                $SitePath = [System.Environment]::ExpandEnvironmentVariables($SitePath)
+            }
+
             if ($SitePath -and (Test-Path $SitePath)) {
                 $ResolvedProductionPath = $SitePath
                 Write-Host "  [OK] Resolved live IIS site '$SiteName' physicalPath: $ResolvedProductionPath" -ForegroundColor Green
@@ -69,8 +73,14 @@ if ($isAdmin -and $IISModule) {
         # Check Staging Site Bindings & physicalPath if Staging Site exists in IIS
         if (Test-Path "IIS:\Sites\YarTrader-Edge-Staging") {
             $StagingSite = Get-Item "IIS:\Sites\YarTrader-Edge-Staging" -ErrorAction Stop
-            if ($StagingSite.physicalPath -and (Test-Path $StagingSite.physicalPath)) {
-                $StagingPath = $StagingSite.physicalPath
+
+            $StagingSitePath = $StagingSite.physicalPath
+            if ($StagingSitePath) {
+                $StagingSitePath = [System.Environment]::ExpandEnvironmentVariables($StagingSitePath)
+            }
+
+            if ($StagingSitePath -and (Test-Path $StagingSitePath)) {
+                $StagingPath = $StagingSitePath
                 Write-Host "  [OK] Resolved live IIS staging site physicalPath: $StagingPath" -ForegroundColor Green
             } else {
                 Write-Host "  [FAIL] IIS staging site 'YarTrader-Edge-Staging' exists but physicalPath '$($StagingSite.physicalPath)' is invalid or missing on disk!" -ForegroundColor Red
