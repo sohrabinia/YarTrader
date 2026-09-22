@@ -2,6 +2,7 @@ import os
 import time
 import math
 import threading
+import traceback
 from datetime import datetime
 from typing import Optional, Dict, Any
 from src.Application.Runtime.research_runtime import ResearchRuntime
@@ -434,6 +435,14 @@ class ResearchWorker:
                         self.error_count += 1
                         self.status = "RECOVERING"
                         central_runtime_state.update_state("research_status", "Recovering")
+                        tb_str = traceback.format_exc()
+                        err_msg = f"[ResearchWorker] Loop exception on {symbol} {tf} ({type(e).__name__}): {str(e)}"
+                        print(err_msg)
+                        try:
+                            from app.core.logging import log_event
+                            log_event("ERROR", err_msg, traceback=tb_str, symbol=symbol, timeframe=tf, source="research_worker")
+                        except Exception:
+                            pass
                         # Graceful quick delay before next asset if error happens
                         time.sleep(0.5)
 
