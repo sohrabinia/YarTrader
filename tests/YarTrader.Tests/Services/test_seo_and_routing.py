@@ -197,3 +197,43 @@ def test_iis_physical_path_environment_variable_expansion():
 
     assert "Exit 1" in content
     assert "127.0.0.1:3000" not in content
+
+def test_content_security_policy_google_identity_and_font_support():
+    """Verify IIS setup script emits CSP permitting Google Identity Services & Vazirmatn fonts without unrestricted wildcards or secret leaks."""
+    import os
+    script_path = "scripts/setup_iis_reverse_proxy.ps1"
+    assert os.path.exists(script_path)
+    with open(script_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Rule A: CSP permits Google Identity Services script, frame, connect, style, and img
+    assert 'script-src \'self\' \'unsafe-inline\' \'unsafe-eval\' https://accounts.google.com/gsi/client' in content
+    assert 'frame-src \'self\' https://accounts.google.com/' in content
+    assert 'connect-src \'self\' ws: wss: https://accounts.google.com/gsi/' in content
+    assert 'style-src \'self\' \'unsafe-inline\' https://accounts.google.com/gsi/style https://cdn.jsdelivr.net' in content
+    assert 'font-src \'self\' data: https://cdn.jsdelivr.net' in content
+    assert 'img-src \'self\' data: blob: https://*.googleusercontent.com https://*.gstatic.com' in content
+
+    # Rule B: CSP is NOT unrestricted (no default-src * or script-src *)
+    assert "default-src *" not in content
+    assert "script-src *" not in content
+
+    # Rule C: No Google Client Secret is in frontend source
+    terminal_app = "trader-terminal/src/App.jsx"
+    if os.path.exists(terminal_app):
+        with open(terminal_app, "r", encoding="utf-8") as f:
+            app_src = f.read()
+            assert "client_secret" not in app_src.lower()
+            assert "google_client_secret" not in app_src.lower()
+
+    # Rule D: No YarOperator/M12 token is exposed in browser code
+    trader_src_dir = "trader-terminal/src"
+    if os.path.exists(trader_src_dir):
+        for root, _, files in os.walk(trader_src_dir):
+            for file in files:
+                if file.endswith((".js", ".jsx", ".ts", ".tsx", ".html")):
+                    file_path = os.path.join(root, file)
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        file_src = f.read()
+                        assert "OPERATOR_OWNER_TOKEN" not in file_src
+                        assert "OPERATOR_SERVER_SECRET" not in file_src
