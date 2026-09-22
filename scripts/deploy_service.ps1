@@ -54,10 +54,19 @@ if ([string]::IsNullOrWhiteSpace($OperatorOwnerToken)) {
     Exit 1
 }
 
+# Write secret token to ACL-restricted secret file (never passed to CLI args or SCM registry)
+$SecretsDir = Join-Path $TargetWorkDir "secrets"
+if (-not (Test-Path $SecretsDir)) {
+    New-Item -ItemType Directory -Force -Path $SecretsDir | Out-Null
+}
+$SecretsFile = Join-Path $SecretsDir "operator_owner_token.secret"
+Set-Content -Path $SecretsFile -Value $OperatorOwnerToken -Encoding UTF8 -NoNewline -Force
+icacls.exe "$SecretsFile" /inheritance:r /grant:r "SYSTEM:(F)" /grant:r "Administrators:(F)" | Out-Null
+
 Write-Host "Service Environment Validation Check:" -ForegroundColor Green
 Write-Host "  OPERATOR_OWNER_ID: configured" -ForegroundColor Green
 Write-Host "  YAROPERATOR_RUNTIME_URL: configured" -ForegroundColor Green
-Write-Host "  OPERATOR_OWNER_TOKEN: configured" -ForegroundColor Green
+Write-Host "  OPERATOR_OWNER_TOKEN: configured (secured in ACL-restricted secret store)" -ForegroundColor Green
 
 # Ensure Logs Subdirectory Exists
 if (-not (Test-Path $LogDir)) {
@@ -115,9 +124,9 @@ if ($nssm) {
     & $nssm set $ServiceName DisplayName "$ServiceDisplayName"
     & $nssm set $ServiceName Description "$ServiceDescription"
 
-    # 3. Environment Variables (Operator Credentials & Config)
-    Write-Host "Configuring service environment variables..." -ForegroundColor Yellow
-    & $nssm set $ServiceName AppEnvironmentExtra "OPERATOR_OWNER_ID=$OperatorOwnerId" "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl" "OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"
+    # 3. Environment Variables (Non-sensitive config only)
+    Write-Host "Configuring non-sensitive service environment variables..." -ForegroundColor Yellow
+    & $nssm set $ServiceName AppEnvironmentExtra "OPERATOR_OWNER_ID=$OperatorOwnerId" "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl"
 
     # 4. Delayed Auto-Start (Automatic delayed startup to let basic Windows/Network services boot first)
     Write-Host "Enforcing Automatic (Delayed Start) startup type..." -ForegroundColor Yellow
@@ -156,13 +165,12 @@ if ($nssm) {
     sc.exe description $ServiceName "$ServiceDescription" | Out-Null
     sc.exe failure $ServiceName reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
 
-    # Register environment variables via SCM Registry Key
+    # Register non-sensitive environment variables via SCM Registry Key
     $RegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
     if (Test-Path $RegPath) {
         $EnvMultiString = @(
             "OPERATOR_OWNER_ID=$OperatorOwnerId",
-            "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl",
-            "OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"
+            "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl"
         )
         Set-ItemProperty -Path $RegPath -Name "Environment" -Value $EnvMultiString -Type MultiString -ErrorAction SilentlyContinue
     }

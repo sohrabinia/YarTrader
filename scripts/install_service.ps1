@@ -49,10 +49,19 @@ if ([string]::IsNullOrWhiteSpace($OperatorOwnerToken)) {
     Exit 1
 }
 
+# Write secret token to ACL-restricted secret file
+$SecretsDir = Join-Path $WorkDir "secrets"
+if (-not (Test-Path $SecretsDir)) {
+    New-Item -ItemType Directory -Force -Path $SecretsDir | Out-Null
+}
+$SecretsFile = Join-Path $SecretsDir "operator_owner_token.secret"
+Set-Content -Path $SecretsFile -Value $OperatorOwnerToken -Encoding UTF8 -NoNewline -Force
+icacls.exe "$SecretsFile" /inheritance:r /grant:r "SYSTEM:(F)" /grant:r "Administrators:(F)" | Out-Null
+
 Write-Host "Service Environment Validation Check:" -ForegroundColor Green
 Write-Host "  OPERATOR_OWNER_ID: configured" -ForegroundColor Green
 Write-Host "  YAROPERATOR_RUNTIME_URL: configured" -ForegroundColor Green
-Write-Host "  OPERATOR_OWNER_TOKEN: configured" -ForegroundColor Green
+Write-Host "  OPERATOR_OWNER_TOKEN: configured (secured in ACL-restricted secret store)" -ForegroundColor Green
 
 # Resolve target Python path
 if (Test-Path $VenvPython) {
@@ -99,7 +108,7 @@ if ($LASTEXITCODE -ne 0) {
         & $nssm set $ServiceName AppDirectory "$WorkDir"
         & $nssm set $ServiceName Description "$ServiceDescription"
         & $nssm set $ServiceName Start SERVICE_AUTO_START
-        & $nssm set $ServiceName AppEnvironmentExtra "OPERATOR_OWNER_ID=$OperatorOwnerId" "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl" "OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"
+        & $nssm set $ServiceName AppEnvironmentExtra "OPERATOR_OWNER_ID=$OperatorOwnerId" "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl"
         Write-Host "Successfully registered via NSSM!" -ForegroundColor Green
     } else {
         Write-Error "Failed to install service natively and nssm.exe was not found in PATH."
@@ -113,13 +122,12 @@ if ($LASTEXITCODE -ne 0) {
     # Configure recovery options: Automatic restart on failure
     sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
 
-    # Register environment variables via SCM Registry Key
+    # Register non-sensitive environment variables via SCM Registry Key
     $RegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
     if (Test-Path $RegPath) {
         $EnvMultiString = @(
             "OPERATOR_OWNER_ID=$OperatorOwnerId",
-            "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl",
-            "OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"
+            "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl"
         )
         Set-ItemProperty -Path $RegPath -Name "Environment" -Value $EnvMultiString -Type MultiString -ErrorAction SilentlyContinue
     }
