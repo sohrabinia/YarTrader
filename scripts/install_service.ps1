@@ -1,6 +1,12 @@
 # Install YarTrader Windows Service Script
 # This script installs and registers YarTrader as a Windows Service running 24/7 on Windows Server using the local virtual environment Python.
 
+param(
+    [string]$OperatorOwnerId = "owner_sohrab",
+    [string]$YarOperatorRuntimeUrl = "http://127.0.0.1:3000",
+    [string]$OperatorOwnerToken = $env:OPERATOR_OWNER_TOKEN
+)
+
 $ServiceName = "YarTrader"
 $ServiceDisplayName = "YarTrader Production Runtime Service"
 $ServiceDescription = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
@@ -21,6 +27,32 @@ if (-not $isAdmin) {
     Write-Error "Error: This script must be run as an Administrator!"
     Exit 1
 }
+
+# 2. Operator Credentials & Runtime Validation
+if ([string]::IsNullOrWhiteSpace($OperatorOwnerId)) {
+    Write-Error "Deployment Failed: OPERATOR_OWNER_ID is required and cannot be empty!"
+    Exit 1
+}
+
+if ([string]::IsNullOrWhiteSpace($YarOperatorRuntimeUrl)) {
+    Write-Error "Deployment Failed: YAROPERATOR_RUNTIME_URL is required and cannot be empty!"
+    Exit 1
+}
+
+if (-not ($YarOperatorRuntimeUrl.StartsWith("http://127.0.0.1") -or $YarOperatorRuntimeUrl.StartsWith("http://localhost"))) {
+    Write-Error "Deployment Failed: YAROPERATOR_RUNTIME_URL must point to an internal local endpoint (e.g. http://127.0.0.1:3000) for security isolation!"
+    Exit 1
+}
+
+if ([string]::IsNullOrWhiteSpace($OperatorOwnerToken)) {
+    Write-Error "Deployment Failed: OPERATOR_OWNER_TOKEN must be explicitly supplied via parameter (-OperatorOwnerToken) or environment variable (\$env:OPERATOR_OWNER_TOKEN)!"
+    Exit 1
+}
+
+Write-Host "Service Environment Validation Check:" -ForegroundColor Green
+Write-Host "  OPERATOR_OWNER_ID: configured" -ForegroundColor Green
+Write-Host "  YAROPERATOR_RUNTIME_URL: configured" -ForegroundColor Green
+Write-Host "  OPERATOR_OWNER_TOKEN: configured" -ForegroundColor Green
 
 # Resolve target Python path
 if (Test-Path $VenvPython) {
@@ -67,6 +99,7 @@ if ($LASTEXITCODE -ne 0) {
         & $nssm set $ServiceName AppDirectory "$WorkDir"
         & $nssm set $ServiceName Description "$ServiceDescription"
         & $nssm set $ServiceName Start SERVICE_AUTO_START
+        & $nssm set $ServiceName AppEnvironmentExtra "OPERATOR_OWNER_ID=$OperatorOwnerId" "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl" "OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"
         Write-Host "Successfully registered via NSSM!" -ForegroundColor Green
     } else {
         Write-Error "Failed to install service natively and nssm.exe was not found in PATH."
@@ -78,10 +111,18 @@ if ($LASTEXITCODE -ne 0) {
     sc.exe description $ServiceName "$ServiceDescription" | Out-Null
 
     # Configure recovery options: Automatic restart on failure
-    # 1st Failure: Restart Service (5s delay -> 5000ms)
-    # 2nd Failure: Restart Service (10s delay -> 10000ms)
-    # Subsequent Failures: Restart Service (30s delay -> 30000ms)
     sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
+
+    # Register environment variables via SCM Registry Key
+    $RegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
+    if (Test-Path $RegPath) {
+        $EnvMultiString = @(
+            "OPERATOR_OWNER_ID=$OperatorOwnerId",
+            "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl",
+            "OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"
+        )
+        Set-ItemProperty -Path $RegPath -Name "Environment" -Value $EnvMultiString -Type MultiString -ErrorAction SilentlyContinue
+    }
 
     Write-Host "Successfully registered YarTrader Windows Service natively!" -ForegroundColor Green
 }

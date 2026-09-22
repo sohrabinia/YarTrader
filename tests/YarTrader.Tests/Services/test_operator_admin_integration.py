@@ -36,20 +36,43 @@ class TestOperatorAdminIntegration(unittest.TestCase):
             self.assertIsNone(res["task_id"])
             self.assertIn("OPERATOR_OWNER_ID", res["error"])
 
+    def test_missing_owner_token_fails_closed(self):
+        """Verify task submission fails closed if OPERATOR_OWNER_TOKEN is not explicitly configured."""
+        adapter = YarTraderOperatorAdapter()
+        admin_identity = {"email": "admin_no_token@yartrader.app", "role": "ADMIN"}
+        with patch.dict(os.environ, {"OPERATOR_OWNER_ID": "owner_sohrab"}, clear=True):
+            res = adapter.submit_task(admin_identity, "Execute task")
+            self.assertFalse(res["success"])
+            self.assertEqual(res["status"], OperatorTaskStatus.BLOCKED.value)
+            self.assertIsNone(res["task_id"])
+            self.assertIn("OPERATOR_OWNER_TOKEN", res["error"])
+
+    def test_canonical_owner_id_sohrab(self):
+        """Verify configured owner ID resolves to canonical owner_sohrab."""
+        with patch.dict(os.environ, {"OPERATOR_OWNER_ID": "owner_sohrab"}):
+            adapter = YarTraderOperatorAdapter()
+            self.assertEqual(adapter._get_owner_id(), "owner_sohrab")
+
+    def test_runtime_url_internal_only(self):
+        """Verify runtime URL must resolve strictly to local internal address."""
+        with patch.dict(os.environ, {"YAROPERATOR_RUNTIME_URL": "http://127.0.0.1:3000"}):
+            adapter = YarTraderOperatorAdapter()
+            self.assertTrue(adapter.base_url.startswith("http://127.0.0.1"))
+
     def test_workspace_mismatch_fails_closed(self):
         """Verify workspace_id other than 'yartrader' is rejected immediately."""
         adapter = YarTraderOperatorAdapter()
         admin_identity = {"email": "admin_ws@yartrader.app", "role": "ADMIN"}
-        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "token_123", "OPERATOR_OWNER_ID": "owner_123"}):
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "token_123", "OPERATOR_OWNER_ID": "owner_sohrab"}):
             res = adapter.submit_task(admin_identity, "Execute task", workspace_id="unauthorized_workspace")
             self.assertFalse(res["success"])
             self.assertEqual(res["status"], OperatorTaskStatus.BLOCKED.value)
             self.assertIn("Only 'yartrader' workspace is permitted", res["error"])
 
-    def test_health_check_does_not_execute_commands(self):
-        """Verify get_runtime_health() performs a socket connection probe and does NOT call POST /api/v1/operator/chat."""
+    def test_health_check_does_not_execute_commands_and_reports_config_status(self):
+        """Verify get_runtime_health() performs a socket connection probe, reports config_status, and does NOT call POST /api/v1/operator/chat."""
         adapter = YarTraderOperatorAdapter()
-        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "token_123", "OPERATOR_OWNER_ID": "owner_123"}):
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "token_123", "OPERATOR_OWNER_ID": "owner_sohrab", "YAROPERATOR_RUNTIME_URL": "http://127.0.0.1:3000"}):
             with patch("urllib.request.urlopen") as mock_urlopen:
                 with patch("socket.create_connection") as mock_socket:
                     mock_sock_inst = MagicMock()
@@ -58,6 +81,9 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                     health = adapter.get_runtime_health()
                     self.assertTrue(health["connected"])
                     self.assertEqual(health["status"], "ONLINE")
+                    self.assertEqual(health["config_status"]["OPERATOR_OWNER_ID"], "configured")
+                    self.assertEqual(health["config_status"]["YAROPERATOR_RUNTIME_URL"], "configured")
+                    self.assertEqual(health["config_status"]["OPERATOR_OWNER_TOKEN"], "configured")
 
                     # Crucial assertion: urllib.request.urlopen must NEVER be called during health checks
                     mock_urlopen.assert_not_called()
@@ -81,7 +107,7 @@ class TestOperatorAdminIntegration(unittest.TestCase):
             }
         }
 
-        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "m12_token_val", "OPERATOR_OWNER_ID": "owner_prod_01"}):
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "m12_token_val", "OPERATOR_OWNER_ID": "owner_sohrab"}):
             with patch("urllib.request.urlopen") as mock_urlopen:
                 mock_resp = MagicMock()
                 mock_resp.status = 200
@@ -103,20 +129,33 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                 self.assertEqual(req.headers.get("Authorization"), "Bearer m12_token_val")
 
                 body = json.loads(req.data.decode("utf-8"))
-                self.assertEqual(body["ownerId"], "owner_prod_01")
+                self.assertEqual(body["ownerId"], "owner_sohrab")
                 self.assertEqual(body["workspaceId"], "yartrader")
                 self.assertEqual(body["rawCommandText"], "Run audit")
                 self.assertEqual(body["environmentId"], "production")
 
     def test_bearer_token_never_returned_in_api_responses(self):
-        """Verify OPERATOR_OWNER_TOKEN is never returned in API responses."""
+        """Verify OPERATOR_OWNER_TOKEN is never returned in API responses or diagnostic status."""
         token_val = "SUPER_SECRET_BEARER_TOKEN_999"
         admin = global_auth_service.repo.create_user("admin_sec@yartrader.app", password_hash="pass", role="ADMIN", name="Admin")
         admin_token = global_auth_service.create_session(admin)
 
-        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": token_val, "OPERATOR_OWNER_ID": "owner_123"}):
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": token_val, "OPERATOR_OWNER_ID": "owner_sohrab"}):
             res = self.client.get("/api/admin/operator/status", headers={"Authorization": f"Bearer {admin_token}"})
             self.assertNotIn(token_val, res.text)
+            self.assertIn('"OPERATOR_OWNER_TOKEN":"configured"', res.text)
+
+    def test_deployment_scripts_do_not_contain_secret_literals(self):
+        """Verify deployment PowerShell scripts do not contain plaintext secret token literals."""
+        deploy_script_path = os.path.join(os.path.dirname(__file__), "../../../scripts/deploy_service.ps1")
+        install_script_path = os.path.join(os.path.dirname(__file__), "../../../scripts/install_service.ps1")
+
+        for script_path in (deploy_script_path, install_script_path):
+            with open(script_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                self.assertNotIn("SUPER_SECRET", content)
+                self.assertNotIn("token_val", content)
+                self.assertIn("[string]$OperatorOwnerToken = $env:OPERATOR_OWNER_TOKEN", content)
 
     def test_no_local_fake_task_history(self):
         """Verify task history and status endpoints report unsupported state rather than local fake history."""

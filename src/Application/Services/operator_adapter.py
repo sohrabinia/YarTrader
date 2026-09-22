@@ -59,10 +59,19 @@ class YarTraderOperatorAdapter:
         """
         Evaluates connectivity and environment compatibility of the YarOperator M12 runtime.
         Performs a non-executing socket connectivity probe without executing any commands on M12.
+        Includes a safe diagnostic configuration check reporting configured/missing status for required env vars.
         Fails closed if OPERATOR_OWNER_TOKEN or OPERATOR_OWNER_ID is unconfigured.
         """
         token = self._get_bearer_token()
         owner_id = self._get_owner_id()
+        runtime_url = os.environ.get("YAROPERATOR_RUNTIME_URL", "").strip()
+
+        config_status = {
+            "OPERATOR_OWNER_ID": "configured" if owner_id else "missing",
+            "YAROPERATOR_RUNTIME_URL": "configured" if runtime_url or self.base_url else "missing",
+            "OPERATOR_OWNER_TOKEN": "configured" if token else "missing"
+        }
+
         if not token or not owner_id:
             return {
                 "operator_runtime": "YarOperator M12",
@@ -70,6 +79,7 @@ class YarTraderOperatorAdapter:
                 "windows_compatible": platform.system() == "Windows" or True,
                 "host": self.host,
                 "port": self.port,
+                "config_status": config_status,
                 "connected": False,
                 "status": "UNAVAILABLE",
                 "details": "OPERATOR_OWNER_TOKEN and OPERATOR_OWNER_ID must both be explicitly configured. Server-to-server request blocked.",
@@ -82,6 +92,7 @@ class YarTraderOperatorAdapter:
             "windows_compatible": platform.system() == "Windows" or True,
             "host": self.host,
             "port": self.port,
+            "config_status": config_status,
             "connected": False,
             "status": "UNAVAILABLE",
             "details": "YarOperator M12 external runtime service port is unreachable.",
