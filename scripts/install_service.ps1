@@ -3,8 +3,7 @@
 
 param(
     [string]$OperatorOwnerId = "owner_sohrab",
-    [string]$YarOperatorRuntimeUrl = "http://127.0.0.1:3000",
-    [string]$OperatorOwnerToken = $env:OPERATOR_OWNER_TOKEN
+    [string]$YarOperatorRuntimeUrl = "http://127.0.0.1:3000"
 )
 
 $ServiceName = "YarTrader"
@@ -44,17 +43,26 @@ if (-not ($YarOperatorRuntimeUrl.StartsWith("http://127.0.0.1") -or $YarOperator
     Exit 1
 }
 
+# Read token strictly from deployment environment variable or existing secret file (never via CLI parameter)
+$SecretsDir = Join-Path $WorkDir "secrets"
+$SecretsFile = Join-Path $SecretsDir "operator_owner_token.secret"
+
+$OperatorOwnerToken = $env:OPERATOR_OWNER_TOKEN
 if ([string]::IsNullOrWhiteSpace($OperatorOwnerToken)) {
-    Write-Error "Deployment Failed: OPERATOR_OWNER_TOKEN must be explicitly supplied via parameter (-OperatorOwnerToken) or environment variable (\$env:OPERATOR_OWNER_TOKEN)!"
+    if (Test-Path $SecretsFile) {
+        $OperatorOwnerToken = (Get-Content -Path $SecretsFile -Raw -ErrorAction SilentlyContinue).Trim()
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($OperatorOwnerToken)) {
+    Write-Error "Deployment Failed: OPERATOR_OWNER_TOKEN environment variable (\$env:OPERATOR_OWNER_TOKEN) or secret file ($SecretsFile) is required!"
     Exit 1
 }
 
-# Write secret token to ACL-restricted secret file
-$SecretsDir = Join-Path $WorkDir "secrets"
+# Persist secret token to ACL-restricted secret file
 if (-not (Test-Path $SecretsDir)) {
     New-Item -ItemType Directory -Force -Path $SecretsDir | Out-Null
 }
-$SecretsFile = Join-Path $SecretsDir "operator_owner_token.secret"
 Set-Content -Path $SecretsFile -Value $OperatorOwnerToken -Encoding UTF8 -NoNewline -Force
 icacls.exe "$SecretsFile" /inheritance:r /grant:r "SYSTEM:(F)" /grant:r "Administrators:(F)" | Out-Null
 
