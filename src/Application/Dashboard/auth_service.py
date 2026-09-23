@@ -126,18 +126,24 @@ class AuthService:
         self._rehydrate_sessions()
 
     def _rehydrate_sessions(self) -> None:
-        """Rehydrates active sessions from DeviceTracker and AuthRepository across process restarts."""
+        """Rehydrates active sessions from DeviceTracker (runtime_logs/sessions.json) and AuthRepository across process restarts."""
         try:
             from src.Application.Dashboard.device_tracker import DeviceTracker
             tracker = DeviceTracker()
             data = tracker._load()
+            if not isinstance(data, dict):
+                return
+
             sessions = data.get("sessions", {})
+            if not isinstance(sessions, dict):
+                return
+
             for token, sess_info in sessions.items():
-                if sess_info.get("state") == "ACTIVE":
+                if isinstance(sess_info, dict) and sess_info.get("state") == "ACTIVE":
                     email = sess_info.get("email")
-                    if email:
+                    if email and isinstance(email, str):
                         user = self.repo.get_user_by_email(email)
-                        if user:
+                        if user and isinstance(user, dict):
                             self.active_sessions[token] = {
                                 "email": user["email"],
                                 "role": user.get("role", "USER"),
@@ -145,8 +151,12 @@ class AuthService:
                                 "tier": user.get("tier", "FREE"),
                                 "user_id": user.get("user_id", user["email"])
                             }
-        except Exception:
-            pass
+        except Exception as err:
+            try:
+                from app.core.logging import log_event
+                log_event("WARNING", f"AuthService session rehydration warning: {err}")
+            except Exception:
+                pass
 
     @staticmethod
     def hash_password(password: str) -> str:
@@ -278,8 +288,27 @@ class AuthService:
         return self.active_sessions.get(token)
 
     def logout(self, token: str) -> None:
+        email = None
         if token in self.active_sessions:
+            email = self.active_sessions[token].get("email")
             del self.active_sessions[token]
+
+        try:
+            from src.Application.Dashboard.device_tracker import DeviceTracker
+            tracker = DeviceTracker()
+            if not email:
+                data = tracker._load()
+                sess_info = data.get("sessions", {}).get(token) if isinstance(data, dict) else None
+                if isinstance(sess_info, dict):
+                    email = sess_info.get("email")
+            if email:
+                tracker.revoke_session(token, email)
+        except Exception as err:
+            try:
+                from app.core.logging import log_event
+                log_event("WARNING", f"AuthService.logout persistent session revocation warning: {err}")
+            except Exception:
+                pass
 
 # Secure Shared Global Singleton to prevent circular imports or state leaks
 global_auth_service = AuthService()

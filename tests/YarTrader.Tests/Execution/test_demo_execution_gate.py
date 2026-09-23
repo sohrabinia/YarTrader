@@ -22,7 +22,8 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         self.mock_adapter.get_account_info.return_value = {
             "login": "52961173",
             "server": "Alpari-MT5-Demo",
-            "trade_mode": 0
+            "trade_mode": 0,
+            "equity": 10000.0
         }
         self.mock_adapter.get_terminal_info.return_value = {
             "connected": True,
@@ -665,10 +666,29 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
         self.assertTrue(meta["kill_switch_active"])
 
     def test_03_invalid_or_missing_equity_blocked(self):
-        for invalid_eq in [None, "invalid", -100.0, float("nan"), float("inf"), False]:
+        for invalid_eq in [None, "invalid", -100.0, float("nan"), float("inf"), False, True, 0.0]:
             allowed, reason, meta = self.kill_switch.evaluate_daily_loss(invalid_eq)
             self.assertFalse(allowed, f"Invalid equity '{invalid_eq}' should be BLOCKED")
             self.assertEqual(reason, "KILL_SWITCH_ERROR")
+
+    def test_06_demo_execution_gate_rejects_missing_or_invalid_equity(self):
+        """Verifies DemoExecutionGate raises ValidationException for missing, boolean, zero, negative, or non-finite equity."""
+        mock_adapter = MagicMock()
+        mock_adapter.get_terminal_info.return_value = {"connected": True, "trade_allowed": True}
+        mock_adapter.get_symbol_info.return_value = {"name": "XAUUSD", "trade_mode": 4, "volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+
+        invalid_equities = [None, True, False, "invalid_str", 0.0, -500.0, float("nan"), float("inf"), float("-inf")]
+
+        for eq in invalid_equities:
+            mock_adapter.get_account_info.return_value = {
+                "login": "52961173",
+                "server": "Alpari-MT5-Demo",
+                "trade_mode": 0,
+                "equity": eq
+            }
+            req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2500.0, StopLoss=2490.0, TakeProfit=2520.0)
+            with self.assertRaises(ValidationException, msg=f"Equity '{eq}' should raise ValidationException"):
+                DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req, demo_mode_flag=True)
 
     def test_04_kill_switch_exception_blocks_worker_validation(self):
         from app.workers.research_worker import ResearchWorker

@@ -120,7 +120,8 @@ def test_i_dynamic_sl_tp_validation():
         "server": "Alpari-MT5-Demo",
         "trade_mode": 0,
         "is_real": False,
-        "platform": "MT5"
+        "platform": "MT5",
+        "equity": 10000.0
     }
     mock_adapter.get_terminal_info.return_value = {"trade_allowed": True, "tradeapi_disabled": False}
     mock_adapter.get_symbol_info.return_value = {
