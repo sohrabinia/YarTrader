@@ -33,7 +33,7 @@ class RangeRegimeEngine:
         candles: List[Dict[str, Any]],
         hurst_val: Optional[float] = None,
         fractal_dim: Optional[float] = None,
-        atr_val: Optional[float] = None,
+        range_val: Optional[float] = None,
         htf_bias: Optional[str] = None,
         mtf_structure: Optional[Dict[str, Any]] = None
     ) -> RangeRegimeResult:
@@ -62,11 +62,11 @@ class RangeRegimeEngine:
         range_mid = recent_low + (range_width / 2.0)
 
         # 1. Analyze Volatility & Range Expansion
-        if atr_val is None or not math.isfinite(atr_val) or atr_val <= 0:
+        if range_val is None or not math.isfinite(range_val) or range_val <= 0:
             tr_list = [highs[i] - lows[i] for i in range(len(highs))]
-            atr_val = sum(tr_list[-14:]) / min(14, len(tr_list))
+            range_val = sum(tr_list[-14:]) / min(14, len(tr_list))
 
-        atr_normalized_width = range_width / atr_val if atr_val > 0 else 0.0
+        range_normalized_width = range_width / range_val if range_val > 0 else 0.0
 
         # 2. Evaluate Persistence & Fractal Complexity
         h_score = hurst_val if (hurst_val is not None and math.isfinite(hurst_val)) else 0.5
@@ -82,7 +82,7 @@ class RangeRegimeEngine:
         net_move = current_close - start_close
         abs_move = abs(net_move)
 
-        is_bounded_geometrically = atr_normalized_width <= 6.0 and abs_move <= (2.5 * atr_val)
+        is_bounded_geometrically = range_normalized_width <= 6.0 and abs_move <= (2.5 * range_val)
 
         # Breakout Probability Estimation
         dist_to_high = recent_high - current_close
@@ -148,13 +148,13 @@ class RangeRegimeEngine:
                 # Rejection near lower boundary -> LONG candidate targeting range_mid/high
                 trade_candidate = "BUY"
                 target_price = range_mid
-                inval_price = recent_low - (0.5 * atr_val)
+                inval_price = recent_low - (0.5 * range_val)
                 target_prob = round(max(0.1, 1.0 - breakout_prob) * 100.0, 1)
             elif near_upper and current_close < recent_high:
                 # Rejection near upper boundary -> SHORT candidate targeting range_mid/low
                 trade_candidate = "SELL"
                 target_price = range_mid
-                inval_price = recent_high + (0.5 * atr_val)
+                inval_price = recent_high + (0.5 * range_val)
                 target_prob = round(max(0.1, 1.0 - breakout_prob) * 100.0, 1)
 
             return RangeRegimeResult(
@@ -172,7 +172,7 @@ class RangeRegimeEngine:
                 target_probability=target_prob
             )
 
-        if net_move > (1.5 * atr_val) or (htf_up and h_score > 0.52):
+        if net_move > (1.5 * range_val) or (htf_up and h_score > 0.52):
             return RangeRegimeResult(
                 regime="TREND_UP",
                 confidence=round(h_score * 100.0, 1),
@@ -185,7 +185,7 @@ class RangeRegimeEngine:
                 trade_candidate="BUY" if htf_up else "NONE"
             )
 
-        if net_move < -(1.5 * atr_val) or (htf_down and h_score > 0.52):
+        if net_move < -(1.5 * range_val) or (htf_down and h_score > 0.52):
             return RangeRegimeResult(
                 regime="TREND_DOWN",
                 confidence=round(h_score * 100.0, 1),

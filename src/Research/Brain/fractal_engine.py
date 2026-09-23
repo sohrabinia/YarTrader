@@ -199,7 +199,7 @@ class FractalEngine(IFractalEngine):
             tf_cands = self.target_prob_engine.evaluate_target_probabilities(
                 current_price=curr_p,
                 direction="BUY" if h_res.get("H", 0.5) > 0.5 else "SELL",
-                atr=tf_range if tf_range > 0 else 2.0,
+                price_range=tf_range if tf_range > 0 else 2.0,
                 candles=[{"close": c} for c in tf_closes],
                 timeframe=tf
             )
@@ -210,7 +210,7 @@ class FractalEngine(IFractalEngine):
                 candles=[{"close": c, "high": h, "low": l} for c, h, l in zip(tf_closes, tf_highs, tf_lows)],
                 hurst_val=h_res.get("H"),
                 fractal_dim=fd_res.get("D"),
-                atr_val=tf_range
+                range_val=tf_range
             )
 
             tf_reports[tf] = {
