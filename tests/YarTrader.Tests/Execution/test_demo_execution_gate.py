@@ -207,7 +207,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
                 }
             }
             mock_runtime.run_once.return_value = mock_run_res
-            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
             worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
             worker.is_running = True
@@ -268,7 +268,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
                 }
             }
             mock_runtime.run_once.return_value = mock_run_res
-            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
             worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
             worker.is_running = True
@@ -347,7 +347,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             }
         }
         mock_runtime.run_once.side_effect = [initial_run_res, reassess_run_res]
-        mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+        mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
         worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
         worker.is_running = True
@@ -445,7 +445,7 @@ class TestAutonomousDemoExecutionGate(unittest.TestCase):
             }
         }
         mock_runtime.run_once.return_value = mock_run_res
-        mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+        mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
         worker.runtimes[("EURUSD", "H1")] = mock_runtime
 
         worker.is_running = True
