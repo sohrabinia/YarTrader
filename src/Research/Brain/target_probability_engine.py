@@ -42,24 +42,25 @@ class TargetProbabilityEngine:
     Computes probabilistic path target reach probabilities and multi-timeframe consensus.
     """
 
-    def __init__(self, atr_multipliers: List[float] = [1.0, 2.0, 3.0]) -> None:
-        self.atr_multipliers = atr_multipliers
+    def __init__(self, range_multipliers: List[float] = [1.0, 2.0, 3.0]) -> None:
+        self.range_multipliers = range_multipliers
 
     def evaluate_target_probabilities(
         self,
         current_price: float,
         direction: str,
-        atr: float,
+        price_range: float,
         candles: List[Dict[str, Any]],
         timeframe: str = "M5",
         swing_targets: Optional[List[float]] = None
     ) -> List[TargetCandidate]:
         """
-        Calculates P(target reached before invalidation) for candidate ATR & structural targets.
+        Calculates P(target reached before invalidation) for candidate range & structural targets.
         Strictly causal: uses historical price volatility and empirical path distribution.
         """
+        pr = price_range
         candidates: List[TargetCandidate] = []
-        if current_price <= 0 or atr <= 0 or not candles:
+        if current_price <= 0 or pr <= 0 or not candles:
             return candidates
 
         closes = [float(c.get("close", c.get("Close", 0.0))) for c in candles]
@@ -75,22 +76,22 @@ class TargetProbabilityEngine:
 
         # Build candidate levels
         target_levels = []
-        for mult in self.atr_multipliers:
+        for mult in self.range_multipliers:
             if direction_upper == "BUY":
-                tp = current_price + mult * atr
-                sl = current_price - 1.5 * atr
+                tp = current_price + mult * pr
+                sl = current_price - 1.5 * pr
             else:
-                tp = current_price - mult * atr
-                sl = current_price + 1.5 * atr
-            target_levels.append((tp, sl, f"ATR_{mult:.1f}x"))
+                tp = current_price - mult * pr
+                sl = current_price + 1.5 * pr
+            target_levels.append((tp, sl, f"RANGE_{mult:.1f}x"))
 
         if swing_targets:
             for st in swing_targets:
                 if direction_upper == "BUY" and st > current_price:
-                    sl = current_price - 1.5 * atr
+                    sl = current_price - 1.5 * pr
                     target_levels.append((st, sl, "SWING_STRUCTURE"))
                 elif direction_upper == "SELL" and st < current_price:
-                    sl = current_price - 1.5 * atr
+                    sl = current_price - 1.5 * pr
                     target_levels.append((st, sl, "SWING_STRUCTURE"))
 
         # Compute empirical reach probability using drift-diffusion / random walk approximation

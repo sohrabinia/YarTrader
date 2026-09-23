@@ -52,7 +52,33 @@ class ResearchWorker:
         self.status = "IDLE"
         self.error_count = 0
         self.demo_engine = None
+        self.last_diagnostic_events: Dict[str, Dict[str, Any]] = {}
         central_runtime_state.update_state("research_status", "Stopped")
+
+    def _record_non_trade_event(self, symbol: str, timeframe: str, reason: str, details: Optional[str] = None, decision_id: Optional[str] = None) -> None:
+        """Records structured diagnostic event explaining why a trade was not executed."""
+        evt = {
+            "timestamp": datetime.now().isoformat(),
+            "symbol": symbol.upper(),
+            "timeframe": timeframe.upper(),
+            "reason": reason,
+            "details": details or "",
+            "decision_id": decision_id or ""
+        }
+        self.last_diagnostic_events[symbol.upper()] = evt
+        try:
+            central_runtime_state.update_state(f"last_diagnostic_{symbol.upper()}", evt)
+        except Exception:
+            pass
+
+    def get_last_diagnostic_status(self, symbol: str = "XAUUSD") -> Dict[str, Any]:
+        """Operator diagnostic helper answering 'Why did YarTrader not trade this cycle?'"""
+        return self.last_diagnostic_events.get(symbol.upper(), {
+            "timestamp": datetime.now().isoformat(),
+            "symbol": symbol.upper(),
+            "reason": "NO_ANALYSIS_EXECUTED_YET",
+            "details": "Worker cycle has not evaluated this symbol yet."
+        })
 
     def _get_or_create_runtime(self, symbol: str, tf: str, asset_class: str = "Forex", provider: str = "MT5") -> ResearchRuntime:
         key = (symbol.upper(), tf.upper())
@@ -135,6 +161,18 @@ class ResearchWorker:
 
         if free_margin_val <= 0 or not math.isfinite(free_margin_val):
             print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account free_margin unavailable or invalid (free_margin={raw_margin}). Failing closed.")
+            return None
+
+        # 1b. Enforce Daily 8% Loss Limit Protection Gate
+        try:
+            from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+            kill_switch = DailyLossKillSwitch.get_instance()
+            allowed, reason, meta = kill_switch.evaluate_daily_loss(equity_val)
+            if not allowed:
+                print(f"[ResearchWorker] Execution BLOCKED: Daily Loss Limit Gate active ({reason}, loss={meta.get('loss_pct', 0.0)}%). Failing closed.")
+                return None
+        except Exception as ks_err:
+            print(f"[ResearchWorker] Execution BLOCKED: DailyLossKillSwitch evaluation raised error: {ks_err}. Failing closed.")
             return None
 
         # 2. Obtain & Validate Authoritative Broker Symbol Metadata
@@ -267,6 +305,19 @@ class ResearchWorker:
 
                         # Active read-only connection check
                         conn_health = runtime.provider.delegate.get_connection_health()
+                        is_healthy = bool(isinstance(conn_health, dict) and conn_health.get("connected") is True and conn_health.get("status") in ["HEALTHY", "CONNECTED", "OK"])
+
+                        if not is_healthy:
+                            last_err = conn_health.get("reason") or conn_health.get("last_error") if isinstance(conn_health, dict) else None
+                            if not last_err:
+                                last_err = "MT5 process disconnected or terminal unavailable"
+                            print(f"[ResearchWorker] MT5 Connection Health Check FAILED for {symbol} {tf}: {last_err}")
+                            from app.core.logging import log_event
+                            log_event("WARNING", f"ResearchWorker MT5_DISCONNECTED for {symbol} {tf}: {last_err}")
+                            central_runtime_state.update_state("research_status", "MT5_Disconnected")
+                            self._record_non_trade_event(symbol, tf, "MT5_DISCONNECTED", details=str(last_err))
+                            continue
+
                         print("MT5: Connected")
 
                         res = runtime.run_once()
@@ -290,6 +341,7 @@ class ResearchWorker:
                         kill_switch_enabled = is_autonomous_demo_enabled()
                         if not kill_switch_enabled:
                             print(f"[ResearchWorker] Kill Switch ACTIVE (AUTONOMOUS_DEMO_TRADING_ENABLED=False). Skipping execution dispatch for {symbol}.")
+                            self._record_non_trade_event(symbol, tf, "AUTONOMOUS_DEMO_DISABLED", details="AUTONOMOUS_DEMO_TRADING_ENABLED=False", decision_id=auto_dec.get("decision_id"))
                         elif action in ["BUY", "SELL"]:
                             sig_dir = action
                             now_time = time.time()
@@ -304,8 +356,10 @@ class ResearchWorker:
 
                             if rr_val < min_rr:
                                 print(f"[ResearchWorker] Decision for {symbol} {sig_dir} REJECTED by Risk Gate: RR {rr_val} < min_rr {min_rr}.")
+                                self._record_non_trade_event(symbol, tf, "RR_BELOW_MINIMUM", details=f"RR {rr_val} < min_rr {min_rr}", decision_id=auto_dec.get("decision_id"))
                             elif conf_val < min_conf:
                                 print(f"[ResearchWorker] Decision for {symbol} {sig_dir} REJECTED by Risk Gate: Confidence {conf_val} < min_conf {min_conf}.")
+                                self._record_non_trade_event(symbol, tf, "CONFIDENCE_BELOW_MINIMUM", details=f"Confidence {conf_val} < min_conf {min_conf}", decision_id=auto_dec.get("decision_id"))
                             else:
                                 # 3. Duplicate & Cooldown Gate
                                 last_exec = self.last_executed_signal.get(symbol.upper())
@@ -316,6 +370,7 @@ class ResearchWorker:
                                     if is_same_signal and elapsed < self.cooldown_sec:
                                         print(f"[ResearchWorker] Signal for {symbol} {sig_dir} skipped (DEDUPLICATED / COOLDOWN active: {int(elapsed)}s < {int(self.cooldown_sec)}s).")
                                         is_cooldown = True
+                                        self._record_non_trade_event(symbol, tf, "COOLDOWN", details=f"Deduplicated / Cooldown active ({int(elapsed)}s < {int(self.cooldown_sec)}s)", decision_id=auto_dec.get("decision_id"))
 
                                 if not is_cooldown:
                                     try:
@@ -332,6 +387,7 @@ class ResearchWorker:
 
                                             if existing_dir == sig_dir:
                                                 print(f"[ResearchWorker] Duplicate position guard triggered: {symbol} already has active {existing_dir} position (ticket={existing_ticket}). Skipping.")
+                                                self._record_non_trade_event(symbol, tf, "POSITION_ALREADY_OPEN", details=f"Active position exists (ticket={existing_ticket})", decision_id=auto_dec.get("decision_id"))
                                             else:
                                                 # Opposite direction decision detected: Enforce Sequential Reversal Lifecycle
                                                 # OPEN -> CLOSE REQUESTED -> CLOSE CONFIRMED -> REASSESS -> OPPOSITE ENTRY
@@ -390,6 +446,7 @@ class ResearchWorker:
                                                                 print(f"[ResearchWorker] Reversal BLOCKED: Reassessment decision for {symbol} failed validation / position sizing. Remaining flat.")
                                                         else:
                                                             print(f"[ResearchWorker] Reversal aborted: Reassessment action for {symbol} is {reassess_action} (opposite entry not independently confirmed). Remaining flat.")
+                                                            self._record_non_trade_event(symbol, tf, "REVERSAL_ABORTED", details=f"Reassessment action is {reassess_action}", decision_id=auto_dec.get("decision_id"))
                                         else:
                                             # Flat state: Canonical Single Execution Path
                                             flat_sized = self._validate_and_size_decision(symbol, sig_dir, auto_dec)
@@ -421,20 +478,30 @@ class ResearchWorker:
                                                     print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
                                                 else:
                                                     print(f"[ResearchWorker] DEMO Execution FAILED / Rejected (Status={exec_resp.Status if exec_resp else 'None'}). State NOT mutated.")
+                                                    self._record_non_trade_event(symbol, tf, "BROKER_ORDER_SEND_FAILED", details=f"Status={exec_resp.Status if exec_resp else 'None'}", decision_id=decision_id)
+                                            else:
+                                                self._record_non_trade_event(symbol, tf, "RISK_GATE_REJECTED", details="Position sizing or risk gate failed", decision_id=auto_dec.get("decision_id"))
                                     except Exception as exec_err:
                                         print(f"[ResearchWorker] DEMO Execution Gate / Fail-Closed: {exec_err}")
+                                        self._record_non_trade_event(symbol, tf, "EXECUTION_GATE_REJECTED", details=str(exec_err), decision_id=auto_dec.get("decision_id"))
                         else:
                             print(f"[ResearchWorker] Symbol {symbol} decision is {action}. Continuation loop proceeding.")
+                            self._record_non_trade_event(symbol, tf, "WAIT_DECISION", details=f"Action is {action}", decision_id=auto_dec.get("decision_id"))
 
                         central_runtime_state.update_multiple({
                             "research_status": "Running",
                             "last_cycle_time": self.last_analysis_time.isoformat()
                         })
                     except Exception as e:
+                        import traceback
+                        err_tb = traceback.format_exc()
                         self.error_count += 1
                         self.status = "RECOVERING"
                         central_runtime_state.update_state("research_status", "Recovering")
-                        # Graceful quick delay before next asset if error happens
+                        from app.core.logging import log_event
+                        log_event("ERROR", f"ResearchWorker Exception in cycle for {symbol} {tf} ({type(e).__name__}): {e}\n{err_tb}")
+                        print(f"[ResearchWorker] EXCEPTION in cycle for {symbol} {tf} ({type(e).__name__}): {e}")
+                        self._record_non_trade_event(symbol, tf, "WORKER_EXCEPTION", details=f"{type(e).__name__}: {e}")
                         time.sleep(0.5)
 
                 # Wait for the next interval

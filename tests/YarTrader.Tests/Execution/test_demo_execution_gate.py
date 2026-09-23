@@ -22,7 +22,8 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         self.mock_adapter.get_account_info.return_value = {
             "login": "52961173",
             "server": "Alpari-MT5-Demo",
-            "trade_mode": 0
+            "trade_mode": 0,
+            "equity": 10000.0
         }
         self.mock_adapter.get_terminal_info.return_value = {
             "connected": True,
@@ -206,7 +207,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
                 }
             }
             mock_runtime.run_once.return_value = mock_run_res
-            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
             worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
             worker.is_running = True
@@ -267,7 +268,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
                 }
             }
             mock_runtime.run_once.return_value = mock_run_res
-            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
             worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
             worker.is_running = True
@@ -346,7 +347,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             }
         }
         mock_runtime.run_once.side_effect = [initial_run_res, reassess_run_res]
-        mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+        mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
         worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
         worker.is_running = True
@@ -444,7 +445,7 @@ class TestAutonomousDemoExecutionGate(unittest.TestCase):
             }
         }
         mock_runtime.run_once.return_value = mock_run_res
-        mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+        mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
         worker.runtimes[("EURUSD", "H1")] = mock_runtime
 
         worker.is_running = True
@@ -631,6 +632,99 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
         self.assertTrue(res.is_valid)
         # 0.5% of $10,000 equity is $50.00 risk budget
         self.assertEqual(res.risk_budget_usd, 50.0)
+
+
+class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
+    """
+    SRE Unit Tests for DailyLossKillSwitch at the Execution Boundary.
+    Verifies:
+    1. loss < 8% -> gate passes
+    2. loss >= 8% -> execution blocked
+    3. invalid/missing equity -> execution blocked
+    4. kill switch exception -> execution blocked
+    5. no alternate execution path bypasses daily-loss protection.
+    """
+
+    def setUp(self):
+        from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+        self.kill_switch = DailyLossKillSwitch.get_instance()
+        today_key, _, _ = self.kill_switch.get_session_key_and_window()
+        self.kill_switch.set_session_baseline(equity=10000.0, session_date=today_key)
+
+    def test_01_loss_below_8_percent_passes(self):
+        # 5% loss ($9500 current equity vs $10000 baseline) -> allowed
+        allowed, reason, meta = self.kill_switch.evaluate_daily_loss(9500.0)
+        self.assertTrue(allowed)
+        self.assertIsNone(reason)
+        self.assertFalse(meta["kill_switch_active"])
+
+    def test_02_loss_8_percent_or_higher_blocked(self):
+        # 8.5% loss ($9150 current equity vs $10000 baseline) -> blocked
+        allowed, reason, meta = self.kill_switch.evaluate_daily_loss(9150.0)
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "DAILY_LOSS_LIMIT_REACHED")
+        self.assertTrue(meta["kill_switch_active"])
+
+    def test_03_invalid_or_missing_equity_blocked(self):
+        for invalid_eq in [None, "invalid", -100.0, float("nan"), float("inf"), False, True, 0.0]:
+            allowed, reason, meta = self.kill_switch.evaluate_daily_loss(invalid_eq)
+            self.assertFalse(allowed, f"Invalid equity '{invalid_eq}' should be BLOCKED")
+            self.assertEqual(reason, "KILL_SWITCH_ERROR")
+
+    def test_06_demo_execution_gate_rejects_missing_or_invalid_equity(self):
+        """Verifies DemoExecutionGate raises ValidationException for missing, boolean, zero, negative, or non-finite equity."""
+        mock_adapter = MagicMock()
+        mock_adapter.get_terminal_info.return_value = {"connected": True, "trade_allowed": True}
+        mock_adapter.get_symbol_info.return_value = {"name": "XAUUSD", "trade_mode": 4, "volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+
+        invalid_equities = [None, True, False, "invalid_str", 0.0, -500.0, float("nan"), float("inf"), float("-inf")]
+
+        for eq in invalid_equities:
+            mock_adapter.get_account_info.return_value = {
+                "login": "52961173",
+                "server": "Alpari-MT5-Demo",
+                "trade_mode": 0,
+                "equity": eq
+            }
+            req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2500.0, StopLoss=2490.0, TakeProfit=2520.0)
+            with self.assertRaises(ValidationException, msg=f"Equity '{eq}' should raise ValidationException"):
+                DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req, demo_mode_flag=True)
+
+    def test_04_kill_switch_exception_blocks_worker_validation(self):
+        from app.workers.research_worker import ResearchWorker
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+
+        mock_adapter = MagicMock()
+        mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
+        mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+        mock_demo = MagicMock()
+        mock_demo.adapter = mock_adapter
+        worker.demo_engine = mock_demo
+
+        with patch.object(self.kill_switch, "evaluate_daily_loss", side_effect=RuntimeError("Persistence disk error")):
+            sized = worker._validate_and_size_decision("XAUUSD", "BUY", {"entry": 2500.0, "stop_loss": 2490.0, "take_profit": 2520.0})
+            self.assertIsNone(sized)
+
+    def test_05_demo_execution_gate_enforces_daily_loss_protection(self):
+        # Trigger kill switch with 10% loss
+        today_key, _, _ = self.kill_switch.get_session_key_and_window()
+        self.kill_switch.set_session_baseline(equity=10000.0, session_date=today_key)
+        self.kill_switch.evaluate_daily_loss(9000.0) # Active kill switch
+
+        mock_adapter = MagicMock()
+        mock_adapter.get_account_info.return_value = {
+            "login": "52961173",
+            "server": "Alpari-MT5-Demo",
+            "trade_mode": 0,
+            "equity": 9000.0
+        }
+        mock_adapter.get_terminal_info.return_value = {"connected": True, "trade_allowed": True}
+        mock_adapter.get_symbol_info.return_value = {"name": "XAUUSD", "trade_mode": 4, "volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+
+        req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2500.0, StopLoss=2490.0, TakeProfit=2520.0)
+        with self.assertRaises(ValidationException) as ctx:
+            DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req, demo_mode_flag=True)
+        self.assertIn("Daily 8% loss limit active", str(ctx.exception))
 
 
 if __name__ == "__main__":

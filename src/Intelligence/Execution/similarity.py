@@ -98,31 +98,20 @@ class PatternSimilarityIntelligenceEngine:
         # Sort matches by similarity score descending
         similar_matches.sort(key=lambda x: x["similarity_score"], reverse=True)
 
-        # Baseline fallback if memory is empty
         if not similar_matches:
-            best_match = {
-                "pattern_id": "pat-baseline-expansion",
-                "signature": current_signature,
-                "normalized_signature": curr_norm,
-                "similarity_score": 88.5,
-                "occurrences": 32,
-                "success_rate_pct": 71.8,
-                "outcomes": ["TARGET_HIT", "TARGET_HIT", "STOP_HIT"],
-                "description": "Baseline Expansion Continuation pattern"
-            }
-            similar_matches = [best_match]
-            highest_score = 0.885
+            return self._empty_similarity()
 
         total_occurrences = sum(m["occurrences"] for m in similar_matches)
-        avg_success_rate = sum(m["success_rate_pct"] for m in similar_matches) / len(similar_matches) if similar_matches else 50.0
+        avg_success_rate = sum(m["success_rate_pct"] for m in similar_matches) / len(similar_matches) if similar_matches else 0.0
 
         return {
-            "similar_pattern_found": True if similar_matches else False,
+            "similar_pattern_found": True,
             "best_match": best_match,
             "all_matches": similar_matches,
             "total_occurrences": total_occurrences,
             "average_similarity_score": round(highest_score * 100, 2),
             "success_rate_pct": round(avg_success_rate, 2),
+            "evidence_state": "SUPPORTED_PATTERN",
             "summary": f"Found {len(similar_matches)} scale-invariant similar historical structures. Best match has {round(highest_score*100, 2)}% similarity and {round(avg_success_rate, 2)}% success rate."
         }
 
@@ -150,6 +139,7 @@ class PatternSimilarityIntelligenceEngine:
             "all_matches": [],
             "total_occurrences": 0,
             "average_similarity_score": 0.0,
-            "success_rate_pct": 50.0,
-            "summary": "No historical pattern similarity computed due to empty input."
+            "success_rate_pct": 0.0,
+            "evidence_state": "INSUFFICIENT_EVIDENCE",
+            "summary": "No historical pattern similarity computed due to empty input or insufficient evidence."
         }

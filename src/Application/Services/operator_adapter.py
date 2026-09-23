@@ -230,23 +230,37 @@ class YarTraderOperatorAdapter:
             )
             with urllib.request.urlopen(req, timeout=self.timeout_sec) as resp:
                 if resp.status in (200, 201, 202):
-                    res_json = json.loads(resp.read().decode("utf-8"))
-                    res_success = res_json.get("success", True)
-                    result_obj = res_json.get("result", {}) if isinstance(res_json.get("result"), dict) else {}
+                    try:
+                        raw_body = resp.read().decode("utf-8")
+                        res_json = json.loads(raw_body)
+                        if not isinstance(res_json, dict):
+                            raise ValueError("Response body is not a JSON object")
 
-                    command_id = result_obj.get("commandId") or res_json.get("commandId") or f"cmd_{int(time.time() * 1000)}"
-                    cmd_status = result_obj.get("status") or ("COMPLETED" if result_obj.get("accepted", True) else "BLOCKED")
-                    audit_event_id = result_obj.get("auditEventId")
+                        res_success = bool(res_json.get("success", True))
+                        result_obj = res_json.get("result", {}) if isinstance(res_json.get("result"), dict) else {}
 
-                    return {
-                        "success": res_success and result_obj.get("accepted", True),
-                        "status": cmd_status,
-                        "command_id": command_id,
-                        "task_id": command_id,
-                        "audit_event_id": audit_event_id,
-                        "result": result_obj or res_json,
-                        "message": "Command successfully processed by YarOperator M12"
-                    }
+                        command_id = result_obj.get("commandId") or res_json.get("commandId") or f"cmd_{int(time.time() * 1000)}"
+                        cmd_status = result_obj.get("status") or ("COMPLETED" if result_obj.get("accepted", True) else "BLOCKED")
+                        audit_event_id = result_obj.get("auditEventId")
+
+                        return {
+                            "success": res_success and bool(result_obj.get("accepted", True)),
+                            "status": cmd_status,
+                            "command_id": command_id,
+                            "task_id": command_id,
+                            "audit_event_id": audit_event_id,
+                            "result": result_obj or res_json,
+                            "message": "Command successfully processed by YarOperator M12"
+                        }
+                    except (json.JSONDecodeError, TypeError, AttributeError, KeyError, ValueError) as parse_err:
+                        logger.error(f"Malformed or non-JSON response from YarOperator M12: {parse_err}")
+                        return {
+                            "success": False,
+                            "status": OperatorTaskStatus.FAILED.value,
+                            "error": "Operator runtime returned malformed response structure.",
+                            "details": str(parse_err),
+                            "task_id": None
+                        }
         except urllib.error.HTTPError as e:
             err_body = ""
             try:

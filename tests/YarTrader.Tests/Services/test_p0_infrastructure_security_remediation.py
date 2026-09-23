@@ -56,28 +56,23 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
         self.assertEqual(self.registry.max_symbols, 30)
 
     def test_register_symbols_below_and_at_ceiling(self) -> None:
-        """Verifies that registering up to exactly 30 active symbols succeeds."""
-        # 1. Register 29 symbols (below limit)
-        for i in range(29):
-            sym = f"SYM{i}"
+        """Verifies that registering up to canonical 30 active symbols succeeds."""
+        from src.ShadowTrading.Engine.SymbolRegistry import CANONICAL_30_SYMBOLS
+        canonical_symbols = list(CANONICAL_30_SYMBOLS)
+        for sym in canonical_symbols:
             self.registry.register_symbol(sym, ["H1"])
             self.assertTrue(self.registry.get_all_registered()[sym]["active"])
 
-        # 2. Register 30th symbol (exactly at limit)
-        self.registry.register_symbol("SYM29", ["H1"])
-        self.assertTrue(self.registry.get_all_registered()["SYM29"]["active"])
-
     def test_register_exceeding_ceiling_fails_safely(self) -> None:
-        """Verifies that attempting to register the 31st active symbol fails with ValueError."""
-        # 1. Register 30 symbols to reach the ceiling
-        for i in range(30):
-            sym = f"SYM{i}"
+        """Verifies that attempting to register an invalid non-canonical symbol fails safely."""
+        from src.ShadowTrading.Engine.SymbolRegistry import CANONICAL_30_SYMBOLS
+        canonical_symbols = list(CANONICAL_30_SYMBOLS)
+        for sym in canonical_symbols:
             self.registry.register_symbol(sym, ["H1"])
 
-        # 2. Attempt to register 31st active symbol must throw ValueError
         with self.assertRaises(ValueError) as ctx:
-            self.registry.register_symbol("SYM30", ["H1"])
-        self.assertIn("Hard SRE limit reached", str(ctx.exception))
+            self.registry.register_symbol("NON_CANONICAL_SYM", ["H1"])
+        self.assertIn("canonical 30 symbol universe", str(ctx.exception))
 
     def test_persistence_preserves_same_symbol_limit(self) -> None:
         """Verifies that symbol registry state persists cleanly and remains consistent on reload."""

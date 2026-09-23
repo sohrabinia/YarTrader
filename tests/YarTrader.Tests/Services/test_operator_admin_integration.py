@@ -244,5 +244,43 @@ class TestOperatorAdminIntegration(unittest.TestCase):
         res_user = self.client.get("/api/admin/operator/status", headers={"Authorization": f"Bearer {user_token}"})
         self.assertEqual(res_user.status_code, 403)
 
+    def test_submit_task_handles_invalid_json_body_200_ok(self):
+        """Verify HTTP 200 + invalid non-JSON body returns structured failure payload without raw exception."""
+        admin_identity = {"email": "admin_parse@yartrader.app", "role": "ADMIN"}
+        adapter = YarTraderOperatorAdapter()
+
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "token_val", "OPERATOR_OWNER_ID": "owner_sohrab"}):
+            with patch("urllib.request.urlopen") as mock_urlopen:
+                mock_resp = MagicMock()
+                mock_resp.status = 200
+                mock_resp.read.return_value = b"<html>NOT_JSON_BODY</html>"
+                mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+                res = adapter.submit_task(admin_identity, "Run task")
+
+                self.assertFalse(res["success"])
+                self.assertEqual(res["status"], OperatorTaskStatus.FAILED.value)
+                self.assertIn("malformed response structure", res["error"])
+                self.assertIsNone(res["task_id"])
+
+    def test_submit_task_handles_wrong_schema_json_body_200_ok(self):
+        """Verify HTTP 200 + valid JSON but non-dict/wrong schema returns structured failure payload."""
+        admin_identity = {"email": "admin_parse@yartrader.app", "role": "ADMIN"}
+        adapter = YarTraderOperatorAdapter()
+
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "token_val", "OPERATOR_OWNER_ID": "owner_sohrab"}):
+            with patch("urllib.request.urlopen") as mock_urlopen:
+                mock_resp = MagicMock()
+                mock_resp.status = 200
+                mock_resp.read.return_value = json.dumps(["just", "a", "list", "not", "dict"]).encode("utf-8")
+                mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+                res = adapter.submit_task(admin_identity, "Run task")
+
+                self.assertFalse(res["success"])
+                self.assertEqual(res["status"], OperatorTaskStatus.FAILED.value)
+                self.assertIn("malformed response structure", res["error"])
+                self.assertIsNone(res["task_id"])
+
 if __name__ == "__main__":
     unittest.main()

@@ -14,7 +14,7 @@ from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, P
 def test_one_percent_default_risk_budget_calculation():
     engine = ProfessionalRiskEngine()
 
-    # Account Equity = $10,000 -> Default 1.0% Risk Budget = $100.00
+    # Account Equity = $10,000 -> Default 0.5% Target Risk Budget = $50.00
     res10k = engine.evaluate_equity_risk_and_position_size(
         symbol="XAUUSD",
         direction="BUY",
@@ -24,7 +24,7 @@ def test_one_percent_default_risk_budget_calculation():
         free_margin=10000.0
     )
     assert res10k.is_valid is True
-    assert res10k.risk_budget_usd == 100.0
+    assert res10k.risk_budget_usd == 50.0
 
     # Risk exceeding 2.0% hard ceiling must fail closed
     res_high = engine.evaluate_equity_risk_and_position_size(

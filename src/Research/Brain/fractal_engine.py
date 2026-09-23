@@ -187,34 +187,30 @@ class FractalEngine(IFractalEngine):
             tf_lows = [o.low for o in obs_list]
             tf_ts = obs_list[-1].timestamp.isoformat()
 
-            # ATR calculation
-            tf_atr = 0.0
-            if len(obs_list) >= 2:
-                tr_l = [max(tf_highs[i] - tf_lows[i], abs(tf_highs[i] - tf_closes[i - 1]), abs(tf_lows[i] - tf_closes[i - 1])) for i in range(1, len(obs_list))]
-                w = min(14, len(tr_l))
-                tf_atr = float(sum(tr_l[-w:]) / w) if tr_l else 0.0
+            # Pure Price Range calculation (indicator-free primitive price structure)
+            tf_range = float(max(tf_highs) - min(tf_lows)) if tf_highs else 0.0
 
             h_res = self.hurst_engine.calculate_hurst(tf_closes, tf, tf_ts)
             fd_res = self.fractal_dimension.calculate_dimension(tf_closes, tf, tf_ts)
             w_res = self.wavelet_engine.decompose(tf_closes, tf, tf_ts)
 
-            # Target Probability Candidates for TF
+            # Target Probability Candidates for TF (using pure price range)
             curr_p = tf_closes[-1]
             tf_cands = self.target_prob_engine.evaluate_target_probabilities(
                 current_price=curr_p,
                 direction="BUY" if h_res.get("H", 0.5) > 0.5 else "SELL",
-                atr=tf_atr if tf_atr > 0 else 2.0,
+                price_range=tf_range if tf_range > 0 else 2.0,
                 candles=[{"close": c} for c in tf_closes],
                 timeframe=tf
             )
             tf_candidates[tf] = tf_cands
 
-            # Range Regime Evaluation for TF
+            # Range Regime Evaluation for TF (using pure price range)
             r_res = self.range_regime_engine.evaluate_regime(
                 candles=[{"close": c, "high": h, "low": l} for c, h, l in zip(tf_closes, tf_highs, tf_lows)],
                 hurst_val=h_res.get("H"),
                 fractal_dim=fd_res.get("D"),
-                atr_val=tf_atr
+                range_val=tf_range
             )
 
             tf_reports[tf] = {
@@ -222,7 +218,7 @@ class FractalEngine(IFractalEngine):
                 "fractal_dimension_analysis": fd_res,
                 "wavelet_analysis": w_res,
                 "range_regime": r_res.__dict__,
-                "atr": round(tf_atr, 4),
+                "price_range": round(tf_range, 4),
                 "timestamp": tf_ts,
                 "candles": [{"close": c, "high": h, "low": l} for c, h, l in zip(tf_closes, tf_highs, tf_lows)],
                 "evidence_state": "ACTIVE"
@@ -279,13 +275,12 @@ class FractalEngine(IFractalEngine):
                 "evidence_state": "NO_EVIDENCE"
             }
 
-        # Scale-Invariant Similarity with ATR-normalized displacement
-        p_atr = primary_rep.get("atr", 0.0)
+        # Scale-Invariant Similarity with price range normalized displacement
+        p_range = primary_rep.get("price_range", 0.0)
         sig = primary_closes[-10:] if len(primary_closes) >= 10 else primary_closes
         similarity_res = self.similarity_engine.find_similar_structures(
             current_signature=sig,
-            historical_patterns=historical_patterns or [],
-            atr=p_atr if p_atr > 0 else None
+            historical_patterns=historical_patterns or []
         )
 
         # Scale Construction (excluding partial trailing scale groups)
@@ -331,7 +326,7 @@ class FractalEngine(IFractalEngine):
             "fractal_market_state": canonical_state.to_dict(),
             "target_consensus": consensus_dict,
             "ppo_decision_proposal": ppo_proposal,
-            "atr": p_atr,
+            "price_range": p_range,
             "scales_evaluated_count": len(complete_scales_x4),
             "detected_bases_count": detected_bases_count,
             "timestamp": latest_ts

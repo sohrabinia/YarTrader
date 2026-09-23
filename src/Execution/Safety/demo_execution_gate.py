@@ -102,6 +102,30 @@ class DemoExecutionGate:
             if sym_trade_mode == 0:
                 raise ValidationException(f"DemoExecutionGate Violation: Symbol '{request.Symbol}' trade mode is DISABLED (0).")
 
+        # Check 7: Daily Loss Limit Gate (8% Ceiling) - Strictly Fail Closed
+        import math
+        raw_equity = acc_info.get("equity") if isinstance(acc_info, dict) else None
+        if raw_equity is None or isinstance(raw_equity, bool) or not isinstance(raw_equity, (int, float)):
+            raise ValidationException("DemoExecutionGate Violation: Account equity is missing, boolean, or non-numeric. Execution strictly blocked.")
+
+        try:
+            equity_val = float(raw_equity)
+        except (ValueError, TypeError):
+            raise ValidationException("DemoExecutionGate Violation: Account equity is unusable or non-numeric. Execution strictly blocked.")
+
+        if equity_val <= 0 or not math.isfinite(equity_val):
+            raise ValidationException(f"DemoExecutionGate Violation: Account equity ({raw_equity}) must be positive and finite. Execution strictly blocked.")
+
+        try:
+            from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+            allowed, reason, meta = DailyLossKillSwitch.get_instance().evaluate_daily_loss(equity_val)
+            if not allowed:
+                raise ValidationException(f"DemoExecutionGate Violation: Daily 8% loss limit active ({reason}, loss={meta.get('loss_pct', 0.0)}%). Execution strictly blocked.")
+        except ValidationException:
+            raise
+        except Exception as ex:
+            raise ValidationException(f"DemoExecutionGate Violation: DailyLossKillSwitch evaluation error: {ex}")
+
         # Check 8: Position sizing bounds
         if hasattr(request, "Volume") and sym_info is not None:
             vol_min = sym_info.get("volume_min", 0.01)
