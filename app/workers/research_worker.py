@@ -137,6 +137,18 @@ class ResearchWorker:
             print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account free_margin unavailable or invalid (free_margin={raw_margin}). Failing closed.")
             return None
 
+        # 1b. Enforce Daily 8% Loss Limit Protection Gate
+        try:
+            from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+            kill_switch = DailyLossKillSwitch.get_instance()
+            allowed, reason, meta = kill_switch.evaluate_daily_loss(equity_val)
+            if not allowed:
+                print(f"[ResearchWorker] Execution BLOCKED: Daily Loss Limit Gate active ({reason}, loss={meta.get('loss_pct', 0.0)}%). Failing closed.")
+                return None
+        except Exception as ks_err:
+            print(f"[ResearchWorker] Execution BLOCKED: DailyLossKillSwitch evaluation raised error: {ks_err}. Failing closed.")
+            return None
+
         # 2. Obtain & Validate Authoritative Broker Symbol Metadata
         sym_info = self.demo_engine.adapter.get_symbol_info(symbol) if hasattr(self.demo_engine.adapter, "get_symbol_info") else None
         if not sym_info or not isinstance(sym_info, dict) or "volume_min" not in sym_info or "volume_max" not in sym_info or "volume_step" not in sym_info:

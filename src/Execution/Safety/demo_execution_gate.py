@@ -102,6 +102,19 @@ class DemoExecutionGate:
             if sym_trade_mode == 0:
                 raise ValidationException(f"DemoExecutionGate Violation: Symbol '{request.Symbol}' trade mode is DISABLED (0).")
 
+        # Check 7: Daily Loss Limit Gate (8% Ceiling)
+        raw_equity = acc_info.get("equity") if isinstance(acc_info, dict) else None
+        if raw_equity is not None and not isinstance(raw_equity, bool) and isinstance(raw_equity, (int, float)):
+            try:
+                from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+                allowed, reason, meta = DailyLossKillSwitch.get_instance().evaluate_daily_loss(float(raw_equity))
+                if not allowed:
+                    raise ValidationException(f"DemoExecutionGate Violation: Daily 8% loss limit active ({reason}, loss={meta.get('loss_pct', 0.0)}%). Execution strictly blocked.")
+            except ValidationException:
+                raise
+            except Exception as ex:
+                raise ValidationException(f"DemoExecutionGate Violation: DailyLossKillSwitch evaluation error: {ex}")
+
         # Check 8: Position sizing bounds
         if hasattr(request, "Volume") and sym_info is not None:
             vol_min = sym_info.get("volume_min", 0.01)

@@ -229,8 +229,8 @@ class ResearchRuntime:
                         "similarity": intel_res.get("similarity", {}),
                         "fractal_analysis": fractal_res,
                         "observability": {
-                            "fractal_score": float(fractal_rec.get("confidence_weight", 0.85)),
-                            "similarity_score": float(similarity_data.get("average_similarity_score", 88.5)),
+                            "fractal_score": float(fractal_rec.get("confidence_weight", 0.0)),
+                            "similarity_score": float(similarity_data.get("average_similarity_score", 0.0)),
                             "market_regime": intel_res.get("narrative", {}).get("regime", "TRENDING"),
                             "scale_state": "MULTISCALE_STABLE" if fractal_res.get("scales_evaluated_count", 0) > 0 else "SINGLE_SCALE"
                         },

@@ -440,31 +440,16 @@ class StrategyOrchestrator:
         current_price: float,
         pip_factor: float
     ) -> StrategyCandidate:
-        """FRACTAL: Pattern Memory Similarity & Multiscale Self-Similarity."""
+        """FRACTAL: Pattern Memory Similarity & Multiscale Self-Similarity (Explicitly Disabled due to Insufficient Evidence)."""
+        best_match = similarity.get("best_match")
+        sim_score = similarity.get("average_similarity_score", 0.0)
+
+        # FRACTAL strategy is explicitly disabled fail-closed when insufficient pattern memory direction evidence exists
         direction = "WAIT"
         sl = 0.0
         tp = 0.0
         confidence = 0.0
-        reasoning = []
-
-        top_match = similarity.get("top_match")
-        sim_score = similarity.get("average_similarity_score", 0.0)
-
-        if top_match and sim_score >= 70.0:
-            hist_direction = top_match.get("expected_direction", "BUY")
-            direction = hist_direction
-            confidence = min(92.0, sim_score)
-            if direction == "BUY":
-                sl = current_price - (25 * pip_factor)
-                tp = current_price + (60 * pip_factor)
-            else:
-                sl = current_price + (25 * pip_factor)
-                tp = current_price - (60 * pip_factor)
-            reasoning.append(f"FRACTAL: Historical pattern memory similarity match ({sim_score:.1f}% confidence).")
-
-        risk_dist = abs(current_price - sl)
-        reward_dist = abs(tp - current_price)
-        rr = round(reward_dist / risk_dist, 2) if risk_dist > 0 else 0.0
+        reasoning = ["FRACTAL strategy explicitly disabled: insufficient pattern memory evidence."]
 
         return StrategyCandidate(
             strategy_id=f"STRAT-FRACTAL-{uuid.uuid4().hex[:6]}",
@@ -472,13 +457,13 @@ class StrategyOrchestrator:
             symbol=symbol,
             timeframe=tf,
             direction=direction,
-            entry=round(current_price, 4) if direction != "WAIT" else 0.0,
-            stop_loss=round(sl, 4) if direction != "WAIT" else 0.0,
-            take_profit=round(tp, 4) if direction != "WAIT" else 0.0,
-            risk_reward=rr,
-            confidence=confidence,
-            reasoning=reasoning if reasoning else ["FRACTAL: Similarity score below 70.0 threshold."],
-            market_context={"timeframe": tf, "similarity_score": sim_score},
-            invalidation_level=round(sl, 4),
+            entry=0.0,
+            stop_loss=0.0,
+            take_profit=0.0,
+            risk_reward=0.0,
+            confidence=0.0,
+            reasoning=reasoning,
+            market_context={"timeframe": tf, "similarity_score": sim_score, "best_match": best_match},
+            invalidation_level=0.0,
             holding_period="1-4 hours"
         )

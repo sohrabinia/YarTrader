@@ -123,6 +123,30 @@ class AuthService:
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
         self.lockout_store = lockout_store or LockoutAuditStore()
         self.lock = threading.Lock()
+        self._rehydrate_sessions()
+
+    def _rehydrate_sessions(self) -> None:
+        """Rehydrates active sessions from DeviceTracker and AuthRepository across process restarts."""
+        try:
+            from src.Application.Dashboard.device_tracker import DeviceTracker
+            tracker = DeviceTracker()
+            data = tracker._load()
+            sessions = data.get("sessions", {})
+            for token, sess_info in sessions.items():
+                if sess_info.get("state") == "ACTIVE":
+                    email = sess_info.get("email")
+                    if email:
+                        user = self.repo.get_user_by_email(email)
+                        if user:
+                            self.active_sessions[token] = {
+                                "email": user["email"],
+                                "role": user.get("role", "USER"),
+                                "name": user.get("name", ""),
+                                "tier": user.get("tier", "FREE"),
+                                "user_id": user.get("user_id", user["email"])
+                            }
+        except Exception:
+            pass
 
     @staticmethod
     def hash_password(password: str) -> str:
