@@ -28,8 +28,8 @@ class ProfessionalSignal:
     expected_holding_period: str
     risk_level: str
     timestamp: str
-    fractal_score: float = 0.85
-    similarity_score: float = 88.5
+    fractal_score: float = 0.0
+    similarity_score: float = 0.0
     market_regime: str = "TRENDING"
     scale_state: str = "MULTISCALE_STABLE"
 

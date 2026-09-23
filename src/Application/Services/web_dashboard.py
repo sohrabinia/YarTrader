@@ -5380,125 +5380,30 @@ class RegisterPayload(BaseModel):
     name: Optional[str] = ""
 
 @app.post("/api/auth/register")
-def register_with_email(payload: RegisterPayload, request: Request):
-    """Secure customer registration via email and password."""
-    email = (payload.email or "").strip().lower()
-    password = payload.password or ""
-    name = (payload.name or "").strip()
+def register_with_email(request: Request):
+    """Customer password registration is disabled per Google-Only policy."""
+    raise HTTPException(
+        status_code=410,
+        detail="Password registration is disabled. Customer authentication is strictly Google/Gmail OAuth only."
+    )
 
-    if not email or "@" not in email or "." not in email:
-        raise HTTPException(status_code=400, detail="Invalid email address format.")
-
-    if not password or len(password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long.")
-
-    try:
-        user = global_auth_service.register_user(email=email, password=password, name=name)
-    except Exception as e:
-        from src.Infrastructure.exceptions import ValidationException
-        if isinstance(e, ValidationException) or "already registered" in str(e).lower():
-            raise HTTPException(status_code=400, detail="An account with this email address already exists.")
-        raise HTTPException(status_code=400, detail=str(e))
-
-    client_host = request.client.host if request.client else None
-    forwarded_for = request.headers.get("x-forwarded-for")
-    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
-    user_agent = request.headers.get("user-agent", "Unknown")
-
-    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
-    return {
-        "status": "Success",
-        "session_token": token,
-        "user": {
-            "email": user["email"],
-            "name": user["name"],
-            "role": user["role"]
-        }
-    }
-
-
-class LoginPayload(BaseModel):
-    email: str
-    password: str
-
-class SetPasswordPayload(BaseModel):
-    new_password: str
-    token: Optional[str] = None
-    email: Optional[str] = None
 
 @app.post("/api/auth/set-password")
-def set_account_password(payload: SetPasswordPayload, request: Request):
-    """Sets or updates password credential for the authenticated user session."""
-    auth_header = request.headers.get("authorization")
-    token = None
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header[7:].strip()
-    elif payload.token:
-        token = payload.token.strip()
+def set_account_password(request: Request):
+    """Customer password modification is disabled per Google-Only policy."""
+    raise HTTPException(
+        status_code=410,
+        detail="Password authentication is disabled. Customer authentication is strictly Google/Gmail OAuth only."
+    )
 
-    if not token:
-        raise HTTPException(status_code=401, detail="Authentication token is missing.")
-
-    session = global_auth_service.validate_session(token)
-    if not session:
-        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
-
-    session_email = session.get("email")
-    if not session_email:
-        raise HTTPException(status_code=400, detail="Invalid session identity.")
-
-    # Cross-Account Security Gate: Disallow modifying another user's password!
-    if payload.email and payload.email.strip().lower() != session_email.strip().lower():
-        raise HTTPException(status_code=403, detail="Forbidden: Cross-account password modification is strictly prohibited.")
-
-    email = session_email
-
-    new_password = payload.new_password or ""
-    if not new_password or len(new_password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long.")
-
-    try:
-        user = global_auth_service.set_user_password(email=email, new_password=new_password)
-        return {
-            "status": "Success",
-            "message": "Password updated successfully.",
-            "user": {
-                "email": user["email"],
-                "name": user.get("name", ""),
-                "role": user.get("role", "USER")
-            }
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/auth/login")
-def login_with_email(payload: LoginPayload, request: Request):
-    """Secure customer login via email and password."""
-    email = (payload.email or "").strip().lower()
-    password = payload.password or ""
-
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password are required.")
-
-    user = global_auth_service.login_user(email=email, password=password)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
-
-    client_host = request.client.host if request.client else None
-    forwarded_for = request.headers.get("x-forwarded-for")
-    ip_address = forwarded_for.split(",")[0].strip() if forwarded_for else client_host
-    user_agent = request.headers.get("user-agent", "Unknown")
-
-    token = global_auth_service.create_session(user, user_agent=user_agent, ip_address=ip_address)
-    return {
-        "status": "Success",
-        "session_token": token,
-        "user": {
-            "email": user["email"],
-            "name": user["name"],
-            "role": user["role"]
-        }
-    }
+def login_with_email(request: Request):
+    """Customer password login is disabled per Google-Only policy."""
+    raise HTTPException(
+        status_code=410,
+        detail="Password authentication is disabled. Customer authentication is strictly Google/Gmail OAuth only."
+    )
 
 
 class SocialLoginPayload(BaseModel):

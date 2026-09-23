@@ -133,29 +133,13 @@ class ExecutionIntelligenceCore:
         similarity_res = self.similarity_engine.find_similar_structures(sig, historical_patterns)
         state["similarity"] = similarity_res
 
-        # Unified Fractal Engine Subsystem execution
-        try:
-            from src.Infrastructure.DI.container import container_instance
-            from src.Research.MarketAnalysis.Interfaces.interfaces import IFractalEngine
-            fractal_engine = container_instance.resolve(IFractalEngine)
-        except Exception:
-            from src.Research.Brain.fractal_engine import FractalEngine
-            fractal_engine = FractalEngine()
-
-        try:
-            tf_candles = {timeframe: candles}
-            if all_timeframe_candles:
-                tf_candles.update(all_timeframe_candles)
-
-            fractal_res = fractal_engine.analyze_fractals(
-                symbol=symbol,
-                primary_timeframe=timeframe,
-                candles_by_tf=tf_candles,
-                historical_patterns=historical_patterns
-            )
-            state["fractal"] = fractal_res
-        except Exception as f_err:
-            state["fractal_error"] = str(f_err)
+        # Unified Primitive Structure & Memory State (Indicator-Free)
+        state["fractal"] = {
+            "symbol": symbol.upper(),
+            "primary_timeframe": timeframe.upper(),
+            "fractal_status": "PRIMITIVE_STRUCTURE_ONLY",
+            "evidence_state": "NO_INDICATORS"
+        }
 
         # 6. Portfolio Risk evaluation
         active_trades = active_portfolio_trades or []
