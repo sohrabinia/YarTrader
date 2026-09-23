@@ -71,7 +71,7 @@ class YarTraderOperatorAdapter:
             for path in secret_paths:
                 if os.path.isfile(path):
                     try:
-                        with open(path, "r", encoding="utf-8") as f:
+                        with open(path, "r", encoding="utf-8-sig") as f:
                             token = f.read().strip()
                             if token:
                                 break

@@ -81,6 +81,119 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                 except Exception:
                     pass
 
+    def test_bom_secret_token_loaded_cleanly(self):
+        """Test 1: Verify UTF-8 BOM is automatically stripped when reading token from secret file."""
+        secret_dir = os.path.join(os.getcwd(), "secrets")
+        secret_file = os.path.join(secret_dir, "operator_owner_token.secret")
+
+        os.makedirs(secret_dir, exist_ok=True)
+        try:
+            expected_token = "KNOWN_BOM_TEST_TOKEN_XYZ"
+            with open(secret_file, "wb") as f:
+                f.write(b"\xef\xbb\xbf" + expected_token.encode("utf-8") + b"\n")
+
+            with patch.dict(os.environ, {"OPERATOR_OWNER_ID": "owner_sohrab"}, clear=True):
+                adapter = YarTraderOperatorAdapter()
+                resolved_token = adapter._get_bearer_token()
+                self.assertEqual(resolved_token, expected_token)
+                self.assertNotIn("\ufeff", resolved_token)
+        finally:
+            if os.path.exists(secret_file):
+                try:
+                    os.remove(secret_file)
+                except Exception:
+                    pass
+
+    def test_normal_utf8_secret_token_unchanged(self):
+        """Test 2: Verify normal UTF-8 secret file without BOM remains unchanged."""
+        secret_dir = os.path.join(os.getcwd(), "secrets")
+        secret_file = os.path.join(secret_dir, "operator_owner_token.secret")
+
+        os.makedirs(secret_dir, exist_ok=True)
+        try:
+            expected_token = "KNOWN_NORMAL_TEST_TOKEN_123"
+            with open(secret_file, "wb") as f:
+                f.write(expected_token.encode("utf-8") + b"\n")
+
+            with patch.dict(os.environ, {"OPERATOR_OWNER_ID": "owner_sohrab"}, clear=True):
+                adapter = YarTraderOperatorAdapter()
+                resolved_token = adapter._get_bearer_token()
+                self.assertEqual(resolved_token, expected_token)
+                self.assertNotIn("\ufeff", resolved_token)
+        finally:
+            if os.path.exists(secret_file):
+                try:
+                    os.remove(secret_file)
+                except Exception:
+                    pass
+
+    def test_authorization_header_valid_with_bom_secret(self):
+        """Test 3: Verify Authorization header is valid and accepted by urllib Request without UnicodeEncodeError when loaded from BOM secret."""
+        secret_dir = os.path.join(os.getcwd(), "secrets")
+        secret_file = os.path.join(secret_dir, "operator_owner_token.secret")
+
+        os.makedirs(secret_dir, exist_ok=True)
+        try:
+            expected_token = "TEST_TOKEN_BEARER_VALIDATION"
+            with open(secret_file, "wb") as f:
+                f.write(b"\xef\xbb\xbf" + expected_token.encode("utf-8"))
+
+            admin_identity = {"email": "admin_bom@yartrader.app", "role": "ADMIN"}
+            adapter = YarTraderOperatorAdapter()
+
+            m12_response_body = {
+                "success": True,
+                "result": {"commandId": "cmd_bom_1", "accepted": True, "status": "COMPLETED"}
+            }
+
+            with patch.dict(os.environ, {"OPERATOR_OWNER_ID": "owner_sohrab"}, clear=True):
+                with patch("urllib.request.urlopen") as mock_urlopen:
+                    mock_resp = MagicMock()
+                    mock_resp.status = 200
+                    mock_resp.read.return_value = json.dumps(m12_response_body).encode("utf-8")
+                    mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+                    res = adapter.submit_task(admin_identity, "Execute task")
+
+                    self.assertTrue(res["success"])
+                    req = mock_urlopen.call_args[0][0]
+                    auth_header = req.headers.get("Authorization")
+                    self.assertIsNotNone(auth_header)
+                    self.assertTrue(auth_header.startswith("Bearer "))
+                    self.assertNotIn("\ufeff", auth_header)
+                    self.assertEqual(auth_header, f"Bearer {expected_token}")
+
+                    # Crucially verify latin-1 encoding for HTTP header check does not raise UnicodeEncodeError
+                    auth_header.encode("latin-1")
+        finally:
+            if os.path.exists(secret_file):
+                try:
+                    os.remove(secret_file)
+                except Exception:
+                    pass
+
+    def test_environment_variable_precedence_over_secret_file(self):
+        """Test 4: Verify environment variable OPERATOR_OWNER_TOKEN takes precedence over secret file token."""
+        secret_dir = os.path.join(os.getcwd(), "secrets")
+        secret_file = os.path.join(secret_dir, "operator_owner_token.secret")
+
+        os.makedirs(secret_dir, exist_ok=True)
+        try:
+            with open(secret_file, "wb") as f:
+                f.write(b"FILE_TOKEN_VALUE")
+
+            env_token = "ENV_VAR_TOKEN_VALUE"
+            with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": env_token, "OPERATOR_OWNER_ID": "owner_sohrab"}):
+                adapter = YarTraderOperatorAdapter()
+                resolved_token = adapter._get_bearer_token()
+                self.assertEqual(resolved_token, env_token)
+        finally:
+            if os.path.exists(secret_file):
+                try:
+                    os.remove(secret_file)
+                except Exception:
+                    pass
+
     def test_missing_owner_id_fails_closed(self):
         """Verify task submission fails closed if OPERATOR_OWNER_ID is not explicitly configured."""
         adapter = YarTraderOperatorAdapter()
