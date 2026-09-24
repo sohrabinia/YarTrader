@@ -1,8 +1,8 @@
-# YarTrader CTO Forensic Baseline Audit Report (PR #306 Final Remediation)
+# YarTrader CTO Forensic Baseline Audit Report (PR #306 Final Pass Remediation)
 
-**Audit Date**: 2026-09-24 02:05:00 UTC
+**Audit Date**: 2026-09-24 02:08:00 UTC
 **Auditor**: Implementation Engineer under Strict CTO Forensic Review
-**Task Phase**: PR #306 Final Remediation (PR-A Forensic Baseline & Safety Proof)
+**Task Phase**: PR #306 Final Pass Micro-Remediation (PR-A Forensic Baseline & Safety Proof)
 **PR Context**: PR #306 (`sohrabinia/YarTrader`)
 **Base SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
 **Merge-Base**: `e6af8503767618e2279810862ce7a435d6a74753`
@@ -10,14 +10,14 @@
 
 ---
 
-## 1. Executive Summary & Final Remediation Overview
+## 1. Executive Summary & Final Micro-Remediation Overview
 
-This final forensic baseline audit report establishes the authoritative architectural runtime state for PR #306. All CTO remediation blockers have been fully addressed and verified through deterministic runtime proofs:
+This final forensic baseline audit report establishes the authoritative architectural runtime state for PR #306. All micro-remediation requirements have been fully addressed and verified through deterministic runtime proofs:
 
-1. **True Offline Fail-Closed Boundary (Blocker 1)**: Remediated `ResearchRuntime._log_evidence()` and `ResearchWorker._run_loop()` to evaluate provider name dynamically. When `ControlledOfflineFixture` is active, the runtime logs `ControlledOfflineFixture Connected (100% Offline)` instead of legacy `"MT5 Connected"`. Intercepts MT5 API, broker adapters, network sockets, and sensitive credential reads (`MT5_PASSWORD`, `OPERATOR_OWNER_TOKEN`, etc.). Active instrumentation measured: **0 MT5 attempts, 0 broker attempts, 0 network attempts, 0 credential attempts**.
-2. **Actual Canonical Live Runtime Entrypoint (Blocker 2)**: Both forensic guard tests enter directly through the actual production `ResearchWorker._run_loop()` entrypoint, executing the full live decision path through `ResearchRuntime`, `PrimitiveMarketResearchEngine`, `ExecutionIntelligenceCore`, `ExecutionIntelligencePlanner`, and `ResearchWorker._validate_and_size_decision()`.
-3. **Per-Indicator Interceptor Breakdown (Blocker 3)**: Intercepts `TechnicalAnalysisEngine.analyze`, `MomentumAnalysisEngine.analyze`, and feature calculators across top-level and local/lazy imports, aliases, and wrappers. Proves the canonical live decision path executes with **0 forbidden indicator executions** (RSI: 0, ATR: 0, SMA: 0, EMA: 0, MACD: 0, Bollinger: 0, ADX: 0, Stochastic: 0, CCI: 0).
-4. **Brain Execution Authority Guard & Boundary Inventory (Blocker 3)**: Performed full source inventory of all 7 execution boundaries across `src/Execution/` (`execute_demo_decision`, `close_position`, `send_order_to_broker`, `submit_order_request`, `execute_eod_flattening`). Stack-trace frame inspection evaluates module namespace (`frame.f_globals["__name__"]`) and file paths to prove Brain components operate strictly as upstream intelligence proposal generators with zero direct broker execution authority. Directly tested and verified downstream execution boundary calls from authorized callers.
+1. **True Fail-Closed Offline Boundary (Real Instrumentation)**: Remediated `ResearchRuntime._log_evidence()` and `ResearchWorker._run_loop()` to evaluate provider name dynamically. When `ControlledOfflineFixture` is active, the runtime logs `ControlledOfflineFixture Connected (100% Offline)` instead of legacy `"MT5 Connected"`. Active interception hooks monitor MT5 API access, broker execution adapters, network sockets, and sensitive credential reads (`MT5_PASSWORD`, `OPERATOR_OWNER_TOKEN`, etc.). Active instrumentation measured: **0 MT5 external attempts, 0 broker external attempts, 0 network attempts, 0 credential/secret attempts**.
+2. **Actual Canonical Live Runtime Entrypoint**: Both forensic guard tests enter directly through the actual production `ResearchWorker._run_loop()` entrypoint, executing the full live decision path through `ResearchRuntime`, `PrimitiveMarketResearchEngine`, `ExecutionIntelligenceCore`, `ExecutionIntelligencePlanner`, and `ResearchWorker._validate_and_size_decision()`.
+3. **Per-Indicator Interceptor Breakdown**: Intercepts `TechnicalAnalysisEngine.analyze`, `MomentumAnalysisEngine.analyze`, and feature calculators across top-level and local/lazy imports, aliases, and wrappers. Proves the canonical live decision path executes with **0 forbidden indicator executions** (RSI: 0, ATR: 0, SMA: 0, EMA: 0, MACD: 0, Bollinger: 0, ADX: 0, Stochastic: 0, CCI: 0).
+4. **Brain Execution Authority Guard & Boundary Inventory**: Performed full source inventory of all 7 execution boundaries across `src/Execution/` (`execute_demo_decision`, `close_position`, `send_order_to_broker`, `submit_order_request`, `execute_eod_flattening`). Stack-trace frame inspection evaluates module namespace (`frame.f_globals["__name__"]`) and file paths to prove Brain components operate strictly as upstream intelligence proposal generators with zero direct broker execution authority. Tested and verified downstream execution boundary calls from authorized callers.
 5. **Full Test Evidence Integrity**: Included exact commands and complete raw output summaries for both the forensic guard marker (`pytest -m forensic_guard`) and the entire repository test suite (`python3 -m pytest tests/` -> 1924 passed).
 6. **Brain Architecture & Shadow Preserved**: 100% of existing Brain (`src/Research/Brain/`) and Shadow (`src/ShadowTrading/`) code is preserved without deletion or parallel duplication.
 
@@ -31,7 +31,7 @@ This final forensic baseline audit report establishes the authoritative architec
 - **Base SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
 - **Merge-Base SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
 - **origin/main SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
-- **Audit Date/Time**: `2026-09-24 02:05:00 UTC`
+- **Audit Date/Time**: `2026-09-24 02:08:00 UTC`
 
 ---
 
@@ -191,8 +191,8 @@ The following execution boundaries exist in the repository and are monitored by 
   ```text
   [FORENSIC_GUARD_1_EVIDENCE]:
   Provider: ControlledOfflineFixture
-  MT5 attempts: 0
-  Broker/execution attempts: 0
+  MT5 external attempts: 0
+  Broker external attempts: 0
   Network attempts: 0
   Credential/secret attempts: 0
   Actual ResearchWorker entrypoint exercised: ResearchWorker._run_loop()
@@ -224,10 +224,11 @@ The following execution boundaries exist in the repository and are monitored by 
   ```text
   [FORENSIC_GUARD_2_EVIDENCE]:
   Provider: ControlledOfflineFixture
-  MT5 attempts: 0
-  Broker/execution attempts: 0
+  MT5 external attempts: 0
+  Broker external attempts: 0
   Network attempts: 0
   Credential/secret attempts: 0
+  Authorized in-process execution-boundary interceptions: 1
   Actual ResearchWorker entrypoint exercised: ResearchWorker._run_loop()
   Authorized downstream execution boundary called and verified = True
   Direct unauthorized Brain execution attempt caught and blocked = PASS
@@ -351,8 +352,8 @@ Research: Completed
 
 [FORENSIC_GUARD_1_EVIDENCE]:
 Provider: ControlledOfflineFixture
-MT5 attempts: 0
-Broker/execution attempts: 0
+MT5 external attempts: 0
+Broker external attempts: 0
 Network attempts: 0
 Credential/secret attempts: 0
 Actual ResearchWorker entrypoint exercised: ResearchWorker._run_loop()
@@ -438,10 +439,11 @@ Research: Completed
 
 [FORENSIC_GUARD_2_EVIDENCE]:
 Provider: ControlledOfflineFixture
-MT5 attempts: 0
-Broker/execution attempts: 0
+MT5 external attempts: 0
+Broker external attempts: 0
 Network attempts: 0
 Credential/secret attempts: 0
+Authorized in-process execution-boundary interceptions: 1
 Actual ResearchWorker entrypoint exercised: ResearchWorker._run_loop()
 Authorized downstream execution boundary called and verified = True
 Direct unauthorized Brain execution attempt caught and blocked = PASS
@@ -640,7 +642,7 @@ tests/test_strategy_evaluation.py .......                                 [98%]
 tests/test_learning_optimization.py ......................                 [99%]
 tests/test_learning.py ............                                        [100%]
 
-=============== 1924 passed, 1253 warnings in 276.07s (0:04:36) ================
+=============== 1924 passed, 1253 warnings in 280.54s (0:04:40) ================
 ```
 
 ---

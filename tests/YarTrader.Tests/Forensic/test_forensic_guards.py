@@ -113,6 +113,15 @@ def enforce_offline_boundary():
     except ImportError:
         pass
 
+    try:
+        import urllib.request
+        def intercept_urllib(*args, **kwargs):
+            network_calls.append("urllib_request")
+            raise AssertionError("UNAUTHORIZED_OFFLINE_VIOLATION: URLlib request attempted during forensic test")
+        patches.append(patch.object(urllib.request, "urlopen", side_effect=intercept_urllib))
+    except ImportError:
+        pass
+
     def cleanup():
         if orig_mt5 is not None:
             sys.modules["MetaTrader5"] = orig_mt5
