@@ -16,7 +16,7 @@ def get_last_worker_diagnostic_status() -> Optional[Dict[str, Any]]:
     return _last_global_worker_diagnostic_status
 
 
-def set_last_worker_diagnostic_status(status: Dict[str, Any]) -> None:
+def set_last_worker_diagnostic_status(status: Optional[Dict[str, Any]]) -> None:
     global _last_global_worker_diagnostic_status
     _last_global_worker_diagnostic_status = status
 
@@ -423,8 +423,8 @@ class ResearchWorker:
             from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
             registry = SymbolRegistry.get_instance()
             active_matrix = registry.get_active_matrix()
-            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
-            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
+            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix))) if active_matrix else []
+            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix))) if active_matrix else []
 
             print("================================================")
             print("YarTrader Multi-Symbol / Multi-TF Runtime")
@@ -434,7 +434,7 @@ class ResearchWorker:
             print(f"Active Symbols:\n{len(unique_symbols)}\n")
             print(f"Configured Timeframes:\n{configured_tfs}\n")
             print("Research Workers:\nRunning\n")
-            print(f"Queue Size:\n{len(active_matrix)} ({len(unique_symbols)} symbols x {len(configured_tfs)} timeframes)\n")
+            print(f"Queue Size:\n{len(active_matrix) if active_matrix else 0} ({len(unique_symbols)} symbols x {len(configured_tfs)} timeframes)\n")
             print("Mode:\nProduction")
             print("================================================\n")
 
@@ -604,7 +604,8 @@ class ResearchWorker:
                                                 close_resp = self.demo_engine.close_position(
                                                     symbol=symbol,
                                                     position_ticket=existing_ticket,
-                                                    comment=f"YarTrader RevClose {symbol}"
+                                                    comment=f"YarTrader RevClose {symbol}",
+                                                    exit_reason="REVERSAL"
                                                 )
 
                                                 # Explicitly evaluate close response status before market reassessment

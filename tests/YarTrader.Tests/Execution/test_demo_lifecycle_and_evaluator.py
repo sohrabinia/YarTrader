@@ -53,11 +53,12 @@ class TestDemoLifecycleAndEvaluator(unittest.TestCase):
         Blocker 6: Prove original decision_id remains unchanged throughout lifecycle
         and reversal explicitly references parent_decision_id.
         """
-        journal_file = os.path.join(self.log_dir, "trade_journal.json")
+        log_dir = os.path.join(self.tmp_dir.name, "b6_logs")
+        journal_file = os.path.join(log_dir, "trade_journal.json")
         journal_mgr = TradeJournalManager(journal_file=journal_file)
         TradeJournalManager._instance = journal_mgr
 
-        engine = DemoExecutionEngine(adapter=self.mock_adapter, demo_mode=True, log_dir=self.log_dir)
+        engine = DemoExecutionEngine(adapter=self.mock_adapter, demo_mode=True, log_dir=log_dir)
 
         # Mock order response for initial entry
         open_resp = OrderResponse(
@@ -125,15 +126,16 @@ class TestDemoLifecycleAndEvaluator(unittest.TestCase):
         Blockers 7 & 9: Prove real execution path: open -> journal record -> broker close ->
         authoritative broker history facts -> updated journal -> TradeEvaluator.
         """
-        journal_file = os.path.join(self.log_dir, "trade_journal.json")
+        log_dir = os.path.join(self.tmp_dir.name, "b7_logs")
+        journal_file = os.path.join(log_dir, "trade_journal.json")
         journal_mgr = TradeJournalManager(journal_file=journal_file)
         TradeJournalManager._instance = journal_mgr
 
-        mem_sys = MarketMemorySystem(storage_dir=self.log_dir)
+        mem_sys = MarketMemorySystem(storage_dir=log_dir)
         evaluator = TradeEvaluator(memory_system=mem_sys)
         TradeEvaluator._instance = evaluator
 
-        engine = DemoExecutionEngine(adapter=self.mock_adapter, demo_mode=True, log_dir=self.log_dir)
+        engine = DemoExecutionEngine(adapter=self.mock_adapter, demo_mode=True, log_dir=log_dir)
 
         # 1. Open trade
         open_resp = OrderResponse(
@@ -211,7 +213,8 @@ class TestDemoLifecycleAndEvaluator(unittest.TestCase):
         """
         Blocker 8: Verify no synthetic or fabricated evidence values are injected when evidence is missing.
         """
-        mem_sys = MarketMemorySystem(storage_dir=self.log_dir)
+        log_dir = os.path.join(self.tmp_dir.name, "b8_logs")
+        mem_sys = MarketMemorySystem(storage_dir=log_dir)
         evaluator = TradeEvaluator(memory_system=mem_sys)
 
         journal_rec = TradeJournalRecord(
@@ -261,7 +264,8 @@ class TestDemoLifecycleAndEvaluator(unittest.TestCase):
         Blocker 11: Negative regression test proving pattern memory cannot bypass
         safety gates (AUTONOMOUS_DEMO_TRADING_ENABLED=False).
         """
-        mem_sys = MarketMemorySystem(storage_dir=self.log_dir)
+        log_dir = os.path.join(self.tmp_dir.name, "b11_logs")
+        mem_sys = MarketMemorySystem(storage_dir=log_dir)
 
         # Seed high-confidence pattern memory
         from src.Research.Brain.models import ExperienceMemory
@@ -284,7 +288,7 @@ class TestDemoLifecycleAndEvaluator(unittest.TestCase):
         with patch.dict(os.environ, {"AUTONOMOUS_DEMO_TRADING_ENABLED": "false"}):
             from app.workers.research_worker import ResearchWorker
             worker = ResearchWorker(symbol="XAUUSD")
-            worker.demo_engine = DemoExecutionEngine(adapter=self.mock_adapter, demo_mode=True, log_dir=self.log_dir)
+            worker.demo_engine = DemoExecutionEngine(adapter=self.mock_adapter, demo_mode=True, log_dir=log_dir)
 
             # High confidence decision
             decision_dict = {
