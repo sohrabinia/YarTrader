@@ -244,36 +244,61 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_causal_brain_proposal_data_flow(self):
         """
-        Test 5: Prove causality by verifying that dynamically altering the Brain proposal
+        Test 5: Prove causality across Cases A-E by verifying that dynamically altering the Brain proposal
         determines and constrains the final canonical decision proposal.
         """
         planner = ExecutionIntelligencePlanner()
-        alignment = {"alignment": "BULLISH_CONTINUATION", "confidence": 90.0}
-        narrative = {"trend": "BULLISH", "state": "TRENDING"}
+        bullish_alignment = {"alignment": "BULLISH_CONTINUATION", "confidence": 90.0}
+        bearish_alignment = {"alignment": "BEARISH_CONTINUATION", "confidence": 90.0}
+        narrative_bullish = {"trend": "BULLISH", "state": "TRENDING"}
+        narrative_bearish = {"trend": "BEARISH", "state": "TRENDING"}
 
-        # 1. Brain proposes BUY -> Aligned -> BUY
-        brain_report_buy = {
-            "symbol": "XAUUSD",
-            "active_hypotheses": [{"suggested_virtual_action": "BUY"}]
-        }
-        res_buy = planner.generate_execution_plan(
-            symbol="XAUUSD", timeframe="H1", narrative=narrative, liquidity={},
-            zones={}, alignment=alignment, similarity={}, portfolio_risk={"approved": True},
-            current_price=2005.0, newborn_brain_report=brain_report_buy
+        # Case A: No Brain report -> WAIT & BRAIN_UNAVAILABLE
+        res_a = planner.generate_execution_plan(
+            symbol="XAUUSD", timeframe="H1", narrative=narrative_bullish, liquidity={},
+            zones={}, alignment=bullish_alignment, similarity={}, portfolio_risk={"approved": True},
+            current_price=2005.0, newborn_brain_report=None
         )
-        self.assertEqual(res_buy["plan"]["action"], "BUY")
+        self.assertEqual(res_a["plan"]["action"], "WAIT")
+        self.assertEqual(res_a["plan"]["decision_source"], "BRAIN_UNAVAILABLE")
 
-        # 2. Brain proposes SELL -> Unaligned with Bullish structure -> Fallback to WAIT
-        brain_report_sell = {
-            "symbol": "XAUUSD",
-            "active_hypotheses": [{"suggested_virtual_action": "SELL"}]
-        }
-        res_sell = planner.generate_execution_plan(
-            symbol="XAUUSD", timeframe="H1", narrative=narrative, liquidity={},
-            zones={}, alignment=alignment, similarity={}, portfolio_risk={"approved": True},
-            current_price=2005.0, newborn_brain_report=brain_report_sell
+        # Case B: Brain WAIT + strongly bullish structure -> WAIT
+        brain_wait = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "WAIT"}]}
+        res_b = planner.generate_execution_plan(
+            symbol="XAUUSD", timeframe="H1", narrative=narrative_bullish, liquidity={},
+            zones={}, alignment=bullish_alignment, similarity={}, portfolio_risk={"approved": True},
+            current_price=2005.0, newborn_brain_report=brain_wait
         )
-        self.assertEqual(res_sell["plan"]["action"], "WAIT")
+        self.assertEqual(res_b["plan"]["action"], "WAIT")
+        self.assertEqual(res_b["plan"]["decision_source"], "BRAIN")
+
+        # Case C: Brain AVOID + strongly bullish structure -> AVOID
+        brain_avoid = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "AVOID"}]}
+        res_c = planner.generate_execution_plan(
+            symbol="XAUUSD", timeframe="H1", narrative=narrative_bullish, liquidity={},
+            zones={}, alignment=bullish_alignment, similarity={}, portfolio_risk={"approved": True},
+            current_price=2005.0, newborn_brain_report=brain_avoid
+        )
+        self.assertEqual(res_c["plan"]["action"], "AVOID")
+        self.assertEqual(res_c["plan"]["decision_source"], "BRAIN")
+
+        # Case D: Brain BUY + incompatible bearish structure -> WAIT (downstream structure validation)
+        brain_buy = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
+        res_d = planner.generate_execution_plan(
+            symbol="XAUUSD", timeframe="H1", narrative=narrative_bearish, liquidity={},
+            zones={}, alignment=bearish_alignment, similarity={}, portfolio_risk={"approved": True},
+            current_price=2005.0, newborn_brain_report=brain_buy
+        )
+        self.assertEqual(res_d["plan"]["action"], "WAIT")
+
+        # Case E: Brain SELL + incompatible bullish structure -> WAIT (downstream structure validation)
+        brain_sell = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
+        res_e = planner.generate_execution_plan(
+            symbol="XAUUSD", timeframe="H1", narrative=narrative_bullish, liquidity={},
+            zones={}, alignment=bullish_alignment, similarity={}, portfolio_risk={"approved": True},
+            current_price=2005.0, newborn_brain_report=brain_sell
+        )
+        self.assertEqual(res_e["plan"]["action"], "WAIT")
 
     def test_brain_cannot_directly_execute(self):
         """
