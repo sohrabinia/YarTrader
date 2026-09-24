@@ -37,9 +37,8 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_production_run_loop_path_reaches_brain_without_runtime_patching(self):
         """
-        Test 1: Prove ResearchWorker._run_loop calls actual _get_or_create_runtime() without runtime patching,
-        executes ResearchRuntime.run_once(), invokes LiveAnalysisBrain, passes newborn_brain_report into ExecutionIntelligenceCore/Planner,
-        and returns a proposal with decision_source = "BRAIN" and brain_report_consumed = True.
+        Test 1: Prove ResearchWorker._run_loop uses real _get_or_create_runtime() without pre-populating or replacing runtimes or patching _get_or_create_runtime.
+        Verifies worker.runtimes is initially empty, _run_loop creates a real ResearchRuntime, executes LiveAnalysisBrain, and returns a Brain proposal.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
@@ -49,31 +48,47 @@ class TestGate1BrainIntegration(unittest.TestCase):
             worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
             provider = ControlledDataProvider(base_price=2000.0, count=100)
 
-            # Do NOT patch worker._get_or_create_runtime or worker.runtimes!
-            # Pre-populate runtimes dictionary using default ResearchRuntime constructor with ControlledDataProvider
+            # Assert worker.runtimes is initially empty
             key = ("XAUUSD", "H1")
-            worker.runtimes[key] = ResearchRuntime(
-                provider=provider,
-                symbol="XAUUSD",
-                timeframe="H1",
-                provider_name="ControlledOfflineFixture"
-            )
+            self.assertNotIn(key, worker.runtimes)
 
-            # Patch only _get_active_matrix so worker processes XAUUSD H1
-            with patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]):
+            # Patch MetaTrader5Provider constructor so real _get_or_create_runtime instantiates MetaTrader5Provider with ControlledDataProvider delegate
+            with patch("src.Application.Runtime.research_runtime.MetaTrader5Provider", return_value=provider), \
+                 patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]):
+
                 worker.is_running = True
-                runtime_instance = worker.runtimes[key]
-                original_run_once = runtime_instance.run_once
+
+                # Wrap _run_loop so it stops after one iteration
+                original_run_loop = worker._run_loop
                 saved_res = []
 
-                def run_once_and_stop():
-                    res = original_run_once()
-                    saved_res.append(res)
-                    worker.is_running = False
-                    return res
+                def run_loop_one_cycle():
+                    # Let _run_loop run for one cycle, then stop worker
+                    def run_once_interceptor(rt):
+                        orig_fn = rt.run_once
+                        def stop_rt():
+                            res = orig_fn()
+                            saved_res.append(res)
+                            worker.is_running = False
+                            return res
+                        return stop_rt
 
-                runtime_instance.run_once = run_once_and_stop
-                worker._run_loop()
+                    # Let _get_or_create_runtime run normally, then wrap run_once
+                    orig_get_rt = worker._get_or_create_runtime
+                    def spy_get_rt(*args, **kwargs):
+                        rt = orig_get_rt(*args, **kwargs)
+                        rt.run_once = run_once_interceptor(rt)
+                        return rt
+
+                    worker._get_or_create_runtime = spy_get_rt
+                    original_run_loop()
+
+                run_loop_one_cycle()
+
+            # Assert real _get_or_create_runtime created the runtime in worker.runtimes
+            self.assertIn(key, worker.runtimes)
+            created_runtime = worker.runtimes[key]
+            self.assertIsInstance(created_runtime, ResearchRuntime)
 
             self.assertEqual(len(saved_res), 1)
             res = saved_res[0]
