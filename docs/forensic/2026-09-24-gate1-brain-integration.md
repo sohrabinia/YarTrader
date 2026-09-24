@@ -12,7 +12,7 @@
 BASE_SHA:                af076b6005e80cc8573966713edf410f1801e3f9
 MERGE_BASE_SHA:          af076b6005e80cc8573966713edf410f1801e3f9
 ORIGIN_MAIN_SHA:         af076b6005e80cc8573966713edf410f1801e3f9
-AUDITED_PR_HEAD_SHA:     c8598c4c564f962554a9848de1e59e143e9dcae8
+AUDITED_PR_HEAD_SHA:     555df712bbcdd2fc86f2a8871d95eac75a258df4
 REPORT_GENERATED_AT_UTC: 2026-09-24 17:35:00 UTC
 ```
 
@@ -32,13 +32,13 @@ A	tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py
 ### Diff Stat:
 
 ```text
- docs/forensic/2026-09-24-gate1-brain-integration.md | 207 ++++++++++
+ docs/forensic/2026-09-24-gate1-brain-integration.md | 200 ++++++++++
  src/Application/Runtime/research_runtime.py        |  20 +-
- src/Intelligence/Execution/core.py                 |  37 +-
+ src/Intelligence/Execution/core.py                 |   7 +-
  src/Intelligence/Execution/execution_planner.py    |  95 +++--
  src/Research/MarketAnalysis/Services/services.py   |  36 +-
- .../Gate1/test_gate1_brain_integration.py          | 441 +++++++++++++++++++++
- 6 files changed, 796 insertions(+), 40 deletions(-)
+ .../Gate1/test_gate1_brain_integration.py          | 435 +++++++++++++++++++++
+ 6 files changed, 753 insertions(+), 40 deletions(-)
 ```
 
 ---
