@@ -68,31 +68,56 @@ def enforce_offline_boundary():
     credential_reads = []
 
     orig_mt5 = sys.modules.get("MetaTrader5")
+    orig_getenv = os.getenv
 
-    def block_real_mt5(*args, **kwargs):
-        mt5_calls.append("mt5_call_attempted")
-        raise AssertionError("UNAUTHORIZED_OFFLINE_VIOLATION: Live MT5 call attempted during forensic test")
+    def intercept_mt5_call(method_name):
+        def mock_func(*args, **kwargs):
+            err_msg = f"UNAUTHORIZED_OFFLINE_VIOLATION: Live MT5 {method_name} attempted during forensic test"
+            mt5_calls.append(method_name)
+            raise AssertionError(err_msg)
+        return mock_func
 
-    def block_socket_connect(*args, **kwargs):
-        network_calls.append("socket_connect_attempted")
-        raise AssertionError("UNAUTHORIZED_OFFLINE_VIOLATION: Network connection attempted during forensic test")
+    def intercept_socket_connect(*args, **kwargs):
+        err_msg = "UNAUTHORIZED_OFFLINE_VIOLATION: Network socket connection attempted during forensic test"
+        network_calls.append("socket_connect")
+        raise AssertionError(err_msg)
+
+    def intercept_getenv(key, default=None):
+        sensitive_credential_keys = [
+            "MT5_PASSWORD", "MT5_LOGIN", "MT5_SERVER", "MT5_PATH",
+            "OPERATOR_OWNER_TOKEN", "OPERATOR_SERVER_SECRET", "GOOGLE_CLIENT_SECRET"
+        ]
+        if key in sensitive_credential_keys:
+            err_msg = f"UNAUTHORIZED_OFFLINE_VIOLATION: Live credential '{key}' accessed during offline forensic test"
+            credential_reads.append(key)
+            raise AssertionError(err_msg)
+        return orig_getenv(key, default)
 
     mt5_mock = MagicMock()
-    mt5_mock.initialize.side_effect = block_real_mt5
-    mt5_mock.login.side_effect = block_real_mt5
-    mt5_mock.terminal_info.side_effect = block_real_mt5
-    mt5_mock.order_send.side_effect = block_real_mt5
-    mt5_mock.order_check.side_effect = block_real_mt5
-    mt5_mock.positions_get.side_effect = block_real_mt5
+    for method_name in ["initialize", "login", "terminal_info", "account_info", "order_send", "order_check", "positions_get", "copy_rates_from", "copy_rates_range", "symbols_get"]:
+        setattr(mt5_mock, method_name, MagicMock(side_effect=intercept_mt5_call(method_name)))
 
     sys.modules["MetaTrader5"] = mt5_mock
-    socket_patch = patch.object(socket.socket, "connect", side_effect=block_socket_connect)
+
+    patches = [
+        patch.object(socket.socket, "connect", side_effect=intercept_socket_connect),
+        patch("os.getenv", side_effect=intercept_getenv)
+    ]
+
+    try:
+        import requests
+        def intercept_requests(*args, **kwargs):
+            network_calls.append("http_request")
+            raise AssertionError("UNAUTHORIZED_OFFLINE_VIOLATION: HTTP request attempted during forensic test")
+        patches.append(patch.object(requests.Session, "send", side_effect=intercept_requests))
+    except ImportError:
+        pass
 
     def cleanup():
         if orig_mt5 is not None:
             sys.modules["MetaTrader5"] = orig_mt5
 
-    return socket_patch, mt5_calls, broker_calls, network_calls, credential_reads, cleanup
+    return patches, mt5_calls, broker_calls, network_calls, credential_reads, cleanup
 
 
 @pytest.mark.forensic_guard
@@ -109,16 +134,26 @@ class TestIndicatorForensicGuard(unittest.TestCase):
         (ResearchWorker._run_loop -> ResearchRuntime -> PrimitiveMarketResearchEngine -> ExecutionIntelligenceCore -> ExecutionIntelligencePlanner)
         under controlled deterministic fixtures and asserts zero forbidden indicator execution.
         """
-        forbidden_indicators = ["RSI", "ATR", "SMA", "EMA", "MACD", "Bollinger", "ADX", "Stochastic", "CCI"]
-        executed_indicators = []
+        indicator_counts = {
+            "RSI": 0,
+            "ATR": 0,
+            "SMA": 0,
+            "EMA": 0,
+            "MACD": 0,
+            "Bollinger": 0,
+            "ADX": 0,
+            "Stochastic": 0,
+            "CCI": 0
+        }
 
         # Intercept functions in src.Research.analysis_pipeline and calculators
         from src.Research import analysis_pipeline
 
         def indicator_interceptor(indicator_name):
             def mock_func(*args, **kwargs):
+                if indicator_name in indicator_counts:
+                    indicator_counts[indicator_name] += 1
                 err_msg = f"FORBIDDEN_INDICATOR_EXECUTED: {indicator_name}"
-                executed_indicators.append(indicator_name)
                 raise AssertionError(err_msg)
             return mock_func
 
@@ -135,13 +170,14 @@ class TestIndicatorForensicGuard(unittest.TestCase):
             from src.Research.Features import calculators
             for calc_name in ["RSI", "ATR", "SMA", "EMA", "MACD", "BollingerBands", "ADX", "Stochastic", "CCI"]:
                 if hasattr(calculators, calc_name):
-                    patches.append(patch.object(calculators, calc_name, side_effect=indicator_interceptor(calc_name)))
+                    p_key = "Bollinger" if calc_name == "BollingerBands" else calc_name
+                    patches.append(patch.object(calculators, calc_name, side_effect=indicator_interceptor(p_key)))
         except ImportError:
             pass
 
         # Install strict offline boundary guard
-        socket_patch, mt5_calls, broker_calls, network_calls, credential_reads, cleanup = enforce_offline_boundary()
-        patches.append(socket_patch)
+        boundary_patches, mt5_calls, broker_calls, network_calls, credential_reads, cleanup = enforce_offline_boundary()
+        patches.extend(boundary_patches)
 
         for p in patches:
             p.start()
@@ -172,7 +208,8 @@ class TestIndicatorForensicGuard(unittest.TestCase):
                 worker._run_loop()
 
             # Verify zero forbidden indicators executed and zero external connections made
-            self.assertEqual(len(executed_indicators), 0, f"Forbidden indicators executed: {executed_indicators}")
+            total_indicator_executions = sum(indicator_counts.values())
+            self.assertEqual(total_indicator_executions, 0, f"Forbidden indicators executed: {indicator_counts}")
             self.assertEqual(len(mt5_calls), 0)
             self.assertEqual(len(broker_calls), 0)
             self.assertEqual(len(network_calls), 0)
@@ -181,12 +218,15 @@ class TestIndicatorForensicGuard(unittest.TestCase):
             classification = "PASS"
             print(f"\n[FORENSIC_GUARD_1_EVIDENCE]:")
             print(f"Provider: ControlledOfflineFixture")
-            print(f"External MT5 connection: {len(mt5_calls)}")
-            print(f"External broker connection: {len(broker_calls)}")
-            print(f"Network connections: {len(network_calls)}")
-            print(f"Credential accesses: {len(credential_reads)}")
+            print(f"MT5 attempts: {len(mt5_calls)}")
+            print(f"Broker/execution attempts: {len(broker_calls)}")
+            print(f"Network attempts: {len(network_calls)}")
+            print(f"Credential/secret attempts: {len(credential_reads)}")
             print(f"Actual ResearchWorker entrypoint exercised: ResearchWorker._run_loop()")
-            print(f"Forbidden indicator executions = {len(executed_indicators)}")
+            print(f"Observed Indicator Execution Breakdown:")
+            for ind_name, ind_count in indicator_counts.items():
+                print(f"  - {ind_name}: {ind_count}")
+            print(f"Total forbidden indicator executions = {total_indicator_executions}")
             print(f"Decision produced: WAIT")
             print(f"[FORENSIC_GUARD_1_RESULT]: {classification} - Canonical production decision path executed indicator-free.")
 
@@ -265,8 +305,8 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
             pass
 
         # Install strict offline boundary guard
-        socket_patch, mt5_calls, broker_calls, network_calls, credential_reads, cleanup = enforce_offline_boundary()
-        patches.append(socket_patch)
+        boundary_patches, mt5_calls, broker_calls, network_calls, credential_reads, cleanup = enforce_offline_boundary()
+        patches.extend(boundary_patches)
 
         for p in patches:
             p.start()
@@ -326,6 +366,9 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
 
             self.assertTrue(brain_caught, "Direct Brain execution attempt was NOT caught by guard!")
 
+            # Record violations count prior to replay loop
+            replay_start_violations = len(boundary_violations)
+
             # 4. Exercise Replay & Brain Components
             obs_list = []
             now = datetime.now()
@@ -345,20 +388,23 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
             replay_loop = CognitiveReplayLoop(symbol="XAUUSD", timeframe="H1", observations=obs_list)
             episodes = replay_loop.execute_replay_session(steps_count=10, scale="hours")
 
+            replay_violations = len(boundary_violations) - replay_start_violations
+
             # Verify Brain replay generated episodes without calling execution boundaries
             self.assertTrue(len(episodes) > 0)
+            self.assertEqual(replay_violations, 0)
 
             classification = "PASS"
             print(f"\n[FORENSIC_GUARD_2_EVIDENCE]:")
             print(f"Provider: ControlledOfflineFixture")
-            print(f"External MT5 connection: {len(mt5_calls)}")
-            print(f"External broker connection: {len(broker_calls)}")
-            print(f"Network connections: {len(network_calls)}")
-            print(f"Credential accesses: {len(credential_reads)}")
+            print(f"MT5 attempts: {len(mt5_calls)}")
+            print(f"Broker/execution attempts: {len(broker_calls)}")
+            print(f"Network attempts: {len(network_calls)}")
+            print(f"Credential/secret attempts: {len(credential_reads)}")
             print(f"Actual ResearchWorker entrypoint exercised: ResearchWorker._run_loop()")
-            print(f"Downstream execution boundary called and verified = True")
-            print(f"Unauthorized direct Brain execution attempt caught and blocked = PASS")
-            print(f"Brain execution violations in production replay loop = 0")
+            print(f"Authorized downstream execution boundary called and verified = True")
+            print(f"Direct unauthorized Brain execution attempt caught and blocked = PASS")
+            print(f"Brain execution violations in production replay loop = {replay_violations}")
             print(f"[FORENSIC_GUARD_2_RESULT]: {classification} - Brain components generate decision proposals without direct execution authority.")
 
         except AssertionError as ae:
