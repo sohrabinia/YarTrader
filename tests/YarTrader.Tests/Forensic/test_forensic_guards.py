@@ -260,7 +260,7 @@ class TestIndicatorForensicGuard(unittest.TestCase):
                 print(f"  - {ind_name}: {ind_count}")
             print(f"Total forbidden indicator executions = {total_indicator_executions}")
             print(f"Decision produced: WAIT")
-            print(f"[FORENSIC_GUARD_1_RESULT]: {classification} - Canonical production decision path executed indicator-free.")
+            print(f"[FORENSIC_GUARD_1_RESULT]: {classification} - No instrumented forbidden-indicator implementation executed during the controlled ResearchWorker._run_loop() forensic scenario.")
 
         except AssertionError as ae:
             if "FORBIDDEN_INDICATOR_EXECUTED" in str(ae):
@@ -425,10 +425,10 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
             print(f"Credential/secret attempts: {canonical_credential_attempts}")
             print(f"Authorized in-process execution-boundary interceptions: {len(authorized_boundary_interceptions)}")
             print(f"Actual ResearchWorker entrypoint exercised: ResearchWorker._run_loop()")
-            print(f"Authorized downstream execution boundary called and verified = True")
+            print(f"Authorized in-process boundary dispatch was verified = True")
             print(f"Direct unauthorized Brain execution attempt caught and blocked = PASS")
             print(f"Brain execution violations in production replay loop = {replay_violations}")
-            print(f"[FORENSIC_GUARD_2_RESULT]: {classification} - Brain components generate decision proposals without direct execution authority.")
+            print(f"[FORENSIC_GUARD_2_RESULT]: {classification} - The forensic guard detected and blocked a simulated direct execution attempt originating from the Brain module scope. The controlled replay scenario produced zero observed Brain execution-boundary violations.")
 
         except AssertionError as ae:
             if "BRAIN_EXECUTION_AUTHORITY_DETECTED" in str(ae) and "<cognitive_loop" not in str(ae):
