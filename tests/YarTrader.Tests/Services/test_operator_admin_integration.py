@@ -282,5 +282,54 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                 self.assertIn("malformed response structure", res["error"])
                 self.assertIsNone(res["task_id"])
 
+    def test_operator_diagnostics_endpoint_returns_worker_status(self):
+        """Verify GET /api/admin/operator/diagnostics returns actual latest worker diagnostic event."""
+        from app.workers.research_worker import set_last_worker_diagnostic_status
+        admin = global_auth_service.repo.create_user("admin_diag@yartrader.app", password_hash="pass", role="ADMIN", name="AdminDiag")
+        admin_token = global_auth_service.create_session(admin)
+
+        # 1. Test when no status has been recorded
+        set_last_worker_diagnostic_status(None)
+        res_empty = self.client.get("/api/admin/operator/diagnostics", headers={"Authorization": f"Bearer {admin_token}"})
+        self.assertEqual(res_empty.status_code, 200)
+        data_empty = res_empty.json()
+        self.assertEqual(data_empty["status"], "NO_DIAGNOSTICS")
+        self.assertIsNone(data_empty["last_diagnostic"])
+
+        # 2. Inject a known diagnostic event
+        event = {
+            "timestamp": "2025-01-01T00:00:00Z",
+            "symbol": "XAUUSD",
+            "timeframe": "H1",
+            "cycle_id": "CYC-100",
+            "decision_id": "DEC-100",
+            "connection_state": "DISCONNECTED",
+            "decision_action": "WAIT",
+            "risk_state": "SKIPPED",
+            "execution_state": "SKIPPED",
+            "reason_code": "MT5_DISCONNECTED",
+            "details": "MT5 Terminal process unverified"
+        }
+        set_last_worker_diagnostic_status(event)
+
+        # 3. Request diagnostics endpoint and verify matching reason code and correlation IDs
+        res = self.client.get("/api/admin/operator/diagnostics", headers={"Authorization": f"Bearer {admin_token}"})
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["status"], "OK")
+        diag = data["last_diagnostic"]
+        self.assertEqual(diag["reason_code"], "MT5_DISCONNECTED")
+        self.assertEqual(diag["symbol"], "XAUUSD")
+        self.assertEqual(diag["cycle_id"], "CYC-100")
+        self.assertEqual(diag["decision_id"], "DEC-100")
+        self.assertEqual(diag["details"], "MT5 Terminal process unverified")
+
+        # 4. Request status endpoint and verify last_worker_diagnostic is included
+        res_status = self.client.get("/api/admin/operator/status", headers={"Authorization": f"Bearer {admin_token}"})
+        self.assertEqual(res_status.status_code, 200)
+        status_data = res_status.json()
+        self.assertIn("last_worker_diagnostic", status_data)
+        self.assertEqual(status_data["last_worker_diagnostic"]["reason_code"], "MT5_DISCONNECTED")
+
 if __name__ == "__main__":
     unittest.main()

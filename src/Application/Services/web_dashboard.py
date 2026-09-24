@@ -233,8 +233,9 @@ def run_research_background_loop():
                         research_tracker["mt5_status"] = "CONNECTED"
                     else:
                         conn_health = runtime.provider.delegate.get_connection_health()
-                        research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-                        print("MT5: Connected")
+                        is_healthy = bool(getattr(conn_health, "connected", False))
+                        research_tracker["mt5_status"] = "CONNECTED" if is_healthy else "DISCONNECTED"
+                        print("MT5 HEALTHY" if is_healthy else "MT5 DISCONNECTED")
 
                     res = runtime.run_once()
                     research_tracker["last_analysis_time"] = datetime.now().isoformat()
@@ -269,8 +270,9 @@ def run_research_background_loop():
                                 research_tracker["mt5_status"] = "CONNECTED"
                             else:
                                 conn_health = runtime.provider.delegate.get_connection_health()
-                                research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-                                print("MT5: Connected")
+                                is_healthy = bool(getattr(conn_health, "connected", False))
+                                research_tracker["mt5_status"] = "CONNECTED" if is_healthy else "DISCONNECTED"
+                                print("MT5 HEALTHY" if is_healthy else "MT5 DISCONNECTED")
 
                             res = runtime.run_once()
                             research_tracker["last_analysis_time"] = datetime.now().isoformat()
@@ -4823,12 +4825,35 @@ class OperatorTaskSubmissionPayload(BaseModel):
 @app.get("/api/admin/operator/status")
 def get_operator_status(request: Request):
     """
-    Evaluates and returns real runtime health status of YarTrader.Operator runtime gateway.
+    Evaluates and returns real runtime health status of YarTrader.Operator runtime gateway,
+    enriched with latest worker diagnostic state.
     Guarded by check_admin_guard.
     """
     session = check_admin_guard(request)
     from src.Application.Services.operator_adapter import global_operator_adapter
-    return global_operator_adapter.get_runtime_health()
+    from app.workers.research_worker import get_last_worker_diagnostic_status
+    health = global_operator_adapter.get_runtime_health()
+    health["last_worker_diagnostic"] = get_last_worker_diagnostic_status()
+    return health
+
+@app.get("/api/admin/operator/diagnostics")
+def get_operator_diagnostics(request: Request):
+    """
+    Returns actual latest worker diagnostic state.
+    Guarded by check_admin_guard.
+    """
+    session = check_admin_guard(request)
+    from app.workers.research_worker import get_last_worker_diagnostic_status
+    status = get_last_worker_diagnostic_status()
+    if status is None:
+        return {
+            "status": "NO_DIAGNOSTICS",
+            "last_diagnostic": None
+        }
+    return {
+        "status": "OK",
+        "last_diagnostic": status
+    }
 
 @app.post("/api/admin/operator/tasks")
 def submit_operator_task(payload: OperatorTaskSubmissionPayload, request: Request):

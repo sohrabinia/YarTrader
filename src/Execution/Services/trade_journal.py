@@ -45,6 +45,7 @@ class TradeJournalRecord:
     market_regime: str
     result: str  # WIN | LOSS | BREAKEVEN | PENDING
     configuration_version: str
+    parent_decision_id: Optional[str] = None
     entry_efficiency_pct: float = 0.0
     exit_efficiency_pct: float = 0.0
     move_capture_ratio: float = 0.0

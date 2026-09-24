@@ -140,13 +140,14 @@ class ResearchRuntime:
                 )
             else:
                 data_response = self._provider.retrieve_market_data(target_req)
-                self._log_evidence("MT5 Connected")
 
             candles_count = len(data_response.DataPoints)
             self._log_evidence(f"Candles Received: {candles_count}")
 
             if candles_count == 0:
                 raise ValidationException(f"Received empty candle series for {self._symbol} from {self._provider_name}.")
+
+            self._log_evidence("MT5 HEALTHY")
 
             # 4. Construct Research Request with Enrichment context
             research_req = ResearchRequest(

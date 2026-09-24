@@ -126,7 +126,7 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         # Verify contents of evidence logs matches the requested evidence pattern
         with open(evidence_file, "r") as f:
             content = f.read()
-        self.assertIn("MT5 Connected", content)
+        self.assertIn("MT5 HEALTHY", content)
         self.assertIn("Symbol: XAUUSD", content)
         self.assertIn("Timeframe: H1", content)
         self.assertIn("Candles Received:", content)
