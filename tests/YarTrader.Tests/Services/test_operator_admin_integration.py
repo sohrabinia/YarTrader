@@ -295,7 +295,37 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                 self.assertEqual(body["ownerId"], "owner_sohrab")
                 self.assertEqual(body["workspaceId"], "yartrader")
                 self.assertEqual(body["rawCommandText"], "Run audit")
-                self.assertEqual(body["environmentId"], "production")
+                self.assertEqual(body["environmentId"], "env_yartrader")
+
+    def test_submit_task_emits_canonical_environment_id(self):
+        """Verify submitted payload contains exactly workspaceId='yartrader', environmentId='env_yartrader', and does NOT emit 'production'."""
+        admin_identity = {"email": "admin_env@yartrader.app", "role": "ADMIN"}
+        adapter = YarTraderOperatorAdapter()
+
+        m12_response_body = {
+            "success": True,
+            "result": {"commandId": "cmd_env_100", "accepted": True, "status": "COMPLETED"}
+        }
+
+        with patch.dict(os.environ, {"OPERATOR_OWNER_TOKEN": "token_val", "OPERATOR_OWNER_ID": "owner_sohrab"}):
+            with patch("urllib.request.urlopen") as mock_urlopen:
+                mock_resp = MagicMock()
+                mock_resp.status = 200
+                mock_resp.read.return_value = json.dumps(m12_response_body).encode("utf-8")
+                mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+                res = adapter.submit_task(admin_identity, "Check operator health")
+
+                self.assertTrue(res["success"])
+                req = mock_urlopen.call_args[0][0]
+                body = json.loads(req.data.decode("utf-8"))
+
+                # Requirement 1: workspaceId = "yartrader", environmentId = "env_yartrader"
+                self.assertEqual(body["workspaceId"], "yartrader")
+                self.assertEqual(body["environmentId"], "env_yartrader")
+
+                # Requirement 2: The previous invalid value environmentId = "production" is not emitted
+                self.assertNotEqual(body["environmentId"], "production")
 
     def test_bearer_token_never_returned_in_api_responses(self):
         """Verify OPERATOR_OWNER_TOKEN is never returned in API responses or diagnostic status."""
