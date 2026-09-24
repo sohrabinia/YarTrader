@@ -159,6 +159,28 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
         cycle_id = f"cyc-{request.Asset.upper()}-{timeframe.upper()}-{int(time.time())}"
         decision_id = f"DEC-{request.Asset.upper()}-{timeframe.upper()}-{int(time.time())}"
 
+        # Check if newborn_brain_report is already provided in request context or compute via LiveAnalysisBrain
+        newborn_report_dict = request.Context.get("newborn_brain_report")
+        if not newborn_report_dict:
+            try:
+                from src.Research.Brain.live_brain import LiveAnalysisBrain
+                newborn_brain = LiveAnalysisBrain(request.Asset, timeframe)
+                newborn_report = None
+                for dp in data_points:
+                    raw_candle_dict = {
+                        "timestamp": dp.Timestamp.isoformat() if isinstance(dp.Timestamp, datetime) else str(dp.Timestamp),
+                        "open": float(dp.Open),
+                        "high": float(dp.High),
+                        "low": float(dp.Low),
+                        "close": float(dp.Close),
+                        "volume": float(dp.Volume)
+                    }
+                    newborn_report = newborn_brain.process_live_candle(raw_candle_dict)
+                if newborn_report:
+                    newborn_report_dict = newborn_report.to_dict()
+            except Exception:
+                newborn_report_dict = None
+
         try:
             from src.Intelligence.Execution.core import ExecutionIntelligenceCore
             from src.Decision.Models.models import AutonomousTradingDecision
@@ -167,7 +189,8 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
             intel_res = intel_core.evaluate_context(
                 symbol=request.Asset,
                 timeframe=timeframe,
-                candles=candles_dicts
+                candles=candles_dicts,
+                newborn_brain_report=newborn_report_dict
             )
 
             plan = intel_res.get("plan", {})
@@ -237,6 +260,7 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
             "primitive_observation": primitive_observation,
             "autonomous_decision": auto_dec_dict,
             "intel_summary": intel_res,
+            "newborn_brain_report": newborn_report_dict,
             "pipeline_outputs": {
                 "technical_analysis": {"candles": candles_dicts, "bar_count": len(candles_dicts)},
                 "smart_interpretation": {"confidence": float(auto_dec_dict.get("confidence", 50.0)), "bias": "Neutral"}

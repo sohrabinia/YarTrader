@@ -10,7 +10,6 @@ import pytest
 
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from app.workers.research_worker import ResearchWorker
-from src.Research.MarketAnalysis.Services.services import FeatureExtractionResearchEngine, PrimitiveMarketResearchEngine
 from src.Intelligence.Execution.core import ExecutionIntelligenceCore
 from src.Intelligence.Execution.execution_planner import ExecutionIntelligencePlanner
 
@@ -26,19 +25,20 @@ class TestGate1BrainIntegration(unittest.TestCase):
     """
     Focused Gate 1 Test Suite validating Canonical Brain Integration.
     Proves:
-    - Test A: Canonical production path (ResearchWorker._run_loop -> ResearchRuntime -> FeatureExtractionResearchEngine -> LiveAnalysisBrain) is invoked.
-    - Test B: Brain output is passed directly into ExecutionIntelligenceCore / Planner.
-    - Test C: Negative Test — Planner CANNOT independently manufacture BUY/SELL when Brain proposal is WAIT/AVOID.
-    - Test D: Causal Data Flow — Changing Brain proposal dynamically constrains the final decision proposal.
-    - Test E: Brain components cannot trigger direct order dispatch or broker execution.
-    - Test F: Brain replay and cognitive learning loop execution results in 0 broker calls.
-    - Test G: Downstream execution remains strictly downstream after safety gates.
+    - Test 1: Real Production Default Path (ResearchWorker._run_loop -> default ResearchRuntime -> PrimitiveMarketResearchEngine -> LiveAnalysisBrain -> ExecutionIntelligenceCore -> Planner -> AutonomousTradingDecision).
+    - Test 2: Fail-Closed Boundary — When newborn_brain_report is missing/unconsumed, Planner fails closed to WAIT/AVOID and decision_source = "BRAIN_UNAVAILABLE".
+    - Test 3: Causal Negative Test — When LiveAnalysisBrain proposes WAIT/AVOID, Planner outputs WAIT/AVOID even under strongly bullish or bearish structure.
+    - Test 4: Causal Positive Test — Brain proposal BUY + bullish structure -> BUY. Brain proposal SELL + bullish structure -> WAIT.
+    - Test 5: Execution Separation — Static and runtime tests proving Brain module scope cannot invoke order execution APIs.
+    - Test 6: Replay/Learning Execution Separation — Cognitive replay loop produces 0 broker calls.
+    - Test 7: Downstream Execution Separation — Authorized downstream execution remains downstream after safety gates.
     """
 
-    def test_canonical_path_reaches_brain_and_returns_proposal(self):
+    def test_production_default_runtime_path_reaches_brain_and_returns_proposal(self):
         """
-        Test A & B: Prove ResearchWorker._run_loop calls ResearchRuntime with FeatureExtractionResearchEngine,
-        which invokes LiveAnalysisBrain and passes newborn_brain_report into ExecutionIntelligenceCore/Planner.
+        Test 1: Prove ResearchWorker._run_loop calls DEFAULT ResearchRuntime (no test-injected research engine),
+        which invokes LiveAnalysisBrain, passes newborn_brain_report into ExecutionIntelligenceCore/Planner,
+        and returns a decision proposal with decision_source = "BRAIN" and brain_report_consumed = True.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
@@ -47,11 +47,9 @@ class TestGate1BrainIntegration(unittest.TestCase):
         try:
             worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
             provider = ControlledDataProvider(base_price=2000.0, count=100)
-            base_engine = PrimitiveMarketResearchEngine(data_provider=provider)
-            feature_engine = FeatureExtractionResearchEngine(data_provider=provider, base_engine=base_engine)
+            # Default ResearchRuntime instantiates PrimitiveMarketResearchEngine internally
             runtime = ResearchRuntime(
                 provider=provider,
-                research_engine=feature_engine,
                 symbol="XAUUSD",
                 timeframe="H1",
                 provider_name="ControlledOfflineFixture"
@@ -76,7 +74,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
             self.assertEqual(len(saved_res), 1)
             res = saved_res[0]
 
-            # Verify LiveAnalysisBrain generated newborn_brain_report
+            # Verify LiveAnalysisBrain generated newborn_brain_report on default path
             self.assertIn("newborn_brain_report", res.Findings)
             nb_report = res.Findings["newborn_brain_report"]
             self.assertEqual(nb_report["symbol"], "XAUUSD")
@@ -97,20 +95,43 @@ class TestGate1BrainIntegration(unittest.TestCase):
                 p.stop()
             cleanup()
 
-    def test_planner_cannot_override_brain_wait_proposal(self):
+    def test_fail_closed_when_brain_report_missing(self):
         """
-        Test C (Negative Test): Inject Brain proposal = WAIT / AVOID under market conditions that would
+        Test 2: When newborn_brain_report is None or unconsumed, ExecutionIntelligencePlanner MUST fail closed
+        to action = "WAIT", decision = "NO_TRADE", and decision_source = "BRAIN_UNAVAILABLE", never manufacturing BUY/SELL.
+        """
+        planner = ExecutionIntelligencePlanner()
+        alignment = {"alignment": "BULLISH_CONTINUATION", "confidence": 95.0}
+        narrative = {"trend": "BULLISH", "state": "TRENDING"}
+
+        # Call generate_execution_plan WITHOUT newborn_brain_report
+        res = planner.generate_execution_plan(
+            symbol="XAUUSD",
+            timeframe="H1",
+            narrative=narrative,
+            liquidity={},
+            zones={},
+            alignment=alignment,
+            similarity={},
+            portfolio_risk={"approved": True},
+            current_price=2005.0,
+            newborn_brain_report=None
+        )
+        plan = res["plan"]
+        self.assertEqual(plan["action"], "WAIT")
+        self.assertEqual(plan["decision"], "NO_TRADE")
+        self.assertEqual(plan["decision_source"], "BRAIN_UNAVAILABLE")
+        self.assertFalse(plan["brain_report_consumed"])
+
+    def test_planner_cannot_override_brain_wait_or_avoid_proposal(self):
+        """
+        Test 3: Inject Brain proposal = WAIT / AVOID under market conditions that would
         otherwise trigger a BUY decision in legacy logic. Assert final decision CANNOT become BUY.
         """
         planner = ExecutionIntelligencePlanner()
-        candles = [{"open": 2000.0, "high": 2010.0, "low": 1990.0, "close": 2005.0} for _ in range(30)]
 
-        # Alignment indicating strong bullish environment
         alignment = {"alignment": "BULLISH_CONTINUATION", "confidence": 85.0}
         narrative = {"trend": "BULLISH", "state": "TRENDING"}
-        liquidity = {"latest_sweep": None}
-        zones = {"order_blocks": []}
-        similarity = {}
         portfolio_risk = {"approved": True}
 
         # 1. Test with Brain Proposal = WAIT
@@ -122,10 +143,10 @@ class TestGate1BrainIntegration(unittest.TestCase):
             symbol="XAUUSD",
             timeframe="H1",
             narrative=narrative,
-            liquidity=liquidity,
-            zones=zones,
+            liquidity={},
+            zones={},
             alignment=alignment,
-            similarity=similarity,
+            similarity={},
             portfolio_risk=portfolio_risk,
             current_price=2005.0,
             newborn_brain_report=brain_report_wait
@@ -133,6 +154,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
         plan_wait = res_wait["plan"]
         self.assertEqual(plan_wait["action"], "WAIT")
         self.assertEqual(plan_wait["decision"], "NO_TRADE")
+        self.assertEqual(plan_wait["decision_source"], "BRAIN")
         self.assertEqual(plan_wait["brain_suggested_action"], "WAIT")
 
         # 2. Test with Brain Proposal = AVOID
@@ -144,10 +166,10 @@ class TestGate1BrainIntegration(unittest.TestCase):
             symbol="XAUUSD",
             timeframe="H1",
             narrative=narrative,
-            liquidity=liquidity,
-            zones=zones,
+            liquidity={},
+            zones={},
             alignment=alignment,
-            similarity=similarity,
+            similarity={},
             portfolio_risk=portfolio_risk,
             current_price=2005.0,
             newborn_brain_report=brain_report_avoid
@@ -158,7 +180,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_causal_brain_proposal_data_flow(self):
         """
-        Test D: Prove causality by verifying that dynamically altering the Brain proposal
+        Test 4: Prove causality by verifying that dynamically altering the Brain proposal
         determines and constrains the final canonical decision proposal.
         """
         planner = ExecutionIntelligencePlanner()
@@ -191,7 +213,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_brain_cannot_directly_execute(self):
         """
-        Test E: Attempt direct broker execution from within Brain module scope and prove it is rejected.
+        Test 5: Attempt direct broker execution from within Brain module scope and prove it is rejected.
         """
         boundary_violations = []
 
@@ -249,7 +271,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_brain_replay_and_learning_cannot_execute(self):
         """
-        Test F: Exercise Brain cognitive replay and active learning loop and prove 0 execution calls occur.
+        Test 6: Exercise Brain cognitive replay and active learning loop and prove 0 execution calls occur.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
@@ -288,7 +310,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_downstream_execution_remains_downstream(self):
         """
-        Test G: Prove downstream execution is reached only via authorized downstream caller after safety gates.
+        Test 7: Prove downstream execution is reached only via authorized downstream caller after safety gates.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:

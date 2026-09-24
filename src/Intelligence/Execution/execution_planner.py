@@ -74,57 +74,27 @@ class ExecutionIntelligencePlanner:
         obs = zones.get("order_blocks", [])
         fvgs = zones.get("fair_value_gaps", [])
 
-        # Governance Invariant: When Brain report is consumed, Brain proposal constrains Planner
-        if brain_report_consumed:
-            if brain_suggested_action in ["WAIT", "AVOID"]:
-                action = brain_suggested_action
-            else:
-                # Brain proposed BUY or SELL: Planner validates against structural alignment and formats trade parameters
-                if brain_suggested_action == "BUY" and "BULLISH" in alignment.get("alignment", ""):
-                    action = "BUY"
-                    entry = current_price
-                    stop_loss = current_price - (current_price * 0.01) # fallback 1%
-                    if obs:
-                        bullish_obs = [ob for ob in obs if ob["type"] == "BULLISH_OB"]
-                        if bullish_obs:
-                            stop_loss = max(stop_loss, bullish_obs[0]["bottom"])
-
-                    take_profit = current_price + (current_price * 0.02) # fallback 2%
-                    resting_bsl = liquidity.get("resting_bsl", [])
-                    if resting_bsl:
-                        take_profit = resting_bsl[0]["level"]
-
-                elif brain_suggested_action == "SELL" and "BEARISH" in alignment.get("alignment", ""):
-                    action = "SELL"
-                    entry = current_price
-                    stop_loss = current_price + (current_price * 0.01)
-                    if obs:
-                        bearish_obs = [ob for ob in obs if ob["type"] == "BEARISH_OB"]
-                        if bearish_obs:
-                            stop_loss = min(stop_loss, bearish_obs[0]["top"])
-
-                    take_profit = current_price - (current_price * 0.02)
-                    resting_ssl = liquidity.get("resting_ssl", [])
-                    if resting_ssl:
-                        take_profit = resting_ssl[0]["level"]
-                else:
-                    action = "WAIT"
+        # Governance Invariant: Brain proposal is MANDATORY for BUY/SELL proposal generation.
+        # If Brain report is missing/unconsumed or proposes WAIT/AVOID -> Fail closed to WAIT/AVOID.
+        if not brain_report_consumed or brain_suggested_action in ["WAIT", "AVOID"]:
+            action = brain_suggested_action if brain_report_consumed else "WAIT"
         else:
-            # Fallback path when direct LiveAnalysisBrain report is not passed: evaluate structural alignment
-            if "BULLISH" in alignment.get("alignment", ""):
+            # Brain explicitly proposed BUY or SELL: Planner validates against structural alignment and formats trade parameters
+            if brain_suggested_action == "BUY" and "BULLISH" in alignment.get("alignment", ""):
                 action = "BUY"
                 entry = current_price
-                stop_loss = current_price - (current_price * 0.01)
+                stop_loss = current_price - (current_price * 0.01) # fallback 1%
                 if obs:
                     bullish_obs = [ob for ob in obs if ob["type"] == "BULLISH_OB"]
                     if bullish_obs:
                         stop_loss = max(stop_loss, bullish_obs[0]["bottom"])
 
-                take_profit = current_price + (current_price * 0.02)
+                take_profit = current_price + (current_price * 0.02) # fallback 2%
                 resting_bsl = liquidity.get("resting_bsl", [])
                 if resting_bsl:
                     take_profit = resting_bsl[0]["level"]
-            elif "BEARISH" in alignment.get("alignment", ""):
+
+            elif brain_suggested_action == "SELL" and "BEARISH" in alignment.get("alignment", ""):
                 action = "SELL"
                 entry = current_price
                 stop_loss = current_price + (current_price * 0.01)
@@ -137,6 +107,8 @@ class ExecutionIntelligencePlanner:
                 resting_ssl = liquidity.get("resting_ssl", [])
                 if resting_ssl:
                     take_profit = resting_ssl[0]["level"]
+            else:
+                action = "WAIT"
 
         # Strategy identity is strictly Multi-Timeframe Continuous Market Intelligence Core
         selected_strategy_name = "Multi-Timeframe Continuous Market Intelligence"
@@ -182,7 +154,7 @@ class ExecutionIntelligencePlanner:
             "plan": {
                 "action": action,
                 "decision": decision_state,
-                "decision_source": "BRAIN",
+                "decision_source": "BRAIN" if brain_report_consumed else "BRAIN_UNAVAILABLE",
                 "brain_suggested_action": brain_suggested_action,
                 "brain_report_consumed": brain_report_consumed,
                 "strategy": selected_strategy_name,
