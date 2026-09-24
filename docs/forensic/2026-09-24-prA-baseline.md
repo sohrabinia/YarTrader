@@ -1,12 +1,15 @@
-# YarTrader CTO Forensic Baseline Audit Report (PR #306 Final Micro-Remediation)
+# YarTrader CTO Forensic Baseline Audit Report (PR #306 Final Pass Remediation)
 
-**Audit Date**: 2026-09-24 02:12:00 UTC
+**Audit Date**: 2026-09-24 02:15:00 UTC
 **Auditor**: Implementation Engineer under Strict CTO Forensic Review
 **Task Phase**: PR #306 Final Micro-Remediation (PR-A Forensic Baseline & Safety Proof)
-**PR Context**: PR #306 (`sohrabinia/YarTrader`)
+**Repository**: `sohrabinia/YarTrader`
+**PR Number**: `#306`
+**Branch**: `jules-3207901711622974808-ab4b4cb5`
+**PR HEAD SHA**: `ad3753a30b81ba1040866ffec25931afcc1c9c5a`
 **Base SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
-**Merge-Base**: `e6af8503767618e2279810862ce7a435d6a74753`
-**Target Scope**: Real Offline Boundary Instrumentation, Actual ResearchWorker Entrypoint, Per-Indicator Interceptor Breakdown, Execution Boundary Inventory, Safety Invariants
+**Merge-Base SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
+**origin/main SHA**: `42948aa61cd70d885df315524083317d60a50555`
 
 ---
 
@@ -14,10 +17,15 @@
 
 This final forensic baseline audit report establishes the authoritative architectural runtime state for PR #306. All micro-remediation requirements have been fully addressed and verified through deterministic runtime proofs:
 
-1. **True Fail-Closed Offline Boundary (Real Instrumentation)**: Remediated `ResearchRuntime._log_evidence()` and `ResearchWorker._run_loop()` to evaluate provider name dynamically. When `ControlledOfflineFixture` is active, the runtime logs `ControlledOfflineFixture Connected (100% Offline)` instead of legacy `"MT5 Connected"`. Active interception hooks monitor MT5 API access, broker execution adapters, network sockets, and sensitive credential reads (`MT5_PASSWORD`, `OPERATOR_OWNER_TOKEN`, etc.). Active instrumentation measured: **0 MT5 external attempts, 0 broker external attempts, 0 network attempts, 0 credential/secret attempts**.
+1. **True Fail-Closed Offline Boundary (Real Instrumentation)**: Remediated `ResearchRuntime._log_evidence()` and `ResearchWorker._run_loop()` to evaluate provider name dynamically. When `ControlledOfflineFixture` is active, the runtime logs `ControlledOfflineFixture Connected (100% Offline)` instead of legacy `"MT5 Connected"`. Active interception hooks monitor MT5 API access, broker execution adapters, network sockets, and sensitive credential reads (`MT5_PASSWORD`, `OPERATOR_OWNER_TOKEN`, etc.). Active instrumentation measured:
+   - **MT5 external attempts: 0**
+   - **External broker attempts: 0**
+   - **Network attempts: 0**
+   - **Credential/secret attempts: 0**
+   - **Authorized in-process execution-boundary interceptions: 1**
 2. **Actual Canonical Live Runtime Entrypoint**: Both forensic guard tests enter directly through the actual production `ResearchWorker._run_loop()` entrypoint, executing the full live decision path through `ResearchRuntime`, `PrimitiveMarketResearchEngine`, `ExecutionIntelligenceCore`, `ExecutionIntelligencePlanner`, and `ResearchWorker._validate_and_size_decision()`.
 3. **Per-Indicator Interceptor Breakdown**: Intercepts `TechnicalAnalysisEngine.analyze`, `MomentumAnalysisEngine.analyze`, and feature calculators across top-level and local/lazy imports, aliases, and wrappers. Proves the canonical live decision path executes with **0 forbidden indicator executions** (RSI: 0, ATR: 0, SMA: 0, EMA: 0, MACD: 0, Bollinger: 0, ADX: 0, Stochastic: 0, CCI: 0).
-4. **Brain Execution Authority Guard & Boundary Inventory**: Performed full source inventory of all 7 execution boundaries across `src/Execution/` (`execute_demo_decision`, `close_position`, `send_order_to_broker`, `submit_order_request`, `execute_eod_flattening`). Stack-trace frame inspection evaluates module namespace (`frame.f_globals["__name__"]`) and file paths to prove Brain components operate strictly as upstream intelligence proposal generators with zero direct broker execution authority. Tested and verified downstream execution boundary calls from authorized callers.
+4. **Brain Execution Authority Guard & Boundary Inventory**: Performed full source inventory of all 7 execution boundaries across `src/Execution/` (`execute_demo_decision`, `close_position`, `send_order_to_broker`, `submit_order_request`, `execute_eod_flattening`). Stack-trace frame inspection evaluates module namespace (`frame.f_globals["__name__"]`) and file paths to prove Brain components operate strictly as upstream intelligence proposal generators with zero direct broker execution authority. Direct unauthorized Brain execution attempts are caught and blocked (`BLOCKED/PASS`).
 5. **Full Test Evidence Integrity**: Included exact commands and complete raw output summaries for both the forensic guard marker (`pytest -m forensic_guard`) and the entire repository test suite (`python3 -m pytest tests/` -> 1924 passed).
 6. **Brain Architecture & Shadow Preserved**: 100% of existing Brain (`src/Research/Brain/`) and Shadow (`src/ShadowTrading/`) code is preserved without deletion or parallel duplication.
 
@@ -30,8 +38,8 @@ This final forensic baseline audit report establishes the authoritative architec
 - **Current Branch**: `jules-3207901711622974808-ab4b4cb5`
 - **Base SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
 - **Merge-Base SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
-- **origin/main SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
-- **Audit Date/Time**: `2026-09-24 02:12:00 UTC`
+- **origin/main SHA**: `42948aa61cd70d885df315524083317d60a50555`
+- **Audit Timestamp**: `2026-09-24 02:15:00 UTC`
 
 ---
 
