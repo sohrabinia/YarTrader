@@ -63,7 +63,7 @@ def enforce_offline_boundary():
     lazy import or execution call to MetaTrader5, network sockets, broker adapters, or live credentials.
     """
     mt5_calls = []
-    broker_calls = []
+    broker_external_attempts = []
     network_calls = []
     credential_reads = []
 
@@ -74,6 +74,13 @@ def enforce_offline_boundary():
         def mock_func(*args, **kwargs):
             err_msg = f"UNAUTHORIZED_OFFLINE_VIOLATION: Live MT5 {method_name} attempted during forensic test"
             mt5_calls.append(method_name)
+            raise AssertionError(err_msg)
+        return mock_func
+
+    def intercept_broker_external_call(method_name):
+        def mock_func(*args, **kwargs):
+            err_msg = f"UNAUTHORIZED_OFFLINE_VIOLATION: External broker method {method_name} attempted during forensic test"
+            broker_external_attempts.append(method_name)
             raise AssertionError(err_msg)
         return mock_func
 
@@ -104,6 +111,22 @@ def enforce_offline_boundary():
         patch("os.getenv", side_effect=intercept_getenv)
     ]
 
+    # Intercept external broker adapter methods
+    from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
+    patches.append(patch.object(RealMT5BrokerAdapter, "send_order_to_broker", side_effect=intercept_broker_external_call("RealMT5BrokerAdapter.send_order_to_broker")))
+
+    try:
+        from src.Execution.Adapters.mt4_adapter import RealMT4BrokerAdapter
+        patches.append(patch.object(RealMT4BrokerAdapter, "send_order_to_broker", side_effect=intercept_broker_external_call("RealMT4BrokerAdapter.send_order_to_broker")))
+    except ImportError:
+        pass
+
+    try:
+        from src.Execution.Services.order_lifecycle_manager import OrderLifecycleManager
+        patches.append(patch.object(OrderLifecycleManager, "submit_order_request", side_effect=intercept_broker_external_call("OrderLifecycleManager.submit_order_request")))
+    except ImportError:
+        pass
+
     try:
         import requests
         def intercept_requests(*args, **kwargs):
@@ -126,7 +149,7 @@ def enforce_offline_boundary():
         if orig_mt5 is not None:
             sys.modules["MetaTrader5"] = orig_mt5
 
-    return patches, mt5_calls, broker_calls, network_calls, credential_reads, cleanup
+    return patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup
 
 
 @pytest.mark.forensic_guard
@@ -185,7 +208,7 @@ class TestIndicatorForensicGuard(unittest.TestCase):
             pass
 
         # Install strict offline boundary guard
-        boundary_patches, mt5_calls, broker_calls, network_calls, credential_reads, cleanup = enforce_offline_boundary()
+        boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         patches.extend(boundary_patches)
 
         for p in patches:
@@ -220,7 +243,7 @@ class TestIndicatorForensicGuard(unittest.TestCase):
             total_indicator_executions = sum(indicator_counts.values())
             self.assertEqual(total_indicator_executions, 0, f"Forbidden indicators executed: {indicator_counts}")
             self.assertEqual(len(mt5_calls), 0)
-            self.assertEqual(len(broker_calls), 0)
+            self.assertEqual(len(broker_external_attempts), 0)
             self.assertEqual(len(network_calls), 0)
             self.assertEqual(len(credential_reads), 0)
 
@@ -228,7 +251,7 @@ class TestIndicatorForensicGuard(unittest.TestCase):
             print(f"\n[FORENSIC_GUARD_1_EVIDENCE]:")
             print(f"Provider: ControlledOfflineFixture")
             print(f"MT5 external attempts: {len(mt5_calls)}")
-            print(f"Broker external attempts: {len(broker_calls)}")
+            print(f"Broker external attempts: {len(broker_external_attempts)}")
             print(f"Network attempts: {len(network_calls)}")
             print(f"Credential/secret attempts: {len(credential_reads)}")
             print(f"Actual ResearchWorker entrypoint exercised: ResearchWorker._run_loop()")
@@ -296,22 +319,9 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
 
         patches.append(patch.object(DemoExecutionEngine, "execute_demo_decision", side_effect=execution_boundary_interceptor("execute_demo_decision")))
         patches.append(patch.object(DemoExecutionEngine, "close_position", side_effect=execution_boundary_interceptor("close_position")))
-        patches.append(patch.object(RealMT5BrokerAdapter, "send_order_to_broker", side_effect=execution_boundary_interceptor("send_order_to_broker")))
-
-        try:
-            from src.Execution.Adapters.mt4_adapter import RealMT4BrokerAdapter
-            patches.append(patch.object(RealMT4BrokerAdapter, "send_order_to_broker", side_effect=execution_boundary_interceptor("send_order_to_broker")))
-        except ImportError:
-            pass
-
-        try:
-            from src.Execution.Services.order_lifecycle_manager import OrderLifecycleManager
-            patches.append(patch.object(OrderLifecycleManager, "submit_order_request", side_effect=execution_boundary_interceptor("submit_order_request")))
-        except ImportError:
-            pass
 
         # Install strict offline boundary guard
-        boundary_patches, mt5_calls, broker_calls, network_calls, credential_reads, cleanup = enforce_offline_boundary()
+        boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         patches.extend(boundary_patches)
 
         for p in patches:
@@ -338,7 +348,7 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
 
             # Record external boundary attempts during ResearchWorker decision loop
             canonical_mt5_attempts = len(mt5_calls)
-            canonical_broker_attempts = len(broker_calls)
+            canonical_broker_external_attempts = len(broker_external_attempts)
             canonical_network_attempts = len(network_calls)
             canonical_credential_attempts = len(credential_reads)
 
@@ -410,7 +420,7 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
             print(f"\n[FORENSIC_GUARD_2_EVIDENCE]:")
             print(f"Provider: ControlledOfflineFixture")
             print(f"MT5 external attempts: {canonical_mt5_attempts}")
-            print(f"Broker external attempts: {canonical_broker_attempts}")
+            print(f"Broker external attempts: {canonical_broker_external_attempts}")
             print(f"Network attempts: {canonical_network_attempts}")
             print(f"Credential/secret attempts: {canonical_credential_attempts}")
             print(f"Authorized in-process execution-boundary interceptions: {len(authorized_boundary_interceptions)}")
