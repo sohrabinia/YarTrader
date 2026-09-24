@@ -116,7 +116,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             Comment="order_check failed retcode=10013"
         )
         engine = DemoExecutionEngine(adapter=self.mock_adapter, demo_mode=True)
-        resp = engine.execute_demo_decision("XAUUSD", "BUY", 0.01, price=2350.0, sl=2340.0, tp=2370.0)
+        resp = engine.execute_demo_decision("XAUUSD", "BUY", 0.01, price=2350.0, sl=2340.0, tp=2370.0, decision_id="DEC-TEST-008")
         self.assertEqual(resp.Status, "Failed")
 
     def test_09_disconnected_terminal_fails_closed(self):
@@ -207,7 +207,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
                 }
             }
             mock_runtime.run_once.return_value = mock_run_res
-            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
             worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
             worker.is_running = True
@@ -268,7 +268,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
                 }
             }
             mock_runtime.run_once.return_value = mock_run_res
-            mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+            mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
             worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
             worker.is_running = True
@@ -347,7 +347,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             }
         }
         mock_runtime.run_once.side_effect = [initial_run_res, reassess_run_res]
-        mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+        mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
         worker.runtimes[("XAUUSD", "H1")] = mock_runtime
 
         worker.is_running = True
@@ -368,6 +368,137 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         self.assertEqual(mock_demo.execute_demo_decision.call_args[1]["volume"], 0.85)
         # Verify state was NOT mutated because execution Status was 'Failed'
         self.assertNotIn("XAUUSD", worker.last_executed_signal)
+
+    @patch("time.sleep", return_value=None)
+    def test_16_healthy_mt5_health_object_allows_worker_run(self, mock_sleep):
+        """Test 16: MT5ConnectionHealth object reporting connected=True allows run_once to proceed."""
+        from app.workers.research_worker import ResearchWorker
+        from src.Data.Providers.MT5.mt5 import MT5ConnectionHealth
+
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+        mock_runtime = MagicMock()
+        mock_run_res = MagicMock()
+        mock_run_res.Request.EndTime = None
+        mock_run_res.Findings = {"autonomous_decision": {"action": "WAIT"}}
+        mock_runtime.run_once.return_value = mock_run_res
+
+        # Return actual MT5ConnectionHealth object
+        mock_runtime.provider.delegate.get_connection_health.return_value = MT5ConnectionHealth(
+            connected=True, server="Alpari-MT5-Demo", ping_ms=15.0, last_error=None
+        )
+        worker.runtimes[("XAUUSD", "H1")] = mock_runtime
+
+        worker.is_running = True
+        def stop_after_one(*args, **kwargs):
+            if not hasattr(stop_after_one, "called"):
+                stop_after_one.called = True
+                return [("XAUUSD", "H1", "Commodities", "MT5")]
+            worker.is_running = False
+            return [("XAUUSD", "H1", "Commodities", "MT5")]
+
+        with patch.object(worker, "_get_active_matrix", side_effect=stop_after_one):
+            worker._run_loop()
+
+        self.assertEqual(mock_runtime.run_once.call_count, 1)
+
+    @patch("time.sleep", return_value=None)
+    def test_17_disconnected_mt5_health_object_blocks_worker_run_and_records_diagnostic(self, mock_sleep):
+        """Test 17: Disconnected MT5ConnectionHealth object blocks run_once and records MT5_DISCONNECTED."""
+        from app.workers.research_worker import ResearchWorker
+        from src.Data.Providers.MT5.mt5 import MT5ConnectionHealth
+
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+        mock_runtime = MagicMock()
+
+        # Return disconnected MT5ConnectionHealth object
+        mock_runtime.provider.delegate.get_connection_health.return_value = MT5ConnectionHealth(
+            connected=False, server="Alpari-MT5-Demo", ping_ms=0.0, last_error="Connection lost"
+        )
+        worker.runtimes[("XAUUSD", "H1")] = mock_runtime
+
+        worker.is_running = True
+        def stop_after_one(*args, **kwargs):
+            if not hasattr(stop_after_one, "called"):
+                stop_after_one.called = True
+                return [("XAUUSD", "H1", "Commodities", "MT5")]
+            worker.is_running = False
+            return [("XAUUSD", "H1", "Commodities", "MT5")]
+
+        with patch.object(worker, "_get_active_matrix", side_effect=stop_after_one):
+            worker._run_loop()
+
+        self.assertEqual(mock_runtime.run_once.call_count, 0)
+        diag = worker.last_diagnostic_status
+        self.assertIsNotNone(diag)
+        self.assertEqual(diag["reason_code"], "MT5_DISCONNECTED")
+
+    @patch("time.sleep", return_value=None)
+    def test_18_mt5_health_check_exception_blocks_worker_run_and_records_diagnostic(self, mock_sleep):
+        """Test 18: Exception during get_connection_health blocks run_once and records MT5_DISCONNECTED."""
+        from app.workers.research_worker import ResearchWorker
+
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+        mock_runtime = MagicMock()
+        mock_runtime.provider.delegate.get_connection_health.side_effect = RuntimeError("IPC Socket Error")
+        worker.runtimes[("XAUUSD", "H1")] = mock_runtime
+
+        worker.is_running = True
+        def stop_after_one(*args, **kwargs):
+            if not hasattr(stop_after_one, "called"):
+                stop_after_one.called = True
+                return [("XAUUSD", "H1", "Commodities", "MT5")]
+            worker.is_running = False
+            return [("XAUUSD", "H1", "Commodities", "MT5")]
+
+        with patch.object(worker, "_get_active_matrix", side_effect=stop_after_one):
+            worker._run_loop()
+
+        self.assertEqual(mock_runtime.run_once.call_count, 0)
+        diag = worker.last_diagnostic_status
+        self.assertIsNotNone(diag)
+        self.assertEqual(diag["reason_code"], "MT5_DISCONNECTED")
+        self.assertIn("IPC Socket Error", diag["details"])
+
+    @patch("time.sleep", return_value=None)
+    def test_19_symbol_registry_failure_returns_empty_matrix_and_records_diagnostic(self, mock_sleep):
+        """Test 19: SymbolRegistry failure causes _get_active_matrix to return [] and record REGISTRY_UNAVAILABLE."""
+        from app.workers.research_worker import ResearchWorker
+
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+
+        with patch("src.ShadowTrading.Engine.SymbolRegistry.SymbolRegistry.get_instance", side_effect=RuntimeError("Registry Config Corrupt")):
+            matrix = worker._get_active_matrix()
+            self.assertEqual(matrix, [])
+            diag = worker.last_diagnostic_status
+            self.assertIsNotNone(diag)
+            self.assertEqual(diag["reason_code"], "REGISTRY_UNAVAILABLE")
+            self.assertIn("Registry Config Corrupt", diag["details"])
+
+    def test_20_record_non_trade_event_stores_and_returns_full_diagnostic(self):
+        """Test 20: _record_non_trade_event creates structured machine-readable diagnostic status."""
+        from app.workers.research_worker import ResearchWorker, get_last_worker_diagnostic_status
+
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+        diag = worker._record_non_trade_event(
+            symbol="XAUUSD",
+            timeframe="H1",
+            reason_code="DAILY_LOSS_LIMIT",
+            details="Daily account drawdown reached 8.5%",
+            cycle_id="cyc-001",
+            decision_id="dec-001",
+            connection_state="HEALTHY",
+            decision_action="BUY",
+            risk_state="REJECTED",
+            execution_state="SKIPPED"
+        )
+
+        self.assertEqual(diag["reason_code"], "DAILY_LOSS_LIMIT")
+        self.assertEqual(diag["symbol"], "XAUUSD")
+        self.assertEqual(diag["timeframe"], "H1")
+        self.assertEqual(diag["decision_action"], "BUY")
+        self.assertEqual(diag["risk_state"], "REJECTED")
+        self.assertEqual(worker.get_last_diagnostic_status(), diag)
+        self.assertEqual(get_last_worker_diagnostic_status(), diag)
 
 
 class TestAutonomousDemoExecutionGate(unittest.TestCase):
@@ -445,7 +576,7 @@ class TestAutonomousDemoExecutionGate(unittest.TestCase):
             }
         }
         mock_runtime.run_once.return_value = mock_run_res
-        mock_runtime.provider.delegate.get_connection_health.return_value = {"status": "HEALTHY"}
+        mock_runtime.provider.delegate.get_connection_health.return_value = {"connected": True, "status": "HEALTHY"}
         worker.runtimes[("EURUSD", "H1")] = mock_runtime
 
         worker.is_running = True

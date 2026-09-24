@@ -44,7 +44,7 @@ class DemoExecutionEngine:
         from src.Application.Deployment.storage import YarTraderStorageManager
         storage_mgr = YarTraderStorageManager.get_manager()
 
-        if not log_dir or not os.isabs(log_dir):
+        if not log_dir or not os.path.isabs(log_dir):
             sub_dir = log_dir if log_dir else "demo_execution"
             sub_folder = os.path.basename(sub_dir) if ("/" in sub_dir or "\\" in sub_dir) else sub_dir
             self.log_dir = os.path.join(storage_mgr.get_log_dir(), sub_folder)
@@ -63,11 +63,16 @@ class DemoExecutionEngine:
         tp: Optional[float] = None,
         comment: str = "YarTrader DEMO Execution",
         magic: int = 143056,
-        decision_id: str = "DEC-DEMO-001"
+        decision_id: Optional[str] = None,
+        parent_decision_id: Optional[str] = None
     ) -> OrderResponse:
         """
         Translates strategy decision into OrderRequest, passes DemoExecutionGate, and executes on MT5 DEMO.
+        Enforces explicit, immutable decision_id requirement fail-closed.
         """
+        if not decision_id or not str(decision_id).strip():
+            raise ValidationException("DemoExecutionEngine: Execution rejected fail-closed due to missing or empty decision_id.")
+
         timestamp = datetime.now(timezone.utc).isoformat()
 
         req = OrderRequest(
@@ -84,6 +89,7 @@ class DemoExecutionEngine:
         evidence = {
             "timestamp": timestamp,
             "decision_id": decision_id,
+            "parent_decision_id": parent_decision_id,
             "symbol": symbol.upper(),
             "direction": direction.upper(),
             "volume": float(volume),
@@ -127,7 +133,7 @@ class DemoExecutionEngine:
             if response.Retcode == 10018:
                 evidence["retcode_classification"] = "MARKET_CLOSED"
                 evidence["rejection_reason"] = "Market is closed (10018 MARKET_CLOSED). Recovering safely."
-            elif response.Retcode == 10009:
+            elif response.Retcode in [10009, 10008, 10010]:
                 evidence["retcode_classification"] = "SUCCESS"
             elif response.Retcode == 10013:
                 evidence["retcode_classification"] = "INVALID_STOPS"
@@ -139,6 +145,48 @@ class DemoExecutionEngine:
                 evidence["retcode_classification"] = "NO_CONNECTION"
             else:
                 evidence["retcode_classification"] = f"RETCODE_{response.Retcode}"
+
+            if response.Retcode in [10009, 10008, 10010] or response.Status in ["Placed", "Closed", "Executed", "OK", "Success"]:
+                try:
+                    from src.Execution.Services.trade_journal import TradeJournalManager, TradeJournalRecord
+                    journal_mgr = TradeJournalManager.get_instance()
+                    ticket_str = str(response.OrderId) if response.OrderId else "0"
+                    deal_str = str(response.DealTicket) if response.DealTicket else "0"
+                    rec = TradeJournalRecord(
+                        decision_id=decision_id,
+                        parent_decision_id=parent_decision_id,
+                        trade_id=f"trade-{ticket_str}",
+                        cycle_id=f"cycle-{decision_id}",
+                        symbol=symbol.upper(),
+                        timeframe="H1",
+                        direction=direction.upper(),
+                        planned_entry=float(price) if price is not None else 0.0,
+                        planned_sl=float(sl) if sl is not None else 0.0,
+                        planned_tp=float(tp) if tp is not None else 0.0,
+                        planned_rr=0.0,
+                        actual_entry=float(response.Price) if hasattr(response, "Price") and response.Price else (float(price) if price is not None else 0.0),
+                        actual_exit=0.0,
+                        volume=float(volume),
+                        confidence=0.0,
+                        reasoning=[],
+                        evidence=evidence,
+                        order_ticket=ticket_str,
+                        deal_ticket=deal_str,
+                        open_time=timestamp,
+                        close_time="",
+                        exit_reason="",
+                        pnl=0.0,
+                        pnl_percent=0.0,
+                        mfe=0.0,
+                        mae=0.0,
+                        duration=0.0,
+                        market_regime="UNKNOWN",
+                        result="PENDING",
+                        configuration_version="1.0.0"
+                    )
+                    journal_mgr.add_record(rec)
+                except Exception as j_err:
+                    logger.warning(f"[DemoExecutionEngine] Could not add record to TradeJournal: {j_err}")
 
             self._log_evidence(evidence)
             return response
@@ -172,7 +220,8 @@ class DemoExecutionEngine:
         volume: Optional[float] = None,
         comment: str = "YarTrader Close",
         open_timestamp: Optional[float] = None,
-        is_eod_flatten: bool = False
+        is_eod_flatten: bool = False,
+        exit_reason: str = "MANUAL"
     ) -> OrderResponse:
         """
         Submits CLOSE request for position ticket using authoritative broker-reported volume.
@@ -292,7 +341,84 @@ class DemoExecutionEngine:
             )
 
         logger.info(f"[DemoExecutionEngine] Position {position_ticket} close CONFIRMED on broker.")
+        try:
+            self._process_closed_position_journal_and_evaluator(symbol, position_ticket, response, exit_reason)
+        except Exception as proc_err:
+            logger.error(f"[DemoExecutionEngine] Error processing journal and evaluator for ticket {position_ticket}: {proc_err}")
         return response
+
+    def _process_closed_position_journal_and_evaluator(
+        self,
+        symbol: str,
+        position_ticket: int,
+        close_response: OrderResponse,
+        exit_reason: str = "MANUAL"
+    ) -> None:
+        """
+        Derives outcome facts from authoritative MT5 broker history APIs, updates TradeJournalRecord,
+        and invokes TradeEvaluator.evaluate_demo_trade_outcome().
+        """
+        ticket_str = str(position_ticket)
+        trade_id = f"trade-{ticket_str}"
+        close_ts = datetime.now(timezone.utc).isoformat()
+
+        deals = []
+        try:
+            if hasattr(self.adapter, "get_history_deals"):
+                deals = self.adapter.get_history_deals(position=position_ticket) or []
+        except Exception as d_err:
+            logger.warning(f"[DemoExecutionEngine] Exception querying history deals for ticket {position_ticket}: {d_err}")
+
+        entry_deal = None
+        exit_deal = None
+        total_pnl = 0.0
+
+        for d in deals:
+            entry_type = d.get("entry")
+            if entry_type == 0:  # DEAL_ENTRY_IN
+                entry_deal = d
+            elif entry_type == 1:  # DEAL_ENTRY_OUT
+                exit_deal = d
+                total_pnl += float(d.get("profit", 0.0)) + float(d.get("swap", 0.0)) + float(d.get("commission", 0.0))
+
+        actual_entry = float(entry_deal.get("price", 0.0)) if entry_deal else 0.0
+        actual_exit = float(exit_deal.get("price", 0.0)) if exit_deal else (float(close_response.Price) if close_response and close_response.Price else 0.0)
+        deal_ticket = str(exit_deal.get("ticket", close_response.DealTicket if close_response else "0")) if exit_deal else str(close_response.DealTicket if close_response else "0")
+
+        if exit_deal and "time" in exit_deal:
+            dt = datetime.fromtimestamp(exit_deal["time"], tz=timezone.utc)
+            close_ts = dt.isoformat()
+
+        from src.Execution.Services.trade_journal import TradeJournalManager, TradeJournalRecord
+        journal_mgr = TradeJournalManager.get_instance()
+
+        target_record = None
+        for r in journal_mgr.get_all_records():
+            if r.trade_id == trade_id or r.order_ticket == ticket_str:
+                target_record = r
+                break
+
+        result_str = "WIN" if total_pnl > 0 else ("LOSS" if total_pnl < 0 else "BREAKEVEN")
+
+        if target_record:
+            if actual_entry > 0 and target_record.actual_entry == 0.0:
+                target_record.actual_entry = actual_entry
+            if actual_exit > 0:
+                target_record.actual_exit = actual_exit
+            target_record.close_time = close_ts
+            target_record.pnl = total_pnl
+            if target_record.actual_entry > 0 and target_record.volume > 0:
+                target_record.pnl_percent = (total_pnl / (target_record.actual_entry * target_record.volume)) * 100.0
+            target_record.exit_reason = exit_reason
+            target_record.result = result_str
+            target_record.deal_ticket = deal_ticket
+            journal_mgr.update_record(target_record)
+
+            from src.ShadowTrading.Services.TradeEvaluator import TradeEvaluator
+            evaluator = TradeEvaluator.get_instance()
+            evaluator.evaluate_demo_trade_outcome(target_record)
+        else:
+            logger.warning(f"[DemoExecutionEngine] Closed position ticket {position_ticket} has no corresponding open TradeJournalRecord. Evaluation skipped fail-closed (INSUFFICIENT_EVIDENCE).")
 
     def _log_evidence(self, evidence: Dict[str, Any]) -> None:
         """Writes execution telemetry safely to disk without exposing credentials."""
