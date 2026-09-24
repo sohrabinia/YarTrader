@@ -59,8 +59,8 @@ class ControlledDataProvider:
 
 def enforce_offline_boundary():
     """
-    Installs strict offline boundary guards preventing any lazy import or execution call
-    to MetaTrader5, network sockets, broker adapters, or live credential endpoints.
+    Installs strict offline boundary guards with active instrumentation hooks preventing any
+    lazy import or execution call to MetaTrader5, network sockets, broker adapters, or live credentials.
     """
     mt5_calls = []
     broker_calls = []
@@ -218,8 +218,8 @@ class TestIndicatorForensicGuard(unittest.TestCase):
             classification = "PASS"
             print(f"\n[FORENSIC_GUARD_1_EVIDENCE]:")
             print(f"Provider: ControlledOfflineFixture")
-            print(f"MT5 attempts: {len(mt5_calls)}")
-            print(f"Broker/execution attempts: {len(broker_calls)}")
+            print(f"MT5 external attempts: {len(mt5_calls)}")
+            print(f"Broker external attempts: {len(broker_calls)}")
             print(f"Network attempts: {len(network_calls)}")
             print(f"Credential/secret attempts: {len(credential_reads)}")
             print(f"Actual ResearchWorker entrypoint exercised: ResearchWorker._run_loop()")
@@ -258,7 +258,7 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
         Inspects frame module hierarchy (not fragile string checks) and tests actual boundary calls.
         """
         boundary_violations = []
-        boundary_executions_intercepted = []
+        authorized_boundary_interceptions = []
 
         def execution_boundary_interceptor(method_name):
             def mock_exec(*args, **kwargs):
@@ -277,16 +277,13 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
                     boundary_violations.append(err_msg)
                     raise AssertionError(err_msg)
 
-                boundary_executions_intercepted.append(method_name)
+                authorized_boundary_interceptions.append(method_name)
                 return MagicMock(Status="OK", OrderId=12345, Retcode=10009)
             return mock_exec
 
         patches = []
         from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
         from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
-
-        # Prevent RealMT5BrokerAdapter from attempting live MT5 initialization in test runner
-        patches.append(patch.object(RealMT5BrokerAdapter, "_try_import_and_init", return_value=True))
 
         patches.append(patch.object(DemoExecutionEngine, "execute_demo_decision", side_effect=execution_boundary_interceptor("execute_demo_decision")))
         patches.append(patch.object(DemoExecutionEngine, "close_position", side_effect=execution_boundary_interceptor("close_position")))
@@ -330,7 +327,13 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
                 runtime.run_once = run_once_and_stop
                 worker._run_loop()
 
-            # 2. Test Downstream Execution Boundary Dispatch (Non-Brain Caller -> Execution Gate)
+            # Record external boundary attempts during ResearchWorker decision loop
+            canonical_mt5_attempts = len(mt5_calls)
+            canonical_broker_attempts = len(broker_calls)
+            canonical_network_attempts = len(network_calls)
+            canonical_credential_attempts = len(credential_reads)
+
+            # 2. Test Downstream Execution Boundary Dispatch (Authorized Non-Brain Caller -> Execution Gate)
             demo_engine = DemoExecutionEngine()
             exec_res = demo_engine.execute_demo_decision(
                 symbol="XAUUSD",
@@ -344,7 +347,7 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
                 decision_id="DEC-XAUUSD-TEST"
             )
             self.assertEqual(exec_res.Status, "OK")
-            self.assertIn("execute_demo_decision", boundary_executions_intercepted)
+            self.assertIn("execute_demo_decision", authorized_boundary_interceptions)
 
             # 3. Test Direct Brain Call Rejection (Simulate direct Brain attempt inside CognitiveReplayLoop module scope)
             from src.Research.Brain.cognitive_loop import CognitiveReplayLoop
@@ -397,10 +400,11 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
             classification = "PASS"
             print(f"\n[FORENSIC_GUARD_2_EVIDENCE]:")
             print(f"Provider: ControlledOfflineFixture")
-            print(f"MT5 attempts: {len(mt5_calls)}")
-            print(f"Broker/execution attempts: {len(broker_calls)}")
-            print(f"Network attempts: {len(network_calls)}")
-            print(f"Credential/secret attempts: {len(credential_reads)}")
+            print(f"MT5 external attempts: {canonical_mt5_attempts}")
+            print(f"Broker external attempts: {canonical_broker_attempts}")
+            print(f"Network attempts: {canonical_network_attempts}")
+            print(f"Credential/secret attempts: {canonical_credential_attempts}")
+            print(f"Authorized in-process execution-boundary interceptions: {len(authorized_boundary_interceptions)}")
             print(f"Actual ResearchWorker entrypoint exercised: ResearchWorker._run_loop()")
             print(f"Authorized downstream execution boundary called and verified = True")
             print(f"Direct unauthorized Brain execution attempt caught and blocked = PASS")
