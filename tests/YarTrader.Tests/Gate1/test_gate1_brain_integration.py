@@ -12,6 +12,8 @@ from src.Application.Runtime.research_runtime import ResearchRuntime
 from app.workers.research_worker import ResearchWorker
 from src.Intelligence.Execution.core import ExecutionIntelligenceCore
 from src.Intelligence.Execution.execution_planner import ExecutionIntelligencePlanner
+from src.Research.MarketAnalysis.Services.services import PrimitiveMarketResearchEngine
+from src.Application.Runtime.runtime_state import central_runtime_state
 
 # Import ControlledDataProvider and enforce_offline_boundary via path lookup
 forensic_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Forensic"))
@@ -25,7 +27,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
     """
     Focused Gate 1 Test Suite validating Canonical Brain Integration.
     Proves:
-    - Test 1: Real Production Path — ResearchWorker._run_loop() creates actual ResearchRuntime using internal _get_or_create_runtime() (NO runtime patching), which invokes LiveAnalysisBrain, passes newborn_brain_report to ExecutionIntelligenceCore/Planner, and returns a proposal with decision_source = "BRAIN".
+    - Test 1: Real Production Path — ResearchWorker._run_loop() calls real _get_or_create_runtime() with ZERO pre-population, ZERO patching of _get_or_create_runtime, and ZERO patching of ResearchRuntime.run_once(). Verifies real PrimitiveMarketResearchEngine invokes LiveAnalysisBrain, passes newborn_brain_report to ExecutionIntelligenceCore/Planner, and returns a proposal with decision_source = "BRAIN".
     - Test 2: Explicit Fail-Closed Exception Handling — When LiveAnalysisBrain raises an unexpected exception, PrimitiveMarketResearchEngine catches it, outputs brain_available = False, sets decision_source = "BRAIN_UNAVAILABLE" and action = "WAIT", and performs 0 executions.
     - Test 3: Fail-Closed Boundary — When newborn_brain_report is missing/None, ExecutionIntelligencePlanner fails closed to action = "WAIT", decision = "NO_TRADE", and decision_source = "BRAIN_UNAVAILABLE".
     - Test 4: Causal Negative Test — When LiveAnalysisBrain proposes WAIT/AVOID, Planner outputs WAIT/AVOID even under strongly bullish or bearish structure.
@@ -37,8 +39,10 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_production_run_loop_path_reaches_brain_without_runtime_patching(self):
         """
-        Test 1: Prove ResearchWorker._run_loop uses real _get_or_create_runtime() without pre-populating or replacing runtimes or patching _get_or_create_runtime.
-        Verifies worker.runtimes is initially empty, _run_loop creates a real ResearchRuntime, executes LiveAnalysisBrain, and returns a Brain proposal.
+        Test 1: Prove ResearchWorker._run_loop uses real _get_or_create_runtime() with ZERO pre-population of worker.runtimes,
+        ZERO patching of _get_or_create_runtime, and ZERO patching of ResearchRuntime.run_once().
+        Verifies worker.runtimes is initially empty, _run_loop creates a real ResearchRuntime, executes PrimitiveMarketResearchEngine and LiveAnalysisBrain,
+        and returns a Brain proposal with decision_source = "BRAIN" and brain_report_consumed = True.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
@@ -52,46 +56,29 @@ class TestGate1BrainIntegration(unittest.TestCase):
             key = ("XAUUSD", "H1")
             self.assertNotIn(key, worker.runtimes)
 
+            # Hook central_runtime_state.update_multiple to stop worker after 1 cycle naturally
+            orig_update = central_runtime_state.update_multiple
+            def stop_worker_on_cycle_completion(state_dict):
+                worker.is_running = False
+                return orig_update(state_dict)
+
             # Patch MetaTrader5Provider constructor so real _get_or_create_runtime instantiates MetaTrader5Provider with ControlledDataProvider delegate
             with patch("src.Application.Runtime.research_runtime.MetaTrader5Provider", return_value=provider), \
-                 patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]):
+                 patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]), \
+                 patch.object(central_runtime_state, "update_multiple", side_effect=stop_worker_on_cycle_completion):
 
                 worker.is_running = True
-
-                # Wrap _run_loop so it stops after one iteration
-                original_run_loop = worker._run_loop
-                saved_res = []
-
-                def run_loop_one_cycle():
-                    # Let _run_loop run for one cycle, then stop worker
-                    def run_once_interceptor(rt):
-                        orig_fn = rt.run_once
-                        def stop_rt():
-                            res = orig_fn()
-                            saved_res.append(res)
-                            worker.is_running = False
-                            return res
-                        return stop_rt
-
-                    # Let _get_or_create_runtime run normally, then wrap run_once
-                    orig_get_rt = worker._get_or_create_runtime
-                    def spy_get_rt(*args, **kwargs):
-                        rt = orig_get_rt(*args, **kwargs)
-                        rt.run_once = run_once_interceptor(rt)
-                        return rt
-
-                    worker._get_or_create_runtime = spy_get_rt
-                    original_run_loop()
-
-                run_loop_one_cycle()
+                worker._run_loop()
 
             # Assert real _get_or_create_runtime created the runtime in worker.runtimes
             self.assertIn(key, worker.runtimes)
             created_runtime = worker.runtimes[key]
             self.assertIsInstance(created_runtime, ResearchRuntime)
+            self.assertIsInstance(created_runtime.research_engine, PrimitiveMarketResearchEngine)
 
-            self.assertEqual(len(saved_res), 1)
-            res = saved_res[0]
+            # Verify history contains 1 result from real run_once()
+            self.assertEqual(len(created_runtime.history), 1)
+            res = created_runtime.history[0]
 
             # Verify LiveAnalysisBrain generated newborn_brain_report on default path
             self.assertIn("newborn_brain_report", res.Findings)
@@ -131,33 +118,25 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
             worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
             provider = ControlledDataProvider(base_price=2000.0, count=100)
-            key = ("XAUUSD", "H1")
-            worker.runtimes[key] = ResearchRuntime(
-                provider=provider,
-                symbol="XAUUSD",
-                timeframe="H1",
-                provider_name="ControlledOfflineFixture"
-            )
 
-            with patch.object(LiveAnalysisBrain, "process_live_candle", side_effect=crashing_process_live_candle), \
-                 patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]):
+            orig_update = central_runtime_state.update_multiple
+            def stop_worker_on_cycle_completion(state_dict):
+                worker.is_running = False
+                return orig_update(state_dict)
+
+            with patch("src.Application.Runtime.research_runtime.MetaTrader5Provider", return_value=provider), \
+                 patch.object(LiveAnalysisBrain, "process_live_candle", side_effect=crashing_process_live_candle), \
+                 patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]), \
+                 patch.object(central_runtime_state, "update_multiple", side_effect=stop_worker_on_cycle_completion):
 
                 worker.is_running = True
-                runtime_instance = worker.runtimes[key]
-                original_run_once = runtime_instance.run_once
-                saved_res = []
-
-                def run_once_and_stop():
-                    res = original_run_once()
-                    saved_res.append(res)
-                    worker.is_running = False
-                    return res
-
-                runtime_instance.run_once = run_once_and_stop
                 worker._run_loop()
 
-            self.assertEqual(len(saved_res), 1)
-            res = saved_res[0]
+            key = ("XAUUSD", "H1")
+            self.assertIn(key, worker.runtimes)
+            created_runtime = worker.runtimes[key]
+            self.assertEqual(len(created_runtime.history), 1)
+            res = created_runtime.history[0]
 
             # Verify newborn_brain_report contains brain_available = False and diagnostic error
             self.assertIn("newborn_brain_report", res.Findings)
