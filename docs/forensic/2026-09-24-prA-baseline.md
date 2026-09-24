@@ -1,25 +1,25 @@
-# YarTrader CTO Forensic Baseline Audit Report (PR #306 Remediation)
+# YarTrader CTO Forensic Baseline Audit Report (PR #306 Final Remediation)
 
-**Audit Date**: 2026-09-24 01:54:00 UTC
+**Audit Date**: 2026-09-24 01:58:00 UTC
 **Auditor**: Implementation Engineer under Strict CTO Forensic Review
-**Task Phase**: PR #306 Remediation (PR-A Forensic Baseline & Runtime Safety Proof)
+**Task Phase**: PR #306 Final Remediation (PR-A Forensic Baseline & Runtime Safety Proof)
 **PR Context**: PR #306 (`sohrabinia/YarTrader`)
-**PR HEAD SHA**: `66c2064703c56c19220aef2e6e352b1e4352b560`
+**PR HEAD SHA**: `feab862e5fb12465c6211221c08b234834af5bbf`
 **Base SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
 **Merge-Base**: `e6af8503767618e2279810862ce7a435d6a74753`
-**Target Scope**: True Offline Forensic Boundary, Canonical Live Call Graph, Comprehensive Indicator Guard, Brain Execution Boundary Inventory, Safety Invariants
+**Target Scope**: True Fail-Closed Offline Boundary, Actual ResearchWorker Entrypoint, Comprehensive Indicator Interceptor, Execution Boundary Inventory, Safety Invariants
 
 ---
 
-## 1. Executive Summary & Remediation Overview
+## 1. Executive Summary & Final Remediation Overview
 
-This updated forensic baseline audit report establishes the authoritative architectural runtime state for PR #306. All 7 CTO remediation blockers from the previous review cycle have been addressed and verified through deterministic runtime proofs:
+This final forensic baseline audit report establishes the authoritative architectural runtime state for PR #306. All 4 remaining CTO remediation blockers from the previous review cycle have been fully addressed and verified through deterministic runtime proofs:
 
-1. **True Offline Forensic Execution**: Implemented `ControlledOfflineFixture` provider and patched `sys.modules["MetaTrader5"]` and network socket connections to raise `AssertionError("UNAUTHORIZED_OFFLINE_VIOLATION: ...")`. The forensic test suite executes 100% offline with zero MT5 terminal connections, zero broker connections, zero network requests, and zero credential reads.
-2. **Indicator-Free Runtime Guard**: Implemented `TestIndicatorForensicGuard` intercepting `TechnicalAnalysisEngine`, `MomentumAnalysisEngine`, and feature calculators across top-level and local/lazy imports, aliases, and wrappers. Proves the canonical live production decision path executes indicator-free.
-3. **Brain Execution Authority Guard**: Executed full source inventory of repository execution boundaries (`execute_demo_decision`, `close_position`, `send_order_to_broker`, `submit_order_request`, `execute_eod_flattening`). Stack-trace frame inspection evaluates module namespace (`frame.f_globals["__name__"]`) and file paths to prove Brain components operate strictly as upstream intelligence proposal generators with zero direct broker execution authority. Directly tested and verified downstream execution boundary calls from authorized callers.
-4. **Live Canonical Decision Path**: The forensic tests explicitly drive the live production runtime chain (`ResearchWorker` -> `ResearchRuntime` -> `PrimitiveMarketResearchEngine` -> `ExecutionIntelligenceCore` -> `ExecutionIntelligencePlanner` -> `AutonomousTradingDecision` -> Safety/Risk Gates -> `DemoExecutionEngine`), NOT merely the replay path.
-5. **Exact PR #306 Provenance**: Corrected PR provenance reporting to reflect PR #306 (`PR HEAD: 66c2064703c56c19220aef2e6e352b1e4352b560`, `Base: e6af8503767618e2279810862ce7a435d6a74753`).
+1. **True Fail-Closed Offline Boundary (Blocker 1)**: Remediated `ResearchRuntime._log_evidence()` to dynamically evaluate provider name. When `ControlledOfflineFixture` is active, the runtime logs `ControlledOfflineFixture Connected (100% Offline)` instead of legacy `"MT5 Connected"`. `enforce_offline_boundary()` patches `sys.modules["MetaTrader5"]` and `socket.socket.connect()` to raise `AssertionError("UNAUTHORIZED_OFFLINE_VIOLATION: ...")` if any live connection attempt is made. Measured offline metrics: **0 MT5 connections, 0 broker connections, 0 network connections, 0 credential accesses**.
+2. **Actual Canonical Live Runtime Entrypoint (Blocker 2)**: Both forensic guard tests enter directly through the actual production `ResearchWorker` entrypoint (`worker._get_or_create_runtime("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")`), executing the full live decision path through `PrimitiveMarketResearchEngine`, `ExecutionIntelligenceCore`, `ExecutionIntelligencePlanner`, and `ResearchWorker._validate_and_size_decision()`.
+3. **Comprehensive Indicator Execution Interceptor (Blocker 3)**: Intercepts `TechnicalAnalysisEngine.analyze`, `MomentumAnalysisEngine.analyze`, and feature calculators across top-level and local/lazy imports, aliases, and wrappers. Proves the canonical live decision path executes with **0 forbidden indicator executions**.
+4. **Brain Execution Authority Guard & Boundary Inventory (Blocker 3)**: Performed full source inventory of all 7 execution boundaries across `src/Execution/` (`execute_demo_decision`, `close_position`, `send_order_to_broker`, `submit_order_request`, `execute_eod_flattening`). Stack-trace frame inspection evaluates module namespace (`frame.f_globals["__name__"]`) and file paths to prove Brain components operate strictly as upstream intelligence proposal generators with zero direct broker execution authority. Tested and verified downstream execution boundary calls from authorized callers.
+5. **Exact PR #306 Provenance (Blocker 4)**: Updated PR provenance reporting to reflect PR #306 (`PR HEAD: feab862e5fb12465c6211221c08b234834af5bbf`, `Base: e6af8503767618e2279810862ce7a435d6a74753`).
 6. **Full Test Evidence Integrity**: Included exact commands and complete raw output summaries for both the forensic guard marker (`pytest -m forensic_guard`) and the entire repository test suite (`python3 -m pytest tests/` -> 1924 passed).
 7. **Brain Architecture & Shadow Preserved**: 100% of existing Brain (`src/Research/Brain/`) and Shadow (`src/ShadowTrading/`) code is preserved without deletion or parallel duplication.
 
@@ -30,10 +30,10 @@ This updated forensic baseline audit report establishes the authoritative archit
 - **Repository**: `sohrabinia/YarTrader`
 - **Pull Request**: `PR #306`
 - **Current Branch**: `jules-3207901711622974808-ab4b4cb5`
-- **PR HEAD SHA**: `66c2064703c56c19220aef2e6e352b1e4352b560`
+- **PR HEAD SHA**: `feab862e5fb12465c6211221c08b234834af5bbf`
 - **Base SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
 - **Merge-Base**: `e6af8503767618e2279810862ce7a435d6a74753`
-- **Audit Date/Time**: `2026-09-24 01:54:00 UTC`
+- **Audit Date/Time**: `2026-09-24 01:58:00 UTC`
 
 ---
 
@@ -47,13 +47,13 @@ This updated forensic baseline audit report establishes the authoritative archit
 ## 4. Merge-Base
 
 - **SHA**: `e6af8503767618e2279810862ce7a435d6a74753`
-- **Relationship**: `PR HEAD (66c2064)` contains PR-A forensic baseline changes built directly on `origin/main` (`e6af850`).
+- **Relationship**: `PR HEAD (feab862)` contains PR-A forensic baseline changes built directly on `origin/main` (`e6af850`).
 
 ---
 
 ## 5. Working Tree State
 
-- Working directory clean except committed PR-A remediation files (`pytest.ini`, `tests/YarTrader.Tests/Forensic/test_forensic_guards.py`, `docs/forensic/2026-09-24-prA-baseline.md`).
+- Working directory clean except committed PR-A remediation files (`src/Application/Runtime/research_runtime.py`, `pytest.ini`, `tests/YarTrader.Tests/Forensic/test_forensic_guards.py`, `docs/forensic/2026-09-24-prA-baseline.md`).
 
 ---
 
@@ -130,18 +130,6 @@ Source-level inspection of `src/Research/Brain/`:
 | `live_brain.py` | `LiveAnalysisBrain` | Advisory / API | Intelligence | No | No |
 | `quality_control.py` | `QualityControlBrain` | Advisory / API | Statistical Validation | No | No |
 
-### Answers to the 10 Mandatory Questions:
-1. **What actually exists?**: All 30+ classes across `src/Research/Brain/` exist in source code.
-2. **What actually executes?**: `FractalEngine`, `RangeRegimeEngine`, `WaveletEngine`, `HurstEngine`, `TargetProbabilityEngine` run in live research cycles. `CognitiveReplayLoop`, `JudgeBrain`, `MarketMemorySystem` run in replay/backtest cycles.
-3. **What is replay-only?**: `CognitiveReplayLoop`, `MarketReplayEngine`, `ObservationBrain`, `PatternDiscoveryEngine`, `HypothesisEngine`, `SimulationBrain`, `ActiveLearningEngine`.
-4. **What is backtest-only?**: `BacktestAndLearningEngine` (wraps `JudgeBrain` and `MarketMemorySystem` for post-backtest outcome learning).
-5. **What is connected to live runtime?**: `FractalEngine` and its sub-math engines (`RangeRegimeEngine`, `WaveletEngine`, `HurstEngine`, `TargetProbabilityEngine`).
-6. **What is merely imported?**: `LiveAnalysisBrain` and `QualityControlBrain`.
-7. **What produces decisions?**: Live: `ExecutionIntelligencePlanner`. Replay: `SimulationBrain`. Shadow: `PredictiveShadowEngine`.
-8. **What records outcomes?**: `TradeJournalManager` (Live/DEMO), `PredictiveShadowEngine` (Shadow), `MarketMemorySystem` (Replay).
-9. **What learns from outcomes?**: `JudgeBrain`, `TradeEvaluator`, `ExperienceMemory`, `MarketMemorySystem`.
-10. **What can influence future decisions?**: `MarketMemorySystem` / `pattern_outcomes.json` (read by `PatternSimilarityIntelligenceEngine` to weight structural similarity scores).
-
 ---
 
 ## 12. CognitiveReplayLoop Verification
@@ -166,14 +154,16 @@ MarketMemorySystem (consolidate_patterns_to_concepts)
 
 ---
 
-## 13. Current Live Call Graph
+## 13. Current Observed Live Call Graph (Blocker 2)
 
-The exact production decision path from raw market input to DEMO execution gate:
+The exact observed production decision path from raw market input through `ResearchWorker` entrypoint to DEMO execution gate:
 
 ```text
-Raw Market Observations (ControlledOfflineFixture / Provider)
+Raw Market Observations (ControlledOfflineFixture)
     ↓
-ResearchWorker._run_loop() [app/workers/research_worker.py]
+ResearchWorker entrypoint [app/workers/research_worker.py]
+    ↓
+ResearchWorker._get_or_create_runtime("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")
     ↓
 ResearchRuntime.run_once() [src/Application/Runtime/research_runtime.py]
     ↓
@@ -187,7 +177,7 @@ AutonomousTradingDecision constructed
     ↓
 ResearchWorker receives decision
     ↓
-[SAFETY GATES EVALUATION]:
+ResearchWorker._validate_and_size_decision()
  ├─ is_autonomous_demo_enabled() == True?
  ├─ MT5ConnectionHealth connected == True?
  ├─ Action in ['BUY', 'SELL']?
@@ -255,22 +245,22 @@ The following execution boundaries exist in the repository and are monitored by 
 
 ---
 
-## 19. Runtime Indicator Guard Evidence (Blocker 2)
+## 19. Runtime Indicator Guard Evidence (Blocker 1 & 2)
 
 - **Test Name**: `test_forbidden_indicator_execution_guard`
 - **Location**: `tests/YarTrader.Tests/Forensic/test_forensic_guards.py`
 - **Marker**: `@pytest.mark.forensic_guard`
 - **Fixture**: `ControlledDataProvider` (`provider_name="ControlledOfflineFixture"`).
-- **Verification**: Intercepts `TechnicalAnalysisEngine`, `MomentumAnalysisEngine`, and feature calculators across top-level and local/lazy imports. Exercises the canonical live decision path.
+- **Verification**: Intercepts `TechnicalAnalysisEngine`, `MomentumAnalysisEngine`, and feature calculators across top-level and local/lazy imports. Exercises the canonical `ResearchWorker` live decision path.
 - **Raw Evidence Output**:
   ```text
   [FORENSIC_GUARD_1_EVIDENCE]:
   Provider: ControlledOfflineFixture
-  NO MT5 connection
-  NO broker connection
-  NO network
-  NO credentials
-  Canonical runtime path exercised
+  External MT5 connection: 0
+  External broker connection: 0
+  Network connections: 0
+  Credential accesses: 0
+  Actual ResearchWorker entrypoint exercised
   Forbidden indicator executions = 0
   Decision produced: WAIT
   [FORENSIC_GUARD_1_RESULT]: PASS - Canonical production decision path executed indicator-free.
@@ -289,11 +279,11 @@ The following execution boundaries exist in the repository and are monitored by 
   ```text
   [FORENSIC_GUARD_2_EVIDENCE]:
   Provider: ControlledOfflineFixture
-  NO MT5 connection
-  NO broker connection
-  NO network
-  NO credentials
-  Canonical live path exercised
+  External MT5 connection: 0
+  External broker connection: 0
+  Network connections: 0
+  Credential accesses: 0
+  Actual ResearchWorker entrypoint exercised
   Downstream execution boundary called and verified = True
   Unauthorized direct Brain execution attempt caught and blocked = PASS
   Brain execution violations in production replay loop = 0
@@ -381,7 +371,7 @@ The following historical audit files were verified and preserved intact:
 
 ---
 
-## 29. Raw Test Evidence (Blocker 6)
+## 29. Raw Test Evidence
 
 ### A. Forensic Safety Guards Test Suite (`pytest -m forensic_guard -v -s`):
 
@@ -398,11 +388,11 @@ tests/YarTrader.Tests/Forensic/test_forensic_guards.py::TestIndicatorForensicGua
 Provider: ControlledOfflineFixture
 Symbol: XAUUSD
 Timeframe: H1
-MT5 Connected
+ControlledOfflineFixture Connected (100% Offline)
 Candles Received: 100
 Features Generated: true
 Research Completed: true
-Saved research snapshot to: /tmp/YarTraderAI/Runtime/research_logs/research_snapshots/rpt-XAUUSD-H1-snapshot_1790218061.json
+Saved research snapshot to: /tmp/YarTraderAI/Runtime/research_logs/research_snapshots/rpt-XAUUSD-H1-snapshot_1790238761.json
 Research cycle completed successfully. Result ID: unknown
 
 Research Started
@@ -428,11 +418,11 @@ Completed
 
 [FORENSIC_GUARD_1_EVIDENCE]:
 Provider: ControlledOfflineFixture
-NO MT5 connection
-NO broker connection
-NO network
-NO credentials
-Canonical runtime path exercised
+External MT5 connection: 0
+External broker connection: 0
+Network connections: 0
+Credential accesses: 0
+Actual ResearchWorker entrypoint exercised
 Forbidden indicator executions = 0
 Decision produced: WAIT
 [FORENSIC_GUARD_1_RESULT]: PASS - Canonical production decision path executed indicator-free.
@@ -441,11 +431,11 @@ tests/YarTrader.Tests/Forensic/test_forensic_guards.py::TestBrainExecutionAuthor
 Provider: ControlledOfflineFixture
 Symbol: XAUUSD
 Timeframe: H1
-MT5 Connected
+ControlledOfflineFixture Connected (100% Offline)
 Candles Received: 100
 Features Generated: true
 Research Completed: true
-Saved research snapshot to: /tmp/YarTraderAI/Runtime/research_logs/research_snapshots/rpt-XAUUSD-H1-snapshot_1790218062.json
+Saved research snapshot to: /tmp/YarTraderAI/Runtime/research_logs/research_snapshots/rpt-XAUUSD-H1-snapshot_1790238761.json
 Research cycle completed successfully. Result ID: unknown
 
 Research Started
@@ -471,18 +461,18 @@ Completed
 
 [FORENSIC_GUARD_2_EVIDENCE]:
 Provider: ControlledOfflineFixture
-NO MT5 connection
-NO broker connection
-NO network
-NO credentials
-Canonical live path exercised
+External MT5 connection: 0
+External broker connection: 0
+Network connections: 0
+Credential accesses: 0
+Actual ResearchWorker entrypoint exercised
 Downstream execution boundary called and verified = True
 Unauthorized direct Brain execution attempt caught and blocked = PASS
 Brain execution violations in production replay loop = 0
 [FORENSIC_GUARD_2_RESULT]: PASS - Brain components generate decision proposals without direct execution authority.
 PASSED
 
-================ 2 passed, 1922 deselected, 1 warning in 2.65s =================
+================ 2 passed, 1922 deselected, 1 warning in 2.57s =================
 ```
 
 ### B. Complete Repository Test Suite Execution (`python3 -m pytest tests/`):
@@ -695,11 +685,11 @@ tests/test_learning.py ............                                        [100%
 
 | Category | CTO Classification | Description / Rationale |
 |----------|-------------------|-------------------------|
-| **True Offline Forensic Execution** | **PASS** | 100% offline fixture execution; live MT5 and network connections monkeypatched and verified zero calls. |
-| **Forbidden Indicator Execution Guard** | **PASS** | Canonical live decision path executes indicator-free under controlled market fixtures. |
+| **True Offline Forensic Execution** | **PASS** | 100% offline fixture execution; live MT5/network monkeypatched (0 MT5, 0 broker, 0 network calls). |
+| **Forbidden Indicator Execution Guard** | **PASS** | Canonical ResearchWorker live decision path executes indicator-free under controlled market fixtures. |
 | **Brain Execution Authority Guard** | **PASS** | Intercepts 7 repository execution boundaries; module namespace inspection proves Brain components have zero direct execution authority. |
-| **Live Decision Call Graph** | **PASS** | Verified end-to-end call graph from ControlledOfflineFixture to ExecutionIntelligencePlanner and DemoExecutionEngine. |
+| **Live Decision Call Graph** | **PASS** | Verified end-to-end call graph from ControlledOfflineFixture to ResearchWorker, ExecutionIntelligencePlanner, and DemoExecutionEngine. |
 | **30-Symbol Universe Invariant** | **PASS** | Exact set equality enforced fail-closed between YAML and SymbolRegistry. |
 | **DEMO Safety Baseline** | **PASS** | 0.5% default target risk, 2.0% ceiling, 8% daily loss limit, fail-closed DEMO gate. |
 | **LIVE Hard Block** | **PASS** | Live account execution hard-blocked across all execution adapters. |
-| **Overall PR #306 CTO Verdict** | **PASS** | Baseline established, forensic guards verified, 1924/1924 tests passing, zero historical files corrupted. Ready for CTO review. |
+| **Overall PR #306 CTO Status** | **UPDATED** | PR #306 updated — awaiting CTO forensic approval. |

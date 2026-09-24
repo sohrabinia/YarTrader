@@ -140,7 +140,10 @@ class ResearchRuntime:
                 )
             else:
                 data_response = self._provider.retrieve_market_data(target_req)
-                self._log_evidence("MT5 Connected")
+                if getattr(self, "_provider_name", "MT5") == "ControlledOfflineFixture":
+                    self._log_evidence("ControlledOfflineFixture Connected (100% Offline)")
+                else:
+                    self._log_evidence("MT5 Connected")
 
             candles_count = len(data_response.DataPoints)
             self._log_evidence(f"Candles Received: {candles_count}")
