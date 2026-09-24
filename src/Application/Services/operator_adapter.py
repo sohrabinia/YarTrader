@@ -208,7 +208,7 @@ class YarTraderOperatorAdapter:
             "ownerId": owner_id,
             "workspaceId": "yartrader",
             "rawCommandText": task_description,
-            "environmentId": "production",
+            "environmentId": "env_yartrader",
             "targetCapability": None,
             "requestedToolId": None,
             "params": metadata or {}
