@@ -178,8 +178,18 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
                     newborn_report = newborn_brain.process_live_candle(raw_candle_dict)
                 if newborn_report:
                     newborn_report_dict = newborn_report.to_dict()
-            except Exception:
-                newborn_report_dict = None
+                else:
+                    newborn_report_dict = {
+                        "brain_available": False,
+                        "suggested_virtual_action": "WAIT",
+                        "brain_error": "No candle processed by LiveAnalysisBrain"
+                    }
+            except Exception as be_err:
+                newborn_report_dict = {
+                    "brain_available": False,
+                    "suggested_virtual_action": "WAIT",
+                    "brain_error": f"LiveAnalysisBrain exception: {type(be_err).__name__}: {str(be_err)}"[:200]
+                }
 
         try:
             from src.Intelligence.Execution.core import ExecutionIntelligenceCore

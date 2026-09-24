@@ -95,6 +95,37 @@ class ExecutionIntelligenceCore:
         ctx_hash = f"ctx-{hashlib.sha256(ohlc_summary.encode('utf-8')).hexdigest()[:16]}"
         cycle_id = f"cycle-{symbol.upper()}-{timeframe.upper()}-{uuid.uuid4().hex[:8]}"
 
+        # 0. LiveAnalysisBrain execution if newborn_brain_report is not pre-computed
+        if newborn_brain_report is None and candles:
+            try:
+                from src.Research.Brain.live_brain import LiveAnalysisBrain
+                newborn_brain = LiveAnalysisBrain(symbol, timeframe)
+                nb_report = None
+                for c in candles:
+                    raw_candle_dict = {
+                        "timestamp": str(c.get("timestamp", c.get("time", ""))),
+                        "open": float(c.get("open", 0.0)),
+                        "high": float(c.get("high", 0.0)),
+                        "low": float(c.get("low", 0.0)),
+                        "close": float(c.get("close", 0.0)),
+                        "volume": float(c.get("volume", 0.0))
+                    }
+                    nb_report = newborn_brain.process_live_candle(raw_candle_dict)
+                if nb_report:
+                    newborn_brain_report = nb_report.to_dict()
+                else:
+                    newborn_brain_report = {
+                        "brain_available": False,
+                        "suggested_virtual_action": "WAIT",
+                        "brain_error": "No candle processed by LiveAnalysisBrain"
+                    }
+            except Exception as be_err:
+                newborn_brain_report = {
+                    "brain_available": False,
+                    "suggested_virtual_action": "WAIT",
+                    "brain_error": f"LiveAnalysisBrain exception: {type(be_err).__name__}: {str(be_err)}"[:200]
+                }
+
         # 1. Market Narrative
         narrative_res = self.narrative_engine.analyze_narrative(candles)
         narrative_res["data_source"] = "MT5_XAUUSD_M1_RATES"

@@ -51,13 +51,18 @@ class ExecutionIntelligencePlanner:
         # Consume explicit LiveAnalysisBrain proposal
         brain_suggested_action = "WAIT"
         brain_report_consumed = False
+        brain_available = True
         if newborn_brain_report and isinstance(newborn_brain_report, dict):
-            brain_report_consumed = True
-            hypotheses = newborn_brain_report.get("active_hypotheses", [])
-            if hypotheses and isinstance(hypotheses, list) and len(hypotheses) > 0:
-                brain_suggested_action = str(hypotheses[0].get("suggested_virtual_action", "WAIT")).upper()
+            if newborn_brain_report.get("brain_available") is False:
+                brain_available = False
+                brain_report_consumed = False
             else:
-                brain_suggested_action = str(newborn_brain_report.get("suggested_virtual_action", "WAIT")).upper()
+                brain_report_consumed = True
+                hypotheses = newborn_brain_report.get("active_hypotheses", [])
+                if hypotheses and isinstance(hypotheses, list) and len(hypotheses) > 0:
+                    brain_suggested_action = str(hypotheses[0].get("suggested_virtual_action", "WAIT")).upper()
+                else:
+                    brain_suggested_action = str(newborn_brain_report.get("suggested_virtual_action", "WAIT")).upper()
 
         if brain_suggested_action not in ["BUY", "SELL", "WAIT", "AVOID"]:
             brain_suggested_action = "WAIT"

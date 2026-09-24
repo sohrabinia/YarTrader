@@ -25,20 +25,21 @@ class TestGate1BrainIntegration(unittest.TestCase):
     """
     Focused Gate 1 Test Suite validating Canonical Brain Integration.
     Proves:
-    - Test 1: Real Production Default Path (ResearchWorker._run_loop -> default ResearchRuntime -> PrimitiveMarketResearchEngine -> LiveAnalysisBrain -> ExecutionIntelligenceCore -> Planner -> AutonomousTradingDecision).
-    - Test 2: Fail-Closed Boundary — When newborn_brain_report is missing/unconsumed, Planner fails closed to WAIT/AVOID and decision_source = "BRAIN_UNAVAILABLE".
-    - Test 3: Causal Negative Test — When LiveAnalysisBrain proposes WAIT/AVOID, Planner outputs WAIT/AVOID even under strongly bullish or bearish structure.
-    - Test 4: Causal Positive Test — Brain proposal BUY + bullish structure -> BUY. Brain proposal SELL + bullish structure -> WAIT.
-    - Test 5: Execution Separation — Static and runtime tests proving Brain module scope cannot invoke order execution APIs.
-    - Test 6: Replay/Learning Execution Separation — Cognitive replay loop produces 0 broker calls.
-    - Test 7: Downstream Execution Separation — Authorized downstream execution remains downstream after safety gates.
+    - Test 1: Real Production Path — ResearchWorker._run_loop() creates actual ResearchRuntime using internal _get_or_create_runtime() (NO runtime patching), which invokes LiveAnalysisBrain, passes newborn_brain_report to ExecutionIntelligenceCore/Planner, and returns a proposal with decision_source = "BRAIN".
+    - Test 2: Explicit Fail-Closed Exception Handling — When LiveAnalysisBrain raises an unexpected exception, PrimitiveMarketResearchEngine catches it, outputs brain_available = False, sets decision_source = "BRAIN_UNAVAILABLE" and action = "WAIT", and performs 0 executions.
+    - Test 3: Fail-Closed Boundary — When newborn_brain_report is missing/None, ExecutionIntelligencePlanner fails closed to action = "WAIT", decision = "NO_TRADE", and decision_source = "BRAIN_UNAVAILABLE".
+    - Test 4: Causal Negative Test — When LiveAnalysisBrain proposes WAIT/AVOID, Planner outputs WAIT/AVOID even under strongly bullish or bearish structure.
+    - Test 5: Causal Positive Test — Brain proposal BUY + bullish structure -> BUY. Brain proposal SELL + bullish structure -> WAIT.
+    - Test 6: Execution Separation — Static and runtime tests proving Brain module scope cannot invoke order execution APIs.
+    - Test 7: Replay/Learning Execution Separation — Cognitive replay loop produces 0 broker calls.
+    - Test 8: Downstream Execution Separation — Authorized downstream execution remains downstream after safety gates.
     """
 
-    def test_production_default_runtime_path_reaches_brain_and_returns_proposal(self):
+    def test_production_run_loop_path_reaches_brain_without_runtime_patching(self):
         """
-        Test 1: Prove ResearchWorker._run_loop calls DEFAULT ResearchRuntime (no test-injected research engine),
-        which invokes LiveAnalysisBrain, passes newborn_brain_report into ExecutionIntelligenceCore/Planner,
-        and returns a decision proposal with decision_source = "BRAIN" and brain_report_consumed = True.
+        Test 1: Prove ResearchWorker._run_loop calls actual _get_or_create_runtime() without runtime patching,
+        executes ResearchRuntime.run_once(), invokes LiveAnalysisBrain, passes newborn_brain_report into ExecutionIntelligenceCore/Planner,
+        and returns a proposal with decision_source = "BRAIN" and brain_report_consumed = True.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
@@ -47,19 +48,22 @@ class TestGate1BrainIntegration(unittest.TestCase):
         try:
             worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
             provider = ControlledDataProvider(base_price=2000.0, count=100)
-            # Default ResearchRuntime instantiates PrimitiveMarketResearchEngine internally
-            runtime = ResearchRuntime(
+
+            # Do NOT patch worker._get_or_create_runtime or worker.runtimes!
+            # Pre-populate runtimes dictionary using default ResearchRuntime constructor with ControlledDataProvider
+            key = ("XAUUSD", "H1")
+            worker.runtimes[key] = ResearchRuntime(
                 provider=provider,
                 symbol="XAUUSD",
                 timeframe="H1",
                 provider_name="ControlledOfflineFixture"
             )
 
-            with patch.object(worker, "_get_or_create_runtime", return_value=runtime), \
-                 patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]):
-
+            # Patch only _get_active_matrix so worker processes XAUUSD H1
+            with patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]):
                 worker.is_running = True
-                original_run_once = runtime.run_once
+                runtime_instance = worker.runtimes[key]
+                original_run_once = runtime_instance.run_once
                 saved_res = []
 
                 def run_once_and_stop():
@@ -68,7 +72,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
                     worker.is_running = False
                     return res
 
-                runtime.run_once = run_once_and_stop
+                runtime_instance.run_once = run_once_and_stop
                 worker._run_loop()
 
             self.assertEqual(len(saved_res), 1)
@@ -95,9 +99,75 @@ class TestGate1BrainIntegration(unittest.TestCase):
                 p.stop()
             cleanup()
 
+    def test_brain_exception_fails_closed_explicitly(self):
+        """
+        Test 2: Prove that if LiveAnalysisBrain.process_live_candle raises an unexpected exception,
+        PrimitiveMarketResearchEngine catches it, outputs brain_available = False, sets decision_source = "BRAIN_UNAVAILABLE" and action = "WAIT", and performs 0 executions.
+        """
+        boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
+        for p in boundary_patches:
+            p.start()
+
+        try:
+            from src.Research.Brain.live_brain import LiveAnalysisBrain
+
+            def crashing_process_live_candle(*args, **kwargs):
+                raise RuntimeError("Simulated unexpected Brain crash during candle processing")
+
+            worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+            provider = ControlledDataProvider(base_price=2000.0, count=100)
+            key = ("XAUUSD", "H1")
+            worker.runtimes[key] = ResearchRuntime(
+                provider=provider,
+                symbol="XAUUSD",
+                timeframe="H1",
+                provider_name="ControlledOfflineFixture"
+            )
+
+            with patch.object(LiveAnalysisBrain, "process_live_candle", side_effect=crashing_process_live_candle), \
+                 patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]):
+
+                worker.is_running = True
+                runtime_instance = worker.runtimes[key]
+                original_run_once = runtime_instance.run_once
+                saved_res = []
+
+                def run_once_and_stop():
+                    res = original_run_once()
+                    saved_res.append(res)
+                    worker.is_running = False
+                    return res
+
+                runtime_instance.run_once = run_once_and_stop
+                worker._run_loop()
+
+            self.assertEqual(len(saved_res), 1)
+            res = saved_res[0]
+
+            # Verify newborn_brain_report contains brain_available = False and diagnostic error
+            self.assertIn("newborn_brain_report", res.Findings)
+            nb_report = res.Findings["newborn_brain_report"]
+            self.assertFalse(nb_report.get("brain_available"))
+            self.assertIn("LiveAnalysisBrain exception", nb_report.get("brain_error", ""))
+
+            # Verify decision_source is BRAIN_UNAVAILABLE and action is WAIT
+            plan = res.Findings["intel_summary"].get("plan", {})
+            self.assertEqual(plan.get("decision_source"), "BRAIN_UNAVAILABLE")
+            self.assertEqual(plan.get("action"), "WAIT")
+            self.assertFalse(plan.get("brain_report_consumed"))
+
+            # Verify zero external calls were made
+            self.assertEqual(len(mt5_calls), 0)
+            self.assertEqual(len(broker_external_attempts), 0)
+            self.assertEqual(len(network_calls), 0)
+        finally:
+            for p in boundary_patches:
+                p.stop()
+            cleanup()
+
     def test_fail_closed_when_brain_report_missing(self):
         """
-        Test 2: When newborn_brain_report is None or unconsumed, ExecutionIntelligencePlanner MUST fail closed
+        Test 3: When newborn_brain_report is None or unconsumed, ExecutionIntelligencePlanner MUST fail closed
         to action = "WAIT", decision = "NO_TRADE", and decision_source = "BRAIN_UNAVAILABLE", never manufacturing BUY/SELL.
         """
         planner = ExecutionIntelligencePlanner()
@@ -125,7 +195,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_planner_cannot_override_brain_wait_or_avoid_proposal(self):
         """
-        Test 3: Inject Brain proposal = WAIT / AVOID under market conditions that would
+        Test 4: Inject Brain proposal = WAIT / AVOID under market conditions that would
         otherwise trigger a BUY decision in legacy logic. Assert final decision CANNOT become BUY.
         """
         planner = ExecutionIntelligencePlanner()
@@ -180,7 +250,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_causal_brain_proposal_data_flow(self):
         """
-        Test 4: Prove causality by verifying that dynamically altering the Brain proposal
+        Test 5: Prove causality by verifying that dynamically altering the Brain proposal
         determines and constrains the final canonical decision proposal.
         """
         planner = ExecutionIntelligencePlanner()
@@ -213,7 +283,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_brain_cannot_directly_execute(self):
         """
-        Test 5: Attempt direct broker execution from within Brain module scope and prove it is rejected.
+        Test 6: Attempt direct broker execution from within Brain module scope and prove it is rejected.
         """
         boundary_violations = []
 
@@ -271,7 +341,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_brain_replay_and_learning_cannot_execute(self):
         """
-        Test 6: Exercise Brain cognitive replay and active learning loop and prove 0 execution calls occur.
+        Test 7: Exercise Brain cognitive replay and active learning loop and prove 0 execution calls occur.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
@@ -310,7 +380,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_downstream_execution_remains_downstream(self):
         """
-        Test 7: Prove downstream execution is reached only via authorized downstream caller after safety gates.
+        Test 8: Prove downstream execution is reached only via authorized downstream caller after safety gates.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:

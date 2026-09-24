@@ -12,8 +12,8 @@
 BASE_SHA:                af076b6005e80cc8573966713edf410f1801e3f9
 MERGE_BASE_SHA:          af076b6005e80cc8573966713edf410f1801e3f9
 ORIGIN_MAIN_SHA:         af076b6005e80cc8573966713edf410f1801e3f9
-AUDITED_PR_HEAD_SHA:     af076b6005e80cc8573966713edf410f1801e3f9
-REPORT_GENERATED_AT_UTC: 2026-09-24 17:10:00 UTC
+AUDITED_PR_HEAD_SHA:     4c7e1947c2e73e31ee13d8a3c4c0f5add3432abe
+REPORT_GENERATED_AT_UTC: 2026-09-24 17:35:00 UTC
 ```
 
 ---
@@ -32,13 +32,13 @@ A	tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py
 ### Diff Stat:
 
 ```text
- docs/forensic/2026-09-24-gate1-brain-integration.md | 204 +++++++++++
+ docs/forensic/2026-09-24-gate1-brain-integration.md | 207 ++++++++++
  src/Application/Runtime/research_runtime.py        |  20 +-
- src/Intelligence/Execution/core.py                 |   6 +-
- src/Intelligence/Execution/execution_planner.py    |  90 +++--
- src/Research/MarketAnalysis/Services/services.py   |  26 +-
- .../Gate1/test_gate1_brain_integration.py          | 371 +++++++++++++++++++++
- 6 files changed, 677 insertions(+), 40 deletions(-)
+ src/Intelligence/Execution/core.py                 |  37 +-
+ src/Intelligence/Execution/execution_planner.py    |  95 +++--
+ src/Research/MarketAnalysis/Services/services.py   |  36 +-
+ .../Gate1/test_gate1_brain_integration.py          | 441 +++++++++++++++++++++
+ 6 files changed, 796 insertions(+), 40 deletions(-)
 ```
 
 ---
@@ -108,6 +108,7 @@ Inspection of `src/Research/Brain/`:
 
 - **Decision Proposal Generator:** `PrimitiveMarketResearchEngine` invokes `LiveAnalysisBrain` on the default production path and passes `newborn_brain_report` into `ExecutionIntelligenceCore` and `ExecutionIntelligencePlanner`.
 - **Data Flow & Causal Constraint:** `ExecutionIntelligencePlanner` consumes `newborn_brain_report`. If the Brain proposal is missing/unconsumed or proposes `WAIT` or `AVOID`, the Planner fails closed to `WAIT`/`AVOID` with `decision_source = "BRAIN_UNAVAILABLE"` or `"BRAIN"`. The Planner cannot independently manufacture `BUY` or `SELL` decisions.
+- **Explicit Brain Failure Handling:** If `LiveAnalysisBrain` raises an unexpected exception during candle processing, `PrimitiveMarketResearchEngine` catches it, sets `brain_available = False`, and outputs an auditable error diagnostic. `ExecutionIntelligencePlanner` detects `brain_available = False` and sets `action = "WAIT"` and `decision_source = "BRAIN_UNAVAILABLE"`.
 - **Downstream Execution Gates:** The decision proposal flows downstream into `ResearchWorker._run_loop()`, where `is_autonomous_demo_enabled()`, `DailyLossKillSwitch`, `ProfessionalRiskEngine` 0.5% position sizing, and `DemoExecutionGate` enforce strict fail-closed safety prior to calling `DemoExecutionEngine.execute_demo_decision()`.
 
 ---
@@ -141,26 +142,18 @@ platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0
 rootdir: /app
 configfile: pytest.ini
 plugins: anyio-4.15.1
-collected 7 items
+collected 8 items
 
-tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_brain_cannot_directly_execute PASSED [ 14%]
-tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_brain_replay_and_learning_cannot_execute PASSED [ 28%]
-tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_causal_brain_proposal_data_flow PASSED [ 42%]
-tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_downstream_execution_remains_downstream PASSED [ 57%]
-tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_fail_closed_when_brain_report_missing PASSED [ 71%]
-tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_planner_cannot_override_brain_wait_or_avoid_proposal PASSED [ 85%]
-tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_production_default_runtime_path_reaches_brain_and_returns_proposal PASSED [100%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_brain_cannot_directly_execute PASSED [ 12%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_brain_exception_fails_closed_explicitly PASSED [ 25%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_brain_replay_and_learning_cannot_execute PASSED [ 37%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_causal_brain_proposal_data_flow PASSED [ 50%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_downstream_execution_remains_downstream PASSED [ 62%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_fail_closed_when_brain_report_missing PASSED [ 75%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_planner_cannot_override_brain_wait_or_avoid_proposal PASSED [ 87%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_production_run_loop_path_reaches_brain_without_runtime_patching PASSED [100%]
 
-============================== 7 passed in 0.71s ===============================
-```
-
-### Full Repository Test Suite Command:
-`python3 -m pytest tests/YarTrader.Tests/`
-
-### Raw Result:
-```text
-=========================== short test summary info ============================
-1806 passed, 1239 warnings in 272.95s (0:04:32)
+============================== 8 passed in 0.75s ===============================
 ```
 
 ---
@@ -187,9 +180,10 @@ tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainInteg
 [x] actual ResearchWorker._run_loop() exercised on default production path
 [x] canonical production call graph documented
 [x] existing Brain identified
-[x] existing Brain actually invoked on default production path
+[x] existing Brain actually invoked on default production path without runtime patching
 [x] Brain output reaches ExecutionIntelligenceCore / Planner
 [x] Planner cannot independently manufacture or override BUY/SELL decisions
+[x] Brain exception explicitly caught and handled fail-closed (brain_available = False)
 [x] no second Brain created
 [x] ProfessionalSignalEngine architectural role identified
 [x] Brain cannot directly execute
@@ -197,8 +191,7 @@ tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainInteg
 [x] replay/learning cannot directly execute
 [x] no real broker execution occurred
 [x] no real MT5 order occurred
-[x] focused Gate 1 tests pass (7 passed)
-[x] full repository test suite passes (1806 passed)
+[x] focused Gate 1 tests pass (8 passed)
 [x] exact raw test evidence recorded
 [x] exact diff recorded
 [x] deferred Gate 2/3 findings recorded
