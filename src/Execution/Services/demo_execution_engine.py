@@ -63,12 +63,16 @@ class DemoExecutionEngine:
         tp: Optional[float] = None,
         comment: str = "YarTrader DEMO Execution",
         magic: int = 143056,
-        decision_id: str = "DEC-DEMO-001",
+        decision_id: Optional[str] = None,
         parent_decision_id: Optional[str] = None
     ) -> OrderResponse:
         """
         Translates strategy decision into OrderRequest, passes DemoExecutionGate, and executes on MT5 DEMO.
+        Enforces explicit, immutable decision_id requirement fail-closed.
         """
+        if not decision_id or not str(decision_id).strip():
+            raise ValidationException("DemoExecutionEngine: Execution rejected fail-closed due to missing or empty decision_id.")
+
         timestamp = datetime.now(timezone.utc).isoformat()
 
         req = OrderRequest(
@@ -409,45 +413,12 @@ class DemoExecutionEngine:
             target_record.result = result_str
             target_record.deal_ticket = deal_ticket
             journal_mgr.update_record(target_record)
-            record_to_evaluate = target_record
-        else:
-            record_to_evaluate = TradeJournalRecord(
-                decision_id=f"DEC-{symbol.upper()}-{position_ticket}",
-                parent_decision_id=None,
-                trade_id=trade_id,
-                cycle_id=f"cycle-DEC-{symbol.upper()}-{position_ticket}",
-                symbol=symbol.upper(),
-                timeframe="H1",
-                direction="UNKNOWN",
-                planned_entry=actual_entry,
-                planned_sl=0.0,
-                planned_tp=0.0,
-                planned_rr=0.0,
-                actual_entry=actual_entry,
-                actual_exit=actual_exit,
-                volume=0.0,
-                confidence=0.0,
-                reasoning=[],
-                evidence={},
-                order_ticket=ticket_str,
-                deal_ticket=deal_ticket,
-                open_time=close_ts,
-                close_time=close_ts,
-                exit_reason=exit_reason,
-                pnl=total_pnl,
-                pnl_percent=0.0,
-                mfe=0.0,
-                mae=0.0,
-                duration=0.0,
-                market_regime="UNKNOWN",
-                result=result_str,
-                configuration_version="1.0.0"
-            )
-            journal_mgr.add_record(record_to_evaluate)
 
-        from src.ShadowTrading.Services.TradeEvaluator import TradeEvaluator
-        evaluator = TradeEvaluator.get_instance()
-        evaluator.evaluate_demo_trade_outcome(record_to_evaluate)
+            from src.ShadowTrading.Services.TradeEvaluator import TradeEvaluator
+            evaluator = TradeEvaluator.get_instance()
+            evaluator.evaluate_demo_trade_outcome(target_record)
+        else:
+            logger.warning(f"[DemoExecutionEngine] Closed position ticket {position_ticket} has no corresponding open TradeJournalRecord. Evaluation skipped fail-closed (INSUFFICIENT_EVIDENCE).")
 
     def _log_evidence(self, evidence: Dict[str, Any]) -> None:
         """Writes execution telemetry safely to disk without exposing credentials."""

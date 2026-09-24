@@ -10,6 +10,7 @@ from src.ShadowTrading.Domain.TradeState import PositionResult
 
 logger = logging.getLogger("TradeEvaluator")
 
+
 class TradeEvaluator:
     """
     Coordinates post-close virtual position evaluations and real MT5 DEMO trade outcome evaluations.
@@ -31,20 +32,41 @@ class TradeEvaluator:
         """
         Evaluates a real MT5 DEMO closed trade recorded in TradeJournalRecord.
         Passes authoritative trade outcomes to JudgeBrain and registers ExperienceMemory into MarketMemorySystem.
-        Does NOT invent synthetic values or route through ShadowTradingEngine.
+        Does NOT invent synthetic values, fabricated IDs, or route through ShadowTradingEngine.
+        Returns INSUFFICIENT_EVIDENCE when required broker facts are missing or incomplete.
         """
-        rec_dict = journal_record.to_dict() if hasattr(journal_record, "to_dict") else dict(journal_record)
+        rec_dict = journal_record.to_dict() if hasattr(journal_record, "to_dict") else (dict(journal_record) if isinstance(journal_record, dict) else {})
 
-        decision_id = rec_dict.get("decision_id") or "DEC-UNAVAILABLE"
+        decision_id = rec_dict.get("decision_id")
         parent_decision_id = rec_dict.get("parent_decision_id")
-        symbol = (rec_dict.get("symbol") or "UNAVAILABLE").upper()
-        timeframe = (rec_dict.get("timeframe") or "H1").upper()
-        direction = (rec_dict.get("direction") or "UNAVAILABLE").upper()
-        actual_entry = float(rec_dict.get("actual_entry", 0.0))
-        actual_exit = float(rec_dict.get("actual_exit", 0.0))
-        pnl = float(rec_dict.get("pnl", 0.0))
-        result_str = rec_dict.get("result", "UNKNOWN")
-        evidence = rec_dict.get("evidence") or {}
+        symbol = rec_dict.get("symbol")
+        timeframe = rec_dict.get("timeframe", "H1")
+        direction = rec_dict.get("direction")
+        actual_entry = rec_dict.get("actual_entry")
+        actual_exit = rec_dict.get("actual_exit")
+        pnl = rec_dict.get("pnl")
+        result_str = rec_dict.get("result")
+        evidence = rec_dict.get("evidence") if isinstance(rec_dict.get("evidence"), dict) else {}
+
+        # Strict Fail-Closed / Insufficient Evidence Gate:
+        # If mandatory broker trade facts are missing, evaluate as INSUFFICIENT_EVIDENCE
+        if not decision_id or not symbol or not direction or actual_entry is None or actual_exit is None or pnl is None or result_str in [None, "UNKNOWN", "PENDING"]:
+            logger.warning(f"[TradeEvaluator] Trade outcome evaluation aborted due to missing authoritative broker facts (decision_id={decision_id}, symbol={symbol}, pnl={pnl}, result={result_str}).")
+            return {
+                "evaluation": "INSUFFICIENT_EVIDENCE",
+                "confidence_adjustment": 0.0,
+                "learning_feedback": f"Trade outcome evaluation skipped: Missing authoritative broker facts (decision_id={decision_id}, symbol={symbol}).",
+                "is_lucky_win": False,
+                "is_structural_failure": False,
+                "status": "INSUFFICIENT_EVIDENCE"
+            }
+
+        symbol_str = str(symbol).upper()
+        direction_str = str(direction).upper()
+        timeframe_str = str(timeframe).upper()
+        actual_entry_f = float(actual_entry)
+        actual_exit_f = float(actual_exit)
+        pnl_f = float(pnl)
 
         # Extract situation signature if available; if unavailable use empty list
         sig = evidence.get("signature")
@@ -53,15 +75,15 @@ class TradeEvaluator:
 
         decision = SimulatedDecision(
             timestamp=rec_dict.get("open_time") or datetime.now().isoformat(),
-            symbol=symbol,
-            price=actual_entry,
-            decision_action=direction,
+            symbol=symbol_str,
+            price=actual_entry_f,
+            decision_action=direction_str,
             context={
-                "confidence_score": rec_dict.get("confidence", 0.0),
+                "confidence_score": float(rec_dict.get("confidence", 0.0)),
                 "expected_scenario": evidence.get("expected_scenario", "UNAVAILABLE")
             },
             evidence=evidence,
-            reason=",".join(rec_dict.get("reasoning", [])) if rec_dict.get("reasoning") else "Real DEMO Trade Outcome"
+            reason=",".join(rec_dict.get("reasoning", [])) if isinstance(rec_dict.get("reasoning"), list) else str(rec_dict.get("reasoning", ""))
         )
 
         mfe = float(rec_dict.get("mfe", 0.0))
@@ -69,9 +91,9 @@ class TradeEvaluator:
 
         outcome_payload = {
             "final_result": "SUCCESS" if result_str in ["WIN", "SUCCESS"] else ("FAILURE" if result_str in ["LOSS", "FAILURE"] else "BREAKEVEN"),
-            "realized_pnl": pnl,
-            "actual_entry": actual_entry,
-            "actual_exit": actual_exit,
+            "realized_pnl": pnl_f,
+            "actual_entry": actual_entry_f,
+            "actual_exit": actual_exit_f,
             "max_favorable_excursion": mfe,
             "max_adverse_excursion": mae,
             "exit_reason": rec_dict.get("exit_reason", "UNAVAILABLE")
@@ -86,11 +108,11 @@ class TradeEvaluator:
         exp_id = f"exp-{rec_dict.get('trade_id', decision_id)}"
         exp_memory = ExperienceMemory(
             experience_id=exp_id,
-            symbol=symbol,
-            timeframe=timeframe,
+            symbol=symbol_str,
+            timeframe=timeframe_str,
             timestamp=datetime.now(),
             situation_signature=sig,
-            decision_action=direction,
+            decision_action=direction_str,
             outcome_result="SUCCESS" if result_str in ["WIN", "SUCCESS"] else ("FAILURE" if result_str in ["LOSS", "FAILURE"] else "BREAKEVEN"),
             lesson_feedback=judge_evaluation.get("learning_feedback", f"Evaluated DEMO trade {rec_dict.get('trade_id')}."),
             max_favorable_excursion=mfe,
@@ -99,7 +121,7 @@ class TradeEvaluator:
                 "trade_id": rec_dict.get("trade_id"),
                 "decision_id": decision_id,
                 "parent_decision_id": parent_decision_id,
-                "confidence": rec_dict.get("confidence", 0.0),
+                "confidence": float(rec_dict.get("confidence", 0.0)),
                 "is_lucky_win": judge_evaluation.get("is_lucky_win", False),
                 "is_structural_failure": judge_evaluation.get("is_structural_failure", False)
             }
@@ -175,85 +197,3 @@ class TradeEvaluator:
         logger.info(f"Evaluated position {position.position_id} and recorded Experience Memory.")
 
         return judge_evaluation
-
-    def evaluate_demo_trade_outcome(self, journal_record: Any, timeframe: str = "H1") -> Dict[str, Any]:
-        """
-        Accepts a canonical production DEMO TradeJournalRecord or TradeOutcome dict directly,
-        triggers JudgeBrain evaluation, records ExperienceMemory, and updates MarketMemorySystem.
-        Does NOT depend on ShadowTradingEngine.
-        """
-        if hasattr(journal_record, "to_dict"):
-            d = journal_record.to_dict()
-        elif isinstance(journal_record, dict):
-            d = journal_record
-        else:
-            d = {}
-
-        pnl = float(d.get("pnl", 0.0))
-        res_str = str(d.get("result", "BREAKEVEN")).upper()
-        if pnl > 0.01:
-            res_str = "WIN"
-        elif pnl < -0.01:
-            res_str = "LOSS"
-
-        mfe = float(d.get("mfe", abs(pnl) if res_str == "WIN" else 0.0))
-        mae = float(d.get("mae", -abs(pnl) if res_str == "LOSS" else 0.0))
-
-        decision_id = str(d.get("decision_id", f"DEC-{uuid.uuid4().hex[:8]}"))
-        symbol = str(d.get("symbol", "XAUUSD")).upper()
-        direction = str(d.get("direction", "BUY")).upper()
-        evidence = d.get("evidence", {}) if isinstance(d.get("evidence"), dict) else {}
-
-        decision = SimulatedDecision(
-            timestamp=datetime.now(),
-            symbol=symbol,
-            price=float(d.get("actual_entry", d.get("planned_entry", 2000.0))),
-            decision_action=direction,
-            context={
-                "confidence_score": float(d.get("confidence", 50.0)),
-                "expected_scenario": "Continuation"
-            },
-            evidence=evidence,
-            reason="; ".join(d.get("reasoning", [])) if isinstance(d.get("reasoning"), list) else str(d.get("reasoning", ""))
-        )
-
-        outcome_payload = {
-            "final_result": "SUCCESS" if res_str == "WIN" else ("FAILURE" if res_str == "LOSS" else "NEUTRAL"),
-            "max_favorable_excursion": mfe,
-            "max_adverse_excursion": mae,
-            "pnl": pnl
-        }
-
-        judge_eval = self.judge.evaluate_decision_outcome(
-            decision=decision,
-            evidence=evidence,
-            outcome=outcome_payload
-        )
-
-        sig = evidence.get("signature", [])
-        if not isinstance(sig, list):
-            sig = []
-
-        exp_memory = ExperienceMemory(
-            experience_id=f"exp-{decision_id}",
-            symbol=symbol,
-            timeframe=timeframe,
-            timestamp=datetime.now(),
-            situation_signature=sig,
-            decision_action=direction,
-            outcome_result="SUCCESS" if res_str == "WIN" else ("FAILURE" if res_str == "LOSS" else "NEUTRAL"),
-            lesson_feedback=judge_eval.get("learning_feedback", f"Evaluated DEMO trade outcome {res_str} (PnL=${pnl:.2f})."),
-            max_favorable_excursion=mfe,
-            max_adverse_excursion=mae,
-            meta={
-                "decision_id": decision_id,
-                "confidence": float(d.get("confidence", 0.0)),
-                "pnl": pnl,
-                "is_lucky_win": judge_eval.get("is_lucky_win", False),
-                "is_structural_failure": judge_eval.get("is_structural_failure", False)
-            }
-        )
-
-        self.memory_system.add_experience(exp_memory)
-        logger.info(f"[TradeEvaluator] Evaluated DEMO trade decision_id={decision_id} ({res_str}, PnL=${pnl:.2f}) and recorded Experience Memory.")
-        return judge_eval

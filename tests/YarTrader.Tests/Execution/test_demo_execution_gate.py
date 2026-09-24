@@ -116,7 +116,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             Comment="order_check failed retcode=10013"
         )
         engine = DemoExecutionEngine(adapter=self.mock_adapter, demo_mode=True)
-        resp = engine.execute_demo_decision("XAUUSD", "BUY", 0.01, price=2350.0, sl=2340.0, tp=2370.0)
+        resp = engine.execute_demo_decision("XAUUSD", "BUY", 0.01, price=2350.0, sl=2340.0, tp=2370.0, decision_id="DEC-TEST-008")
         self.assertEqual(resp.Status, "Failed")
 
     def test_09_disconnected_terminal_fails_closed(self):
