@@ -279,7 +279,11 @@ class ResearchWorker:
 
                         # Active read-only connection check
                         conn_health = runtime.provider.delegate.get_connection_health()
-                        print("MT5: Connected")
+                        p_name = getattr(runtime, "_provider_name", "MT5")
+                        if p_name == "ControlledOfflineFixture":
+                            print("ControlledOfflineFixture: Connected (100% Offline)")
+                        else:
+                            print("MT5: Connected")
 
                         res = runtime.run_once()
 
