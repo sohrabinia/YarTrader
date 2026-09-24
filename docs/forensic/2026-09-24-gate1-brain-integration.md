@@ -9,12 +9,21 @@
 ## 1. PROVENANCE
 
 ```text
-BASE_SHA:                af076b6005e80cc8573966713edf410f1801e3f9
-MERGE_BASE_SHA:          af076b6005e80cc8573966713edf410f1801e3f9
-ORIGIN_MAIN_SHA:         af076b6005e80cc8573966713edf410f1801e3f9
-AUDITED_PR_HEAD_SHA:     c4f17d4f42a3f24611b99c4c79cc95c06cfd8780
-REPORT_GENERATED_AT_UTC: 2026-09-24 17:35:00 UTC
+BASE_SHA:                         af076b6005e80cc8573966713edf410f1801e3f9
+MERGE_BASE_SHA:                   af076b6005e80cc8573966713edf410f1801e3f9
+ORIGIN_MAIN_SHA:                  af076b6005e80cc8573966713edf410f1801e3f9
+AUDITED_IMPLEMENTATION_HEAD_SHA:  e3c2a7030507a2a06903f91d2601f84673a43ff9
+REPORT_COMMIT_SHA:                89b61d828c34e2bcbde5b802083e8e266df55d65
+FINAL_PR_HEAD_SHA:                89b61d828c34e2bcbde5b802083e8e266df55d65
+REPORT_GENERATED_AT_UTC:          2026-09-24 17:35:00 UTC
 ```
+
+### PROVENANCE MODEL
+
+To eliminate self-referential SHA chasing when adding forensic documentation to the pull request:
+1. `AUDITED_IMPLEMENTATION_HEAD_SHA` records the commit hash of the verified code implementation (`e3c2a7030507a2a06903f91d2601f84673a43ff9`) after all code changes and tests passed.
+2. `REPORT_COMMIT_SHA` records the documentation commit hash (`89b61d828c34e2bcbde5b802083e8e266df55d65`) containing this forensic audit report.
+3. `FINAL_PR_HEAD_SHA` represents the final HEAD SHA of PR #308 (`89b61d828c34e2bcbde5b802083e8e266df55d65`).
 
 ---
 
