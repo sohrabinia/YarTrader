@@ -13,18 +13,19 @@ BASE_SHA:                         af076b6005e80cc8573966713edf410f1801e3f9
 MERGE_BASE_SHA:                   af076b6005e80cc8573966713edf410f1801e3f9
 ORIGIN_MAIN_SHA:                  af076b6005e80cc8573966713edf410f1801e3f9
 AUDITED_IMPLEMENTATION_HEAD_SHA:  e3c2a7030507a2a06903f91d2601f84673a43ff9
-REPORT_COMMIT_SHA:                89b61d828c34e2bcbde5b802083e8e266df55d65
-ACTUAL_REMOTE_PR_HEAD_SHA:        e4fe646f6f0bdc729cd699af8c862da536876e6c
+REPORT_PARENT_SHA:                e4fe646f6f0bdc729cd699af8c862da536876e6c
 REPORT_GENERATED_AT_UTC:          2026-09-24 17:35:00 UTC
 ```
 
-### PROVENANCE MODEL
+### PROVENANCE MODEL & NON-SELF-REFERENTIAL SHA INVARIANT
 
-To eliminate self-referential SHA chasing when adding forensic documentation to the pull request:
-1. `AUDITED_IMPLEMENTATION_HEAD_SHA` records the commit hash of the verified code implementation (`e3c2a7030507a2a06903f91d2601f84673a43ff9`) after all code changes and tests passed.
-2. `REPORT_COMMIT_SHA` records the documentation commit hash (`89b61d828c34e2bcbde5b802083e8e266df55d65`) containing this forensic audit report.
-3. `ACTUAL_REMOTE_PR_HEAD_SHA` records the current remote PR HEAD (`e4fe646f6f0bdc729cd699af8c862da536876e6c`).
-4. **Diff Stat Discrepancy Explanation:** The diff stat expanded from `753 insertions` to `762 insertions` (+9 lines) purely due to adding the `### PROVENANCE MODEL` section to `docs/forensic/2026-09-24-gate1-brain-integration.md` in commit `89b61d828c34e2bcbde5b802083e8e266df55d65`. Zero source or test files were modified.
+FINAL PR HEAD SHA IS VERIFIED EXTERNALLY AFTER THE FINAL REPORT COMMIT.
+It is intentionally not embedded in this report because changing the report
+changes the commit SHA and would create a self-referential provenance loop.
+
+1. `AUDITED_IMPLEMENTATION_HEAD_SHA` (`e3c2a7030507a2a06903f91d2601f84673a43ff9`) identifies the last commit containing the actual Gate 1 implementation and test changes.
+2. `REPORT_PARENT_SHA` (`e4fe646f6f0bdc729cd699af8c862da536876e6c`) identifies the parent commit immediately preceding this final documentation-only commit.
+3. The final commit made by this task is strictly documentation-only (`docs/forensic/2026-09-24-gate1-brain-integration.md`). Zero source or test files were modified after `e3c2a7030507a2a06903f91d2601f84673a43ff9`.
 
 ---
 
@@ -42,13 +43,13 @@ A	tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py
 ### Diff Stat:
 
 ```text
- docs/forensic/2026-09-24-gate1-brain-integration.md | 209 ++++++++++
+ docs/forensic/2026-09-24-gate1-brain-integration.md | 211 ++++++++++
  src/Application/Runtime/research_runtime.py        |  20 +-
  src/Intelligence/Execution/core.py                 |   7 +-
  src/Intelligence/Execution/execution_planner.py    |  95 +++--
  src/Research/MarketAnalysis/Services/services.py   |  36 +-
  .../Gate1/test_gate1_brain_integration.py          | 435 +++++++++++++++++++++
- 6 files changed, 762 insertions(+), 40 deletions(-)
+ 6 files changed, 764 insertions(+), 40 deletions(-)
 ```
 
 ---
