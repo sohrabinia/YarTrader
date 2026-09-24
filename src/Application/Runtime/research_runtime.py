@@ -186,10 +186,12 @@ class ResearchRuntime:
                 from src.Decision.Models.models import AutonomousTradingDecision
 
                 intel_core = ExecutionIntelligenceCore.get_instance()
+                newborn_report_dict = result.Findings.get("newborn_brain_report")
                 intel_res = intel_core.evaluate_context(
                     symbol=self._symbol,
                     timeframe=self._timeframe,
-                    candles=candles_dicts
+                    candles=candles_dicts,
+                    newborn_brain_report=newborn_report_dict
                 )
 
                 plan = intel_res.get("plan", {})

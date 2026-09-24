@@ -13,7 +13,7 @@ BASE_SHA:                af076b6005e80cc8573966713edf410f1801e3f9
 MERGE_BASE_SHA:          af076b6005e80cc8573966713edf410f1801e3f9
 ORIGIN_MAIN_SHA:         af076b6005e80cc8573966713edf410f1801e3f9
 AUDITED_PR_HEAD_SHA:     e81a3f08c902b4d1b37912a2a07c1341e97d8b5a
-REPORT_GENERATED_AT_UTC: 2026-09-24 16:30:00 UTC
+REPORT_GENERATED_AT_UTC: 2026-09-24 16:45:00 UTC
 ```
 
 ---
@@ -23,16 +23,20 @@ REPORT_GENERATED_AT_UTC: 2026-09-24 16:30:00 UTC
 ```text
 A	docs/forensic/2026-09-24-gate1-brain-integration.md
 M	src/Application/Runtime/research_runtime.py
+M	src/Intelligence/Execution/core.py
+M	src/Intelligence/Execution/execution_planner.py
 A	tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py
 ```
 
 ### Diff Stat:
 
 ```text
- docs/forensic/2026-09-24-gate1-brain-integration.md | 201 ++++++++++++++++
- src/Application/Runtime/research_runtime.py        |  16 +-
- .../Gate1/test_gate1_brain_integration.py          | 260 +++++++++++++++++++++
- 3 files changed, 476 insertions(+), 1 deletion(-)
+ docs/forensic/2026-09-24-gate1-brain-integration.md | 198 ++++++++++++
+ src/Application/Runtime/research_runtime.py        |  20 +-
+ src/Intelligence/Execution/core.py                 |   6 +-
+ src/Intelligence/Execution/execution_planner.py    | 116 +++++--
+ .../Gate1/test_gate1_brain_integration.py          | 349 +++++++++++++++++++++
+ 5 files changed, 651 insertions(+), 38 deletions(-)
 ```
 
 ---
@@ -100,8 +104,8 @@ Inspection of `src/Research/Brain/`:
 
 ## 5. CANONICAL DECISION AUTHORITY ANALYSIS
 
-- **Decision Proposal Generator:** `ExecutionIntelligenceCore` and `ExecutionIntelligencePlanner` synthesize market facts along with `LiveAnalysisBrain`'s `newborn_brain_report` to formulate the `AutonomousTradingDecision` proposal (`BUY`, `SELL`, `WAIT`, `AVOID`).
-- **Single Source of Truth:** `LiveAnalysisBrain` provides the intelligence/proposal input upstream. The proposal contains `decision_source = "BRAIN"`.
+- **Decision Proposal Generator:** `ExecutionIntelligenceCore` and `ExecutionIntelligencePlanner` consume `LiveAnalysisBrain`'s `newborn_brain_report` to formulate the `AutonomousTradingDecision` proposal (`BUY`, `SELL`, `WAIT`, `AVOID`).
+- **Data Flow & Causal Constraint:** `ExecutionIntelligencePlanner` consumes `newborn_brain_report`. If the Brain proposal is `WAIT` or `AVOID`, the Planner cannot independently override or manufacture `BUY` or `SELL` decisions.
 - **Downstream Execution Gates:** The decision proposal flows downstream into `ResearchWorker._run_loop()`, where `is_autonomous_demo_enabled()`, `DailyLossKillSwitch`, `ProfessionalRiskEngine` 0.5% position sizing, and `DemoExecutionGate` enforce strict fail-closed safety prior to calling `DemoExecutionEngine.execute_demo_decision()`.
 
 ---
@@ -135,14 +139,16 @@ platform linux -- Python 3.12.13, pytest-9.1.1, pluggy-1.6.0
 rootdir: /app
 configfile: pytest.ini
 plugins: anyio-4.15.1
-collected 4 items
+collected 6 items
 
-tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_brain_cannot_directly_execute PASSED [ 25%]
-tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_brain_replay_and_learning_cannot_execute PASSED [ 50%]
-tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_canonical_path_reaches_brain_and_returns_proposal PASSED [ 75%]
-tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_downstream_execution_remains_downstream PASSED [100%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_brain_cannot_directly_execute PASSED [ 16%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_brain_replay_and_learning_cannot_execute PASSED [ 33%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_canonical_path_reaches_brain_and_returns_proposal PASSED [ 50%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_causal_brain_proposal_data_flow PASSED [ 66%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_downstream_execution_remains_downstream PASSED [ 83%]
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_planner_cannot_override_brain_wait_proposal PASSED [100%]
 
-============================== 4 passed in 0.73s ===============================
+============================== 6 passed in 0.72s ===============================
 ```
 
 ### Full Repository Test Suite Command:
@@ -151,7 +157,7 @@ tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainInteg
 ### Raw Result:
 ```text
 =========================== short test summary info ============================
-1804 passed, 1239 warnings in 267.50s (0:04:27)
+1806 passed, 1239 warnings in 272.95s (0:04:32)
 ```
 
 ---
@@ -179,8 +185,8 @@ tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainInteg
 [x] canonical production call graph documented
 [x] existing Brain identified
 [x] existing Brain actually invoked from canonical path
-[x] Brain output becomes explicit Decision Proposal
-[x] current decision authority identified
+[x] Brain output reaches ExecutionIntelligenceCore / Planner
+[x] Planner cannot independently override Brain WAIT/AVOID proposal
 [x] no second Brain created
 [x] ProfessionalSignalEngine architectural role identified
 [x] Brain cannot directly execute
@@ -188,11 +194,11 @@ tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainInteg
 [x] replay/learning cannot directly execute
 [x] no real broker execution occurred
 [x] no real MT5 order occurred
-[x] focused Gate 1 tests pass (4 passed)
-[x] full repository test suite passes (1804 passed)
+[x] focused Gate 1 tests pass (6 passed)
+[x] full repository test suite passes (1806 passed)
 [x] exact raw test evidence recorded
 [x] exact diff recorded
 [x] deferred Gate 2/3 findings recorded
 ```
 
-**STATUS:** GATE 1 IMPLEMENTATION COMPLETE — PR OPEN — AWAITING CTO FORENSIC REVIEW
+**STATUS:** GATE 1 REMEDIATION COMPLETE — PR UPDATED — AWAITING CTO FORENSIC REVIEW

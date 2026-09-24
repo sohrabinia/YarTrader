@@ -11,6 +11,8 @@ import pytest
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from app.workers.research_worker import ResearchWorker
 from src.Research.MarketAnalysis.Services.services import FeatureExtractionResearchEngine, PrimitiveMarketResearchEngine
+from src.Intelligence.Execution.core import ExecutionIntelligenceCore
+from src.Intelligence.Execution.execution_planner import ExecutionIntelligencePlanner
 
 # Import ControlledDataProvider and enforce_offline_boundary via path lookup
 forensic_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../Forensic"))
@@ -25,16 +27,18 @@ class TestGate1BrainIntegration(unittest.TestCase):
     Focused Gate 1 Test Suite validating Canonical Brain Integration.
     Proves:
     - Test A: Canonical production path (ResearchWorker._run_loop -> ResearchRuntime -> FeatureExtractionResearchEngine -> LiveAnalysisBrain) is invoked.
-    - Test B: Brain output is formatted as a structured decision proposal in findings.
-    - Test C: Brain components cannot trigger direct order dispatch or broker execution.
-    - Test D: Brain replay and cognitive learning loop execution results in 0 broker calls.
-    - Test E: Downstream execution remains strictly downstream after safety gates.
+    - Test B: Brain output is passed directly into ExecutionIntelligenceCore / Planner.
+    - Test C: Negative Test — Planner CANNOT independently manufacture BUY/SELL when Brain proposal is WAIT/AVOID.
+    - Test D: Causal Data Flow — Changing Brain proposal dynamically constrains the final decision proposal.
+    - Test E: Brain components cannot trigger direct order dispatch or broker execution.
+    - Test F: Brain replay and cognitive learning loop execution results in 0 broker calls.
+    - Test G: Downstream execution remains strictly downstream after safety gates.
     """
 
     def test_canonical_path_reaches_brain_and_returns_proposal(self):
         """
         Test A & B: Prove ResearchWorker._run_loop calls ResearchRuntime with FeatureExtractionResearchEngine,
-        which invokes LiveAnalysisBrain and generates a structured decision proposal in findings.
+        which invokes LiveAnalysisBrain and passes newborn_brain_report into ExecutionIntelligenceCore/Planner.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
@@ -78,17 +82,11 @@ class TestGate1BrainIntegration(unittest.TestCase):
             self.assertEqual(nb_report["symbol"], "XAUUSD")
             self.assertTrue(nb_report["is_read_only_compliant"])
 
-            # Verify structured decision proposal in findings
-            self.assertIn("autonomous_decision", res.Findings)
-            auto_dec = res.Findings["autonomous_decision"]
-            self.assertEqual(auto_dec["symbol"], "XAUUSD")
-            self.assertIn("action", auto_dec)
-            self.assertIn(auto_dec["action"], ["BUY", "SELL", "WAIT", "AVOID"])
-
-            # Verify plan incorporates Brain proposal metadata
+            # Verify plan incorporates Brain proposal metadata and shows consumption
             self.assertIn("intel_summary", res.Findings)
             plan = res.Findings["intel_summary"].get("plan", {})
             self.assertEqual(plan.get("decision_source"), "BRAIN")
+            self.assertTrue(plan.get("brain_report_consumed"))
 
             # Verify zero external calls were made
             self.assertEqual(len(mt5_calls), 0)
@@ -99,9 +97,101 @@ class TestGate1BrainIntegration(unittest.TestCase):
                 p.stop()
             cleanup()
 
+    def test_planner_cannot_override_brain_wait_proposal(self):
+        """
+        Test C (Negative Test): Inject Brain proposal = WAIT / AVOID under market conditions that would
+        otherwise trigger a BUY decision in legacy logic. Assert final decision CANNOT become BUY.
+        """
+        planner = ExecutionIntelligencePlanner()
+        candles = [{"open": 2000.0, "high": 2010.0, "low": 1990.0, "close": 2005.0} for _ in range(30)]
+
+        # Alignment indicating strong bullish environment
+        alignment = {"alignment": "BULLISH_CONTINUATION", "confidence": 85.0}
+        narrative = {"trend": "BULLISH", "state": "TRENDING"}
+        liquidity = {"latest_sweep": None}
+        zones = {"order_blocks": []}
+        similarity = {}
+        portfolio_risk = {"approved": True}
+
+        # 1. Test with Brain Proposal = WAIT
+        brain_report_wait = {
+            "symbol": "XAUUSD",
+            "active_hypotheses": [{"suggested_virtual_action": "WAIT"}]
+        }
+        res_wait = planner.generate_execution_plan(
+            symbol="XAUUSD",
+            timeframe="H1",
+            narrative=narrative,
+            liquidity=liquidity,
+            zones=zones,
+            alignment=alignment,
+            similarity=similarity,
+            portfolio_risk=portfolio_risk,
+            current_price=2005.0,
+            newborn_brain_report=brain_report_wait
+        )
+        plan_wait = res_wait["plan"]
+        self.assertEqual(plan_wait["action"], "WAIT")
+        self.assertEqual(plan_wait["decision"], "NO_TRADE")
+        self.assertEqual(plan_wait["brain_suggested_action"], "WAIT")
+
+        # 2. Test with Brain Proposal = AVOID
+        brain_report_avoid = {
+            "symbol": "XAUUSD",
+            "active_hypotheses": [{"suggested_virtual_action": "AVOID"}]
+        }
+        res_avoid = planner.generate_execution_plan(
+            symbol="XAUUSD",
+            timeframe="H1",
+            narrative=narrative,
+            liquidity=liquidity,
+            zones=zones,
+            alignment=alignment,
+            similarity=similarity,
+            portfolio_risk=portfolio_risk,
+            current_price=2005.0,
+            newborn_brain_report=brain_report_avoid
+        )
+        plan_avoid = res_avoid["plan"]
+        self.assertEqual(plan_avoid["action"], "AVOID")
+        self.assertEqual(plan_avoid["decision"], "NO_TRADE")
+
+    def test_causal_brain_proposal_data_flow(self):
+        """
+        Test D: Prove causality by verifying that dynamically altering the Brain proposal
+        determines and constrains the final canonical decision proposal.
+        """
+        planner = ExecutionIntelligencePlanner()
+        alignment = {"alignment": "BULLISH_CONTINUATION", "confidence": 90.0}
+        narrative = {"trend": "BULLISH", "state": "TRENDING"}
+
+        # 1. Brain proposes BUY -> Aligned -> BUY
+        brain_report_buy = {
+            "symbol": "XAUUSD",
+            "active_hypotheses": [{"suggested_virtual_action": "BUY"}]
+        }
+        res_buy = planner.generate_execution_plan(
+            symbol="XAUUSD", timeframe="H1", narrative=narrative, liquidity={},
+            zones={}, alignment=alignment, similarity={}, portfolio_risk={"approved": True},
+            current_price=2005.0, newborn_brain_report=brain_report_buy
+        )
+        self.assertEqual(res_buy["plan"]["action"], "BUY")
+
+        # 2. Brain proposes SELL -> Unaligned with Bullish structure -> Fallback to WAIT
+        brain_report_sell = {
+            "symbol": "XAUUSD",
+            "active_hypotheses": [{"suggested_virtual_action": "SELL"}]
+        }
+        res_sell = planner.generate_execution_plan(
+            symbol="XAUUSD", timeframe="H1", narrative=narrative, liquidity={},
+            zones={}, alignment=alignment, similarity={}, portfolio_risk={"approved": True},
+            current_price=2005.0, newborn_brain_report=brain_report_sell
+        )
+        self.assertEqual(res_sell["plan"]["action"], "WAIT")
+
     def test_brain_cannot_directly_execute(self):
         """
-        Test C: Attempt direct broker execution from within Brain module scope and prove it is rejected.
+        Test E: Attempt direct broker execution from within Brain module scope and prove it is rejected.
         """
         boundary_violations = []
 
@@ -159,7 +249,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_brain_replay_and_learning_cannot_execute(self):
         """
-        Test D: Exercise Brain cognitive replay and active learning loop and prove 0 execution calls occur.
+        Test F: Exercise Brain cognitive replay and active learning loop and prove 0 execution calls occur.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
@@ -198,7 +288,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
     def test_downstream_execution_remains_downstream(self):
         """
-        Test E: Prove downstream execution is reached only via authorized downstream caller after safety gates.
+        Test G: Prove downstream execution is reached only via authorized downstream caller after safety gates.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
@@ -231,7 +321,6 @@ class TestGate1BrainIntegration(unittest.TestCase):
                 "digits": 2
             }
 
-            # Clear any initial mt5_calls recorded during DemoExecutionEngine adapter instantiation
             mt5_calls.clear()
 
             with patch.object(demo_engine.adapter, "get_account_info", return_value={"equity": 10000.0, "free_margin": 10000.0}), \
