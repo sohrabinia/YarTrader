@@ -4,15 +4,26 @@
 - **PR_NUMBER:** `#311`
 - **BASE_BRANCH:** `main`
 - **BASE_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
-- **HEAD_BRANCH:** `cto/gate2-completion-program`
-- **PR_HEAD_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
+- **HEAD_BRANCH:** `cto/gate2-completion-program-9720506673426700053`
+- **PR_HEAD_SHA:** `6daf29a38c53f68bc4db32a5917d69f61577814a`
 - **ORIGIN_MAIN_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
 - **MERGE_BASE_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
 - **WORKING_TREE:** `CLEAN`
-- **AHEAD_BY:** `0`
+- **AHEAD_BY:** `9`
 - **BEHIND_BY:** `0`
-- **TOTAL_COMMITS:** `1`
+- **TOTAL_COMMITS:** `9`
+- **CHANGED_FILES:** `9`
+- **ADDITIONS:** `715`
+- **DELETIONS:** `125`
 - **REPORT_GENERATED_AT_UTC:** `2026-03-31T12:00:00Z`
+
+## Exact CI Provenance
+- **CI_WORKFLOW:** `TradeYar AI Production Acceptance & Release Validation`
+- **CI_RUN_ID:** `36187293571`
+- **CI_RUN_NUMBER:** `982`
+- **CI_COMMIT_SHA:** `6daf29a38c53f68bc4db32a5917d69f61577814a`
+- **CI_STATUS:** `completed`
+- **CI_CONCLUSION:** `success`
 
 ---
 
