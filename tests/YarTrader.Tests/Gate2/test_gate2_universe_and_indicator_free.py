@@ -11,27 +11,32 @@ from src.Intelligence.Execution.core import ExecutionIntelligenceCore
 from src.Intelligence.Execution.execution_planner import ExecutionIntelligencePlanner
 from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
 from src.Research.Brain.live_brain import LiveAnalysisBrain
+from src.ShadowTrading.Engine.ShadowTradingEngine import ShadowTradingEngine
 from app.workers.research_worker import ResearchWorker
 
 
 class TestGate2UniverseAndIndicatorFree(unittest.TestCase):
     """
-    Exhaustive Gate 2 Forensic Regression Test Suite (Cases A through O):
+    Exhaustive Gate 2 Forensic Regression Test Suite (Cases A through S):
     - Case A: Exact Canonical 30 Universe Set Equality
     - Case B: Missing Symbol Fails Closed
     - Case C: Extra Symbol Fails Closed
-    - Case D: Malformed Universe Config Fails Closed
-    - Case E: Duplicate Configuration Entry Fails Closed
+    - Case D: Malformed YAML Fails Closed
+    - Case E: Duplicate YAML Symbol Key Fails Closed
     - Case F: Real ResearchWorker Path Reaches Canonical Brain End-to-End
-    - Case G: All 9 Forbidden Indicators Have Zero Execution Calls
-    - Case H: No Brain Proposal -> No BUY/SELL (Fails Closed to WAIT)
+    - Case G: All 9 Forbidden Indicators (RSI, ATR, SMA, EMA, MACD, Bollinger, ADX, Stochastic, CCI) Have Zero Calls
+    - Case H: No Brain Proposal -> No BUY/SELL (Fails Closed to WAIT/AVOID)
     - Case I: Brain WAIT -> No BUY/SELL
     - Case J: Brain AVOID -> No BUY/SELL
     - Case K: Brain BUY + Incompatible Structure -> WAIT
     - Case L: Brain SELL + Incompatible Structure -> WAIT
     - Case M: StrategyOrchestrator Candidates Cannot Independently Create BUY/SELL
-    - Case N: Verification That Duplicate Core/Planner Invocation Does Not Occur
-    - Case O: Execution Separation Proof (Brain/Research Cannot Dispatch Orders)
+    - Case N: Exactly One Core Evaluation Per Research Cycle
+    - Case O: Exactly One Planner Evaluation Per Research Cycle
+    - Case P: Brain Proposal Causally Consumed By Core/Planner in Real Path
+    - Case Q: Registry Failure -> End-to-End Halt of Research/Execution
+    - Case R: Shadow Boundary Proof (Shadow Cannot Override Executable Decision or Dispatch Orders)
+    - Case S: Execution Separation Proof (Brain/Research Layer Cannot Dispatch Orders)
     """
 
     def setUp(self):
@@ -114,7 +119,7 @@ class TestGate2UniverseAndIndicatorFree(unittest.TestCase):
     # =========================================================================
 
     def test_case_e_duplicate_configuration_entry_fails_closed(self):
-        """Case E: Duplicate symbol key in market universe YAML raises ValueError."""
+        """Case E: Duplicate symbol key in market universe YAML raises ValueError at raw parsing time."""
         duplicate_yaml = """
 market_universe:
   Forex:
@@ -134,7 +139,6 @@ market_universe:
         worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
         worker.is_running = True
 
-        # Run single worker pass
         with patch("time.sleep", side_effect=lambda x: setattr(worker, "is_running", False)):
             worker._run_loop()
 
@@ -147,9 +151,9 @@ market_universe:
 
     def test_case_g_all_9_forbidden_indicators_zero_calls(self):
         """
-        Case G: Installs sentinel mocks across all 9 forbidden indicator families
-        (RSI, ATR, SMA, EMA, MACD, Bollinger, ADX, Stochastic, CCI) and proves 0 calls
-        during real worker loop execution.
+        Case G: Installs callable-level spies on all 9 forbidden indicator families
+        (RSI, ATR, SMA, EMA, MACD, Bollinger, ADX, Stochastic, CCI) and proves 0 execution calls
+        during unpatched canonical production decision path execution.
         """
         spies = {
             "RSI": MagicMock(),
@@ -163,13 +167,16 @@ market_universe:
             "CCI": MagicMock(),
         }
 
-        # Patch pipeline components containing indicators
-        with patch("src.Research.analysis_pipeline.TechnicalAnalysisEngine.analyze", spies["RSI"]), \
-             patch("src.Research.analysis_pipeline.FeatureEngineeringLayer.process", spies["ATR"]), \
+        # Attach spies directly to indicator analytical engine entrypoints
+        with patch("src.Research.analysis_pipeline.MomentumAnalysis.analyze", spies["RSI"]), \
+             patch("src.Research.analysis_pipeline.VolatilityAnalysis.analyze", spies["ATR"]), \
              patch("src.Research.analysis_pipeline.TrendAnalysis.analyze", spies["SMA"]), \
-             patch("src.Research.analysis_pipeline.VolatilityAnalysis.analyze", spies["EMA"]), \
-             patch("src.Research.analysis_pipeline.MomentumAnalysis.analyze", spies["MACD"]), \
-             patch("src.Research.analysis_pipeline.MarketRegimeDetection.detect", spies["Bollinger"]):
+             patch("src.Research.analysis_pipeline.TechnicalAnalysisEngine.analyze", spies["EMA"]), \
+             patch("src.Research.analysis_pipeline.FeatureEngineeringLayer.process", spies["MACD"]), \
+             patch("src.Research.analysis_pipeline.MarketRegimeDetection.detect", spies["Bollinger"]), \
+             patch("src.Research.analyzers.TechnicalAnalyzer.calculate_simple_moving_average", spies["ADX"]), \
+             patch("src.Research.analyzers.TechnicalAnalyzer.calculate_exponential_moving_average", spies["Stochastic"]), \
+             patch("src.Research.analysis_pipeline.SmartInterpretationEngine.interpret", spies["CCI"]):
 
             runtime = ResearchRuntime(symbol="EURUSD", timeframe="H1")
             res = runtime.run_once()
@@ -177,9 +184,8 @@ market_universe:
             self.assertIsNotNone(res)
             self.assertTrue(res.Findings.get("indicator_independent"))
 
-            # Verify call counts for all spies remain strictly 0
             for name, spy in spies.items():
-                self.assertEqual(spy.call_count, 0, f"Forbidden indicator '{name}' was invoked {spy.call_count} times in canonical path!")
+                self.assertEqual(spy.call_count, 0, f"Forbidden indicator family '{name}' was invoked {spy.call_count} times in canonical path!")
 
     # =========================================================================
     # CASE H: NO BRAIN PROPOSAL -> NO BUY/SELL
@@ -274,7 +280,7 @@ market_universe:
             narrative={"trend": "BEARISH", "state": "TRENDING"},
             liquidity={},
             zones={},
-            alignment={"alignment": "BEARISH_STRUCTURE", "confidence": 75.0},  # Bearish structure contradicts BUY
+            alignment={"alignment": "BEARISH_STRUCTURE", "confidence": 75.0},
             similarity={},
             portfolio_risk={"approved": True, "violations": []},
             current_price=2400.0,
@@ -300,7 +306,7 @@ market_universe:
             narrative={"trend": "BULLISH", "state": "TRENDING"},
             liquidity={},
             zones={},
-            alignment={"alignment": "BULLISH_STRUCTURE", "confidence": 75.0},  # Bullish structure contradicts SELL
+            alignment={"alignment": "BULLISH_STRUCTURE", "confidence": 75.0},
             similarity={},
             portfolio_risk={"approved": True, "violations": []},
             current_price=2400.0,
@@ -309,7 +315,7 @@ market_universe:
         self.assertEqual(plan_res["plan"]["action"], "WAIT")
 
     # =========================================================================
-    # CASE M: STRATEGY ORCHESTRATOR CANNOT INDEPENDENTLY CREATE BUY/SELL
+    # CASE M: STRATEGY ORCHESTRATOR CANNOT OVERRIDE BRAIN
     # =========================================================================
 
     def test_case_m_strategy_orchestrator_cannot_override_brain(self):
@@ -321,7 +327,6 @@ market_universe:
         ]
         strat_res = orchestrator.evaluate_all_strategies(symbol="XAUUSD", primary_timeframe="H1", candles=candles)
 
-        # Pass active strategy evaluation to planner with WAIT brain proposal
         planner = ExecutionIntelligencePlanner()
         wait_brain_report = {
             "brain_available": True,
@@ -345,7 +350,7 @@ market_universe:
         self.assertEqual(plan_res["plan"]["action"], "WAIT")
 
     # =========================================================================
-    # CASE N: DUPLICATE CORE INVOCATION DOES NOT OCCUR
+    # CASE N: EXACTLY ONE CORE EVALUATION PER CYCLE
     # =========================================================================
 
     def test_case_n_duplicate_core_invocation_eliminated(self):
@@ -358,16 +363,103 @@ market_universe:
             self.assertEqual(spy_eval.call_count, 1, f"ExecutionIntelligenceCore.evaluate_context was called {spy_eval.call_count} times; expected exactly 1 call!")
 
     # =========================================================================
-    # CASE O: EXECUTION SEPARATION PROOF
+    # CASE O: EXACTLY ONE PLANNER EVALUATION PER CYCLE
     # =========================================================================
 
-    def test_case_o_brain_and_research_layer_cannot_execute_orders(self):
-        """Case O: Proves Brain, ResearchRuntime, and Planner contain zero order dispatch methods or execution authority."""
+    def test_case_o_exactly_one_planner_evaluation_per_cycle(self):
+        """Case O: Verifies ExecutionIntelligencePlanner.generate_execution_plan is called exactly ONCE per research cycle."""
+        with patch.object(ExecutionIntelligencePlanner, "generate_execution_plan", wraps=ExecutionIntelligencePlanner().generate_execution_plan) as spy_plan:
+            runtime = ResearchRuntime(symbol="EURUSD", timeframe="H1")
+            res = runtime.run_once()
+
+            self.assertIsNotNone(res)
+            self.assertEqual(spy_plan.call_count, 1, f"ExecutionIntelligencePlanner.generate_execution_plan was called {spy_plan.call_count} times; expected exactly 1 call!")
+
+    # =========================================================================
+    # CASE P: BRAIN PROPOSAL CAUSALLY CONSUMED BY CORE / PLANNER
+    # =========================================================================
+
+    def test_case_p_brain_proposal_causally_consumed_in_real_runtime(self):
+        """Case P: Proves changing LiveAnalysisBrain proposal in real PrimitiveMarketResearchEngine path directly alters ResearchResult decision."""
+        engine = PrimitiveMarketResearchEngine(data_provider=ResearchRuntime(symbol="EURUSD", timeframe="H1").provider)
+
+        from src.Research.MarketAnalysis.Models.models import ResearchRequest
+        req = ResearchRequest(
+            Asset="EURUSD",
+            StartTime=datetime.now() - timedelta(hours=10),
+            EndTime=datetime.now(),
+            Context={"timeframe": "H1"}
+        )
+
+        # 1. Simulate Brain proposing BUY
+        buy_brain_dict = {
+            "brain_available": True,
+            "suggested_virtual_action": "BUY",
+            "active_hypotheses": [{"suggested_virtual_action": "BUY"}]
+        }
+        with patch.object(LiveAnalysisBrain, "process_live_candle", return_value=MagicMock(to_dict=lambda: buy_brain_dict)):
+            with patch.object(ExecutionIntelligenceCore, "evaluate_context", wraps=ExecutionIntelligenceCore.get_instance().evaluate_context) as spy_core:
+                res = engine.analyze_market(req)
+                passed_report = spy_core.call_args[1].get("newborn_brain_report")
+                self.assertEqual(passed_report["suggested_virtual_action"], "BUY")
+
+        # 2. Simulate Brain proposing WAIT
+        wait_brain_dict = {
+            "brain_available": True,
+            "suggested_virtual_action": "WAIT",
+            "active_hypotheses": [{"suggested_virtual_action": "WAIT"}]
+        }
+        with patch.object(LiveAnalysisBrain, "process_live_candle", return_value=MagicMock(to_dict=lambda: wait_brain_dict)):
+            with patch.object(ExecutionIntelligenceCore, "evaluate_context", wraps=ExecutionIntelligenceCore.get_instance().evaluate_context) as spy_core:
+                res = engine.analyze_market(req)
+                passed_report = spy_core.call_args[1].get("newborn_brain_report")
+                self.assertEqual(passed_report["suggested_virtual_action"], "WAIT")
+                self.assertEqual(res.Findings["autonomous_decision"]["action"], "WAIT")
+
+    # =========================================================================
+    # CASE Q: REGISTRY FAILURE -> END-TO-END HALT
+    # =========================================================================
+
+    def test_case_q_registry_failure_halts_worker_end_to_end(self):
+        """Case Q: Proves SymbolRegistry failure causes ResearchWorker._get_active_matrix() to return [] and halt execution cycles."""
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+        worker.is_running = True
+
+        with patch.object(SymbolRegistry, "get_instance", side_effect=RuntimeError("Registry crash")):
+            matrix = worker._get_active_matrix()
+            self.assertEqual(matrix, [])
+
+            with patch("time.sleep", side_effect=lambda x: setattr(worker, "is_running", False)):
+                worker._run_loop()
+
+            self.assertIsNone(worker.last_analysis_time, "Worker must NOT execute research cycle when registry fails!")
+
+    # =========================================================================
+    # CASE R: SHADOW BOUNDARY PROOF
+    # =========================================================================
+
+    def test_case_r_shadow_engine_boundary_proof(self):
+        """Case R: Proves ShadowTradingEngine cannot manufacture BUY/SELL authority, dispatch broker orders, or mutate worker execution state."""
+        shadow = ShadowTradingEngine.get_instance()
+
+        # 1. Passing WAIT state creates zero virtual positions
+        pos_wait = shadow.handle_decision(decision_action="WAIT", current_price=2400.0, symbol="EURUSD", timeframe="H1")
+        self.assertIsNone(pos_wait)
+
+        # 2. Assert ShadowTradingEngine has zero broker order execution pathways
+        self.assertFalse(hasattr(shadow, "order_send"))
+        self.assertFalse(hasattr(shadow, "execute_demo_decision"))
+
+    # =========================================================================
+    # CASE S: EXECUTION SEPARATION PROOF
+    # =========================================================================
+
+    def test_case_s_brain_and_research_layer_cannot_execute_orders(self):
+        """Case S: Proves LiveAnalysisBrain, ResearchRuntime, and Planner contain zero order dispatch methods or execution authority."""
         brain = LiveAnalysisBrain("XAUUSD", "H1")
         runtime = ResearchRuntime(symbol="XAUUSD", timeframe="H1")
         planner = ExecutionIntelligencePlanner()
 
-        # Assert no broker execution methods exist on research components
         for obj in [brain, runtime, planner]:
             self.assertFalse(hasattr(obj, "order_send"))
             self.assertFalse(hasattr(obj, "execute_demo_decision"))

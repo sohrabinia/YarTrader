@@ -212,11 +212,11 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
             worker.is_running = True
             def stop_loop_after_one(*args, **kwargs):
-                if not hasattr(stop_loop_after_one, "called"):
-                    stop_loop_after_one.called = True
-                    return [("XAUUSD", "H1", "Commodities", "MT5")]
-                worker.is_running = False
+                stop_loop_after_one.count += 1
+                if stop_loop_after_one.count > 2:
+                    worker.is_running = False
                 return [("XAUUSD", "H1", "Commodities", "MT5")]
+            stop_loop_after_one.count = 0
 
             with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
                 worker._run_loop()
@@ -273,11 +273,11 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
             worker.is_running = True
             def stop_loop_after_one(*args, **kwargs):
-                if not hasattr(stop_loop_after_one, "called"):
-                    stop_loop_after_one.called = True
-                    return [("XAUUSD", "H1", "Commodities", "MT5")]
-                worker.is_running = False
+                stop_loop_after_one.count += 1
+                if stop_loop_after_one.count > 2:
+                    worker.is_running = False
                 return [("XAUUSD", "H1", "Commodities", "MT5")]
+            stop_loop_after_one.count = 0
 
             with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
                 worker._run_loop()
@@ -352,11 +352,11 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
         worker.is_running = True
         def stop_loop_after_one(*args, **kwargs):
-            if not hasattr(stop_loop_after_one, "called"):
-                stop_loop_after_one.called = True
-                return [("XAUUSD", "H1", "Commodities", "MT5")]
-            worker.is_running = False
+            stop_loop_after_one.count += 1
+            if stop_loop_after_one.count > 2:
+                worker.is_running = False
             return [("XAUUSD", "H1", "Commodities", "MT5")]
+        stop_loop_after_one.count = 0
 
         with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
             worker._run_loop()

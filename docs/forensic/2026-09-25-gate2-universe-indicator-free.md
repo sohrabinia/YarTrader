@@ -4,9 +4,9 @@
 BASE_SHA: be56259dec65516fa237ebf2536c7138ea98e0d1
 MERGE_BASE_SHA: be56259dec65516fa237ebf2536c7138ea98e0d1
 ORIGIN_MAIN_SHA: be56259dec65516fa237ebf2536c7138ea98e0d1
-AUDITED_IMPLEMENTATION_HEAD_SHA: b59b5cd99029b625d8cbf767bcb97ab85960e9f9
-REPORT_PARENT_SHA: b59b5cd99029b625d8cbf767bcb97ab85960e9f9
-REPORT_GENERATED_AT_UTC: 2026-09-25 21:30:00 UTC
+AUDITED_IMPLEMENTATION_HEAD_SHA: ee30eb15625d2b46158a4b83c28ba55b7a3242f0
+REPORT_PARENT_SHA: ee30eb15625d2b46158a4b83c28ba55b7a3242f0
+REPORT_GENERATED_AT_UTC: 2026-09-25 22:00:00 UTC
 ```
 
 ---
@@ -61,9 +61,9 @@ The authoritative market universe comprises exactly 30 symbols:
 
 - Authoritative configuration: `config/market_universe.yaml`
 - Runtime Registry: `src/ShadowTrading/Engine/SymbolRegistry.py` (`CANONICAL_30_SYMBOLS`)
-- Duplicate Key Detection: `parse_market_universe_yaml` in `SymbolRegistry.py` maintains a `seen_symbols` set during parsing and raises `ValueError("Duplicate symbol key '...' detected in market_universe configuration!")` if a duplicate key exists in `market_universe.yaml`, preventing silent dictionary key overwrites.
+- Duplicate Key Detection: `parse_market_universe_yaml` in `SymbolRegistry.py` maintains a `seen_symbols` set during line-by-line parsing and raises `ValueError("Duplicate symbol key '...' detected in market_universe configuration!")` immediately if a duplicate key exists in `market_universe.yaml`, preventing silent key overwrites before set validation.
 - Set Equality Enforcement: `_validate_canonical_30_invariant(symbols_dict)` enforces strict set equality (`loaded_symbols == CANONICAL_30_SYMBOLS`). If missing symbols, extra symbols, or non-matching symbols exist, `SymbolRegistry` raises `ValueError` / `RuntimeError` and fails closed.
-- End-to-End Worker Safety: `ResearchWorker._get_active_matrix()` returns `[]` on registry failure, causing `ResearchWorker._run_loop()` to skip all cycles without generating research requests or trading proposals.
+- End-to-End Worker Safety: `ResearchWorker._get_active_matrix()` returns `[]` on registry failure, causing `ResearchWorker._run_loop()` to halt all research/execution cycles (`test_case_q_registry_failure_halts_worker_end_to_end`).
 
 ---
 
@@ -86,7 +86,7 @@ SymbolRegistry.get_instance().get_active_matrix()
 
 ---
 
-## 5. DUPLICATE CORE EVALUATION REMEDIATION (BEFORE vs. AFTER)
+## 5. DUPLICATE CORE EVALUATION REMEDIATION & INVOCATION COUNT EVIDENCE
 
 ### Before Remediation
 ```text
@@ -95,11 +95,11 @@ ResearchWorker._run_loop()
         ├─► PrimitiveMarketResearchEngine.analyze_market()
         │     └─► LiveAnalysisBrain.process_live_candle()
         │     └─► ExecutionIntelligenceCore.evaluate_context()  [Invocation #1]
-        │           └─► ExecutionIntelligencePlanner
+        │           └─► ExecutionIntelligencePlanner             [Invocation #1]
         │
         └─► ResearchRuntime.run_once() (Block 6b)
               └─► ExecutionIntelligenceCore.evaluate_context()  [Invocation #2 - DUPLICATE]
-                    └─► ExecutionIntelligencePlanner
+                    └─► ExecutionIntelligencePlanner             [Invocation #2 - DUPLICATE]
 ```
 
 ### After Remediation
@@ -109,55 +109,83 @@ ResearchWorker._run_loop()
         └─► PrimitiveMarketResearchEngine.analyze_market()
               ├─► LiveAnalysisBrain.process_live_candle()
               └─► ExecutionIntelligenceCore.evaluate_context()  [SINGLE CANONICAL INVOCATION]
-                    └─► ExecutionIntelligencePlanner
+                    └─► ExecutionIntelligencePlanner             [SINGLE CANONICAL INVOCATION]
                           └─► AutonomousTradingDecision (Single Proposal)
 ```
 
-Block 6b in `ResearchRuntime.run_once()` was cleanly removed. `ResearchRuntime` consumes the single canonical `autonomous_decision` and `intel_summary` generated inside `PrimitiveMarketResearchEngine.analyze_market()`. `ExecutionIntelligenceCore.evaluate_context()` is invoked exactly ONCE per research cycle, as verified by `test_case_n_duplicate_core_invocation_eliminated`.
+Block 6b in `ResearchRuntime.run_once()` was cleanly removed. `ResearchRuntime` consumes the single canonical `autonomous_decision` and `intel_summary` generated inside `PrimitiveMarketResearchEngine.analyze_market()`.
+
+- **Core Invocation Count Evidence:** Verified by `test_case_n_duplicate_core_invocation_eliminated` (`Core.evaluate_context call count == 1`).
+- **Planner Invocation Count Evidence:** Verified by `test_case_o_exactly_one_planner_evaluation_per_cycle` (`Planner.generate_execution_plan call count == 1`).
 
 ---
 
-## 6. FULL INDICATOR SEARCH INVENTORY & CLASSIFICATION
-
-Repository-wide search for `RSI`, `ATR`, `SMA`, `EMA`, `MACD`, `Bollinger`, `ADX`, `Stochastic`, `CCI`:
-
-| Component / Path | Classification | Justification |
-| :--- | :--- | :--- |
-| `PrimitiveMarketResearchEngine` (`src/Research/MarketAnalysis/Services/services.py`) | **A. CANONICAL EXECUTABLE** | Default engine invoked in production worker path; uses 0 technical indicators. |
-| `ExecutionIntelligenceCore` (`src/Intelligence/Execution/core.py`) | **A. CANONICAL EXECUTABLE** | Orchestrates market narrative, liquidity, zones, alignment, similarity, portfolio, strategy, and planner; uses 0 technical indicators. |
-| `ExecutionIntelligencePlanner` (`src/Intelligence/Execution/execution_planner.py`) | **A. CANONICAL EXECUTABLE** | Formulates proposal parameters; uses 0 technical indicators. |
-| `LiveAnalysisBrain` (`src/Research/Brain/live_brain.py`) | **A. CANONICAL EXECUTABLE** | Single decision authority; uses 0 technical indicators. |
-| `StrategyOrchestrator` (`src/Intelligence/Execution/strategy_orchestrator.py`) | **A. CANONICAL EXECUTABLE** | Evaluates 6 strategy profiles on raw price structure; uses 0 technical indicators. Candidate outputs are non-authoritative. |
-| `FeatureExtractionResearchEngine` (`src/Research/MarketAnalysis/Services/services.py`) | **B. NON-CANONICAL LEGACY** | Preserved for explicit opt-in legacy consumers; bypassed by default production path. |
-| `TechnicalAnalysisEngine` (`src/Research/analysis_pipeline.py`) | **B. NON-CANONICAL LEGACY** | Bypassed by `PrimitiveMarketResearchEngine`. |
-| `TechnicalAnalyzer` (`src/Research/analyzers.py`) | **E. DEAD / UNREACHABLE** | Historical utility functions not invoked in runtime loop. |
-| `MarketSessionEngine` (`src/Execution/Services/market_session_engine.py`) | **B. NON-CANONICAL LEGACY** | String comments in TP feasibility docstrings. |
-| `ProfessionalSignalEngine` (`src/Decision/Intelligence/professional_signal_engine.py`) | **B. NON-CANONICAL LEGACY** | Isolated advisory engine; disconnected from research worker loop. |
-
-**Canonical Executable Path Status: 100% INDICATOR FREE.**
-
----
-
-## 7. DECISION AUTHORITY & BRAIN CAUSALITY ANALYSIS
+## 6. BRAIN → CORE → PLANNER CAUSALITY EVIDENCE
 
 - Single Conceptual Brain: `LiveAnalysisBrain` (`src/Research/Brain/live_brain.py`).
-- Brain Causality: `ExecutionIntelligencePlanner` transforms and validates `LiveAnalysisBrain` proposals.
-- Proof of Causality:
-  - If `newborn_brain_report` is missing or `brain_available = False`, `planner` outputs `action = "WAIT"` with `decision_source = "BRAIN_UNAVAILABLE"`.
-  - If Brain proposes `WAIT` or `AVOID`, final canonical decision MUST be `WAIT` or `AVOID`.
-  - If Brain proposes `BUY` or `SELL` with contradicting market structure, final canonical decision defaults to `WAIT`.
+- Proof of Causality: Verified by `test_case_p_brain_proposal_causally_consumed_in_real_runtime` across the real `PrimitiveMarketResearchEngine` runtime path:
+  - When `LiveAnalysisBrain` proposes `BUY`, `newborn_brain_report` carries `suggested_virtual_action = "BUY"` into `ExecutionIntelligenceCore.evaluate_context()`.
+  - When `LiveAnalysisBrain` proposes `WAIT`, `newborn_brain_report` carries `suggested_virtual_action = "WAIT"` into `ExecutionIntelligenceCore.evaluate_context()`, and `ResearchResult` output yields `action = "WAIT"`.
+  - When `newborn_brain_report` is missing or `brain_available = False`, `ExecutionIntelligencePlanner` fails closed to `action = "WAIT"` with `decision_source = "BRAIN_UNAVAILABLE"` (`test_case_h_no_brain_proposal_fails_closed_to_wait`).
   - Downstream components (`StrategyOrchestrator`, `ExecutionIntelligencePlanner`, etc.) CANNOT independently manufacture `BUY` or `SELL` without an explicit `BUY`/`SELL` proposal from `LiveAnalysisBrain`.
 
 ---
 
-## 8. EXECUTION SEPARATION
+## 7. FULL 9-FAMILY FORBIDDEN INDICATOR AUDIT & RUNTIME SENTINELS EVIDENCE
 
-- `LiveAnalysisBrain`, `PrimitiveMarketResearchEngine`, `ResearchRuntime`, and `ExecutionIntelligencePlanner` contain 0 order execution methods (`order_send`, `execute_demo_decision`, etc.).
+Repository-wide search and classification for `RSI`, `ATR`, `SMA`, `EMA`, `MACD`, `Bollinger`, `ADX`, `Stochastic`, `CCI`:
+
+| Component / Path | Indicator Imports/Calls | Role in Gate-2 Path | Status |
+| :--- | :--- | :--- | :--- |
+| `PrimitiveMarketResearchEngine` (`src/Research/MarketAnalysis/Services/services.py`) | NO | Canonical executable decision engine | CANONICAL EXECUTABLE |
+| `ExecutionIntelligenceCore` (`src/Intelligence/Execution/core.py`) | NO | Context evaluation & orchestration | CANONICAL EXECUTABLE |
+| `ExecutionIntelligencePlanner` (`src/Intelligence/Execution/execution_planner.py`) | NO | Proposal validator & formatter | CANONICAL EXECUTABLE |
+| `LiveAnalysisBrain` (`src/Research/Brain/live_brain.py`) | NO | Single decision authority | CANONICAL EXECUTABLE |
+| `StrategyOrchestrator` (`src/Intelligence/Execution/strategy_orchestrator.py`) | NO | Non-authoritative candidate setups | CANONICAL EXECUTABLE (Advisory) |
+| `MarketNarrativeEngine` (`src/Intelligence/Execution/narrative.py`) | NO | Structural trend highs/lows | CANONICAL EXECUTABLE |
+| `LiquidityIntelligenceEngine` (`src/Intelligence/Execution/liquidity.py`) | NO | Equal highs/lows and sweeps | CANONICAL EXECUTABLE |
+| `InstitutionalZoneEngine` (`src/Intelligence/Execution/zones.py`) | NO | Order blocks and FVGs | CANONICAL EXECUTABLE |
+| `MultiTimeframeAlignmentEngine` (`src/Intelligence/Execution/alignment.py`) | NO | MTF structure alignment | CANONICAL EXECUTABLE |
+| `PatternSimilarityIntelligenceEngine` (`src/Intelligence/Execution/similarity.py`) | NO | Geometry range matching | CANONICAL EXECUTABLE |
+| `PortfolioRiskIntelligenceEngine` (`src/Intelligence/Execution/portfolio.py`) | NO | Equity drawdown limits | CANONICAL EXECUTABLE |
+| `FeatureExtractionResearchEngine` (`src/Research/MarketAnalysis/Services/services.py`) | YES (Legacy) | Bypassed default engine | NON-CANONICAL LEGACY |
+| `TechnicalAnalysisEngine` (`src/Research/analysis_pipeline.py`) | YES (Legacy) | Bypassed legacy pipeline | NON-CANONICAL LEGACY |
+| `TechnicalAnalyzer` (`src/Research/analyzers.py`) | YES (Legacy) | Unused math functions | DEAD / UNREACHABLE |
+| `MarketSessionEngine` (`src/Execution/Services/market_session_engine.py`) | Docstrings | Disconnected session engine | NON-CANONICAL LEGACY |
+| `ProfessionalSignalEngine` (`src/Decision/Intelligence/professional_signal_engine.py`) | Price Action | Disconnected signal engine | NON-CANONICAL LEGACY |
+
+### Runtime Indicator Sentinels Evidence
+Verified by `test_case_g_all_9_forbidden_indicators_zero_calls` in `tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py`:
+- `RSI calls = 0`
+- `ATR calls = 0`
+- `SMA calls = 0`
+- `EMA calls = 0`
+- `MACD calls = 0`
+- `Bollinger calls = 0`
+- `ADX calls = 0`
+- `Stochastic calls = 0`
+- `CCI calls = 0`
+
+---
+
+## 8. EXPLICIT SHADOW TRADING BOUNDARY EVIDENCE
+
+- `ShadowTradingEngine.handle_decision()` is invoked at the end of `ResearchRuntime.run_once()`.
+- Verified by `test_case_r_shadow_engine_boundary_proof`:
+  - `ShadowTradingEngine` opens virtual positions on a virtual account (`VirtualAccount`) strictly for offline evaluation and pattern outcome tracking (`runtime_logs/pattern_outcomes.json`).
+  - `ShadowTradingEngine` contains 0 broker order dispatch methods (`order_send`, `execute_demo_decision`).
+  - `ShadowTradingEngine` cannot override the canonical decision proposal or mutate `ResearchWorker` execution state.
+
+---
+
+## 9. EXECUTION SEPARATION
+
+- `LiveAnalysisBrain`, `PrimitiveMarketResearchEngine`, `ResearchRuntime`, and `ExecutionIntelligencePlanner` contain 0 order execution methods (`order_send`, `execute_demo_decision`, etc.) (`test_case_s_brain_and_research_layer_cannot_execute_orders`).
 - Order dispatch occurs strictly downstream in `ResearchWorker._run_loop()` under fail-closed safety gates (`AUTONOMOUS_DEMO_TRADING_ENABLED`, 0.5% risk limit, daily loss kill switch, RR threshold, cooldown).
 
 ---
 
-## 9. EXACT FOCUSED TEST COMMANDS AND OUTPUT
+## 10. EXACT FOCUSED TEST COMMANDS AND OUTPUT
 
 ```bash
 python3 -m pytest -v tests/YarTrader.Tests/Gate2/
@@ -170,62 +198,67 @@ cachedir: .pytest_cache
 rootdir: /app
 configfile: pytest.ini
 plugins: anyio-4.15.1
-collecting ... collected 15 items
+collecting ... collected 19 items
 
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_a_exact_canonical_30_universe PASSED [  6%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_b_missing_symbol_fails_closed PASSED [ 13%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_c_extra_symbol_fails_closed PASSED [ 20%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_d_malformed_universe_fails_closed PASSED [ 26%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_e_duplicate_configuration_entry_fails_closed PASSED [ 33%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_f_real_worker_path_reaches_canonical_brain PASSED [ 40%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_g_all_9_forbidden_indicators_zero_calls PASSED [ 46%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_h_no_brain_proposal_fails_closed_to_wait PASSED [ 53%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_i_brain_wait_cannot_become_buy_or_sell PASSED [ 60%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_j_brain_avoid_cannot_become_buy_or_sell PASSED [ 66%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_k_brain_buy_incompatible_structure_defaults_to_wait PASSED [ 73%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_l_brain_sell_incompatible_structure_defaults_to_wait PASSED [ 80%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_m_strategy_orchestrator_cannot_override_brain PASSED [ 86%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_n_duplicate_core_invocation_eliminated PASSED [ 93%]
-tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_o_brain_and_research_layer_cannot_execute_orders PASSED [100%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_a_exact_canonical_30_universe PASSED [  5%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_b_missing_symbol_fails_closed PASSED [ 10%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_c_extra_symbol_fails_closed PASSED [ 15%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_d_malformed_universe_fails_closed PASSED [ 21%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_e_duplicate_configuration_entry_fails_closed PASSED [ 26%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_f_real_worker_path_reaches_canonical_brain PASSED [ 31%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_g_all_9_forbidden_indicators_zero_calls PASSED [ 36%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_h_no_brain_proposal_fails_closed_to_wait PASSED [ 42%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_i_brain_wait_cannot_become_buy_or_sell PASSED [ 47%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_j_brain_avoid_cannot_become_buy_or_sell PASSED [ 52%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_k_brain_buy_incompatible_structure_defaults_to_wait PASSED [ 57%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_l_brain_sell_incompatible_structure_defaults_to_wait PASSED [ 63%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_m_strategy_orchestrator_cannot_override_brain PASSED [ 68%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_n_duplicate_core_invocation_eliminated PASSED [ 73%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_o_exactly_one_planner_evaluation_per_cycle PASSED [ 78%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_p_brain_proposal_causally_consumed_in_real_runtime PASSED [ 84%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_q_registry_failure_halts_worker_end_to_end PASSED [ 89%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_r_shadow_engine_boundary_proof PASSED [ 94%]
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py::TestGate2UniverseAndIndicatorFree::test_case_s_brain_and_research_layer_cannot_execute_orders PASSED [100%]
 
-============================== 15 passed in 0.84s ==============================
+============================== 19 passed in 0.64s ==============================
 ```
 
 ---
 
-## 10. EXACT FULL-SUITE COMMAND AND OUTPUT
+## 11. EXACT FULL-SUITE COMMAND AND OUTPUT
 
 ```bash
 python3 -m pytest -v
 ```
 
 ```text
-===== 1948 passed, 1253 warnings, 17 subtests passed in 279.33s (0:04:39) ======
+===== 1952 passed, 1253 warnings, 17 subtests passed in 226.57s (0:03:46) ======
 ```
 
 ---
 
-## 11. GIT DIFF STATISTICS
+## 12. GIT DIFF STATISTICS
 
 ```text
- app/workers/research_worker.py                                          |   2 +-
+ app/workers/research_worker.py                                          |  10 +-
  config/market_universe.yaml                                             |  40 +++---
- src/Application/Runtime/research_runtime.py                           |  87 -------------
- src/ShadowTrading/Engine/SymbolRegistry.py                             |  20 ++-
- tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py  | 305 ++++++++++++++++++++++++++++++++++++++++++++
+ src/Application/Runtime/research_runtime.py                           |  89 -------------
+ src/ShadowTrading/Engine/SymbolRegistry.py                             |  21 ++-
+ tests/YarTrader.Tests/Execution/test_demo_execution_gate.py            |  18 +--
+ tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py  | 378 ++++++++++++++++++++++++++++++++++++++++++++
  tests/YarTrader.Tests/Universe/test_data_boundary_and_memory.py        |  10 +-
- 6 files changed, 347 insertions(+), 117 deletions(-)
+ 7 files changed, 412 insertions(+), 154 deletions(-)
 ```
 
 ---
 
-## 12. DEFERRED GATE 3 FINDINGS
+## 13. DEFERRED GATE 3 FINDINGS
 
 - Position risk percentages, daily loss kill switch thresholds, Risk/Reward minimums, DEMO/LIVE trading policies, and broker execution credentials remain untouched for Gate 3 evaluation.
 
 ---
 
-## 13. FINAL REMEDIATION STATUS SUMMARY
+## 14. FINAL REMEDIATION STATUS SUMMARY
 
 ```text
 EXACT_30_UNIVERSE: PASS
