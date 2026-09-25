@@ -73,7 +73,7 @@ class ResearchWorker:
             from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
             return SymbolRegistry.get_instance().get_active_matrix()
         except Exception:
-            return [(self.default_symbol, self.timeframe, "Commodities", "MT5")]
+            return []
 
     def start(self) -> None:
         """Starts the background worker thread."""

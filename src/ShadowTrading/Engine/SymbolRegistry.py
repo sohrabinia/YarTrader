@@ -6,10 +6,11 @@ from typing import Dict, List, Any, Tuple
 REGISTRY_FILE = "runtime_logs/symbols_registry.json"
 
 CANONICAL_30_SYMBOLS = {
-    "XAUUSD", "XAGUSD", "EURUSD", "USDJPY", "GBPUSD", "USDCHF", "AUDUSD", "USDCAD",
-    "NZDUSD", "EURJPY", "GBPJPY", "EURGBP", "AUDJPY", "EURCHF", "CADJPY",
-    "BTCUSD", "ETHUSD", "SOLUSD", "BNBUSD", "XRPUSD", "ADAUSD", "DOGEUSD", "AVAXUSD",
-    "DOTUSD", "LINKUSD", "LTCUSD", "BCHUSD", "NEARUSD", "UNIUSD", "ATOMUSD"
+    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD",
+    "EURGBP", "EURJPY", "GBPJPY", "EURCHF", "EURAUD", "EURNZD", "GBPAUD",
+    "GBPCAD", "GBPCHF", "AUDJPY", "AUDCAD", "AUDNZD", "CADJPY", "CHFJPY",
+    "NZDJPY", "NZDCAD", "XAUUSD", "XAGUSD", "US30", "NAS100", "GER40",
+    "UK100", "BTCUSD"
 }
 
 def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
