@@ -73,7 +73,7 @@ class ResearchWorker:
             from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
             return SymbolRegistry.get_instance().get_active_matrix()
         except Exception:
-            return [(self.default_symbol, self.timeframe, "Commodities", "MT5")]
+            return []
 
     def start(self) -> None:
         """Starts the background worker thread."""
@@ -243,21 +243,17 @@ class ResearchWorker:
     def _run_loop(self) -> None:
         """Worker loop running on the background thread."""
         try:
-            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-            registry = SymbolRegistry.get_instance()
-            active_matrix = registry.get_active_matrix()
-            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
-            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
+            active_matrix = self._get_active_matrix()
+            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix))) if active_matrix else []
+            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix))) if active_matrix else []
 
             print("================================================")
             print("YarTrader Multi-Symbol / Multi-TF Runtime")
             print("================================================")
-            print(f"Registry Capacity:\n{registry.max_symbols} Symbols\n")
-            print(f"Registered Symbols:\n{len(registry.get_all_registered())}\n")
             print(f"Active Symbols:\n{len(unique_symbols)}\n")
             print(f"Configured Timeframes:\n{configured_tfs}\n")
             print("Research Workers:\nRunning\n")
-            print(f"Queue Size:\n{len(active_matrix)} ({len(unique_symbols)} symbols x {len(configured_tfs)} timeframes)\n")
+            print(f"Queue Size:\n{len(active_matrix)}\n")
             print("Mode:\nProduction")
             print("================================================\n")
 
