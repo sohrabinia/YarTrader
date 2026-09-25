@@ -73,7 +73,7 @@ class ResearchWorker:
             from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
             return SymbolRegistry.get_instance().get_active_matrix()
         except Exception:
-            return [(self.default_symbol, self.timeframe, "Commodities", "MT5")]
+            return []
 
     def start(self) -> None:
         """Starts the background worker thread."""
@@ -243,21 +243,17 @@ class ResearchWorker:
     def _run_loop(self) -> None:
         """Worker loop running on the background thread."""
         try:
-            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-            registry = SymbolRegistry.get_instance()
-            active_matrix = registry.get_active_matrix()
-            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
-            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
+            active_matrix = self._get_active_matrix()
+            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix))) if active_matrix else []
+            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix))) if active_matrix else []
 
             print("================================================")
             print("YarTrader Multi-Symbol / Multi-TF Runtime")
             print("================================================")
-            print(f"Registry Capacity:\n{registry.max_symbols} Symbols\n")
-            print(f"Registered Symbols:\n{len(registry.get_all_registered())}\n")
             print(f"Active Symbols:\n{len(unique_symbols)}\n")
             print(f"Configured Timeframes:\n{configured_tfs}\n")
             print("Research Workers:\nRunning\n")
-            print(f"Queue Size:\n{len(active_matrix)} ({len(unique_symbols)} symbols x {len(configured_tfs)} timeframes)\n")
+            print(f"Queue Size:\n{len(active_matrix)}\n")
             print("Mode:\nProduction")
             print("================================================\n")
 
@@ -267,10 +263,6 @@ class ResearchWorker:
                 for symbol, tf, asset_class, provider in active_matrix:
                     if not self.is_running:
                         break
-
-                    # Phase 1 Scope Boundary: Trading Core & execution dispatch are strictly XAUUSD ONLY
-                    if symbol.upper() != "XAUUSD":
-                        continue
 
                     try:
                         print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
@@ -307,6 +299,11 @@ class ResearchWorker:
                         if not kill_switch_enabled:
                             print(f"[ResearchWorker] Kill Switch ACTIVE (AUTONOMOUS_DEMO_TRADING_ENABLED=False). Skipping execution dispatch for {symbol}.")
                         elif action in ["BUY", "SELL"]:
+                            # Execution Scope Boundary: DEMO order dispatch is strictly XAUUSD ONLY
+                            if symbol.upper() != "XAUUSD":
+                                print(f"[ResearchWorker] DEMO Execution boundary active: order dispatch is strictly XAUUSD only. Skipping execution dispatch for {symbol}.")
+                                continue
+
                             sig_dir = action
                             now_time = time.time()
                             sig_time = now_time
