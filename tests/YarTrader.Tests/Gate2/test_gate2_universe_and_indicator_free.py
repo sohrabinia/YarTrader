@@ -71,6 +71,12 @@ class TestGate2UniverseAndIndicatorFree(unittest.TestCase):
 
     def tearDown(self):
         SymbolRegistry._instance = None
+        if os.path.exists("runtime_logs/symbols_registry.json"):
+            try:
+                os.remove("runtime_logs/symbols_registry.json")
+            except Exception:
+                pass
+        SymbolRegistry.get_instance()
 
     # Case A: Canonical exact 30-symbol set equality
     def test_case_a_canonical_exact_30_universe(self):
