@@ -14,8 +14,9 @@ CANONICAL_30_SYMBOLS = {
 }
 
 def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
-    """Pure-Python YAML parser for market_universe.yaml mapping."""
+    """Pure-Python YAML parser for market_universe.yaml mapping with duplicate symbol key detection."""
     result = {}
+    seen_symbols = set()
     current_category = None
     for line in content.splitlines():
         strip_line = line.strip()
@@ -27,12 +28,17 @@ def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
             continue # ignore market_universe root tag
         elif indent == 2:
             current_category = strip_line.replace(":", "").strip()
-            result[current_category] = {}
+            if current_category not in result:
+                result[current_category] = {}
         elif indent == 4:
             if ":" in strip_line:
                 symbol, payload_str = strip_line.split(":", 1)
-                symbol = symbol.strip()
+                symbol = symbol.strip().upper()
                 payload_str = payload_str.strip()
+
+                if symbol in seen_symbols:
+                    raise ValueError(f"Duplicate symbol key '{symbol}' detected in market_universe configuration!")
+                seen_symbols.add(symbol)
 
                 try:
                     # Clean up JSON-like format
