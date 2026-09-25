@@ -79,18 +79,18 @@ class ExecutionIntelligencePlanner:
         obs = zones.get("order_blocks", [])
         fvgs = zones.get("fair_value_gaps", [])
 
-        # Governance Invariant: Brain proposal is MANDATORY for BUY/SELL proposal generation.
+        # Governance Invariant: Brain proposal is the SOLE market strategy authority.
         # If Brain report is missing/unconsumed or proposes WAIT/AVOID -> Fail closed to WAIT/AVOID.
         if not brain_report_consumed or brain_suggested_action in ["WAIT", "AVOID"]:
             action = brain_suggested_action if brain_report_consumed else "WAIT"
         else:
-            # Brain explicitly proposed BUY or SELL: Planner validates against structural alignment and formats trade parameters
-            if brain_suggested_action == "BUY" and "BULLISH" in alignment.get("alignment", ""):
+            # Brain explicitly proposed BUY or SELL: Planner formats trade parameters directly without overriding Brain
+            if brain_suggested_action == "BUY":
                 action = "BUY"
                 entry = current_price
                 stop_loss = current_price - (current_price * 0.01) # fallback 1%
                 if obs:
-                    bullish_obs = [ob for ob in obs if ob["type"] == "BULLISH_OB"]
+                    bullish_obs = [ob for ob in obs if ob.get("type") == "BULLISH_OB"]
                     if bullish_obs:
                         stop_loss = max(stop_loss, bullish_obs[0]["bottom"])
 
@@ -99,12 +99,12 @@ class ExecutionIntelligencePlanner:
                 if resting_bsl:
                     take_profit = resting_bsl[0]["level"]
 
-            elif brain_suggested_action == "SELL" and "BEARISH" in alignment.get("alignment", ""):
+            elif brain_suggested_action == "SELL":
                 action = "SELL"
                 entry = current_price
                 stop_loss = current_price + (current_price * 0.01)
                 if obs:
-                    bearish_obs = [ob for ob in obs if ob["type"] == "BEARISH_OB"]
+                    bearish_obs = [ob for ob in obs if ob.get("type") == "BEARISH_OB"]
                     if bearish_obs:
                         stop_loss = min(stop_loss, bearish_obs[0]["top"])
 
@@ -117,10 +117,6 @@ class ExecutionIntelligencePlanner:
 
         # Strategy identity is strictly Multi-Timeframe Continuous Market Intelligence Core
         selected_strategy_name = "Multi-Timeframe Continuous Market Intelligence"
-
-        # If market state is ranging or in compression without strong alignment, default to WAIT
-        if narrative.get("state") in ["COMPRESSION", "RANGE"] and action != "WAIT":
-            action = "WAIT"
 
         # Calculate risk reward
         risk_dist = abs(entry - stop_loss)

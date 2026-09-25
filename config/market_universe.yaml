@@ -6,32 +6,34 @@ market_universe:
 
   Forex:
     EURUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    USDJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
     GBPUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    USDJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
     USDCHF: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    AUDUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
     USDCAD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    AUDUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
     NZDUSD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    EURGBP: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
     EURJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
     GBPJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    EURGBP: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    AUDJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
     EURCHF: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    EURAUD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    EURNZD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    GBPAUD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    GBPCAD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    GBPCHF: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    AUDJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    AUDCAD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    AUDNZD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
     CADJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    CHFJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    NZDJPY: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    NZDCAD: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+
+  Indices:
+    US30:   { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    NAS100: { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    GER40:  { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    UK100:  { provider: "MT5", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
 
   Crypto:
-    BTCUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    ETHUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    SOLUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    BNBUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    XRPUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    ADAUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    DOGEUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    AVAXUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    DOTUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    LINKUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    LTCUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    BCHUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    NEARUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    UNIUSD:  { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
-    ATOMUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }
+    BTCUSD: { provider: "Crypto", enabled: true, timeframes: ["M15", "H1", "H4", "D1"] }

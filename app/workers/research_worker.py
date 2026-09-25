@@ -73,7 +73,7 @@ class ResearchWorker:
             from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
             return SymbolRegistry.get_instance().get_active_matrix()
         except Exception:
-            return [(self.default_symbol, self.timeframe, "Commodities", "MT5")]
+            return []
 
     def start(self) -> None:
         """Starts the background worker thread."""
@@ -268,10 +268,6 @@ class ResearchWorker:
                     if not self.is_running:
                         break
 
-                    # Phase 1 Scope Boundary: Trading Core & execution dispatch are strictly XAUUSD ONLY
-                    if symbol.upper() != "XAUUSD":
-                        continue
-
                     try:
                         print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
 
@@ -297,6 +293,11 @@ class ResearchWorker:
                         print(f"Candles: {candles_count}")
                         print("Features: Generated")
                         print("Research: Completed\n")
+
+                        # DEMO Execution Scope Boundary: Order dispatch is strictly XAUUSD ONLY
+                        if symbol.upper() != "XAUUSD":
+                            print(f"[ResearchWorker] Symbol {symbol} research completed. Execution skipped (DEMO execution is XAUUSD only).")
+                            continue
 
                         # DEMO Execution Bridge: Consume AutonomousTradingDecision with Kill Switch, RR, and Cooldown gates
                         auto_dec = res.Findings.get("autonomous_decision", {})
