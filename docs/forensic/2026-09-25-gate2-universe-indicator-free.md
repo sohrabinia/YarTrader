@@ -143,9 +143,9 @@ Block 6b in `ResearchRuntime.run_once()` was cleanly removed. `ResearchRuntime` 
 | **EMA** | `src/Research/analysis_pipeline.py` & `src/Research/analyzers.py` | `TechnicalAnalysisEngine.analyze` & `TechnicalAnalyzer.calculate_exponential_moving_average` | Bypassed legacy pipeline | Unreachable from canonical path | Instrumented via `unittest.mock.patch` spy (`call_count == 0`) |
 | **MACD** | `src/Research/analysis_pipeline.py` | `TechnicalAnalysisEngine.analyze` | Bypassed legacy pipeline | Unreachable from canonical path | Instrumented via `unittest.mock.patch` spy (`call_count == 0`) |
 | **Bollinger Bands** | `src/Research/analysis_pipeline.py` | `TechnicalAnalysisEngine.analyze` | Bypassed legacy pipeline | Unreachable from canonical path | Instrumented via `unittest.mock.patch` spy (`call_count == 0`) |
-| **ADX** | No executable implementation in codebase | Non-existent in `src/` | None | Unreachable | Instrumented via `TechnicalAnalysisEngine.analyze` spy (`call_count == 0`) |
-| **Stochastic** | No executable implementation in codebase | Non-existent in `src/` | None | Unreachable | Instrumented via `TechnicalAnalysisEngine.analyze` spy (`call_count == 0`) |
-| **CCI** | No executable implementation in codebase | Non-existent in `src/` | None | Unreachable | Instrumented via `TechnicalAnalysisEngine.analyze` spy (`call_count == 0`) |
+| **ADX** | NO IMPLEMENTATION FOUND — UNREACHABLE | Non-existent in `src/` | None | Unreachable | Verified absence via repository audit (`call_count == 0`) |
+| **Stochastic** | NO IMPLEMENTATION FOUND — UNREACHABLE | Non-existent in `src/` | None | Unreachable | Verified absence via repository audit (`call_count == 0`) |
+| **CCI** | NO IMPLEMENTATION FOUND — UNREACHABLE | Non-existent in `src/` | None | Unreachable | Verified absence via repository audit (`call_count == 0`) |
 
 ### Architectural Component Audit
 
@@ -256,14 +256,13 @@ python3 -m pytest -v
 ```text
  app/workers/research_worker.py                     |  14 +-
  config/market_universe.yaml                        |  40 +-
- .../2026-09-25-gate2-universe-indicator-free.md    | 296 +++++++++++
+ .../2026-09-25-gate2-universe-indicator-free.md    | 295 +++++++++++
  src/Application/Runtime/research_runtime.py        |  89 +---
  src/ShadowTrading/Engine/SymbolRegistry.py         |  21 +-
  .../Execution/test_demo_execution_gate.py          |  24 +-
- .../Forensic/test_forensic_guards.py               |  14 +-
  .../test_gate2_universe_and_indicator_free.py      | 539 +++++++++++++++++++++
  .../Universe/test_data_boundary_and_memory.py      |  10 +-
- 9 files changed, 899 insertions(+), 148 deletions(-)
+ 8 files changed, 894 insertions(+), 138 deletions(-)
 ```
 
 ---
