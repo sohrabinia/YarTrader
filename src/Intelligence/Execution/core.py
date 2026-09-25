@@ -147,23 +147,11 @@ class ExecutionIntelligenceCore:
         active_trades = active_portfolio_trades or []
         portfolio_res = self.portfolio_engine.calculate_portfolio_risk(active_trades, virtual_balance)
 
-        # 6b. Evaluate 6 Strategy Profiles via StrategyOrchestrator
-        strategy_eval_res = self.strategy_orchestrator.evaluate_all_strategies(
-            symbol=symbol,
-            primary_timeframe=timeframe,
-            candles=candles,
-            all_timeframe_candles=all_timeframe_candles,
-            narrative=narrative_res,
-            liquidity=liquidity_res,
-            zones=zones_res,
-            alignment=alignment_res,
-            similarity=similarity_res,
-            fractal=state.get("fractal", {}),
-            account_balance=virtual_balance
-        )
+        # 6b. Disconnect legacy StrategyOrchestrator from canonical decision authority
+        strategy_eval_res = {"status": "DISCONNECTED", "note": "StrategyOrchestrator removed from canonical decision authority"}
         state["strategy_evaluation"] = strategy_eval_res
 
-        # 7. Generate advisory plan recommendation
+        # 7. Generate advisory plan recommendation from LiveAnalysisBrain proposal
         current_price = float(candles[-1]["close"])
         plan_res = self.planner.generate_execution_plan(
             symbol=symbol,
@@ -175,7 +163,7 @@ class ExecutionIntelligenceCore:
             similarity=similarity_res,
             portfolio_risk=portfolio_res,
             current_price=current_price,
-            strategy_eval=strategy_eval_res,
+            strategy_eval=None,
             lang=lang,
             newborn_brain_report=newborn_brain_report
         )

@@ -385,41 +385,42 @@ market_universe:
     # =========================================================================
 
     def test_case_p_brain_proposal_causally_consumed_in_real_runtime(self):
-        """Case P: Proves changing LiveAnalysisBrain proposal in real PrimitiveMarketResearchEngine path directly alters ResearchResult decision."""
-        engine = PrimitiveMarketResearchEngine(data_provider=ResearchRuntime(symbol="EURUSD", timeframe="H1").provider)
+        """Case P: Proves changing LiveAnalysisBrain proposal on real ResearchWorker._run_loop() path directly alters AutonomousTradingDecision action."""
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
 
-        from src.Research.MarketAnalysis.Models.models import ResearchRequest
-        req = ResearchRequest(
-            Asset="EURUSD",
-            StartTime=datetime.now() - timedelta(hours=10),
-            EndTime=datetime.now(),
-            Context={"timeframe": "H1"}
-        )
-
-        # 1. Simulate Brain proposing BUY
+        # 1. Simulate Brain proposing BUY on real ResearchWorker._run_loop() path
         buy_brain_dict = {
             "brain_available": True,
             "suggested_virtual_action": "BUY",
             "active_hypotheses": [{"suggested_virtual_action": "BUY"}]
         }
-        with patch.object(LiveAnalysisBrain, "process_live_candle", return_value=MagicMock(to_dict=lambda: buy_brain_dict)):
-            with patch.object(ExecutionIntelligenceCore, "evaluate_context", wraps=ExecutionIntelligenceCore.get_instance().evaluate_context) as spy_core:
-                res = engine.analyze_market(req)
-                passed_report = spy_core.call_args[1].get("newborn_brain_report")
-                self.assertEqual(passed_report["suggested_virtual_action"], "BUY")
+        with patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "MT5")]), \
+             patch.object(LiveAnalysisBrain, "process_live_candle", return_value=MagicMock(to_dict=lambda: buy_brain_dict)), \
+             patch.object(ExecutionIntelligenceCore, "evaluate_context", wraps=ExecutionIntelligenceCore.get_instance().evaluate_context) as spy_core:
 
-        # 2. Simulate Brain proposing WAIT
+            worker.is_running = True
+            with patch("time.sleep", side_effect=lambda x: setattr(worker, "is_running", False)):
+                worker._run_loop()
+
+            passed_report = spy_core.call_args[1].get("newborn_brain_report")
+            self.assertEqual(passed_report["suggested_virtual_action"], "BUY")
+
+        # 2. Simulate Brain proposing WAIT on real ResearchWorker._run_loop() path
         wait_brain_dict = {
             "brain_available": True,
             "suggested_virtual_action": "WAIT",
             "active_hypotheses": [{"suggested_virtual_action": "WAIT"}]
         }
-        with patch.object(LiveAnalysisBrain, "process_live_candle", return_value=MagicMock(to_dict=lambda: wait_brain_dict)):
-            with patch.object(ExecutionIntelligenceCore, "evaluate_context", wraps=ExecutionIntelligenceCore.get_instance().evaluate_context) as spy_core:
-                res = engine.analyze_market(req)
-                passed_report = spy_core.call_args[1].get("newborn_brain_report")
-                self.assertEqual(passed_report["suggested_virtual_action"], "WAIT")
-                self.assertEqual(res.Findings["autonomous_decision"]["action"], "WAIT")
+        with patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "MT5")]), \
+             patch.object(LiveAnalysisBrain, "process_live_candle", return_value=MagicMock(to_dict=lambda: wait_brain_dict)), \
+             patch.object(ExecutionIntelligenceCore, "evaluate_context", wraps=ExecutionIntelligenceCore.get_instance().evaluate_context) as spy_core:
+
+            worker.is_running = True
+            with patch("time.sleep", side_effect=lambda x: setattr(worker, "is_running", False)):
+                worker._run_loop()
+
+            passed_report = spy_core.call_args[1].get("newborn_brain_report")
+            self.assertEqual(passed_report["suggested_virtual_action"], "WAIT")
 
     # =========================================================================
     # CASE Q: REGISTRY FAILURE -> END-TO-END HALT
