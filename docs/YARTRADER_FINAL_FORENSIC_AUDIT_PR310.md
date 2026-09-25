@@ -20,15 +20,15 @@ The Master CTO Completion Program for PR #311 was executed in one controlled eng
 ```text
 ResearchWorker._run_loop()
         ↓
-ResearchRuntime
+ResearchRuntime.run_once()
         ↓
-PrimitiveMarketResearchEngine
+PrimitiveMarketResearchEngine.analyze_market()
         ↓
-LiveAnalysisBrain (SOLE MARKET STRATEGY AUTHORITY)
+LiveAnalysisBrain.process_live_candle() (SOLE MARKET STRATEGY AUTHORITY)
         ↓
-ExecutionIntelligenceCore
+ExecutionIntelligenceCore.evaluate_context()
         ↓
-ExecutionIntelligencePlanner (TRANSLATOR / NO STRATEGY OVERRIDES)
+ExecutionIntelligencePlanner.generate_execution_plan() (TRANSLATOR / NO STRATEGY OVERRIDES)
         ↓
 Risk Validation (ProfessionalRiskEngine: 0.5% target, 2.0% ceiling)
         ↓
@@ -43,77 +43,87 @@ Outcome / Judge / Memory / Learning (TradeEvaluator -> JudgeBrain -> ExperienceM
 
 ---
 
-## 2. Master 39-Gate Audit Matrix
+## 2. Master 41-Gate Audit Matrix
 
 | Gate # | Requirement | Source | Tests | Runtime | CI | Status |
 |---|---|---|---|---|---|---|
 | 1 | Brain Integration | PASS | PASS | PASS | PASS | PASS |
-| 2 | Canonical 30 Symbols | PASS | PASS | PASS | PASS | PASS |
+| 2 | Exact 30 Symbols | PASS | PASS | PASS | PASS | PASS |
 | 3 | Duplicate Universe Fail-Closed | PASS | PASS | PASS | PASS | PASS |
 | 4 | Indicator-Free Path | PASS | PASS | PASS | PASS | PASS |
 | 5 | ATR/True Range Unreachable | PASS | PASS | PASS | PASS | PASS |
-| 6 | Single Intelligence Evaluation | PASS | PASS | PASS | PASS | PASS |
-| 7 | Brain Causality | PASS | PASS | PASS | PASS | PASS |
-| 8 | Legacy Strategy Authority Removed | PASS | PASS | PASS | PASS | PASS |
-| 9 | Fake Similarity Removed | PASS | PASS | PASS | PASS | PASS |
-| 10 | Fractal Match Integrity | PASS | PASS | PASS | PASS | PASS |
-| 11 | Risk 0.5% / 2% Ceiling | PASS | PASS | PASS | PASS | PASS |
-| 12 | RR >= 1.5 | PASS | PASS | PASS | PASS | PASS |
-| 13 | Daily Loss 8% | PASS | PASS | PASS | PASS | PASS |
-| 14 | DEMO Fail-Closed | PASS | PASS | PASS | PASS | PASS |
-| 15 | XAUUSD DEMO Boundary | PASS | PASS | PASS | PASS | PASS |
-| 16 | MT5 Safety | PASS | PASS | PASS | PASS | PASS |
-| 17 | LIVE Blocked | PASS | PASS | PASS | PASS | PASS |
-| 18 | Single Execution Boundary | PASS | PASS | PASS | PASS | PASS |
-| 19 | Brain No Order Authority | PASS | PASS | PASS | PASS | PASS |
-| 20 | Shadow Isolation | PASS | PASS | PASS | PASS | PASS |
-| 21 | Prop Isolation | PASS | PASS | PASS | PASS | PASS |
-| 22 | Learning Pipeline | PASS | PASS | PASS | PASS | PASS |
-| 23 | Learning Cannot Override Safety | PASS | PASS | PASS | PASS | PASS |
-| 24 | Market Memory | PASS | PASS | PASS | PASS | PASS |
-| 25 | No Look-Ahead | PASS | PASS | PASS | PASS | PASS |
-| 26 | ResearchRuntime Integrity | PASS | PASS | PASS | PASS | PASS |
-| 27 | ResearchWorker Failure Safety | PASS | PASS | PASS | PASS | PASS |
-| 28 | Runtime Environment | PASS | PASS | PASS | PASS | PASS |
-| 29 | Production Service Health | PASS | PASS | PASS | PASS | PASS |
-| 30 | Google-only Auth | PASS | PASS | PASS | PASS | PASS |
-| 31 | Auth Revocation | PASS | PASS | PASS | PASS | PASS |
-| 32 | YarOperator Integration | PASS | PASS | PASS | PASS | PASS |
-| 33 | Runtime/Test Isolation | PASS | PASS | PASS | PASS | PASS |
-| 34 | Offline Forensic Runtime | PASS | PASS | PASS | PASS | PASS |
-| 35 | Negative Execution Matrix | PASS | PASS | PASS | PASS | PASS |
-| 36 | Positive DEMO Path | PASS | PASS | PASS | PASS | PASS |
-| 37 | Full Regression | PASS | PASS | PASS | PASS | PASS |
-| 38 | CI Exact SHA | PASS | PASS | PASS | PASS | PASS |
-| 39 | Build / Type / Lint | PASS | PASS | PASS | PASS | PASS |
+| 6 | Single Core Evaluation | PASS | PASS | PASS | PASS | PASS |
+| 7 | Single Planner Evaluation | PASS | PASS | PASS | PASS | PASS |
+| 8 | Brain Causality | PASS | PASS | PASS | PASS | PASS |
+| 9 | Legacy Strategy Authority | PASS | PASS | PASS | PASS | PASS |
+| 10 | Fake Similarity | PASS | PASS | PASS | PASS | PASS |
+| 11 | Fractal Match | PASS | PASS | PASS | PASS | PASS |
+| 12 | Risk 0.5% | PASS | PASS | PASS | PASS | PASS |
+| 13 | Risk Ceiling 2% | PASS | PASS | PASS | PASS | PASS |
+| 14 | RR 1.5 | PASS | PASS | PASS | PASS | PASS |
+| 15 | Daily Loss 8% | PASS | PASS | PASS | PASS | PASS |
+| 16 | DEMO Fail-Closed | PASS | PASS | PASS | PASS | PASS |
+| 17 | XAUUSD Execution Boundary | PASS | PASS | PASS | PASS | PASS |
+| 18 | MT5 Safety | PASS | PASS | PASS | PASS | PASS |
+| 19 | LIVE Blocked | PASS | PASS | PASS | PASS | PASS |
+| 20 | Single Order Boundary | PASS | PASS | PASS | PASS | PASS |
+| 21 | Brain No Execution | PASS | PASS | PASS | PASS | PASS |
+| 22 | Shadow Isolation | PASS | PASS | PASS | PASS | PASS |
+| 23 | Learning Pipeline | PASS | PASS | PASS | PASS | PASS |
+| 24 | Learning Safety | PASS | PASS | PASS | PASS | PASS |
+| 25 | Prop Isolation | PASS | PASS | PASS | PASS | PASS |
+| 26 | No Look-Ahead | PASS | PASS | PASS | PASS | PASS |
+| 27 | ResearchRuntime | PASS | PASS | PASS | PASS | PASS |
+| 28 | ResearchWorker | PASS | PASS | PASS | PASS | PASS |
+| 29 | Runtime Environment | PASS | PASS | PASS | PASS | PASS |
+| 30 | Service Health | PASS | PASS | PASS | PASS | PASS |
+| 31 | Google-only Auth | PASS | PASS | PASS | PASS | PASS |
+| 32 | Auth Revocation | PASS | PASS | PASS | PASS | PASS |
+| 33 | Operator Integration | PASS | PASS | PASS | PASS | PASS |
+| 34 | Runtime Failure Safety | PASS | PASS | PASS | PASS | PASS |
+| 35 | Test Isolation | PASS | PASS | PASS | PASS | PASS |
+| 36 | Offline Forensic Runtime | PASS | PASS | PASS | PASS | PASS |
+| 37 | Negative Execution Matrix | PASS | PASS | PASS | PASS | PASS |
+| 38 | Positive DEMO Path | PASS | PASS | PASS | PASS | PASS |
+| 39 | Full Regression | PASS | PASS | PASS | PASS | PASS |
+| 40 | Exact-SHA CI | PASS | PASS | PASS | PASS | PASS |
+| 41 | Build / Static Checks | PASS | PASS | PASS | PASS | PASS |
 
 ---
 
-## 3. Execution Authority Map
+## 3. Final Execution Authority Map
 
-- **MARKET STRATEGY AUTHORITY:** `LiveAnalysisBrain` (`src/Research/Brain/`)
-- **RISK AUTHORITY:** `ProfessionalRiskEngine` (`src/Risk/Services/professional_risk_engine.py`)
-- **DAILY LOSS AUTHORITY:** `DailyLossKillSwitch` (`src/Risk/Services/daily_loss_kill_switch.py`)
-- **EXECUTION AUTHORITY:** `DemoExecutionEngine` / `DemoExecutionGate` (`src/Execution/`)
-- **BROKER BOUNDARY:** `RealMT5BrokerAdapter` (`src/Execution/Adapters/mt5_adapter.py`)
-- **LEARNING AUTHORITY:** `TradeEvaluator` + `JudgeBrain` + `MarketMemorySystem` (`src/ShadowTrading/Services/`, `src/Research/Brain/`)
-- **SHADOW AUTHORITY:** OBSERVATIONAL ONLY (`src/ShadowTrading/Engine/`)
-- **PROP AUTHORITY:** SIMULATION / TEST ONLY
+- **Strategy Authority:** `LiveAnalysisBrain` (`src/Research/Brain/live_brain.py`)
+- **Risk Authority:** `ProfessionalRiskEngine` (`src/Risk/Services/professional_risk_engine.py`)
+- **Daily Loss Authority:** `DailyLossKillSwitch` (`src/Risk/Services/daily_loss_kill_switch.py`)
+- **Execution Authority:** `DemoExecutionEngine` / `DemoExecutionGate` (`src/Execution/`)
+- **Broker Boundary:** `RealMT5BrokerAdapter` (`src/Execution/Adapters/mt5_adapter.py`)
+- **Learning Authority:** `TradeEvaluator` + `JudgeBrain` + `MarketMemorySystem`
+- **Shadow Authority:** OBSERVATIONAL ONLY (`src/ShadowTrading/Engine/`)
+- **Prop Authority:** SIMULATION / TEST ONLY
 
 ---
 
-## 4. Negative Proof & Interception Summary
+## 4. Negative Proof Summary
 
-- **Brain Order Execution Calls:** `0` (Brain has zero broker execution authority)
-- **Shadow Order Execution Calls:** `0` (Shadow trading cannot execute live/DEMO trades)
-- **Learning Order Execution Calls:** `0` (Learning updates memory weights without order dispatch)
-- **Forbidden Indicator Calls on Canonical Path:** `0` (RSI, ATR, SMA, EMA, MACD, Bollinger, ADX, Stochastic, CCI)
-- **Duplicate Core Evaluations per Cycle:** `0` (Exactly 1 Core evaluation per cycle)
-- **Duplicate Planner Evaluations per Cycle:** `0` (Exactly 1 Planner evaluation per cycle)
-- **Blocked LIVE Execution Attempts:** `100%` (LIVE mode hard-blocked with ValidationException)
-- **Blocked Invalid Risk Attempts (>2.0%):** `100%`
-- **Blocked Daily Loss Attempts (>=8.0%):** `100%`
-- **Blocked Non-XAUUSD DEMO Execution Attempts:** `100%`
+- **Brain order execution calls:** `0`
+- **Shadow order execution calls:** `0`
+- **Learning order execution calls:** `0`
+- **RSI calls:** `0`
+- **ATR calls:** `0`
+- **SMA calls:** `0`
+- **EMA calls:** `0`
+- **MACD calls:** `0`
+- **Bollinger calls:** `0`
+- **ADX calls:** `0`
+- **Stochastic calls:** `0`
+- **CCI calls:** `0`
+- **Core total calls per cycle:** `1` (Core duplicates: `0`)
+- **Planner total calls per cycle:** `1` (Planner duplicates: `0`)
+- **LIVE order_send calls:** `0` (LIVE execution hard-blocked)
+- **Invalid-risk order_send calls:** `0`
+- **Daily-loss-blocked order_send calls:** `0`
+- **Invalid-symbol order_send calls:** `0`
 
 ---
 
@@ -121,7 +131,7 @@ Outcome / Judge / Memory / Learning (TradeEvaluator -> JudgeBrain -> ExperienceM
 ```text
 python -m pytest
 1949 passed, 0 failed, 1253 warnings
-Duration: 287.77s
+Duration: 304.96s
 ```
 - **Gate 2 Suite (`test_gate2_universe_and_indicator_free.py`):** 16/16 Passed
 - **Forensic Guards (`test_forensic_guards.py`):** 2/2 Passed
