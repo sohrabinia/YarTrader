@@ -13,7 +13,7 @@ BASE_SHA:                         af076b6005e80cc8573966713edf410f1801e3f9
 MERGE_BASE_SHA:                   af076b6005e80cc8573966713edf410f1801e3f9
 ORIGIN_MAIN_SHA:                  af076b6005e80cc8573966713edf410f1801e3f9
 AUDITED_IMPLEMENTATION_HEAD_SHA:  e3c2a7030507a2a06903f91d2601f84673a43ff9
-REPORT_PARENT_SHA:                f7f027f384f276573529641875a6bc13be45b96b
+REPORT_PARENT_SHA:                20e365f551ab2438b8873f3bc12a6051cec00b48
 REPORT_GENERATED_AT_UTC:          2026-09-24 17:35:00 UTC
 ```
 
@@ -24,7 +24,7 @@ It is intentionally not embedded in this report because changing the report
 changes the commit SHA and would create a self-referential provenance loop.
 
 1. `AUDITED_IMPLEMENTATION_HEAD_SHA` (`e3c2a7030507a2a06903f91d2601f84673a43ff9`) identifies the last commit containing the core Gate 1 implementation changes.
-2. `REPORT_PARENT_SHA` (`f7f027f384f276573529641875a6bc13be45b96b`) identifies the parent commit immediately preceding this final documentation closeout commit.
+2. `REPORT_PARENT_SHA` (`20e365f551ab2438b8873f3bc12a6051cec00b48`) identifies the parent commit immediately preceding this final documentation closeout commit.
 
 ---
 
@@ -169,7 +169,16 @@ tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainInteg
 tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_planner_cannot_override_brain_wait_or_avoid_proposal PASSED [ 87%]
 tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py::TestGate1BrainIntegration::test_production_run_loop_path_reaches_brain_without_runtime_patching PASSED [100%]
 
-============================== 8 passed in 0.75s ===============================
+============================== 8 passed in 1.05s ===============================
+```
+
+### Full Repository Test Suite Command:
+`python3 -m pytest -v`
+
+### Raw Result:
+```text
+============================== short test summary info ==============================
+===== 1933 passed, 1253 warnings, 17 subtests passed in 291.63s (0:04:51) ======
 ```
 
 ---
