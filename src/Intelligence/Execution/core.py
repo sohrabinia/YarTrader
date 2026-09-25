@@ -72,7 +72,8 @@ class ExecutionIntelligenceCore:
         all_timeframe_candles: Optional[Dict[str, List[Dict[str, Any]]]] = None,
         active_portfolio_trades: Optional[List[Dict[str, Any]]] = None,
         virtual_balance: float = 10000.0,
-        lang: str = "fa"
+        lang: str = "fa",
+        newborn_brain_report: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Executes the entire execution intelligence pipeline sequentially for a single research context.
@@ -93,6 +94,7 @@ class ExecutionIntelligenceCore:
         ])
         ctx_hash = f"ctx-{hashlib.sha256(ohlc_summary.encode('utf-8')).hexdigest()[:16]}"
         cycle_id = f"cycle-{symbol.upper()}-{timeframe.upper()}-{uuid.uuid4().hex[:8]}"
+
 
         # 1. Market Narrative
         narrative_res = self.narrative_engine.analyze_narrative(candles)
@@ -174,7 +176,8 @@ class ExecutionIntelligenceCore:
             portfolio_risk=portfolio_res,
             current_price=current_price,
             strategy_eval=strategy_eval_res,
-            lang=lang
+            lang=lang,
+            newborn_brain_report=newborn_brain_report
         )
         state["plan"] = plan_res["plan"]
         from datetime import datetime

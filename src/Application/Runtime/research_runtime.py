@@ -186,10 +186,12 @@ class ResearchRuntime:
                 from src.Decision.Models.models import AutonomousTradingDecision
 
                 intel_core = ExecutionIntelligenceCore.get_instance()
+                newborn_report_dict = result.Findings.get("newborn_brain_report")
                 intel_res = intel_core.evaluate_context(
                     symbol=self._symbol,
                     timeframe=self._timeframe,
-                    candles=candles_dicts
+                    candles=candles_dicts,
+                    newborn_brain_report=newborn_report_dict
                 )
 
                 plan = intel_res.get("plan", {})
@@ -369,11 +371,25 @@ class ResearchRuntime:
             "intelligence_result": result.Findings.get("pipeline_outputs", {}).get("smart_interpretation", {})
         }
 
+        def custom_json_serializer(o):
+            if hasattr(o, "to_dict"):
+                return o.to_dict()
+            if hasattr(o, "isoformat"):
+                return o.isoformat()
+            if hasattr(o, "AssetId") and hasattr(o, "Features"):
+                return {
+                    "asset_id": o.AssetId,
+                    "start_time": o.StartTime.isoformat() if hasattr(o.StartTime, "isoformat") else str(o.StartTime),
+                    "end_time": o.EndTime.isoformat() if hasattr(o.EndTime, "isoformat") else str(o.EndTime),
+                    "features_count": len(o.Features)
+                }
+            return str(o)
+
         # Thread-safe write using temp file renaming pattern
         temp_filepath = filepath + ".tmp"
         try:
             with open(temp_filepath, "w", encoding="utf-8") as f:
-                json.dump(snapshot_data, f, indent=4)
+                json.dump(snapshot_data, f, indent=4, default=custom_json_serializer)
             os.replace(temp_filepath, filepath)
         except Exception as e:
             if os.path.exists(temp_filepath):

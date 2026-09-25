@@ -22,7 +22,8 @@ class ExecutionIntelligencePlanner:
         portfolio_risk: Dict[str, Any],
         current_price: float,
         strategy_eval: Optional[Dict[str, Any]] = None,
-        lang: str = "fa"
+        lang: str = "fa",
+        newborn_brain_report: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Synthesizes technical analysis parameters and portfolio risk rules to generate
@@ -47,7 +48,26 @@ class ExecutionIntelligencePlanner:
                 }
             }
 
-        # Formulate Advisory Setup based on detected Liquidity Sweeps or Order Block retests
+        # Consume explicit LiveAnalysisBrain proposal
+        brain_suggested_action = "WAIT"
+        brain_report_consumed = False
+        brain_available = True
+        if newborn_brain_report and isinstance(newborn_brain_report, dict):
+            if newborn_brain_report.get("brain_available") is False:
+                brain_available = False
+                brain_report_consumed = False
+            else:
+                brain_report_consumed = True
+                hypotheses = newborn_brain_report.get("active_hypotheses", [])
+                if hypotheses and isinstance(hypotheses, list) and len(hypotheses) > 0:
+                    brain_suggested_action = str(hypotheses[0].get("suggested_virtual_action", "WAIT")).upper()
+                else:
+                    brain_suggested_action = str(newborn_brain_report.get("suggested_virtual_action", "WAIT")).upper()
+
+        if brain_suggested_action not in ["BUY", "SELL", "WAIT", "AVOID"]:
+            brain_suggested_action = "WAIT"
+
+        # Formulate Advisory Setup based on Brain Proposal & Structural Alignment
         action = "WAIT"
         entry = 0.0
         stop_loss = 0.0
@@ -59,40 +79,43 @@ class ExecutionIntelligencePlanner:
         obs = zones.get("order_blocks", [])
         fvgs = zones.get("fair_value_gaps", [])
 
-        # Long Trigger: Swept Sell Side Liquidity, or retesting Bullish OB, and aligned bullish
-        if "BULLISH" in alignment.get("alignment", ""):
-            action = "BUY"
-            entry = current_price
-            # Stop loss below the lowest of recent swing low or OB bottom
-            stop_loss = current_price - (current_price * 0.01) # fallback 1%
-            if obs:
-                bullish_obs = [ob for ob in obs if ob["type"] == "BULLISH_OB"]
-                if bullish_obs:
-                    stop_loss = max(stop_loss, bullish_obs[0]["bottom"])
+        # Governance Invariant: Brain proposal is MANDATORY for BUY/SELL proposal generation.
+        # If Brain report is missing/unconsumed or proposes WAIT/AVOID -> Fail closed to WAIT/AVOID.
+        if not brain_report_consumed or brain_suggested_action in ["WAIT", "AVOID"]:
+            action = brain_suggested_action if brain_report_consumed else "WAIT"
+        else:
+            # Brain explicitly proposed BUY or SELL: Planner validates against structural alignment and formats trade parameters
+            if brain_suggested_action == "BUY" and "BULLISH" in alignment.get("alignment", ""):
+                action = "BUY"
+                entry = current_price
+                stop_loss = current_price - (current_price * 0.01) # fallback 1%
+                if obs:
+                    bullish_obs = [ob for ob in obs if ob["type"] == "BULLISH_OB"]
+                    if bullish_obs:
+                        stop_loss = max(stop_loss, bullish_obs[0]["bottom"])
 
-            # Take profit near resting buy side liquidity or nearest bearish OB
-            take_profit = current_price + (current_price * 0.02) # fallback 2%
-            resting_bsl = liquidity.get("resting_bsl", [])
-            if resting_bsl:
-                take_profit = resting_bsl[0]["level"]
+                take_profit = current_price + (current_price * 0.02) # fallback 2%
+                resting_bsl = liquidity.get("resting_bsl", [])
+                if resting_bsl:
+                    take_profit = resting_bsl[0]["level"]
 
-        # Short Trigger: Swept Buy Side Liquidity, or retesting Bearish OB, and aligned bearish
-        elif "BEARISH" in alignment.get("alignment", ""):
-            action = "SELL"
-            entry = current_price
-            stop_loss = current_price + (current_price * 0.01)
-            if obs:
-                bearish_obs = [ob for ob in obs if ob["type"] == "BEARISH_OB"]
-                if bearish_obs:
-                    stop_loss = min(stop_loss, bearish_obs[0]["top"])
+            elif brain_suggested_action == "SELL" and "BEARISH" in alignment.get("alignment", ""):
+                action = "SELL"
+                entry = current_price
+                stop_loss = current_price + (current_price * 0.01)
+                if obs:
+                    bearish_obs = [ob for ob in obs if ob["type"] == "BEARISH_OB"]
+                    if bearish_obs:
+                        stop_loss = min(stop_loss, bearish_obs[0]["top"])
 
-            take_profit = current_price - (current_price * 0.02)
-            resting_ssl = liquidity.get("resting_ssl", [])
-            if resting_ssl:
-                take_profit = resting_ssl[0]["level"]
+                take_profit = current_price - (current_price * 0.02)
+                resting_ssl = liquidity.get("resting_ssl", [])
+                if resting_ssl:
+                    take_profit = resting_ssl[0]["level"]
+            else:
+                action = "WAIT"
 
         # Strategy identity is strictly Multi-Timeframe Continuous Market Intelligence Core
-        # Authoritative decision source is BRAIN (legacy strategy orchestrator is NOT execution authority)
         selected_strategy_name = "Multi-Timeframe Continuous Market Intelligence"
 
         # If market state is ranging or in compression without strong alignment, default to WAIT
@@ -136,7 +159,9 @@ class ExecutionIntelligencePlanner:
             "plan": {
                 "action": action,
                 "decision": decision_state,
-                "decision_source": "BRAIN",
+                "decision_source": "BRAIN" if brain_report_consumed else "BRAIN_UNAVAILABLE",
+                "brain_suggested_action": brain_suggested_action,
+                "brain_report_consumed": brain_report_consumed,
                 "strategy": selected_strategy_name,
                 "entry": entry if action in ["BUY", "SELL"] else 0.0,
                 "stop_loss": stop_loss if action in ["BUY", "SELL"] else 0.0,
