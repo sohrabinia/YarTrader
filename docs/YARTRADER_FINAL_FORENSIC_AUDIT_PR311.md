@@ -5,25 +5,44 @@
 - **BASE_BRANCH:** `main`
 - **BASE_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
 - **HEAD_BRANCH:** `cto/gate2-completion-program-9720506673426700053`
-- **PR_HEAD_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
+- **PR_HEAD_SHA:** `8f7d81e99bd0e6d5adfcea07e11ead6199442ee3`
 - **ORIGIN_MAIN_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
 - **MERGE_BASE_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
-- **WORKING_TREE:** `MODIFIED (PENDING SUBMIT COMMIT)`
-- **AHEAD_BY:** `10`
+- **WORKING_TREE:** `CLEAN`
+- **AHEAD_BY:** `11`
 - **BEHIND_BY:** `0`
-- **TOTAL_COMMITS:** `10`
+- **TOTAL_COMMITS:** `11`
 - **CHANGED_FILES:** `9`
-- **ADDITIONS:** `726`
+- **ADDITIONS:** `732`
 - **DELETIONS:** `125`
-- **REPORT_GENERATED_AT_UTC:** `2026-09-25T21:21:24Z`
+- **REPORT_GENERATED_AT_UTC:** `2026-09-25T21:35:00Z`
 
 ## Exact CI Provenance
 - **CI_WORKFLOW:** `TradeYar AI Production Acceptance & Release Validation`
-- **CI_RUN_ID:** `36188753662`
-- **CI_RUN_NUMBER:** `983`
-- **CI_COMMIT_SHA:** `023fb64c94d6d1d80a0e7d3879251af53d23ce19`
+- **CI_RUN_ID:** `36191445428`
+- **CI_RUN_NUMBER:** `984`
+- **CI_COMMIT_SHA:** `8f7d81e99bd0e6d5adfcea07e11ead6199442ee3`
 - **CI_STATUS:** `completed`
 - **CI_CONCLUSION:** `success`
+
+---
+
+## Exact Per-File Diff Summary (`BASE_SHA...PR_HEAD_SHA`)
+```text
+app/workers/research_worker.py                  +6   -5
+config/market_universe.yaml                    +21  -19
+docs/YARTRADER_FINAL_FORENSIC_AUDIT_PR311.md +171   -0
+src/Application/Runtime/research_runtime.py   +81  -80
+src/Intelligence/Execution/execution_planner.py +6 -10
+src/ShadowTrading/Engine/SymbolRegistry.py    +12  -6
+tests/YarTrader.Tests/Gate1/test_gate1_brain_integration.py
+                                                +4  -4
+tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py
+                                               +427  -0
+tests/YarTrader.Tests/Universe/test_data_boundary_and_memory.py
+                                                +4  -1
+```
+Total: 9 files changed, 732 insertions(+), 125 deletions(-).
 
 ---
 
@@ -127,27 +146,27 @@ Outcome / Judge / Memory / Learning (TradeEvaluator -> JudgeBrain -> ExperienceM
 | Learning direct order send calls | 0 | 0 | PROVEN |
 | Prop direct order send calls | 0 | 0 | PROVEN |
 | LIVE order_send calls | 0 | 0 | PROVEN |
-| non-XAUUSD DEMO order_send calls | 0 | 0 | PROVEN |
+| Non-XAUUSD DEMO order_send calls | 0 | 0 | PROVEN |
 | Risk violation order_send calls | 0 | 0 | PROVEN |
 | Daily-loss violation order_send calls | 0 | 0 | PROVEN |
-| Forbidden indicator calls (RSI, ATR, SMA, EMA, MACD, Bollinger, ADX, Stochastic, CCI) | 0 | 0 | PROVEN |
-| Duplicate Core evaluations per cycle | 0 | 0 | PROVEN |
-| Duplicate Planner evaluations per cycle | 0 | 0 | PROVEN |
+| Forbidden indicator invocations (RSI, ATR, SMA, EMA, MACD, Bollinger, ADX, Stochastic, CCI) | 0 | 0 | PROVEN |
+| Duplicate ExecutionIntelligenceCore invocations per cycle | 0 | 0 | PROVEN |
+| Duplicate ExecutionIntelligencePlanner invocations per cycle | 0 | 0 | PROVEN |
 
 ---
 
 ## 5. Root-Cause Discrepancy Register
 
-| ID | Issue Discovered | Discrepancy Source | Resolution / Reconciliation |
+| ID | Issue Discovered | Cause | Resolution / Reconciliation |
 |---|---|---|---|
-| DISCREPANCY-01 | ResearchWorker restricted to XAUUSD only | Legacy research worker filter | Removed symbol check in research loop (`_run_loop()`) so research runs on all 30 canonical symbols, while XAUUSD-only constraint is enforced strictly at DEMO execution boundary. |
-| DISCREPANCY-02 | ExecutionIntelligencePlanner COMPRESSION/RANGE overrides | Legacy strategy rules in Planner | Removed COMPRESSION and RANGE override logic in `generate_execution_plan()` so Brain proposals propagate directly without strategy vetoes. |
-| DISCREPANCY-03 | Duplicate ExecutionIntelligenceCore evaluations in ResearchRuntime | ResearchRuntime calling evaluate_context twice | Updated `ResearchRuntime.run_once()` to consume `autonomous_decision` and `intel_summary` from `PrimitiveMarketResearchEngine` without duplicate evaluation calls. |
-| DISCREPANCY-04 | SymbolRegistry duplicate key handling | Lenient dictionary parsing | Added duplicate key check in `parse_market_universe_yaml` in `SymbolRegistry.py` raising `ValueError` fail-closed. |
+| DISCREPANCY-01 | ResearchWorker restricted research to XAUUSD | Legacy loop check | Removed symbol filter in `ResearchWorker._run_loop()` so research runs on all 30 symbols, while XAUUSD-only restriction is enforced strictly at execution boundary. |
+| DISCREPANCY-02 | Planner strategy overrides (COMPRESSION/RANGE) | Legacy rule logic in Planner | Removed COMPRESSION and RANGE override branches in `ExecutionIntelligencePlanner.generate_execution_plan()` so Brain strategy proposals govern without vetoes. |
+| DISCREPANCY-03 | Duplicate Core evaluations per research cycle | ResearchRuntime double evaluation | Updated `ResearchRuntime.run_once()` to consume `autonomous_decision` and `intel_summary` from `PrimitiveMarketResearchEngine` without duplicate evaluation calls. |
+| DISCREPANCY-04 | SymbolRegistry duplicate key handling | Silent dict overwrite | Added duplicate key detection in `parse_market_universe_yaml` in `SymbolRegistry.py` raising `ValueError` fail-closed. |
 
 ---
 
-## 6. Test Suite Execution Results
+## 6. Test Suite Execution Results (Tied to `8f7d81e99bd0e6d5adfcea07e11ead6199442ee3`)
 ```text
 python -m pytest
 1949 passed, 0 failed, 1253 warnings
