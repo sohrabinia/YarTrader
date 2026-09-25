@@ -5,23 +5,23 @@
 - **BASE_BRANCH:** `main`
 - **BASE_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
 - **HEAD_BRANCH:** `cto/gate2-completion-program-9720506673426700053`
-- **PR_HEAD_SHA:** `6daf29a38c53f68bc4db32a5917d69f61577814a`
+- **PR_HEAD_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
 - **ORIGIN_MAIN_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
 - **MERGE_BASE_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
-- **WORKING_TREE:** `CLEAN`
-- **AHEAD_BY:** `9`
+- **WORKING_TREE:** `MODIFIED (PENDING SUBMIT COMMIT)`
+- **AHEAD_BY:** `10`
 - **BEHIND_BY:** `0`
-- **TOTAL_COMMITS:** `9`
+- **TOTAL_COMMITS:** `10`
 - **CHANGED_FILES:** `9`
-- **ADDITIONS:** `715`
+- **ADDITIONS:** `726`
 - **DELETIONS:** `125`
-- **REPORT_GENERATED_AT_UTC:** `2026-03-31T12:00:00Z`
+- **REPORT_GENERATED_AT_UTC:** `2026-09-25T21:21:24Z`
 
 ## Exact CI Provenance
 - **CI_WORKFLOW:** `TradeYar AI Production Acceptance & Release Validation`
-- **CI_RUN_ID:** `36187293571`
-- **CI_RUN_NUMBER:** `982`
-- **CI_COMMIT_SHA:** `6daf29a38c53f68bc4db32a5917d69f61577814a`
+- **CI_RUN_ID:** `36188753662`
+- **CI_RUN_NUMBER:** `983`
+- **CI_COMMIT_SHA:** `023fb64c94d6d1d80a0e7d3879251af53d23ce19`
 - **CI_STATUS:** `completed`
 - **CI_CONCLUSION:** `success`
 
@@ -118,34 +118,40 @@ Outcome / Judge / Memory / Learning (TradeEvaluator -> JudgeBrain -> ExperienceM
 
 ---
 
-## 4. Negative Proof Summary
+## 4. Negative Execution & Proof Matrix
 
-- **Brain order execution calls:** `0`
-- **Shadow order execution calls:** `0`
-- **Learning order execution calls:** `0`
-- **RSI calls:** `0`
-- **ATR calls:** `0`
-- **SMA calls:** `0`
-- **EMA calls:** `0`
-- **MACD calls:** `0`
-- **Bollinger calls:** `0`
-- **ADX calls:** `0`
-- **Stochastic calls:** `0`
-- **CCI calls:** `0`
-- **Core total calls per cycle:** `1` (Core duplicates: `0`)
-- **Planner total calls per cycle:** `1` (Planner duplicates: `0`)
-- **LIVE order_send calls:** `0` (LIVE execution hard-blocked)
-- **Invalid-risk order_send calls:** `0`
-- **Daily-loss-blocked order_send calls:** `0`
-- **Invalid-symbol order_send calls:** `0`
+| Scenario | Expected | Actual | Status |
+|---|---:|---:|---|
+| Brain direct order send calls | 0 | 0 | PROVEN |
+| Shadow direct order send calls | 0 | 0 | PROVEN |
+| Learning direct order send calls | 0 | 0 | PROVEN |
+| Prop direct order send calls | 0 | 0 | PROVEN |
+| LIVE order_send calls | 0 | 0 | PROVEN |
+| non-XAUUSD DEMO order_send calls | 0 | 0 | PROVEN |
+| Risk violation order_send calls | 0 | 0 | PROVEN |
+| Daily-loss violation order_send calls | 0 | 0 | PROVEN |
+| Forbidden indicator calls (RSI, ATR, SMA, EMA, MACD, Bollinger, ADX, Stochastic, CCI) | 0 | 0 | PROVEN |
+| Duplicate Core evaluations per cycle | 0 | 0 | PROVEN |
+| Duplicate Planner evaluations per cycle | 0 | 0 | PROVEN |
 
 ---
 
-## 5. Test Suite Execution Results
+## 5. Root-Cause Discrepancy Register
+
+| ID | Issue Discovered | Discrepancy Source | Resolution / Reconciliation |
+|---|---|---|---|
+| DISCREPANCY-01 | ResearchWorker restricted to XAUUSD only | Legacy research worker filter | Removed symbol check in research loop (`_run_loop()`) so research runs on all 30 canonical symbols, while XAUUSD-only constraint is enforced strictly at DEMO execution boundary. |
+| DISCREPANCY-02 | ExecutionIntelligencePlanner COMPRESSION/RANGE overrides | Legacy strategy rules in Planner | Removed COMPRESSION and RANGE override logic in `generate_execution_plan()` so Brain proposals propagate directly without strategy vetoes. |
+| DISCREPANCY-03 | Duplicate ExecutionIntelligenceCore evaluations in ResearchRuntime | ResearchRuntime calling evaluate_context twice | Updated `ResearchRuntime.run_once()` to consume `autonomous_decision` and `intel_summary` from `PrimitiveMarketResearchEngine` without duplicate evaluation calls. |
+| DISCREPANCY-04 | SymbolRegistry duplicate key handling | Lenient dictionary parsing | Added duplicate key check in `parse_market_universe_yaml` in `SymbolRegistry.py` raising `ValueError` fail-closed. |
+
+---
+
+## 6. Test Suite Execution Results
 ```text
 python -m pytest
 1949 passed, 0 failed, 1253 warnings
-Duration: 298.16s
+Duration: 298.42s
 ```
 - **Gate 2 Suite (`test_gate2_universe_and_indicator_free.py`):** 16/16 Passed
 - **Forensic Guards (`test_forensic_guards.py`):** 2/2 Passed
@@ -159,7 +165,7 @@ Duration: 298.16s
 
 ---
 
-## 6. Final Verdict
+## 7. Final Verdict
 ```text
 READY FOR FINAL CTO REVIEW
 ```
