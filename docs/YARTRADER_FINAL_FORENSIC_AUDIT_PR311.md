@@ -131,7 +131,7 @@ Outcome / Judge / Memory / Learning (TradeEvaluator -> JudgeBrain -> ExperienceM
 ```text
 python -m pytest
 1949 passed, 0 failed, 1253 warnings
-Duration: 304.96s
+Duration: 291.79s
 ```
 - **Gate 2 Suite (`test_gate2_universe_and_indicator_free.py`):** 16/16 Passed
 - **Forensic Guards (`test_forensic_guards.py`):** 2/2 Passed
