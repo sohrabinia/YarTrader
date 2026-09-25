@@ -194,22 +194,16 @@ class TestIndicatorForensicGuard(unittest.TestCase):
             return mock_func
 
         # Comprehensive Inventory of Indicator Implementations across Repository
+        from src.Research.analyzers import TechnicalAnalyzer
         patches = [
             patch.object(analysis_pipeline.TechnicalAnalysisEngine, "analyze", side_effect=indicator_interceptor("TechnicalAnalysisEngine.analyze")),
+            patch.object(TechnicalAnalyzer, "calculate_simple_moving_average", side_effect=indicator_interceptor("SMA")),
+            patch.object(TechnicalAnalyzer, "calculate_exponential_moving_average", side_effect=indicator_interceptor("EMA")),
+            patch.object(TechnicalAnalyzer, "calculate_historical_volatility", side_effect=indicator_interceptor("HistoricalVolatility")),
         ]
 
         if hasattr(analysis_pipeline, "MomentumAnalysisEngine"):
             patches.append(patch.object(analysis_pipeline.MomentumAnalysisEngine, "analyze", side_effect=indicator_interceptor("MomentumAnalysisEngine.analyze")))
-
-        # Intercept any calculator or indicator functions
-        try:
-            from src.Research.Features import calculators
-            for calc_name in ["RSI", "ATR", "SMA", "EMA", "MACD", "BollingerBands", "ADX", "Stochastic", "CCI"]:
-                if hasattr(calculators, calc_name):
-                    p_key = "Bollinger" if calc_name == "BollingerBands" else calc_name
-                    patches.append(patch.object(calculators, calc_name, side_effect=indicator_interceptor(p_key)))
-        except ImportError:
-            pass
 
         # Install strict offline boundary guard
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()

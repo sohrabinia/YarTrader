@@ -159,98 +159,13 @@ class ResearchRuntime:
                 Context={"timeframe": self._timeframe}
             )
 
-            # 5. Run the decorated FeatureExtractionResearchEngine
+            # 5. Execute Research Analysis via canonical Research Engine
             result = self._research_engine.analyze_market(research_req)
 
-            # 6. Verify outputs and confirm features are generated
+            # 6. Verify outputs and confirm features/observations generated
             features_generated = ("feature_set" in result.Findings) or ("primitive_observation" in result.Findings)
             self._log_evidence(f"Features Generated: {str(features_generated).lower()}")
             self._log_evidence("Research Completed: true")
-
-            # 6b. Single Source of Truth: Evaluate via ExecutionIntelligenceCore & Planner
-            cycle_id = f"cyc-{self._symbol.upper()}-{self._timeframe.upper()}-{int(time.time())}"
-            candles_dicts = [
-                {
-                    "timestamp": p.Timestamp.isoformat() if hasattr(p.Timestamp, "isoformat") else str(p.Timestamp),
-                    "open": float(p.Open),
-                    "high": float(p.High),
-                    "low": float(p.Low),
-                    "close": float(p.Close),
-                    "volume": float(p.Volume)
-                }
-                for p in data_response.DataPoints
-            ]
-
-            try:
-                from src.Intelligence.Execution.core import ExecutionIntelligenceCore
-                from src.Decision.Models.models import AutonomousTradingDecision
-
-                intel_core = ExecutionIntelligenceCore.get_instance()
-                newborn_report_dict = result.Findings.get("newborn_brain_report")
-                intel_res = intel_core.evaluate_context(
-                    symbol=self._symbol,
-                    timeframe=self._timeframe,
-                    candles=candles_dicts,
-                    newborn_brain_report=newborn_report_dict
-                )
-
-                plan = intel_res.get("plan", {})
-                action = str(plan.get("action", "WAIT")).upper()
-                if action not in ["BUY", "SELL", "WAIT", "AVOID"]:
-                    action = "WAIT"
-
-                entry = float(plan.get("entry", 0.0))
-                sl = float(plan.get("stop_loss", 0.0))
-                tp = float(plan.get("take_profit", 0.0))
-                rr = float(plan.get("risk_reward", 0.0))
-                confidence = float(plan.get("confidence", 0.0))
-                reasoning = plan.get("reasoning", ["Single source of truth evaluation"])
-
-                timestamp_now = datetime.now().isoformat()
-                decision_id = f"DEC-{self._symbol.upper()}-{self._timeframe.upper()}-{int(time.time())}"
-
-                fractal_res = result.Findings.get("fractal_analysis", {}) or intel_res.get("fractal", {})
-                fractal_rec = fractal_res.get("matching_pattern_record", {})
-                similarity_data = fractal_res.get("similarity_analysis", {})
-
-                auto_decision = AutonomousTradingDecision(
-                    decision_id=decision_id,
-                    cycle_id=cycle_id,
-                    action=action,
-                    symbol=self._symbol,
-                    timeframe=self._timeframe,
-                    entry=entry,
-                    stop_loss=sl,
-                    take_profit=tp,
-                    volume=0.01,
-                    risk_reward=rr,
-                    confidence=confidence,
-                    reasoning=reasoning,
-                    evidence={
-                        "narrative": intel_res.get("narrative", {}),
-                        "liquidity": intel_res.get("liquidity", {}),
-                        "zones": intel_res.get("zones", {}),
-                        "alignment": intel_res.get("alignment", {}),
-                        "similarity": intel_res.get("similarity", {}),
-                        "fractal_analysis": fractal_res,
-                        "observability": {
-                            "fractal_score": float(fractal_rec.get("confidence_weight", 0.0)),
-                            "similarity_score": float(similarity_data.get("average_similarity_score", 0.0)),
-                            "market_regime": intel_res.get("narrative", {}).get("regime", "TRENDING"),
-                            "scale_state": "MULTISCALE_STABLE" if fractal_res.get("scales_evaluated_count", 0) > 0 else "SINGLE_SCALE"
-                        },
-                        "latest_price": candles_dicts[-1]["close"]
-                    },
-                    risk_status="PENDING" if action in ["BUY", "SELL"] else "CHECKED",
-                    execution_status="PENDING" if action in ["BUY", "SELL"] else "SKIPPED",
-                    configuration_version="1.2.0",
-                    timestamp=timestamp_now
-                )
-
-                result.Findings["autonomous_decision"] = auto_decision.to_dict()
-                result.Findings["intel_summary"] = intel_res
-            except Exception as ie:
-                self._log_evidence(f"ExecutionIntelligence evaluation error: {str(ie)}")
 
             # Update Shadow Trading Engine with latest market price and decision
             try:
