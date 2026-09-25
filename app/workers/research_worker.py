@@ -264,10 +264,6 @@ class ResearchWorker:
                     if not self.is_running:
                         break
 
-                    # Phase 1 Scope Boundary: Trading Core & execution dispatch are strictly XAUUSD ONLY
-                    if symbol.upper() != "XAUUSD":
-                        continue
-
                     try:
                         print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
 
@@ -303,6 +299,11 @@ class ResearchWorker:
                         if not kill_switch_enabled:
                             print(f"[ResearchWorker] Kill Switch ACTIVE (AUTONOMOUS_DEMO_TRADING_ENABLED=False). Skipping execution dispatch for {symbol}.")
                         elif action in ["BUY", "SELL"]:
+                            # Execution Scope Boundary: DEMO order dispatch is strictly XAUUSD ONLY
+                            if symbol.upper() != "XAUUSD":
+                                print(f"[ResearchWorker] DEMO Execution boundary active: order dispatch is strictly XAUUSD only. Skipping execution dispatch for {symbol}.")
+                                continue
+
                             sig_dir = action
                             now_time = time.time()
                             sig_time = now_time

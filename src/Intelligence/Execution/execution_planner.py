@@ -88,35 +88,45 @@ class ExecutionIntelligencePlanner:
             if brain_suggested_action == "BUY" and "BULLISH" in alignment.get("alignment", ""):
                 action = "BUY"
                 entry = current_price
-                stop_loss = current_price - (current_price * 0.01) # fallback 1%
-                if obs:
-                    bullish_obs = [ob for ob in obs if ob["type"] == "BULLISH_OB"]
-                    if bullish_obs:
-                        stop_loss = max(stop_loss, bullish_obs[0]["bottom"])
+                stop_loss = 0.0
+                take_profit = 0.0
+                sim_trades = newborn_brain_report.get("simulated_trades", []) if newborn_brain_report else []
+                if sim_trades and isinstance(sim_trades, list) and len(sim_trades) > 0:
+                    stop_loss = float(sim_trades[0].get("stop", 0.0))
+                    take_profit = float(sim_trades[0].get("target", 0.0))
 
-                take_profit = current_price + (current_price * 0.02) # fallback 2%
-                resting_bsl = liquidity.get("resting_bsl", [])
-                if resting_bsl:
-                    take_profit = resting_bsl[0]["level"]
+                if stop_loss <= 0.0 and obs:
+                    bullish_obs = [ob for ob in obs if ob.get("type") == "BULLISH_OB"]
+                    if bullish_obs:
+                        stop_loss = float(bullish_obs[0].get("bottom", 0.0))
+                if take_profit <= 0.0:
+                    resting_bsl = liquidity.get("resting_bsl", [])
+                    if resting_bsl:
+                        take_profit = float(resting_bsl[0].get("level", 0.0))
 
             elif brain_suggested_action == "SELL" and "BEARISH" in alignment.get("alignment", ""):
                 action = "SELL"
                 entry = current_price
-                stop_loss = current_price + (current_price * 0.01)
-                if obs:
-                    bearish_obs = [ob for ob in obs if ob["type"] == "BEARISH_OB"]
-                    if bearish_obs:
-                        stop_loss = min(stop_loss, bearish_obs[0]["top"])
+                stop_loss = 0.0
+                take_profit = 0.0
+                sim_trades = newborn_brain_report.get("simulated_trades", []) if newborn_brain_report else []
+                if sim_trades and isinstance(sim_trades, list) and len(sim_trades) > 0:
+                    stop_loss = float(sim_trades[0].get("stop", 0.0))
+                    take_profit = float(sim_trades[0].get("target", 0.0))
 
-                take_profit = current_price - (current_price * 0.02)
-                resting_ssl = liquidity.get("resting_ssl", [])
-                if resting_ssl:
-                    take_profit = resting_ssl[0]["level"]
+                if stop_loss <= 0.0 and obs:
+                    bearish_obs = [ob for ob in obs if ob.get("type") == "BEARISH_OB"]
+                    if bearish_obs:
+                        stop_loss = float(bearish_obs[0].get("top", 0.0))
+                if take_profit <= 0.0:
+                    resting_ssl = liquidity.get("resting_ssl", [])
+                    if resting_ssl:
+                        take_profit = float(resting_ssl[0].get("level", 0.0))
             else:
                 action = "WAIT"
 
-        # Strategy identity is strictly Multi-Timeframe Continuous Market Intelligence Core
-        selected_strategy_name = "Multi-Timeframe Continuous Market Intelligence"
+        # Strategy identity is derived directly from LiveAnalysisBrain proposal
+        selected_strategy_name = "LiveAnalysisBrain Decision"
 
         # If market state is ranging or in compression without strong alignment, default to WAIT
         if narrative.get("state") in ["COMPRESSION", "RANGE"] and action != "WAIT":
