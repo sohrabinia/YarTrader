@@ -233,8 +233,24 @@ def run_research_background_loop():
                         research_tracker["mt5_status"] = "CONNECTED"
                     else:
                         conn_health = runtime.provider.delegate.get_connection_health()
-                        research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-                        print("MT5: Connected")
+                        is_conn = False
+                        if hasattr(conn_health, "connected"):
+                            is_conn = bool(getattr(conn_health, "connected", False))
+                        elif isinstance(conn_health, dict):
+                            if "connected" in conn_health:
+                                is_conn = bool(conn_health.get("connected", False))
+                            elif conn_health.get("status") in ["HEALTHY", "CONNECTED", "ONLINE", "Healthy", "Online"]:
+                                is_conn = True
+
+                        last_err = getattr(conn_health, "last_error", None) if hasattr(conn_health, "last_error") else (conn_health.get("last_error") if isinstance(conn_health, dict) else None)
+                        if is_conn:
+                            research_tracker["mt5_status"] = "CONNECTED"
+                            print("MT5: Connected")
+                        else:
+                            research_tracker["mt5_status"] = "DISCONNECTED"
+                            print(f"MT5: Disconnected ({last_err or 'Connection unavailable'})")
+                            research_tracker["worker_status"] = "RECOVERING"
+                            continue
 
                     res = runtime.run_once()
                     research_tracker["last_analysis_time"] = datetime.now().isoformat()
@@ -269,8 +285,24 @@ def run_research_background_loop():
                                 research_tracker["mt5_status"] = "CONNECTED"
                             else:
                                 conn_health = runtime.provider.delegate.get_connection_health()
-                                research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-                                print("MT5: Connected")
+                                is_conn = False
+                                if hasattr(conn_health, "connected"):
+                                    is_conn = bool(getattr(conn_health, "connected", False))
+                                elif isinstance(conn_health, dict):
+                                    if "connected" in conn_health:
+                                        is_conn = bool(conn_health.get("connected", False))
+                                    elif conn_health.get("status") in ["HEALTHY", "CONNECTED", "ONLINE", "Healthy", "Online"]:
+                                        is_conn = True
+
+                                last_err = getattr(conn_health, "last_error", None) if hasattr(conn_health, "last_error") else (conn_health.get("last_error") if isinstance(conn_health, dict) else None)
+                                if is_conn:
+                                    research_tracker["mt5_status"] = "CONNECTED"
+                                    print("MT5: Connected")
+                                else:
+                                    research_tracker["mt5_status"] = "DISCONNECTED"
+                                    print(f"MT5: Disconnected ({last_err or 'Connection unavailable'})")
+                                    research_tracker["worker_status"] = "RECOVERING"
+                                    continue
 
                             res = runtime.run_once()
                             research_tracker["last_analysis_time"] = datetime.now().isoformat()

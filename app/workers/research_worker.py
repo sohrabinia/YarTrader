@@ -279,7 +279,26 @@ class ResearchWorker:
                         if p_name == "ControlledOfflineFixture":
                             print("ControlledOfflineFixture: Connected (100% Offline)")
                         else:
-                            print("MT5: Connected")
+                            is_conn = False
+                            if hasattr(conn_health, "connected"):
+                                is_conn = bool(getattr(conn_health, "connected", False))
+                            elif isinstance(conn_health, dict):
+                                if "connected" in conn_health:
+                                    is_conn = bool(conn_health.get("connected", False))
+                                elif conn_health.get("status") in ["HEALTHY", "CONNECTED", "ONLINE", "Healthy", "Online"]:
+                                    is_conn = True
+
+                            last_err = getattr(conn_health, "last_error", None) if hasattr(conn_health, "last_error") else (conn_health.get("last_error") if isinstance(conn_health, dict) else None)
+                            if is_conn:
+                                print("MT5: Connected")
+                            else:
+                                err_msg = last_err or "MT5 connection offline"
+                                print(f"MT5: Disconnected ({err_msg})")
+                                self.status = "RECOVERING"
+                                central_runtime_state.update_state("research_status", "Recovering")
+                                central_runtime_state.update_state("last_error", err_msg)
+                                time.sleep(0.5)
+                                continue
 
                         res = runtime.run_once()
 

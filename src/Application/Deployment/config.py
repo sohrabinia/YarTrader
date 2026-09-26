@@ -14,8 +14,14 @@ class ProductionConfig:
 
     def _validate_and_initialize(self) -> None:
         # Load environment-based parameters with safe defaults
-        self.environment = os.getenv("RG_ENV", self._settings.get("ENVIRONMENT", "production")).lower()
-        if self.environment not in ("production", "staging", "development"):
+        raw_env = (
+            os.getenv("YARTRADER_ENV") or
+            os.getenv("TRADEYAR_ENV") or
+            os.getenv("RG_ENV") or
+            self._settings.get("ENVIRONMENT", "production")
+        )
+        self.environment = raw_env.lower()
+        if self.environment not in ("production", "staging", "development", "test", "simulation"):
             raise ValidationException(f"Configuration Error: Invalid environment '{self.environment}'.")
 
         # Load technical params with safe defaults and validation checks
