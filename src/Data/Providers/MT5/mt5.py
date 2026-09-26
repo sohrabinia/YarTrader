@@ -270,6 +270,16 @@ class MT5DataMapper:
         return candles
 
 
+def get_canonical_mt5_terminal_path() -> str:
+    """Returns single canonical MT5 terminal path from environment configuration or default."""
+    return (
+        os.getenv("MT5_TERMINAL_PATH") or
+        os.getenv("TRADEYAR_MT5_TERMINAL_PATH") or
+        os.getenv("YARTRADER_MT5_TERMINAL_PATH") or
+        r"C:\Program Files\MetaTrader 5\terminal64.exe"
+    )
+
+
 class MT5DataProvider(IDataProvider):
     """
     Read-only adapter for MetaTrader 5 (MT5).
@@ -296,7 +306,10 @@ class MT5DataProvider(IDataProvider):
         # Attempt initialization if MT5 is available
         if MT5_AVAILABLE and mt5 is not None:
             try:
+                term_path = get_canonical_mt5_terminal_path()
                 if mt5.initialize():
+                    self._initialized = True
+                elif os.path.exists(term_path) and mt5.initialize(term_path):
                     self._initialized = True
             except Exception:
                 self._initialized = False
@@ -353,8 +366,18 @@ class MT5DataProvider(IDataProvider):
             )
 
         try:
+            term_path = get_canonical_mt5_terminal_path()
             if not self._initialized:
-                if mt5.initialize():
+                init_success = False
+                try:
+                    if mt5.initialize():
+                        init_success = True
+                    elif os.path.exists(term_path) and mt5.initialize(term_path):
+                        init_success = True
+                except Exception:
+                    init_success = False
+
+                if init_success:
                     self._initialized = True
                 else:
                     err_code, err_msg = mt5.last_error()
