@@ -214,11 +214,10 @@ def test_g_production_no_synthetic_fallback(monkeypatch):
 
 
 def test_h_terminal_disappears_worker_recovery():
-    """TEST H — When MT5 terminal disappears, ResearchWorker transitions to RECOVERING with no decision/execution."""
+    """TEST H — When MT5 terminal disappears, ResearchWorker._run_loop transitions to RECOVERING with no decision/execution."""
     worker = ResearchWorker()
     runtime = MagicMock()
 
-    # Simulated disconnect health
     disconnected_health = MT5ConnectionHealth(
         connected=False,
         server="Alpari-MT5-Demo",
@@ -228,16 +227,27 @@ def test_h_terminal_disappears_worker_recovery():
     runtime.provider.delegate.get_connection_health.return_value = disconnected_health
     runtime._provider_name = "MT5"
 
-    conn = runtime.provider.delegate.get_connection_health()
-    if not conn.connected:
-        worker.status = "RECOVERING"
+    worker.is_running = True
+    statuses_during_loop = []
 
-    assert worker.status == "RECOVERING"
+    def matrix_interceptor(*args, **kwargs):
+        if not hasattr(matrix_interceptor, "called"):
+            matrix_interceptor.called = True
+            return [("XAUUSD", "H1", "Forex", "MT5")]
+        statuses_during_loop.append(worker.status)
+        worker.is_running = False
+        return []
+
+    with patch.object(worker, "_get_or_create_runtime", return_value=runtime), \
+         patch.object(worker, "_get_active_matrix", side_effect=matrix_interceptor):
+        worker._run_loop()
+
+    assert "RECOVERING" in statuses_during_loop
     runtime.run_once.assert_not_called()
 
 
 def test_i_recovery_restored_connectivity():
-    """TEST I — When authorized MT5 becomes available again, ResearchWorker recovers to RUNNING."""
+    """TEST I — When authorized MT5 becomes available again, ResearchWorker._run_loop recovers from RECOVERING to RUNNING."""
     worker = ResearchWorker()
     worker.status = "RECOVERING"
 
@@ -253,13 +263,23 @@ def test_i_recovery_restored_connectivity():
     runtime._provider_name = "MT5"
     runtime.run_once.return_value = MagicMock(
         Request=MagicMock(EndTime=datetime.now()),
-        Findings={"pipeline_outputs": {"technical_analysis": {"candles": [1, 2, 3]}}}
+        Findings={"pipeline_outputs": {"technical_analysis": {"candles": [1, 2, 3]}}, "autonomous_decision": {"action": "WAIT"}}
     )
 
-    conn = runtime.provider.delegate.get_connection_health()
-    if conn.connected:
-        worker.status = "RUNNING"
-        res = runtime.run_once()
+    worker.is_running = True
+    statuses_during_loop = []
 
-    assert worker.status == "RUNNING"
+    def matrix_interceptor(*args, **kwargs):
+        if not hasattr(matrix_interceptor, "called"):
+            matrix_interceptor.called = True
+            return [("XAUUSD", "H1", "Forex", "MT5")]
+        statuses_during_loop.append(worker.status)
+        worker.is_running = False
+        return []
+
+    with patch.object(worker, "_get_or_create_runtime", return_value=runtime), \
+         patch.object(worker, "_get_active_matrix", side_effect=matrix_interceptor):
+        worker._run_loop()
+
+    assert "RUNNING" in statuses_during_loop
     runtime.run_once.assert_called_once()
