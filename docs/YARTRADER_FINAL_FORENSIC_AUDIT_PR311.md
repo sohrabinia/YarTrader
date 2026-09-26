@@ -7,29 +7,25 @@
 - **BASE_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
 - **HEAD_BRANCH:** `cto/gate2-completion-program-9720506673426700053`
 - **MERGE_BASE_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
-- **AUDITED_IMPLEMENTATION_HEAD_SHA:** `8ede6999b1ca9d2a1e883f99e9d38960dd3a5ec3`
-- **VERIFIED_FINAL_PR_HEAD_SHA:** `dd83785a5903198e5163a35925621e0edcb063a0`
-- **PROVENANCE_MODEL:** `Explicit Non-Self-Referential (Final HEAD SHA externally verified from GitHub)`
-- **WORKING_TREE:** `CLEAN`
-- **AHEAD_BY:** `13`
-- **BEHIND_BY:** `0`
-- **TOTAL_COMMITS:** `13`
+- **IMPLEMENTATION_BASELINE_SHA:** `8ede6999b1ca9d2a1e883f99e9d38960dd3a5ec3`
+- **PROVENANCE_MODEL:** `Explicit Non-Self-Referential (Current/Final PR HEAD SHA is externally verified from GitHub by CTO review, not self-referenced inside the audit document payload)`
 - **CHANGED_FILES:** `9`
 - **ADDITIONS:** `750`
 - **DELETIONS:** `125`
-- **REPORT_GENERATED_AT_UTC:** `2026-09-25T21:50:00Z`
+- **REPORT_GENERATED_AT_UTC:** `2026-09-25T21:55:00Z`
 
-## Exact CI Evidence (Bound to Verified PR HEAD `dd83785a5903198e5163a35925621e0edcb063a0`)
+## Historical Exact CI Evidence (Implementation Validation Baseline)
 - **CI_WORKFLOW:** `TradeYar AI Production Acceptance & Release Validation`
 - **CI_RUN_ID:** `36194442871`
 - **CI_RUN_NUMBER:** `986`
 - **CI_COMMIT_SHA:** `dd83785a5903198e5163a35925621e0edcb063a0`
 - **CI_STATUS:** `completed`
 - **CI_CONCLUSION:** `success`
+- **NOTE:** `Current exact-SHA CI workflow run status for the latest PR HEAD commit is verified externally from GitHub.`
 
 ---
 
-## Exact Per-File Diff Summary (`BASE_SHA...VERIFIED_FINAL_PR_HEAD_SHA`)
+## Exact Per-File Diff Summary (`BASE_SHA...IMPLEMENTATION_BASELINE_SHA`)
 ```text
 app/workers/research_worker.py                  +6   -5
 config/market_universe.yaml                    +21  -19
@@ -169,8 +165,7 @@ Outcome / Judge / Memory / Learning (TradeEvaluator -> JudgeBrain -> ExperienceM
 ---
 
 ## 6. Test Suite Execution Results
-- **Implementation Parent SHA (`8ede6999b1ca9d2a1e883f99e9d38960dd3a5ec3`):** `1949 passed, 0 failed` (298.42s)
-- **Verified Final PR HEAD (`dd83785a5903198e5163a35925621e0edcb063a0`):** Independently validated by CI Run `36194442871` (Run #986, Status: `completed`, Conclusion: `success`).
+- **Implementation Baseline SHA (`8ede6999b1ca9d2a1e883f99e9d38960dd3a5ec3`):** `1949 passed, 0 failed` (298.42s)
 - **Gate 2 Suite (`test_gate2_universe_and_indicator_free.py`):** 16/16 Passed
 - **Forensic Guards (`test_forensic_guards.py`):** 2/2 Passed
 - **Data Boundary Suite (`test_data_boundary_and_memory.py`):** 7/7 Passed
