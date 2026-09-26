@@ -35,8 +35,11 @@ class TestDataBoundaryAndMemorySafety(unittest.TestCase):
         self.assertIn("EURGBP", registered_symbols)
         self.assertIn("EURCHF", registered_symbols)
         self.assertIn("CADJPY", registered_symbols)
+        self.assertIn("NAS100", registered_symbols)
+        self.assertIn("US30", registered_symbols)
+        self.assertIn("BTCUSD", registered_symbols)
         self.assertNotIn("USOIL", registered_symbols)
-        self.assertNotIn("NAS100", registered_symbols)
+        self.assertNotIn("ETHUSD", registered_symbols)
 
     def test_30_instrument_path_bypasses_legacy_technical_analysis_pipeline(self):
         from unittest.mock import patch

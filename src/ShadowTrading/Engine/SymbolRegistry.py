@@ -6,15 +6,17 @@ from typing import Dict, List, Any, Tuple
 REGISTRY_FILE = "runtime_logs/symbols_registry.json"
 
 CANONICAL_30_SYMBOLS = {
-    "XAUUSD", "XAGUSD", "EURUSD", "USDJPY", "GBPUSD", "USDCHF", "AUDUSD", "USDCAD",
-    "NZDUSD", "EURJPY", "GBPJPY", "EURGBP", "AUDJPY", "EURCHF", "CADJPY",
-    "BTCUSD", "ETHUSD", "SOLUSD", "BNBUSD", "XRPUSD", "ADAUSD", "DOGEUSD", "AVAXUSD",
-    "DOTUSD", "LINKUSD", "LTCUSD", "BCHUSD", "NEARUSD", "UNIUSD", "ATOMUSD"
+    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD",
+    "EURGBP", "EURJPY", "GBPJPY", "EURCHF", "EURAUD", "EURNZD", "GBPAUD",
+    "GBPCAD", "GBPCHF", "AUDJPY", "AUDCAD", "AUDNZD", "CADJPY", "CHFJPY",
+    "NZDJPY", "NZDCAD", "XAUUSD", "XAGUSD", "US30", "NAS100", "GER40",
+    "UK100", "BTCUSD"
 }
 
 def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
-    """Pure-Python YAML parser for market_universe.yaml mapping."""
+    """Pure-Python YAML parser for market_universe.yaml mapping. Enforces duplicate symbol key rejection."""
     result = {}
+    seen_symbols = set()
     current_category = None
     for line in content.splitlines():
         strip_line = line.strip()
@@ -30,8 +32,12 @@ def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
         elif indent == 4:
             if ":" in strip_line:
                 symbol, payload_str = strip_line.split(":", 1)
-                symbol = symbol.strip()
+                symbol = symbol.strip().upper()
                 payload_str = payload_str.strip()
+
+                if symbol in seen_symbols:
+                    raise ValueError(f"Duplicate symbol '{symbol}' detected in market universe configuration.")
+                seen_symbols.add(symbol)
 
                 try:
                     # Clean up JSON-like format
