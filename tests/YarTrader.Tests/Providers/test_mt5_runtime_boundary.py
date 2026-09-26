@@ -12,7 +12,7 @@ from src.Infrastructure.exceptions import ValidationException
 
 
 def test_a_mt5_ipc_unavailable(monkeypatch):
-    """TEST A — MT5 IPC unavailable (initialize=False, code -10003) returns connected=False and blocks ResearchRuntime.run_once()."""
+    """TEST A — MT5 IPC unavailable (initialize=False, code -10003) returns connected=False and blocks ResearchRuntime.run_once() in actual ResearchWorker._run_loop()."""
     mock_mt5 = MagicMock()
     mock_mt5.initialize.return_value = False
     mock_mt5.last_error.return_value = (-10003, "IPC initialize failed, MetaTrader 5 x64 not found (code -10003)")
@@ -25,22 +25,30 @@ def test_a_mt5_ipc_unavailable(monkeypatch):
         assert health.connected is False
         assert "-10003" in health.last_error or "IPC initialize failed" in health.last_error
 
-        # Ensure ResearchWorker fails closed when provider health is disconnected
+        # Invoke actual ResearchWorker._run_loop execution
         worker = ResearchWorker()
         runtime = MagicMock()
         runtime.provider.delegate.get_connection_health.return_value = health
         runtime._provider_name = "MT5"
 
+        worker.is_running = True
+        statuses_observed = []
+
+        def matrix_interceptor(*args, **kwargs):
+            if not hasattr(matrix_interceptor, "called"):
+                matrix_interceptor.called = True
+                return [("XAUUSD", "H1", "Forex", "MT5")]
+            statuses_observed.append(worker.status)
+            worker.is_running = False
+            return []
+
         with patch.object(worker, "_get_or_create_runtime", return_value=runtime), \
-             patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "MT5")]):
-            worker.is_running = True
+             patch.object(worker, "_get_active_matrix", side_effect=matrix_interceptor):
+            worker._run_loop()
 
-            conn = runtime.provider.delegate.get_connection_health()
-            if not conn.connected:
-                worker.status = "RECOVERING"
-
-            assert worker.status == "RECOVERING"
-            runtime.run_once.assert_not_called()
+        # Assert side-effects produced by actual production _run_loop execution
+        assert "RECOVERING" in statuses_observed
+        runtime.run_once.assert_not_called()
 
 
 def test_b_mt5_healthy():
@@ -68,10 +76,10 @@ def test_b_mt5_healthy():
 
 
 def test_c_no_false_connected_state(capsys):
-    """TEST C — No false 'MT5 Connected' log when MT5 is unavailable."""
+    """TEST C — No false 'MT5 Connected' log emitted during actual ResearchWorker._run_loop execution when MT5 is unavailable."""
     mock_mt5 = MagicMock()
     mock_mt5.initialize.return_value = False
-    mock_mt5.last_error.return_value = (-10003, "IPC error")
+    mock_mt5.last_error.return_value = (-10003, "IPC initialize failed, MetaTrader 5 x64 not found (code -10003)")
 
     with patch("src.Data.Providers.MT5.mt5.MT5_AVAILABLE", True), \
          patch("src.Data.Providers.MT5.mt5.mt5", mock_mt5):
@@ -79,23 +87,31 @@ def test_c_no_false_connected_state(capsys):
         health = provider.get_connection_health()
         assert health.connected is False
 
-        # Verify Worker logging behavior
         worker = ResearchWorker()
         runtime = MagicMock()
         runtime.provider.delegate.get_connection_health.return_value = health
         runtime._provider_name = "MT5"
 
-        with patch.object(worker, "_get_or_create_runtime", return_value=runtime), \
-             patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "MT5")]):
-            conn = runtime.provider.delegate.get_connection_health()
-            if conn.connected:
-                print("MT5: Connected")
-            else:
-                print(f"MT5: Disconnected ({conn.last_error})")
+        worker.is_running = True
+        statuses_observed = []
 
-            captured = capsys.readouterr()
-            assert "MT5: Connected" not in captured.out
-            assert "MT5: Disconnected" in captured.out
+        def matrix_interceptor(*args, **kwargs):
+            if not hasattr(matrix_interceptor, "called"):
+                matrix_interceptor.called = True
+                return [("XAUUSD", "H1", "Forex", "MT5")]
+            statuses_observed.append(worker.status)
+            worker.is_running = False
+            return []
+
+        with patch.object(worker, "_get_or_create_runtime", return_value=runtime), \
+             patch.object(worker, "_get_active_matrix", side_effect=matrix_interceptor):
+            worker._run_loop()
+
+        captured = capsys.readouterr()
+        # Assert actual production logging output
+        assert "MT5 Connected" not in captured.out
+        assert "MT5: Disconnected" in captured.out
+        assert "RECOVERING" in statuses_observed
 
 
 def test_d_canonical_terminal_path(monkeypatch):
