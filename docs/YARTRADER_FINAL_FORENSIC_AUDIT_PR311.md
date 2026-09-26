@@ -1,36 +1,39 @@
 # YARTRADER — FINAL MASTER FORENSIC AUDIT REPORT PR #311
 
-## Provenance & Git State
+## Provenance & Git State (Explicit Non-Self-Referential Model)
 - **PR_NUMBER:** `#311`
+- **PR_STATUS:** `OPEN / UNMERGED`
 - **BASE_BRANCH:** `main`
 - **BASE_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
 - **HEAD_BRANCH:** `cto/gate2-completion-program-9720506673426700053`
-- **AUDITED_IMPLEMENTATION_HEAD_SHA:** `8ede6999b1ca9d2a1e883f99e9d38960dd3a5ec3`
-- **ORIGIN_MAIN_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
 - **MERGE_BASE_SHA:** `be56259dec65516fa237ebf2536c7138ea98e0d1`
-- **WORKING_TREE:** `CLEAN (DOCUMENTATION COMMIT PENDING)`
-- **AHEAD_BY:** `12`
+- **AUDITED_IMPLEMENTATION_HEAD_SHA:** `8ede6999b1ca9d2a1e883f99e9d38960dd3a5ec3`
+- **VERIFIED_FINAL_PR_HEAD_SHA:** `dd83785a5903198e5163a35925621e0edcb063a0`
+- **PROVENANCE_MODEL:** `Explicit Non-Self-Referential (Final HEAD SHA externally verified from GitHub)`
+- **WORKING_TREE:** `CLEAN`
+- **AHEAD_BY:** `13`
 - **BEHIND_BY:** `0`
-- **TOTAL_COMMITS:** `12`
+- **TOTAL_COMMITS:** `13`
 - **CHANGED_FILES:** `9`
-- **ADDITIONS:** `751`
+- **ADDITIONS:** `750`
 - **DELETIONS:** `125`
-- **REPORT_GENERATED_AT_UTC:** `2026-09-25T21:40:00Z`
+- **REPORT_GENERATED_AT_UTC:** `2026-09-25T21:50:00Z`
 
-## Exact CI Provenance
+## Exact CI Evidence (Bound to Verified PR HEAD `dd83785a5903198e5163a35925621e0edcb063a0`)
 - **CI_WORKFLOW:** `TradeYar AI Production Acceptance & Release Validation`
-- **CI_RUN_ID:** `36193781960`
-- **CI_RUN_NUMBER:** `985`
-- **CI_COMMIT_SHA:** `8ede6999b1ca9d2a1e883f99e9d38960dd3a5ec3`
-- **CI_STATUS:** `in_progress`
+- **CI_RUN_ID:** `36194442871`
+- **CI_RUN_NUMBER:** `986`
+- **CI_COMMIT_SHA:** `dd83785a5903198e5163a35925621e0edcb063a0`
+- **CI_STATUS:** `completed`
+- **CI_CONCLUSION:** `success`
 
 ---
 
-## Exact Per-File Diff Summary (`BASE_SHA...AUDITED_IMPLEMENTATION_HEAD_SHA`)
+## Exact Per-File Diff Summary (`BASE_SHA...VERIFIED_FINAL_PR_HEAD_SHA`)
 ```text
 app/workers/research_worker.py                  +6   -5
 config/market_universe.yaml                    +21  -19
-docs/YARTRADER_FINAL_FORENSIC_AUDIT_PR311.md +190   -0
+docs/YARTRADER_FINAL_FORENSIC_AUDIT_PR311.md +189   -0
 src/Application/Runtime/research_runtime.py   +81  -80
 src/Intelligence/Execution/execution_planner.py +6 -10
 src/ShadowTrading/Engine/SymbolRegistry.py    +12  -6
@@ -41,7 +44,7 @@ tests/YarTrader.Tests/Gate2/test_gate2_universe_and_indicator_free.py
 tests/YarTrader.Tests/Universe/test_data_boundary_and_memory.py
                                                 +4  -1
 ```
-Total: 9 files changed, 751 insertions(+), 125 deletions(-).
+Total: 9 files changed, 750 insertions(+), 125 deletions(-).
 
 ---
 
@@ -165,12 +168,9 @@ Outcome / Judge / Memory / Learning (TradeEvaluator -> JudgeBrain -> ExperienceM
 
 ---
 
-## 6. Test Suite Execution Results (Tied to Implementation SHA `8ede6999b1ca9d2a1e883f99e9d38960dd3a5ec3`)
-```text
-python -m pytest
-1949 passed, 0 failed, 1253 warnings
-Duration: 298.42s
-```
+## 6. Test Suite Execution Results
+- **Implementation Parent SHA (`8ede6999b1ca9d2a1e883f99e9d38960dd3a5ec3`):** `1949 passed, 0 failed` (298.42s)
+- **Verified Final PR HEAD (`dd83785a5903198e5163a35925621e0edcb063a0`):** Independently validated by CI Run `36194442871` (Run #986, Status: `completed`, Conclusion: `success`).
 - **Gate 2 Suite (`test_gate2_universe_and_indicator_free.py`):** 16/16 Passed
 - **Forensic Guards (`test_forensic_guards.py`):** 2/2 Passed
 - **Data Boundary Suite (`test_data_boundary_and_memory.py`):** 7/7 Passed
@@ -183,7 +183,7 @@ Duration: 298.42s
 
 ---
 
-## 7. Final Verdict
+## 7. Final Status
 ```text
-AUDITED IMPLEMENTATION COMPLETE — AWAITING FINAL EXACT-SHA CI VERIFICATION
+PROVENANCE SYNCHRONIZATION COMPLETE — AWAITING INDEPENDENT CTO VERIFICATION
 ```
