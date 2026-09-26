@@ -284,6 +284,7 @@ class MT5DataProvider(IDataProvider):
     """
     Read-only adapter for MetaTrader 5 (MT5).
     Strictly forbids trading commands, orders, positions, and account modifications.
+    Supports MT5BridgeClient for cross-session Windows IPC (Session 0 service to Session 2 interactive MT5).
     """
     def __init__(
         self,
@@ -303,7 +304,11 @@ class MT5DataProvider(IDataProvider):
         self._mapper = MT5DataMapper()
         self._initialized = False
 
-        # Attempt initialization if MT5 is available
+        # Bridge client fallback for Windows Session 0 service isolation
+        self._bridge_client = None
+        self._use_bridge = os.getenv("MT5_BRIDGE_ENABLED", "false").lower() in ["true", "1", "yes"]
+
+        # Attempt direct initialization if MT5 is available
         if MT5_AVAILABLE and mt5 is not None:
             try:
                 term_path = get_canonical_mt5_terminal_path()
@@ -320,6 +325,12 @@ class MT5DataProvider(IDataProvider):
 
     def set_connected(self, connected: bool) -> None:
         self._connected = connected
+
+    def _get_bridge_client(self):
+        if self._bridge_client is None:
+            from src.Infrastructure.Bridge.client import MT5BridgeClient
+            self._bridge_client = MT5BridgeClient()
+        return self._bridge_client
 
     def _map_timeframe(self, tf: str) -> int:
         tf_upper = tf.upper()
@@ -357,82 +368,78 @@ class MT5DataProvider(IDataProvider):
                 last_error="Connection lost to MT5 terminal."
             )
 
-        if not MT5_AVAILABLE or mt5 is None:
-            return MT5ConnectionHealth(
-                connected=False,
-                server=self._server,
-                ping_ms=0.0,
-                last_error="MetaTrader5 Python package is not available in this environment."
-            )
-
-        try:
-            term_path = get_canonical_mt5_terminal_path()
-            if not self._initialized:
-                init_success = False
-                try:
-                    if mt5.initialize():
-                        init_success = True
-                    elif os.path.exists(term_path) and mt5.initialize(term_path):
-                        init_success = True
-                except Exception:
+        # 1. Try local MT5 initialize
+        direct_health = None
+        if MT5_AVAILABLE and mt5 is not None:
+            try:
+                term_path = get_canonical_mt5_terminal_path()
+                if not self._initialized:
                     init_success = False
+                    try:
+                        if mt5.initialize():
+                            init_success = True
+                        elif os.path.exists(term_path) and mt5.initialize(term_path):
+                            init_success = True
+                    except Exception:
+                        init_success = False
 
-                if init_success:
-                    self._initialized = True
+                    if init_success:
+                        self._initialized = True
+
+                if self._initialized:
+                    term_info = mt5.terminal_info()
+                    if term_info is not None and getattr(term_info, "connected", False):
+                        symbols = mt5.symbols_get()
+                        if symbols is not None and len(symbols) > 0:
+                            acc_info = mt5.account_info()
+                            server_name = self._server
+                            if acc_info is not None and getattr(acc_info, "server", None):
+                                server_name = acc_info.server
+                            return MT5ConnectionHealth(
+                                connected=True,
+                                server=server_name,
+                                ping_ms=self._ping,
+                                last_error=None
+                            )
+            except Exception as e:
+                direct_health = MT5ConnectionHealth(
+                    connected=False,
+                    server=self._server,
+                    ping_ms=0.0,
+                    last_error=f"Exception in direct MT5 health check: {str(e)}"
+                )
+
+        # 2. Session 0 Fallback: Check local MT5 Interactive Bridge client if explicitly enabled
+        if self._use_bridge:
+            try:
+                bridge = self._get_bridge_client()
+                bridge_health = bridge.get_mt5_status()
+                if bridge_health.connected:
+                    return bridge_health
                 else:
-                    err_code, err_msg = mt5.last_error()
-                    return MT5ConnectionHealth(
-                        connected=False,
-                        server=self._server,
-                        ping_ms=0.0,
-                        last_error=f"MT5 initialization failed: {err_msg} (code {err_code})"
-                    )
-
-            term_info = mt5.terminal_info()
-            if term_info is None:
-                err_code, err_msg = mt5.last_error()
+                    return bridge_health
+            except Exception as be:
                 return MT5ConnectionHealth(
                     connected=False,
                     server=self._server,
                     ping_ms=0.0,
-                    last_error=f"Failed to get terminal info: {err_msg} (code {err_code})"
+                    last_error=f"MT5 Local Bridge error: {str(be)}"
                 )
 
-            if not getattr(term_info, "connected", False):
-                return MT5ConnectionHealth(
-                    connected=False,
-                    server=self._server,
-                    ping_ms=0.0,
-                    last_error="MT5 terminal is not connected to the broker."
-                )
+        if direct_health:
+            return direct_health
 
-            symbols = mt5.symbols_get()
-            if symbols is None or len(symbols) == 0:
-                return MT5ConnectionHealth(
-                    connected=False,
-                    server=self._server,
-                    ping_ms=0.0,
-                    last_error="No symbols available from MT5 terminal."
-                )
+        err_msg = "MetaTrader5 Python package is not available in this environment."
+        if MT5_AVAILABLE and mt5 is not None:
+            err_code, mt5_err = mt5.last_error()
+            err_msg = f"MT5 initialization failed: {mt5_err} (code {err_code})"
 
-            acc_info = mt5.account_info()
-            server_name = self._server
-            if acc_info is not None and getattr(acc_info, "server", None):
-                server_name = acc_info.server
-
-            return MT5ConnectionHealth(
-                connected=True,
-                server=server_name,
-                ping_ms=self._ping,
-                last_error=None
-            )
-        except Exception as e:
-            return MT5ConnectionHealth(
-                connected=False,
-                server=self._server,
-                ping_ms=0.0,
-                last_error=f"Exception in health check: {str(e)}"
-            )
+        return MT5ConnectionHealth(
+            connected=False,
+            server=self._server,
+            ping_ms=0.0,
+            last_error=err_msg
+        )
 
     def check_health(self) -> ProviderHealthStatus:
         health = self.get_connection_health()
@@ -443,7 +450,7 @@ class MT5DataProvider(IDataProvider):
         return ProviderHealthStatus.HEALTHY
 
     def fetch_data(self, request: ExternalDataRequest) -> ExternalDataResponse:
-        """Traditional external provider fetch handler using real MetaTrader5 API."""
+        """Traditional external provider fetch handler using real MetaTrader5 API or MT5 Interactive Bridge."""
         health = self.get_connection_health()
         if not health.connected:
             return ExternalDataResponse(
@@ -453,6 +460,43 @@ class MT5DataProvider(IDataProvider):
                 is_success=False,
                 error_message=health.last_error or "MT5 connection is offline."
             )
+
+        # If direct MT5 is not initialized/connected, fetch via Bridge and return result directly (no fallthrough)
+        if not self._initialized and self._use_bridge:
+            try:
+                bridge = self._get_bridge_client()
+                start_iso = request.start_time if isinstance(request.start_time, str) else (request.start_time.isoformat() if request.start_time else None)
+                end_iso = request.end_time if isinstance(request.end_time, str) else (request.end_time.isoformat() if request.end_time else None)
+
+                candles = bridge.fetch_market_data(
+                    symbol=request.symbol,
+                    timeframe=request.timeframe,
+                    count=100,
+                    start_time=start_iso,
+                    end_time=end_iso
+                )
+                if candles and len(candles) > 0:
+                    return ExternalDataResponse(
+                        request_id=request.request_id or "id",
+                        provider_id=self._metadata.provider_id,
+                        raw_data=candles,
+                        is_success=True
+                    )
+                return ExternalDataResponse(
+                    request_id=request.request_id or "id",
+                    provider_id=self._metadata.provider_id,
+                    raw_data=[],
+                    is_success=False,
+                    error_message=f"Bridge returned 0 candles for symbol {request.symbol}"
+                )
+            except Exception as be:
+                return ExternalDataResponse(
+                    request_id=request.request_id or "id",
+                    provider_id=self._metadata.provider_id,
+                    raw_data=[],
+                    is_success=False,
+                    error_message=f"Bridge fetch_data error: {str(be)}"
+                )
 
         mt5_tf = self._map_timeframe(request.timeframe)
         try:
