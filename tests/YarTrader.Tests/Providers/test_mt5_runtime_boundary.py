@@ -103,8 +103,17 @@ def test_d_canonical_terminal_path(monkeypatch):
     test_path = r"C:\Program Files\MetaTrader 5\terminal64.exe"
     monkeypatch.setenv("MT5_TERMINAL_PATH", test_path)
 
+    called_paths = []
+    def mock_init(*args, **kwargs):
+        if args:
+            called_paths.append(args[0])
+            if args[0] == test_path:
+                return True
+            return False
+        return False
+
     mock_mt5 = MagicMock()
-    mock_mt5.initialize.side_effect = lambda *args, **kwargs: True if args and args[0] == test_path else True
+    mock_mt5.initialize.side_effect = mock_init
     mock_term = MagicMock()
     mock_term.connected = True
     mock_mt5.terminal_info.return_value = mock_term
@@ -120,7 +129,30 @@ def test_d_canonical_terminal_path(monkeypatch):
         health = provider.get_connection_health()
 
         assert health.connected is True
-        mock_mt5.initialize.assert_called()
+        assert test_path in called_paths
+
+    # Negative test: wrong path passed to initialize returns False
+    called_paths_neg = []
+    def mock_init_neg(*args, **kwargs):
+        if args:
+            called_paths_neg.append(args[0])
+            if args[0] == r"C:\WrongPath\terminal64.exe":
+                return False
+        return False
+
+    mock_mt5_neg = MagicMock()
+    mock_mt5_neg.initialize.side_effect = mock_init_neg
+    mock_mt5_neg.last_error.return_value = (-10003, "Invalid path")
+
+    monkeypatch.setenv("MT5_TERMINAL_PATH", r"C:\WrongPath\terminal64.exe")
+    with patch("src.Data.Providers.MT5.mt5.MT5_AVAILABLE", True), \
+         patch("src.Data.Providers.MT5.mt5.mt5", mock_mt5_neg), \
+         patch("os.path.exists", return_value=True):
+        provider_neg = MT5DataProvider()
+        health_neg = provider_neg.get_connection_health()
+
+        assert health_neg.connected is False
+        assert r"C:\WrongPath\terminal64.exe" in called_paths_neg
 
 
 def test_e_wrong_account_server():
