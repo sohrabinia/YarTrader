@@ -241,9 +241,9 @@ class TestP0RemediationSecurity(unittest.TestCase):
 
         try:
             with patch.dict(os.environ, {
-                "TRADEYAR_ENV": "production",
-                "TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH": "",
-                "TRADEYAR_DEFAULT_ADMIN_EMAIL": "admin@yartrader.app"
+                "YARTRADER_ENV": "production",
+                "YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH": "",
+                "YARTRADER_DEFAULT_ADMIN_EMAIL": "admin@yartrader.app"
             }):
                 with self.assertRaises(ValidationException) as ctx:
                     AuthRepository(filepath=test_filepath)
