@@ -120,9 +120,9 @@ function MainApp() {
     simBalance: '10000',
     simYield: '8.5',
     simMonths: '6',
-    initial: '$10,000',
-    final: '$16,310',
-    growth: '+63.1%'
+    initial: '—',
+    final: '—',
+    growth: '—'
   });
   const DEFAULT_SUBSCRIPTION_PLANS = [
     {
@@ -196,8 +196,8 @@ function MainApp() {
 
   const [blogArticles, setBlogArticles] = useState([]);
   const [publicMetrics, setPublicMetrics] = useState({
-    activeMarketsCount: '30',
-    historicalSimulatedTrades: '125.4k+',
+    activeMarketsCount: '—',
+    historicalSimulatedTrades: '—',
     platformUptimePct: null
   });
   const [activeHorizon, setActiveHorizon] = useState('medium');
@@ -900,9 +900,7 @@ function MainApp() {
           </span>
           <HealthIndicator
             state={backendState}
-            label={backendState === 'LIVE' ? t('live_mode') :
-                   backendState === 'DEMO' ? t('demo_mode') :
-                   backendState === 'UNREACHABLE' ? t('unreachable_mode') : t('checking_mode')}
+            label={backendState === 'UNREACHABLE' ? t('unreachable_mode') : t('online')}
           />
           <span id="portal-status-label" style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
             {t('portal_status')}
@@ -1011,7 +1009,7 @@ function MainApp() {
                   />
                   <MetricCard
                     title={t('pub_uptime_title')}
-                    value={publicMetrics.platformUptimePct ? `${publicMetrics.platformUptimePct}%` : '99.9%'}
+                    value={publicMetrics.platformUptimePct != null ? `${publicMetrics.platformUptimePct}%` : '—'}
                     status="passed"
                   />
                   <MetricCard
