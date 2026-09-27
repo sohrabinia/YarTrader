@@ -53,7 +53,6 @@ logger.setLevel(logging.DEBUG)
 logger.propagate = False
 
 # Backward compatibility alias
-logging.getLogger("TradeYar-AI").handlers = logger.handlers
 
 if logger.handlers:
     logger.handlers.clear()
