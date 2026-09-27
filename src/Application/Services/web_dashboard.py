@@ -330,7 +330,7 @@ async def lifespan_context(app: FastAPI):
 
         # 2. Start the worker thread if not in test/service host mode
         is_service_run = (os.environ.get("YARTRADER_SERVICE_RUN") == "True" or
-                          os.environ.get("TRADEYAR_SERVICE_RUN") == "True")
+                          os.environ.get("YARTRADER_SERVICE_RUN") == "True")
         if not is_service_run and "pytest" not in sys.modules:
             ensure_worker_started()
     except Exception as e:
@@ -5238,7 +5238,7 @@ def get_user_reports(market: Optional[str] = None, horizon: Optional[str] = None
 @app.get("/api/user/statements")
 def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str] = None, token: Optional[str] = Query(None)):
     """Exposes formal user financial account statements with opening/closing balances, realized/unrealized P&L, fees, and trade ledgers."""
-    is_production = os.environ.get("YARTRADER_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production" or os.environ.get("RG_ENV") == "production"
+    is_production = os.environ.get("YARTRADER_ENV") == "production" or os.environ.get("RG_ENV") == "production"
 
     session = None
     if token:
@@ -5416,7 +5416,7 @@ class SocialLoginPayload(BaseModel):
 def login_with_google(payload: SocialLoginPayload, request: Request):
     """Secure authenticating callback mapping Google sign-in profiles to user sessions."""
     is_production = (os.environ.get("YARTRADER_ENV") == "production" or
-                     os.environ.get("TRADEYAR_ENV") == "production" or
+                     
                      os.environ.get("RG_ENV") == "production")
 
     client_host = request.client.host if request.client else None
