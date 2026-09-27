@@ -159,7 +159,18 @@ class DailyLossKillSwitch:
             self.kill_switch_active = False
             self._save_persistence()
 
-        baseline = self.baseline_equity if (self.baseline_equity is not None and math.isfinite(self.baseline_equity) and self.baseline_equity > 0) else eq_val
+        # Never substitute current equity for a missing session baseline.
+        # A missing baseline is an execution-safety failure, not a zero-loss session.
+        if self.baseline_equity is None or not math.isfinite(float(self.baseline_equity)) or float(self.baseline_equity) <= 0:
+            return False, "KILL_SWITCH_ERROR", {
+                "session_date": self.current_session_key,
+                "baseline_equity": None,
+                "current_equity": eq_val,
+                "loss_pct": 0.0,
+                "kill_switch_active": self.kill_switch_active
+            }
+
+        baseline = float(self.baseline_equity)
         loss_amount_usd = max(0.0, baseline - eq_val)
         loss_pct = (loss_amount_usd / baseline) * 100.0
 
