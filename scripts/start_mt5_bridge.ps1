@@ -59,7 +59,6 @@ if (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
 } else {
     $candidateTokenFiles = @(
         $TokenFile,
-        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
         'C:\YarTraderAI\Secrets\mt5_bridge_token.secret'
     )
 
