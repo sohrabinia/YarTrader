@@ -60,6 +60,14 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
 
         self.assertEqual(res["symbol"], "XAUUSD")
         self.assertEqual(res["timeframe"], "H1")
+        mtf = res["multi_timeframe_context"]
+        self.assertEqual(mtf["count"], 8)
+        self.assertEqual(
+            mtf["timeframes_evaluated"],
+            ["D1", "H1", "H4", "M1", "M15", "M5", "MN1", "W1"],
+        )
+        self.assertTrue(mtf["indicator_free"])
+        self.assertEqual(mtf["source"], "RAW_OHLCV")
         self.assertIn("plan", res)
         self.assertIn(res["plan"]["action"], ["BUY", "SELL", "WAIT", "AVOID"])
         self.assertEqual(res["plan"]["strategy"], "Multi-Timeframe Continuous Market Intelligence")
