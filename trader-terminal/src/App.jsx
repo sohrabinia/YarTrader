@@ -247,7 +247,6 @@ function MainApp() {
   const [selectedAuditTrail, setSelectedAuditTrail] = useState(null);
 
   // Customer authentication is Google/Gmail OIDC-only.
-  const [authEmail, setAuthEmail] = useState('');
   // Floating Chatbot state
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
