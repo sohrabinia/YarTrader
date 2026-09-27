@@ -125,9 +125,15 @@ class DemoExecutionGate:
 
         try:
             from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
-            allowed, reason, meta = DailyLossKillSwitch.get_instance().evaluate_daily_loss(equity_val)
+            daily_status = DailyLossKillSwitch.get_instance().evaluate_entry_allowed(equity_val)
+            allowed = bool(daily_status.get("allowed", False))
+            reason = daily_status.get("reason")
+            loss_pct = daily_status.get("daily_loss_pct", 0.0)
             if not allowed:
-                raise ValidationException(f"DemoExecutionGate Violation: Daily 8% loss limit active ({reason}, loss={meta.get('loss_pct', 0.0)}%). Execution strictly blocked.")
+                raise ValidationException(
+                    f"DemoExecutionGate Violation: Daily 8% loss/session-entry gate active "
+                    f"({reason}, loss={loss_pct}%). Execution strictly blocked."
+                )
         except ValidationException:
             raise
         except Exception as ex:
