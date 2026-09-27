@@ -219,7 +219,7 @@ class TestP0RemediationSecurity(unittest.TestCase):
 
     def test_production_mode_fail_closed_on_missing_db_token(self) -> None:
         """Verifies that ProductionSettings initialization raises ValidationException if RG_DB_SECURE_TOKEN is missing."""
-        with patch.dict(os.environ, {"TRADEYAR_ENV": "production", "RG_DB_SECURE_TOKEN": ""}):
+        with patch.dict(os.environ, {"YARTRADER_ENV": "production", "RG_DB_SECURE_TOKEN": ""}):
             with self.assertRaises(ValidationException) as ctx:
                 ProductionSettings()
             self.assertIn("rg_db_secure_token", str(ctx.exception).lower())
@@ -242,8 +242,8 @@ class TestP0RemediationSecurity(unittest.TestCase):
         try:
             with patch.dict(os.environ, {
                 "TRADEYAR_ENV": "production",
-                "TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH": "",
-                "TRADEYAR_DEFAULT_ADMIN_EMAIL": "admin@yartrader.app"
+                "YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH": "",
+                "YARTRADER_DEFAULT_ADMIN_EMAIL": "admin@yartrader.app"
             }):
                 with self.assertRaises(ValidationException) as ctx:
                     AuthRepository(filepath=test_filepath)
