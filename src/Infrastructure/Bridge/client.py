@@ -35,7 +35,6 @@ class MT5BridgeClient:
             candidate_files = [
                 secret_file,
                 os.path.join(r"C:\YarTraderAI\Secrets", "mt5_bridge_token.secret"),
-                os.path.join(r"C:\YarTraderAI\Secrets", "mt5_bridge_token.secret"),
             ]
             for cf in candidate_files:
                 if os.path.exists(cf):
