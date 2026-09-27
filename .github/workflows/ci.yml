@@ -1,4 +1,4 @@
-name: TradeYar AI Production Acceptance & Release Validation
+name: YarTrader Production Acceptance & Release Validation
 
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tradeyar-validation-reports
+          name: yartrader-validation-reports
           path: |
             validation/
             logs/validation.log
