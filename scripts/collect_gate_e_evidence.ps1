@@ -373,6 +373,9 @@ if ($logFilesFound.Count -gt 0 -and -not $orderDispatchesDetected) {
     $zeroOrderProven = 'NOT PROVEN [No active runtime log files found for inspection]'
 }
 
+# Capture true UTC end timestamp BEFORE report generation
+$endTimeUtc = Get-IsoUtcTimestamp
+
 # Evaluate Overall Gate E Master Conclusion
 $tsEval = Get-IsoUtcTimestamp
 Write-Host "`nEvaluating CTO Gate E Compliance..." -ForegroundColor Yellow
