@@ -15,52 +15,74 @@
 #>
 
 param (
-    [string]$TargetSha = "",
+    [Parameter(Mandatory = $true)]
+    [string]$ExpectedSha,
     [string]$OutputFile = "docs/runtime/PR313_GATE_E_WINDOWS_EVIDENCE.md",
     [switch]$ExecuteRecoveryTest = $false
 )
 
 $ErrorActionPreference = "Continue"
 
-Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Host "   YARTRADER PR #313 — CTO GATE E WINDOWS EVIDENCE COLLECTOR TOOL" -ForegroundColor Cyan
-Write-Host "========================================================================" -ForegroundColor Cyan
-
-# 1. Provenance Verification (Dynamic SHA Resolution)
-Write-Host "`n[1/8] Verifying Local Git Provenance..." -ForegroundColor Yellow
-$currentHead = (git rev-parse HEAD).Trim()
-if ([string]::IsNullOrWhiteSpace($TargetSha)) {
-    $TargetSha = $currentHead
+function Get-IsoUtcTimestamp {
+    return [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
 }
 
+$startTimeUtc = Get-IsoUtcTimestamp
+
+Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host "   YARTRADER PR #313 — CTO GATE E WINDOWS EVIDENCE COLLECTOR TOOL" -ForegroundColor Cyan
+Write-Host "   Start Time (UTC): $startTimeUtc" -ForegroundColor Cyan
+Write-Host "========================================================================" -ForegroundColor Cyan
+
+# 1. Provenance Verification
+Write-Host "`n[1/8] Verifying Local Git Provenance ($startTimeUtc)..." -ForegroundColor Yellow
+$currentHead = (git rev-parse HEAD).Trim()
 $statusShort = (git status --short)
 $originMain = (git rev-parse origin/main).Trim()
 $mergeBase = (git merge-base HEAD origin/main).Trim()
+$prBaseSha = "588be9ba436cc169f29e7c2d79f2d8fce033b13f"
 
+Write-Host "Expected SHA       : $ExpectedSha"
 Write-Host "Current Local HEAD : $currentHead"
-Write-Host "Target SHA         : $TargetSha"
-Write-Host "Origin Main SHA    : $originMain"
+Write-Host "PR Base SHA        : $prBaseSha"
 Write-Host "Merge-Base SHA     : $mergeBase"
+Write-Host "Origin Main SHA    : $originMain"
 
-$provenanceMatch = ($currentHead -eq $TargetSha)
+$provenanceMatch = ($currentHead -eq $ExpectedSha)
 $treeClean = [string]::IsNullOrWhiteSpace($statusShort)
 
+# Runtime Deployed SHA verification attempt
+$runtimeDeployedSha = "NOT PROVEN"
+if (Test-Path "C:\YarTraderAI\Runtime\deployed_sha.txt") {
+    $runtimeDeployedSha = (Get-Content "C:\YarTraderAI\Runtime\deployed_sha.txt" -Raw).Trim()
+}
+
 # 2. Independent Port 5001 Listener Inspection
-Write-Host "`n[2/8] Inspecting TCP Port 5001 Listener..." -ForegroundColor Yellow
-$port5001Listener = $null
+$tsPort = Get-IsoUtcTimestamp
+Write-Host "`n[2/8] Inspecting TCP Port 5001 Listener ($tsPort)..." -ForegroundColor Yellow
+$port5001Proven = $false
+$port5001Details = "NOT PROVEN"
 try {
-    $netConns = Get-NetTCPConnection -LocalPort 5001 -ErrorAction SilentlyContinue
+    $netConns = Get-NetTCPConnection -LocalPort 5001 -State Listen -ErrorAction SilentlyContinue
     if ($netConns) {
-        $port5001Listener = $netConns | Select-Object LocalAddress, LocalPort, State, OwningProcess
+        $validListener = $netConns | Where-Object { $_.LocalAddress -in @("127.0.0.1", "::1") } | Select-Object -First 1
+        if ($validListener) {
+            $port5001Proven = $true
+            $port5001Details = "LocalAddress: $($validListener.LocalAddress), LocalPort: 5001, State: Listen, OwningProcess: $($validListener.OwningProcess)"
+        } else {
+            $port5001Details = "FAILED (Listener found on non-loopback address: $($netConns.LocalAddress))"
+        }
+    } else {
+        $port5001Details = "FAILED (No TCP listener active on port 5001)"
     }
 } catch {
-    $port5001Listener = "Get-NetTCPConnection error: $_"
+    $port5001Details = "Get-NetTCPConnection exception: $_"
 }
-Write-Host "Port 5001 State:"
-$port5001Listener | Format-Table -AutoSize | Out-String | Write-Host
+Write-Host "Port 5001 Status: $port5001Details"
 
 # 3. Windows Service & Process Topology Inspection
-Write-Host "`n[3/8] Inspecting Windows Service & Process Topology..." -ForegroundColor Yellow
+$tsProc = Get-IsoUtcTimestamp
+Write-Host "`n[3/8] Inspecting Windows Service & Process Topology ($tsProc)..." -ForegroundColor Yellow
 $yarService = Get-CimInstance Win32_Service -Filter "Name='YarTrader'" -ErrorAction SilentlyContinue
 $procs = Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('python.exe', 'terminal64.exe', 'nssm.exe') } | Select-Object ProcessId, ParentProcessId, SessionId, Name, ExecutablePath, CommandLine, CreationDate
 
@@ -72,29 +94,46 @@ $serviceProc = $procs | Where-Object { $_.CommandLine -like "*research_worker*" 
 $bridgeProc = $procs | Where-Object { $_.CommandLine -like "*mt5_bridge*" } | Select-Object -First 1
 $mt5Proc = $procs | Where-Object { $_.Name -eq "terminal64.exe" } | Select-Object -First 1
 
+# Detect active interactive session ID
+$activeConsoleSessionId = 2
+try {
+    $explorerProc = Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($explorerProc) {
+        $activeConsoleSessionId = $explorerProc.SessionId
+    }
+} catch {}
+
+Write-Host "Active Interactive Session ID: $activeConsoleSessionId"
+
 # 4. Session 0 Genuine Identity Inspection
-Write-Host "`n[4/8] Inspecting Execution Context & Session 0 Identity..." -ForegroundColor Yellow
+$tsS0 = Get-IsoUtcTimestamp
+Write-Host "`n[4/8] Inspecting Execution Context & Session 0 Identity ($tsS0)..." -ForegroundColor Yellow
 $callerUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $callerSessionId = [System.Diagnostics.Process]::GetCurrentProcess().SessionId
 
 Write-Host "Caller Identity  : $callerUser"
 Write-Host "Caller Session ID: $callerSessionId"
 
-$session0Result = "Not Executed inside Session 0"
-$directIpcResult = "Not Executed inside Session 0"
+$session0IpcProven = $false
+$session0IpcDetails = "NOT PROVEN (Collector executing in Session $callerSessionId as $callerUser)"
 
-if ($serviceProc) {
-    if ($serviceProc.SessionId -eq 0) {
-        $session0Result = "Session 0 Service Verified (PID: $($serviceProc.ProcessId), SessionId: 0)"
-    } else {
-        $session0Result = "Service Process Found but SessionId is $($serviceProc.SessionId) (Not Session 0)"
+if ($callerSessionId -eq 0 -and $callerUser -like "*SYSTEM*") {
+    try {
+        $ipcOutput = python -c "import MetaTrader5 as mt5; print('init=', mt5.initialize()); print('err=', mt5.last_error())" 2>&1
+        $session0IpcDetails = $ipcOutput -join " "
+        if ($session0IpcDetails -like "*-10003*") {
+            $session0IpcProven = $true
+        }
+    } catch {
+        $session0IpcDetails = "Exception testing Session 0 IPC: $_"
     }
 } else {
-    $session0Result = "YarTrader Service Process Not Detected"
+    Write-Warning "Caller is in Session $callerSessionId (not Session 0 LocalSystem). Marking Direct Session 0 IPC as NOT PROVEN."
 }
 
 # 5. Query Bridge API Endpoints (Recovery A Baseline)
-Write-Host "`n[5/8] Querying MT5 Interactive Bridge API (Recovery A)..." -ForegroundColor Yellow
+$tsApi = Get-IsoUtcTimestamp
+Write-Host "`n[5/8] Querying MT5 Interactive Bridge API (Recovery A) ($tsApi)..." -ForegroundColor Yellow
 $healthResp = $null
 $statusResp = $null
 $marketDataResp = $null
@@ -124,7 +163,7 @@ if (Test-Path $secretFile) {
     try {
         $body = @{ symbol = "XAUUSD"; timeframe = "H1"; count = 2 } | ConvertTo-Json
         $marketDataResp = Invoke-RestMethod -Uri "http://127.0.0.1:5001/market-data" -Headers @{ Authorization = "Bearer $token" } -Method Post -ContentType "application/json" -Body $body -TimeoutSec 5
-        Write-Host "POST /market-data (XAUUSD H1): SUCCESS" -ForegroundColor Green
+        Write-Host "POST /market-data (XAUUSD H1 count=2): SUCCESS" -ForegroundColor Green
     } catch {
         Write-Host "POST /market-data: FAILED - $_" -ForegroundColor Red
     }
@@ -132,24 +171,33 @@ if (Test-Path $secretFile) {
     Write-Warning "Secret token file not found at $secretFile"
 }
 
-# Real-data provenance evaluation
+# Real-data provenance evaluation (Exact symbol, timeframe, count=2, live MT5 server metadata)
+$exactCountProven = $false
 $realDataProven = $false
-if ($marketDataResp -and $marketDataResp.candles -and $marketDataResp.candles.Count -gt 0) {
-    $c0 = $marketDataResp.candles[0]
-    if ($c0.open -gt 0 -and $c0.time -gt 1600000000) {
-        $realDataProven = $true
+
+if ($marketDataResp -and $marketDataResp.symbol -eq "XAUUSD" -and $marketDataResp.timeframe -eq "H1" -and $marketDataResp.candles) {
+    if ($marketDataResp.candles.Count -eq 2) {
+        $exactCountProven = $true
+        if ($statusResp -and $statusResp.connected -eq $true -and -not [string]::IsNullOrWhiteSpace($statusResp.server)) {
+            $c0 = $marketDataResp.candles[0]
+            if ($c0.open -gt 0 -and $c0.time -gt 1600000000) {
+                $realDataProven = $true
+            }
+        }
     }
 }
 
 # 6. Active Recovery Lifecycle Testing (B / C)
-$recoveryAResult = if ($statusResp -and $statusResp.connected -eq $true -and $realDataProven) { "PROVEN" } else { "NOT PROVEN" }
-$recoveryBResult = "NOT PROVEN (Recovery test switch -ExecuteRecoveryTest not requested)"
-$recoveryCResult = "NOT PROVEN (Recovery test switch -ExecuteRecoveryTest not requested)"
+$tsRec = Get-IsoUtcTimestamp
+$recoveryAResult = if ($statusResp -and $statusResp.connected -eq $true -and $realDataProven -and $exactCountProven) { "PROVEN" } else { "NOT PROVEN" }
+$recoveryBResult = "NOT PROVEN (Active recovery test switch -ExecuteRecoveryTest not passed)"
+$recoveryCResult = "NOT PROVEN (Active recovery test switch -ExecuteRecoveryTest not passed)"
 
 if ($ExecuteRecoveryTest) {
-    Write-Host "`n[6/8] Executing Active Recovery B/C Test (MT5 Interruption/Restart)..." -ForegroundColor Yellow
+    Write-Host "`n[6/8] Executing Active Recovery B/C Test ($tsRec)..." -ForegroundColor Yellow
     if ($mt5Proc) {
-        Write-Host "Stopping terminal64.exe (PID: $($mt5Proc.ProcessId))..." -ForegroundColor Yellow
+        $stopTimeUtc = Get-IsoUtcTimestamp
+        Write-Host "Stopping terminal64.exe (PID: $($mt5Proc.ProcessId)) at $stopTimeUtc..." -ForegroundColor Yellow
         Stop-Process -Id $mt5Proc.ProcessId -Force
         Start-Sleep -Seconds 3
 
@@ -160,7 +208,7 @@ if ($ExecuteRecoveryTest) {
         } catch {}
 
         if ($statusRespB -and $statusRespB.connected -eq $false) {
-            $recoveryBResult = "PROVEN (MT5 stopped; Bridge reported connected: false fail-closed)"
+            $recoveryBResult = "PROVEN (Stopped MT5 PID $($mt5Proc.ProcessId); Bridge reported connected: false fail-closed at $(Get-IsoUtcTimestamp))"
             Write-Host "Recovery B: SUCCESS" -ForegroundColor Green
         } else {
             $recoveryBResult = "FAILED (Bridge did not report connected: false)"
@@ -168,21 +216,30 @@ if ($ExecuteRecoveryTest) {
 
         # Restart MT5 for Recovery C State
         if (-not [string]::IsNullOrWhiteSpace($mt5Proc.ExecutablePath) -and (Test-Path $mt5Proc.ExecutablePath)) {
-            Write-Host "Restarting MT5 terminal: $($mt5Proc.ExecutablePath)..." -ForegroundColor Yellow
+            $restartTimeUtc = Get-IsoUtcTimestamp
+            Write-Host "Restarting MT5 terminal: $($mt5Proc.ExecutablePath) at $restartTimeUtc..." -ForegroundColor Yellow
             Start-Process -FilePath $mt5Proc.ExecutablePath
-            Start-Sleep -Seconds 10
 
-            # Measure Recovery C State
-            $statusRespC = $null
-            try {
-                $statusRespC = Invoke-RestMethod -Uri "http://127.0.0.1:5001/mt5/status" -Headers @{ Authorization = "Bearer $token" } -Method Get -TimeoutSec 5
-            } catch {}
+            # Polling reconnect with timeout (up to 20 seconds)
+            $reconnected = $false
+            $reconnectTimeUtc = "NOT PROVEN"
+            for ($i = 0; $i -lt 10; $i++) {
+                Start-Sleep -Seconds 2
+                try {
+                    $statusRespC = Invoke-RestMethod -Uri "http://127.0.0.1:5001/mt5/status" -Headers @{ Authorization = "Bearer $token" } -Method Get -TimeoutSec 3
+                    if ($statusRespC -and $statusRespC.connected -eq $true) {
+                        $reconnected = $true
+                        $reconnectTimeUtc = Get-IsoUtcTimestamp
+                        break
+                    }
+                } catch {}
+            }
 
-            if ($statusRespC -and $statusRespC.connected -eq $true) {
-                $recoveryCResult = "PROVEN (MT5 restarted; Bridge re-established connected: true)"
+            if ($reconnected) {
+                $recoveryCResult = "PROVEN (MT5 restarted at $restartTimeUtc; Bridge re-established connected: true at $reconnectTimeUtc)"
                 Write-Host "Recovery C: SUCCESS" -ForegroundColor Green
             } else {
-                $recoveryCResult = "FAILED (Bridge failed to re-establish connection)"
+                $recoveryCResult = "FAILED (Bridge failed to re-establish connection within timeout)"
             }
         } else {
             $recoveryCResult = "NOT PROVEN (MT5 executable path unavailable for restart)"
@@ -191,88 +248,112 @@ if ($ExecuteRecoveryTest) {
         Write-Warning "terminal64.exe process not found; skipping active recovery test."
     }
 } else {
-    Write-Host "`n[6/8] Recovery B/C active execution skipped (Pass -ExecuteRecoveryTest to run)." -ForegroundColor Gray
+    Write-Host "`n[6/8] Active Recovery B/C test skipped (Pass -ExecuteRecoveryTest to run)." -ForegroundColor Gray
 }
 
-# 7. Zero-Order Trading Execution Log Audit
-Write-Host "`n[7/8] Auditing Application & Bridge Logs for Zero Order Dispatches..." -ForegroundColor Yellow
-$zeroOrderProven = $true
-$logFiles = @("C:\YarTraderAI\Logs\runtime.log", "C:\YarTraderAI\Logs\bridge.log", "Logs\runtime.log")
-foreach ($lf in $logFiles) {
+# 7. Zero-Order Trading Execution Log Audit (Fail-Closed)
+$tsLog = Get-IsoUtcTimestamp
+Write-Host "`n[7/8] Auditing Application & Bridge Logs for Zero Order Dispatches ($tsLog)..." -ForegroundColor Yellow
+$zeroOrderProven = "NOT PROVEN"
+$logFilesChecked = @()
+$logFilesFound = @()
+$orderDispatchesDetected = $false
+
+$candidateLogs = @("C:\YarTraderAI\Logs\runtime.log", "C:\YarTraderAI\Logs\bridge.log", "Logs\runtime.log", "runtime_logs\runtime.log")
+foreach ($lf in $candidateLogs) {
+    $logFilesChecked += $lf
     if (Test-Path $lf) {
-        $matches = Select-String -Path $lf -Pattern "order_send|TRADE_ACTION|dispatch_order" -ErrorAction SilentlyContinue
+        $logFilesFound += $lf
+        $matches = Select-String -Path $lf -Pattern "order_send|TRADE_ACTION|dispatch_order|order_placed" -ErrorAction SilentlyContinue
         if ($matches) {
-            $zeroOrderProven = $false
-            Write-Warning "Order dispatch detected in $lf!"
+            $orderDispatchesDetected = $true
+            Write-Warning "Order dispatch pattern detected in $lf!"
         }
     }
 }
 
+if ($logFilesFound.Count -gt 0 -and -not $orderDispatchesDetected) {
+    $zeroOrderProven = "PROVEN (Inspected $($logFilesFound.Count) log files; 0 order dispatches detected)"
+} elseif ($orderDispatchesDetected) {
+    $zeroOrderProven = "FAILED (Order dispatch pattern found in logs)"
+} else {
+    $zeroOrderProven = "NOT PROVEN (No active runtime log files found for inspection)"
+}
+
 # 8. Evaluate Overall Gate E Master Conclusion
-Write-Host "`n[8/8] Evaluating CTO Gate E Compliance..." -ForegroundColor Yellow
+$tsEval = Get-IsoUtcTimestamp
+Write-Host "`n[8/8] Evaluating CTO Gate E Compliance ($tsEval)..." -ForegroundColor Yellow
 
 $gateEPassed = (
     $provenanceMatch -and
     $treeClean -and
+    ($runtimeDeployedSha -eq $ExpectedSha) -and
     ($serviceProc -ne $null) -and
     ($serviceProc.SessionId -eq 0) -and
     ($bridgeProc -ne $null) -and
-    ($bridgeProc.SessionId -ne 0) -and
+    ($bridgeProc.SessionId -eq $activeConsoleSessionId) -and
     ($mt5Proc -ne $null) -and
-    ($port5001Listener -ne $null) -and
+    ($mt5Proc.SessionId -eq $activeConsoleSessionId) -and
+    $port5001Proven -and
     ($healthResp -ne $null) -and
     ($statusResp -ne $null -and $statusResp.connected -eq $true) -and
+    $exactCountProven -and
     $realDataProven -and
+    $session0IpcProven -and
     ($recoveryAResult -eq "PROVEN") -and
-    ($recoveryBResult -eq "PROVEN") -and
-    ($recoveryCResult -eq "PROVEN") -and
-    $zeroOrderProven
+    ($recoveryBResult -like "PROVEN*") -and
+    ($recoveryCResult -like "PROVEN*") -and
+    ($zeroOrderProven -like "PROVEN*")
 )
 
 $finalGateStatus = if ($gateEPassed) { "PR #313 FINAL RUNTIME GATE: PASSED" } else { "PR #313 FINAL RUNTIME GATE: INCOMPLETE" }
 
 # Format and Write Output Report
-$timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss UTC")
+$endTimeUtc = Get-IsoUtcTimestamp
 
 $reportContent = @"
 # PR #313 GATE E WINDOWS RUNTIME EVIDENCE REPORT
 
-**Execution Timestamp:** $timestamp
+**Execution Timestamp (UTC):** $endTimeUtc
 **Repository:** `sohrabinia/YarTrader`
 **Pull Request:** `https://github.com/sohrabinia/YarTrader/pull/313`
-**Target SHA:** `$TargetSha`
-**Actual Local HEAD:** `$currentHead`
-**Base SHA:** `$originMain`
+**Expected PR HEAD SHA:** `$ExpectedSha`
+**Current Repository HEAD:** `$currentHead`
+**Deployed Runtime SHA:** `$runtimeDeployedSha`
+**PR Base SHA:** `$prBaseSha`
 **Merge-Base SHA:** `$mergeBase`
+**Origin Main SHA:** `$originMain`
 **Git Working Tree Clean:** $(if ($treeClean) { "YES" } else { "NO ($statusShort)" })
 
 ---
 
-## Itemized Evidence Checklist
+## Raw Gate E Observations Matrix
 
-1. **Exact PR HEAD:** $(if ($provenanceMatch) { "PROVEN (`$currentHead`)" } else { "FAILED (`$currentHead` != `$TargetSha`)" })
-2. **Git Cleanliness:** $(if ($treeClean) { "PROVEN (Working tree clean)" } else { "FAILED (`$statusShort`)" })
-3. **Service Deployment Proof:** $(if ($serviceProc) { "PROVEN (PID $($serviceProc.ProcessId))" } else { "NOT PROVEN (Service process absent)" })
-4. **Session 0 Service Identity:** $(if ($serviceProc -and $serviceProc.SessionId -eq 0) { "PROVEN (PID $($serviceProc.ProcessId), SessionId 0)" } else { "NOT PROVEN" })
-5. **Session 2 Bridge Identity:** $(if ($bridgeProc -and $bridgeProc.SessionId -ne 0) { "PROVEN (PID $($bridgeProc.ProcessId), SessionId $($bridgeProc.SessionId))" } else { "NOT PROVEN" })
-6. **Session 2 MT5 Identity:** $(if ($mt5Proc -and $mt5Proc.SessionId -ne 0) { "PROVEN (PID $($mt5Proc.ProcessId), SessionId $($mt5Proc.SessionId))" } else { "NOT PROVEN" })
-7. **Port 5001 Listener Evidence:** $(if ($port5001Listener) { "PROVEN (TCP 127.0.0.1:5001 active)" } else { "NOT PROVEN" })
-8. **Bridge `/health` Endpoint:** $(if ($healthResp) { "PROVEN (Status: $($healthResp.status))" } else { "NOT PROVEN" })
-9. **Authenticated `/mt5/status` Endpoint:** $(if ($statusResp -and $statusResp.connected) { "PROVEN (Connected: true, Server: $($statusResp.server))" } else { "NOT PROVEN" })
-10. **Authenticated XAUUSD H1 Count=2:** $(if ($realDataProven) { "PROVEN (Received $($marketDataResp.count) candles)" } else { "NOT PROVEN" })
-11. **Real-Data Provenance:** $(if ($realDataProven) { "PROVEN (Live MT5 server rates verified)" } else { "NOT PROVEN" })
-12. **Direct Session 0 MT5 IPC Result:** $(if ($serviceProc -and $serviceProc.SessionId -eq 0) { "PROVEN (Session 0 service confirmed)" } else { "NOT PROVEN (Caller in Session $callerSessionId)" })
-13. **Recovery A (MT5 Healthy Baseline):** $recoveryAResult
-14. **Recovery B (MT5 Interruption / Fail-Closed):** $recoveryBResult
-15. **Recovery C (MT5 Restart & Auto-Recovery):** $recoveryCResult
-16. **Zero-Order Trading Execution Proof:** $(if ($zeroOrderProven) { "PROVEN (0 order dispatches logged)" } else { "FAILED (Order dispatch found)" })
-17. **Exact Timestamps:** PROVEN ($timestamp)
-18. **Exact PIDs:** $(if ($serviceProc -and $bridgeProc -and $mt5Proc) { "PROVEN (Service: $($serviceProc.ProcessId), Bridge: $($bridgeProc.ProcessId), MT5: $($mt5Proc.ProcessId))" } else { "NOT PROVEN" })
-19. **Limitations / Environment Boundary:** PROVEN (Caller User: $callerUser, SessionId: $callerSessionId)
+| Gate Requirement | Observed Value | Expected Value | Evidence Source | UTC Timestamp | Status |
+| :--- | :--- | :--- | :--- | :--- | :---: |
+| **1. Provenance Match** | Local: `$currentHead` | `$ExpectedSha` | `git rev-parse HEAD` | $startTimeUtc | $(if ($provenanceMatch) { "PROVEN" } else { "FAILED" }) |
+| **2. Clean Working Tree** | Short Status: `"$statusShort"` | Empty | `git status --short` | $startTimeUtc | $(if ($treeClean) { "PROVEN" } else { "FAILED" }) |
+| **3. Deployed Runtime SHA** | Deployed: `$runtimeDeployedSha` | `$ExpectedSha` | `C:\YarTraderAI\Runtime\deployed_sha.txt` | $startTimeUtc | $(if ($runtimeDeployedSha -eq $ExpectedSha) { "PROVEN" } else { "NOT PROVEN" }) |
+| **4. Session 0 Service Identity** | SessionId: $(if ($serviceProc) { $serviceProc.SessionId } else { "N/A" }), User: LocalSystem | SessionId: 0, User: LocalSystem | `Win32_Process` (PID $(if ($serviceProc) { $serviceProc.ProcessId } else { "N/A" })) | $tsProc | $(if ($serviceProc -and $serviceProc.SessionId -eq 0) { "PROVEN" } else { "NOT PROVEN" }) |
+| **5. Session 2 Bridge Identity** | SessionId: $(if ($bridgeProc) { $bridgeProc.SessionId } else { "N/A" }) | SessionId: $activeConsoleSessionId | `Win32_Process` (PID $(if ($bridgeProc) { $bridgeProc.ProcessId } else { "N/A" })) | $tsProc | $(if ($bridgeProc -and $bridgeProc.SessionId -eq $activeConsoleSessionId) { "PROVEN" } else { "NOT PROVEN" }) |
+| **6. Session 2 MT5 Identity** | SessionId: $(if ($mt5Proc) { $mt5Proc.SessionId } else { "N/A" }) | SessionId: $activeConsoleSessionId | `Win32_Process` (PID $(if ($mt5Proc) { $mt5Proc.ProcessId } else { "N/A" })) | $tsProc | $(if ($mt5Proc -and $mt5Proc.SessionId -eq $activeConsoleSessionId) { "PROVEN" } else { "NOT PROVEN" }) |
+| **7. TCP 5001 Listener State** | $port5001Details | 127.0.0.1:5001 Listen | `Get-NetTCPConnection` | $tsPort | $(if ($port5001Proven) { "PROVEN" } else { "NOT PROVEN" }) |
+| **8. Bridge `/health` Endpoint** | Status: $(if ($healthResp) { $healthResp.status } else { "N/A" }) | Status: HEALTHY | HTTP GET `127.0.0.1:5001/health` | $tsApi | $(if ($healthResp) { "PROVEN" } else { "NOT PROVEN" }) |
+| **9. Authenticated `/mt5/status`** | Connected: $(if ($statusResp) { $statusResp.connected } else { "N/A" }), Server: $(if ($statusResp) { $statusResp.server } else { "N/A" }) | Connected: true, Server: Active | HTTP GET `127.0.0.1:5001/mt5/status` | $tsApi | $(if ($statusResp -and $statusResp.connected) { "PROVEN" } else { "NOT PROVEN" }) |
+| **10. XAUUSD H1 Count=2** | Symbol: $(if ($marketDataResp) { $marketDataResp.symbol } else { "N/A" }), Count: $(if ($marketDataResp -and $marketDataResp.candles) { $marketDataResp.candles.Count } else { "N/A" }) | Symbol: XAUUSD, Timeframe: H1, Count: 2 | HTTP POST `127.0.0.1:5001/market-data` | $tsApi | $(if ($exactCountProven) { "PROVEN" } else { "NOT PROVEN" }) |
+| **11. Real-Data Provenance** | Server: $(if ($statusResp) { $statusResp.server } else { "N/A" }), Valid OHLC: $realDataProven | Live MT5 Server Rates Verified | Bridge MT5 Integration | $tsApi | $(if ($realDataProven) { "PROVEN" } else { "NOT PROVEN" }) |
+| **12. Direct Session 0 MT5 IPC** | Result: $session0IpcDetails | error -10003 in Session 0 | Session 0 Direct Execution | $tsS0 | $(if ($session0IpcProven) { "PROVEN" } else { "NOT PROVEN" }) |
+| **13. Recovery A (Healthy Baseline)** | $recoveryAResult | Baseline HTTP 200 Healthy | Bridge API | $tsRec | $recoveryAResult |
+| **14. Recovery B (Interruption)** | $recoveryBResult | Connected: false fail-closed | MT5 Stop Event | $tsRec | $(if ($recoveryBResult -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }) |
+| **15. Recovery C (Restart & Reconnect)**| $recoveryCResult | Connected: true restored | MT5 Restart Event | $tsRec | $(if ($recoveryCResult -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }) |
+| **16. Zero-Order Execution Proof** | $zeroOrderProven | 0 Order Dispatches Logged | Runtime & Bridge Logs | $tsLog | $(if ($zeroOrderProven -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }) |
+| **17. UTC Timestamps Verified** | Start: $startTimeUtc, End: $endTimeUtc | ISO 8601 UTC Format | System UTC Clock | $endTimeUtc | PROVEN |
+| **18. Exact Process PIDs Captured** | Service: $(if ($serviceProc) { $serviceProc.ProcessId } else { "N/A" }), Bridge: $(if ($bridgeProc) { $bridgeProc.ProcessId } else { "N/A" }), MT5: $(if ($mt5Proc) { $mt5Proc.ProcessId } else { "N/A" }) | All 3 Roles Identified | `Win32_Process` | $tsProc | $(if ($serviceProc -and $bridgeProc -and $mt5Proc) { "PROVEN" } else { "NOT PROVEN" }) |
+| **19. Caller Context / Boundary** | Caller User: $callerUser, SessionId: $callerSessionId | Context Documented | `WindowsIdentity` | $startTimeUtc | PROVEN |
 
 ---
 
-## Process Topology Table
+## Detailed Process Topology Table
 ```text
 $procTable
 ```
@@ -302,6 +383,12 @@ $($statusResp | ConvertTo-Json -Depth 5)
 ```json
 $($marketDataResp | ConvertTo-Json -Depth 5)
 ```
+
+---
+
+## Log Inspection Details
+* **Candidate Log Paths Checked:** `$($logFilesChecked -join ', ')`
+* **Found Log Paths Inspected:** `$($logFilesFound -join ', ')`
 
 ---
 
