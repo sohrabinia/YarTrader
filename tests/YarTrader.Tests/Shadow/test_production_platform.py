@@ -28,7 +28,7 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         data = resp.json()
         self.assertEqual(len(data), 4)
         self.assertEqual(data[3]["tier_id"], "institutional")
-        self.assertNotIn("50 Active Symbols", data[3]["features"])
+        self.assertIn("30 Active Symbols", data[3]["features"])
 
         # Check compliance disclaimers
         resp2 = self.client.get("/api/public/metrics")
