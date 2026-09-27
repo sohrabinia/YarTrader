@@ -11,37 +11,24 @@ class TestShadowReadinessRemediation(unittest.TestCase):
         self.client = TestClient(app)
         self.engine = PredictiveShadowEngine.get_instance()
 
-    def test_shadow_metrics_and_report_consistency(self) -> None:
-        """1 & 2: Proves Shadow metrics and report use one truthful source and agree on all counts/balances."""
+    def test_shadow_metrics_and_report_are_closed(self) -> None:
+        """Shadow mode is closed and exposes only a truthful disabled state."""
         metrics_resp = self.client.get("/api/shadow/metrics")
         report_resp = self.client.get("/api/shadow/report")
-
         self.assertEqual(metrics_resp.status_code, 200)
         self.assertEqual(report_resp.status_code, 200)
+        self.assertEqual(metrics_resp.json()["status"], "DISABLED")
+        self.assertEqual(report_resp.json()["status"], "DISABLED")
+        self.assertEqual(metrics_resp.json()["performance"]["total_trades"], 0)
+        self.assertEqual(report_resp.json()["total_trades"], 0)
 
-        metrics = metrics_resp.json()
-        report = report_resp.json()
-
-        self.assertEqual(metrics["performance"]["total_trades"], report["total_trades"])
-        self.assertEqual(metrics["open_positions_count"], report["open_trades_count"])
-        self.assertEqual(metrics["closed_positions_count"], report["closed_trades_count"])
-        self.assertEqual(metrics["performance"]["wins"], report["winning_trades"])
-        self.assertEqual(metrics["performance"]["losses"], report["losing_trades"])
-        self.assertEqual(metrics["balance"], report["virtual_balance"])
-        self.assertEqual(metrics["equity"], report["virtual_equity"])
-
-    def test_demo_and_backtest_isolation_from_shadow(self) -> None:
-        """3 & 4: Demo and Backtest trades never leak into Shadow metrics."""
-        # Check current shadow trade count
-        shadow_count_before = len(self.engine.trades)
-
-        # Trigger Demo trade
+    def test_demo_and_backtest_do_not_use_shadow_mode(self) -> None:
+        """Demo and Backtest remain independent while Shadow stays disabled."""
         demo_resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"})
         self.assertEqual(demo_resp.status_code, 200)
-
-        # Confirm shadow count is unchanged
         shadow_metrics = self.client.get("/api/shadow/metrics").json()
-        self.assertEqual(shadow_metrics["performance"]["total_trades"], shadow_count_before)
+        self.assertEqual(shadow_metrics["status"], "DISABLED")
+        self.assertEqual(shadow_metrics["performance"]["total_trades"], 0)
 
     def test_mt5_disconnected_blocks_production_readiness(self) -> None:
         """5: MT5 disconnected forces production readiness to Not Ready."""
@@ -66,7 +53,7 @@ class TestShadowReadinessRemediation(unittest.TestCase):
         with patch("src.Application.Runtime.runtime_state.central_runtime_state.get_state", return_value={
             "research_status": "Stopped",
             "intelligence_status": "Running",
-            "shadow_status": "Running"
+            "shadow_status": "Disabled"
         }):
             resp = self.client.get("/api/production-readiness")
             data = resp.json()
