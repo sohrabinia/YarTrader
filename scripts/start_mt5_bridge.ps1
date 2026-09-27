@@ -20,7 +20,7 @@ Write-Host "==========================================================" -Foregro
 Write-Host " YarTrader MT5 Interactive Bridge Launcher" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host " Project Root: $ProjectRoot" -ForegroundColor Yellow
-Write-Host " Host Binding: $HostAddress:$Port" -ForegroundColor Yellow
+Write-Host " Host Binding: ${HostAddress}:$Port" -ForegroundColor Yellow
 Write-Host " User Identity: $env:USERNAME" -ForegroundColor Yellow
 Write-Host " Windows Session: $([System.Diagnostics.Process]::GetCurrentProcess().SessionId)" -ForegroundColor Yellow
 Write-Host "==========================================================" -ForegroundColor Cyan
