@@ -56,7 +56,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount three isolated production-grade SaaS routers
+# Mount the production API routers. General-purpose content/growth agents are intentionally not mounted in YarTrader; YarOperator owns the general AI/operator layer.
 locales_dir = "trader-terminal/dist/locales" if os.path.exists("trader-terminal/dist/locales") else ("trader-terminal/public/locales" if os.path.exists("trader-terminal/public/locales") else "locales")
 app.mount("/locales", StaticFiles(directory=locales_dir), name="locales")
 
@@ -67,12 +67,10 @@ app.mount("/assets", StaticFiles(directory="trader-terminal/dist/assets"), name=
 from src.Application.Services.public_api_router import router as public_api_router
 from src.Application.Services.user_api_router import router as user_api_router
 from src.Application.Services.admin_api_router import router as admin_api_router
-from src.Application.Services.growth_api_router import router as growth_api_router
 
 app.include_router(public_api_router)
 app.include_router(user_api_router)
 app.include_router(admin_api_router)
-app.include_router(growth_api_router)
 
 # -----------------------------------------------------------------------------
 # LIVE MARKET RESEARCH WORKER & PIPELINE COUPLING (APES-FIN Read-Only Compliance)
