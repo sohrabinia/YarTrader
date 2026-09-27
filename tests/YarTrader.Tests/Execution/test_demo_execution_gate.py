@@ -38,6 +38,13 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             "volume_step": 0.01
         }
 
+        # Seed an explicit current-session baseline so the unit tests exercise
+        # the execution gate rather than relying on process-global prior state.
+        from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+        kill_switch = DailyLossKillSwitch.get_instance()
+        session_key, _, _ = kill_switch.get_session_key_and_window(datetime.now(timezone.utc))
+        kill_switch.set_session_baseline(10000.0, session_key)
+
     def tearDown(self):
         if self.original_env is None:
             os.environ.pop("AUTONOMOUS_DEMO_TRADING_ENABLED", None)
