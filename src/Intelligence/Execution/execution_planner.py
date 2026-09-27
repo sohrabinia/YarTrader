@@ -88,13 +88,11 @@ class ExecutionIntelligencePlanner:
             if brain_suggested_action == "BUY":
                 action = "BUY"
                 entry = current_price
-                stop_loss = current_price - (current_price * 0.01) # fallback 1%
-                if obs:
+                 if obs:
                     bullish_obs = [ob for ob in obs if ob.get("type") == "BULLISH_OB"]
                     if bullish_obs:
-                        stop_loss = max(stop_loss, bullish_obs[0]["bottom"])
+                        stop_loss = bullish_obs[0].get("bottom", 0.0)
 
-                take_profit = current_price + (current_price * 0.02) # fallback 2%
                 resting_bsl = liquidity.get("resting_bsl", [])
                 if resting_bsl:
                     take_profit = resting_bsl[0]["level"]
@@ -102,18 +100,34 @@ class ExecutionIntelligencePlanner:
             elif brain_suggested_action == "SELL":
                 action = "SELL"
                 entry = current_price
-                stop_loss = current_price + (current_price * 0.01)
                 if obs:
                     bearish_obs = [ob for ob in obs if ob.get("type") == "BEARISH_OB"]
                     if bearish_obs:
-                        stop_loss = min(stop_loss, bearish_obs[0]["top"])
+                        stop_loss = bearish_obs[0].get("top", 0.0)
 
-                take_profit = current_price - (current_price * 0.02)
                 resting_ssl = liquidity.get("resting_ssl", [])
                 if resting_ssl:
                     take_profit = resting_ssl[0]["level"]
             else:
                 action = "WAIT"
+
+        # No fabricated SL/TP values are permitted. A BUY/SELL plan is actionable
+        # only when both levels come from observed market structure/liquidity and
+        # produce the canonical minimum risk/reward ratio.
+        if action in ["BUY", "SELL"]:
+            if stop_loss <= 0.0 or take_profit <= 0.0:
+                action = "WAIT"
+                entry = 0.0
+                stop_loss = 0.0
+                take_profit = 0.0
+            else:
+                risk_dist = abs(entry - stop_loss)
+                reward_dist = abs(take_profit - entry)
+                if risk_dist <= 0.0 or reward_dist <= 0.0 or (reward_dist / risk_dist) < 1.5:
+                    action = "WAIT"
+                    entry = 0.0
+                    stop_loss = 0.0
+                    take_profit = 0.0
 
         # Strategy identity is strictly Multi-Timeframe Continuous Market Intelligence Core
         selected_strategy_name = "Multi-Timeframe Continuous Market Intelligence"
@@ -140,7 +154,7 @@ class ExecutionIntelligencePlanner:
         take_profit = round(take_profit, 4)
 
         # Provenance metadata
-        data_source = narrative.get("data_source", "MT5_XAUUSD_M1_RATES")
+        data_source = narrative.get("data_source", "RAW_MARKET_DATA")
         data_mode = narrative.get("data_mode", "REAL")
         candle_count = narrative.get("candle_count", 30)
         latest_candle_timestamp = narrative.get("latest_candle_timestamp", "")
