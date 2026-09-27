@@ -176,16 +176,13 @@ class LiveAnalysisBrain:
                 for t in self.simulation_brain.active_trades
             ],
             reasoning_quality_score=quality_score,
-            is_read_only_compliant=True
+            is_read_only_compliant=True,
+            learning_feedback={
+                "closed_trades_evaluated": len(evaluated_trades),
+                "active_learning_priorities": active_learning_priorities[:10],
+                "integrity_report": integrity_report,
+                "post_outcome_learning": True,
+            }
         )
-
-        # Attach learning telemetry without giving the Brain execution authority.
-        # These fields are evidence only and never mutate downstream risk/execution.
-        report.learning_feedback = {
-            "closed_trades_evaluated": len(evaluated_trades),
-            "active_learning_priorities": active_learning_priorities[:10],
-            "integrity_report": integrity_report,
-            "post_outcome_learning": True,
-        }
 
         return report
