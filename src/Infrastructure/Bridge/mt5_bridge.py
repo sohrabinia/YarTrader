@@ -68,8 +68,7 @@ def get_or_create_bridge_secret_token() -> str:
       1. MT5_BRIDGE_SECRET_TOKEN environment variable
       2. <YarTraderStorageRoot>\\Secrets\\mt5_bridge_token.secret
       3. C:\\YarTraderAI\\Secrets\\mt5_bridge_token.secret
-      4. Canonical relative paths (YarTraderStorageRoot\\Secrets, Secrets\\)
-      5. No legacy storage-root fallback — canonical YarTraderStorageRoot only
+      No relative or legacy path fallback
     Fail-closed: Raises RuntimeError if token cannot be safely resolved or generated.
     """
     env_token = os.getenv("MT5_BRIDGE_SECRET_TOKEN")
@@ -85,9 +84,7 @@ def get_or_create_bridge_secret_token() -> str:
         candidate_files = [
             secret_file,
             os.path.join(r"C:\YarTraderAI\Secrets", "mt5_bridge_token.secret"),
-            os.path.join(r"C:\Projects\YarTrader\YarTraderStorageRoot\Secrets", "mt5_bridge_token.secret"),
-            os.path.join("YarTraderStorageRoot", "Secrets", "mt5_bridge_token.secret"),
-            os.path.join("Secrets", "mt5_bridge_token.secret"),
+            os.path.join(r"C:\YarTraderAI\Secrets", "mt5_bridge_token.secret"),
         ]
         for cf in candidate_files:
             if os.path.exists(cf):
