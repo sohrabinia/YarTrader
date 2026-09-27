@@ -38,7 +38,7 @@ if (-not (Test-Path $VenvPython)) {
 #   2. <YarTraderStorageRoot>\Secrets\mt5_bridge_token.secret
 #   3. C:\YarTraderAI\Secrets\mt5_bridge_token.secret
 #   4. Canonical relative paths (YarTraderStorageRoot\Secrets, Secrets\)
-#   5. Legacy compatibility fallbacks (TradeYarStorageRoot\Secrets) — NOT CANONICAL
+#   5. No legacy storage-root fallback — canonical YarTraderStorageRoot only
 
 $SecretsDir = if ($env:YarTraderStorageRoot) {
     Join-Path $env:YarTraderStorageRoot "Secrets"
