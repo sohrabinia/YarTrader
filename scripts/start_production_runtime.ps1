@@ -18,7 +18,6 @@ if (-not (Test-Path $StorageLogs)) {
 
 # 2. Environment Variables Configuration
 $env:YARTRADER_ENV = "production"
-$env:TRADEYAR_ENV = "production"
 $env:LIVE_TRADING_ENABLED = "False"
 $env:YARTRADER_API_HOST = "0.0.0.0"
 $env:YARTRADER_API_PORT = "8000"
