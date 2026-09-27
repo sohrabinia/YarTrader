@@ -2,34 +2,58 @@
 
 **Status:** `OPEN / DO NOT MERGE`
 **Repository:** `sohrabinia/YarTrader`
-**Target Pull Request:** `https://github.com/sohrabinia/YarTrader/pull/314`
-**Target SHA:** `fc441c3988449bc9127b369b1a5974d0e7a03942`
-**Base SHA:** `588be9ba436cc169f29e7c2d79f2d8fce033b13f`
+**Pull Request:** `https://github.com/sohrabinia/YarTrader/pull/314`
+**Target Pull Request Base SHA:** `588be9ba436cc169f29e7c2d79f2d8fce033b13f`
 
 ---
 
-## Itemized Evidence Checklist & Blocker Status
+## Dynamic Host Evidence Collection Protocol
+
+This document is generated dynamically directly on the physical Windows deployment host by invoking:
+
+```powershell
+.\scripts\collect_gate_e_evidence.ps1 `
+  -ExpectedSha "<EXACT_CURRENT_PR314_HEAD>" `
+  -ExecuteRecoveryTest
+```
+
+The evidence collector inspects the active host environment dynamically and binds:
+* `-ExpectedSha` parameter value supplied at execution time
+* Local Git HEAD (`git rev-parse HEAD`)
+* Windows Service PID, Session ID, Executable Path, and Application Root
+* Interactive Session Explorer PID and Session ID
+* MT5 Terminal PID (`terminal64.exe`), Executable Path, and Session ID
+* Strict TCP Port 5001 Listener Ownership (`127.0.0.1:5001` matching Bridge PID)
+* Bridge API Responses (`/health`, `/mt5/status`, `/market-data`)
+* Real MT5 Market Data Provenance (XAUUSD H1 count=2, server, login, timestamps)
+* Session 0 Case A (Interactive Shell), Case B (SYSTEM Diagnostic Probe), and Case C (Production Service Process) statuses
+* Recovery A (Healthy Baseline), Recovery B (MT5 Interruption / Fail-Closed), and Recovery C (Auto-Recovery)
+* Dual-Layer Zero-Order Execution Audit (Static Structural Source Audit across `mt5_bridge.py`, `client.py`, and `mt5.py` + Runtime Log Scanning)
+
+---
+
+## Itemized Evidence Checklist & Blocker Matrix
 
 | Blocker / Requirement | Status | Observed Evidence |
 | :--- | :--- | :--- |
-| **Git Head Verification** | `PROVEN` | Current Local HEAD `fc441c3988449bc9127b369b1a5974d0e7a03942` |
-| **Git Working Tree Cleanliness** | `PROVEN` | Working tree clean |
-| **Blocker #1 — Runtime SHA Provenance Chain** | `NOT PROVEN` | Linux sandbox boundary; requires physical Session 0 Windows Service execution from application root |
+| **Git Head Verification** | `DYNAMIC` | Evaluated dynamically against `-ExpectedSha` parameter |
+| **Git Working Tree Cleanliness** | `DYNAMIC` | Evaluated dynamically via `git status --short` |
+| **Blocker #1 — Cryptographic Runtime SHA Provenance Chain** | `NOT PROVEN` | Requires physical Session 0 Windows Service execution from application root |
 | **Blocker #2 — Session 0 Case A (Interactive Shell)** | `NOT PROVEN` | Collector executed in Session 2 interactive shell; Session 0 IPC cannot be inferred |
-| **Blocker #2 — Session 0 Case B (SYSTEM Diagnostic Probe)** | `NOT PROVEN` | Linux sandbox boundary; requires physical Session 0 `NT AUTHORITY\SYSTEM` diagnostic execution |
-| **Blocker #2 — Session 0 Case C (Production Service Process)** | `NOT PROVEN` | Linux sandbox boundary; requires physical Session 0 `YarTrader` service execution |
-| **Session 2 Interactive Console Discovery** | `NOT PROVEN` | Linux sandbox boundary |
-| **Session 2 MT5 Process Topology** | `NOT PROVEN` | Linux sandbox boundary |
-| **Strict TCP Port 5001 Listener Verification** | `NOT PROVEN` | Linux sandbox boundary |
-| **Bridge `/health` Semantic Validation** | `NOT PROVEN` | Linux sandbox boundary |
-| **Authenticated `/mt5/status` Verification** | `NOT PROVEN` | Linux sandbox boundary |
-| **Authenticated XAUUSD H1 Count=2 Verification** | `NOT PROVEN` | Linux sandbox boundary |
-| **Blocker #3 — Independent MT5 Real-Data Provenance** | `NOT PROVEN` | Linux sandbox boundary; requires live MT5 terminal cross-check against non-null OS PIDs |
-| **Recovery A (MT5 Healthy Baseline)** | `NOT PROVEN` | Linux sandbox boundary |
-| **Recovery B (MT5 Interruption / Fail-Closed)** | `NOT PROVEN` | Linux sandbox boundary |
-| **Recovery C (MT5 Restart & Auto-Recovery)** | `NOT PROVEN` | Linux sandbox boundary |
+| **Blocker #2 — Session 0 Case B (SYSTEM Diagnostic Probe)** | `NOT PROVEN` | Requires physical Session 0 `NT AUTHORITY\SYSTEM` diagnostic execution |
+| **Blocker #2 — Session 0 Case C (Production Service Process)** | `NOT PROVEN` | Requires physical Session 0 `YarTrader` service execution |
+| **Session 2 Interactive Console Discovery** | `NOT PROVEN` | Requires physical Session 2 interactive desktop session |
+| **Session 2 MT5 Process Topology** | `NOT PROVEN` | Requires physical Session 2 MT5 terminal process |
+| **Strict TCP Port 5001 Listener Verification** | `NOT PROVEN` | Requires physical local TCP socket listener on 127.0.0.1:5001 |
+| **Bridge `/health` Semantic Validation** | `NOT PROVEN` | Requires running Bridge server on 127.0.0.1:5001 |
+| **Authenticated `/mt5/status` Verification** | `NOT PROVEN` | Requires authenticated Bridge server |
+| **Authenticated XAUUSD H1 Count=2 Verification** | `NOT PROVEN` | Requires connected MT5 terminal rates |
+| **Blocker #3 — Independent MT5 Real-Data Provenance** | `NOT PROVEN` | Requires live MT5 terminal cross-check against non-null OS PIDs |
+| **Recovery A (MT5 Healthy Baseline)** | `NOT PROVEN` | Requires live Bridge baseline |
+| **Recovery B (MT5 Interruption / Fail-Closed)** | `NOT PROVEN` | Requires active `-ExecuteRecoveryTest` execution |
+| **Recovery C (MT5 Restart & Auto-Recovery)** | `NOT PROVEN` | Requires active `-ExecuteRecoveryTest` execution |
 | **Blocker #4 — Dual-Layer Zero-Order Structural Audit** | `PROVEN` | Static structural source audit confirms `mt5_bridge.py`, `client.py`, and `mt5.py` contain 0 trade mutation endpoints or order methods |
-| **Blocker #4 — Dual-Layer Zero-Order Runtime Audit** | `NOT PROVEN` | Linux sandbox boundary; runtime log files absent on devbox host |
+| **Blocker #4 — Dual-Layer Zero-Order Runtime Audit** | `NOT PROVEN` | Runtime log files absent on devbox host |
 | **Blocker #4 — Final Dual-Layer Zero-Order Audit** | `NOT PROVEN` | Truth Table: Both structural AND runtime layers must be PROVEN for overall zero-order proof |
 | **Deterministic Process Resolution** | `PROVEN` | `scripts/collect_gate_e_evidence.ps1` contains 0 `Select-Object -First` calls and fails closed on ambiguity |
 | **Authoritative Token Resolution** | `PROVEN` | `TradeYarStorageRoot\Secrets\mt5_bridge_token.secret` contract enforced without silent fallback |
@@ -39,13 +63,7 @@
 
 ## Environment & Boundary Notice
 
-The agent execution environment is a Linux container (`Linux devbox x86_64`). Live Windows process topology (`terminal64.exe`, Session 0 `NT AUTHORITY\SYSTEM` service, Session 2 interactive desktop) cannot be generated directly inside this Linux container. Live host runtime items must be captured directly on the physical Windows deployment host after deploying SHA `fc441c3988449bc9127b369b1a5974d0e7a03942` by running:
-
-```powershell
-.\scripts\collect_gate_e_evidence.ps1 `
-  -ExpectedSha "fc441c3988449bc9127b369b1a5974d0e7a03942" `
-  -ExecuteRecoveryTest
-```
+In non-Windows container environments (such as Linux devboxes), live Windows process topology (`terminal64.exe`, Session 0 `NT AUTHORITY\SYSTEM` service, Session 2 interactive desktop) cannot be generated directly. To capture the full report on the Windows host, execute the command shown above.
 
 ---
 

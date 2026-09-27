@@ -98,7 +98,7 @@ $treeCleanStatus = if ($treeClean) { 'PROVEN' } else { 'FAILED' }
 Record-ForensicOperation -OperationName 'GitHeadVerification' -Status $provenanceStatus -Reason ("Local HEAD: $currentHead vs Expected: $ExpectedSha")
 Record-ForensicOperation -OperationName 'GitTreeCleanliness' -Status $treeCleanStatus -Reason ("Status Short: '$statusShort'")
 
-# 2. Windows Service Identity & Cryptographic Runtime SHA Provenance Chain (Blocker #1 Requirement: Strict Application Root Binding)
+# 2. Windows Service Identity & Cryptographic Runtime SHA Provenance Chain (Blocker #1 Requirement: Strict Git Worktree / Service Binding - NO Unverified File Fallback)
 $tsService = Get-IsoUtcTimestamp
 Write-Host "`n[2/8] Inspecting YarTrader Windows Service Identity & Cryptographic Runtime SHA Chain..." -ForegroundColor Yellow
 $yarService = $null
@@ -148,14 +148,16 @@ if ($yarService) {
     Record-ForensicOperation -OperationName 'YarTraderServiceLookup' -Status 'NOT PROVEN' -Reason 'YarTrader Windows service not found on deployment host'
 }
 
-# Cryptographic Runtime SHA Provenance Chain (Blocker #1 Requirement: No Unverified Global Fallback)
+# Cryptographic Runtime SHA Provenance Chain (Blocker #1 Strict Contract)
 $runtimeDeployedSha = 'NOT PROVEN'
 $deployedShaSourceFile = 'N/A'
 $runtimeShaStatus = 'NOT PROVEN'
 $runtimeShaReason = 'Runtime SHA not verified'
+$isGitWorktree = $false
 
 if ($appRoot -ne 'N/A' -and (Test-Path $appRoot)) {
     if (Test-Path (Join-Path $appRoot ".git")) {
+        $isGitWorktree = $true
         try {
             $gitShaFromAppRoot = (git -C $appRoot rev-parse HEAD 2>$null | Out-String).Trim()
             if (-not [string]::IsNullOrWhiteSpace($gitShaFromAppRoot)) {
@@ -163,9 +165,7 @@ if ($appRoot -ne 'N/A' -and (Test-Path $appRoot)) {
                 $deployedShaSourceFile = "git -C $appRoot rev-parse HEAD"
             }
         } catch {}
-    }
-
-    if ($runtimeDeployedSha -eq 'NOT PROVEN') {
+    } else {
         $shaFileInAppRoot = Join-Path $appRoot 'deployed_sha.txt'
         if (Test-Path $shaFileInAppRoot) {
             try {
@@ -179,10 +179,14 @@ if ($appRoot -ne 'N/A' -and (Test-Path $appRoot)) {
     }
 }
 
+# Strict Forensic Evaluation: Require Git Worktree SHA or Cryptographic Manifest Binding. Standalone deployed_sha.txt alone is NOT PROVEN.
 if ($serviceProc -and $serviceSessionId -eq 0 -and $appRoot -ne 'N/A' -and $runtimeDeployedSha -ne 'NOT PROVEN') {
-    if ($runtimeDeployedSha -eq $ExpectedSha) {
+    if ($isGitWorktree -and $runtimeDeployedSha -eq $ExpectedSha) {
         $runtimeShaStatus = 'PROVEN'
-        $runtimeShaReason = "YarTrader service PID $servicePid running in Session 0 from application root $appRoot ($serviceExePath). Verified SHA ($runtimeDeployedSha) from $deployedShaSourceFile matches Expected SHA $ExpectedSha"
+        $runtimeShaReason = "YarTrader service PID $servicePid running in Session 0 from Git application root $appRoot ($serviceExePath). Verified Git HEAD ($runtimeDeployedSha) matches Expected SHA $ExpectedSha"
+    } elseif (-not $isGitWorktree) {
+        $runtimeShaStatus = 'NOT PROVEN'
+        $runtimeShaReason = "Artifact deployment at $appRoot contains deployed_sha.txt ($runtimeDeployedSha), but standalone text files alone are marked NOT PROVEN without cryptographic manifest binding"
     } else {
         $runtimeShaStatus = 'FAILED'
         $runtimeShaReason = "Runtime SHA ($runtimeDeployedSha) from $deployedShaSourceFile does NOT match Expected SHA ($ExpectedSha)"
@@ -411,10 +415,10 @@ if ($callerSessionId -eq 0 -and $callerUser -like '*SYSTEM*') {
         Record-ForensicOperation -OperationName 'CaseB_SystemSession0DiagnosticProbe' -Status 'FAILED' -Reason $caseBResult
     }
 } else {
-    $caseAStatus = "NOT PROVEN [Collector executed in Session $callerSessionId interactive shell as $callerUser]"
-    $caseBStatus = "NOT PROVEN [Session 0 SYSTEM diagnostic probe not run from Session $callerSessionId shell]"
     $session0IpcStatus = 'NOT PROVEN'
     $session0IpcDetails = 'Case A: Collector caller is in Session ' + $callerSessionId + ' as ' + $callerUser + ' [not Session 0 LocalSystem]. Direct Session 0 IPC isolation cannot be inferred from a Session ' + $callerSessionId + ' interactive shell execution.'
+    $caseAStatus = "NOT PROVEN [Collector executed in Session $callerSessionId interactive shell as $callerUser]"
+    $caseBStatus = "NOT PROVEN [Session 0 SYSTEM diagnostic probe requires execution under Session 0 NT AUTHORITY\SYSTEM context]"
     Record-ForensicOperation -OperationName 'CaseA_InteractiveCollectorExecution' -Status 'NOT PROVEN' -Reason $caseAResult
     Record-ForensicOperation -OperationName 'CaseB_SystemSession0DiagnosticProbe' -Status 'NOT PROVEN' -Reason $caseBResult
     Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'NOT PROVEN' -Reason $session0IpcDetails
