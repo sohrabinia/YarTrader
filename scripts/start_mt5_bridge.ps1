@@ -33,19 +33,47 @@ if (-not (Test-Path $VenvPython)) {
 }
 
 # 2. Resolve or Generate Secure Token
-$SecretsDir = Join-Path $ProjectRoot "TradeYarStorageRoot\Secrets"
+$SecretsDir = if ($env:YarTraderStorageRoot) {
+    Join-Path $env:YarTraderStorageRoot "Secrets"
+} else {
+    Join-Path $ProjectRoot "YarTraderStorageRoot\Secrets"
+}
 if (-not (Test-Path $SecretsDir)) {
     New-Item -ItemType Directory -Path $SecretsDir -Force | Out-Null
 }
 $TokenFile = Join-Path $SecretsDir "mt5_bridge_token.secret"
 
+$candidateTokenFiles = @(
+    $TokenFile,
+    'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
+    'C:\Projects\YarTrader\YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+    'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+    'Secrets\mt5_bridge_token.secret',
+    # Legacy compatibility fallbacks - NOT CANONICAL
+    'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret',
+    'C:\Projects\YarTrader\TradeYarStorageRoot\Secrets\mt5_bridge_token.secret'
+)
+
+$Token = $null
 if ($env:MT5_BRIDGE_SECRET_TOKEN) {
-    $Token = $env:MT5_BRIDGE_SECRET_TOKEN
+    $Token = $env:MT5_BRIDGE_SECRET_TOKEN.Trim()
     Write-Host " Using MT5_BRIDGE_SECRET_TOKEN from environment." -ForegroundColor Green
-} elseif (Test-Path $TokenFile) {
-    $Token = (Get-Content $TokenFile -Raw).Trim()
-    Write-Host " Using existing secret token from $TokenFile" -ForegroundColor Green
 } else {
+    foreach ($tf in $candidateTokenFiles) {
+        if (Test-Path $tf) {
+            try {
+                $tokCandidate = (Get-Content $tf -Raw).Trim()
+                if (-not [string]::IsNullOrWhiteSpace($tokCandidate)) {
+                    $Token = $tokCandidate
+                    Write-Host " Using existing secret token from $tf" -ForegroundColor Green
+                    break
+                }
+            } catch {}
+        }
+    }
+}
+
+if (-not $Token) {
     $Bytes = New-Object byte[] 32
     (New-Object Security.Cryptography.RNGCryptoServiceProvider).GetBytes($Bytes)
     $Token = [System.BitConverter]::ToString($Bytes).Replace("-", "").ToLower()

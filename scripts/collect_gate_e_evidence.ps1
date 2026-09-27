@@ -230,6 +230,84 @@ Write-Host ('Service State: ' + $serviceState + ' - Account: ' + $serviceAccount
 Write-Host ('App Root     : ' + $appRoot)
 Write-Host ('Deployed SHA : ' + $runtimeDeployedSha + ' (Source: ' + $deployedShaSourceFile + ')')
 
+# Early Token Resolution & Bridge API Pre-Query for MT5 Process Topology Correlation
+$healthResp = $null
+$statusResp = $null
+$marketDataResp = $null
+$tokenResolved = $false
+$tokenStatus = 'NOT PROVEN'
+$tokenSourceDetails = 'NOT PROVEN [Secret token file or ENV missing]'
+$tokenFingerprint = 'N/A'
+
+$authoritativeTokenFile = if ($env:YarTraderStorageRoot) {
+    Join-Path $env:YarTraderStorageRoot 'Secrets\mt5_bridge_token.secret'
+} else {
+    'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret'
+}
+
+$candidateTokenFiles = @(
+    $authoritativeTokenFile,
+    'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
+    'C:\Projects\YarTrader\YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+    'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+    'Secrets\mt5_bridge_token.secret',
+    # Legacy compatibility fallbacks - NOT CANONICAL
+    'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret',
+    'C:\Projects\YarTrader\TradeYarStorageRoot\Secrets\mt5_bridge_token.secret'
+)
+
+$token = $null
+$tokenFileUsed = $null
+foreach ($tf in $candidateTokenFiles) {
+    if (Test-Path $tf) {
+        try {
+            $tokCandidate = (Get-Content $tf -Raw).Trim()
+            if (-not [string]::IsNullOrWhiteSpace($tokCandidate)) {
+                $token = $tokCandidate
+                $tokenFileUsed = $tf
+                $tokenSourceDetails = 'Resolved from file: ' + $tf
+                $tokenResolved = $true
+                if ($tf -eq $authoritativeTokenFile) {
+                    $tokenStatus = 'PROVEN'
+                } else {
+                    $tokenStatus = 'NOT PROVEN [Resolved from fallback token path: ' + $tf + ']'
+                }
+                break
+            }
+        } catch {
+            Record-ForensicOperation -OperationName 'TokenFileRead' -Status 'FAILED' -Reason "Exception reading token file $tf" -ExceptionMsg $_.Exception.Message
+        }
+    }
+}
+
+if (-not $tokenResolved -and -not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
+    $token = $env:MT5_BRIDGE_SECRET_TOKEN.Trim()
+    $tokenSourceDetails = 'Resolved from ENV: MT5_BRIDGE_SECRET_TOKEN'
+    $tokenResolved = $true
+    $tokenStatus = 'NOT PROVEN [Resolved from ENV override rather than authoritative file contract]'
+}
+
+if ($tokenResolved -and -not [string]::IsNullOrWhiteSpace($token)) {
+    # Generate safe token fingerprint (length + masked substring, NEVER log full secret)
+    $tokLen = $token.Length
+    $tokStart = $token.Substring(0, [Math]::Min(4, $tokLen))
+    $tokEnd = $token.Substring([Math]::Max(0, $tokLen - 4))
+    $tokenFingerprint = "Len=$tokLen, Substr=${tokStart}...${tokEnd}"
+    Record-ForensicOperation -OperationName 'TokenResolution' -Status $tokenStatus -Reason ("Token resolved ($tokenSourceDetails), Fingerprint: $tokenFingerprint")
+} else {
+    Record-ForensicOperation -OperationName 'TokenResolution' -Status 'FAILED' -Reason 'Secret token could not be resolved from file or ENV'
+    Write-Warning $tokenSourceDetails
+}
+
+# Pre-query Bridge /mt5/status for MT5 process topology cross-correlation if Bridge is active
+if ($tokenResolved) {
+    try {
+        $statusResp = Invoke-RestMethod -Uri 'http://127.0.0.1:5001/mt5/status' -Headers @{ Authorization = ('Bearer ' + $token) } -Method Get -TimeoutSec 3
+    } catch {
+        $statusResp = $null
+    }
+}
+
 # 3. Interactive Session Discovery and Process Topology Inspection (Section 7 & Primary Remediation F)
 $tsProc = Get-IsoUtcTimestamp
 Write-Host "`n[3/8] Inspecting Interactive Session and Process Topology..." -ForegroundColor Yellow
@@ -238,9 +316,9 @@ $activeConsoleSessionId = 'NOT PROVEN'
 $explorerProcs = $null
 
 try {
-    $explorerProcs = Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" -ErrorAction SilentlyContinue
+    $explorerProcs = @(Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" -ErrorAction SilentlyContinue)
     if ($explorerProcs) {
-        $nonZeroSessions = $explorerProcs | Where-Object { $_.SessionId -ne 0 } | Select-Object -ExpandProperty SessionId -Unique
+        $nonZeroSessions = @($explorerProcs | Where-Object { $_.SessionId -ne 0 } | Select-Object -ExpandProperty SessionId -Unique)
         if ($nonZeroSessions -and $nonZeroSessions.Count -eq 1) {
             $activeConsoleSessionId = $nonZeroSessions[0]
             Record-ForensicOperation -OperationName 'InteractiveSessionDiscovery' -Status 'PROVEN' -Reason "Active interactive SessionId uniquely resolved to $activeConsoleSessionId"
@@ -258,7 +336,7 @@ Write-Host ('Active Interactive Session ID: ' + $activeConsoleSessionId)
 
 $procs = @()
 try {
-    $procs = Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('python.exe', 'terminal64.exe', 'nssm.exe') } | Select-Object ProcessId, ParentProcessId, SessionId, Name, ExecutablePath, CommandLine, CreationDate
+    $procs = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('python.exe', 'terminal64.exe', 'nssm.exe') } | Select-Object ProcessId, ParentProcessId, SessionId, Name, ExecutablePath, CommandLine, CreationDate)
 } catch {
     Record-ForensicOperation -OperationName 'ProcessEnumeration' -Status 'FAILED' -Reason 'Exception enumerating processes' -ExceptionMsg $_.Exception.Message
 }
@@ -272,7 +350,7 @@ $bridgeAmbiguous = $false
 $bridgeSessionStatus = 'NOT PROVEN'
 $bridgeSessionReason = 'Bridge process not found'
 
-$bridgeProcs = $procs | Where-Object { $_.CommandLine -like '*mt5_bridge*' }
+$bridgeProcs = @($procs | Where-Object { $_.CommandLine -like '*mt5_bridge*' })
 
 if ($bridgeProcs) {
     if ($bridgeProcs.Count -eq 1) {
@@ -300,7 +378,7 @@ $mt5Ambiguous = $false
 $mt5SessionStatus = 'NOT PROVEN'
 $mt5SessionReason = 'terminal64.exe process not found'
 
-$mt5Procs = $procs | Where-Object { $_.Name -eq 'terminal64.exe' }
+$mt5Procs = @($procs | Where-Object { $_.Name -eq 'terminal64.exe' })
 
 if ($mt5Procs) {
     if ($mt5Procs.Count -eq 1) {
@@ -315,7 +393,7 @@ if ($mt5Procs) {
         }
     } else {
         # Enumerate all candidates in active console session
-        $sessionMt5 = $mt5Procs | Where-Object { $_.SessionId -eq $activeConsoleSessionId }
+        $sessionMt5 = @($mt5Procs | Where-Object { $_.SessionId -eq $activeConsoleSessionId })
         if ($sessionMt5 -and $sessionMt5.Count -eq 1) {
             $mt5Proc = $sessionMt5[0]
             $mt5SessionStatus = 'PROVEN'
@@ -324,13 +402,13 @@ if ($mt5Procs) {
             # Try deterministic Bridge cross-correlation if Bridge status response is available
             $bridgeCorrelatedProc = $null
             if ($statusResp -and $statusResp.mt5_pid) {
-                $matchedByPid = $sessionMt5 | Where-Object { $_.ProcessId -eq $statusResp.mt5_pid }
+                $matchedByPid = @($sessionMt5 | Where-Object { $_.ProcessId -eq $statusResp.mt5_pid })
                 if ($matchedByPid -and $matchedByPid.Count -eq 1) {
                     $bridgeCorrelatedProc = $matchedByPid[0]
                 }
             }
             if (-not $bridgeCorrelatedProc -and $statusResp -and $statusResp.mt5_terminal_path) {
-                $matchedByPath = $sessionMt5 | Where-Object { -not [string]::IsNullOrWhiteSpace($_.ExecutablePath) -and ([System.IO.Path]::GetFullPath($_.ExecutablePath).ToLower() -eq [System.IO.Path]::GetFullPath($statusResp.mt5_terminal_path).ToLower()) }
+                $matchedByPath = @($sessionMt5 | Where-Object { -not [string]::IsNullOrWhiteSpace($_.ExecutablePath) -and ([System.IO.Path]::GetFullPath($_.ExecutablePath).ToLower() -eq [System.IO.Path]::GetFullPath($statusResp.mt5_terminal_path).ToLower()) })
                 if ($matchedByPath -and $matchedByPath.Count -eq 1) {
                     $bridgeCorrelatedProc = $matchedByPath[0]
                 }
@@ -360,11 +438,11 @@ $port5001Status = 'NOT PROVEN'
 $allObservedListenersStr = 'None'
 
 try {
-    $netConns = Get-NetTCPConnection -LocalPort 5001 -State Listen -ErrorAction SilentlyContinue
+    $netConns = @(Get-NetTCPConnection -LocalPort 5001 -State Listen -ErrorAction SilentlyContinue)
     if ($netConns) {
         $allObservedListenersStr = ($netConns | ForEach-Object { ($_.LocalAddress + ':' + $_.LocalPort + ' (PID: ' + $_.OwningProcess + ')') }) -join '; '
         # Strict IPv4 loopback check ONLY (Reject ::1 or 0.0.0.0)
-        $validListeners = $netConns | Where-Object { $_.LocalAddress -eq '127.0.0.1' }
+        $validListeners = @($netConns | Where-Object { $_.LocalAddress -eq '127.0.0.1' })
         if ($validListeners -and $validListeners.Count -eq 1) {
             $validListener = $validListeners[0]
             $listenerAddr = $validListener.LocalAddress
@@ -479,67 +557,9 @@ if ($callerSessionId -eq 0 -and $callerUser -like '*SYSTEM*') {
     Write-Warning $session0IpcDetails
 }
 
-# 6. Authoritative Token Resolution & Query Bridge API Endpoints (Primary Remediation D, G, B & Recovery A)
+# 6. Query Bridge API Endpoints [Recovery A Baseline] (Primary Remediation D, G, B & Recovery A)
 $tsApi = Get-IsoUtcTimestamp
 Write-Host "`n[6/8] Querying MT5 Interactive Bridge API [Recovery A Baseline]..." -ForegroundColor Yellow
-$healthResp = $null
-$statusResp = $null
-$marketDataResp = $null
-$tokenResolved = $false
-$tokenStatus = 'NOT PROVEN'
-$tokenSourceDetails = 'NOT PROVEN [Secret token file or ENV missing]'
-$tokenFingerprint = 'N/A'
-
-# Primary Authoritative Secret Token Path Contract (Primary Remediation D)
-$authoritativeTokenFile = 'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret'
-$candidateTokenFiles = @(
-    $authoritativeTokenFile,
-    'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
-    'Secrets\mt5_bridge_token.secret'
-)
-
-$token = $null
-$tokenFileUsed = $null
-foreach ($tf in $candidateTokenFiles) {
-    if (Test-Path $tf) {
-        try {
-            $tokCandidate = (Get-Content $tf -Raw).Trim()
-            if (-not [string]::IsNullOrWhiteSpace($tokCandidate)) {
-                $token = $tokCandidate
-                $tokenFileUsed = $tf
-                $tokenSourceDetails = 'Resolved from file: ' + $tf
-                $tokenResolved = $true
-                if ($tf -eq $authoritativeTokenFile) {
-                    $tokenStatus = 'PROVEN'
-                } else {
-                    $tokenStatus = 'NOT PROVEN [Resolved from fallback token path: ' + $tf + ']'
-                }
-                break
-            }
-        } catch {
-            Record-ForensicOperation -OperationName 'TokenFileRead' -Status 'FAILED' -Reason "Exception reading token file $tf" -ExceptionMsg $_.Exception.Message
-        }
-    }
-}
-
-if (-not $tokenResolved -and -not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
-    $token = $env:MT5_BRIDGE_SECRET_TOKEN.Trim()
-    $tokenSourceDetails = 'Resolved from ENV: MT5_BRIDGE_SECRET_TOKEN'
-    $tokenResolved = $true
-    $tokenStatus = 'NOT PROVEN [Resolved from ENV override rather than authoritative file contract]'
-}
-
-if ($tokenResolved -and -not [string]::IsNullOrWhiteSpace($token)) {
-    # Generate safe token fingerprint (length + masked substring, NEVER log full secret)
-    $tokLen = $token.Length
-    $tokStart = $token.Substring(0, [Math]::Min(4, $tokLen))
-    $tokEnd = $token.Substring([Math]::Max(0, $tokLen - 4))
-    $tokenFingerprint = "Len=$tokLen, Substr=${tokStart}...${tokEnd}"
-    Record-ForensicOperation -OperationName 'TokenResolution' -Status $tokenStatus -Reason ("Token resolved ($tokenSourceDetails), Fingerprint: $tokenFingerprint")
-} else {
-    Record-ForensicOperation -OperationName 'TokenResolution' -Status 'FAILED' -Reason 'Secret token could not be resolved from file or ENV'
-    Write-Warning $tokenSourceDetails
-}
 
 # 6A. Health Endpoint Validation (Primary Remediation G)
 $healthStatus = 'NOT PROVEN'
@@ -731,13 +751,13 @@ if ($ExecuteRecoveryTest) {
             }
 
             # Verify new terminal64.exe process topology after restart
-            $candidateMt5s = Get-CimInstance Win32_Process -Filter "Name='terminal64.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.ProcessId -ne $oldMt5Pid }
+            $candidateMt5s = @(Get-CimInstance Win32_Process -Filter "Name='terminal64.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.ProcessId -ne $oldMt5Pid })
             if ($candidateMt5s) {
                 if ($candidateMt5s.Count -eq 1) {
                     $newMt5ProcCandidate = $candidateMt5s[0]
                     $newMt5Pid = $newMt5ProcCandidate.ProcessId
                 } else {
-                    $sessionCandidates = $candidateMt5s | Where-Object { $_.SessionId -eq $activeConsoleSessionId }
+                    $sessionCandidates = @($candidateMt5s | Where-Object { $_.SessionId -eq $activeConsoleSessionId })
                     if ($sessionCandidates -and $sessionCandidates.Count -eq 1) {
                         $newMt5ProcCandidate = $sessionCandidates[0]
                         $newMt5Pid = $newMt5ProcCandidate.ProcessId
@@ -748,14 +768,14 @@ if ($ExecuteRecoveryTest) {
             }
 
             # Verify Bridge process PID remained unchanged and listener is intact
-            $currentBridgeProcs = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*mt5_bridge*' }
+            $currentBridgeProcs = @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*mt5_bridge*' })
             $bridgeUnchanged = ($currentBridgeProcs -and $currentBridgeProcs.Count -eq 1 -and $currentBridgeProcs[0].ProcessId -eq $bridgeProc.ProcessId)
 
             # Verify TCP 5001 listener still owned by same Bridge PID
             $listenerIntact = $false
             try {
-                $netConnsC = Get-NetTCPConnection -LocalPort 5001 -State Listen -ErrorAction SilentlyContinue
-                $validListenersC = $netConnsC | Where-Object { $_.LocalAddress -eq '127.0.0.1' }
+                $netConnsC = @(Get-NetTCPConnection -LocalPort 5001 -State Listen -ErrorAction SilentlyContinue)
+                $validListenersC = @($netConnsC | Where-Object { $_.LocalAddress -eq '127.0.0.1' })
                 if ($validListenersC -and $validListenersC.Count -eq 1 -and $validListenersC[0].OwningProcess -eq $bridgeProc.ProcessId) {
                     $listenerIntact = $true
                 }
@@ -875,8 +895,13 @@ $candidateLogs = @(
     'C:\Projects\YarTrader\Logs\bridge.log',
     'C:\YarTraderAI\Logs\runtime.log',
     'C:\YarTraderAI\Logs\bridge.log',
+    'TradeYarStorageRoot\Logs\runtime.log',
+    'TradeYarStorageRoot\Logs\bridge.log',
+    'YarTraderStorageRoot\Logs\runtime.log',
+    'YarTraderStorageRoot\Logs\bridge.log',
     'runtime_logs\runtime.log',
-    'Logs\runtime.log'
+    'Logs\runtime.log',
+    'Logs\bridge.log'
 )
 
 foreach ($lf in $candidateLogs) {

@@ -27,11 +27,22 @@ class MT5BridgeClient:
             from src.Application.Deployment.storage import YarTraderStorageManager
             storage_mgr = YarTraderStorageManager.get_manager()
             secret_file = os.path.join(storage_mgr.get_secrets_dir(), "mt5_bridge_token.secret")
-            if os.path.exists(secret_file):
-                with open(secret_file, "r", encoding="utf-8-sig") as f:
-                    tok = f.read().strip()
-                    if tok:
-                        return tok
+            candidate_files = [
+                secret_file,
+                os.path.join(r"C:\YarTraderAI\Secrets", "mt5_bridge_token.secret"),
+                os.path.join(r"C:\Projects\YarTrader\YarTraderStorageRoot\Secrets", "mt5_bridge_token.secret"),
+                os.path.join("YarTraderStorageRoot", "Secrets", "mt5_bridge_token.secret"),
+                os.path.join("Secrets", "mt5_bridge_token.secret"),
+                # Legacy compatibility fallbacks - NOT CANONICAL
+                os.path.join("TradeYarStorageRoot", "Secrets", "mt5_bridge_token.secret"),
+                os.path.join(r"C:\Projects\YarTrader\TradeYarStorageRoot\Secrets", "mt5_bridge_token.secret"),
+            ]
+            for cf in candidate_files:
+                if os.path.exists(cf):
+                    with open(cf, "r", encoding="utf-8-sig") as f:
+                        tok = f.read().strip()
+                        if tok:
+                            return tok
         except Exception as e:
             raise RuntimeError(f"MT5 Bridge Client Security Failure: Could not read secret file: {e}")
 

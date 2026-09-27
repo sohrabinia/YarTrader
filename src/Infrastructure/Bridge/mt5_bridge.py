@@ -76,11 +76,22 @@ def get_or_create_bridge_secret_token() -> str:
         os.makedirs(secret_dir, exist_ok=True)
         secret_file = os.path.join(secret_dir, "mt5_bridge_token.secret")
 
-        if os.path.exists(secret_file):
-            with open(secret_file, "r", encoding="utf-8-sig") as f:
-                token = f.read().strip()
-                if token:
-                    return token
+        candidate_files = [
+            secret_file,
+            os.path.join(r"C:\YarTraderAI\Secrets", "mt5_bridge_token.secret"),
+            os.path.join(r"C:\Projects\YarTrader\YarTraderStorageRoot\Secrets", "mt5_bridge_token.secret"),
+            os.path.join("YarTraderStorageRoot", "Secrets", "mt5_bridge_token.secret"),
+            os.path.join("Secrets", "mt5_bridge_token.secret"),
+            # Legacy compatibility fallbacks - NOT CANONICAL
+            os.path.join("TradeYarStorageRoot", "Secrets", "mt5_bridge_token.secret"),
+            os.path.join(r"C:\Projects\YarTrader\TradeYarStorageRoot\Secrets", "mt5_bridge_token.secret"),
+        ]
+        for cf in candidate_files:
+            if os.path.exists(cf):
+                with open(cf, "r", encoding="utf-8-sig") as f:
+                    tok = f.read().strip()
+                    if tok:
+                        return tok
 
         token = secrets.token_hex(32)
         with open(secret_file, "w", encoding="utf-8") as f:
