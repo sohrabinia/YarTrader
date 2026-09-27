@@ -18,6 +18,7 @@ if (-not (Test-Path $InstallScript)) {
     Exit 1
 }
 
+# The canonical installer reads the ACL-restricted operator_owner_token.secret file.
 # Keep a single service-registration implementation. This prevents the
 # deployment path from silently reintroducing NSSM/raw-python registration.
 & $InstallScript -OperatorOwnerId $OperatorOwnerId -YarOperatorRuntimeUrl $YarOperatorRuntimeUrl
