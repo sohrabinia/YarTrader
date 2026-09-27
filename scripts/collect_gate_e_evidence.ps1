@@ -85,9 +85,9 @@ if ($yarService) {
 }
 Write-Host "Service State: $serviceState | Account: $serviceAccount | PID: $servicePid | SessionId: $serviceSessionId"
 
-# 3. Interactive Session Discovery & Process Topology Inspection
+# 3. Interactive Session Discovery and Process Topology Inspection
 $tsProc = Get-IsoUtcTimestamp
-Write-Host "`n[3/8] Inspecting Interactive Session & Process Topology ($tsProc)..." -ForegroundColor Yellow
+Write-Host "`n[3/8] Inspecting Interactive Session and Process Topology ($tsProc)..." -ForegroundColor Yellow
 
 $activeConsoleSessionId = "NOT PROVEN"
 try {
@@ -158,7 +158,7 @@ Write-Host "Port 5001 Status: $port5001Details"
 
 # 5. Session 0 Genuine Identity Inspection
 $tsS0 = Get-IsoUtcTimestamp
-Write-Host "`n[5/8] Inspecting Execution Context & Session 0 Identity ($tsS0)..." -ForegroundColor Yellow
+Write-Host "`n[5/8] Inspecting Execution Context and Session 0 Identity ($tsS0)..." -ForegroundColor Yellow
 $callerUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $callerSessionId = [System.Diagnostics.Process]::GetCurrentProcess().SessionId
 $callerPid = [System.Diagnostics.Process]::GetCurrentProcess().Id
@@ -174,7 +174,8 @@ $session0IpcDetails = "NOT PROVEN (Collector executing in Session $callerSession
 
 if ($callerSessionId -eq 0 -and $callerUser -like "*SYSTEM*") {
     try {
-        $ipcOutput = python -c "import MetaTrader5 as mt5; print('init=', mt5.initialize()); print('err=', mt5.last_error())" 2>&1
+        $pyCode = 'import MetaTrader5 as mt5; print("init=", mt5.initialize()); print("err=", mt5.last_error())'
+        $ipcOutput = python -c $pyCode 2>&1
         $session0IpcDetails = "PID: $callerPid | User: $callerUser | Session: 0 | Executable: $callerExecutable | Output: " + ($ipcOutput -join " ")
         if ($session0IpcDetails -like "*-10003*") {
             $session0IpcProven = $true
@@ -315,7 +316,7 @@ if ($ExecuteRecoveryTest) {
 
 # 8. Zero-Order Trading Execution Log Audit (Fail-Closed)
 $tsLog = Get-IsoUtcTimestamp
-Write-Host "`n[8/8] Auditing Application & Bridge Logs for Zero Order Dispatches ($tsLog)..." -ForegroundColor Yellow
+Write-Host "`n[8/8] Auditing Application and Bridge Logs for Zero Order Dispatches ($tsLog)..." -ForegroundColor Yellow
 $zeroOrderProven = "NOT PROVEN"
 $logFilesChecked = @()
 $logFilesFound = @()
