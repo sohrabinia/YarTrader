@@ -4839,6 +4839,7 @@ def submit_operator_task(payload: OperatorTaskSubmissionPayload, request: Reques
     return global_operator_adapter.submit_task(
         admin_identity=session,
         task_description=payload.task_description,
+        workspace_id=payload.workspace_id or "yartrader",
         metadata=payload.metadata
     )
 

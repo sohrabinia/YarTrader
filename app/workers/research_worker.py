@@ -7,6 +7,7 @@ from typing import Optional, Dict, Any
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from src.Application.Runtime.runtime_state import central_runtime_state
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
+from src.Application.Journal.trade_journal import TradeJournalManager
 
 class ResearchWorker:
     """Manages the background research worker polling loop."""
@@ -29,6 +30,7 @@ class ResearchWorker:
         self.status = "IDLE"
         self.error_count = 0
         self.demo_engine = None
+        self.journal_manager = TradeJournalManager.get_instance()
         central_runtime_state.update_state("research_status", "Stopped")
 
     def _get_or_create_runtime(self, symbol: str, tf: str, asset_class: str = "Forex", provider: str = "MT5") -> ResearchRuntime:
@@ -49,8 +51,9 @@ class ResearchWorker:
         try:
             from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
             return SymbolRegistry.get_instance().get_active_matrix()
-        except Exception:
-            return [(self.default_symbol, self.timeframe, "Commodities", "MT5")]
+        except Exception as reg_err:
+            print(f"[ResearchWorker] SymbolRegistry failure: {reg_err}. Failing closed with empty active matrix.")
+            return []
 
     def start(self) -> None:
         """Starts the background worker thread."""
@@ -72,7 +75,9 @@ class ResearchWorker:
 
     def _validate_and_size_decision(self, symbol: str, sig_dir: str, decision_dict: dict) -> Optional[Dict[str, Any]]:
         """
-        Canonical Fail-Closed Validation & 0.5% Risk Position Sizing Pipeline.
+        Canonical Fail-Closed Validation & 1.0% Risk Position Sizing Pipeline.
+        Calculates position size strictly from (account_balance * 0.01) and monetary loss at SL.
+        Enforces 2.0% hard risk ceiling. Fails closed on missing or invalid risk configuration.
         Returns a dict with validated parameters and calculated volume_lots, or None if validation fails.
         """
         if not self.demo_engine or not hasattr(self.demo_engine, "adapter"):
@@ -90,16 +95,25 @@ class ResearchWorker:
             print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account info unavailable or invalid (acc_info={acc_info}). Failing closed.")
             return None
 
+        raw_balance = acc_info.get("balance") or acc_info.get("equity")
         raw_equity = acc_info.get("equity")
+        balance_val = -1.0
         equity_val = -1.0
+
+        if raw_balance is not None:
+            try:
+                balance_val = float(raw_balance)
+            except (ValueError, TypeError):
+                balance_val = -1.0
+
         if raw_equity is not None:
             try:
                 equity_val = float(raw_equity)
             except (ValueError, TypeError):
                 equity_val = -1.0
 
-        if equity_val <= 0 or not math.isfinite(equity_val):
-            print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account equity unavailable or invalid (equity={raw_equity}). Failing closed.")
+        if balance_val <= 0 or not math.isfinite(balance_val) or equity_val <= 0 or not math.isfinite(equity_val):
+            print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account balance/equity unavailable or invalid (balance={raw_balance}, equity={raw_equity}). Failing closed.")
             return None
 
         raw_margin = acc_info.get("free_margin")
@@ -133,41 +147,49 @@ class ResearchWorker:
             print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker symbol volume limits invalid for {symbol} (min={vol_min}, max={vol_max}, step={vol_step}). Failing closed.")
             return None
 
-        # 3. Validate Entry Price and Stop Loss Parameters Without Fallbacks
+        # 3. Validate Entry Price, Stop Loss, and Take Profit Parameters Directionally & Without Fallbacks
         raw_price = decision_dict.get("entry")
         raw_sl = decision_dict.get("stop_loss")
         raw_tp = decision_dict.get("take_profit")
 
-        price_val = -1.0
-        sl_val = -1.0
-        if raw_price is not None and raw_sl is not None:
-            try:
-                price_val = float(raw_price)
-                sl_val = float(raw_sl)
-            except (ValueError, TypeError):
-                price_val = sl_val = -1.0
-
-        is_valid_prices = (
-            price_val > 0 and sl_val > 0 and
-            math.isfinite(price_val) and math.isfinite(sl_val)
-        )
-
-        if is_valid_prices:
-            if sig_dir == "BUY" and sl_val >= price_val:
-                is_valid_prices = False
-            elif sig_dir == "SELL" and sl_val <= price_val:
-                is_valid_prices = False
-
-        if not is_valid_prices:
-            print(f"[ResearchWorker] Execution BLOCKED: Decision entry/SL parameters missing or invalid for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}). Failing closed.")
+        if raw_price is None or raw_sl is None or raw_tp is None:
+            print(f"[ResearchWorker] Execution BLOCKED: Missing entry, SL, or TP for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}, tp={raw_tp}). Failing closed.")
             return None
 
-        # 4. Calculate Risk Position Sizing (hard max ceiling 2.0% risk)
+        try:
+            price_val = float(raw_price)
+            sl_val = float(raw_sl)
+            tp_val = float(raw_tp)
+        except (ValueError, TypeError):
+            print(f"[ResearchWorker] Execution BLOCKED: Non-numeric price/SL/TP for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}, tp={raw_tp}). Failing closed.")
+            return None
+
+        if not (math.isfinite(price_val) and math.isfinite(sl_val) and math.isfinite(tp_val)):
+            print(f"[ResearchWorker] Execution BLOCKED: Non-finite price/SL/TP for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}, tp={raw_tp}). Failing closed.")
+            return None
+
+        if price_val <= 0 or sl_val <= 0 or tp_val <= 0:
+            print(f"[ResearchWorker] Execution BLOCKED: Non-positive price/SL/TP for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}, tp={raw_tp}). Failing closed.")
+            return None
+
+        if sig_dir == "BUY":
+            if not (sl_val < price_val and tp_val > price_val):
+                print(f"[ResearchWorker] Execution BLOCKED: Invalid BUY SL/TP direction (entry={price_val}, sl={sl_val}, tp={tp_val}). Failing closed.")
+                return None
+        elif sig_dir == "SELL":
+            if not (sl_val > price_val and tp_val < price_val):
+                print(f"[ResearchWorker] Execution BLOCKED: Invalid SELL SL/TP direction (entry={price_val}, sl={sl_val}, tp={tp_val}). Failing closed.")
+                return None
+        else:
+            print(f"[ResearchWorker] Execution BLOCKED: Invalid signal direction ({sig_dir}). Failing closed.")
+            return None
+
+        # 4. Calculate 1.0% Risk Position Sizing (Hard Ceiling = 2.0% risk)
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
 
-        # Target requested risk percentage (Fail-Closed: strictly <= 2.0%)
-        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "2.0")
+        # Target requested risk percentage (Fail-Closed: default 1.0%, hard ceiling <= 2.0%)
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "1.0")
         try:
             req_risk_f = float(raw_risk_env) if not isinstance(raw_risk_env, bool) else -1.0
             if not math.isfinite(req_risk_f) or req_risk_f <= 0.0 or req_risk_f > 2.0:
@@ -183,7 +205,7 @@ class ResearchWorker:
             direction=sig_dir,
             entry_price=price_val,
             stop_loss=sl_val,
-            account_equity=equity_val,
+            account_equity=balance_val, # Size against balance
             free_margin=free_margin_val,
             risk_pct=requested_risk_pct,
             volume_min=vol_min,
@@ -196,13 +218,15 @@ class ResearchWorker:
             return None
 
         return {
+            "balance": balance_val,
             "equity": equity_val,
             "free_margin": free_margin_val,
             "price": price_val,
             "sl": sl_val,
-            "tp": float(raw_tp) if raw_tp is not None else None,
+            "tp": tp_val,
             "volume_lots": sizing_res.volume_lots,
-            "risk_budget_usd": sizing_res.risk_budget_usd
+            "risk_budget_usd": sizing_res.risk_budget_usd,
+            "risk_pct": requested_risk_pct
         }
 
     def _run_loop(self) -> None:
@@ -211,14 +235,12 @@ class ResearchWorker:
             from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
             registry = SymbolRegistry.get_instance()
             active_matrix = registry.get_active_matrix()
-            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
-            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
+            unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix))) if active_matrix else []
+            configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix))) if active_matrix else []
 
             print("================================================")
             print("YarTrader Multi-Symbol / Multi-TF Runtime")
             print("================================================")
-            print(f"Registry Capacity:\n{registry.max_symbols} Symbols\n")
-            print(f"Registered Symbols:\n{len(registry.get_all_registered())}\n")
             print(f"Active Symbols:\n{len(unique_symbols)}\n")
             print(f"Configured Timeframes:\n{configured_tfs}\n")
             print("Research Workers:\nRunning\n")
@@ -242,9 +264,17 @@ class ResearchWorker:
 
                         runtime = self._get_or_create_runtime(symbol, tf, asset_class, provider)
 
-                        # Active read-only connection check
-                        conn_health = runtime.provider.delegate.get_connection_health()
-                        print("MT5: Connected")
+                        # Active connection health execution gate
+                        try:
+                            conn_health = runtime.provider.delegate.get_connection_health() if (hasattr(runtime.provider, "delegate") and hasattr(runtime.provider.delegate, "get_connection_health")) else None
+                            if not conn_health or not getattr(conn_health, "connected", False):
+                                err_msg = getattr(conn_health, "last_error", None) or "Connection health unavailable or disconnected"
+                                print(f"[ResearchWorker] Execution BLOCKED: Unhealthy MT5 connection for {symbol} ({err_msg}). Failing closed.")
+                                continue
+                            print(f"MT5: Connected (Server: {getattr(conn_health, 'server', 'N/A')}, Ping: {getattr(conn_health, 'ping_ms', 0)}ms)")
+                        except Exception as conn_err:
+                            print(f"[ResearchWorker] Execution BLOCKED: Connection health check failed for {symbol}: {conn_err}. Failing closed.")
+                            continue
 
                         res = runtime.run_once()
 
@@ -263,18 +293,29 @@ class ResearchWorker:
                         auto_dec = res.Findings.get("autonomous_decision", {})
                         action = auto_dec.get("action", "WAIT")
 
-                        # 1. Kill Switch Enforcement
-                        kill_switch_enabled = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED", "true").lower() in ["true", "1", "yes"]
+                        # 1. Kill Switch Enforcement (Default = false / disabled for execution safety)
+                        raw_auto_enabled = os.getenv("AUTONOMOUS_DEMO_TRADING_ENABLED", "false").strip().lower()
+                        kill_switch_enabled = raw_auto_enabled in ["true", "1", "yes"]
                         if not kill_switch_enabled:
-                            print(f"[ResearchWorker] Kill Switch ACTIVE (AUTONOMOUS_DEMO_TRADING_ENABLED=False). Skipping execution dispatch for {symbol}.")
+                            print(f"[ResearchWorker] Execution BLOCKED: Kill Switch ACTIVE (AUTONOMOUS_DEMO_TRADING_ENABLED={raw_auto_enabled}). Skipping execution dispatch for {symbol}.")
                         elif action in ["BUY", "SELL"]:
                             sig_dir = action
                             now_time = time.time()
                             sig_time = now_time
 
-                            # 2. Risk & Confidence Threshold Gates
-                            min_rr = float(os.getenv("MINIMUM_RR", "1.5"))
-                            min_conf = float(os.getenv("MINIMUM_CONFIDENCE", "50.0"))
+                            # 2. Safety Threshold Configuration Parsing (Fail-Closed)
+                            raw_min_rr = os.getenv("MINIMUM_RR", "1.5")
+                            raw_min_conf = os.getenv("MINIMUM_CONFIDENCE", "50.0")
+
+                            try:
+                                min_rr = float(raw_min_rr)
+                                min_conf = float(raw_min_conf)
+                                if not (math.isfinite(min_rr) and math.isfinite(min_conf) and min_rr > 0.0 and min_conf > 0.0):
+                                    print(f"[ResearchWorker] Execution BLOCKED: Invalid safety threshold configuration (MINIMUM_RR={raw_min_rr}, MINIMUM_CONFIDENCE={raw_min_conf}). Failing closed.")
+                                    continue
+                            except (ValueError, TypeError):
+                                print(f"[ResearchWorker] Execution BLOCKED: Malformed safety threshold configuration (MINIMUM_RR={raw_min_rr}, MINIMUM_CONFIDENCE={raw_min_conf}). Failing closed.")
+                                continue
 
                             rr_val = float(auto_dec.get("risk_reward", 0.0))
                             conf_val = float(auto_dec.get("confidence", 0.0))
@@ -330,6 +371,17 @@ class ResearchWorker:
                                                     if not is_closed:
                                                         print(f"[ResearchWorker] Reversal BLOCKED: Position {existing_ticket} close unconfirmed / pending in broker state. Failing closed.")
                                                     else:
+                                                        # Record Exit in Trade Journal for Reversal Close
+                                                        trade_id = f"TRD-{symbol.upper()}-{existing_ticket}"
+                                                        self.journal_manager.record_exit(
+                                                            trade_id=trade_id,
+                                                            exit_price=float(close_resp.Price) if close_resp.Price else 0.0,
+                                                            realized_pnl=0.0, # Will be updated from broker deal history if available
+                                                            exit_reason="REVERSAL",
+                                                            closing_deal_ticket=str(close_resp.DealTicket or 0),
+                                                            duration_seconds=120.0
+                                                        )
+
                                                         print(f"[ResearchWorker] Position {existing_ticket} close CONFIRMED flat. Reassessing market for {symbol} {sig_dir}...")
                                                         # Fresh Market Reassessment: Must be self-contained
                                                         reassess_run = runtime.run_once()
@@ -337,7 +389,7 @@ class ResearchWorker:
                                                         reassess_action = reassess_dec.get("action", "WAIT")
 
                                                         if reassess_action == sig_dir:
-                                                            # Run Reversal Decision through Canonical Validation & 0.5% Risk Position Sizing
+                                                            # Run Reversal Decision through Canonical Validation & 1.0% Risk Position Sizing
                                                             rev_sized = self._validate_and_size_decision(symbol, sig_dir, reassess_dec)
                                                             if rev_sized:
                                                                 decision_id = f"DEC-REV-{symbol.upper()}-{sig_dir}-{int(sig_time)}"
@@ -360,6 +412,34 @@ class ResearchWorker:
                                                                         "exec_time": now_time,
                                                                         "decision_id": decision_id
                                                                     }
+                                                                    # Record Entry in Trade Journal
+                                                                    new_trade_id = f"TRD-{symbol.upper()}-{exec_resp.OrderId or int(now_time)}"
+                                                                    self.journal_manager.record_entry(
+                                                                        trade_id=new_trade_id,
+                                                                        decision_id=decision_id,
+                                                                        symbol=symbol,
+                                                                        timeframe=tf,
+                                                                        direction=sig_dir,
+                                                                        strategy_id="ST-REVERSAL-REV1",
+                                                                        strategy_version="1.2.0",
+                                                                        entry_price=rev_sized["price"],
+                                                                        requested_price=rev_sized["price"],
+                                                                        actual_fill_price=float(exec_resp.Price) if exec_resp.Price else rev_sized["price"],
+                                                                        volume_lots=rev_sized["volume_lots"],
+                                                                        account_balance=rev_sized["balance"],
+                                                                        account_equity=rev_sized["equity"],
+                                                                        risk_pct=rev_sized["risk_pct"],
+                                                                        risk_budget_usd=rev_sized["risk_budget_usd"],
+                                                                        stop_loss=rev_sized["sl"],
+                                                                        take_profit=rev_sized["tp"],
+                                                                        risk_reward=rr_val,
+                                                                        confidence=conf_val,
+                                                                        decision_reason="Sequential Reversal Entry",
+                                                                        supporting_evidence=reassess_run.Findings,
+                                                                        research_snapshot_id=reassess_run.Findings.get("report_id", "SNAP-001"),
+                                                                        broker_order_ticket=str(exec_resp.OrderId),
+                                                                        broker_deal_ticket=str(exec_resp.DealTicket or 0)
+                                                                    )
                                                                     print(f"[ResearchWorker] Reversal DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
                                                                 else:
                                                                     print(f"[ResearchWorker] Reversal DEMO Execution FAILED / Rejected (Status={exec_resp.Status if exec_resp else 'None'}). State NOT mutated.")
@@ -374,7 +454,7 @@ class ResearchWorker:
                                                 calculated_vol = flat_sized["volume_lots"]
                                                 decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
 
-                                                print(f"[ResearchWorker] Actionable decision detected for {symbol}: {sig_dir} with 0.5% risk volume = {calculated_vol} lots (Equity=${flat_sized['equity']}). Dispatching...")
+                                                print(f"[ResearchWorker] Actionable decision detected for {symbol}: {sig_dir} with 1.0% risk volume = {calculated_vol} lots (Balance=${flat_sized['balance']}). Dispatching...")
                                                 exec_resp = self.demo_engine.execute_demo_decision(
                                                     symbol=symbol,
                                                     direction=sig_dir,
@@ -395,6 +475,34 @@ class ResearchWorker:
                                                         "exec_time": now_time,
                                                         "decision_id": decision_id
                                                     }
+                                                    # Record Entry in Trade Journal
+                                                    new_trade_id = f"TRD-{symbol.upper()}-{exec_resp.OrderId or int(now_time)}"
+                                                    self.journal_manager.record_entry(
+                                                        trade_id=new_trade_id,
+                                                        decision_id=decision_id,
+                                                        symbol=symbol,
+                                                        timeframe=tf,
+                                                        direction=sig_dir,
+                                                        strategy_id="ST-CORE-001",
+                                                        strategy_version="1.2.0",
+                                                        entry_price=flat_sized["price"],
+                                                        requested_price=flat_sized["price"],
+                                                        actual_fill_price=float(exec_resp.Price) if exec_resp.Price else flat_sized["price"],
+                                                        volume_lots=calculated_vol,
+                                                        account_balance=flat_sized["balance"],
+                                                        account_equity=flat_sized["equity"],
+                                                        risk_pct=flat_sized["risk_pct"],
+                                                        risk_budget_usd=flat_sized["risk_budget_usd"],
+                                                        stop_loss=flat_sized["sl"],
+                                                        take_profit=flat_sized["tp"],
+                                                        risk_reward=rr_val,
+                                                        confidence=conf_val,
+                                                        decision_reason="Canonical Single Execution Entry",
+                                                        supporting_evidence=res.Findings,
+                                                        research_snapshot_id=res.Findings.get("report_id", "SNAP-001"),
+                                                        broker_order_ticket=str(exec_resp.OrderId),
+                                                        broker_deal_ticket=str(exec_resp.DealTicket or 0)
+                                                    )
                                                     print(f"[ResearchWorker] DEMO Execution Response: Status={exec_resp.Status}, OrderId={exec_resp.OrderId}")
                                                 else:
                                                     print(f"[ResearchWorker] DEMO Execution FAILED / Rejected (Status={exec_resp.Status if exec_resp else 'None'}). State NOT mutated.")

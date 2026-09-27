@@ -1,5 +1,6 @@
 import os
 import json
+import threading
 from typing import Dict, List, Any, Tuple
 
 REGISTRY_FILE = "runtime_logs/symbols_registry.json"
@@ -15,7 +16,7 @@ def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
 
         indent = len(line) - len(line.lstrip())
         if indent == 0:
-            continue # ignore market_universe root tag
+            continue
         elif indent == 2:
             current_category = strip_line.replace(":", "").strip()
             result[current_category] = {}
@@ -26,16 +27,12 @@ def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
                 payload_str = payload_str.strip()
 
                 try:
-                    # Clean up JSON-like format
                     json_str = payload_str
-                    # Ensure keys are quoted
                     for key in ["provider", "enabled", "timeframes"]:
                         json_str = json_str.replace(key, f'"{key}"')
-                    # Convert python boolean strings to json
                     json_str = json_str.replace("true", "true").replace("false", "false")
                     info = json.loads(json_str)
                 except Exception:
-                    # Fallback manual extraction
                     provider = "MT5"
                     if "Crypto" in payload_str:
                         provider = "Crypto"
@@ -50,8 +47,6 @@ def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
                     result[current_category][symbol] = info
     return {"market_universe": result}
 
-
-import threading
 
 class SymbolRegistry:
     """
@@ -130,7 +125,7 @@ class SymbolRegistry:
                             "active": info.get("enabled", True),
                             "asset_class": asset_class,
                             "provider": info.get("provider", "MT5"),
-                            "timeframes": info.get("timeframes", ["H1", "H4"])
+                            "timeframes": info.get("timeframes", ["M15", "H1", "H4", "D1"])
                         }
                 self._enforce_max_active_limit()
                 self.save_registry()
@@ -140,11 +135,11 @@ class SymbolRegistry:
 
         # Default fallback registry configuration
         self.registry = {
-            "XAUUSD": {"active": True, "asset_class": "Commodities", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
-            "EURUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
-            "GBPUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
-            "BTCUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]},
-            "ETHUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]}
+            "XAUUSD": {"active": True, "asset_class": "Commodities", "provider": "MT5", "timeframes": ["M15", "H1", "H4", "D1"]},
+            "EURUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["M15", "H1", "H4", "D1"]},
+            "GBPUSD": {"active": True, "asset_class": "Forex", "provider": "MT5", "timeframes": ["M15", "H1", "H4", "D1"]},
+            "BTCUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["M15", "H1", "H4", "D1"]},
+            "ETHUSD": {"active": True, "asset_class": "Crypto", "provider": "Crypto", "timeframes": ["M15", "H1", "H4", "D1"]}
         }
         self.save_registry()
 
@@ -158,12 +153,12 @@ class SymbolRegistry:
             return self.registry.copy()
 
     def get_timeframe_policy(self, asset_class: str) -> List[str]:
-        """Resolves timeframe policies per asset class. Returns all 9 timeframes."""
+        """Resolves timeframe policies per asset class."""
         from src.Infrastructure.Configuration.config import ConfigurationManager
         config = ConfigurationManager.get_config()
         if not config.tick_chart_analysis_enabled:
-            return ["M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
-        return ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
+            return ["M15", "H1", "H4", "D1"]
+        return ["Tick", "M15", "H1", "H4", "D1"]
 
     def get_active_matrix(self) -> List[Tuple[str, str, str, str]]:
         """Resolves execution matrix tuples of (symbol, timeframe, asset_class, provider)"""
