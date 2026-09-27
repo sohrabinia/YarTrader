@@ -137,10 +137,16 @@ class ResearchWorker:
             print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account free_margin unavailable or invalid (free_margin={raw_margin}). Failing closed.")
             return None
 
-        # 1b. Enforce Daily 8% Loss Limit Protection Gate
+        # 1b. Establish/validate the immutable session baseline, then enforce the
+        # Daily 8% Loss Limit Protection Gate. The kill switch itself remains
+        # fail-closed if no valid baseline exists.
         try:
             from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
             kill_switch = DailyLossKillSwitch.get_instance()
+            kill_switch.update_session_state(equity_val)
+            if kill_switch.baseline_equity is None or not math.isfinite(float(kill_switch.baseline_equity)) or float(kill_switch.baseline_equity) <= 0:
+                print("[ResearchWorker] Execution BLOCKED: DailyLossKillSwitch session baseline is unavailable/invalid. Failing closed.")
+                return None
             allowed, reason, meta = kill_switch.evaluate_daily_loss(equity_val)
             if not allowed:
                 print(f"[ResearchWorker] Execution BLOCKED: Daily Loss Limit Gate active ({reason}, loss={meta.get('loss_pct', 0.0)}%). Failing closed.")
