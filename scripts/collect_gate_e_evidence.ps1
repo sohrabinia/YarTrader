@@ -256,21 +256,12 @@ if (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
     $authoritativeTokenFile = if ($env:YarTraderStorageRoot) {
         Join-Path $env:YarTraderStorageRoot 'Secrets\mt5_bridge_token.secret'
     } else {
-        'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret'
+        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret'
     }
 
     $canonicalCandidateTokenFiles = @(
         $authoritativeTokenFile,
-        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
-        'C:\Projects\YarTrader\YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
-        'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
-        'Secrets\mt5_bridge_token.secret'
-    )
-
-    $legacyCandidateTokenFiles = @(
-        # LEGACY COMPATIBILITY ONLY — NOT CANONICAL
-        'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret',
-        'C:\Projects\YarTrader\TradeYarStorageRoot\Secrets\mt5_bridge_token.secret'
+        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret'
     )
 
     foreach ($tf in $canonicalCandidateTokenFiles) {
