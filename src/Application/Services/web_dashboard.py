@@ -993,8 +993,7 @@ global_market_session_engine.register_session_interval(
 def get_market_session_status(
     symbol: str = "XAUUSD",
     broker: str = "DEFAULT",
-    distance_to_tp: Optional[float] = None,
-    current_volatility_atr: Optional[float] = None
+    distance_to_tp: Optional[float] = None
 ):
     """
     Exposes canonical Market Session, Broker Trading Calendar state,
@@ -1005,7 +1004,6 @@ def get_market_session_status(
         symbol=symbol,
         broker=broker,
         distance_to_tp=distance_to_tp,
-        current_volatility_atr=current_volatility_atr,
         current_time=now
     )
 
