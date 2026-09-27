@@ -22,7 +22,6 @@ from src.Research.MarketAnalysis.Interfaces.interfaces import IFractalEngine
 from src.Research.Brain.multi_timeframe import MultiTimeframePerception
 from src.Research.Brain.fractal_memory import FractalPatternMemory
 from src.Research.Brain.fractal_data_scale_engine import ScaleConstructionEngine
-from src.Research.Brain.fractal_base_detection_engine import Gate3BaseDetectorEngine
 from src.Intelligence.Execution.similarity import PatternSimilarityIntelligenceEngine
 from src.Research.Brain.models import MarketObservation
 from src.Research.Brain.hurst_engine import HurstEngine
@@ -303,12 +302,10 @@ class FractalEngine(IFractalEngine):
                 if complete_bars:
                     complete_scales_x4[scale_factor] = complete_bars
 
+        # Gate 3 ATR/True-Range base detector is intentionally excluded from the
+        # live ResearchRuntime path. Canonical production intelligence is
+        # indicator-free and must consume raw price geometry only.
         detected_bases_count = 0
-        if complete_scales_x4:
-            detector = Gate3BaseDetectorEngine()
-            formatted_scales = {f"x{k}": v for k, v in complete_scales_x4.items()}
-            bases_report = detector.detect_multiscale_bases(formatted_scales)
-            detected_bases_count = bases_report.get("total_bases_detected", 0)
 
         latest_ts = primary_obs[-1].timestamp.isoformat()
 
