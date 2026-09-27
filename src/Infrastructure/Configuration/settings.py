@@ -27,18 +27,17 @@ class BaseSettings:
         self._load_and_validate()
 
     def _load_and_validate(self) -> None:
-        from src.Infrastructure.Configuration.compat import get_env_compat
         # Load MetaTrader isolation parameters
-        self.mt5_account = str(self._overrides.get("mt5_account", get_env_compat("YARTRADER_MT5_LOGIN", "TRADEYAR_MT5_LOGIN", default="52961173")))
-        self.mt5_server = str(self._overrides.get("mt5_server", get_env_compat("YARTRADER_MT5_SERVER", "TRADEYAR_MT5_SERVER", default="Alpari-MT5-Demo")))
-        self.mt5_terminal_path = str(self._overrides.get("mt5_terminal_path", get_env_compat("YARTRADER_MT5_TERMINAL_PATH", "TRADEYAR_MT5_TERMINAL_PATH", default="C:\\Program Files\\MetaTrader 5\\terminal64.exe")))
-        self.mt4_account = str(self._overrides.get("mt4_account", get_env_compat("YARTRADER_MT4_LOGIN", "TRADEYAR_MT4_LOGIN", default="143056202")))
-        self.mt4_server = str(self._overrides.get("mt4_server", get_env_compat("YARTRADER_MT4_SERVER", "TRADEYAR_MT4_SERVER", default="Alpari-Pro.ECN")))
-        self.mt4_terminal_path = str(self._overrides.get("mt4_terminal_path", get_env_compat("YARTRADER_MT4_TERMINAL_PATH", "TRADEYAR_MT4_TERMINAL_PATH", default="C:\\Program Files (x86)\\MetaTrader 4\\terminal.exe")))
+        self.mt5_account = str(self._overrides.get("mt5_account", os.environ.get("YARTRADER_MT5_LOGIN", "52961173")))
+        self.mt5_server = str(self._overrides.get("mt5_server", os.environ.get("YARTRADER_MT5_SERVER", "Alpari-MT5-Demo")))
+        self.mt5_terminal_path = str(self._overrides.get("mt5_terminal_path", os.environ.get("YARTRADER_MT5_TERMINAL_PATH", "C:\\Program Files\\MetaTrader 5\\terminal64.exe")))
+        self.mt4_account = str(self._overrides.get("mt4_account", os.environ.get("YARTRADER_MT4_LOGIN", "143056202")))
+        self.mt4_server = str(self._overrides.get("mt4_server", os.environ.get("YARTRADER_MT4_SERVER", "Alpari-Pro.ECN")))
+        self.mt4_terminal_path = str(self._overrides.get("mt4_terminal_path", os.environ.get("YARTRADER_MT4_TERMINAL_PATH", "C:\\Program Files (x86)\\MetaTrader 4\\terminal.exe")))
         self.live_trading_enabled = bool(self._overrides.get("live_trading_enabled", os.environ.get("LIVE_TRADING_ENABLED", "False") == "True"))
 
         # Load from env vars or overrides
-        self.simulation_mode = bool(self._overrides.get("simulation_mode", get_env_compat("YARTRADER_SIMULATION_MODE", "TRADEYAR_SIMULATION_MODE", default="True") == "True"))
+        self.simulation_mode = bool(self._overrides.get("simulation_mode", os.environ.get("YARTRADER_SIMULATION_MODE", "True") == "True"))
         if not self.simulation_mode:
             raise ValidationException(
                 "APES-FIN Compliance Error: Real trading is strictly prohibited. simulation_mode must be set to True."
