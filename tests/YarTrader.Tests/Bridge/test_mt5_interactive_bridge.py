@@ -88,9 +88,10 @@ def test_client_get_mt5_status_unauthorized():
         assert "401 Unauthorized" in health.last_error
 
 
-def test_client_timeout_fail_closed():
+def test_client_timeout_fail_closed(monkeypatch):
     """Verify timeout in MT5BridgeClient fails closed returning connected=False."""
     import requests
+    monkeypatch.setenv("MT5_BRIDGE_SECRET_TOKEN", "test_timeout_token_1234567890")
     client = MT5BridgeClient()
 
     with patch("requests.get", side_effect=requests.exceptions.Timeout("Connection timed out")):
