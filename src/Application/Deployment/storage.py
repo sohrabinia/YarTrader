@@ -27,6 +27,7 @@ class YarTraderStorageManager:
         self._data_dir = os.path.join(self._storage_root, "Data")
         self._diagnostics_dir = os.path.join(self._storage_root, "Diagnostics")
         self._temp_dir = os.path.join(self._storage_root, "Temp")
+        self._secrets_dir = os.path.join(self._storage_root, "Secrets")
 
     @classmethod
     def get_manager(cls, root_override: Optional[str] = None) -> "YarTraderStorageManager":
@@ -65,6 +66,9 @@ class YarTraderStorageManager:
 
     def get_temp_dir(self) -> str:
         return self._temp_dir
+
+    def get_secrets_dir(self) -> str:
+        return self._secrets_dir
 
 
 # Backward compatibility alias
