@@ -62,7 +62,7 @@ if (Test-Path 'C:\YarTraderAI\Runtime\deployed_sha.txt') {
     $runtimeDeployedSha = (Get-Content 'C:\YarTraderAI\Runtime\deployed_sha.txt' -Raw).Trim()
 }
 
-# 2. Windows Service Identity (Deterministic Service Binding)
+# 2. Windows Service Identity (Deterministic Service Binding via Win32_Service.ProcessId)
 $tsService = Get-IsoUtcTimestamp
 Write-Host "`n[2/8] Inspecting YarTrader Windows Service Identity..." -ForegroundColor Yellow
 $yarService = Get-CimInstance Win32_Service -Filter "Name='YarTrader'" -ErrorAction SilentlyContinue
@@ -77,7 +77,7 @@ if ($yarService) {
     $serviceAccount = $yarService.StartName
     if ($yarService.ProcessId -gt 0) {
         $servicePid = $yarService.ProcessId
-        $serviceProc = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $servicePid) -ErrorAction SilentlyContinue
+        $serviceProc = Get-CimInstance Win32_Process -Filter ('ProcessId=' + $servicePid) -ErrorAction SilentlyContinue
         if ($serviceProc) {
             $serviceSessionId = $serviceProc.SessionId
         }
@@ -103,7 +103,19 @@ $procs = Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('python.ex
 $procTable = $procs | Format-Table ProcessId, ParentProcessId, SessionId, Name, ExecutablePath, CommandLine -AutoSize | Out-String
 Write-Host $procTable
 
-$bridgeProc = $procs | Where-Object { $_.CommandLine -like '*mt5_bridge*' } | Select-Object -First 1
+# Deterministic Bridge Process Resolution
+$bridgeProcs = $procs | Where-Object { $_.CommandLine -like '*mt5_bridge*' }
+$bridgeProc = $null
+$bridgeAmbiguous = $false
+
+if ($bridgeProcs) {
+    if ($bridgeProcs.Count -eq 1) {
+        $bridgeProc = $bridgeProcs[0]
+    } else {
+        $bridgeAmbiguous = $true
+        Write-Warning 'Multiple mt5_bridge processes detected; ambiguity present.'
+    }
+}
 
 # Enumerate all terminal64.exe instances to avoid arbitrary selection
 $mt5Procs = $procs | Where-Object { $_.Name -eq 'terminal64.exe' }
@@ -125,7 +137,7 @@ if ($mt5Procs) {
     }
 }
 
-$bridgeSessionValid = ($bridgeProc -and $activeConsoleSessionId -ne 'NOT PROVEN' -and $bridgeProc.SessionId -eq $activeConsoleSessionId)
+$bridgeSessionValid = ($bridgeProc -and -not $bridgeAmbiguous -and $activeConsoleSessionId -ne 'NOT PROVEN' -and $bridgeProc.SessionId -eq $activeConsoleSessionId)
 $mt5SessionValid = ($mt5Proc -and -not $mt5Ambiguous -and $activeConsoleSessionId -ne 'NOT PROVEN' -and $mt5Proc.SessionId -eq $activeConsoleSessionId)
 
 # 4. Strict TCP Port 5001 Listener Inspection (IPv4 127.0.0.1 ONLY)
@@ -142,7 +154,7 @@ try {
             $listenerAddr = $validListener.LocalAddress
             $listenerPid = $validListener.OwningProcess
             $bridgePid = if ($bridgeProc) { $bridgeProc.ProcessId } else { 'N/A' }
-            if ($bridgeProc -and $listenerPid -eq $bridgeProc.ProcessId) {
+            if ($bridgeProc -and -not $bridgeAmbiguous -and $listenerPid -eq $bridgeProc.ProcessId) {
                 $port5001Proven = $true
                 $port5001Details = 'LocalAddress: ' + $listenerAddr + ', LocalPort: 5001, State: Listen, OwningProcess: ' + $listenerPid + ' [Matches Bridge PID]'
             } else {
@@ -191,12 +203,14 @@ if ($callerSessionId -eq 0 -and $callerUser -like '*SYSTEM*') {
     Write-Warning ('Collector caller is in Session ' + $callerSessionId + ' as ' + $callerUser + ' [not Session 0 LocalSystem]. Direct Session 0 IPC diagnostic marked NOT PROVEN.')
 }
 
-# 6. Query Bridge API Endpoints (Recovery A Baseline)
+# 6. Token Inspection & Query Bridge API Endpoints (Recovery A Baseline)
 $tsApi = Get-IsoUtcTimestamp
 Write-Host "`n[6/8] Querying MT5 Interactive Bridge API [Recovery A Baseline]..." -ForegroundColor Yellow
 $healthResp = $null
 $statusResp = $null
 $marketDataResp = $null
+$tokenResolved = $false
+$tokenSourceDetails = 'NOT PROVEN [Secret token file or ENV missing]'
 
 try {
     $healthResp = Invoke-RestMethod -Uri 'http://127.0.0.1:5001/health' -Method Get -TimeoutSec 5
@@ -210,9 +224,18 @@ if (-not (Test-Path $secretFile)) {
     $secretFile = 'Secrets\mt5_bridge_token.secret'
 }
 
+$token = $null
 if (Test-Path $secretFile) {
     $token = (Get-Content $secretFile -Raw).Trim()
+    $tokenSourceDetails = 'Resolved from file: ' + $secretFile
+    $tokenResolved = $true
+} elseif (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
+    $token = $env:MT5_BRIDGE_SECRET_TOKEN.Trim()
+    $tokenSourceDetails = 'Resolved from ENV: MT5_BRIDGE_SECRET_TOKEN'
+    $tokenResolved = $true
+}
 
+if ($tokenResolved -and -not [string]::IsNullOrWhiteSpace($token)) {
     try {
         $statusResp = Invoke-RestMethod -Uri 'http://127.0.0.1:5001/mt5/status' -Headers @{ Authorization = ('Bearer ' + $token) } -Method Get -TimeoutSec 5
         Write-Host 'GET /mt5/status: SUCCESS' -ForegroundColor Green
@@ -228,7 +251,7 @@ if (Test-Path $secretFile) {
         Write-Host ('POST /market-data: FAILED - ' + $_) -ForegroundColor Red
     }
 } else {
-    Write-Warning ('Secret token file not found at ' + $secretFile)
+    Write-Warning $tokenSourceDetails
 }
 
 # Strict candle count and real data evaluation
@@ -238,7 +261,7 @@ $realDataProven = $false
 if ($marketDataResp -and $marketDataResp.symbol -eq 'XAUUSD' -and $marketDataResp.timeframe -eq 'H1' -and $marketDataResp.candles) {
     if ($marketDataResp.candles.Count -eq 2) {
         $exactCountProven = $true
-        if ($statusResp -and $statusResp.connected -eq $true -and -not [string]::IsNullOrWhiteSpace($statusResp.server) -and $bridgeProc -and $mt5Proc -and -not $mt5Ambiguous) {
+        if ($statusResp -and $statusResp.connected -eq $true -and -not [string]::IsNullOrWhiteSpace($statusResp.server) -and $bridgeProc -and -not $bridgeAmbiguous -and $mt5Proc -and -not $mt5Ambiguous) {
             $c0 = $marketDataResp.candles[0]
             if ($c0.open -gt 0 -and $c0.time -gt 1600000000) {
                 $realDataProven = $true
@@ -361,6 +384,7 @@ $gateEPassed = (
     ($serviceProc -ne $null) -and
     ($serviceProc.SessionId -eq 0) -and
     ($bridgeProc -ne $null) -and
+    -not $bridgeAmbiguous -and
     $bridgeSessionValid -and
     ($mt5Proc -ne $null) -and
     -not $mt5Ambiguous -and
@@ -445,7 +469,7 @@ $reportContent = @"
 | **2. Clean Working Tree** | Short Status: `$statusShort` | Empty | `git status --short` | $startTimeUtc | $treeCleanStatusStr |
 | **3. Deployed Runtime SHA** | Deployed: `$runtimeDeployedSha` | `$ExpectedSha` | `C:\YarTraderAI\Runtime\deployed_sha.txt` | $startTimeUtc | $runtimeShaStatusStr |
 | **4. Session 0 Service Identity** | SessionId: $serviceSessionId, User: $serviceAccount | SessionId: 0, User: LocalSystem | `Win32_Service` / `Win32_Process` | $tsService | $serviceStatusStr |
-| **5. Interactive Session Bridge** | SessionId: $bridgeProcSessionId | SessionId: $activeConsoleSessionId | `Win32_Process` (PID $bridgeProcPid) | $tsProc | $bridgeSessionStatusStr |
+| **5. Interactive Session Bridge** | SessionId: $bridgeProcSessionId, Ambiguous: $bridgeAmbiguous | SessionId: $activeConsoleSessionId (Unique) | `Win32_Process` (PID $bridgeProcPid) | $tsProc | $bridgeSessionStatusStr |
 | **6. Interactive Session MT5** | SessionId: $mt5ProcSessionId, Ambiguous: $mt5Ambiguous | SessionId: $activeConsoleSessionId (Unique) | `Win32_Process` (PID $mt5ProcPid) | $tsProc | $mt5SessionStatusStr |
 | **7. Strict TCP 5001 Listener** | $port5001Details | 127.0.0.1:5001 Listen (Bridge PID) | `Get-NetTCPConnection` | $tsPort | $port5001StatusStr |
 | **8. Bridge `/health` Endpoint** | Status: $healthStatusVal | Status: HEALTHY | HTTP GET `127.0.0.1:5001/health` | $tsApi | $healthStatusStr |
