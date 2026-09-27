@@ -1341,7 +1341,7 @@ function MainApp() {
 
           {/* DEDICATED TRADING MODE 2: DEMO TRADING PAGE */}
           {routePath === '/demo' && (
-            <DemoView t={t} demoReport={demoReport} backendState={backendState} />
+            <DemoView t={t} demoReport={demoReport} demoTrades={demoTrades} backendState={backendState} />
           )}
 
 
@@ -1973,7 +1973,7 @@ function MainApp() {
                       `${u.tier || 'FREE'} Tier`,
                       u.social_providers && u.social_providers.length > 0
                         ? u.social_providers.map(p => p.toUpperCase()).join(', ')
-                        : 'EMAIL/PASSWORD',
+                        : 'GOOGLE OIDC',
                       <span className="status-passed">{u.status || 'Active'}</span>
                     ])}
                     emptyMessage="No registered user accounts found."
