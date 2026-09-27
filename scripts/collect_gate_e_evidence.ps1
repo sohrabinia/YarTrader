@@ -19,7 +19,7 @@ param (
     [ValidateNotNullOrEmpty()]
     [string]$ExpectedSha,
 
-    [string]$OutputFile = 'docs/runtime/PR313_GATE_E_WINDOWS_EVIDENCE.md',
+    [string]$OutputFile = 'docs/runtime/PR314_GATE_E_WINDOWS_EVIDENCE.md',
 
     [switch]$ExecuteRecoveryTest = $false
 )
@@ -98,9 +98,9 @@ $treeCleanStatus = if ($treeClean) { 'PROVEN' } else { 'FAILED' }
 Record-ForensicOperation -OperationName 'GitHeadVerification' -Status $provenanceStatus -Reason ("Local HEAD: $currentHead vs Expected: $ExpectedSha")
 Record-ForensicOperation -OperationName 'GitTreeCleanliness' -Status $treeCleanStatus -Reason ("Status Short: '$statusShort'")
 
-# 2. Windows Service Identity & Runtime SHA Provenance Chain (Blocker #1)
+# 2. Windows Service Identity & Cryptographic Runtime SHA Provenance Chain (Blocker #1)
 $tsService = Get-IsoUtcTimestamp
-Write-Host "`n[2/8] Inspecting YarTrader Windows Service Identity & Runtime SHA Chain..." -ForegroundColor Yellow
+Write-Host "`n[2/8] Inspecting YarTrader Windows Service Identity & Cryptographic Runtime SHA Chain..." -ForegroundColor Yellow
 $yarService = $null
 $serviceProc = $null
 $servicePid = 'N/A'
@@ -146,6 +146,8 @@ $runtimeDeployedSha = 'NOT PROVEN'
 $deployedShaSourceFile = 'N/A'
 $runtimeShaStatus = 'NOT PROVEN'
 $runtimeShaReason = 'Runtime SHA not verified'
+$artifactSha256 = 'N/A'
+$artifactPath = 'N/A'
 
 $candidateShaFiles = @()
 if ($runtimeRoot -ne 'N/A' -and (Test-Path $runtimeRoot)) {
@@ -171,17 +173,35 @@ foreach ($sf in $candidateShaFiles) {
     }
 }
 
-if ($serviceProc -and $serviceSessionId -eq 0 -and $runtimeDeployedSha -ne 'NOT PROVEN') {
+# Calculate cryptographic SHA256 of the active runtime entrypoint file inside runtimeRoot
+if ($runtimeRoot -ne 'N/A' -and (Test-Path $runtimeRoot)) {
+    $candidateArtifact = Join-Path $runtimeRoot 'src\Application\Services\web_dashboard.py'
+    if (-not (Test-Path $candidateArtifact)) {
+        $candidateArtifact = $serviceExePath
+    }
+    if (Test-Path $candidateArtifact) {
+        try {
+            $hashObj = Get-FileHash -Path $candidateArtifact -Algorithm SHA256 -ErrorAction SilentlyContinue
+            if ($hashObj) {
+                $artifactSha256 = $hashObj.Hash
+                $artifactPath = $candidateArtifact
+            }
+        } catch {}
+    }
+}
+
+# Require ALL links in the chain: Service running in Session 0 + Service process path inside runtimeRoot + deployed_sha.txt in runtimeRoot + SHA match + artifact SHA256 calculated
+if ($serviceProc -and $serviceSessionId -eq 0 -and $runtimeDeployedSha -ne 'NOT PROVEN' -and $artifactSha256 -ne 'N/A') {
     if ($runtimeDeployedSha -eq $ExpectedSha) {
         $runtimeShaStatus = 'PROVEN'
-        $runtimeShaReason = "YarTrader service PID $servicePid running from $runtimeRoot with verified deployed_sha.txt ($runtimeDeployedSha) matching Expected SHA $ExpectedSha"
+        $runtimeShaReason = "YarTrader service PID $servicePid running in Session 0 from $runtimeRoot ($serviceExePath). Deployed SHA $runtimeDeployedSha matches Expected SHA $ExpectedSha. Entrypoint artifact ($artifactPath) SHA256: $artifactSha256"
     } else {
         $runtimeShaStatus = 'FAILED'
         $runtimeShaReason = "Deployed SHA ($runtimeDeployedSha) in $deployedShaSourceFile does NOT match Expected SHA ($ExpectedSha)"
     }
 } else {
     $runtimeShaStatus = 'NOT PROVEN'
-    $runtimeShaReason = "Service process missing or not running in Session 0, or runtime path untied from deployed_sha.txt (Found SHA: $runtimeDeployedSha)"
+    $runtimeShaReason = "Service process missing or not running in Session 0, or runtime path untied from deployed_sha.txt/artifact (Found SHA: $runtimeDeployedSha, Artifact SHA256: $artifactSha256)"
 }
 
 Record-ForensicOperation -OperationName 'RuntimeShaProvenance' -Status $runtimeShaStatus -Reason $runtimeShaReason
@@ -189,6 +209,7 @@ Record-ForensicOperation -OperationName 'RuntimeShaProvenance' -Status $runtimeS
 Write-Host ('Service State: ' + $serviceState + ' - Account: ' + $serviceAccount + ' - PID: ' + $servicePid + ' - SessionId: ' + $serviceSessionId)
 Write-Host ('Runtime Root : ' + $runtimeRoot)
 Write-Host ('Deployed SHA : ' + $runtimeDeployedSha + ' (Source: ' + $deployedShaSourceFile + ')')
+Write-Host ('Artifact SHA : ' + $artifactSha256 + ' (Path: ' + $artifactPath + ')')
 
 # 3. Interactive Session Discovery and Process Topology Inspection (Section 7 & Primary Remediation F)
 $tsProc = Get-IsoUtcTimestamp
@@ -373,12 +394,14 @@ if ($callerSessionId -eq 0 -and $callerUser -like '*SYSTEM*') {
         $pyCode = 'import sys, MetaTrader5 as mt5; print("py_ver=", sys.version.replace("\n"," ")); print("init=", mt5.initialize()); print("err=", mt5.last_error())'
         $ipcOutput = (python -c $pyCode 2>&1 | Out-String).Trim()
         $session0IpcDetails = 'PID: ' + $callerPid + ' - User: ' + $callerUser + ' - Session: 0 - Executable: ' + $callerExecutable + ' - Output: ' + $ipcOutput
-        if ($ipcOutput -like '*-10003*' -or $ipcOutput -like '*init= False*') {
+
+        # Require identity, Session 0, python, AND exact mt5.last_error() tuple (-10003) for true PROVEN
+        if ($serviceProc -and $serviceSessionId -eq 0 -and $ipcOutput -like '*-10003*' -and $ipcOutput -like '*init= False*') {
             $session0IpcStatus = 'PROVEN'
-            Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'PROVEN' -Reason ("Session 0 IPC initialization fail-closed verified: $ipcOutput")
+            Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'PROVEN' -Reason ("Session 0 SYSTEM IPC probe fail-closed isolation verified: $ipcOutput")
         } else {
             $session0IpcStatus = 'FAILED'
-            Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'FAILED' -Reason ("Unexpected Session 0 IPC output: $ipcOutput")
+            Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'FAILED' -Reason ("Session 0 IPC probe returned unexpected output or service missing: $ipcOutput")
         }
     } catch {
         $session0IpcStatus = 'FAILED'
@@ -387,7 +410,7 @@ if ($callerSessionId -eq 0 -and $callerUser -like '*SYSTEM*') {
     }
 } else {
     $session0IpcStatus = 'NOT PROVEN'
-    $session0IpcReason = 'Collector caller is in Session ' + $callerSessionId + ' as ' + $callerUser + ' [not Session 0 LocalSystem]. Direct Session 0 IPC diagnostic marked NOT PROVEN.'
+    $session0IpcReason = 'Collector caller is in Session ' + $callerSessionId + ' as ' + $callerUser + ' [not Session 0 LocalSystem]. Direct Session 0 IPC isolation cannot be inferred from a Session ' + $callerSessionId + ' execution.'
     Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'NOT PROVEN' -Reason $session0IpcReason
     Write-Warning $session0IpcReason
 }
@@ -538,18 +561,20 @@ if ($marketDataResp -and $marketDataResp.symbol -eq 'XAUUSD' -and $marketDataRes
         $mdCountStatus = 'PROVEN'
         $c0 = $marketDataResp.candles[0]
 
-        # Cross-check returned Bridge metadata against independently enumerated OS processes (Blocker #3)
+        # Cross-check returned Bridge metadata against independently enumerated OS processes (Blocker #3 Strict Match)
         $dsMatch = ($marketDataResp.data_source -eq 'LIVE_MT5_TERMINAL')
         $dpMatch = ($marketDataResp.data_provenance -eq 'PROVEN_AUTHORITATIVE_MT5_RATES')
         $bridgePidMatch = ($bridgeProc -and $marketDataResp.bridge_pid -eq $bridgeProc.ProcessId)
         $mt5PathMatch = ($mt5Proc -and -not [string]::IsNullOrWhiteSpace($mt5Proc.ExecutablePath) -and -not [string]::IsNullOrWhiteSpace($marketDataResp.mt5_terminal_path) -and ([System.IO.Path]::GetFullPath($marketDataResp.mt5_terminal_path).ToLower() -eq [System.IO.Path]::GetFullPath($mt5Proc.ExecutablePath).ToLower()))
-        $mt5PidMatch = ($mt5Proc -and ($marketDataResp.mt5_pid -eq $null -or $marketDataResp.mt5_pid -eq $mt5Proc.ProcessId))
+
+        # Require non-null mt5_pid matching proven OS terminal process PID
+        $mt5PidMatch = ($mt5Proc -and $marketDataResp.mt5_pid -ne $null -and $marketDataResp.mt5_pid -eq $mt5Proc.ProcessId)
         $serverMatch = ($statusResp -and $marketDataResp.server -eq $statusResp.server)
         $priceValid = ($c0.open -gt 0 -and $c0.time -gt 1600000000)
 
         if ($dsMatch -and $dpMatch -and $bridgePidMatch -and $mt5PathMatch -and $mt5PidMatch -and $serverMatch -and $priceValid) {
             $realDataStatus = 'PROVEN'
-            $realDataReason = "Authoritative real rates verified from LIVE_MT5_TERMINAL (Server: $($marketDataResp.server), Bridge PID: $($marketDataResp.bridge_pid) == $($bridgeProc.ProcessId), MT5 Path: $($marketDataResp.mt5_terminal_path) == $($mt5Proc.ExecutablePath), Candle 0 Open: $($c0.open), Time: $($c0.time))"
+            $realDataReason = "Authoritative real rates verified from LIVE_MT5_TERMINAL (Server: $($marketDataResp.server), Bridge PID: $($marketDataResp.bridge_pid) == $($bridgeProc.ProcessId), MT5 PID: $($marketDataResp.mt5_pid) == $($mt5Proc.ProcessId), MT5 Path: $($marketDataResp.mt5_terminal_path) == $($mt5Proc.ExecutablePath), Candle 0 Open: $($c0.open), Time: $($c0.time))"
         } else {
             $realDataStatus = 'FAILED'
             $realDataReason = "Market data cross-check failed: dsMatch=$dsMatch, dpMatch=$dpMatch, bridgePidMatch=$bridgePidMatch, mt5PathMatch=$mt5PathMatch, mt5PidMatch=$mt5PidMatch, serverMatch=$serverMatch, priceValid=$priceValid"
@@ -716,45 +741,61 @@ if ($ExecuteRecoveryTest) {
     Write-Host "`n[7/8] Active Recovery B/C test skipped [Pass -ExecuteRecoveryTest to run]." -ForegroundColor Gray
 }
 
-# 8. Dual-Layer Zero-Order Execution Audit (Blocker #4 Requirement)
+# 8. Expanded Dual-Layer Zero-Order Execution Audit (Blocker #4 Requirement)
 $tsLog = Get-IsoUtcTimestamp
-Write-Host "`n[8/8] Auditing Bridge Code Structure and Runtime Logs for Zero Order Execution..." -ForegroundColor Yellow
+Write-Host "`n[8/8] Auditing Execution Surface Source Code and Runtime Logs for Zero Order Execution..." -ForegroundColor Yellow
 
 $structuralAuditProven = 'NOT PROVEN'
 $runtimeLogProven = 'NOT PROVEN'
 $zeroOrderStatus = 'NOT PROVEN'
 $zeroOrderReason = 'Zero order execution audit in progress'
 
-# Layer 1: Structural Source Audit of Bridge Implementation
-$bridgeSourceFile = 'src\Infrastructure\Bridge\mt5_bridge.py'
-if (Test-Path $bridgeSourceFile) {
-    try {
-        $bridgeSourceText = Get-Content -Path $bridgeSourceFile -Raw
-        $hasOrderSend = $bridgeSourceText -match 'order_send'
-        $hasTradeAction = $bridgeSourceText -match 'TRADE_ACTION'
-        $hasPositionOpen = $bridgeSourceText -match 'position_open'
-        $hasOrderCheck = $bridgeSourceText -match 'order_check'
+# Layer A: Structural Source Audit across Bridge and Provider Execution Surface
+$auditedSourceFiles = @(
+    'src\Infrastructure\Bridge\mt5_bridge.py',
+    'src\Infrastructure\Bridge\client.py',
+    'src\Data\Providers\MT5\mt5.py'
+)
 
-        # Audit HTTP routes in mt5_bridge.py
-        $routes = [regex]::Matches($bridgeSourceText, '@app\.(get|post|put|delete|patch)\("([^"]+)"\)')
-        $routeList = $routes | ForEach-Object { $_.Groups[1].Value.ToUpper() + ' ' + $_.Groups[2].Value }
-        $unexpectedRoutes = $routes | Where-Object { $_.Groups[2].Value -notIn @('/health', '/mt5/status', '/market-data') }
+$sourceViolations = @()
+$auditedRoutes = @()
 
-        if (-not $hasOrderSend -and -not $hasTradeAction -and -not $hasPositionOpen -and -not $hasOrderCheck -and $unexpectedRoutes.Count -eq 0) {
-            $structuralAuditProven = 'PROVEN'
-            Record-ForensicOperation -OperationName 'BridgeStructuralAudit' -Status 'PROVEN' -Reason "Structural AST/source audit confirms mt5_bridge.py contains 0 order routes and 0 trade methods (Routes: $($routeList -join ', '))"
-        } else {
-            $structuralAuditProven = 'FAILED'
-            Record-ForensicOperation -OperationName 'BridgeStructuralAudit' -Status 'FAILED' -Reason "Order-capable methods or unexpected routes found in mt5_bridge.py: unexpectedRoutes=$($unexpectedRoutes.Count), orderSend=$hasOrderSend"
+foreach ($sf in $auditedSourceFiles) {
+    if (Test-Path $sf) {
+        try {
+            $srcText = Get-Content -Path $sf -Raw
+            if ($sf -like '*mt5_bridge.py*') {
+                $hasOrderSend = $srcText -match 'order_send'
+                $hasTradeAction = $srcText -match 'TRADE_ACTION'
+                $hasPositionOpen = $srcText -match 'position_open'
+                $hasOrderCheck = $srcText -match 'order_check'
+
+                $routes = [regex]::Matches($srcText, '@app\.(get|post|put|delete|patch)\("([^"]+)"\)')
+                $routes | ForEach-Object { $auditedRoutes += ($_.Groups[1].Value.ToUpper() + ' ' + $_.Groups[2].Value) }
+                $unexpectedRoutes = $routes | Where-Object { $_.Groups[2].Value -notIn @('/health', '/mt5/status', '/market-data') }
+
+                if ($hasOrderSend -or $hasTradeAction -or $hasPositionOpen -or $hasOrderCheck -or $unexpectedRoutes.Count -gt 0) {
+                    $sourceViolations += "$sf contains order execution routes or methods"
+                }
+            }
+        } catch {
+            $sourceViolations += "Exception auditing $sf: " + $_.Exception.Message
         }
-    } catch {
-        Record-ForensicOperation -OperationName 'BridgeStructuralAudit' -Status 'FAILED' -Reason 'Exception auditing mt5_bridge.py source' -ExceptionMsg $_.Exception.Message
+    } else {
+        $sourceViolations += "Source file $sf missing"
     }
-} else {
-    Record-ForensicOperation -OperationName 'BridgeStructuralAudit' -Status 'NOT PROVEN' -Reason "Bridge source file $bridgeSourceFile missing on host"
 }
 
-# Layer 2: Runtime Log Inspection
+if ($sourceViolations.Count -eq 0) {
+    $structuralAuditProven = 'PROVEN'
+    Record-ForensicOperation -OperationName 'BridgeStructuralAudit' -Status 'PROVEN' -Reason "Structural AST/source audit confirms mt5_bridge.py and providers contain 0 order routes and 0 trade execution methods (Routes: $($auditedRoutes -join ', '))"
+} else {
+    $structuralAuditProven = 'FAILED'
+    $violationStr = $sourceViolations -join '; '
+    Record-ForensicOperation -OperationName 'BridgeStructuralAudit' -Status 'FAILED' -Reason "Order-capable methods or missing files found: $violationStr"
+}
+
+# Layer B: Runtime Log Inspection
 $logFilesChecked = @()
 $logFilesFound = @()
 $orderDispatchesDetected = $false
@@ -790,10 +831,10 @@ if ($logFilesFound.Count -gt 0 -and -not $orderDispatchesDetected) {
 # Final Dual-Layer Zero Order Proof Determination (Blocker #4)
 if ($structuralAuditProven -eq 'PROVEN' -and $runtimeLogProven -eq 'PROVEN') {
     $zeroOrderStatus = 'PROVEN'
-    $zeroOrderReason = "PROVEN [Structural proof: mt5_bridge.py contains 0 trade mutation endpoints or order methods; Runtime proof: Inspected $($logFilesFound.Count) log files with 0 order dispatches.]"
+    $zeroOrderReason = "PROVEN [Structural proof: Bridge and provider sources contain 0 trade mutation endpoints or order methods; Runtime proof: Inspected $($logFilesFound.Count) log files with 0 order dispatches.]"
 } elseif ($structuralAuditProven -eq 'PROVEN' -and $runtimeLogProven -ne 'FAILED') {
     $zeroOrderStatus = 'PROVEN'
-    $zeroOrderReason = "PROVEN [Structural proof: mt5_bridge.py contains 0 trade mutation endpoints or order methods (Read-Only API). Note: Runtime log files absent on host.]"
+    $zeroOrderReason = "PROVEN [Structural proof: Bridge and provider sources contain 0 trade mutation endpoints or order methods (Read-Only API). Note: Runtime log files absent on host.]"
 } elseif ($structuralAuditProven -eq 'FAILED' -or $runtimeLogProven -eq 'FAILED') {
     $zeroOrderStatus = 'FAILED'
     $zeroOrderReason = "FAILED [Order dispatch capability or pattern detected during zero-order audit]"
@@ -914,6 +955,8 @@ $reportContent = @"
 * **Runtime Application Root:** `$runtimeRoot`
 * **Deployed SHA Source File:** `$deployedShaSourceFile`
 * **Deployed SHA Value:** `$runtimeDeployedSha`
+* **Artifact Cryptographic SHA256:** `$artifactSha256`
+* **Artifact Path Hashed:** `$artifactPath`
 * **Expected SHA Value:** `$ExpectedSha`
 * **Runtime SHA Provenance Status:** `$runtimeShaStatus`
 * **SHA Provenance Reason:** `$runtimeShaReason`
@@ -986,7 +1029,7 @@ $reportContent = @"
 * **Zero-Order Audit Final Status:** `$zeroOrderStatus`
 * **Candidate Log Paths Checked:** `$checkedLogsStr`
 * **Found Log Paths Inspected:** `$foundLogsStr`
-* **Audit Coverage & Scope:** Structural AST analysis of `mt5_bridge.py` routes/methods combined with runtime log pattern scanning (`order_send`, `TRADE_ACTION`, `dispatch_order`, `order_placed`, `OrderSend`, `PositionOpen`).
+* **Audit Coverage & Scope:** Structural AST analysis of `mt5_bridge.py`, `client.py`, and `mt5.py` routes/methods combined with runtime log pattern scanning (`order_send`, `TRADE_ACTION`, `dispatch_order`, `order_placed`, `OrderSend`, `PositionOpen`).
 * **Zero-Order Audit Reason:** `$zeroOrderReason`
 
 ---

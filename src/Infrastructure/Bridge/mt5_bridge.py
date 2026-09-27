@@ -46,13 +46,13 @@ def _get_mt5_pid(t_info: Any) -> Optional[int]:
     if sys.platform == "win32":
         try:
             import subprocess
-            out = subprocess.check_output('wmic process where "name=\'terminal64.exe\'" get ProcessId,ExecutablePath /format:csv', shell=True, text=True)
+            out = subprocess.check_output('wmic process where "name=\'terminal64.exe\'" get ExecutablePath,ProcessId /format:csv', shell=True, text=True)
             norm_target = os.path.normpath(term_path).lower()
             for line in out.splitlines():
                 parts = [p.strip() for p in line.split(",") if p.strip()]
-                if len(parts) >= 2:
-                    exe_path = parts[0]
-                    pid_str = parts[1]
+                if len(parts) >= 3:
+                    exe_path = parts[1]
+                    pid_str = parts[2]
                     if os.path.normpath(exe_path).lower() == norm_target and pid_str.isdigit():
                         return int(pid_str)
         except Exception:
