@@ -139,14 +139,18 @@ try {
         # Strict IPv4 loopback check ONLY (Reject ::1 or 0.0.0.0)
         $validListener = $netConns | Where-Object { $_.LocalAddress -eq "127.0.0.1" } | Select-Object -First 1
         if ($validListener) {
-            if ($bridgeProc -and $validListener.OwningProcess -eq $bridgeProc.ProcessId) {
+            $listenerAddr = $validListener.LocalAddress
+            $listenerPid = $validListener.OwningProcess
+            $bridgePid = if ($bridgeProc) { $bridgeProc.ProcessId } else { "N/A" }
+            if ($bridgeProc -and $listenerPid -eq $bridgeProc.ProcessId) {
                 $port5001Proven = $true
-                $port5001Details = "LocalAddress: $($validListener.LocalAddress), LocalPort: 5001, State: Listen, OwningProcess: $($validListener.OwningProcess) (Matches Bridge PID)"
+                $port5001Details = "LocalAddress: $listenerAddr, LocalPort: 5001, State: Listen, OwningProcess: $listenerPid (Matches Bridge PID)"
             } else {
-                $port5001Details = "FAILED (OwningProcess $($validListener.OwningProcess) does not match Bridge PID $($bridgeProc.ProcessId))"
+                $port5001Details = "FAILED (OwningProcess $listenerPid does not match Bridge PID $bridgePid)"
             }
         } else {
-            $port5001Details = "FAILED (Listener found on non-IPv4 loopback address: $($netConns.LocalAddress))"
+            $nonIpv4Addr = $netConns.LocalAddress
+            $port5001Details = "FAILED (Listener found on non-IPv4 loopback address: $nonIpv4Addr)"
         }
     } else {
         $port5001Details = "FAILED (No TCP listener active on port 5001)"
@@ -266,7 +270,7 @@ if ($ExecuteRecoveryTest) {
         } catch {}
 
         if (-not $oldProcExists -and $statusRespB -and $statusRespB.connected -eq $false) {
-            $recoveryBResult = "PROVEN (Stopped MT5 PID $oldMt5Pid at $stopTimeUtc; Verified process exit and Bridge connected: false fail-closed)"
+            $recoveryBResult = 'PROVEN (Stopped MT5 PID ' + $oldMt5Pid + ' at ' + $stopTimeUtc + '; Verified process exit and Bridge connected: false fail-closed)'
             Write-Host "Recovery B: SUCCESS" -ForegroundColor Green
         } else {
             $recoveryBResult = "FAILED (Process exit or fail-closed response not observed)"
@@ -275,8 +279,9 @@ if ($ExecuteRecoveryTest) {
         # Restart MT5 for Recovery C State
         if (-not [string]::IsNullOrWhiteSpace($mt5Proc.ExecutablePath) -and (Test-Path $mt5Proc.ExecutablePath)) {
             $restartTimeUtc = Get-IsoUtcTimestamp
-            Write-Host "Restarting MT5 terminal: $($mt5Proc.ExecutablePath) at $restartTimeUtc..." -ForegroundColor Yellow
-            Start-Process -FilePath $mt5Proc.ExecutablePath
+            $mt5ExePath = $mt5Proc.ExecutablePath
+            Write-Host "Restarting MT5 terminal: $mt5ExePath at $restartTimeUtc..." -ForegroundColor Yellow
+            Start-Process -FilePath $mt5ExePath
 
             # Polling reconnect with timeout (up to 20 seconds)
             $reconnected = $false
@@ -299,7 +304,8 @@ if ($ExecuteRecoveryTest) {
             }
 
             if ($reconnected -and $newMt5Pid -ne "N/A" -and $newMt5Pid -ne $oldMt5Pid) {
-                $recoveryCResult = "PROVEN (Restarted MT5 at $restartTimeUtc; Verified new PID $newMt5Pid in Session $($newMt5Proc.SessionId); Bridge re-established connected: true at $reconnectTimeUtc)"
+                $newSessionId = if ($newMt5Proc) { $newMt5Proc.SessionId } else { "N/A" }
+                $recoveryCResult = 'PROVEN (Restarted MT5 at ' + $restartTimeUtc + '; Verified new PID ' + $newMt5Pid + ' in Session ' + $newSessionId + '; Bridge re-established connected: true at ' + $reconnectTimeUtc + ')'
                 Write-Host "Recovery C: SUCCESS" -ForegroundColor Green
             } else {
                 $recoveryCResult = "FAILED (Bridge failed to re-establish connection or new PID not confirmed)"
@@ -336,7 +342,8 @@ foreach ($lf in $candidateLogs) {
 }
 
 if ($logFilesFound.Count -gt 0 -and -not $orderDispatchesDetected) {
-    $zeroOrderProven = "PROVEN (Inspected $($logFilesFound.Count) log files: $($logFilesFound -join ', '); 0 order dispatches detected)"
+    $foundLogsStr = $logFilesFound -join ', '
+    $zeroOrderProven = 'PROVEN (Inspected ' + $logFilesFound.Count + ' log files: ' + $foundLogsStr + '; 0 order dispatches detected)'
 } elseif ($orderDispatchesDetected) {
     $zeroOrderProven = "FAILED (Order dispatch pattern found in logs)"
 } else {
@@ -372,8 +379,46 @@ $gateEPassed = (
 
 $finalGateStatus = if ($gateEPassed) { "PR #313 FINAL RUNTIME GATE: PASSED" } else { "PR #313 FINAL RUNTIME GATE: INCOMPLETE" }
 
-# Format and Write Output Report
-$endTimeUtc = Get-IsoUtcTimestamp
+# Pre-evaluate report expressions into variables to avoid PowerShell heredoc subexpression parser issues
+$treeCleanStr = if ($treeClean) { "YES" } else { "NO ($statusShort)" }
+$provenanceStatusStr = if ($provenanceMatch) { "PROVEN" } else { "FAILED" }
+$treeCleanStatusStr = if ($treeClean) { "PROVEN" } else { "FAILED" }
+$runtimeShaStatusStr = if ($runtimeDeployedSha -ne "NOT PROVEN" -and $runtimeDeployedSha -eq $ExpectedSha) { "PROVEN" } else { "NOT PROVEN" }
+$serviceStatusStr = if ($serviceProc -and $serviceSessionId -eq 0) { "PROVEN" } else { "NOT PROVEN" }
+
+$bridgeProcSessionId = if ($bridgeProc) { $bridgeProc.SessionId } else { "N/A" }
+$bridgeProcPid = if ($bridgeProc) { $bridgeProc.ProcessId } else { "N/A" }
+$bridgeSessionStatusStr = if ($bridgeSessionValid) { "PROVEN" } else { "NOT PROVEN" }
+
+$mt5ProcSessionId = if ($mt5Proc) { $mt5Proc.SessionId } else { "N/A" }
+$mt5ProcPid = if ($mt5Proc) { $mt5Proc.ProcessId } else { "N/A" }
+$mt5SessionStatusStr = if ($mt5SessionValid) { "PROVEN" } else { "NOT PROVEN" }
+
+$port5001StatusStr = if ($port5001Proven) { "PROVEN" } else { "NOT PROVEN" }
+
+$healthStatusVal = if ($healthResp) { $healthResp.status } else { "N/A" }
+$healthStatusStr = if ($healthResp) { "PROVEN" } else { "NOT PROVEN" }
+
+$mt5ConnVal = if ($statusResp) { $statusResp.connected } else { "N/A" }
+$mt5ServerVal = if ($statusResp) { $statusResp.server } else { "N/A" }
+$mt5StatusStr = if ($statusResp -and $statusResp.connected) { "PROVEN" } else { "NOT PROVEN" }
+
+$mdSymbolVal = if ($marketDataResp) { $marketDataResp.symbol } else { "N/A" }
+$mdCountVal = if ($marketDataResp -and $marketDataResp.candles) { $marketDataResp.candles.Count } else { "N/A" }
+$mdCountStatusStr = if ($exactCountProven) { "PROVEN" } else { "NOT PROVEN" }
+
+$realDataStatusStr = if ($realDataProven) { "PROVEN" } else { "NOT PROVEN" }
+$session0StatusStr = if ($session0IpcProven) { "PROVEN" } else { "NOT PROVEN" }
+$recBStatusStr = if ($recoveryBResult -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }
+$recCStatusStr = if ($recoveryCResult -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }
+$zeroOrderStatusStr = if ($zeroOrderProven -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }
+$pidCaptureStatusStr = if ($serviceProc -and $bridgeProc -and $mt5Proc) { "PROVEN" } else { "NOT PROVEN" }
+
+$healthJson = if ($healthResp) { $healthResp | ConvertTo-Json -Depth 5 } else { "{}" }
+$statusJson = if ($statusResp) { $statusResp | ConvertTo-Json -Depth 5 } else { "{}" }
+$marketDataJson = if ($marketDataResp) { $marketDataResp | ConvertTo-Json -Depth 5 } else { "{}" }
+$checkedLogsStr = $logFilesChecked -join ', '
+$foundLogsStr = $logFilesFound -join ', '
 
 $reportContent = @"
 # PR #313 GATE E WINDOWS RUNTIME EVIDENCE REPORT
@@ -388,7 +433,7 @@ $reportContent = @"
 **PR Base SHA:** `$prBaseSha`
 **Merge-Base SHA:** `$mergeBase`
 **Origin Main SHA:** `$originMain`
-**Git Working Tree Clean:** $(if ($treeClean) { "YES" } else { "NO ($statusShort)" })
+**Git Working Tree Clean:** $treeCleanStr
 
 ---
 
@@ -396,24 +441,24 @@ $reportContent = @"
 
 | Gate Requirement | Observed Value | Expected Value | Evidence Source | UTC Timestamp | Status |
 | :--- | :--- | :--- | :--- | :--- | :---: |
-| **1. Provenance Match** | Local: `$currentHead` | `$ExpectedSha` | `git rev-parse HEAD` | $startTimeUtc | $(if ($provenanceMatch) { "PROVEN" } else { "FAILED" }) |
-| **2. Clean Working Tree** | Short Status: `"$statusShort"` | Empty | `git status --short` | $startTimeUtc | $(if ($treeClean) { "PROVEN" } else { "FAILED" }) |
-| **3. Deployed Runtime SHA** | Deployed: `$runtimeDeployedSha` | `$ExpectedSha` | `C:\YarTraderAI\Runtime\deployed_sha.txt` | $startTimeUtc | $(if ($runtimeDeployedSha -ne "NOT PROVEN" -and $runtimeDeployedSha -eq $ExpectedSha) { "PROVEN" } else { "NOT PROVEN" }) |
-| **4. Session 0 Service Identity** | SessionId: $serviceSessionId, User: $serviceAccount | SessionId: 0, User: LocalSystem | `Win32_Service` / `Win32_Process` | $tsService | $(if ($serviceProc -and $serviceSessionId -eq 0) { "PROVEN" } else { "NOT PROVEN" }) |
-| **5. Interactive Session Bridge** | SessionId: $(if ($bridgeProc) { $bridgeProc.SessionId } else { "N/A" }) | SessionId: $activeConsoleSessionId | `Win32_Process` (PID $(if ($bridgeProc) { $bridgeProc.ProcessId } else { "N/A" })) | $tsProc | $(if ($bridgeSessionValid) { "PROVEN" } else { "NOT PROVEN" }) |
-| **6. Interactive Session MT5** | SessionId: $(if ($mt5Proc) { $mt5Proc.SessionId } else { "N/A" }), Ambiguous: $mt5Ambiguous | SessionId: $activeConsoleSessionId (Unique) | `Win32_Process` (PID $(if ($mt5Proc) { $mt5Proc.ProcessId } else { "N/A" })) | $tsProc | $(if ($mt5SessionValid) { "PROVEN" } else { "NOT PROVEN" }) |
-| **7. Strict TCP 5001 Listener** | $port5001Details | 127.0.0.1:5001 Listen (Bridge PID) | `Get-NetTCPConnection` | $tsPort | $(if ($port5001Proven) { "PROVEN" } else { "NOT PROVEN" }) |
-| **8. Bridge `/health` Endpoint** | Status: $(if ($healthResp) { $healthResp.status } else { "N/A" }) | Status: HEALTHY | HTTP GET `127.0.0.1:5001/health` | $tsApi | $(if ($healthResp) { "PROVEN" } else { "NOT PROVEN" }) |
-| **9. Authenticated `/mt5/status`** | Connected: $(if ($statusResp) { $statusResp.connected } else { "N/A" }), Server: $(if ($statusResp) { $statusResp.server } else { "N/A" }) | Connected: true, Server: Active | HTTP GET `127.0.0.1:5001/mt5/status` | $tsApi | $(if ($statusResp -and $statusResp.connected) { "PROVEN" } else { "NOT PROVEN" }) |
-| **10. XAUUSD H1 Count=2** | Symbol: $(if ($marketDataResp) { $marketDataResp.symbol } else { "N/A" }), Count: $(if ($marketDataResp -and $marketDataResp.candles) { $marketDataResp.candles.Count } else { "N/A" }) | Symbol: XAUUSD, Timeframe: H1, Count: 2 | HTTP POST `127.0.0.1:5001/market-data` | $tsApi | $(if ($exactCountProven) { "PROVEN" } else { "NOT PROVEN" }) |
-| **11. Real-Data Provenance** | Server: $(if ($statusResp) { $statusResp.server } else { "N/A" }), Valid OHLC: $realDataProven | Live MT5 Server Rates Verified | Bridge MT5 Integration | $tsApi | $(if ($realDataProven) { "PROVEN" } else { "NOT PROVEN" }) |
-| **12. Direct Session 0 MT5 IPC** | Result: $session0IpcDetails | error -10003 in Session 0 | Session 0 Execution Context | $tsS0 | $(if ($session0IpcProven) { "PROVEN" } else { "NOT PROVEN" }) |
+| **1. Provenance Match** | Local: `$currentHead` | `$ExpectedSha` | `git rev-parse HEAD` | $startTimeUtc | $provenanceStatusStr |
+| **2. Clean Working Tree** | Short Status: `"$statusShort"` | Empty | `git status --short` | $startTimeUtc | $treeCleanStatusStr |
+| **3. Deployed Runtime SHA** | Deployed: `$runtimeDeployedSha` | `$ExpectedSha` | `C:\YarTraderAI\Runtime\deployed_sha.txt` | $startTimeUtc | $runtimeShaStatusStr |
+| **4. Session 0 Service Identity** | SessionId: $serviceSessionId, User: $serviceAccount | SessionId: 0, User: LocalSystem | `Win32_Service` / `Win32_Process` | $tsService | $serviceStatusStr |
+| **5. Interactive Session Bridge** | SessionId: $bridgeProcSessionId | SessionId: $activeConsoleSessionId | `Win32_Process` (PID $bridgeProcPid) | $tsProc | $bridgeSessionStatusStr |
+| **6. Interactive Session MT5** | SessionId: $mt5ProcSessionId, Ambiguous: $mt5Ambiguous | SessionId: $activeConsoleSessionId (Unique) | `Win32_Process` (PID $mt5ProcPid) | $tsProc | $mt5SessionStatusStr |
+| **7. Strict TCP 5001 Listener** | $port5001Details | 127.0.0.1:5001 Listen (Bridge PID) | `Get-NetTCPConnection` | $tsPort | $port5001StatusStr |
+| **8. Bridge `/health` Endpoint** | Status: $healthStatusVal | Status: HEALTHY | HTTP GET `127.0.0.1:5001/health` | $tsApi | $healthStatusStr |
+| **9. Authenticated `/mt5/status`** | Connected: $mt5ConnVal, Server: $mt5ServerVal | Connected: true, Server: Active | HTTP GET `127.0.0.1:5001/mt5/status` | $tsApi | $mt5StatusStr |
+| **10. XAUUSD H1 Count=2** | Symbol: $mdSymbolVal, Count: $mdCountVal | Symbol: XAUUSD, Timeframe: H1, Count: 2 | HTTP POST `127.0.0.1:5001/market-data` | $tsApi | $mdCountStatusStr |
+| **11. Real-Data Provenance** | Server: $mt5ServerVal, Valid OHLC: $realDataProven | Live MT5 Server Rates Verified | Bridge MT5 Integration | $tsApi | $realDataStatusStr |
+| **12. Direct Session 0 MT5 IPC** | Result: $session0IpcDetails | error -10003 in Session 0 | Session 0 Execution Context | $tsS0 | $session0StatusStr |
 | **13. Recovery A (Healthy Baseline)** | $recoveryAResult | Baseline HTTP 200 Healthy | Bridge API | $tsRec | $recoveryAResult |
-| **14. Recovery B (Interruption)** | $recoveryBResult | Connected: false fail-closed | MT5 Stop Event | $tsRec | $(if ($recoveryBResult -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }) |
-| **15. Recovery C (Restart & Reconnect)**| $recoveryCResult | Connected: true restored | MT5 Restart Event | $tsRec | $(if ($recoveryCResult -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }) |
-| **16. Zero-Order Execution Proof** | $zeroOrderProven | 0 Order Dispatches Logged | Runtime & Bridge Logs | $tsLog | $(if ($zeroOrderProven -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }) |
+| **14. Recovery B (Interruption)** | $recoveryBResult | Connected: false fail-closed | MT5 Stop Event | $tsRec | $recBStatusStr |
+| **15. Recovery C (Restart & Reconnect)**| $recoveryCResult | Connected: true restored | MT5 Restart Event | $tsRec | $recCStatusStr |
+| **16. Zero-Order Execution Proof** | $zeroOrderProven | 0 Order Dispatches Logged | Runtime and Bridge Logs | $tsLog | $zeroOrderStatusStr |
 | **17. UTC Timestamps Verified** | Start: $startTimeUtc, End: $endTimeUtc | ISO 8601 UTC Format | System UTC Clock | $endTimeUtc | PROVEN |
-| **18. Exact Process PIDs Captured** | Service: $servicePid, Bridge: $(if ($bridgeProc) { $bridgeProc.ProcessId } else { "N/A" }), MT5: $(if ($mt5Proc) { $mt5Proc.ProcessId } else { "N/A" }) | All 3 Roles Identified | `Win32_Process` | $tsProc | $(if ($serviceProc -and $bridgeProc -and $mt5Proc) { "PROVEN" } else { "NOT PROVEN" }) |
+| **18. Exact Process PIDs Captured** | Service: $servicePid, Bridge: $bridgeProcPid, MT5: $mt5ProcPid | All 3 Roles Identified | `Win32_Process` | $tsProc | $pidCaptureStatusStr |
 | **19. Caller Context / Boundary** | Caller User: $callerUser, SessionId: $callerSessionId, PID: $callerPid | Context Documented | `WindowsIdentity` | $startTimeUtc | PROVEN |
 
 ---
@@ -436,24 +481,24 @@ $port5001Details
 
 ### GET `http://127.0.0.1:5001/health`
 ```json
-$($healthResp | ConvertTo-Json -Depth 5)
+$healthJson
 ```
 
 ### GET `http://127.0.0.1:5001/mt5/status` (Authenticated)
 ```json
-$($statusResp | ConvertTo-Json -Depth 5)
+$statusJson
 ```
 
 ### POST `http://127.0.0.1:5001/market-data` (XAUUSD / H1 / count=2)
 ```json
-$($marketDataResp | ConvertTo-Json -Depth 5)
+$marketDataJson
 ```
 
 ---
 
 ## Log Inspection Details
-* **Candidate Log Paths Checked:** `$($logFilesChecked -join ', ')`
-* **Found Log Paths Inspected:** `$($logFilesFound -join ', ')`
+* **Candidate Log Paths Checked:** `$checkedLogsStr`
+* **Found Log Paths Inspected:** `$foundLogsStr`
 
 ---
 
@@ -471,5 +516,6 @@ Set-Content -Path $OutputFile -Value $reportContent -Encoding UTF8
 Write-Host "Report written to $OutputFile" -ForegroundColor Green
 
 Write-Host "`n========================================================================" -ForegroundColor Cyan
-Write-Host "   $finalGateStatus" -ForegroundColor $(if ($gateEPassed) { "Green" } else { "Yellow" })
+$finalColor = if ($gateEPassed) { "Green" } else { "Yellow" }
+Write-Host "   $finalGateStatus" -ForegroundColor $finalColor
 Write-Host "========================================================================" -ForegroundColor Cyan
