@@ -208,7 +208,7 @@ class TestP0RemediationSecurity(unittest.TestCase):
     def test_social_login_missing_config_fails_closed_in_production(self) -> None:
         """Verifies that social validation immediately fails closed in production mode if configuration is missing."""
         token = "some-token"
-        with patch.dict(os.environ, {"TRADEYAR_ENV": "production", "GOOGLE_CLIENT_ID": ""}):
+        with patch.dict(os.environ, {"YARTRADER_ENV": "production", "GOOGLE_CLIENT_ID": ""}):
             with self.assertRaises(ValidationException) as ctx:
                 validate_social_token(token, "google")
             self.assertIn("configuration error", str(ctx.exception).lower())
