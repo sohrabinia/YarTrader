@@ -498,67 +498,6 @@ def fetch_production_market_candles(symbol: str, timeframe: str) -> List[Dict[st
         return []
 
 
-def generate_active_ohlcv_candles(symbol: str, timeframe: Optional[str] = "H1") -> List[Dict[str, Any]]:
-    """
-    Unit Test Fixture Generator: Generates a deterministic series of 30 candles
-    strictly for test environments when real MT5 IPC is offline.
-    """
-    base = 1800.0 if "XAU" in symbol.upper() else (1.1000 if "EUR" in symbol.upper() else 65000.0)
-    candles = []
-    import math
-
-    tf = (timeframe or "H1").upper().strip()
-    tf_seconds_map = {
-        "M1": 60,
-        "M5": 300,
-        "M15": 900,
-        "M30": 1800,
-        "H1": 3600,
-        "H4": 14400,
-        "D1": 86400,
-        "W1": 604800,
-        "MN1": 2592000,
-    }
-    step_sec = tf_seconds_map.get(tf, 3600)
-
-    # Timeframe-specific volatility & swing frequency parameters to guarantee genuine OHLC differentiation
-    tf_params = {
-        "M1":  {"freq": 1.2, "amp": 0.8,  "drift": 0.05, "wick": 0.3},
-        "M5":  {"freq": 2.0, "amp": 1.5,  "drift": 0.10, "wick": 0.6},
-        "M15": {"freq": 3.0, "amp": 4.0,  "drift": 0.25, "wick": 1.2},
-        "M30": {"freq": 4.0, "amp": 8.0,  "drift": 0.35, "wick": 2.0},
-        "H1":  {"freq": 5.0, "amp": 15.0, "drift": 0.50, "wick": 2.5},
-        "H4":  {"freq": 8.0, "amp": 45.0, "drift": 1.50, "wick": 6.0},
-        "D1":  {"freq": 12.0, "amp": 120.0, "drift": 4.00, "wick": 15.0},
-        "W1":  {"freq": 20.0, "amp": 300.0, "drift": 10.00, "wick": 35.0},
-        "MN1": {"freq": 30.0, "amp": 600.0, "drift": 25.00, "wick": 70.0},
-    }
-    p = tf_params.get(tf, tf_params["H1"])
-
-    for i in range(30):
-        wave = math.sin(i / p["freq"]) * p["amp"] + (i * p["drift"])
-        if i == 15:
-            wave += p["amp"] * 0.5
-
-        o = base + wave
-        h = o + p["wick"]
-        l = o - (p["wick"] * 0.6)
-        c = o + (p["wick"] * 0.48)
-        if i == 15:
-            c = o + (p["wick"] * 2.0)
-            h = o + (p["wick"] * 2.4)
-
-        candles.append({
-            "time": int(time.time() - (30 - i) * step_sec),
-            "open": round(o, 4),
-            "high": round(h, 4),
-            "low": round(l, 4),
-            "close": round(c, 4),
-            "tick_volume": 1000 + i * 50
-        })
-    return candles
-
-
 def resolve_candles_for_context(symbol: str, timeframe: str) -> List[Dict[str, Any]]:
     """Resolves real market candles strictly via fetch_production_market_candles. Zero synthetic generation."""
     return fetch_production_market_candles(symbol, timeframe)
