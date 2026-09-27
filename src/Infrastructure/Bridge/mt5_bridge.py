@@ -19,6 +19,48 @@ except ImportError:
 from src.Application.Deployment.storage import YarTraderStorageManager
 
 
+def _get_mt5_pid(t_info: Any) -> Optional[int]:
+    """Resolves the OS process ID (PID) for the active MT5 terminal process."""
+    if t_info is None:
+        return None
+    if hasattr(t_info, "pid") and getattr(t_info, "pid", None):
+        return int(getattr(t_info, "pid"))
+
+    term_path = getattr(t_info, "path", None)
+    if not term_path:
+        return None
+
+    try:
+        import psutil
+        norm_target = os.path.normpath(term_path).lower()
+        for proc in psutil.process_iter(['pid', 'name', 'exe']):
+            try:
+                exe = proc.info.get('exe')
+                if exe and os.path.normpath(exe).lower() == norm_target:
+                    return proc.info['pid']
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+    except Exception:
+        pass
+
+    if sys.platform == "win32":
+        try:
+            import subprocess
+            out = subprocess.check_output('wmic process where "name=\'terminal64.exe\'" get ProcessId,ExecutablePath /format:csv', shell=True, text=True)
+            norm_target = os.path.normpath(term_path).lower()
+            for line in out.splitlines():
+                parts = [p.strip() for p in line.split(",") if p.strip()]
+                if len(parts) >= 2:
+                    exe_path = parts[0]
+                    pid_str = parts[1]
+                    if os.path.normpath(exe_path).lower() == norm_target and pid_str.isdigit():
+                        return int(pid_str)
+        except Exception:
+            pass
+
+    return None
+
+
 def get_or_create_bridge_secret_token() -> str:
     """
     Retrieves or auto-generates the secure ACL-restricted token for the MT5 Interactive Bridge.
@@ -155,6 +197,7 @@ def get_mt5_status(token: str = Security(verify_bearer_token)):
         a_info = mt5.account_info()
         ping_ms = getattr(t_info, "ping_last", 0.0) / 1000.0 if t_info else 0.0
         term_path = getattr(t_info, "path", None) if t_info else None
+        mt5_pid = _get_mt5_pid(t_info)
 
         return {
             "connected": bool(t_info and getattr(t_info, "connected", False)),
@@ -164,6 +207,7 @@ def get_mt5_status(token: str = Security(verify_bearer_token)):
             "last_error": None,
             "ping_ms": float(ping_ms),
             "bridge_pid": bridge_pid,
+            "mt5_pid": mt5_pid,
             "mt5_terminal_path": term_path,
             "source": "LIVE_MT5_TERMINAL",
             "retrieval_timestamp": now_utc
@@ -273,6 +317,7 @@ def fetch_market_data(req: MarketDataRequest, token: str = Security(verify_beare
             })
 
         term_path = getattr(t_info, "path", None) if t_info else None
+        mt5_pid = _get_mt5_pid(t_info)
         server_name = getattr(a_info, "server", None) if a_info else None
         login_id = getattr(a_info, "login", None) if a_info else None
 
@@ -282,6 +327,7 @@ def fetch_market_data(req: MarketDataRequest, token: str = Security(verify_beare
             "requested_count": req.count,
             "returned_count": len(candle_list),
             "bridge_pid": bridge_pid,
+            "mt5_pid": mt5_pid,
             "mt5_terminal_path": term_path,
             "server": server_name,
             "login": login_id,

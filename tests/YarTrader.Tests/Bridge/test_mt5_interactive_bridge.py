@@ -47,6 +47,7 @@ def test_bridge_valid_auth_status():
     assert "connected" in data
     assert "initialized" in data
     assert "bridge_pid" in data
+    assert "mt5_pid" in data
     assert "source" in data
     assert "retrieval_timestamp" in data
     assert data["bridge_pid"] == os.getpid()

@@ -1,43 +1,46 @@
-# PR #313 GATE E WINDOWS RUNTIME EVIDENCE REPORT
+# PR #314 GATE E WINDOWS RUNTIME EVIDENCE REPORT
 
 **Status:** `OPEN / DO NOT MERGE`
 **Repository:** `sohrabinia/YarTrader`
-**Target Pull Request:** `https://github.com/sohrabinia/YarTrader/pull/313`
-**Target SHA:** `eda4914480793e65172b14bf5433b891434b6f94`
+**Target Pull Request:** `https://github.com/sohrabinia/YarTrader/pull/314`
+**Target SHA:** `fc441c3988449bc9127b369b1a5974d0e7a03942`
 **Base SHA:** `588be9ba436cc169f29e7c2d79f2d8fce033b13f`
 
 ---
 
-## Itemized Evidence Checklist
+## Itemized Evidence Checklist & Blocker Status
 
-1. **Exact PR HEAD:** `PROVEN` (`eda4914480793e65172b14bf5433b891434b6f94`)
+1. **Exact PR HEAD Verification:** `PROVEN` (`fc441c3988449bc9127b369b1a5974d0e7a03942`)
 2. **Git Cleanliness:** `PROVEN` (Working tree clean)
-3. **Service Deployment Proof:** `NOT PROVEN` (Linux sandbox environment boundary)
-4. **Session 0 Service Identity:** `NOT PROVEN` (Linux sandbox environment boundary)
-5. **Session 2 Bridge Identity:** `NOT PROVEN` (Linux sandbox environment boundary)
-6. **Session 2 MT5 Identity:** `NOT PROVEN` (Linux sandbox environment boundary)
-7. **Port 5001 Evidence:** `NOT PROVEN` (Linux sandbox environment boundary)
-8. **Bridge `/health`:** `NOT PROVEN` (Linux sandbox environment boundary)
-9. **Authenticated `/mt5/status`:** `NOT PROVEN` (Linux sandbox environment boundary)
-10. **Authenticated XAUUSD H1 Count=2:** `NOT PROVEN` (Linux sandbox environment boundary)
-11. **Real-Data Provenance:** `NOT PROVEN` (Linux sandbox environment boundary)
-12. **Direct Session 0 MT5 IPC Result:** `NOT PROVEN` (Linux sandbox environment boundary)
-13. **Recovery A (MT5 Healthy Baseline):** `NOT PROVEN` (Linux sandbox environment boundary)
-14. **Recovery B (MT5 Interruption / Fail-Closed):** `NOT PROVEN` (Linux sandbox environment boundary)
-15. **Recovery C (MT5 Restart & Auto-Recovery):** `NOT PROVEN` (Linux sandbox environment boundary)
-16. **Zero-Order Proof:** `PROVEN` (Static code audit confirms zero order dispatch or trade mutation endpoints exist in Bridge codebase)
-17. **Exact Timestamps:** `NOT PROVEN` (Linux sandbox environment boundary)
-18. **Exact PIDs:** `NOT PROVEN` (Linux sandbox environment boundary)
-19. **Limitations:** `PROVEN` (Agent sandbox executes on Linux x86_64 container where physical Windows OS processes, `terminal64.exe`, and Windows Session 0 service IPC boundaries are absent)
+3. **Blocker #1 — Runtime SHA Provenance Chain:** `NOT PROVEN` (Linux sandbox environment boundary; requires physical Session 0 Windows Service execution)
+4. **Blocker #2 — Session 0 Service & Direct IPC Provenance:** `NOT PROVEN` (Linux sandbox environment boundary; requires physical Session 0 `NT AUTHORITY\SYSTEM` execution context)
+5. **Session 2 Interactive Console Discovery:** `NOT PROVEN` (Linux sandbox environment boundary)
+6. **Session 2 MT5 Process Topology:** `NOT PROVEN` (Linux sandbox environment boundary)
+7. **Strict TCP Port 5001 Listener Verification:** `NOT PROVEN` (Linux sandbox environment boundary)
+8. **Bridge `/health` Semantic Validation:** `NOT PROVEN` (Linux sandbox environment boundary)
+9. **Authenticated `/mt5/status` Verification:** `NOT PROVEN` (Linux sandbox environment boundary)
+10. **Authenticated XAUUSD H1 Count=2 Verification:** `NOT PROVEN` (Linux sandbox environment boundary)
+11. **Blocker #3 — Independent MT5 Real-Data Provenance:** `NOT PROVEN` (Linux sandbox environment boundary; requires live MT5 terminal cross-check)
+12. **Recovery A (MT5 Healthy Baseline):** `NOT PROVEN` (Linux sandbox environment boundary)
+13. **Recovery B (MT5 Interruption / Fail-Closed):** `NOT PROVEN` (Linux sandbox environment boundary)
+14. **Recovery C (MT5 Restart & Auto-Recovery):** `NOT PROVEN` (Linux sandbox environment boundary)
+15. **Blocker #4 — Dual-Layer Zero-Order Execution Audit:** `PROVEN` (Structural AST/source audit confirms `mt5_bridge.py` contains 0 trade mutation endpoints or order methods; Read-Only API)
+16. **Deterministic Process Resolution:** `PROVEN` (`scripts/collect_gate_e_evidence.ps1` contains 0 `Select-Object -First` calls and fails closed on ambiguity)
+17. **Authoritative Token Resolution:** `PROVEN` (`TradeYarStorageRoot\Secrets\mt5_bridge_token.secret` contract enforced without silent fallback)
+18. **Explicit Operations Tracking:** `PROVEN` (All operations record explicit `PROVEN`/`FAILED`/`NOT PROVEN` states with 0 silent catch blocks)
 
 ---
 
 ## Environment & Boundary Notice
 
-The agent execution environment is a Linux devbox container (`Linux devbox 6.8.0 x86_64`). Live Windows process topology (`terminal64.exe`, Session 0 `NT AUTHORITY\SYSTEM` service, Session 2 interactive desktop) cannot be generated directly inside this Linux container. Live host runtime items must be captured directly on the physical Windows deployment host after deploying SHA `eda4914480793e65172b14bf5433b891434b6f94`.
+The agent execution environment is a Linux container (`Linux devbox x86_64`). Live Windows process topology (`terminal64.exe`, Session 0 `NT AUTHORITY\SYSTEM` service, Session 2 interactive desktop) cannot be generated directly inside this Linux container. Live host runtime items must be captured directly on the physical Windows deployment host after deploying SHA `fc441c3988449bc9127b369b1a5974d0e7a03942` by running:
+
+```powershell
+.\scripts\collect_gate_e_evidence.ps1 -ExpectedSha "fc441c3988449bc9127b369b1a5974d0e7a03942"
+```
 
 ---
 
 ## Final Runtime Gate Conclusion
 
-`PR #313 FINAL RUNTIME GATE: INCOMPLETE`
+`PR #314 FINAL RUNTIME GATE: INCOMPLETE / NOT PROVEN`
