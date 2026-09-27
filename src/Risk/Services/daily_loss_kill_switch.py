@@ -141,23 +141,30 @@ class DailyLossKillSwitch:
 
         session_key, is_open, is_trans = self.get_session_key_and_window(now_utc)
 
-        # New session date transition: reset kill-switch and set fresh session baseline
+        # Evaluation is read-only with respect to session initialization.
+        # The caller must establish the session baseline through
+        # update_session_state()/set_session_baseline() before evaluation.
         if self.current_session_key != session_key:
-            self.current_session_key = session_key
-            valid_supplied_base = False
             if session_baseline_equity is not None and not isinstance(session_baseline_equity, bool) and isinstance(session_baseline_equity, (int, float)):
                 try:
                     s_base_f = float(session_baseline_equity)
                     if math.isfinite(s_base_f) and s_base_f > 0:
-                        valid_supplied_base = True
+                        self.current_session_key = session_key
                         self.baseline_equity = s_base_f
+                        self.kill_switch_active = False
+                        self.realized_daily_loss_usd = 0.0
+                        self._save_persistence()
                 except (ValueError, TypeError):
                     pass
-            if not valid_supplied_base:
-                self.baseline_equity = eq_val
 
-            self.kill_switch_active = False
-            self._save_persistence()
+            if self.current_session_key != session_key:
+                return False, "KILL_SWITCH_ERROR", {
+                    "session_date": session_key,
+                    "baseline_equity": None,
+                    "current_equity": eq_val,
+                    "loss_pct": 0.0,
+                    "kill_switch_active": self.kill_switch_active
+                }
 
         # Never substitute current equity for a missing session baseline.
         # A missing baseline is an execution-safety failure, not a zero-loss session.
