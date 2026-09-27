@@ -200,7 +200,7 @@ class TestMarketSessionEngine:
         )
         self.engine.register_session_interval(interval)
 
-        res = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=self.now_utc)
+        res = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=self.now_utc, current_equity=10000.0)
         assert res.allowed is True
         assert res.source_authority == CalendarSourcePrecedence.LIVE_BROKER_MT5
         assert len(self.engine.forexfactory_enrichment) == 1
