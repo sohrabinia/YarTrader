@@ -39,9 +39,6 @@ class MT5BridgeClient:
                 os.path.join(r"C:\Projects\YarTrader\YarTraderStorageRoot\Secrets", "mt5_bridge_token.secret"),
                 os.path.join("YarTraderStorageRoot", "Secrets", "mt5_bridge_token.secret"),
                 os.path.join("Secrets", "mt5_bridge_token.secret"),
-                # Legacy compatibility fallbacks - NOT CANONICAL
-                os.path.join("TradeYarStorageRoot", "Secrets", "mt5_bridge_token.secret"),
-                os.path.join(r"C:\Projects\YarTrader\TradeYarStorageRoot\Secrets", "mt5_bridge_token.secret"),
             ]
             for cf in candidate_files:
                 if os.path.exists(cf):
