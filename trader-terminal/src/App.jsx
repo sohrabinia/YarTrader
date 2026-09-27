@@ -1355,7 +1355,7 @@ function MainApp() {
                       SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE ACTIVE' : 'FAIL-CLOSED (LIVE DISABLED)')}
                     </span>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(79, 182, 199, 0.15)', color: 'var(--signal)', border: '1px solid var(--signal)', fontWeight: 'bold' }}>
-                      DATA: {backendState === 'LIVE' ? 'LIVE INGESTION' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : 'MOCK / DEMO INGESTION')}
+                      DATA: {backendState === 'CONNECTED' ? 'CONNECTED MARKET DATA' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : 'MOCK / DEMO INGESTION')}
                     </span>
                   </div>
                 </div>
@@ -1366,7 +1366,7 @@ function MainApp() {
                   <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'QUALIFIED SETUP') : 'DATA UNAVAILABLE'} status="primary" />
                   <MetricCard title="Confidence" value={signals && signals[0] && signals[0].confidence != null ? `${signals[0].confidence}%` : 'DATA UNAVAILABLE'} status="passed" />
                   <MetricCard title="Risk Posture" value={portfolioRisk && portfolioRisk.drawdown_level ? 'DRAWDOWN: ' + portfolioRisk.drawdown_level : 'BALANCED'} status="passed" />
-                  <MetricCard title="Execution Eligibility" value={backendState === 'LIVE' ? 'LIVE ELIGIBLE' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'NOT VERIFIED'))} status="passed" />
+                  <MetricCard title="Execution Eligibility" value={backendState === 'CONNECTED' ? 'DEMO/RESEARCH ONLY' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'NOT VERIFIED'))} status="passed" />
                 </div>
               </div>
 
@@ -1379,7 +1379,7 @@ function MainApp() {
                 <div className="p-4 bg-slate-900/60 border border-[var(--border-dark)] rounded flex flex-col gap-2">
                   <div className="flex justify-between items-center text-xs text-[var(--primary)] font-bold">
                     <span>STRUCTURE MAP (HH / HL / LH / LL)</span>
-                    <ConfidenceBadge score={signals[0]?.confidence || 85} />
+                    <ConfidenceBadge score={signals[0]?.confidence} />
                   </div>
                   <div className="text-[0.75rem] text-[var(--text-dark)] leading-relaxed">
                     Market structure showing strong bullish alignment across canonical timeframes. Zero classical technical indicators are used.
