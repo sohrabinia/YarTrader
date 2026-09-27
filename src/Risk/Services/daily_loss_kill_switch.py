@@ -202,17 +202,24 @@ class DailyLossKillSwitch:
         Evaluates pre-entry daily 8% loss limit and session window bounds.
         Returns detailed status payload.
         """
-        allowed, reason, meta = self.evaluate_daily_loss(current_equity, now_utc=dt)
         session_key, is_open, is_transition = self.get_session_key_and_window(dt)
 
+        # Never create a new baseline during the transition window.
         if is_transition:
+            allowed, reason, meta = self.evaluate_daily_loss(current_equity, now_utc=dt)
             return {
                 "allowed": False,
                 "reason": "SESSION_TRANSITION_WINDOW",
                 "kill_switch_active": self.kill_switch_active,
-                "daily_loss_pct": 0.0,
+                "daily_loss_pct": meta.get("loss_pct", 0.0),
+                "baseline_equity": meta.get("baseline_equity", self.baseline_equity),
+                "current_equity": current_equity,
                 "message": "New entries blocked: Session transition window (00:25 - 01:34 Iran time)."
             }
+
+        # Capture the immutable baseline only at/after the session open.
+        self.update_session_state(current_equity, dt=dt)
+        allowed, reason, meta = self.evaluate_daily_loss(current_equity, now_utc=dt)
 
         return {
             "allowed": allowed,
