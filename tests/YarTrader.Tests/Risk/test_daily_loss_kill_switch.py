@@ -178,7 +178,30 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         self.assertTrue(res["kill_switch_active"])
         self.assertEqual(res["baseline_equity"], 10000.0)
 
-    def test_12_existing_risk_engine_integration(self):
+    def test_12_missing_baseline_fails_closed(self):
+        """A direct kill-switch evaluation must never treat current equity as a new zero-loss baseline."""
+        switch = DailyLossKillSwitch(persistence_path=self.persistence_path)
+        dt = self._create_iran_dt(day=1, hour=10, minute=0)
+
+        allowed, reason, meta = switch.evaluate_daily_loss(10000.0, now_utc=dt)
+
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "KILL_SWITCH_ERROR")
+        self.assertIsNone(switch.baseline_equity)
+        self.assertIsNone(meta.get("baseline_equity"))
+
+    def test_13_transition_window_does_not_create_baseline(self):
+        """The 00:25-01:34 transition blocks entries without inventing a new session baseline."""
+        switch = DailyLossKillSwitch(persistence_path=self.persistence_path)
+        dt = self._create_iran_dt(day=2, hour=0, minute=45)
+
+        result = switch.evaluate_entry_allowed(10000.0, dt=dt)
+
+        self.assertFalse(result["allowed"])
+        self.assertEqual(result["reason"], "SESSION_TRANSITION_WINDOW")
+        self.assertIsNone(switch.baseline_equity)
+
+    def test_14_existing_risk_engine_integration(self):
         """12. Existing Risk Engine behavior remains intact."""
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
@@ -192,7 +215,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         )
         self.assertTrue(eval_res.is_valid)
 
-    def test_13_nan_inf_equity_and_baseline_rejected(self):
+    def test_15_nan_inf_equity_and_baseline_rejected(self):
         """Test 13: Invalid/NaN/Inf current_equity or baseline are fail-closed and cannot replace baseline."""
         switch = DailyLossKillSwitch(persistence_path=self.persistence_path)
         dt = datetime(2026, 8, 15, 10, 0, 0, tzinfo=timezone.utc)
