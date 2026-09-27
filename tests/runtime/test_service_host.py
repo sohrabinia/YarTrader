@@ -108,9 +108,11 @@ def test_service_host_truthfulness_rule():
     mock_server.started = False
 
     with patch("uvicorn.Server", return_value=mock_server):
-        # Mock probe to return False (simulating port 8000 not bound)
+        # A failed readiness check must fail closed: the host must not remain
+        # marked as running when its API is unavailable.
         with patch.object(host, "_verify_uvicorn_readiness", return_value=False):
-            host.start()
-            assert host.is_running is True
-            assert host.fastapi_ready is False # Service is running, but API is NOT ready
-            host.stop()
+            with pytest.raises(RuntimeError, match="FastAPI failed readiness check"):
+                host.start()
+            assert host.is_running is False
+            assert host.fastapi_ready is False
+            assert host.last_error is not None
