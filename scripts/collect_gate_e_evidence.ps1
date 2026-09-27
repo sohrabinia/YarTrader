@@ -166,21 +166,15 @@ if ($appRoot -ne 'N/A' -and (Test-Path $appRoot)) {
     }
 
     if ($runtimeDeployedSha -eq 'NOT PROVEN') {
-        $candidateShaFiles = @(
-            (Join-Path $appRoot 'deployed_sha.txt'),
-            (Join-Path $appRoot 'Runtime\deployed_sha.txt')
-        )
-        foreach ($sf in $candidateShaFiles) {
-            if (Test-Path $sf) {
-                try {
-                    $shaVal = (Get-Content $sf -Raw).Trim()
-                    if (-not [string]::IsNullOrWhiteSpace($shaVal)) {
-                        $runtimeDeployedSha = $shaVal
-                        $deployedShaSourceFile = $sf
-                        break
-                    }
-                } catch {}
-            }
+        $shaFileInAppRoot = Join-Path $appRoot 'deployed_sha.txt'
+        if (Test-Path $shaFileInAppRoot) {
+            try {
+                $shaVal = (Get-Content $shaFileInAppRoot -Raw).Trim()
+                if (-not [string]::IsNullOrWhiteSpace($shaVal)) {
+                    $runtimeDeployedSha = $shaVal
+                    $deployedShaSourceFile = $shaFileInAppRoot
+                }
+            } catch {}
         }
     }
 }
@@ -268,7 +262,7 @@ if ($bridgeProcs) {
 
 Record-ForensicOperation -OperationName 'BridgeProcessResolution' -Status $bridgeSessionStatus -Reason $bridgeSessionReason
 
-# Deterministic MT5 Process Resolution (NO Select-Object -First 1, Primary Remediation F)
+# Deterministic MT5 Process Resolution (Strict Deterministic Match, Primary Remediation F)
 $mt5Proc = $null
 $mt5Ambiguous = $false
 $mt5SessionStatus = 'NOT PROVEN'
@@ -353,7 +347,7 @@ Record-ForensicOperation -OperationName 'TcpPort5001Verification' -Status $port5
 Write-Host ('Port 5001 Status: ' + $port5001Details)
 Write-Host ('All Observed Listeners: ' + $allObservedListenersStr)
 
-# 5. Session 0 Genuine Identity Inspection (Blocker #2 Requirement: Explicit Case A / B / C Representation)
+# 5. Session 0 Genuine Identity Inspection (Blocker #2 Requirement: Separate Case A, Case B, Case C Statuses)
 $tsS0 = Get-IsoUtcTimestamp
 Write-Host "`n[5/8] Inspecting Execution Context and Session 0 Identity [Case A / B / C]..." -ForegroundColor Yellow
 $callerUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -373,55 +367,58 @@ try {
     Record-ForensicOperation -OperationName 'GetPythonExecutable' -Status 'NOT PROVEN' -Reason 'Python executable not found in PATH' -ExceptionMsg $_.Exception.Message
 }
 
-Write-Host ('Collector Identity  : ' + $callerUser)
-Write-Host ('Collector Session ID: ' + $callerSessionId)
-Write-Host ('Collector PID       : ' + $callerPid)
-Write-Host ('Collector Executable: ' + $callerExecutable)
-Write-Host ('Python Executable   : ' + $pyExec + ' (' + $pyVersion + ')')
-
+$caseAStatus = 'NOT PROVEN'
+$caseBStatus = 'NOT PROVEN'
+$caseCStatus = 'NOT PROVEN'
 $session0IpcStatus = 'NOT PROVEN'
-$session0IpcDetails = 'NOT PROVEN [Case A: Collector executing in Session ' + $callerSessionId + ' as ' + $callerUser + ', PID ' + $callerPid + ']'
 
-$caseAResult = "Case A (Interactive Collector Execution): User=$callerUser, SessionId=$callerSessionId, PID=$callerPid, Executable=$callerExecutable"
-$caseBResult = "Case B (Session 0 SYSTEM Diagnostic Probe): "
-$caseCResult = "Case C (YarTrader Production Service Context): "
+$caseAResult = "User=$callerUser, SessionId=$callerSessionId, PID=$callerPid, Executable=$callerExecutable"
+$caseBResult = "Not executed"
+$caseCResult = "Service lookup in progress"
 
 if ($serviceProc) {
-    $caseCResult += "PROVEN [Service PID=$servicePid, Account=$serviceAccount, SessionId=$serviceSessionId, Executable=$serviceExePath, AppRoot=$appRoot]"
+    $caseCStatus = 'PROVEN'
+    $caseCResult = "PROVEN [Service PID=$servicePid, Account=$serviceAccount, SessionId=$serviceSessionId, Executable=$serviceExePath, AppRoot=$appRoot]"
     Record-ForensicOperation -OperationName 'CaseC_ProductionServiceIdentity' -Status 'PROVEN' -Reason $caseCResult
 } else {
-    $caseCResult += "NOT PROVEN [YarTrader Windows service not found on deployment host]"
+    $caseCStatus = 'NOT PROVEN'
+    $caseCResult = "NOT PROVEN [YarTrader Windows service not found on deployment host]"
     Record-ForensicOperation -OperationName 'CaseC_ProductionServiceIdentity' -Status 'NOT PROVEN' -Reason $caseCResult
 }
 
 if ($callerSessionId -eq 0 -and $callerUser -like '*SYSTEM*') {
+    $caseAStatus = 'NOT PROVEN [Collector launched directly in Session 0 SYSTEM]'
+    Record-ForensicOperation -OperationName 'CaseA_InteractiveCollectorExecution' -Status 'NOT PROVEN' -Reason $caseAStatus
     try {
         $pyCode = 'import sys, MetaTrader5 as mt5; print("py_ver=", sys.version.replace("\n"," ")); print("init=", mt5.initialize()); print("err=", mt5.last_error())'
         $ipcOutput = (python -c $pyCode 2>&1 | Out-String).Trim()
-        $caseBResult += "PROVEN [PID=$callerPid, Output: $ipcOutput]"
+        $caseBStatus = 'PROVEN'
+        $caseBResult = "PROVEN [Session 0 SYSTEM Diagnostic Probe PID=$callerPid, Output: $ipcOutput]"
         Record-ForensicOperation -OperationName 'CaseB_SystemSession0DiagnosticProbe' -Status 'PROVEN' -Reason $caseBResult
 
         if ($serviceProc -and $serviceSessionId -eq 0 -and $ipcOutput -like '*-10003*' -and $ipcOutput -like '*init= False*') {
             $session0IpcStatus = 'PROVEN'
-            $session0IpcDetails = "Session 0 SYSTEM IPC probe fail-closed isolation confirmed [Case B/C]: $ipcOutput"
+            $session0IpcDetails = "Session 0 SYSTEM IPC probe fail-closed isolation confirmed: $ipcOutput"
         } else {
             $session0IpcStatus = 'FAILED'
             $session0IpcDetails = "Session 0 IPC probe returned unexpected output or service missing: $ipcOutput"
         }
     } catch {
+        $caseBStatus = 'FAILED'
         $session0IpcStatus = 'FAILED'
         $session0IpcDetails = 'Exception testing Session 0 IPC: ' + $_.Exception.Message
-        $caseBResult += "FAILED [Exception: $($_.Exception.Message)]"
+        $caseBResult = "FAILED [Exception: $($_.Exception.Message)]"
         Record-ForensicOperation -OperationName 'CaseB_SystemSession0DiagnosticProbe' -Status 'FAILED' -Reason $caseBResult
     }
 } else {
+    $caseAStatus = "NOT PROVEN [Collector executed in Session $callerSessionId interactive shell as $callerUser]"
+    $caseBStatus = "NOT PROVEN [Session 0 SYSTEM diagnostic probe not run from Session $callerSessionId shell]"
     $session0IpcStatus = 'NOT PROVEN'
-    $session0IpcReason = 'Case A: Collector caller is in Session ' + $callerSessionId + ' as ' + $callerUser + ' [not Session 0 LocalSystem]. Direct Session 0 IPC isolation cannot be inferred from a Session ' + $callerSessionId + ' interactive shell execution.'
-    $caseBResult += "NOT PROVEN [Collector executed from Session $callerSessionId interactive shell as $callerUser]"
+    $session0IpcDetails = 'Case A: Collector caller is in Session ' + $callerSessionId + ' as ' + $callerUser + ' [not Session 0 LocalSystem]. Direct Session 0 IPC isolation cannot be inferred from a Session ' + $callerSessionId + ' interactive shell execution.'
     Record-ForensicOperation -OperationName 'CaseA_InteractiveCollectorExecution' -Status 'NOT PROVEN' -Reason $caseAResult
     Record-ForensicOperation -OperationName 'CaseB_SystemSession0DiagnosticProbe' -Status 'NOT PROVEN' -Reason $caseBResult
-    Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'NOT PROVEN' -Reason $session0IpcReason
-    Write-Warning $session0IpcReason
+    Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'NOT PROVEN' -Reason $session0IpcDetails
+    Write-Warning $session0IpcDetails
 }
 
 # 6. Authoritative Token Resolution & Query Bridge API Endpoints (Primary Remediation D, G, B & Recovery A)
@@ -675,7 +672,7 @@ if ($ExecuteRecoveryTest) {
                 }
             }
 
-            # Verify new terminal64.exe process topology after restart (NO Select-Object -First 1)
+            # Verify new terminal64.exe process topology after restart
             $candidateMt5s = Get-CimInstance Win32_Process -Filter "Name='terminal64.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.ProcessId -ne $oldMt5Pid }
             if ($candidateMt5s) {
                 if ($candidateMt5s.Count -eq 1) {
@@ -759,7 +756,7 @@ $runtimeLogProven = 'NOT PROVEN'
 $zeroOrderStatus = 'NOT PROVEN'
 $zeroOrderReason = 'Zero order execution audit in progress'
 
-# Layer A: Structural Source Audit across ALL Bridge and Provider Execution Surface files
+# Layer A: Static Structural Source Audit across ALL Bridge and Provider Execution Surface files
 $auditedSourceFiles = @(
     'src\Infrastructure\Bridge\mt5_bridge.py',
     'src\Infrastructure\Bridge\client.py',
@@ -802,7 +799,7 @@ foreach ($sf in $auditedSourceFiles) {
 
 if ($sourceViolations.Count -eq 0) {
     $structuralAuditProven = 'PROVEN'
-    Record-ForensicOperation -OperationName 'BridgeStructuralAudit' -Status 'PROVEN' -Reason "Structural source audit confirms mt5_bridge.py, client.py, and mt5.py contain 0 order execution methods (Routes: $($auditedRoutes -join ', '))"
+    Record-ForensicOperation -OperationName 'BridgeStructuralAudit' -Status 'PROVEN' -Reason "Static structural source audit confirms mt5_bridge.py, client.py, and mt5.py contain 0 order execution methods (Routes: $($auditedRoutes -join ', '))"
 } else {
     $structuralAuditProven = 'FAILED'
     $violationStr = $sourceViolations -join '; '
@@ -842,7 +839,7 @@ if ($logFilesFound.Count -gt 0 -and -not $orderDispatchesDetected) {
     Record-ForensicOperation -OperationName 'RuntimeLogScan' -Status 'NOT PROVEN' -Reason 'No active runtime log files found for inspection'
 }
 
-# Final Dual-Layer Zero Order Truth Table Determination (Mandatory Truth Table Contract)
+# Mandatory Zero-Order Truth Table Determination
 if ($structuralAuditProven -eq 'PROVEN' -and $runtimeLogProven -eq 'PROVEN') {
     $zeroOrderStatus = 'PROVEN'
     $zeroOrderReason = "PROVEN [Structural proof: Bridge and provider sources contain 0 trade mutation endpoints or order methods; Runtime proof: Inspected $($logFilesFound.Count) log files with 0 order dispatches.]"
@@ -851,7 +848,7 @@ if ($structuralAuditProven -eq 'PROVEN' -and $runtimeLogProven -eq 'PROVEN') {
     $zeroOrderReason = "FAILED [Order dispatch capability or pattern detected during zero-order audit]"
 } else {
     $zeroOrderStatus = 'NOT PROVEN'
-    $zeroOrderReason = "NOT PROVEN [Structural audit: $structuralAuditProven, Runtime log scan: $runtimeLogProven (Both layers must be PROVEN for overall zero-order proof)]"
+    $zeroOrderReason = "NOT PROVEN [Structural audit: $structuralAuditProven, Runtime log scan: $runtimeLogProven (Both structural AND runtime layers must be PROVEN for overall zero-order proof)]"
 }
 
 Record-ForensicOperation -OperationName 'ZeroOrderExecutionAudit' -Status $zeroOrderStatus -Reason $zeroOrderReason
@@ -996,9 +993,12 @@ $reportContent = @"
 * **`/mt5/status` Connected:** `$mt5ConnVal`
 * **`/mt5/status` Server:** `$mt5ServerVal`
 * **`/mt5/status` Status:** `$mt5Status`
-* **Case A (Interactive Shell):** `$caseAResult`
-* **Case B (Session 0 SYSTEM Diagnostic Probe):** `$caseBResult`
-* **Case C (YarTrader Production Service Context):** `$caseCResult`
+* **Case A Status (Interactive Shell):** `$caseAStatus`
+* **Case A Result:** `$caseAResult`
+* **Case B Status (Session 0 SYSTEM Diagnostic Probe):** `$caseBStatus`
+* **Case B Result:** `$caseBResult`
+* **Case C Status (YarTrader Production Service Context):** `$caseCStatus`
+* **Case C Result:** `$caseCResult`
 * **Python Executable Invoked:** `$pyExec`
 * **Python Version:** `$pyVersion`
 * **Direct Session 0 IPC Details:** `$session0IpcDetails`
@@ -1037,7 +1037,7 @@ $reportContent = @"
 * **Zero-Order Audit Final Status:** `$zeroOrderStatus`
 * **Candidate Log Paths Checked:** `$checkedLogsStr`
 * **Found Log Paths Inspected:** `$foundLogsStr`
-* **Audit Coverage & Scope:** Structural AST analysis of `mt5_bridge.py`, `client.py`, and `mt5.py` routes/methods combined with runtime log pattern scanning (`order_send`, `TRADE_ACTION`, `dispatch_order`, `order_placed`, `OrderSend`, `PositionOpen`).
+* **Audit Coverage & Scope:** Static structural analysis of `mt5_bridge.py`, `client.py`, and `mt5.py` routes/methods combined with runtime log pattern scanning (`order_send`, `TRADE_ACTION`, `dispatch_order`, `order_placed`, `OrderSend`, `PositionOpen`).
 * **Zero-Order Audit Reason:** `$zeroOrderReason`
 
 ---
