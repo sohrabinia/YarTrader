@@ -2045,7 +2045,6 @@ function MainApp() {
             </div>
           )}
 
-          )}
         </div>
       </div>
 
