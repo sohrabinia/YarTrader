@@ -180,6 +180,7 @@ class ExecutionIntelligenceCore:
             "alignment": alignment_res,
             "similarity": similarity_res,
             "fractal": state.get("fractal", {}),
+            "multi_timeframe_context": state.get("multi_timeframe_context", {}),
             "strategy_evaluation": {
                 "status": "DISCONNECTED",
                 "decision_authority": "BRAIN",
