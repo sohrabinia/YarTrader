@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { I18nProvider, useTranslation } from './services/i18n.jsx';
 import { apiService } from './services/api.js';
 
@@ -247,14 +247,7 @@ function MainApp() {
   const [selectedAuditTrail, setSelectedAuditTrail] = useState(null);
 
   // Customer authentication is Google/Gmail OIDC-only.
-  // Floating Chatbot state
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState([
-    { text: t('assistant_greet'), sender: 'bot' }
-  ]);
-  const chatMessagesEndRef = useRef(null);
-
+  // YarOperator is the platform's general AI/assistant layer. YarTrader UI exposes only trading intelligence.
   // Sync routePath state with window.location popstate
   useEffect(() => {
     const handlePopState = () => {
@@ -830,44 +823,6 @@ function MainApp() {
       showNotification(err.message, "failed");
     }
   };
-
-  // Floating Chatbot triggers
-  const toggleChatbot = () => {
-    setChatOpen(prev => !prev);
-  };
-
-  const sendChatMessage = async (textToSend) => {
-    const userMsg = typeof textToSend === 'string' ? textToSend : chatInput;
-    if (!userMsg || !userMsg.trim()) return;
-
-    setChatMessages(prev => [...prev, { text: userMsg, sender: 'user' }]);
-    if (typeof textToSend !== 'string') {
-      setChatInput('');
-    }
-
-    try {
-      const res = await apiService.post('/api/chat/assistant', {
-        message: userMsg,
-        lang: lang
-      });
-      const botResponse = res.response || res.answer || (lang === 'fa' ? 'پاسخی دریافت نشد.' : 'No response received.');
-      setChatMessages(prev => [...prev, { text: botResponse, sender: 'bot' }]);
-    } catch (err) {
-      const rawMsg = err?.message || (typeof err === 'string' ? err : String(err));
-      const errorText = rawMsg && !rawMsg.includes('[object Object]')
-        ? rawMsg
-        : (lang === 'fa' ? 'ارتباط با دستیار برقرار نشد. لطفاً دوباره تلاش کنید.' :
-           lang === 'tr' ? 'Asistan ile bağlantı kurulamadı. Lütfen tekrar deneyin.' :
-           lang === 'ar' ? 'تعذر الاتصال بالمساعد الذكي. يرجى المحاولة مرة أخرى.' :
-           'The assistant could not be reached. Please try again.');
-      setChatMessages(prev => [...prev, { text: errorText, sender: 'bot', isError: true, lastUserText: userMsg }]);
-    }
-  };
-
-  // Auto Scroll Chat
-  useEffect(() => {
-    chatMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages, chatOpen]);
 
   const totalEvaluatedPatterns = learningMatrix.reduce((acc, curr) => acc + curr.sample_count, 0);
   const avgPatternWinRate = totalEvaluatedPatterns > 0
@@ -2055,73 +2010,6 @@ function MainApp() {
         </div>
       </div>
 
-      {/* Floating Support Chatbot */}
-      <div className="chatbot-widget" id="chat-widget">
-        <div className="chatbot-header" onClick={toggleChatbot}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div className="ai-pulse"></div>
-            <span>{t('assistant_title')}</span>
-          </div>
-          <span>▲ / ▼</span>
-        </div>
-        {chatOpen && (
-          <div className="chatbot-body" id="chat-body" style={{ display: 'flex' }}>
-            <div className="chatbot-messages">
-              {chatMessages.map((msg, idx) => (
-                <div key={idx} className={`chat-bubble ${msg.sender === 'bot' ? 'bot' : 'user'}`} style={msg.isError ? { border: '1px solid var(--danger)', backgroundColor: 'rgba(194, 74, 62, 0.1)' } : {}}>
-                  {idx === 0 && msg.sender === 'bot' ? t('assistant_greet') : msg.text}
-                  {msg.isError && (
-                    <button
-                      className="btn btn-secondary"
-                      style={{ display: 'block', marginTop: '8px', padding: '4px 8px', fontSize: '0.8em' }}
-                      onClick={() => {
-                        const retryText = msg.lastUserText;
-                        setChatMessages(prev => prev.filter((_, i) => i !== idx));
-                        sendChatMessage(retryText);
-                      }}
-                    >
-                      {lang === 'fa' ? 'تلاش مجدد 🔄' : lang === 'tr' ? 'Tekrar Dene 🔄' : lang === 'ar' ? 'إعادة المحاولة 🔄' : 'Retry 🔄'}
-                    </button>
-                  )}
-                </div>
-              ))}
-              <div ref={chatMessagesEndRef} />
-            </div>
-
-            {/* Quick Context-Aware Prompts */}
-            <div style={{ display: 'flex', gap: '6px', padding: '6px 12px', overflowX: 'auto', background: 'rgba(15, 23, 42, 0.4)', borderTop: '1px solid var(--border-dark)' }}>
-              {[
-                { label: lang === 'fa' ? 'دلیل این تصمیم؟' : 'Why this decision?', text: 'چرا این تصمیم گرفته شد؟' },
-                { label: lang === 'fa' ? 'یادگیری هوش؟' : 'What is learned?', text: 'سیستم از بازار چه چیزی یاد گرفته؟' },
-                { label: lang === 'fa' ? 'علت عدم معامله؟' : 'Why no trade?', text: 'چرا معامله صورت نگرفت؟' }
-              ].map((qp, qpIdx) => (
-                <button
-                  key={qpIdx}
-                  type="button"
-                  style={{ whiteSpace: 'nowrap', fontSize: '0.75em', padding: '3px 8px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', cursor: 'pointer' }}
-                  onClick={() => {
-                    setChatInput(qp.text);
-                  }}
-                >
-                  ⚡ {qp.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="chatbot-input-container">
-              <input
-                className="chatbot-input"
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder={t('assistant_placeholder') || "سوال خود را مطرح کنید..."}
-                onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
-              />
-              <button className="chatbot-send" onClick={sendChatMessage}>{t('assistant_send') || 'Send'}</button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
