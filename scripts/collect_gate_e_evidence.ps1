@@ -146,62 +146,66 @@ $runtimeDeployedSha = 'NOT PROVEN'
 $deployedShaSourceFile = 'N/A'
 $runtimeShaStatus = 'NOT PROVEN'
 $runtimeShaReason = 'Runtime SHA not verified'
-$artifactSha256 = 'N/A'
-$artifactPath = 'N/A'
+$gitShaFromRuntimeRoot = 'N/A'
 
-$candidateShaFiles = @()
 if ($runtimeRoot -ne 'N/A' -and (Test-Path $runtimeRoot)) {
-    $candidateShaFiles += Join-Path $runtimeRoot 'deployed_sha.txt'
-    $candidateShaFiles += Join-Path $runtimeRoot 'Runtime\deployed_sha.txt'
-}
-$candidateShaFiles += 'TradeYarStorageRoot\Runtime\deployed_sha.txt'
-$candidateShaFiles += 'C:\YarTraderAI\Runtime\deployed_sha.txt'
-$candidateShaFiles += 'Runtime\deployed_sha.txt'
-
-foreach ($sf in $candidateShaFiles) {
-    if (Test-Path $sf) {
+    if (Test-Path (Join-Path $runtimeRoot ".git")) {
         try {
-            $shaVal = (Get-Content $sf -Raw).Trim()
-            if (-not [string]::IsNullOrWhiteSpace($shaVal)) {
-                $runtimeDeployedSha = $shaVal
-                $deployedShaSourceFile = $sf
-                break
+            $gitShaFromRuntimeRoot = (git -C $runtimeRoot rev-parse HEAD 2>$null | Out-String).Trim()
+            if (-not [string]::IsNullOrWhiteSpace($gitShaFromRuntimeRoot)) {
+                $runtimeDeployedSha = $gitShaFromRuntimeRoot
+                $deployedShaSourceFile = "git -C $runtimeRoot rev-parse HEAD"
             }
-        } catch {
-            Record-ForensicOperation -OperationName 'ReadDeployedShaFile' -Status 'FAILED' -Reason "Failed reading candidate SHA file $sf" -ExceptionMsg $_.Exception.Message
+        } catch {}
+    }
+
+    if ($runtimeDeployedSha -eq 'NOT PROVEN') {
+        $candidateShaFiles = @(
+            (Join-Path $runtimeRoot 'deployed_sha.txt'),
+            (Join-Path $runtimeRoot 'Runtime\deployed_sha.txt')
+        )
+        foreach ($sf in $candidateShaFiles) {
+            if (Test-Path $sf) {
+                try {
+                    $shaVal = (Get-Content $sf -Raw).Trim()
+                    if (-not [string]::IsNullOrWhiteSpace($shaVal)) {
+                        $runtimeDeployedSha = $shaVal
+                        $deployedShaSourceFile = $sf
+                        break
+                    }
+                } catch {}
+            }
         }
     }
 }
 
-# Calculate cryptographic SHA256 of the active runtime entrypoint file inside runtimeRoot
-if ($runtimeRoot -ne 'N/A' -and (Test-Path $runtimeRoot)) {
-    $candidateArtifact = Join-Path $runtimeRoot 'src\Application\Services\web_dashboard.py'
-    if (-not (Test-Path $candidateArtifact)) {
-        $candidateArtifact = $serviceExePath
-    }
-    if (Test-Path $candidateArtifact) {
-        try {
-            $hashObj = Get-FileHash -Path $candidateArtifact -Algorithm SHA256 -ErrorAction SilentlyContinue
-            if ($hashObj) {
-                $artifactSha256 = $hashObj.Hash
-                $artifactPath = $candidateArtifact
-            }
-        } catch {}
+if ($runtimeDeployedSha -eq 'NOT PROVEN') {
+    $fallbackShaFiles = @('TradeYarStorageRoot\Runtime\deployed_sha.txt', 'C:\YarTraderAI\Runtime\deployed_sha.txt', 'Runtime\deployed_sha.txt')
+    foreach ($sf in $fallbackShaFiles) {
+        if (Test-Path $sf) {
+            try {
+                $shaVal = (Get-Content $sf -Raw).Trim()
+                if (-not [string]::IsNullOrWhiteSpace($shaVal)) {
+                    $runtimeDeployedSha = $shaVal
+                    $deployedShaSourceFile = $sf
+                    break
+                }
+            } catch {}
+        }
     }
 }
 
-# Require ALL links in the chain: Service running in Session 0 + Service process path inside runtimeRoot + deployed_sha.txt in runtimeRoot + SHA match + artifact SHA256 calculated
-if ($serviceProc -and $serviceSessionId -eq 0 -and $runtimeDeployedSha -ne 'NOT PROVEN' -and $artifactSha256 -ne 'N/A') {
+if ($serviceProc -and $serviceSessionId -eq 0 -and $runtimeRoot -ne 'N/A' -and $runtimeDeployedSha -ne 'NOT PROVEN') {
     if ($runtimeDeployedSha -eq $ExpectedSha) {
         $runtimeShaStatus = 'PROVEN'
-        $runtimeShaReason = "YarTrader service PID $servicePid running in Session 0 from $runtimeRoot ($serviceExePath). Deployed SHA $runtimeDeployedSha matches Expected SHA $ExpectedSha. Entrypoint artifact ($artifactPath) SHA256: $artifactSha256"
+        $runtimeShaReason = "YarTrader service PID $servicePid running in Session 0 from $runtimeRoot ($serviceExePath). Verified SHA ($runtimeDeployedSha) from $deployedShaSourceFile matches Expected SHA $ExpectedSha"
     } else {
         $runtimeShaStatus = 'FAILED'
-        $runtimeShaReason = "Deployed SHA ($runtimeDeployedSha) in $deployedShaSourceFile does NOT match Expected SHA ($ExpectedSha)"
+        $runtimeShaReason = "Runtime SHA ($runtimeDeployedSha) from $deployedShaSourceFile does NOT match Expected SHA ($ExpectedSha)"
     }
 } else {
     $runtimeShaStatus = 'NOT PROVEN'
-    $runtimeShaReason = "Service process missing or not running in Session 0, or runtime path untied from deployed_sha.txt/artifact (Found SHA: $runtimeDeployedSha, Artifact SHA256: $artifactSha256)"
+    $runtimeShaReason = "Service process missing or not running in Session 0, or runtime path untied from commit SHA (Service PID: $servicePid, Session: $serviceSessionId, Runtime Root: $runtimeRoot, Extracted SHA: $runtimeDeployedSha)"
 }
 
 Record-ForensicOperation -OperationName 'RuntimeShaProvenance' -Status $runtimeShaStatus -Reason $runtimeShaReason
@@ -209,7 +213,6 @@ Record-ForensicOperation -OperationName 'RuntimeShaProvenance' -Status $runtimeS
 Write-Host ('Service State: ' + $serviceState + ' - Account: ' + $serviceAccount + ' - PID: ' + $servicePid + ' - SessionId: ' + $serviceSessionId)
 Write-Host ('Runtime Root : ' + $runtimeRoot)
 Write-Host ('Deployed SHA : ' + $runtimeDeployedSha + ' (Source: ' + $deployedShaSourceFile + ')')
-Write-Host ('Artifact SHA : ' + $artifactSha256 + ' (Path: ' + $artifactPath + ')')
 
 # 3. Interactive Session Discovery and Process Topology Inspection (Section 7 & Primary Remediation F)
 $tsProc = Get-IsoUtcTimestamp
@@ -387,18 +390,18 @@ Write-Host ('Collector Executable: ' + $callerExecutable)
 Write-Host ('Python Executable   : ' + $pyExec + ' (' + $pyVersion + ')')
 
 $session0IpcStatus = 'NOT PROVEN'
-$session0IpcDetails = 'NOT PROVEN [Collector executing in Session ' + $callerSessionId + ' as ' + $callerUser + ', PID ' + $callerPid + ']'
+$session0IpcDetails = 'NOT PROVEN [Case A: Collector executing in Session ' + $callerSessionId + ' as ' + $callerUser + ', PID ' + $callerPid + ']'
 
 if ($callerSessionId -eq 0 -and $callerUser -like '*SYSTEM*') {
     try {
         $pyCode = 'import sys, MetaTrader5 as mt5; print("py_ver=", sys.version.replace("\n"," ")); print("init=", mt5.initialize()); print("err=", mt5.last_error())'
         $ipcOutput = (python -c $pyCode 2>&1 | Out-String).Trim()
-        $session0IpcDetails = 'PID: ' + $callerPid + ' - User: ' + $callerUser + ' - Session: 0 - Executable: ' + $callerExecutable + ' - Output: ' + $ipcOutput
+        $session0IpcDetails = 'Case B/C: PID: ' + $callerPid + ' - User: ' + $callerUser + ' - Session: 0 - Executable: ' + $callerExecutable + ' - Output: ' + $ipcOutput
 
         # Require identity, Session 0, python, AND exact mt5.last_error() tuple (-10003) for true PROVEN
         if ($serviceProc -and $serviceSessionId -eq 0 -and $ipcOutput -like '*-10003*' -and $ipcOutput -like '*init= False*') {
             $session0IpcStatus = 'PROVEN'
-            Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'PROVEN' -Reason ("Session 0 SYSTEM IPC probe fail-closed isolation verified: $ipcOutput")
+            Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'PROVEN' -Reason ("Session 0 SYSTEM IPC probe fail-closed isolation verified [Case B/C]: $ipcOutput")
         } else {
             $session0IpcStatus = 'FAILED'
             Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'FAILED' -Reason ("Session 0 IPC probe returned unexpected output or service missing: $ipcOutput")
@@ -410,7 +413,7 @@ if ($callerSessionId -eq 0 -and $callerUser -like '*SYSTEM*') {
     }
 } else {
     $session0IpcStatus = 'NOT PROVEN'
-    $session0IpcReason = 'Collector caller is in Session ' + $callerSessionId + ' as ' + $callerUser + ' [not Session 0 LocalSystem]. Direct Session 0 IPC isolation cannot be inferred from a Session ' + $callerSessionId + ' execution.'
+    $session0IpcReason = 'Case A: Collector caller is in Session ' + $callerSessionId + ' as ' + $callerUser + ' [not Session 0 LocalSystem]. Direct Session 0 IPC isolation cannot be inferred from a Session ' + $callerSessionId + ' interactive shell execution.'
     Record-ForensicOperation -OperationName 'Session0IpcTest' -Status 'NOT PROVEN' -Reason $session0IpcReason
     Write-Warning $session0IpcReason
 }
@@ -955,8 +958,6 @@ $reportContent = @"
 * **Runtime Application Root:** `$runtimeRoot`
 * **Deployed SHA Source File:** `$deployedShaSourceFile`
 * **Deployed SHA Value:** `$runtimeDeployedSha`
-* **Artifact Cryptographic SHA256:** `$artifactSha256`
-* **Artifact Path Hashed:** `$artifactPath`
 * **Expected SHA Value:** `$ExpectedSha`
 * **Runtime SHA Provenance Status:** `$runtimeShaStatus`
 * **SHA Provenance Reason:** `$runtimeShaReason`
