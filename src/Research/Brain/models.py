@@ -337,6 +337,7 @@ class AnalysisReport:
     simulated_trades: List[Dict[str, Any]]
     reasoning_quality_score: float
     is_read_only_compliant: bool = True
+    learning_feedback: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -353,7 +354,8 @@ class AnalysisReport:
             active_hypotheses=data.get("active_hypotheses", []),
             simulated_trades=data.get("simulated_trades", []),
             reasoning_quality_score=float(data["reasoning_quality_score"]),
-            is_read_only_compliant=bool(data.get("is_read_only_compliant", True))
+            is_read_only_compliant=bool(data.get("is_read_only_compliant", True)),
+            learning_feedback=data.get("learning_feedback", {})
         )
 
 
