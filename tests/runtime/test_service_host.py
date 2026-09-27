@@ -61,9 +61,9 @@ def test_service_host_port_binding_failure():
     mock_server.started = False
 
     with patch("uvicorn.Server", return_value=mock_server):
-        host.start()
-        # Allow background thread to execute crash handler
-        time.sleep(0.1)
+        with pytest.raises(RuntimeError, match="FastAPI startup exception"):
+            host.start()
+        # Startup is fail-closed when the API listener cannot bind.
         assert host.fastapi_ready is False
         assert host.last_error is not None
         assert "Port binding failure" in host.last_error or "Address already in use" in host.last_error
