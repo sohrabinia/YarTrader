@@ -4,8 +4,8 @@
     Strictly read-only with respect to trading.
 
 .DESCRIPTION
-    Executes diagnostic collection directly on the physical Windows deployment host.
-    Measures Git provenance, Windows service/session topology, TCP listener state,
+    Executes forensic diagnostic evidence collection directly on the physical Windows deployment host.
+    Measures Git provenance, Windows service/session topology, strict TCP listener state,
     Bridge API endpoints (/health, /mt5/status, /market-data), Session 0 LocalSystem context,
     Recovery states (A/B/C), real-data provenance, and zero-order execution proof.
 
@@ -16,8 +16,11 @@
 
 param (
     [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
     [string]$ExpectedSha,
+
     [string]$OutputFile = "docs/runtime/PR313_GATE_E_WINDOWS_EVIDENCE.md",
+
     [switch]$ExecuteRecoveryTest = $false
 )
 
@@ -41,9 +44,11 @@ $statusShort = (git status --short)
 $originMain = (git rev-parse origin/main).Trim()
 $mergeBase = (git merge-base HEAD origin/main).Trim()
 $prBaseSha = "588be9ba436cc169f29e7c2d79f2d8fce033b13f"
+$currentBranch = (git rev-parse --abbrev-ref HEAD).Trim()
 
-Write-Host "Expected SHA       : $ExpectedSha"
+Write-Host "Expected PR HEAD   : $ExpectedSha"
 Write-Host "Current Local HEAD : $currentHead"
+Write-Host "Current Branch     : $currentBranch"
 Write-Host "PR Base SHA        : $prBaseSha"
 Write-Host "Merge-Base SHA     : $mergeBase"
 Write-Host "Origin Main SHA    : $originMain"
@@ -57,45 +62,34 @@ if (Test-Path "C:\YarTraderAI\Runtime\deployed_sha.txt") {
     $runtimeDeployedSha = (Get-Content "C:\YarTraderAI\Runtime\deployed_sha.txt" -Raw).Trim()
 }
 
-# 2. Independent Port 5001 Listener Inspection
-$tsPort = Get-IsoUtcTimestamp
-Write-Host "`n[2/8] Inspecting TCP Port 5001 Listener ($tsPort)..." -ForegroundColor Yellow
-$port5001Proven = $false
-$port5001Details = "NOT PROVEN"
-try {
-    $netConns = Get-NetTCPConnection -LocalPort 5001 -State Listen -ErrorAction SilentlyContinue
-    if ($netConns) {
-        $validListener = $netConns | Where-Object { $_.LocalAddress -in @("127.0.0.1", "::1") } | Select-Object -First 1
-        if ($validListener) {
-            $port5001Proven = $true
-            $port5001Details = "LocalAddress: $($validListener.LocalAddress), LocalPort: 5001, State: Listen, OwningProcess: $($validListener.OwningProcess)"
-        } else {
-            $port5001Details = "FAILED (Listener found on non-loopback address: $($netConns.LocalAddress))"
-        }
-    } else {
-        $port5001Details = "FAILED (No TCP listener active on port 5001)"
-    }
-} catch {
-    $port5001Details = "Get-NetTCPConnection exception: $_"
-}
-Write-Host "Port 5001 Status: $port5001Details"
-
-# 3. Windows Service & Process Topology Inspection
-$tsProc = Get-IsoUtcTimestamp
-Write-Host "`n[3/8] Inspecting Windows Service & Process Topology ($tsProc)..." -ForegroundColor Yellow
+# 2. Windows Service Identity (Deterministic Service Binding)
+$tsService = Get-IsoUtcTimestamp
+Write-Host "`n[2/8] Inspecting YarTrader Windows Service Identity ($tsService)..." -ForegroundColor Yellow
 $yarService = Get-CimInstance Win32_Service -Filter "Name='YarTrader'" -ErrorAction SilentlyContinue
-$procs = Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('python.exe', 'terminal64.exe', 'nssm.exe') } | Select-Object ProcessId, ParentProcessId, SessionId, Name, ExecutablePath, CommandLine, CreationDate
+$serviceProc = $null
+$servicePid = "N/A"
+$serviceAccount = "N/A"
+$serviceSessionId = "N/A"
+$serviceState = "N/A"
 
-$procTable = $procs | Format-Table ProcessId, ParentProcessId, SessionId, Name, ExecutablePath, CommandLine -AutoSize | Out-String
-Write-Host $procTable
+if ($yarService) {
+    $serviceState = $yarService.State
+    $serviceAccount = $yarService.StartName
+    if ($yarService.ProcessId -gt 0) {
+        $servicePid = $yarService.ProcessId
+        $serviceProc = Get-CimInstance Win32_Process -Filter "ProcessId=$servicePid" -ErrorAction SilentlyContinue
+        if ($serviceProc) {
+            $serviceSessionId = $serviceProc.SessionId
+        }
+    }
+}
+Write-Host "Service State: $serviceState | Account: $serviceAccount | PID: $servicePid | SessionId: $serviceSessionId"
 
-# Identify specific topology roles
-$serviceProc = $procs | Where-Object { $_.CommandLine -like "*research_worker*" -or $_.CommandLine -like "*app.workers*" } | Select-Object -First 1
-$bridgeProc = $procs | Where-Object { $_.CommandLine -like "*mt5_bridge*" } | Select-Object -First 1
-$mt5Proc = $procs | Where-Object { $_.Name -eq "terminal64.exe" } | Select-Object -First 1
+# 3. Interactive Session Discovery & Process Topology Inspection
+$tsProc = Get-IsoUtcTimestamp
+Write-Host "`n[3/8] Inspecting Interactive Session & Process Topology ($tsProc)..." -ForegroundColor Yellow
 
-# Detect active interactive session ID
-$activeConsoleSessionId = 2
+$activeConsoleSessionId = "NOT PROVEN"
 try {
     $explorerProc = Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($explorerProc) {
@@ -105,22 +99,83 @@ try {
 
 Write-Host "Active Interactive Session ID: $activeConsoleSessionId"
 
-# 4. Session 0 Genuine Identity Inspection
+$procs = Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('python.exe', 'terminal64.exe', 'nssm.exe') } | Select-Object ProcessId, ParentProcessId, SessionId, Name, ExecutablePath, CommandLine, CreationDate
+$procTable = $procs | Format-Table ProcessId, ParentProcessId, SessionId, Name, ExecutablePath, CommandLine -AutoSize | Out-String
+Write-Host $procTable
+
+$bridgeProc = $procs | Where-Object { $_.CommandLine -like "*mt5_bridge*" } | Select-Object -First 1
+
+# Enumerate all terminal64.exe instances to avoid arbitrary selection
+$mt5Procs = $procs | Where-Object { $_.Name -eq "terminal64.exe" }
+$mt5Proc = $null
+$mt5Ambiguous = $false
+
+if ($mt5Procs) {
+    if ($mt5Procs.Count -eq 1) {
+        $mt5Proc = $mt5Procs[0]
+    } else {
+        # Select instance matching active console session if unique
+        $sessionMt5 = $mt5Procs | Where-Object { $_.SessionId -eq $activeConsoleSessionId }
+        if ($sessionMt5 -and $sessionMt5.Count -eq 1) {
+            $mt5Proc = $sessionMt5[0]
+        } else {
+            $mt5Ambiguous = $true
+            Write-Warning "Multiple terminal64.exe instances detected; ambiguity present."
+        }
+    }
+}
+
+$bridgeSessionValid = ($bridgeProc -and $activeConsoleSessionId -ne "NOT PROVEN" -and $bridgeProc.SessionId -eq $activeConsoleSessionId)
+$mt5SessionValid = ($mt5Proc -and -not $mt5Ambiguous -and $activeConsoleSessionId -ne "NOT PROVEN" -and $mt5Proc.SessionId -eq $activeConsoleSessionId)
+
+# 4. Strict TCP Port 5001 Listener Inspection (IPv4 127.0.0.1 ONLY)
+$tsPort = Get-IsoUtcTimestamp
+Write-Host "`n[4/8] Inspecting Strict TCP Port 5001 Listener ($tsPort)..." -ForegroundColor Yellow
+$port5001Proven = $false
+$port5001Details = "NOT PROVEN"
+try {
+    $netConns = Get-NetTCPConnection -LocalPort 5001 -State Listen -ErrorAction SilentlyContinue
+    if ($netConns) {
+        # Strict IPv4 loopback check ONLY (Reject ::1 or 0.0.0.0)
+        $validListener = $netConns | Where-Object { $_.LocalAddress -eq "127.0.0.1" } | Select-Object -First 1
+        if ($validListener) {
+            if ($bridgeProc -and $validListener.OwningProcess -eq $bridgeProc.ProcessId) {
+                $port5001Proven = $true
+                $port5001Details = "LocalAddress: $($validListener.LocalAddress), LocalPort: 5001, State: Listen, OwningProcess: $($validListener.OwningProcess) (Matches Bridge PID)"
+            } else {
+                $port5001Details = "FAILED (OwningProcess $($validListener.OwningProcess) does not match Bridge PID $($bridgeProc.ProcessId))"
+            }
+        } else {
+            $port5001Details = "FAILED (Listener found on non-IPv4 loopback address: $($netConns.LocalAddress))"
+        }
+    } else {
+        $port5001Details = "FAILED (No TCP listener active on port 5001)"
+    }
+} catch {
+    $port5001Details = "Get-NetTCPConnection exception: $_"
+}
+Write-Host "Port 5001 Status: $port5001Details"
+
+# 5. Session 0 Genuine Identity Inspection
 $tsS0 = Get-IsoUtcTimestamp
-Write-Host "`n[4/8] Inspecting Execution Context & Session 0 Identity ($tsS0)..." -ForegroundColor Yellow
+Write-Host "`n[5/8] Inspecting Execution Context & Session 0 Identity ($tsS0)..." -ForegroundColor Yellow
 $callerUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $callerSessionId = [System.Diagnostics.Process]::GetCurrentProcess().SessionId
+$callerPid = [System.Diagnostics.Process]::GetCurrentProcess().Id
+$callerExecutable = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
 
-Write-Host "Caller Identity  : $callerUser"
-Write-Host "Caller Session ID: $callerSessionId"
+Write-Host "Collector Identity  : $callerUser"
+Write-Host "Collector Session ID: $callerSessionId"
+Write-Host "Collector PID       : $callerPid"
+Write-Host "Collector Executable : $callerExecutable"
 
 $session0IpcProven = $false
-$session0IpcDetails = "NOT PROVEN (Collector executing in Session $callerSessionId as $callerUser)"
+$session0IpcDetails = "NOT PROVEN (Collector executing in Session $callerSessionId as $callerUser, PID $callerPid)"
 
 if ($callerSessionId -eq 0 -and $callerUser -like "*SYSTEM*") {
     try {
         $ipcOutput = python -c "import MetaTrader5 as mt5; print('init=', mt5.initialize()); print('err=', mt5.last_error())" 2>&1
-        $session0IpcDetails = $ipcOutput -join " "
+        $session0IpcDetails = "PID: $callerPid | User: $callerUser | Session: 0 | Executable: $callerExecutable | Output: " + ($ipcOutput -join " ")
         if ($session0IpcDetails -like "*-10003*") {
             $session0IpcProven = $true
         }
@@ -128,12 +183,12 @@ if ($callerSessionId -eq 0 -and $callerUser -like "*SYSTEM*") {
         $session0IpcDetails = "Exception testing Session 0 IPC: $_"
     }
 } else {
-    Write-Warning "Caller is in Session $callerSessionId (not Session 0 LocalSystem). Marking Direct Session 0 IPC as NOT PROVEN."
+    Write-Warning "Collector caller is in Session $callerSessionId as $callerUser (not Session 0 LocalSystem). Direct Session 0 IPC diagnostic marked NOT PROVEN."
 }
 
-# 5. Query Bridge API Endpoints (Recovery A Baseline)
+# 6. Query Bridge API Endpoints (Recovery A Baseline)
 $tsApi = Get-IsoUtcTimestamp
-Write-Host "`n[5/8] Querying MT5 Interactive Bridge API (Recovery A) ($tsApi)..." -ForegroundColor Yellow
+Write-Host "`n[6/8] Querying MT5 Interactive Bridge API (Recovery A Baseline) ($tsApi)..." -ForegroundColor Yellow
 $healthResp = $null
 $statusResp = $null
 $marketDataResp = $null
@@ -171,14 +226,14 @@ if (Test-Path $secretFile) {
     Write-Warning "Secret token file not found at $secretFile"
 }
 
-# Real-data provenance evaluation (Exact symbol, timeframe, count=2, live MT5 server metadata)
+# Strict candle count & real data evaluation
 $exactCountProven = $false
 $realDataProven = $false
 
 if ($marketDataResp -and $marketDataResp.symbol -eq "XAUUSD" -and $marketDataResp.timeframe -eq "H1" -and $marketDataResp.candles) {
     if ($marketDataResp.candles.Count -eq 2) {
         $exactCountProven = $true
-        if ($statusResp -and $statusResp.connected -eq $true -and -not [string]::IsNullOrWhiteSpace($statusResp.server)) {
+        if ($statusResp -and $statusResp.connected -eq $true -and -not [string]::IsNullOrWhiteSpace($statusResp.server) -and $bridgeProc -and $mt5Proc -and -not $mt5Ambiguous) {
             $c0 = $marketDataResp.candles[0]
             if ($c0.open -gt 0 -and $c0.time -gt 1600000000) {
                 $realDataProven = $true
@@ -187,31 +242,33 @@ if ($marketDataResp -and $marketDataResp.symbol -eq "XAUUSD" -and $marketDataRes
     }
 }
 
-# 6. Active Recovery Lifecycle Testing (B / C)
+# 7. Active Recovery Lifecycle Testing (A / B / C)
 $tsRec = Get-IsoUtcTimestamp
 $recoveryAResult = if ($statusResp -and $statusResp.connected -eq $true -and $realDataProven -and $exactCountProven) { "PROVEN" } else { "NOT PROVEN" }
 $recoveryBResult = "NOT PROVEN (Active recovery test switch -ExecuteRecoveryTest not passed)"
 $recoveryCResult = "NOT PROVEN (Active recovery test switch -ExecuteRecoveryTest not passed)"
 
 if ($ExecuteRecoveryTest) {
-    Write-Host "`n[6/8] Executing Active Recovery B/C Test ($tsRec)..." -ForegroundColor Yellow
-    if ($mt5Proc) {
+    Write-Host "`n[7/8] Executing Active Recovery B/C Test ($tsRec)..." -ForegroundColor Yellow
+    if ($mt5Proc -and -not $mt5Ambiguous) {
+        $oldMt5Pid = $mt5Proc.ProcessId
         $stopTimeUtc = Get-IsoUtcTimestamp
-        Write-Host "Stopping terminal64.exe (PID: $($mt5Proc.ProcessId)) at $stopTimeUtc..." -ForegroundColor Yellow
-        Stop-Process -Id $mt5Proc.ProcessId -Force
+        Write-Host "Stopping terminal64.exe (PID: $oldMt5Pid) at $stopTimeUtc..." -ForegroundColor Yellow
+        Stop-Process -Id $oldMt5Pid -Force
         Start-Sleep -Seconds 3
 
-        # Measure Recovery B State
+        # Verify old PID no longer exists
+        $oldProcExists = Get-CimInstance Win32_Process -Filter "ProcessId=$oldMt5Pid" -ErrorAction SilentlyContinue
         $statusRespB = $null
         try {
             $statusRespB = Invoke-RestMethod -Uri "http://127.0.0.1:5001/mt5/status" -Headers @{ Authorization = "Bearer $token" } -Method Get -TimeoutSec 5
         } catch {}
 
-        if ($statusRespB -and $statusRespB.connected -eq $false) {
-            $recoveryBResult = "PROVEN (Stopped MT5 PID $($mt5Proc.ProcessId); Bridge reported connected: false fail-closed at $(Get-IsoUtcTimestamp))"
+        if (-not $oldProcExists -and $statusRespB -and $statusRespB.connected -eq $false) {
+            $recoveryBResult = "PROVEN (Stopped MT5 PID $oldMt5Pid at $stopTimeUtc; Verified process exit and Bridge connected: false fail-closed)"
             Write-Host "Recovery B: SUCCESS" -ForegroundColor Green
         } else {
-            $recoveryBResult = "FAILED (Bridge did not report connected: false)"
+            $recoveryBResult = "FAILED (Process exit or fail-closed response not observed)"
         }
 
         # Restart MT5 for Recovery C State
@@ -222,9 +279,14 @@ if ($ExecuteRecoveryTest) {
 
             # Polling reconnect with timeout (up to 20 seconds)
             $reconnected = $false
+            $newMt5Pid = "N/A"
             $reconnectTimeUtc = "NOT PROVEN"
             for ($i = 0; $i -lt 10; $i++) {
                 Start-Sleep -Seconds 2
+                $newMt5Proc = Get-CimInstance Win32_Process -Filter "Name='terminal64.exe'" -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($newMt5Proc -and $newMt5Proc.ProcessId -ne $oldMt5Pid) {
+                    $newMt5Pid = $newMt5Proc.ProcessId
+                }
                 try {
                     $statusRespC = Invoke-RestMethod -Uri "http://127.0.0.1:5001/mt5/status" -Headers @{ Authorization = "Bearer $token" } -Method Get -TimeoutSec 3
                     if ($statusRespC -and $statusRespC.connected -eq $true) {
@@ -235,25 +297,25 @@ if ($ExecuteRecoveryTest) {
                 } catch {}
             }
 
-            if ($reconnected) {
-                $recoveryCResult = "PROVEN (MT5 restarted at $restartTimeUtc; Bridge re-established connected: true at $reconnectTimeUtc)"
+            if ($reconnected -and $newMt5Pid -ne "N/A" -and $newMt5Pid -ne $oldMt5Pid) {
+                $recoveryCResult = "PROVEN (Restarted MT5 at $restartTimeUtc; Verified new PID $newMt5Pid in Session $($newMt5Proc.SessionId); Bridge re-established connected: true at $reconnectTimeUtc)"
                 Write-Host "Recovery C: SUCCESS" -ForegroundColor Green
             } else {
-                $recoveryCResult = "FAILED (Bridge failed to re-establish connection within timeout)"
+                $recoveryCResult = "FAILED (Bridge failed to re-establish connection or new PID not confirmed)"
             }
         } else {
             $recoveryCResult = "NOT PROVEN (MT5 executable path unavailable for restart)"
         }
     } else {
-        Write-Warning "terminal64.exe process not found; skipping active recovery test."
+        Write-Warning "terminal64.exe process not found or ambiguous; skipping active recovery test."
     }
 } else {
-    Write-Host "`n[6/8] Active Recovery B/C test skipped (Pass -ExecuteRecoveryTest to run)." -ForegroundColor Gray
+    Write-Host "`n[7/8] Active Recovery B/C test skipped (Pass -ExecuteRecoveryTest to run)." -ForegroundColor Gray
 }
 
-# 7. Zero-Order Trading Execution Log Audit (Fail-Closed)
+# 8. Zero-Order Trading Execution Log Audit (Fail-Closed)
 $tsLog = Get-IsoUtcTimestamp
-Write-Host "`n[7/8] Auditing Application & Bridge Logs for Zero Order Dispatches ($tsLog)..." -ForegroundColor Yellow
+Write-Host "`n[8/8] Auditing Application & Bridge Logs for Zero Order Dispatches ($tsLog)..." -ForegroundColor Yellow
 $zeroOrderProven = "NOT PROVEN"
 $logFilesChecked = @()
 $logFilesFound = @()
@@ -264,7 +326,7 @@ foreach ($lf in $candidateLogs) {
     $logFilesChecked += $lf
     if (Test-Path $lf) {
         $logFilesFound += $lf
-        $matches = Select-String -Path $lf -Pattern "order_send|TRADE_ACTION|dispatch_order|order_placed" -ErrorAction SilentlyContinue
+        $matches = Select-String -Path $lf -Pattern "order_send|TRADE_ACTION|dispatch_order|order_placed|OrderSend|PositionOpen" -ErrorAction SilentlyContinue
         if ($matches) {
             $orderDispatchesDetected = $true
             Write-Warning "Order dispatch pattern detected in $lf!"
@@ -273,27 +335,28 @@ foreach ($lf in $candidateLogs) {
 }
 
 if ($logFilesFound.Count -gt 0 -and -not $orderDispatchesDetected) {
-    $zeroOrderProven = "PROVEN (Inspected $($logFilesFound.Count) log files; 0 order dispatches detected)"
+    $zeroOrderProven = "PROVEN (Inspected $($logFilesFound.Count) log files: $($logFilesFound -join ', '); 0 order dispatches detected)"
 } elseif ($orderDispatchesDetected) {
     $zeroOrderProven = "FAILED (Order dispatch pattern found in logs)"
 } else {
     $zeroOrderProven = "NOT PROVEN (No active runtime log files found for inspection)"
 }
 
-# 8. Evaluate Overall Gate E Master Conclusion
+# Evaluate Overall Gate E Master Conclusion
 $tsEval = Get-IsoUtcTimestamp
-Write-Host "`n[8/8] Evaluating CTO Gate E Compliance ($tsEval)..." -ForegroundColor Yellow
+Write-Host "`nEvaluating CTO Gate E Compliance ($tsEval)..." -ForegroundColor Yellow
 
 $gateEPassed = (
     $provenanceMatch -and
     $treeClean -and
-    ($runtimeDeployedSha -eq $ExpectedSha) -and
+    ($runtimeDeployedSha -ne "NOT PROVEN" -and $runtimeDeployedSha -eq $ExpectedSha) -and
     ($serviceProc -ne $null) -and
     ($serviceProc.SessionId -eq 0) -and
     ($bridgeProc -ne $null) -and
-    ($bridgeProc.SessionId -eq $activeConsoleSessionId) -and
+    $bridgeSessionValid -and
     ($mt5Proc -ne $null) -and
-    ($mt5Proc.SessionId -eq $activeConsoleSessionId) -and
+    -not $mt5Ambiguous -and
+    $mt5SessionValid -and
     $port5001Proven -and
     ($healthResp -ne $null) -and
     ($statusResp -ne $null -and $statusResp.connected -eq $true) -and
@@ -318,8 +381,9 @@ $reportContent = @"
 **Repository:** `sohrabinia/YarTrader`
 **Pull Request:** `https://github.com/sohrabinia/YarTrader/pull/313`
 **Expected PR HEAD SHA:** `$ExpectedSha`
-**Current Repository HEAD:** `$currentHead`
+**Current Local HEAD:** `$currentHead`
 **Deployed Runtime SHA:** `$runtimeDeployedSha`
+**Current Branch:** `$currentBranch`
 **PR Base SHA:** `$prBaseSha`
 **Merge-Base SHA:** `$mergeBase`
 **Origin Main SHA:** `$originMain`
@@ -333,23 +397,23 @@ $reportContent = @"
 | :--- | :--- | :--- | :--- | :--- | :---: |
 | **1. Provenance Match** | Local: `$currentHead` | `$ExpectedSha` | `git rev-parse HEAD` | $startTimeUtc | $(if ($provenanceMatch) { "PROVEN" } else { "FAILED" }) |
 | **2. Clean Working Tree** | Short Status: `"$statusShort"` | Empty | `git status --short` | $startTimeUtc | $(if ($treeClean) { "PROVEN" } else { "FAILED" }) |
-| **3. Deployed Runtime SHA** | Deployed: `$runtimeDeployedSha` | `$ExpectedSha` | `C:\YarTraderAI\Runtime\deployed_sha.txt` | $startTimeUtc | $(if ($runtimeDeployedSha -eq $ExpectedSha) { "PROVEN" } else { "NOT PROVEN" }) |
-| **4. Session 0 Service Identity** | SessionId: $(if ($serviceProc) { $serviceProc.SessionId } else { "N/A" }), User: LocalSystem | SessionId: 0, User: LocalSystem | `Win32_Process` (PID $(if ($serviceProc) { $serviceProc.ProcessId } else { "N/A" })) | $tsProc | $(if ($serviceProc -and $serviceProc.SessionId -eq 0) { "PROVEN" } else { "NOT PROVEN" }) |
-| **5. Session 2 Bridge Identity** | SessionId: $(if ($bridgeProc) { $bridgeProc.SessionId } else { "N/A" }) | SessionId: $activeConsoleSessionId | `Win32_Process` (PID $(if ($bridgeProc) { $bridgeProc.ProcessId } else { "N/A" })) | $tsProc | $(if ($bridgeProc -and $bridgeProc.SessionId -eq $activeConsoleSessionId) { "PROVEN" } else { "NOT PROVEN" }) |
-| **6. Session 2 MT5 Identity** | SessionId: $(if ($mt5Proc) { $mt5Proc.SessionId } else { "N/A" }) | SessionId: $activeConsoleSessionId | `Win32_Process` (PID $(if ($mt5Proc) { $mt5Proc.ProcessId } else { "N/A" })) | $tsProc | $(if ($mt5Proc -and $mt5Proc.SessionId -eq $activeConsoleSessionId) { "PROVEN" } else { "NOT PROVEN" }) |
-| **7. TCP 5001 Listener State** | $port5001Details | 127.0.0.1:5001 Listen | `Get-NetTCPConnection` | $tsPort | $(if ($port5001Proven) { "PROVEN" } else { "NOT PROVEN" }) |
+| **3. Deployed Runtime SHA** | Deployed: `$runtimeDeployedSha` | `$ExpectedSha` | `C:\YarTraderAI\Runtime\deployed_sha.txt` | $startTimeUtc | $(if ($runtimeDeployedSha -ne "NOT PROVEN" -and $runtimeDeployedSha -eq $ExpectedSha) { "PROVEN" } else { "NOT PROVEN" }) |
+| **4. Session 0 Service Identity** | SessionId: $serviceSessionId, User: $serviceAccount | SessionId: 0, User: LocalSystem | `Win32_Service` / `Win32_Process` | $tsService | $(if ($serviceProc -and $serviceSessionId -eq 0) { "PROVEN" } else { "NOT PROVEN" }) |
+| **5. Interactive Session Bridge** | SessionId: $(if ($bridgeProc) { $bridgeProc.SessionId } else { "N/A" }) | SessionId: $activeConsoleSessionId | `Win32_Process` (PID $(if ($bridgeProc) { $bridgeProc.ProcessId } else { "N/A" })) | $tsProc | $(if ($bridgeSessionValid) { "PROVEN" } else { "NOT PROVEN" }) |
+| **6. Interactive Session MT5** | SessionId: $(if ($mt5Proc) { $mt5Proc.SessionId } else { "N/A" }), Ambiguous: $mt5Ambiguous | SessionId: $activeConsoleSessionId (Unique) | `Win32_Process` (PID $(if ($mt5Proc) { $mt5Proc.ProcessId } else { "N/A" })) | $tsProc | $(if ($mt5SessionValid) { "PROVEN" } else { "NOT PROVEN" }) |
+| **7. Strict TCP 5001 Listener** | $port5001Details | 127.0.0.1:5001 Listen (Bridge PID) | `Get-NetTCPConnection` | $tsPort | $(if ($port5001Proven) { "PROVEN" } else { "NOT PROVEN" }) |
 | **8. Bridge `/health` Endpoint** | Status: $(if ($healthResp) { $healthResp.status } else { "N/A" }) | Status: HEALTHY | HTTP GET `127.0.0.1:5001/health` | $tsApi | $(if ($healthResp) { "PROVEN" } else { "NOT PROVEN" }) |
 | **9. Authenticated `/mt5/status`** | Connected: $(if ($statusResp) { $statusResp.connected } else { "N/A" }), Server: $(if ($statusResp) { $statusResp.server } else { "N/A" }) | Connected: true, Server: Active | HTTP GET `127.0.0.1:5001/mt5/status` | $tsApi | $(if ($statusResp -and $statusResp.connected) { "PROVEN" } else { "NOT PROVEN" }) |
 | **10. XAUUSD H1 Count=2** | Symbol: $(if ($marketDataResp) { $marketDataResp.symbol } else { "N/A" }), Count: $(if ($marketDataResp -and $marketDataResp.candles) { $marketDataResp.candles.Count } else { "N/A" }) | Symbol: XAUUSD, Timeframe: H1, Count: 2 | HTTP POST `127.0.0.1:5001/market-data` | $tsApi | $(if ($exactCountProven) { "PROVEN" } else { "NOT PROVEN" }) |
 | **11. Real-Data Provenance** | Server: $(if ($statusResp) { $statusResp.server } else { "N/A" }), Valid OHLC: $realDataProven | Live MT5 Server Rates Verified | Bridge MT5 Integration | $tsApi | $(if ($realDataProven) { "PROVEN" } else { "NOT PROVEN" }) |
-| **12. Direct Session 0 MT5 IPC** | Result: $session0IpcDetails | error -10003 in Session 0 | Session 0 Direct Execution | $tsS0 | $(if ($session0IpcProven) { "PROVEN" } else { "NOT PROVEN" }) |
+| **12. Direct Session 0 MT5 IPC** | Result: $session0IpcDetails | error -10003 in Session 0 | Session 0 Execution Context | $tsS0 | $(if ($session0IpcProven) { "PROVEN" } else { "NOT PROVEN" }) |
 | **13. Recovery A (Healthy Baseline)** | $recoveryAResult | Baseline HTTP 200 Healthy | Bridge API | $tsRec | $recoveryAResult |
 | **14. Recovery B (Interruption)** | $recoveryBResult | Connected: false fail-closed | MT5 Stop Event | $tsRec | $(if ($recoveryBResult -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }) |
 | **15. Recovery C (Restart & Reconnect)**| $recoveryCResult | Connected: true restored | MT5 Restart Event | $tsRec | $(if ($recoveryCResult -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }) |
 | **16. Zero-Order Execution Proof** | $zeroOrderProven | 0 Order Dispatches Logged | Runtime & Bridge Logs | $tsLog | $(if ($zeroOrderProven -like "PROVEN*") { "PROVEN" } else { "NOT PROVEN" }) |
 | **17. UTC Timestamps Verified** | Start: $startTimeUtc, End: $endTimeUtc | ISO 8601 UTC Format | System UTC Clock | $endTimeUtc | PROVEN |
-| **18. Exact Process PIDs Captured** | Service: $(if ($serviceProc) { $serviceProc.ProcessId } else { "N/A" }), Bridge: $(if ($bridgeProc) { $bridgeProc.ProcessId } else { "N/A" }), MT5: $(if ($mt5Proc) { $mt5Proc.ProcessId } else { "N/A" }) | All 3 Roles Identified | `Win32_Process` | $tsProc | $(if ($serviceProc -and $bridgeProc -and $mt5Proc) { "PROVEN" } else { "NOT PROVEN" }) |
-| **19. Caller Context / Boundary** | Caller User: $callerUser, SessionId: $callerSessionId | Context Documented | `WindowsIdentity` | $startTimeUtc | PROVEN |
+| **18. Exact Process PIDs Captured** | Service: $servicePid, Bridge: $(if ($bridgeProc) { $bridgeProc.ProcessId } else { "N/A" }), MT5: $(if ($mt5Proc) { $mt5Proc.ProcessId } else { "N/A" }) | All 3 Roles Identified | `Win32_Process` | $tsProc | $(if ($serviceProc -and $bridgeProc -and $mt5Proc) { "PROVEN" } else { "NOT PROVEN" }) |
+| **19. Caller Context / Boundary** | Caller User: $callerUser, SessionId: $callerSessionId, PID: $callerPid | Context Documented | `WindowsIdentity` | $startTimeUtc | PROVEN |
 
 ---
 
@@ -362,7 +426,7 @@ $procTable
 
 ## TCP Port 5001 Listener Details
 ```text
-$($port5001Listener | Format-Table -AutoSize | Out-String)
+$port5001Details
 ```
 
 ---
