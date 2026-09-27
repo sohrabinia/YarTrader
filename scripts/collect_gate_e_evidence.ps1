@@ -34,7 +34,7 @@ $startTimeUtc = Get-IsoUtcTimestamp
 
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host "   YARTRADER PR #313 — CTO GATE E WINDOWS EVIDENCE COLLECTOR TOOL" -ForegroundColor Cyan
-Write-Host "   Start Time (UTC): $startTimeUtc" -ForegroundColor Cyan
+Write-Host ('   Start Time (UTC): ' + $startTimeUtc) -ForegroundColor Cyan
 Write-Host "========================================================================" -ForegroundColor Cyan
 
 # 1. Provenance Verification
@@ -144,7 +144,7 @@ try {
             $bridgePid = if ($bridgeProc) { $bridgeProc.ProcessId } else { "N/A" }
             if ($bridgeProc -and $listenerPid -eq $bridgeProc.ProcessId) {
                 $port5001Proven = $true
-                $port5001Details = "LocalAddress: $listenerAddr, LocalPort: 5001, State: Listen, OwningProcess: $listenerPid (Matches Bridge PID)"
+                $port5001Details = 'LocalAddress: ' + $listenerAddr + ', LocalPort: 5001, State: Listen, OwningProcess: ' + $listenerPid + ' [Matches Bridge PID]'
             } else {
                 $port5001Details = "FAILED (OwningProcess $listenerPid does not match Bridge PID $bridgePid)"
             }
@@ -250,8 +250,8 @@ if ($marketDataResp -and $marketDataResp.symbol -eq "XAUUSD" -and $marketDataRes
 # 7. Active Recovery Lifecycle Testing (A / B / C)
 $tsRec = Get-IsoUtcTimestamp
 $recoveryAResult = if ($statusResp -and $statusResp.connected -eq $true -and $realDataProven -and $exactCountProven) { "PROVEN" } else { "NOT PROVEN" }
-$recoveryBResult = "NOT PROVEN (Active recovery test switch -ExecuteRecoveryTest not passed)"
-$recoveryCResult = "NOT PROVEN (Active recovery test switch -ExecuteRecoveryTest not passed)"
+$recoveryBResult = 'NOT PROVEN [Active recovery test switch -ExecuteRecoveryTest not passed]'
+$recoveryCResult = 'NOT PROVEN [Active recovery test switch -ExecuteRecoveryTest not passed]'
 
 if ($ExecuteRecoveryTest) {
     Write-Host "`n[7/8] Executing Active Recovery B/C Test ($tsRec)..." -ForegroundColor Yellow
@@ -317,7 +317,7 @@ if ($ExecuteRecoveryTest) {
         Write-Warning "terminal64.exe process not found or ambiguous; skipping active recovery test."
     }
 } else {
-    Write-Host "`n[7/8] Active Recovery B/C test skipped (Pass -ExecuteRecoveryTest to run)." -ForegroundColor Gray
+    Write-Host "`n[7/8] Active Recovery B/C test skipped [Pass -ExecuteRecoveryTest to run]." -ForegroundColor Gray
 }
 
 # 8. Zero-Order Trading Execution Log Audit (Fail-Closed)
