@@ -237,7 +237,7 @@ Write-Host ('Deployed SHA : ' + $runtimeDeployedSha + ' (Source: ' + $deployedSh
 #   2. <YarTraderStorageRoot>\Secrets\mt5_bridge_token.secret (PROVEN)
 #   3. C:\YarTraderAI\Secrets\mt5_bridge_token.secret (PROVEN)
 #   4. Canonical relative paths (YarTraderStorageRoot\Secrets, Secrets\) (PROVEN)
-#   5. Legacy compatibility fallbacks (TradeYarStorageRoot\Secrets) (NOT PROVEN — LEGACY COMPATIBILITY ONLY)
+#   5. No legacy storage-root fallback — canonical YarTraderStorageRoot only
 
 $healthResp = $null
 $statusResp = $null
@@ -268,11 +268,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
         'Secrets\mt5_bridge_token.secret'
     )
 
-    $legacyCandidateTokenFiles = @(
-        # LEGACY COMPATIBILITY ONLY — NOT CANONICAL
-        'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret',
-        'C:\Projects\YarTrader\TradeYarStorageRoot\Secrets\mt5_bridge_token.secret'
-    )
+    $legacyCandidateTokenFiles = @()
 
     foreach ($tf in $canonicalCandidateTokenFiles) {
         if (Test-Path $tf) {
@@ -291,7 +287,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
         }
     }
 
-    if (-not $tokenResolved) {
+    if (-not $tokenResolved -and $legacyCandidateTokenFiles.Count -gt 0) {
         foreach ($tf in $legacyCandidateTokenFiles) {
             if (Test-Path $tf) {
                 try {
