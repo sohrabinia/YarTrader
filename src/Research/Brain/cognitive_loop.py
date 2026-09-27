@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 from src.Research.Brain.models import MarketObservation, ReplayEpisode, PatternMemory, Hypothesis
 from src.Research.Brain.replay import MarketReplayEngine
@@ -12,18 +12,17 @@ from src.Research.Brain.memory import MarketMemorySystem
 from src.Research.Brain.active_learning import ActiveLearningEngine
 from src.Research.Brain.integrity import LearningIntegrityService
 
+
 class CognitiveReplayLoop:
     """
-    Coordinates and orchestrates the E2E Market Replay Training & Cognitive Learning Engine loop.
-    Ensures that:
-    1. Historical reality is replayed step-by-step (Future Leakage Protection).
-    2. Observation Brain notices structures without predefined terms or indicators.
-    3. Hypothesis Engine creates testable expectations with supporting samples.
-    4. Simulation Brain virtually triggers and tracks decisions (applying spreads/slippage).
-    5. Independent Judge Brain evaluates reasoning quality, accuracy, and luck.
-    6. Learning feedback is consolidated, and priorities are set via Active Learning.
-    7. Memory layers are cleanly separated and saved.
+    E2E historical replay and cognitive learning loop.
+
+    The replay cursor is the sole source of decision-time market information.
+    A virtual trade is evaluated only after a later replay observation closes it;
+    an open trade is never treated as a completed outcome. This prevents the
+    learning loop from manufacturing outcomes from the decision candle.
     """
+
     def __init__(
         self,
         symbol: str,
@@ -35,7 +34,6 @@ class CognitiveReplayLoop:
         self.timeframe = timeframe
         self.memory_system = memory_system or MarketMemorySystem()
 
-        # Instantiate core subcomponents
         self.replay_engine = MarketReplayEngine(symbol, observations)
         self.observation_brain = ObservationBrain(symbol, timeframe)
         self.discovery_engine = PatternDiscoveryEngine()
@@ -46,13 +44,11 @@ class CognitiveReplayLoop:
         self.integrity_service = LearningIntegrityService()
 
         self.episodes: List[ReplayEpisode] = []
+        # Trade-id -> immutable decision-time context. Outcomes are attached only
+        # when SimulationBrain later closes the virtual trade.
+        self._pending_trade_context: Dict[str, Dict[str, Any]] = {}
 
     def execute_replay_session(self, steps_count: int = 10, scale: str = "hours") -> List[ReplayEpisode]:
-        """
-        Executes a series of replay steps.
-        At each step, advances historical cursor, forms hypothesis, simulates decision,
-        triggers exit tracking, judges accuracy, updates memories, and consolidates.
-        """
         session_episodes: List[ReplayEpisode] = []
 
         for _ in range(steps_count):
@@ -60,74 +56,101 @@ class CognitiveReplayLoop:
             if not current_time:
                 break
 
-            # 1. Fetch currently available historical data (Future Leakage Protected)
+            # Only data at/before the replay cursor is visible to the Brain.
             available_data = self.replay_engine.get_available_data()
             if len(available_data) < 5:
-                # Need at least 5 observations to parse events/signatures
                 if not self.replay_engine.advance_by_scale(scale):
                     break
                 continue
 
             latest_obs = available_data[-1]
 
-            # 2. Update existing active virtual trades first
+            # Existing trades are updated BEFORE creating the new decision.
+            # Therefore a newly-created trade cannot be evaluated against its
+            # own entry candle.
             closed_trades = self.simulation_brain.update_active_trades(latest_obs)
 
-            # 3. Formulate observations sequence
             seq = self.observation_brain.process_observations(available_data)
             for evt in seq.events:
                 self.memory_system.add_event(evt)
 
-            # 4. Formulate hypothesis
             sig = self.discovery_engine.extract_signature(available_data)
             hypothesis = self.hypothesis_engine.formulate_hypothesis(
                 current_signature=sig,
                 historical_patterns=self.memory_system.get_patterns()
             )
 
-            # 5. Make virtual decision
+            decision_time = latest_obs.timestamp
             virtual_trade = None
             if hypothesis.expected_direction != "WAIT":
                 virtual_trade = self.simulation_brain.make_virtual_decision(
                     action=hypothesis.expected_direction,
                     entry_price=latest_obs.close_price,
-                    timestamp=latest_obs.timestamp,
+                    timestamp=decision_time,
                     expected_scenario=hypothesis.expected_direction
                 )
+                if virtual_trade is not None:
+                    self._pending_trade_context[virtual_trade.trade_id] = {
+                        "hypothesis": hypothesis,
+                        "signature": list(sig),
+                        "decision_time": decision_time.isoformat(),
+                    }
 
-            # If there was no virtual decision made or we wait, let's look at recently closed trades to construct episode outcomes
-            # For simplicity, if we had a trade close or if we made a decision, we log an episode.
-            decision_time = latest_obs.timestamp
+            # Evaluate only trades that actually closed on this replay step.
+            # The current decision remains pending and cannot become its own outcome.
+            evaluated_trades = []
+            for closed_trade in closed_trades:
+                context = self._pending_trade_context.pop(closed_trade.trade_id, None)
+                if not context:
+                    continue
 
-            # Get some ticks or updates for the Judge evaluation
-            mock_outcome_ticks = [{"close": latest_obs.close_price, "timestamp": latest_obs.timestamp.isoformat()}]
+                closed_hypothesis = context["hypothesis"]
+                closed_signature = context["signature"]
+                outcome_ticks = [{
+                    "close": closed_trade.exit_price,
+                    "timestamp": closed_trade.exit_time.isoformat()
+                    if closed_trade.exit_time else decision_time.isoformat()
+                }]
 
-            # Evaluate via Judge
-            judge_res = self.judge_brain.evaluate_hypothesis_and_decision(
-                hypothesis=hypothesis,
-                virtual_trade=virtual_trade,
-                actual_outcome_ticks=mock_outcome_ticks
+                judge_res = self.judge_brain.evaluate_hypothesis_and_decision(
+                    hypothesis=closed_hypothesis,
+                    virtual_trade=closed_trade,
+                    actual_outcome_ticks=outcome_ticks
+                )
+
+                self._learn_from_closed_trade(
+                    signature=closed_signature,
+                    trade=closed_trade,
+                    judge_result=judge_res
+                )
+
+                evaluated_trades.append((closed_trade, closed_hypothesis, judge_res))
+
+            # Active learning is advisory only. It produces research priorities;
+            # it cannot mutate execution/risk authority.
+            priorities = self.active_learning.analyze_weaknesses_and_set_priorities(
+                self.memory_system.get_patterns()
             )
 
-            # If virtual trade succeeded or failed, update Pattern Memory continuation or reversal
-            if virtual_trade and virtual_trade.final_result:
-                # Update corresponding patterns
-                matches = self.discovery_engine.find_matches(sig, self.memory_system.get_patterns())
-                is_cont = virtual_trade.final_result == "SUCCESS"
-                if matches:
-                    best_pat, _ = matches[0]
-                    best_pat.occurrences_count += 1
-                    if is_cont:
-                        best_pat.continuation_count += 1
-                    else:
-                        best_pat.reversal_count += 1
-                    self.memory_system.add_pattern(best_pat)
-                else:
-                    # Discover and add new pattern
-                    new_pat = self.discovery_engine.create_new_pattern(sig, is_continuation=is_cont)
-                    self.memory_system.add_pattern(new_pat)
+            # Record one episode for the current decision. Its outcome is explicitly
+            # PENDING when the trade has not yet closed.
+            current_judge = self.judge_brain.evaluate_hypothesis_and_decision(
+                hypothesis=hypothesis,
+                virtual_trade=None,
+                actual_outcome_ticks=[]
+            )
+            current_judge["outcome_status"] = "PENDING"
+            current_judge["learning_feedback"] = (
+                "Decision recorded; outcome remains pending until a later replay "
+                "observation closes the virtual trade."
+            )
 
-            # 6. Build immutable ReplayEpisode
+            current_trade_outcome = {
+                "final_result": "PENDING" if virtual_trade else "WAIT",
+                "max_fav": virtual_trade.max_favorable_movement if virtual_trade else 0.0,
+                "max_adv": virtual_trade.max_adverse_movement if virtual_trade else 0.0,
+            }
+
             episode = ReplayEpisode(
                 episode_id=f"ep-{uuid.uuid4().hex[:8]}",
                 symbol=self.symbol,
@@ -136,32 +159,68 @@ class CognitiveReplayLoop:
                 market_context={
                     "current_price": latest_obs.close_price,
                     "timeframe": self.timeframe,
-                    "available_history_count": len(available_data)
+                    "available_history_count": len(available_data),
+                    "decision_data_cutoff": decision_time.isoformat(),
+                    "future_data_visible_at_decision": False,
                 },
                 observed_sequence=[evt.to_dict() for evt in seq.events[-3:]],
                 brain_hypothesis=hypothesis.to_dict(),
                 simulation_decision=virtual_trade.to_dict() if virtual_trade else None,
-                actual_outcome={
-                    "final_result": virtual_trade.final_result if virtual_trade else "WAIT",
-                    "max_fav": virtual_trade.max_favorable_movement if virtual_trade else 0.0,
-                    "max_adv": virtual_trade.max_adverse_movement if virtual_trade else 0.0
-                },
-                judge_result=judge_res,
+                actual_outcome=current_trade_outcome,
+                judge_result=current_judge,
                 learning_feedback={
-                    "feedback": judge_res["learning_feedback"],
-                    "reasoning_score": judge_res["reasoning_quality_score"],
-                    "decision_score": judge_res["decision_quality_score"]
+                    "feedback": current_judge["learning_feedback"],
+                    "reasoning_score": current_judge["reasoning_quality_score"],
+                    "decision_score": current_judge["decision_quality_score"],
+                    "active_learning_priorities": priorities[:10],
+                    "closed_trades_evaluated_this_step": len(evaluated_trades),
                 }
             )
 
             self.episodes.append(episode)
             session_episodes.append(episode)
 
-            # Consolidate memories to promote patterns to Approved Concepts if requirements are met
-            self.memory_system.consolidate_patterns_to_concepts(min_samples=4, min_validation_score=0.70)
+            self.memory_system.consolidate_patterns_to_concepts(
+                min_samples=4,
+                min_validation_score=0.70
+            )
 
-            # Advance replay engine cursor
             if not self.replay_engine.advance_by_scale(scale):
                 break
 
         return session_episodes
+
+    def _learn_from_closed_trade(
+        self,
+        signature: List[float],
+        trade: Any,
+        judge_result: Dict[str, Any]
+    ) -> None:
+        """Apply only post-outcome learning to Pattern Memory."""
+        matches = self.discovery_engine.find_matches(
+            signature,
+            self.memory_system.get_patterns()
+        )
+        is_success = trade.final_result == "SUCCESS"
+
+        if matches:
+            best_pattern, _ = matches[0]
+            best_pattern.occurrences_count += 1
+            if is_success:
+                best_pattern.continuation_count += 1
+            else:
+                best_pattern.reversal_count += 1
+            best_pattern.outcomes.append({
+                "trade_id": trade.trade_id,
+                "timestamp": trade.exit_time.isoformat() if trade.exit_time else datetime.now().isoformat(),
+                "outcome": trade.final_result,
+                "judge_vetted_accuracy": judge_result.get("pattern_accuracy", 0.0),
+                "is_lucky_win": judge_result.get("was_influenced_by_luck", False),
+            })
+            self.memory_system.add_pattern(best_pattern)
+        else:
+            new_pattern = self.discovery_engine.create_new_pattern(
+                signature,
+                is_continuation=is_success
+            )
+            self.memory_system.add_pattern(new_pattern)
