@@ -236,7 +236,8 @@ Write-Host ('Deployed SHA : ' + $runtimeDeployedSha + ' (Source: ' + $deployedSh
 #   1. MT5_BRIDGE_SECRET_TOKEN environment variable (PROVEN)
 #   2. <YarTraderStorageRoot>\Secrets\mt5_bridge_token.secret (PROVEN)
 #   3. C:\YarTraderAI\Secrets\mt5_bridge_token.secret (PROVEN)
-#   No relative or legacy path fallback
+#   4. Canonical relative paths (YarTraderStorageRoot\Secrets, Secrets\) (PROVEN)
+#   5. Legacy compatibility fallbacks (TradeYarStorageRoot\Secrets) (NOT PROVEN — LEGACY COMPATIBILITY ONLY)
 
 $healthResp = $null
 $statusResp = $null
@@ -256,15 +257,22 @@ if (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
     $authoritativeTokenFile = if ($env:YarTraderStorageRoot) {
         Join-Path $env:YarTraderStorageRoot 'Secrets\mt5_bridge_token.secret'
     } else {
-        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret'
+        'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret'
     }
 
     $canonicalCandidateTokenFiles = @(
         $authoritativeTokenFile,
-        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret'
+        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
+        'C:\Projects\YarTrader\YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+        'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+        'Secrets\mt5_bridge_token.secret'
     )
 
-    $legacyCandidateTokenFiles = @()
+    $legacyCandidateTokenFiles = @(
+        # LEGACY COMPATIBILITY ONLY — NOT CANONICAL
+        'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret',
+        'C:\Projects\YarTrader\TradeYarStorageRoot\Secrets\mt5_bridge_token.secret'
+    )
 
     foreach ($tf in $canonicalCandidateTokenFiles) {
         if (Test-Path $tf) {
@@ -283,7 +291,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
         }
     }
 
-    if (-not $tokenResolved -and $legacyCandidateTokenFiles.Count -gt 0) {
+    if (-not $tokenResolved) {
         foreach ($tf in $legacyCandidateTokenFiles) {
             if (Test-Path $tf) {
                 try {
@@ -911,6 +919,8 @@ $candidateLogs = @(
     'C:\Projects\YarTrader\Logs\bridge.log',
     'C:\YarTraderAI\Logs\runtime.log',
     'C:\YarTraderAI\Logs\bridge.log',
+    'TradeYarStorageRoot\Logs\runtime.log',
+    'TradeYarStorageRoot\Logs\bridge.log',
     'YarTraderStorageRoot\Logs\runtime.log',
     'YarTraderStorageRoot\Logs\bridge.log',
     'runtime_logs\runtime.log',

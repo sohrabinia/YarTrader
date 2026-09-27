@@ -37,12 +37,13 @@ if (-not (Test-Path $VenvPython)) {
 #   1. MT5_BRIDGE_SECRET_TOKEN environment variable
 #   2. <YarTraderStorageRoot>\Secrets\mt5_bridge_token.secret
 #   3. C:\YarTraderAI\Secrets\mt5_bridge_token.secret
-#   No relative or legacy path fallback
+#   4. Canonical relative paths (YarTraderStorageRoot\Secrets, Secrets\)
+#   5. Legacy compatibility fallbacks (TradeYarStorageRoot\Secrets) — NOT CANONICAL
 
 $SecretsDir = if ($env:YarTraderStorageRoot) {
     Join-Path $env:YarTraderStorageRoot "Secrets"
 } else {
-    'C:\YarTraderAI\Secrets'
+    Join-Path $ProjectRoot "YarTraderStorageRoot\Secrets"
 }
 if (-not (Test-Path $SecretsDir)) {
     New-Item -ItemType Directory -Path $SecretsDir -Force | Out-Null
@@ -59,7 +60,13 @@ if (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
 } else {
     $candidateTokenFiles = @(
         $TokenFile,
-        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret'
+        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
+        'C:\Projects\YarTrader\YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+        'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+        'Secrets\mt5_bridge_token.secret',
+        # LEGACY COMPATIBILITY ONLY — NOT CANONICAL
+        'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret',
+        'C:\Projects\YarTrader\TradeYarStorageRoot\Secrets\mt5_bridge_token.secret'
     )
 
     foreach ($tf in $candidateTokenFiles) {

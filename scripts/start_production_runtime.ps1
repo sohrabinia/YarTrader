@@ -18,16 +18,17 @@ if (-not (Test-Path $StorageLogs)) {
 
 # 2. Environment Variables Configuration
 $env:YARTRADER_ENV = "production"
+$env:TRADEYAR_ENV = "production"
 $env:LIVE_TRADING_ENABLED = "False"
 $env:YARTRADER_API_HOST = "0.0.0.0"
 $env:YARTRADER_API_PORT = "8000"
 
-Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cipher
 Write-Host " YarTrader Production Runtime Launcher" -ForegroundColor Green
 Write-Host " Storage Root : $env:YarTraderStorageRoot" -ForegroundColor Cyan
 Write-Host " Logs Directory: $StorageLogs" -ForegroundColor Cyan
 Write-Host " API Binding   : http://$env:YARTRADER_API_HOST:$env:YARTRADER_API_PORT" -ForegroundColor Cyan
-Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cipher
 
 # 3. Activate Virtual Environment
 $VenvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"

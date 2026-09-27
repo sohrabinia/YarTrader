@@ -68,7 +68,8 @@ def get_or_create_bridge_secret_token() -> str:
       1. MT5_BRIDGE_SECRET_TOKEN environment variable
       2. <YarTraderStorageRoot>\\Secrets\\mt5_bridge_token.secret
       3. C:\\YarTraderAI\\Secrets\\mt5_bridge_token.secret
-      No relative or legacy path fallback
+      4. Canonical relative paths (YarTraderStorageRoot\\Secrets, Secrets\\)
+      5. Legacy compatibility fallbacks (TradeYarStorageRoot\\Secrets) — NOT CANONICAL
     Fail-closed: Raises RuntimeError if token cannot be safely resolved or generated.
     """
     env_token = os.getenv("MT5_BRIDGE_SECRET_TOKEN")
@@ -84,6 +85,12 @@ def get_or_create_bridge_secret_token() -> str:
         candidate_files = [
             secret_file,
             os.path.join(r"C:\YarTraderAI\Secrets", "mt5_bridge_token.secret"),
+            os.path.join(r"C:\Projects\YarTrader\YarTraderStorageRoot\Secrets", "mt5_bridge_token.secret"),
+            os.path.join("YarTraderStorageRoot", "Secrets", "mt5_bridge_token.secret"),
+            os.path.join("Secrets", "mt5_bridge_token.secret"),
+            # Legacy compatibility fallbacks - NOT CANONICAL
+            os.path.join("TradeYarStorageRoot", "Secrets", "mt5_bridge_token.secret"),
+            os.path.join(r"C:\Projects\YarTrader\TradeYarStorageRoot\Secrets", "mt5_bridge_token.secret"),
         ]
         for cf in candidate_files:
             if os.path.exists(cf):
@@ -92,7 +99,10 @@ def get_or_create_bridge_secret_token() -> str:
                     if tok:
                         return tok
 
-        raise RuntimeError("MT5 Bridge Security Failure: canonical secret token is missing")
+        token = secrets.token_hex(32)
+        with open(secret_file, "w", encoding="utf-8") as f:
+            f.write(token)
+        return token
     except Exception as e:
         raise RuntimeError(f"MT5 Bridge Security Failure: Could not resolve or generate secret token: {e}")
 

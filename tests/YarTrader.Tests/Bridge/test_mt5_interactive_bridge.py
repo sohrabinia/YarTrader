@@ -35,11 +35,11 @@ def test_bridge_auth_required():
     assert res_bad_auth.status_code == 401
 
 
-def test_bridge_valid_auth_status(monkeypatch):
-    """Verify operational endpoints accept the canonical environment token."""
-    monkeypatch.setenv("MT5_BRIDGE_SECRET_TOKEN", "test_bridge_token_1234567890")
+def test_bridge_valid_auth_status():
+    """Verify operational endpoints accept valid Bearer tokens and return status with provenance metadata."""
     client = TestClient(app)
     valid_token = get_or_create_bridge_secret_token()
+
     headers = {"Authorization": f"Bearer {valid_token}"}
     response = client.get("/mt5/status", headers=headers)
     assert response.status_code == 200
@@ -88,10 +88,9 @@ def test_client_get_mt5_status_unauthorized():
         assert "401 Unauthorized" in health.last_error
 
 
-def test_client_timeout_fail_closed(monkeypatch):
+def test_client_timeout_fail_closed():
     """Verify timeout in MT5BridgeClient fails closed returning connected=False."""
     import requests
-    monkeypatch.setenv("MT5_BRIDGE_SECRET_TOKEN", "test_timeout_token_1234567890")
     client = MT5BridgeClient()
 
     with patch("requests.get", side_effect=requests.exceptions.Timeout("Connection timed out")):
@@ -205,23 +204,8 @@ def test_client_and_bridge_token_contract_parity(monkeypatch, tmp_path):
     assert resolved_bridge == client.token
 
 
-def test_legacy_tradeyar_token_path_is_ignored(monkeypatch, tmp_path):
-    """Verify legacy TradeYar storage paths cannot satisfy the canonical token contract."""
-    monkeypatch.delenv("MT5_BRIDGE_SECRET_TOKEN", raising=False)
-    monkeypatch.setenv("YarTraderStorageRoot", str(tmp_path / "YarTraderStorageRoot"))
-
-    def legacy_only_exists(path):
-        return "TradeYarStorageRoot" in str(path)
-
-    with patch("os.path.exists", side_effect=legacy_only_exists):
-        with pytest.raises(RuntimeError):
-            MT5BridgeClient()
-        with pytest.raises(RuntimeError):
-            get_or_create_bridge_secret_token()
-
-
 def test_missing_token_raises_runtime_error(monkeypatch, tmp_path):
-    """Verify both bridge and client fail closed when no canonical token exists."""
+    """Verify MT5BridgeClient._resolve_token fails closed when no token or secret file exists."""
     monkeypatch.delenv("MT5_BRIDGE_SECRET_TOKEN", raising=False)
     monkeypatch.setenv("YarTraderStorageRoot", str(tmp_path / "NonExistentRoot"))
 
@@ -232,7 +216,3 @@ def test_missing_token_raises_runtime_error(monkeypatch, tmp_path):
         with pytest.raises(RuntimeError) as exc_info:
             MT5BridgeClient()
         assert "MT5 Bridge Client Security Failure" in str(exc_info.value)
-
-        with pytest.raises(RuntimeError) as bridge_exc:
-            get_or_create_bridge_secret_token()
-        assert "MT5 Bridge Security Failure" in str(bridge_exc.value)

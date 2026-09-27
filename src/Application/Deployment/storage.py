@@ -70,3 +70,6 @@ class YarTraderStorageManager:
     def get_secrets_dir(self) -> str:
         return self._secrets_dir
 
+
+# LEGACY COMPATIBILITY ONLY — NOT CANONICAL
+TradeYarStorageManager = YarTraderStorageManager
