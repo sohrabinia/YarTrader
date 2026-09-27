@@ -26,7 +26,6 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 # Signal to web_dashboard to bypass duplicate background worker loops
-os.environ["TRADEYAR_SERVICE_RUN"] = "True"
 os.environ["YARTRADER_SERVICE_RUN"] = "True"
 
 from src.Application.Deployment.storage import YarTraderStorageManager
@@ -38,7 +37,7 @@ def _get_service_log_file() -> str:
     return os.path.join(service_log_dir, "service.log")
 
 def log_service_message(message: str) -> None:
-    """Logs dedicated service messages directly to TradeYarStorageRoot/Logs/service/service.log and main application.log."""
+    """Logs dedicated service messages directly to YarTraderStorageRoot/Logs/service/service.log and main application.log."""
     timestamp = datetime.now().isoformat()
     log_entry = f"[{timestamp}] [SERVICE] {message}\n"
     try:
@@ -216,7 +215,6 @@ class YarTraderServiceHost:
 
 
 # Backward compatibility alias
-TradeYarAIServiceHost = YarTraderServiceHost
 
 
 if WINDOWS_SERVICE_SUPPORTED:
@@ -268,17 +266,14 @@ if WINDOWS_SERVICE_SUPPORTED:
                 raise
 
     # Backward compatibility alias
-    TradeYarAIWindowsService = YarTraderWindowsService
 else:
     class YarTraderWindowsService:
-        pass
-    class TradeYarAIWindowsService:
         pass
 
 
 def run_standalone():
     """Standalone CLI process entrypoint with SIGINT/SIGTERM signal handling."""
-    host = TradeYarAIServiceHost()
+    host = YarTraderServiceHost()
 
     def handle_signal(signum, frame):
         log_service_message(f"Received signal {signum}. Shutting down...")
@@ -308,7 +303,7 @@ def run_standalone():
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] in ["install", "remove", "start", "stop", "debug", "update"]:
         if WINDOWS_SERVICE_SUPPORTED:
-            win32serviceutil.HandleCommandLine(TradeYarAIWindowsService)
+            win32serviceutil.HandleCommandLine(YarTraderWindowsService)
         else:
             log_service_message("Windows Service packages are not installed on this system. Running standalone instead...")
             run_standalone()
@@ -317,7 +312,7 @@ if __name__ == "__main__":
         if WINDOWS_SERVICE_SUPPORTED:
             try:
                 servicemanager.Initialize()
-                servicemanager.PrepareToHostSingle(TradeYarAIWindowsService)
+                servicemanager.PrepareToHostSingle(YarTraderWindowsService)
                 servicemanager.StartServiceCtrlDispatcher()
             except Exception as e:
                 # If we cannot connect to SCM (e.g. running interactively), fallback to standalone console
