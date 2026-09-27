@@ -241,7 +241,7 @@ class TestP0RemediationSecurity(unittest.TestCase):
 
         try:
             with patch.dict(os.environ, {
-                "TRADEYAR_ENV": "production",
+                "YARTRADER_ENV": "production",
                 "YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH": "",
                 "YARTRADER_DEFAULT_ADMIN_EMAIL": "admin@yartrader.app"
             }):
