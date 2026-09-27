@@ -7,12 +7,11 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $ProjectRoot
 
 # 1. Enforce Production Storage Root Isolation
-if (-not $env:TradeYarStorageRoot) {
-    $env:TradeYarStorageRoot = "C:\YarTraderAI"
+if (-not $env:YarTraderStorageRoot) {
+    $env:YarTraderStorageRoot = if ($env:YarTraderStorageRoot) { $env:YarTraderStorageRoot } else { "C:\YarTraderAI" }
 }
-$env:YarTraderStorageRoot = $env:TradeYarStorageRoot
 
-$StorageLogs = Join-Path $env:TradeYarStorageRoot "Logs"
+$StorageLogs = Join-Path $env:YarTraderStorageRoot "Logs"
 if (-not (Test-Path $StorageLogs)) {
     New-Item -ItemType Directory -Path $StorageLogs -Force | Out-Null
 }
@@ -26,7 +25,7 @@ $env:YARTRADER_API_PORT = "8000"
 
 Write-Host "============================================================" -ForegroundColor Cipher
 Write-Host " YarTrader Production Runtime Launcher" -ForegroundColor Green
-Write-Host " Storage Root : $env:TradeYarStorageRoot" -ForegroundColor Cyan
+Write-Host " Storage Root : $env:YarTraderStorageRoot" -ForegroundColor Cyan
 Write-Host " Logs Directory: $StorageLogs" -ForegroundColor Cyan
 Write-Host " API Binding   : http://$env:YARTRADER_API_HOST:$env:YARTRADER_API_PORT" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cipher

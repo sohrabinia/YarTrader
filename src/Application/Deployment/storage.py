@@ -11,7 +11,7 @@ class YarTraderStorageManager:
         if storage_root:
             self._storage_root = storage_root
         else:
-            self._storage_root = os.getenv("YarTraderStorageRoot") or os.getenv("TradeYarStorageRoot")
+            self._storage_root = os.getenv("YarTraderStorageRoot")
             if not self._storage_root:
                 # Default fallback for Windows (C:\YarTraderAI\) or Unix (/tmp/YarTraderAI/)
                 if os.name == "nt":
@@ -71,5 +71,5 @@ class YarTraderStorageManager:
         return self._secrets_dir
 
 
-# Backward compatibility alias
+# LEGACY COMPATIBILITY ONLY — NOT CANONICAL
 TradeYarStorageManager = YarTraderStorageManager

@@ -64,7 +64,7 @@ class BaseSettings:
 
         # Storage Root Isolation
         default_root = "C:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
-        self.storage_root = str(self._overrides.get("storage_root", os.environ.get("YarTraderStorageRoot", os.environ.get("TradeYarStorageRoot", default_root))))
+        self.storage_root = str(self._overrides.get("storage_root", os.environ.get("YarTraderStorageRoot", default_root)))
         if not self.storage_root:
             self.storage_root = default_root
 

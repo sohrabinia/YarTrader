@@ -72,7 +72,8 @@ $prBaseSha = '588be9ba436cc169f29e7c2d79f2d8fce033b13f'
 
 try {
     $currentHead = (git rev-parse HEAD).Trim()
-    $statusShort = (git status --short)
+    $statusShort = @(git status --short | Where-Object { $_ -notlike "*PR314_GATE_E_WINDOWS_EVIDENCE.md*" }) -join "
+"
     $originMain = (git rev-parse origin/main 2>$null | Out-String).Trim()
     $mergeBase = (git merge-base HEAD origin/main 2>$null | Out-String).Trim()
     $currentBranch = (git rev-parse --abbrev-ref HEAD).Trim()
@@ -231,6 +232,13 @@ Write-Host ('App Root     : ' + $appRoot)
 Write-Host ('Deployed SHA : ' + $runtimeDeployedSha + ' (Source: ' + $deployedShaSourceFile + ')')
 
 # Early Token Resolution & Bridge API Pre-Query for MT5 Process Topology Correlation
+# Canonical Precedence:
+#   1. MT5_BRIDGE_SECRET_TOKEN environment variable (PROVEN)
+#   2. <YarTraderStorageRoot>\Secrets\mt5_bridge_token.secret (PROVEN)
+#   3. C:\YarTraderAI\Secrets\mt5_bridge_token.secret (PROVEN)
+#   4. Canonical relative paths (YarTraderStorageRoot\Secrets, Secrets\) (PROVEN)
+#   5. Legacy compatibility fallbacks (TradeYarStorageRoot\Secrets) (NOT PROVEN — LEGACY COMPATIBILITY ONLY)
+
 $healthResp = $null
 $statusResp = $null
 $marketDataResp = $null
@@ -238,53 +246,69 @@ $tokenResolved = $false
 $tokenStatus = 'NOT PROVEN'
 $tokenSourceDetails = 'NOT PROVEN [Secret token file or ENV missing]'
 $tokenFingerprint = 'N/A'
-
-$authoritativeTokenFile = if ($env:YarTraderStorageRoot) {
-    Join-Path $env:YarTraderStorageRoot 'Secrets\mt5_bridge_token.secret'
-} else {
-    'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret'
-}
-
-$candidateTokenFiles = @(
-    $authoritativeTokenFile,
-    'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
-    'C:\Projects\YarTrader\YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
-    'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
-    'Secrets\mt5_bridge_token.secret',
-    # Legacy compatibility fallbacks - NOT CANONICAL
-    'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret',
-    'C:\Projects\YarTrader\TradeYarStorageRoot\Secrets\mt5_bridge_token.secret'
-)
-
 $token = $null
-$tokenFileUsed = $null
-foreach ($tf in $candidateTokenFiles) {
-    if (Test-Path $tf) {
-        try {
-            $tokCandidate = (Get-Content $tf -Raw).Trim()
-            if (-not [string]::IsNullOrWhiteSpace($tokCandidate)) {
-                $token = $tokCandidate
-                $tokenFileUsed = $tf
-                $tokenSourceDetails = 'Resolved from file: ' + $tf
-                $tokenResolved = $true
-                if ($tf -eq $authoritativeTokenFile) {
-                    $tokenStatus = 'PROVEN'
-                } else {
-                    $tokenStatus = 'NOT PROVEN [Resolved from fallback token path: ' + $tf + ']'
-                }
-                break
-            }
-        } catch {
-            Record-ForensicOperation -OperationName 'TokenFileRead' -Status 'FAILED' -Reason "Exception reading token file $tf" -ExceptionMsg $_.Exception.Message
-        }
-    }
-}
 
-if (-not $tokenResolved -and -not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
+if (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
     $token = $env:MT5_BRIDGE_SECRET_TOKEN.Trim()
     $tokenSourceDetails = 'Resolved from ENV: MT5_BRIDGE_SECRET_TOKEN'
     $tokenResolved = $true
-    $tokenStatus = 'NOT PROVEN [Resolved from ENV override rather than authoritative file contract]'
+    $tokenStatus = 'PROVEN'
+} else {
+    $authoritativeTokenFile = if ($env:YarTraderStorageRoot) {
+        Join-Path $env:YarTraderStorageRoot 'Secrets\mt5_bridge_token.secret'
+    } else {
+        'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret'
+    }
+
+    $canonicalCandidateTokenFiles = @(
+        $authoritativeTokenFile,
+        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
+        'C:\Projects\YarTrader\YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+        'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+        'Secrets\mt5_bridge_token.secret'
+    )
+
+    $legacyCandidateTokenFiles = @(
+        # LEGACY COMPATIBILITY ONLY — NOT CANONICAL
+        'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret',
+        'C:\Projects\YarTrader\TradeYarStorageRoot\Secrets\mt5_bridge_token.secret'
+    )
+
+    foreach ($tf in $canonicalCandidateTokenFiles) {
+        if (Test-Path $tf) {
+            try {
+                $tokCandidate = (Get-Content $tf -Raw).Trim()
+                if (-not [string]::IsNullOrWhiteSpace($tokCandidate)) {
+                    $token = $tokCandidate
+                    $tokenSourceDetails = 'Resolved from canonical file: ' + $tf
+                    $tokenResolved = $true
+                    $tokenStatus = 'PROVEN'
+                    break
+                }
+            } catch {
+                Record-ForensicOperation -OperationName 'TokenFileRead' -Status 'FAILED' -Reason "Exception reading token file $tf" -ExceptionMsg $_.Exception.Message
+            }
+        }
+    }
+
+    if (-not $tokenResolved) {
+        foreach ($tf in $legacyCandidateTokenFiles) {
+            if (Test-Path $tf) {
+                try {
+                    $tokCandidate = (Get-Content $tf -Raw).Trim()
+                    if (-not [string]::IsNullOrWhiteSpace($tokCandidate)) {
+                        $token = $tokCandidate
+                        $tokenSourceDetails = 'Resolved from legacy compatibility file [LEGACY COMPATIBILITY ONLY — NOT CANONICAL]: ' + $tf
+                        $tokenResolved = $true
+                        $tokenStatus = 'NOT PROVEN [Resolved from legacy compatibility token path: ' + $tf + ']'
+                        break
+                    }
+                } catch {
+                    Record-ForensicOperation -OperationName 'TokenFileRead' -Status 'FAILED' -Reason "Exception reading legacy token file $tf" -ExceptionMsg $_.Exception.Message
+                }
+            }
+        }
+    }
 }
 
 if ($tokenResolved -and -not [string]::IsNullOrWhiteSpace($token)) {

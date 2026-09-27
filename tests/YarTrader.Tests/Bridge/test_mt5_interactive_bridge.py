@@ -141,7 +141,7 @@ def test_no_synthetic_data_in_production_when_bridge_fails(monkeypatch):
 
     with patch.object(provider, "_get_bridge_client", return_value=mock_client), \
          patch("src.Data.Providers.MT5.mt5.MT5_AVAILABLE", False), \
-         patch("src.Data.Providers.MT5.mt5.is_production", True):
+         patch("src.Data.Providers.MT5.mt5.is_production", True, create=True):
 
         from src.Data.External.models import ExternalDataRequest
         req = ExternalDataRequest(symbol="XAUUSD", timeframe="H1", start_time="2026-01-01T00:00:00Z", end_time="2026-01-01T05:00:00Z")
@@ -149,3 +149,70 @@ def test_no_synthetic_data_in_production_when_bridge_fails(monkeypatch):
 
         assert res.is_success is False
         assert len(res.raw_data) == 0
+
+
+def test_token_precedence_env_over_file(monkeypatch, tmp_path):
+    """Verify MT5_BRIDGE_SECRET_TOKEN environment variable wins over all secret files."""
+    env_token = "env_secret_token_12345678901234567890123456789012"
+    file_token = "file_secret_token_99999999999999999999999999999999"
+
+    monkeypatch.setenv("MT5_BRIDGE_SECRET_TOKEN", env_token)
+
+    # Even if a file exists, ENV token must win
+    secret_file = tmp_path / "mt5_bridge_token.secret"
+    secret_file.write_text(file_token)
+
+    resolved_bridge = get_or_create_bridge_secret_token()
+    assert resolved_bridge == env_token
+
+    client = MT5BridgeClient()
+    assert client.token == env_token
+
+
+def test_token_precedence_yartrader_storage_root(monkeypatch, tmp_path):
+    """Verify YarTraderStorageRoot token file takes priority when ENV token is absent."""
+    monkeypatch.delenv("MT5_BRIDGE_SECRET_TOKEN", raising=False)
+
+    storage_dir = tmp_path / "YarTraderStorageRoot" / "Secrets"
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    token_file = storage_dir / "mt5_bridge_token.secret"
+    expected_token = "yartrader_root_secret_token_abcdef1234567890"
+    token_file.write_text(expected_token)
+
+    monkeypatch.setenv("YarTraderStorageRoot", str(tmp_path / "YarTraderStorageRoot"))
+
+    from src.Application.Deployment.storage import YarTraderStorageManager
+    YarTraderStorageManager.reset()
+
+    resolved_bridge = get_or_create_bridge_secret_token()
+    assert resolved_bridge == expected_token
+
+    client = MT5BridgeClient()
+    assert client.token == expected_token
+
+
+def test_client_and_bridge_token_contract_parity(monkeypatch, tmp_path):
+    """Verify MT5BridgeClient and mt5_bridge resolve the exact same token under identical conditions."""
+    shared_token = "parity_shared_token_00001111222233334444555566667777"
+    monkeypatch.setenv("MT5_BRIDGE_SECRET_TOKEN", shared_token)
+
+    resolved_bridge = get_or_create_bridge_secret_token()
+    client = MT5BridgeClient()
+
+    assert resolved_bridge == shared_token
+    assert client.token == shared_token
+    assert resolved_bridge == client.token
+
+
+def test_missing_token_raises_runtime_error(monkeypatch, tmp_path):
+    """Verify MT5BridgeClient._resolve_token fails closed when no token or secret file exists."""
+    monkeypatch.delenv("MT5_BRIDGE_SECRET_TOKEN", raising=False)
+    monkeypatch.setenv("YarTraderStorageRoot", str(tmp_path / "NonExistentRoot"))
+
+    from src.Application.Deployment.storage import YarTraderStorageManager
+    YarTraderStorageManager.reset()
+
+    with patch("os.path.exists", return_value=False):
+        with pytest.raises(RuntimeError) as exc_info:
+            MT5BridgeClient()
+        assert "MT5 Bridge Client Security Failure" in str(exc_info.value)

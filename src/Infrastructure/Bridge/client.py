@@ -17,6 +17,12 @@ class MT5BridgeClient:
     def _resolve_token(self) -> str:
         """
         Resolves the Bearer secret token from ENV or secret file.
+        Canonical Precedence:
+          1. MT5_BRIDGE_SECRET_TOKEN environment variable
+          2. <YarTraderStorageRoot>\\Secrets\\mt5_bridge_token.secret
+          3. C:\\YarTraderAI\\Secrets\\mt5_bridge_token.secret
+          4. Canonical relative paths (YarTraderStorageRoot\\Secrets, Secrets\\)
+          5. Legacy compatibility fallbacks (TradeYarStorageRoot\\Secrets) — NOT CANONICAL
         Fail-closed: Raises RuntimeError if token cannot be safely resolved.
         """
         env_token = os.getenv("MT5_BRIDGE_SECRET_TOKEN")

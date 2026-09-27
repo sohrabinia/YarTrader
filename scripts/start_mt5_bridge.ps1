@@ -33,6 +33,13 @@ if (-not (Test-Path $VenvPython)) {
 }
 
 # 2. Resolve or Generate Secure Token
+# Canonical Precedence:
+#   1. MT5_BRIDGE_SECRET_TOKEN environment variable
+#   2. <YarTraderStorageRoot>\Secrets\mt5_bridge_token.secret
+#   3. C:\YarTraderAI\Secrets\mt5_bridge_token.secret
+#   4. Canonical relative paths (YarTraderStorageRoot\Secrets, Secrets\)
+#   5. Legacy compatibility fallbacks (TradeYarStorageRoot\Secrets) — NOT CANONICAL
+
 $SecretsDir = if ($env:YarTraderStorageRoot) {
     Join-Path $env:YarTraderStorageRoot "Secrets"
 } else {
@@ -43,32 +50,36 @@ if (-not (Test-Path $SecretsDir)) {
 }
 $TokenFile = Join-Path $SecretsDir "mt5_bridge_token.secret"
 
-$candidateTokenFiles = @(
-    $TokenFile,
-    'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
-    'C:\Projects\YarTrader\YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
-    'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
-    'Secrets\mt5_bridge_token.secret',
-    # Legacy compatibility fallbacks - NOT CANONICAL
-    'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret',
-    'C:\Projects\YarTrader\TradeYarStorageRoot\Secrets\mt5_bridge_token.secret'
-)
-
 $Token = $null
-if ($env:MT5_BRIDGE_SECRET_TOKEN) {
+$tokenSourceDetails = $null
+
+if (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
     $Token = $env:MT5_BRIDGE_SECRET_TOKEN.Trim()
-    Write-Host " Using MT5_BRIDGE_SECRET_TOKEN from environment." -ForegroundColor Green
+    $tokenSourceDetails = "Using MT5_BRIDGE_SECRET_TOKEN from environment."
+    Write-Host " $tokenSourceDetails" -ForegroundColor Green
 } else {
+    $candidateTokenFiles = @(
+        $TokenFile,
+        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
+        'C:\Projects\YarTrader\YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+        'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
+        'Secrets\mt5_bridge_token.secret',
+        # LEGACY COMPATIBILITY ONLY — NOT CANONICAL
+        'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret',
+        'C:\Projects\YarTrader\TradeYarStorageRoot\Secrets\mt5_bridge_token.secret'
+    )
+
     foreach ($tf in $candidateTokenFiles) {
         if (Test-Path $tf) {
             try {
                 $tokCandidate = (Get-Content $tf -Raw).Trim()
                 if (-not [string]::IsNullOrWhiteSpace($tokCandidate)) {
                     $Token = $tokCandidate
-                    Write-Host " Using existing secret token from $tf" -ForegroundColor Green
+                    $tokenSourceDetails = "Using existing secret token from $tf"
+                    Write-Host " $tokenSourceDetails" -ForegroundColor Green
                     break
                 }
-            } catch {}
+            } catch { Write-Verbose $_.Exception.Message }
         }
     }
 }
