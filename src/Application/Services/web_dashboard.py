@@ -175,7 +175,7 @@ def run_research_background_loop():
     central_runtime_state.update_multiple({
         "worker_status": "Running",
         "research_status": "Running",
-        "shadow_status": "Running"
+        "shadow_status": "Disabled"
     })
 
     # Top-level crash isolation loop: background thread failures can NEVER kill FastAPI API process
@@ -1063,7 +1063,7 @@ def get_robots_txt():
 # ==============================================================================
 VALID_PUBLIC_SUBPATHS = {
     "", "features", "pricing", "guide", "faq", "blog", "news", "about", "contact",
-    "support", "dashboard", "admin", "operator", "Operator", "live", "demo", "shadow", "backtest",
+    "support", "dashboard", "admin", "operator", "Operator", "live", "demo", "backtest",
     "signals", "execution-intel", "learning", "login", "register", "forgot-password"
 }
 
@@ -4113,40 +4113,15 @@ def get_validation_history():
 
 @app.get("/api/shadow/metrics")
 def get_shadow_trading_metrics():
-    """Exposes real-time Virtual Account and Performance metrics for the Shadow Trading Engine."""
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-    shadow_trades = engine.trades
-
-    total = len(shadow_trades)
-    wins = sum(1 for t in shadow_trades if t.status == "TARGET_HIT")
-    losses = sum(1 for t in shadow_trades if t.status == "STOP_HIT")
-    win_rate = (wins / total * 100.0) if total > 0 else 0.0
-
-    # Trade confidence as normalized percentage (if > 1.0, assumed to already be 0-100 percentage scale)
-    conf_sum = 0.0
-    for t in shadow_trades:
-        conf_val = float(t.confidence)
-        if conf_val <= 1.0:
-            conf_val *= 100.0
-        conf_sum += conf_val
-    avg_confidence = (conf_sum / total) if total > 0 else 0.0
-
-    net_pnl = sum(t.floating_pnl for t in shadow_trades)
-    virtual_bal = engine.virtual_capital_balance + net_pnl
-
+    """Shadow trading is permanently closed; no virtual trading metrics are generated."""
     return {
-        "balance": round(virtual_bal, 2),
-        "equity": round(virtual_bal, 2),
-        "open_positions_count": sum(1 for t in shadow_trades if t.status in ["CREATED", "RUNNING"]),
-        "closed_positions_count": sum(1 for t in shadow_trades if t.status not in ["CREATED", "RUNNING"]),
-        "performance": {
-            "total_trades": total,
-            "wins": wins,
-            "losses": losses,
-            "win_rate_pct": round(win_rate, 2),
-            "average_confidence_pct": round(avg_confidence, 2)
-        }
+        "status": "DISABLED",
+        "reason": "Shadow mode is closed and is not a customer-facing or execution mode.",
+        "balance": 0.0,
+        "equity": 0.0,
+        "open_positions_count": 0,
+        "closed_positions_count": 0,
+        "performance": {"total_trades": 0, "wins": 0, "losses": 0, "win_rate_pct": 0.0, "average_confidence_pct": 0.0}
     }
 
 
@@ -4534,40 +4509,24 @@ def get_demo_report():
 
 @app.get("/api/shadow/report")
 def get_shadow_report():
-    """Compiles independent performance report metrics solely from Shadow Trading Journal records."""
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-
-    shadow_trades = engine.trades
-
-    total = len(shadow_trades)
-    wins = sum(1 for t in shadow_trades if t.status == "TARGET_HIT")
-    losses = sum(1 for t in shadow_trades if t.status == "STOP_HIT")
-    win_rate = (wins / total * 100.0) if total > 0 else 0.0
-
-    # Draw values
-    gross_profit = sum(t.floating_pnl for t in shadow_trades if t.floating_pnl > 0)
-    gross_loss = sum(abs(t.floating_pnl) for t in shadow_trades if t.floating_pnl < 0)
-    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 1.0)
-
-    avg_win = (gross_profit / wins) if wins > 0 else 0.0
-    avg_loss = (gross_loss / losses) if losses > 0 else 0.0
-
+    """Shadow trading is permanently closed; no virtual performance report is generated."""
     return {
-        "total_trades": total,
-        "open_trades_count": sum(1 for t in shadow_trades if t.status in ["CREATED", "RUNNING"]),
-        "closed_trades_count": sum(1 for t in shadow_trades if t.status not in ["CREATED", "RUNNING"]),
-        "winning_trades": wins,
-        "losing_trades": losses,
-        "win_rate_pct": round(win_rate, 2),
-        "gross_profit": round(gross_profit, 2),
-        "gross_loss": round(gross_loss, 2),
-        "net_p_and_l": round(sum(t.floating_pnl for t in shadow_trades), 2),
-        "profit_factor": round(profit_factor, 2),
-        "average_win": round(avg_win, 2),
-        "average_loss": round(avg_loss, 2),
-        "virtual_balance": round(engine.virtual_capital_balance + sum(t.floating_pnl for t in shadow_trades), 2),
-        "virtual_equity": round(engine.virtual_capital_balance + sum(t.floating_pnl for t in shadow_trades), 2)
+        "status": "DISABLED",
+        "reason": "Shadow mode is closed and is not a customer-facing or execution mode.",
+        "total_trades": 0,
+        "open_trades_count": 0,
+        "closed_trades_count": 0,
+        "winning_trades": 0,
+        "losing_trades": 0,
+        "win_rate_pct": 0.0,
+        "gross_profit": 0.0,
+        "gross_loss": 0.0,
+        "net_p_and_l": 0.0,
+        "profit_factor": 0.0,
+        "average_win": 0.0,
+        "average_loss": 0.0,
+        "virtual_balance": 0.0,
+        "virtual_equity": 0.0
     }
 
 
@@ -4610,29 +4569,14 @@ def get_scorecard():
     state = central_runtime_state.get_state()
     research_status = state.get("research_status", "Stopped")
     intelligence_status = state.get("intelligence_status", "Stopped")
-    shadow_status = state.get("shadow_status", "Stopped")
-
     degraded_or_stopped = ["Stopped", "Failed", "Degraded", "Recovering"]
     if research_status in degraded_or_stopped:
         blocking_reasons.append(f"Required research_worker status is {research_status}")
     if intelligence_status in degraded_or_stopped:
         blocking_reasons.append(f"Required intelligence_worker status is {intelligence_status}")
-    if shadow_status in degraded_or_stopped:
-        blocking_reasons.append(f"Required shadow_worker status is {shadow_status}")
 
-    # 4. Shadow state consistency check
-    try:
-        from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-        engine = PredictiveShadowEngine.get_instance()
-        shadow_trades = engine.trades
-        m_trades = len(shadow_trades)
-        r_trades = len(shadow_trades)
-        if m_trades != r_trades:
-            blocking_reasons.append("Shadow metrics/report trade count inconsistency detected")
-    except Exception as e:
-        blocking_reasons.append(f"Shadow state evaluation failed: {str(e)}")
-
-    # 5. Acceptance validation state check
+    # Shadow is intentionally excluded from readiness requirements because it is closed repository-wide.
+    # 4. Acceptance validation state check
     global val_state
     with state_lock:
         v_status = val_state.readiness_status
