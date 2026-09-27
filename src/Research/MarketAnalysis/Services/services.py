@@ -226,6 +226,7 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
                     "liquidity": intel_res.get("liquidity", {}),
                     "zones": intel_res.get("zones", {}),
                     "alignment": intel_res.get("alignment", {}),
+                    "multi_timeframe_context": intel_res.get("multi_timeframe_context", {}),
                     "latest_price": candles_dicts[-1]["close"]
                 },
                 risk_status="PENDING" if action in ["BUY", "SELL"] else "CHECKED",
