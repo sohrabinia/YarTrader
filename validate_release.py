@@ -27,6 +27,7 @@ import subprocess
 import traceback
 import math
 import ast
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Tuple, Set
 
@@ -218,32 +219,35 @@ class ReleaseValidationPlatform:
         failures_list = []
 
         lines = stdout.splitlines()
-        summary_line = ""
-        for line in lines:
-            if "passed in" in line or "failed" in line or "skipped" in line:
-                if line.startswith("===") or line.startswith("!!!"):
-                    summary_line = line
-                    break
+        # Pytest summary formatting has changed across versions. Parse counts
+        # from any summary-like line instead of depending on one exact prefix.
+        summary_lines = [
+            line for line in lines
+            if any(re.search(rf"\\b\\d+\\s+{word}\\b", line)
+                   for word in ("passed", "failed", "skipped", "warnings"))
+        ]
 
-        if summary_line:
-            tokens = summary_line.replace("=", "").replace("!", "").strip().split(",")
-            for token in tokens:
-                token = token.strip()
-                if "passed" in token:
-                    passed = int(token.split()[0])
-                elif "failed" in token:
-                    failed = int(token.split()[0])
-                elif "skipped" in token:
-                    skipped = int(token.split()[0])
-                elif "warnings" in token:
-                    warnings = int(token.split()[0])
+        for line in reversed(summary_lines):
+            m = re.search(r"(\\d+)\\s+passed\\b", line)
+            if m:
+                passed = int(m.group(1))
+            m = re.search(r"(\\d+)\\s+failed\\b", line)
+            if m:
+                failed = int(m.group(1))
+            m = re.search(r"(\\d+)\\s+skipped\\b", line)
+            if m:
+                skipped = int(m.group(1))
+            m = re.search(r"(\\d+)\\s+warnings?\\b", line)
+            if m:
+                warnings = int(m.group(1))
+            if passed or failed or skipped:
+                break
 
-            total_tests = passed + failed + skipped
-        else:
-            if return_code == 0:
-                passed = 1280
-                total_tests = 1280
-            else:
+        total_tests = passed + failed + skipped
+        if total_tests == 0:
+            # A zero-count result is only acceptable when pytest itself exited
+            # successfully and produced no test collection result.
+            if return_code != 0:
                 failed = 1
                 total_tests = 1
 
