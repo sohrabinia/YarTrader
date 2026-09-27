@@ -5,6 +5,7 @@ from src.Research.Brain.models import MarketObservation, AnalysisReport, Pattern
 from src.Research.Brain.data_reality import DataRealityLayer
 from src.Research.Brain.observation import ObservationBrain
 from src.Research.Brain.discovery import PatternDiscoveryEngine
+from src.Research.Brain.hypothesis import HypothesisEngine
 from src.Research.Brain.simulation import SimulationBrain
 from src.Research.Brain.quality_control import QualityControlBrain
 from src.Research.Brain.memory import MarketMemorySystem
@@ -25,6 +26,7 @@ class LiveAnalysisBrain:
         self.data_layer = DataRealityLayer(symbol)
         self.observation_brain = ObservationBrain(symbol, timeframe)
         self.discovery_engine = PatternDiscoveryEngine()
+        self.hypothesis_engine = HypothesisEngine(self.discovery_engine)
         self.simulation_brain = SimulationBrain(symbol, timeframe)
         self.qc_brain = QualityControlBrain()
 
@@ -51,18 +53,15 @@ class LiveAnalysisBrain:
         matched = self.discovery_engine.find_matches(sig, self.memory_system.get_patterns())
         outcome_agg = self.discovery_engine.aggregate_outcomes(matched)
 
-        # 5. Formulate Hypothesis Decision (Simulated only)
-        decision = "WAIT"
-        expected = "Stable"
-        if matched:
-            best_match, sim_score = matched[0]
-            # Decide to BUY if continuation of positive pattern is likely, etc.
-            if outcome_agg["continuation_pct"] > 60.0:
-                decision = "BUY"
-                expected = "Continuation"
-            elif outcome_agg["reversal_pct"] > 60.0:
-                decision = "SELL"
-                expected = "Reversal"
+        # 5. Formulate the canonical Trading Brain hypothesis.
+        # Live analysis may propose only a virtual action; execution remains outside
+        # this Brain and is governed by the downstream risk/execution gates.
+        hypothesis = self.hypothesis_engine.formulate_hypothesis(
+            current_signature=sig,
+            historical_patterns=self.memory_system.get_patterns()
+        )
+        decision = hypothesis.expected_direction
+        expected = "Continuation" if decision == "BUY" else ("Reversal" if decision == "SELL" else "Stable")
 
         # Record Virtual Trade if decided (100% simulated, NO execution pathways exist)
         virtual_trade = None
@@ -94,6 +93,10 @@ class LiveAnalysisBrain:
             ],
             active_hypotheses=[
                 {
+                    "hypothesis_id": hypothesis.hypothesis_id,
+                    "expected_direction": hypothesis.expected_direction,
+                    "confidence": hypothesis.confidence,
+                    "validation_status": hypothesis.validation_status,
                     "matched_patterns": len(matched),
                     "continuation_likelihood": outcome_agg["continuation_pct"],
                     "reversal_likelihood": outcome_agg["reversal_pct"],
