@@ -803,7 +803,7 @@ foreach ($sf in $auditedSourceFiles) {
                 $sourceViolations += "$sf contains trade/order execution methods"
             }
         } catch {
-            $sourceViolations += "Exception auditing $sf: " + $_.Exception.Message
+            $sourceViolations += "Exception auditing ${sf}: " + $_.Exception.Message
         }
     } else {
         $sourceViolations += "Source file $sf missing"
