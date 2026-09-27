@@ -5593,31 +5593,3 @@ def admin_update_ticket_status(ticket_id: str, payload: AdminTicketStatusPayload
         raise HTTPException(status_code=400, detail=str(e))
 
 
-class ChatPrompt(BaseModel):
-    message: str
-
-@app.post("/api/chat/assistant")
-def chatbot_assistant_explain(payload: ChatPrompt, lang: str = "fa"):
-    """
-    Floating AI Support Assistant chatbot response handler.
-    Directly queries DecisionExplainer and MarketMemorySystem for live contextual explanations.
-    """
-    msg = payload.message.lower()
-
-    # Context-aware semantic routing
-    if "چرا" in msg or "why" in msg or "open" in msg:
-        ans = global_decision_explainer.explain_why_open_trade(lang=lang)
-    elif "یاد" in msg or "learn" in msg or "cognitive" in msg:
-        ans = global_decision_explainer.explain_what_learned(lang=lang)
-    elif "اشتباه" in msg or "mistake" in msg or "fail" in msg:
-        ans = global_decision_explainer.explain_mistake(lang=lang)
-    elif "معامله نکرد" in msg or "not trade" in msg or "why didn" in msg:
-        ans = global_decision_explainer.explain_why_no_trade(lang=lang)
-    else:
-        ans = global_decision_explainer.explain_what_not_known(lang=lang)
-
-    return {
-        "response": ans,
-        "status": "YarTrader Cognitive AI Active",
-        "timestamp": datetime.now().isoformat()
-    }
