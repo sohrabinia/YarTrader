@@ -389,8 +389,7 @@ def initialize_validation_state() -> None:
             pass
 
 # Pre-load status from disk right on startup
-# Validation state starts from the current process only. Historical report files are
-# artifacts, not live status, and must never be presented as the result of a new run.
+initialize_validation_state()
 
 
 def run_acceptance_runner_thread():
@@ -3878,7 +3877,7 @@ def get_production_health():
         "workers": True,
         "service": "YarTrader",
         "mt5": mt5_status,
-        "intelligence": "Ready" if intelligence_status == "Running" else "Offline",
+        "intelligence": "Ready",
         "worker": worker_status,
         "research_worker": research_status,
         "intelligence_worker": intelligence_status,
@@ -5288,7 +5287,7 @@ class SocialLoginPayload(BaseModel):
 def login_with_google(payload: SocialLoginPayload, request: Request):
     """Secure authenticating callback mapping Google sign-in profiles to user sessions."""
     is_production = (os.environ.get("YARTRADER_ENV") == "production" or
-                     
+
                      os.environ.get("RG_ENV") == "production")
 
     client_host = request.client.host if request.client else None

@@ -208,7 +208,7 @@ class TestP0RemediationSecurity(unittest.TestCase):
     def test_social_login_missing_config_fails_closed_in_production(self) -> None:
         """Verifies that social validation immediately fails closed in production mode if configuration is missing."""
         token = "some-token"
-        with patch.dict(os.environ, {"YARTRADER_ENV": "production", "GOOGLE_CLIENT_ID": ""}):
+        with patch.dict(os.environ, {"TRADEYAR_ENV": "production", "GOOGLE_CLIENT_ID": ""}):
             with self.assertRaises(ValidationException) as ctx:
                 validate_social_token(token, "google")
             self.assertIn("configuration error", str(ctx.exception).lower())
@@ -219,7 +219,7 @@ class TestP0RemediationSecurity(unittest.TestCase):
 
     def test_production_mode_fail_closed_on_missing_db_token(self) -> None:
         """Verifies that ProductionSettings initialization raises ValidationException if RG_DB_SECURE_TOKEN is missing."""
-        with patch.dict(os.environ, {"YARTRADER_ENV": "production", "RG_DB_SECURE_TOKEN": ""}):
+        with patch.dict(os.environ, {"TRADEYAR_ENV": "production", "RG_DB_SECURE_TOKEN": ""}):
             with self.assertRaises(ValidationException) as ctx:
                 ProductionSettings()
             self.assertIn("rg_db_secure_token", str(ctx.exception).lower())
@@ -227,7 +227,7 @@ class TestP0RemediationSecurity(unittest.TestCase):
     def test_production_mode_fail_closed_on_placeholder_db_token(self) -> None:
         """Verifies that ProductionSettings initialization raises ValidationException if a default placeholder is used."""
         for placeholder in ["prod-token-secure", "dev-token-12345", "test-token-77777"]:
-            with patch.dict(os.environ, {"YARTRADER_ENV": "production", "RG_DB_SECURE_TOKEN": placeholder}):
+            with patch.dict(os.environ, {"TRADEYAR_ENV": "production", "RG_DB_SECURE_TOKEN": placeholder}):
                 with self.assertRaises(ValidationException) as ctx:
                     ProductionSettings()
                 self.assertIn("insecure placeholder", str(ctx.exception).lower())
@@ -241,9 +241,9 @@ class TestP0RemediationSecurity(unittest.TestCase):
 
         try:
             with patch.dict(os.environ, {
-                "YARTRADER_ENV": "production",
-                "YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH": "",
-                "YARTRADER_DEFAULT_ADMIN_EMAIL": "admin@yartrader.app"
+                "TRADEYAR_ENV": "production",
+                "TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH": "",
+                "TRADEYAR_DEFAULT_ADMIN_EMAIL": "admin@yartrader.app"
             }):
                 with self.assertRaises(ValidationException) as ctx:
                     AuthRepository(filepath=test_filepath)

@@ -275,7 +275,7 @@ def get_canonical_mt5_terminal_path() -> str:
     return (
         os.getenv("MT5_TERMINAL_PATH") or
         os.getenv("YARTRADER_MT5_TERMINAL_PATH") or
-        
+
         r"C:\Program Files\MetaTrader 5\terminal64.exe"
     )
 

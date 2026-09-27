@@ -184,13 +184,7 @@ class ExecutionIntelligenceCore:
             "strategy_evaluation": {
                 "status": "DISCONNECTED",
                 "decision_authority": "BRAIN",
-                "legacy_strategy_orchestrator": "NOT_USED",
-                "candidates": [{
-                    "strategy_name": "FRACTAL",
-                    "direction": "WAIT",
-                    "confidence": 0.0,
-                    "reasoning": "FRACTAL strategy explicitly disabled: insufficient pattern memory evidence."
-                }]
+                "legacy_strategy_orchestrator": "NOT_USED"
             },
             "portfolio_risk": portfolio_res,
             "plan": plan_res["plan"]

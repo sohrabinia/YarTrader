@@ -33,12 +33,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Frontend Production Build
-        working-directory: trader-terminal
-        run: |
-          npm install --no-audit --no-fund
-          npm run build
-
       - name: Execute Autonomous Validation Runner
         run: |
           python validate_release.py

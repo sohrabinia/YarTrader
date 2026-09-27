@@ -1,13 +1,13 @@
 {
-  "timestamp": "2026-08-20 16:13:49",
+  "timestamp": "2026-09-27 23:07:16",
   "status": "FAILED",
   "readiness_status": "Not Ready",
-  "readiness_score": 88.9,
+  "readiness_score": 99.8,
   "readiness_explanation": "Certain dependencies, document checks, or system verifications did not meet the rigorous production grade.",
   "environment": {
     "python": {
       "name": "Python Environment",
-      "version": "3.14.6",
+      "version": "3.12.13",
       "status": "PASSED",
       "details": "Target is Python >= 3.10"
     },
@@ -19,7 +19,7 @@
     "disk_space": {
       "name": "Storage Availability",
       "status": "PASSED",
-      "details": "Available Disk Space: 5991.8 MB"
+      "details": "Available Disk Space: 94706.7 MB"
     },
     "dependencies": {
       "name": "Package Dependencies",
@@ -28,17 +28,17 @@
     },
     "mt5": {
       "name": "MetaTrader 5 Link",
-      "status": "PASSED",
-      "details": "MT5 Terminal Connection Active"
+      "status": "SIMULATED_FALLBACK",
+      "details": "Synthetic Fallback Mode Active (Non-Windows platform)"
     }
   },
   "tests": {
-    "total": 1,
-    "passed": 0,
-    "failed": 1,
+    "total": 1960,
+    "passed": 1930,
+    "failed": 30,
     "skipped": 0,
     "warnings": 0,
-    "duration_sec": 301.03,
+    "duration_sec": 282.63,
     "status": "FAILED"
   },
   "subsystems": {
@@ -70,7 +70,7 @@
     "performance": {
       "name": "Platform Processing Latency",
       "status": "PASSED",
-      "details": "Internal execution startup latency: 0.179 ms"
+      "details": "Internal execution startup latency: 0.058 ms"
     }
   },
   "release": {

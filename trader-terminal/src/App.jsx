@@ -165,10 +165,10 @@ function MainApp() {
       tier_id: 'institutional',
       name: lang === 'fa' ? 'Institutional SCM Terminal (سازمانی)' : 'Institutional SCM Terminal',
       price_usd: '$299/mo',
-      max_symbols: 30,
+      max_symbols: 50,
       enabled_timeframes: ['Micro', 'Short', 'Medium', 'Macro'],
       features: [
-        '30 Active Concurrent Symbols',
+        '50 Active Concurrent Symbols',
         'All Horizon Signals (Micro to Macro)',
         'Priority SRE support & dedicated server access'
       ]

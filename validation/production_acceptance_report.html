@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TradeYar AI — Release Acceptance Report</title>
+    <title>YarTrader — Release Acceptance Report</title>
     <style>
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
@@ -83,9 +83,9 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 style="margin: 0; color: #1d3557;">TradeYar AI</h1>
+            <h1 style="margin: 0; color: #1d3557;">YarTrader</h1>
             <p style="color: #8d99ae; font-size: 1.1em; margin: 5px 0 15px 0;">Production Acceptance & Release Validation Portal</p>
-            <div class="score-badge">Not Ready (88.9%)</div>
+            <div class="score-badge">Not Ready (99.8%)</div>
             <p style="font-style: italic; color: #4a5759; max-width: 600px; margin: 10px auto;">"Certain dependencies, document checks, or system verifications did not meet the rigorous production grade."</p>
         </div>
 
@@ -115,7 +115,7 @@
                 <tr>
                     <td><strong>Storage Availability</strong></td>
                     <td><span class="badge-passed">PASSED</span></td>
-                    <td>Available Disk Space: 5991.8 MB</td>
+                    <td>Available Disk Space: 94706.7 MB</td>
                 </tr>
             
                 <tr>
@@ -126,8 +126,8 @@
             
                 <tr>
                     <td><strong>MetaTrader 5 Link</strong></td>
-                    <td><span class="badge-passed">PASSED</span></td>
-                    <td>MT5 Terminal Connection Active</td>
+                    <td><span class="badge-warn">SIMULATED_FALLBACK</span></td>
+                    <td>Synthetic Fallback Mode Active (Non-Windows platform)</td>
                 </tr>
             
             </tbody>
@@ -135,11 +135,137 @@
 
         <h2>2. Automated Validation Suite Results</h2>
         <div style="background-color: #f8f9fa; padding: 20px; border-radius: 6px; border: 1px solid #edf2f4; margin: 15px 0;">
-            <p style="margin: 5px 0;"><strong>Total Discovered Tests:</strong> 1</p>
-            <p style="margin: 5px 0;"><strong>Passed:</strong> 0 <span class="badge-passed" style="font-size: 0.75em;">SUCCESS RATE</span></p>
-            <p style="margin: 5px 0;"><strong>Failed:</strong> 1</p>
-            <p style="margin: 5px 0;"><strong>Duration:</strong> 301.03 seconds</p>
+            <p style="margin: 5px 0;"><strong>Total Discovered Tests:</strong> 1960</p>
+            <p style="margin: 5px 0;"><strong>Passed:</strong> 1930 <span class="badge-passed" style="font-size: 0.75em;">SUCCESS RATE</span></p>
+            <p style="margin: 5px 0;"><strong>Failed:</strong> 30</p>
+            <p style="margin: 5px 0;"><strong>Duration:</strong> 282.63 seconds</p>
         </div>
+<h3>Failure Investigation Logs</h3>
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>testplannerrejectsstructurewithrrbelowminimum</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Missing Import or module path misconfiguration</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Verify PYTHONPATH configuration or add missing project packages.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestMarketSessionEngine.testpreentry120sthresholdboundarymatrix</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestMarketSessionEngine.testcryptosaturdaymultipleintervals</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestMarketSessionEngine.testpreentrytptimefeasibilitymatrix</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestMarketSessionEngine.testsessionexecutionmanagerintegration</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Assertion mismatch</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestGate1BrainIntegration.testcausalbrainproposaldataflow</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestMultiTimeframeExecutionPlans.test02consecutivebuybuyplans</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestMultiTimeframeExecutionPlans.test03consecutivesellsellplans</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestTradeYarRuntimeAndConfiguration.testenvironmentresolution</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestModernFeaturesIntegration.testchatbotassistantexplanations</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Research (Feature Extraction Engine)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check indicators registry, descriptive statistics, or patterns detector.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestProductionPlatformSaaS.testpublicsaasmetricsandpricing</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Missing Import or module path misconfiguration</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Verify PYTHONPATH configuration or add missing project packages.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>testlivemodezerobalanceblocked</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Assertion mismatch</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>testunknownmodefailsclosed</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Assertion mismatch</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestHierarchicalM5M15Trading.testapimultitimeframeendpoint</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Dashboard (Web Admin SPA & REST Service)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Missing Import or module path misconfiguration</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Verify PYTHONPATH configuration or add missing project packages.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestConfigLoading.testenvoverride</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestConfigLoading.testinvalidconfidencethreshold</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestConfigLoading.testinvalidportvalidation</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
+
+                <div style="border-left: 4px solid #e71d36; background: #fff5f5; padding: 15px; margin: 15px 0; border-radius: 0 4px 4px 0;">
+                    <p style="margin: 0 0 5px 0;"><strong>Failing Test:</strong> <code>TestHealthEndpoint.testproductionhealthendpoint</code></p>
+                    <p style="margin: 0 0 5px 0;"><strong>Subsystem:</strong> Core (Unknown)</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Root Cause:</strong> Verification assertion failed</p>
+                    <p style="margin: 0 0 5px 0;"><strong>Recommended Fix:</strong> <span style="color: #e71d36;">Check class parameters and types.</span></p>
+                </div>
 
         <h2>3. Core Subsystem Verifications</h2>
         <table>
@@ -185,7 +311,7 @@
                 <tr>
                     <td><strong>Platform Processing Latency</strong></td>
                     <td><span class="badge-passed">PASSED</span></td>
-                    <td>Internal execution startup latency: 0.179 ms</td>
+                    <td>Internal execution startup latency: 0.058 ms</td>
                 </tr>
             
             </tbody>
@@ -194,7 +320,7 @@
         <h2>4. Release Golden Baseline Trend Analysis</h2>
         <div style="background-color: #f8f9fa; padding: 20px; border-radius: 6px; border: 1px solid #edf2f4;">
             <p style="margin: 5px 0;"><strong>Regression Status:</strong> <span class="badge-passed">REGRESSION DETECTED</span></p>
-            <p style="margin: 5px 0;"><strong>Historical Analysis:</strong> Acceptance score decreased slightly from 100.0% to 88.9% versus Golden Baseline.</p>
+            <p style="margin: 5px 0;"><strong>Historical Analysis:</strong> Acceptance score decreased slightly from 100.0% to 99.8% versus Golden Baseline.</p>
         </div>
     </div>
 </body>

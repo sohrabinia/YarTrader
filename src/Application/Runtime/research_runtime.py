@@ -218,23 +218,6 @@ class ResearchRuntime:
                     if action not in ["BUY", "SELL", "WAIT", "AVOID"]:
                         action = "WAIT"
 
-                    # Preserve the Brain's market-direction proposal as the decision
-                    # authority even when the execution planner correctly fails closed
-                    # because SL/TP structure is missing or RR is below the safety floor.
-                    # This does NOT create executable levels: entry/SL/TP/RR remain the
-                    # planner's zeroed, non-actionable values and downstream gates reject
-                    # the decision until valid structure exists.
-                    if action == "WAIT" and isinstance(newborn_report_dict, dict):
-                        hypotheses = newborn_report_dict.get("active_hypotheses") or []
-                        brain_action = (
-                            hypotheses[0].get("suggested_virtual_action")
-                            if hypotheses and isinstance(hypotheses[0], dict)
-                            else newborn_report_dict.get("suggested_virtual_action")
-                        )
-                        brain_action = str(brain_action or "WAIT").upper()
-                        if brain_action in ["BUY", "SELL"]:
-                            action = brain_action
-
                     entry = float(plan.get("entry", 0.0))
                     sl = float(plan.get("stop_loss", 0.0))
                     tp = float(plan.get("take_profit", 0.0))

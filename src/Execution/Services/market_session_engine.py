@@ -358,7 +358,7 @@ class MarketSessionEngine:
 
         # TP-Time Feasibility evaluation if TP parameters are supplied
         tp_feasibility = None
-        if distance_to_tp is not None:
+        if distance_to_tp is not None and current_volatility_atr is not None:
             tp_feasibility = self.estimate_tp_time_feasibility(
                 distance_to_tp=distance_to_tp,
                 remaining_session_seconds=rem_seconds,

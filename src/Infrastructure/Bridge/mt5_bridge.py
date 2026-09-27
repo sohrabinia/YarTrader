@@ -117,16 +117,7 @@ def verify_bearer_token(credentials: Optional[HTTPAuthorizationCredentials] = Se
             detail={"error": "AUTHENTICATION_REQUIRED", "message": "Missing or invalid Authorization Bearer header"}
         )
     token = credentials.credentials.strip()
-    try:
-        expected_token = get_or_create_bridge_secret_token()
-    except RuntimeError:
-        # Missing canonical secret is an authentication failure at this boundary.
-        # Never expose a 500 or allow an unauthenticated probe to distinguish
-        # secret provisioning state.
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"error": "INVALID_TOKEN", "message": "Unauthorized MT5 Bridge token"}
-        )
+    expected_token = get_or_create_bridge_secret_token()
     if not secrets.compare_digest(token, expected_token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
