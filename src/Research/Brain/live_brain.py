@@ -8,6 +8,9 @@ from src.Research.Brain.discovery import PatternDiscoveryEngine
 from src.Research.Brain.hypothesis import HypothesisEngine
 from src.Research.Brain.simulation import SimulationBrain
 from src.Research.Brain.quality_control import QualityControlBrain
+from src.Research.Brain.judge import JudgeBrain
+from src.Research.Brain.active_learning import ActiveLearningEngine
+from src.Research.Brain.integrity import LearningIntegrityService
 from src.Research.Brain.memory import MarketMemorySystem
 
 class LiveAnalysisBrain:
@@ -28,7 +31,13 @@ class LiveAnalysisBrain:
         self.discovery_engine = PatternDiscoveryEngine()
         self.hypothesis_engine = HypothesisEngine(self.discovery_engine)
         self.simulation_brain = SimulationBrain(symbol, timeframe)
+        self.judge_brain = JudgeBrain()
+        self.active_learning = ActiveLearningEngine()
+        self.integrity_service = LearningIntegrityService()
         self.qc_brain = QualityControlBrain()
+        # Immutable decision-time context for open virtual trades. Outcomes are
+        # learned only after a later candle closes the trade.
+        self._pending_trade_context: Dict[str, Dict[str, Any]] = {}
 
     def process_live_candle(self, raw_candle: Dict[str, Any]) -> AnalysisReport:
         """
@@ -42,8 +51,55 @@ class LiveAnalysisBrain:
 
         latest_obs = observations[-1]
 
-        # 2. Update active simulation trades first
-        self.simulation_brain.update_active_trades(latest_obs)
+        # 2. Update active simulation trades first. A trade closed here was opened
+        # on an earlier candle, so it is eligible for Judge + post-outcome learning.
+        closed_trades = self.simulation_brain.update_active_trades(latest_obs)
+        evaluated_trades = []
+        for closed_trade in closed_trades:
+            context = self._pending_trade_context.pop(closed_trade.trade_id, None)
+            if not context:
+                continue
+            judge_result = self.judge_brain.evaluate_hypothesis_and_decision(
+                hypothesis=context["hypothesis"],
+                virtual_trade=closed_trade,
+                actual_outcome_ticks=[{
+                    "close": closed_trade.exit_price,
+                    "timestamp": closed_trade.exit_time.isoformat() if closed_trade.exit_time else latest_obs.timestamp.isoformat()
+                }]
+            )
+            matches = self.discovery_engine.find_matches(
+                context["signature"], self.memory_system.get_patterns()
+            )
+            if matches:
+                pattern, _ = matches[0]
+                pattern.occurrences_count += 1
+                if closed_trade.final_result == "SUCCESS":
+                    pattern.continuation_count += 1
+                else:
+                    pattern.reversal_count += 1
+                pattern.outcomes.append({
+                    "trade_id": closed_trade.trade_id,
+                    "timestamp": closed_trade.exit_time.isoformat() if closed_trade.exit_time else latest_obs.timestamp.isoformat(),
+                    "outcome": closed_trade.final_result,
+                    "judge_vetted_accuracy": judge_result.get("pattern_accuracy", 0.0),
+                    "is_lucky_win": judge_result.get("was_influenced_by_luck", False),
+                })
+                self.memory_system.add_pattern(pattern)
+            else:
+                new_pattern = self.discovery_engine.create_new_pattern(
+                    context["signature"],
+                    is_continuation=closed_trade.final_result == "SUCCESS"
+                )
+                self.memory_system.add_pattern(new_pattern)
+            evaluated_trades.append(judge_result)
+
+        # Active learning is advisory only; it cannot alter execution or risk policy.
+        active_learning_priorities = self.active_learning.analyze_weaknesses_and_set_priorities(
+            self.memory_system.get_patterns()
+        )
+        integrity_report = self.integrity_service.inspect_patterns_integrity(
+            self.memory_system.get_patterns()
+        )
 
         # 3. Process Observations in Observation Brain
         sequence = self.observation_brain.process_observations(observations)
@@ -72,6 +128,12 @@ class LiveAnalysisBrain:
                 timestamp=latest_obs.timestamp,
                 expected_scenario=expected
             )
+            if virtual_trade is not None:
+                self._pending_trade_context[virtual_trade.trade_id] = {
+                    "hypothesis": hypothesis,
+                    "signature": list(sig),
+                    "decision_time": latest_obs.timestamp.isoformat(),
+                }
 
         # 6. Evaluate Quality Control Score
         quality_score = self.qc_brain.evaluate_reasoning_quality(
@@ -116,5 +178,14 @@ class LiveAnalysisBrain:
             reasoning_quality_score=quality_score,
             is_read_only_compliant=True
         )
+
+        # Attach learning telemetry without giving the Brain execution authority.
+        # These fields are evidence only and never mutate downstream risk/execution.
+        report.learning_feedback = {
+            "closed_trades_evaluated": len(evaluated_trades),
+            "active_learning_priorities": active_learning_priorities[:10],
+            "integrity_report": integrity_report,
+            "post_outcome_learning": True,
+        }
 
         return report
