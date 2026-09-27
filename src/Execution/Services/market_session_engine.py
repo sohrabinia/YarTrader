@@ -201,7 +201,6 @@ class MarketSessionEngine:
     def estimate_tp_time_feasibility(
         self,
         distance_to_tp: float,
-        current_volatility_atr: float,
         remaining_session_seconds: float,
         historical_mfe_speed: float = 1.0  # price movement units per second
     ) -> TPFeasibilityAssessment:
@@ -211,7 +210,7 @@ class MarketSessionEngine:
         1. Estimated time to reach TP based on ATR and historical movement speed.
         2. Asserts whether trade can reach TP after minimum hold duration (>120s) and before session cutoff.
         """
-        if distance_to_tp <= 0 or current_volatility_atr <= 0 or historical_mfe_speed <= 0:
+        if distance_to_tp <= 0 or historical_mfe_speed <= 0:
             return TPFeasibilityAssessment(
                 is_feasible=False,
                 rejection_reason="TP_FEASIBILITY_INCONCLUSIVE",
@@ -254,7 +253,6 @@ class MarketSessionEngine:
         symbol: str,
         broker: str = "DEFAULT",
         distance_to_tp: Optional[float] = None,
-        current_volatility_atr: Optional[float] = None,
         historical_mfe_speed: float = 1.0,
         current_time: Optional[datetime] = None,
         current_equity: Optional[float] = None
@@ -363,7 +361,6 @@ class MarketSessionEngine:
         if distance_to_tp is not None and current_volatility_atr is not None:
             tp_feasibility = self.estimate_tp_time_feasibility(
                 distance_to_tp=distance_to_tp,
-                current_volatility_atr=current_volatility_atr,
                 remaining_session_seconds=rem_seconds,
                 historical_mfe_speed=historical_mfe_speed
             )
