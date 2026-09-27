@@ -205,10 +205,23 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
             )
 
             plan = intel_res.get("plan", {})
-            action = str(plan.get("action", "WAIT")).upper()
-            if action not in ["BUY", "SELL", "WAIT", "AVOID"]:
-                action = "WAIT"
+            planner_action = str(plan.get("action", "WAIT")).upper()
+            if planner_action not in ["BUY", "SELL", "WAIT", "AVOID"]:
+                planner_action = "WAIT"
 
+            # Preserve the single Brain's market direction even when the advisory
+            # planner must fail closed because executable SL/TP structure is incomplete.
+            # The preserved action is informational only; zero levels keep execution non-actionable.
+            brain_action = str(
+                (newborn_report_dict or {}).get("suggested_virtual_action", "WAIT")
+            ).upper()
+            if brain_action not in ["BUY", "SELL", "WAIT", "AVOID"]:
+                brain_action = "WAIT"
+            action = (
+                brain_action
+                if planner_action == "WAIT" and brain_action in ["BUY", "SELL"]
+                else planner_action
+            )
             auto_decision = AutonomousTradingDecision(
                 decision_id=decision_id,
                 cycle_id=cycle_id,
@@ -230,8 +243,8 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
                     "multi_timeframe_context": intel_res.get("multi_timeframe_context", {}),
                     "latest_price": candles_dicts[-1]["close"]
                 },
-                risk_status="PENDING" if action in ["BUY", "SELL"] else "CHECKED",
-                execution_status="PENDING" if action in ["BUY", "SELL"] else "SKIPPED",
+                risk_status=("PENDING" if planner_action in ["BUY", "SELL"] else ("BLOCKED_STRUCTURE" if action in ["BUY", "SELL"] else "CHECKED")),
+                execution_status=("PENDING" if planner_action in ["BUY", "SELL"] else "SKIPPED"),
                 configuration_version="1.2.0",
                 timestamp=datetime.now().isoformat()
             )
