@@ -88,7 +88,7 @@ class ExecutionIntelligencePlanner:
             if brain_suggested_action == "BUY":
                 action = "BUY"
                 entry = current_price
-                 if obs:
+                if obs:
                     bullish_obs = [ob for ob in obs if ob.get("type") == "BULLISH_OB"]
                     if bullish_obs:
                         stop_loss = bullish_obs[0].get("bottom", 0.0)
