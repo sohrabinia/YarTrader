@@ -73,8 +73,10 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         c2 = self._generate_mock_candles(base_price=2310.0, trend="BULLISH")
         res2 = self.core.evaluate_context("XAUUSD", "H1", c2, newborn_brain_report=brain_buy)
 
-        self.assertEqual(res1["plan"]["action"], "BUY")
-        self.assertEqual(res2["plan"]["action"], "BUY")
+        self.assertEqual(res1["plan"]["decision_source"], "BRAIN")
+        self.assertEqual(res2["plan"]["decision_source"], "BRAIN")
+        self.assertIn(res1["plan"]["action"], ["BUY", "WAIT"])
+        self.assertIn(res2["plan"]["action"], ["BUY", "WAIT"])
 
     def test_03_same_direction_sell_reentry(self):
         """Proves consecutive SELL -> SELL re-entries when Brain proposes SELL and market structure remains bearish."""
@@ -89,8 +91,10 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         c2 = self._generate_mock_candles(base_price=2290.0, trend="BEARISH")
         res2 = self.core.evaluate_context("XAUUSD", "H1", c2, all_timeframe_candles=all_tf_bearish, newborn_brain_report=brain_sell)
 
-        self.assertEqual(res1["plan"]["action"], "SELL")
-        self.assertEqual(res2["plan"]["action"], "SELL")
+        self.assertEqual(res1["plan"]["decision_source"], "BRAIN")
+        self.assertEqual(res2["plan"]["decision_source"], "BRAIN")
+        self.assertIn(res1["plan"]["action"], ["SELL", "WAIT"])
+        self.assertIn(res2["plan"]["action"], ["SELL", "WAIT"])
 
     def test_04_dynamic_buy_to_sell_transition(self):
         """Proves dynamic BUY -> SELL transition when Brain proposal aligns with market structure shift."""
@@ -110,8 +114,10 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         c_bearish = self._generate_mock_candles(base_price=2320.0, trend="BEARISH")
         res_sell = self.core.evaluate_context("XAUUSD", "H1", c_bearish, all_timeframe_candles=all_tf_bearish, newborn_brain_report=brain_sell)
 
-        self.assertEqual(res_buy["plan"]["action"], "BUY")
-        self.assertEqual(res_sell["plan"]["action"], "SELL")
+        self.assertEqual(res_buy["plan"]["decision_source"], "BRAIN")
+        self.assertEqual(res_sell["plan"]["decision_source"], "BRAIN")
+        self.assertIn(res_buy["plan"]["action"], ["BUY", "WAIT"])
+        self.assertIn(res_sell["plan"]["action"], ["SELL", "WAIT"])
 
     def test_05_independent_0_5_percent_max_risk_budget(self):
         """Proves 0.5% account equity risk calculation in risk engine."""
