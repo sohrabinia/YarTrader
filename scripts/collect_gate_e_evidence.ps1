@@ -89,7 +89,8 @@ Write-Host ('PR Base SHA        : ' + $prBaseSha)
 Write-Host ('Merge-Base SHA     : ' + $mergeBase)
 Write-Host ('Origin Main SHA    : ' + $originMain)
 
-$provenanceMatch = ($currentHead -eq $ExpectedSha)
+# Support exact SHA or prefix matching if short 7+ char SHA supplied
+$provenanceMatch = ($currentHead -eq $ExpectedSha -or ($ExpectedSha.Length -ge 7 -and $currentHead.StartsWith($ExpectedSha)))
 $treeClean = [string]::IsNullOrWhiteSpace($statusShort)
 
 $provenanceStatus = if ($provenanceMatch) { 'PROVEN' } else { 'FAILED' }
@@ -98,7 +99,7 @@ $treeCleanStatus = if ($treeClean) { 'PROVEN' } else { 'FAILED' }
 Record-ForensicOperation -OperationName 'GitHeadVerification' -Status $provenanceStatus -Reason ("Local HEAD: $currentHead vs Expected: $ExpectedSha")
 Record-ForensicOperation -OperationName 'GitTreeCleanliness' -Status $treeCleanStatus -Reason ("Status Short: '$statusShort'")
 
-# 2. Windows Service Identity & Cryptographic Runtime SHA Provenance Chain (Blocker #1 Requirement: Strict Application Root Binding)
+# 2. Windows Service Identity & Cryptographic Runtime SHA Provenance Chain (Blocker #1 Requirement: Strict Application Root Resolution)
 $tsService = Get-IsoUtcTimestamp
 Write-Host "`n[2/8] Inspecting YarTrader Windows Service Identity & Cryptographic Runtime SHA Chain..." -ForegroundColor Yellow
 $yarService = $null
@@ -128,7 +129,29 @@ if ($yarService) {
                 $serviceSessionId = $serviceProc.SessionId
                 $serviceExePath = $serviceProc.ExecutablePath
                 $serviceCmdLine = $serviceProc.CommandLine
-                if (-not [string]::IsNullOrWhiteSpace($serviceExePath)) {
+
+                # Resolve true application root from service CommandLine arguments first
+                if (-not [string]::IsNullOrWhiteSpace($serviceCmdLine)) {
+                    $tokens = $serviceCmdLine -split '\s+'
+                    foreach ($tok in $tokens) {
+                        $cleanTok = $tok.Trim('"').Trim("'")
+                        if ($cleanTok -like '*\app\workers\*' -or $cleanTok -like '*\service.py*') {
+                            $workerDir = Split-Path -Parent $cleanTok
+                            if ($workerDir -like '*\app\workers' -or $workerDir -like '*\app') {
+                                $appRoot = Split-Path -Parent (Split-Path -Parent $cleanTok)
+                                break
+                            }
+                        } elseif ($cleanTok -like '*\.venv\Scripts\*') {
+                            $idx = $cleanTok.IndexOf('\.venv\Scripts')
+                            if ($idx -gt 0) {
+                                $appRoot = $cleanTok.Substring(0, $idx)
+                                break
+                            }
+                        }
+                    }
+                }
+
+                if ($appRoot -eq 'N/A' -and -not [string]::IsNullOrWhiteSpace($serviceExePath)) {
                     $parent = Split-Path -Parent $serviceExePath
                     if ($parent -like '*\.venv\Scripts*' -or $parent -like '*\Scripts*') {
                         $appRoot = Split-Path -Parent (Split-Path -Parent $parent)
@@ -184,8 +207,9 @@ if ($appRoot -ne 'N/A' -and (Test-Path $appRoot)) {
 }
 
 # Strict Forensic Evaluation: Require Git Worktree SHA or Cryptographic Manifest Binding. Standalone deployed_sha.txt alone is NOT PROVEN.
+$shaMatches = ($runtimeDeployedSha -eq $ExpectedSha -or ($ExpectedSha.Length -ge 7 -and $runtimeDeployedSha.StartsWith($ExpectedSha)))
 if ($serviceProc -and $serviceSessionId -eq 0 -and $appRoot -ne 'N/A' -and $runtimeDeployedSha -ne 'NOT PROVEN') {
-    if ($isGitWorktree -and $runtimeDeployedSha -eq $ExpectedSha) {
+    if ($isGitWorktree -and $shaMatches) {
         $runtimeShaStatus = 'PROVEN'
         $runtimeShaReason = "YarTrader service PID $servicePid running in Session 0 from Git application root $appRoot ($serviceExePath). Verified Git HEAD ($runtimeDeployedSha) matches Expected SHA $ExpectedSha"
     } elseif (-not $isGitWorktree) {
@@ -270,7 +294,7 @@ if ($bridgeProcs) {
 
 Record-ForensicOperation -OperationName 'BridgeProcessResolution' -Status $bridgeSessionStatus -Reason $bridgeSessionReason
 
-# Deterministic MT5 Process Resolution (Strict Deterministic Match, Primary Remediation F)
+# Deterministic MT5 Process Resolution (Strict Deterministic Match with Bridge Correlation)
 $mt5Proc = $null
 $mt5Ambiguous = $false
 $mt5SessionStatus = 'NOT PROVEN'
@@ -290,16 +314,37 @@ if ($mt5Procs) {
             $mt5SessionReason = "terminal64.exe PID $($candidateMt5.ProcessId) SessionId $($candidateMt5.SessionId) does not match active console SessionId $activeConsoleSessionId"
         }
     } else {
-        # Enumerate all candidates and filter strictly by activeConsoleSessionId
+        # Enumerate all candidates in active console session
         $sessionMt5 = $mt5Procs | Where-Object { $_.SessionId -eq $activeConsoleSessionId }
         if ($sessionMt5 -and $sessionMt5.Count -eq 1) {
             $mt5Proc = $sessionMt5[0]
             $mt5SessionStatus = 'PROVEN'
             $mt5SessionReason = "Deterministically resolved unique terminal64.exe PID $($mt5Proc.ProcessId) in active interactive Session $activeConsoleSessionId among $($mt5Procs.Count) total candidates"
-        } else {
-            $mt5Ambiguous = $true
-            $mt5SessionStatus = 'NOT PROVEN'
-            $mt5SessionReason = "Multiple terminal64.exe instances active in interactive session ($($sessionMt5.Count) matches); failing closed"
+        } elseif ($sessionMt5 -and $sessionMt5.Count -gt 1) {
+            # Try deterministic Bridge cross-correlation if Bridge status response is available
+            $bridgeCorrelatedProc = $null
+            if ($statusResp -and $statusResp.mt5_pid) {
+                $matchedByPid = $sessionMt5 | Where-Object { $_.ProcessId -eq $statusResp.mt5_pid }
+                if ($matchedByPid -and $matchedByPid.Count -eq 1) {
+                    $bridgeCorrelatedProc = $matchedByPid[0]
+                }
+            }
+            if (-not $bridgeCorrelatedProc -and $statusResp -and $statusResp.mt5_terminal_path) {
+                $matchedByPath = $sessionMt5 | Where-Object { -not [string]::IsNullOrWhiteSpace($_.ExecutablePath) -and ([System.IO.Path]::GetFullPath($_.ExecutablePath).ToLower() -eq [System.IO.Path]::GetFullPath($statusResp.mt5_terminal_path).ToLower()) }
+                if ($matchedByPath -and $matchedByPath.Count -eq 1) {
+                    $bridgeCorrelatedProc = $matchedByPath[0]
+                }
+            }
+
+            if ($bridgeCorrelatedProc) {
+                $mt5Proc = $bridgeCorrelatedProc
+                $mt5SessionStatus = 'PROVEN'
+                $mt5SessionReason = "Deterministically correlated terminal64.exe PID $($mt5Proc.ProcessId) via Bridge active terminal metadata among $($sessionMt5.Count) candidates in Session $activeConsoleSessionId"
+            } else {
+                $mt5Ambiguous = $true
+                $mt5SessionStatus = 'NOT PROVEN'
+                $mt5SessionReason = "Multiple terminal64.exe instances active in interactive session ($($sessionMt5.Count) matches); failing closed without Bridge correlation"
+            }
         }
     }
 }
@@ -795,18 +840,18 @@ foreach ($sf in $auditedSourceFiles) {
                 $routes | ForEach-Object { $auditedRoutes += ($_.Groups[1].Value.ToUpper() + ' ' + $_.Groups[2].Value) }
                 $unexpectedRoutes = $routes | Where-Object { $_.Groups[2].Value -notIn @('/health', '/mt5/status', '/market-data') }
                 if ($unexpectedRoutes.Count -gt 0) {
-                    $sourceViolations += "$sf contains unexpected HTTP routes: $($unexpectedRoutes.Count)"
+                    $sourceViolations += "${sf} contains unexpected HTTP routes: $($unexpectedRoutes.Count)"
                 }
             }
 
             if ($hasOrderSend -or $hasTradeAction -or $hasPositionOpen -or $hasOrderCheck) {
-                $sourceViolations += "$sf contains trade/order execution methods"
+                $sourceViolations += "${sf} contains trade/order execution methods"
             }
         } catch {
             $sourceViolations += "Exception auditing ${sf}: " + $_.Exception.Message
         }
     } else {
-        $sourceViolations += "Source file $sf missing"
+        $sourceViolations += "Source file ${sf} missing"
     }
 }
 
@@ -824,7 +869,16 @@ $logFilesChecked = @()
 $logFilesFound = @()
 $orderDispatchesDetected = $false
 
-$candidateLogs = @('C:\YarTraderAI\Logs\runtime.log', 'C:\YarTraderAI\Logs\bridge.log', 'Logs\runtime.log', 'runtime_logs\runtime.log')
+$candidateLogs = @(
+    'C:\Projects\YarTrader\runtime_logs\runtime.log',
+    'C:\Projects\YarTrader\Logs\runtime.log',
+    'C:\Projects\YarTrader\Logs\bridge.log',
+    'C:\YarTraderAI\Logs\runtime.log',
+    'C:\YarTraderAI\Logs\bridge.log',
+    'runtime_logs\runtime.log',
+    'Logs\runtime.log'
+)
+
 foreach ($lf in $candidateLogs) {
     $logFilesChecked += $lf
     if (Test-Path $lf) {
