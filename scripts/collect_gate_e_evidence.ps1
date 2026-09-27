@@ -903,16 +903,15 @@ $logFilesChecked = @()
 $logFilesFound = @()
 $orderDispatchesDetected = $false
 
+$canonicalLogRoot = if ($env:YarTraderStorageRoot) {
+    Join-Path $env:YarTraderStorageRoot 'Logs'
+} else {
+    'C:\YarTraderAI\Logs'
+}
+
 $candidateLogs = @(
-    'C:\Projects\YarTrader\runtime_logs\runtime.log',
-    'C:\Projects\YarTrader\Logs\runtime.log',
-    'C:\Projects\YarTrader\Logs\bridge.log',
-    'C:\YarTraderAI\Logs\runtime.log',
-    'C:\YarTraderAI\Logs\bridge.log',
-    'YarTraderStorageRoot\Logs\runtime.log',
-    'YarTraderStorageRoot\Logs\bridge.log',
-    'C:\YarTraderAI\Logs\runtime.log',
-    'C:\YarTraderAI\Logs\bridge.log'
+    (Join-Path $canonicalLogRoot 'runtime.log'),
+    (Join-Path $canonicalLogRoot 'bridge.log')
 )
 
 foreach ($lf in $candidateLogs) {
