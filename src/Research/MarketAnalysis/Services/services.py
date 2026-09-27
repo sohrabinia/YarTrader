@@ -200,6 +200,7 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
                 symbol=request.Asset,
                 timeframe=timeframe,
                 candles=candles_dicts,
+                all_timeframe_candles=request.Context.get("all_timeframe_candles") or None,
                 newborn_brain_report=newborn_report_dict
             )
 
