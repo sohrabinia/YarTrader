@@ -576,7 +576,9 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
 
         os.environ["RISK_PCT_PER_TRADE"] = "invalid_string"
         sized = worker._validate_and_size_decision("XAUUSD", "BUY", {"entry": 2500.0, "stop_loss": 2490.0, "take_profit": 2520.0})
-        self.assertIsNone(sized)
+        # The production policy is immutable: malformed environment input cannot change the 0.5% target.
+        self.assertIsNotNone(sized)
+        self.assertAlmostEqual(sized["risk_budget_usd"], 50.0, places=6)
 
     def test_05_risk_exceeding_hard_ceiling_rejected(self):
         """Test 5: Risk exceeding 2.0% hard ceiling is rejected."""
