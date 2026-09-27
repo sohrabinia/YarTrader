@@ -915,8 +915,6 @@ $candidateLogs = @(
     'C:\Projects\YarTrader\Logs\bridge.log',
     'C:\YarTraderAI\Logs\runtime.log',
     'C:\YarTraderAI\Logs\bridge.log',
-    'TradeYarStorageRoot\Logs\runtime.log',
-    'TradeYarStorageRoot\Logs\bridge.log',
     'YarTraderStorageRoot\Logs\runtime.log',
     'YarTraderStorageRoot\Logs\bridge.log',
     'runtime_logs\runtime.log',
