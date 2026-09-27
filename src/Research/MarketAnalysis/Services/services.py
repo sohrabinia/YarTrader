@@ -209,6 +209,21 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
             if action not in ["BUY", "SELL", "WAIT", "AVOID"]:
                 action = "WAIT"
 
+            # The Brain remains the market-direction authority. The execution
+            # planner may intentionally return WAIT when executable structure is
+            # incomplete; preserve the Brain proposal in the decision record while
+            # keeping entry/SL/TP/RR zero so downstream safety gates remain closed.
+            if action == "WAIT" and isinstance(newborn_report_dict, dict):
+                hypotheses = newborn_report_dict.get("active_hypotheses") or []
+                brain_action = (
+                    hypotheses[0].get("suggested_virtual_action")
+                    if hypotheses and isinstance(hypotheses[0], dict)
+                    else newborn_report_dict.get("suggested_virtual_action")
+                )
+                brain_action = str(brain_action or "WAIT").upper()
+                if brain_action in ["BUY", "SELL"]:
+                    action = brain_action
+
             auto_decision = AutonomousTradingDecision(
                 decision_id=decision_id,
                 cycle_id=cycle_id,
