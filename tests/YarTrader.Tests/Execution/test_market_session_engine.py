@@ -144,7 +144,6 @@ class TestMarketSessionEngine:
         res_fast = self.engine.validate_pre_entry(
             symbol="XAUUSD",
             distance_to_tp=70.0,
-            current_volatility_atr=1.0,
             historical_mfe_speed=1.0,
             current_equity=10000.0,
             current_time=self.now_utc
@@ -156,7 +155,6 @@ class TestMarketSessionEngine:
         res_valid = self.engine.validate_pre_entry(
             symbol="XAUUSD",
             distance_to_tp=180.0,
-            current_volatility_atr=1.0,
             historical_mfe_speed=1.0,
             current_equity=10000.0,
             current_time=self.now_utc
@@ -168,7 +166,6 @@ class TestMarketSessionEngine:
         res_slow = self.engine.validate_pre_entry(
             symbol="XAUUSD",
             distance_to_tp=700.0,
-            current_volatility_atr=1.0,
             historical_mfe_speed=1.0,
             current_equity=10000.0,
             current_time=self.now_utc
@@ -267,7 +264,6 @@ class TestMarketSessionEngine:
             remaining_session_seconds=5000.0,
             symbol="XAUUSD",
             distance_to_tp=180.0,
-            current_volatility_atr=1.0,
             current_equity=10000.0,
             current_time=self.now_utc
         )
