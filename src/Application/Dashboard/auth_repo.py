@@ -18,13 +18,12 @@ class AuthRepository:
 
     def _load_db(self) -> Dict[str, Dict[str, Any]]:
         is_production = (os.environ.get("YARTRADER_ENV") == "production" or
-                         os.environ.get("TRADEYAR_ENV") == "production" or
                          os.environ.get("RG_ENV") == "production")
 
         if not os.path.exists(self.filepath):
             # Derive primary administrator details safely without exposing personal identities
-            admin_email = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "admin-disabled@yartrader.app")).strip().lower()
-            admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH", ""))
+            admin_email = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", "admin-disabled@yartrader.app").strip().lower()
+            admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", "")
 
             # Seed default admin and user accounts
             if is_production:
@@ -124,7 +123,7 @@ class AuthRepository:
 
         # Existing password_hash MUST NEVER be overwritten
         if not user.get("password_hash"):
-            admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH"))
+            admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH")
             if admin_pw_hash and admin_pw_hash not in ("*", "placeholder", ""):
                 user["password_hash"] = admin_pw_hash
                 modified = True
@@ -138,7 +137,7 @@ class AuthRepository:
         if not email or not isinstance(email, str):
             return False
         email_clean = email.strip().lower()
-        default_admin = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL", "")).strip().lower()
+        default_admin = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", "").strip().lower()
         admin_list = {"m.a.sohrabinia@gmail.com", "m.a.sorabinia@gmail.com", "admin@yartrader.app"}
         if default_admin:
             admin_list.add(default_admin)
