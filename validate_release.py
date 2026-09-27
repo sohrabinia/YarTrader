@@ -209,6 +209,13 @@ class ReleaseValidationPlatform:
 
         elapsed = time.perf_counter() - start_time
         self.log(f"Test execution completed in {round(elapsed, 2)} seconds.")
+        # Never hide pytest diagnostics behind the acceptance wrapper. The CI log
+        # must contain the actual failure/collection output so a failed gate is
+        # actionable without relying on stale historical artifacts.
+        if return_code != 0:
+            diagnostic = (stdout + "\n" + stderr).strip()
+            if diagnostic:
+                self.log("PYTEST FAILURE DIAGNOSTIC:\\n" + diagnostic[-12000:], "FAILED")
 
         total_tests = 0
         passed = 0
@@ -874,6 +881,19 @@ class ReleaseValidationPlatform:
         self.current_phase = "Report Generation"
         self.generate_reports(master_report, failures, reg)
 
+        # Mirror current acceptance artifacts into the repository upload path.
+        artifact_dir = os.path.abspath("validation")
+        os.makedirs(artifact_dir, exist_ok=True)
+        generated = {
+            "production_acceptance_report.json": os.path.join(VALIDATION_DIR, "production_acceptance_report.json"),
+            "production_acceptance_report.md": os.path.join(VALIDATION_DIR, "production_acceptance_report.md"),
+            "production_acceptance_report.html": os.path.join(VALIDATION_DIR, "production_acceptance_report.html"),
+        }
+        for filename, source_path in generated.items():
+            target = os.path.join(artifact_dir, filename)
+            if os.path.abspath(source_path) != os.path.abspath(target) and os.path.exists(source_path):
+                shutil.copy2(source_path, target)
+
         print_header("Acceptance Validation Concluded")
         self.log(f"Platform Readiness Score: {score}%")
         self.log(f"Status State: {status}")
@@ -887,7 +907,5 @@ if __name__ == "__main__":
     platform_run = ReleaseValidationPlatform()
     report = platform_run.execute_complete_workflow()
 
-    if report["readiness_status"] == "Production Ready":
-        sys.exit(0)
-    else:
-        sys.exit(0)
+    # A release gate must fail the process when acceptance fails.
+    sys.exit(0 if report["readiness_status"] == "Production Ready" else 1)
