@@ -3301,113 +3301,52 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
     return HTMLResponse(content=html_content)
 # ==============================================================================
 
-# Global variable to hold temporary training session replay data
-# Instantiated with empty mock details
-_mock_replay_session = {
-    "active": True,
-    "current_episode_id": "ep-9941a3",
-    "processed_episodes_count": 142,
-    "total_episodes_count": 500,
-    "progress_pct": 28.4,
-    "brain_knowledge": {
-        "concepts_count": 18,
-        "patterns_discovered": 45,
-        "patterns_rejected_by_integrity": 12,
-        "hypotheses_tested": 312,
-        "decision_quality_trend": [0.52, 0.58, 0.65, 0.72, 0.78, 0.81]
-    },
-    "error_analysis": {
-        "repeated_mistakes": [
-            {"pattern_signature": [1.0, -0.5, 0.2], "mistake_count": 8, "uncertainty_score": 9.2, "issue": "Timing lag under wide spreads"}
-        ],
-        "failed_concepts": ["Short consolidation exit", "Rapid mean-reversion attempt"],
-        "weakness_areas": ["Low-volume consolidation", "Wide spread extensions"]
-    }
-}
-
+# Truthful replay/MTF dashboard endpoints.
+# No fabricated training counters or market candles are exposed.
 @app.get("/api/replay/training-monitor")
 def get_replay_training_monitor():
-    """Retrieves current replay session, processed episodes, and progress metrics."""
     return {
-        "status": "RUNNING" if _mock_replay_session["active"] else "IDLE",
-        "current_episode": _mock_replay_session["current_episode_id"],
-        "episodes_processed": _mock_replay_session["processed_episodes_count"],
-        "episodes_total": _mock_replay_session["total_episodes_count"],
-        "progress_pct": _mock_replay_session["progress_pct"]
+        "status": "NOT_RUNNING",
+        "current_episode": None,
+        "episodes_processed": 0,
+        "episodes_total": 0,
+        "progress_pct": None,
+        "evidence_state": "NO_ACTIVE_REPLAY",
     }
+
 
 @app.get("/api/replay/learning-status")
 def get_brain_learning_status():
-    """Retrieves brain knowledge growth, validated concepts count, and confidence levels."""
     return {
-        "concepts_count": _mock_replay_session["brain_knowledge"]["concepts_count"],
-        "patterns_discovered": _mock_replay_session["brain_knowledge"]["patterns_discovered"],
-        "patterns_rejected": _mock_replay_session["brain_knowledge"]["patterns_rejected_by_integrity"],
-        "hypotheses_tested": _mock_replay_session["brain_knowledge"]["hypotheses_tested"],
-        "decision_quality_trend": _mock_replay_session["brain_knowledge"]["decision_quality_trend"],
-        "unknown_areas_count": len(_mock_replay_session["error_analysis"]["weakness_areas"])
+        "concepts_count": 0,
+        "patterns_discovered": 0,
+        "patterns_rejected": 0,
+        "hypotheses_tested": 0,
+        "decision_quality_trend": [],
+        "unknown_areas_count": 0,
+        "evidence_state": "NO_ACTIVE_REPLAY",
     }
+
 
 @app.get("/api/replay/error-analysis")
 def get_replay_error_analysis():
-    """Retrieves repeated mistakes, failed concepts, and uncertainty/weakness areas."""
     return {
-        "repeated_mistakes": _mock_replay_session["error_analysis"]["repeated_mistakes"],
-        "failed_concepts": _mock_replay_session["error_analysis"]["failed_concepts"],
-        "weakness_areas": _mock_replay_session["error_analysis"]["weakness_areas"]
+        "repeated_mistakes": [],
+        "failed_concepts": [],
+        "weakness_areas": [],
+        "evidence_state": "NO_ACTIVE_REPLAY",
     }
 
 
 @app.get("/api/intelligence/multi-timeframe")
 def get_multi_timeframe():
-    """
-    Exposes the 9-layer market perception matrix for all active symbols.
-    """
-    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-    from src.Research.Brain.multi_timeframe import MultiTimeframePerception
-    from src.Research.Brain.models import MarketObservation
-    from datetime import datetime, timedelta
-
-    registry = SymbolRegistry.get_instance()
-    active_matrix = registry.get_active_matrix()
-
-    # Group by symbol
-    symbols = sorted(list(set([item[0] for item in active_matrix])))
-
-    response_data = {}
-
-    from src.Infrastructure.Configuration.config import ConfigurationManager
-    config = ConfigurationManager.get_config()
-    tfs_to_use = ["M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
-    if config.tick_chart_analysis_enabled:
-        tfs_to_use = ["Tick"] + tfs_to_use
-
-    for sym in symbols:
-        obs_by_tf = {}
-        for tf in tfs_to_use:
-            # Generate 5 consecutive observations
-            base_price = 2400.0 if sym == "XAUUSD" else (1.1000 if "EUR" in sym else 95000.0)
-            obs_list = []
-            for i in range(5):
-                obs_list.append(
-                    MarketObservation(
-                        symbol=sym,
-                        timeframe=tf,
-                        timestamp=datetime.utcnow() - timedelta(minutes=i * 15),
-                        high=base_price + i * 0.5 + 0.2,
-                        low=base_price + i * 0.5 - 0.2,
-                        open_price=base_price + i * 0.5,
-                        close_price=base_price + (i + 1) * 0.5,
-                        volume=100.0
-                    )
-                )
-            obs_by_tf[tf] = obs_list
-
-        perception = MultiTimeframePerception(symbol=sym)
-        ctx = perception.generate_hierarchical_context(sym, obs_by_tf)
-        response_data[sym] = ctx
-
-    return response_data
+    """Return only connected runtime MTF evidence; never fabricate market candles."""
+    return {
+        "status": "UNAVAILABLE",
+        "evidence_state": "NO_CONNECTED_RUNTIME_SNAPSHOT",
+        "timeframes": ["M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"],
+        "symbols": {},
+    }
 
 
 @app.get("/api/intelligence/status")
