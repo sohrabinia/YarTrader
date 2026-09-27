@@ -3493,9 +3493,9 @@ def get_intelligence_learning_report():
     return {
         "timestamp": datetime.now().isoformat(),
         "statistics": stats,
-        "repeated_mistakes": _mock_replay_session["error_analysis"]["repeated_mistakes"],
-        "failed_concepts": _mock_replay_session["error_analysis"]["failed_concepts"],
-        "weakness_areas": _mock_replay_session["error_analysis"]["weakness_areas"],
+        "repeated_mistakes": [],
+        "failed_concepts": [],
+        "weakness_areas": [],
         "research_priorities": [
             {
                 "priority": "High",
@@ -3877,7 +3877,7 @@ def get_production_health():
         "workers": True,
         "service": "YarTrader",
         "mt5": mt5_status,
-        "intelligence": "Ready" if _mock_replay_session["active"] else "Offline",
+        "intelligence": "Ready" if intelligence_status == "Running" else "Offline",
         "worker": worker_status,
         "research_worker": research_status,
         "intelligence_worker": intelligence_status,
