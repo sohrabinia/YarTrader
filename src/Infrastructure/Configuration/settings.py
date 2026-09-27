@@ -71,7 +71,6 @@ class BaseSettings:
         self.db_token = str(self._overrides.get("db_token", os.environ.get("RG_DB_SECURE_TOKEN", self.db_token)))
 
         is_production = (os.environ.get("YARTRADER_ENV") == "production" or
-                         os.environ.get("TRADEYAR_ENV") == "production" or
                          os.environ.get("RG_ENV") == "production" or
                          self.__class__.__name__ == "ProductionSettings")
 
