@@ -207,17 +207,11 @@ class ResearchWorker:
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
 
-        # Target requested risk percentage (Fail-Closed: target 0.5%, strictly <= 2.0%)
-        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "0.5")
-        try:
-            req_risk_f = float(raw_risk_env) if not isinstance(raw_risk_env, bool) else -1.0
-            if not math.isfinite(req_risk_f) or req_risk_f <= 0.0 or req_risk_f > 2.0:
-                print(f"[ResearchWorker] Execution BLOCKED: Requested risk_pct ({raw_risk_env}) is invalid or exceeds 2.0% ceiling. Failing closed.")
-                return None
-            requested_risk_pct = req_risk_f
-        except (ValueError, TypeError):
-            print(f"[ResearchWorker] Execution BLOCKED: Requested risk_pct ({raw_risk_env}) is non-numeric. Failing closed.")
-            return None
+        # Canonical production policy: normal DEMO execution always targets 0.5%.
+        # Environment configuration cannot silently raise or lower the target; the
+        # ProfessionalRiskEngine still enforces the immutable 2.0% hard ceiling.
+        from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
+        requested_risk_pct = ProductionRiskPolicy.TARGET_RISK_PCT
 
         sizing_res = risk_engine.evaluate_equity_risk_and_position_size(
             symbol=symbol,
