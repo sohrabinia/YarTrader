@@ -86,7 +86,6 @@ class SessionExecutionManager:
         symbol: Optional[str] = None,
         broker: str = "DEFAULT",
         distance_to_tp: Optional[float] = None,
-        current_volatility_atr: Optional[float] = None,
         historical_mfe_speed: float = 1.0,
         current_time: Optional[datetime] = None,
         current_equity: Optional[float] = None
@@ -119,7 +118,6 @@ class SessionExecutionManager:
                 symbol=symbol,
                 broker=broker,
                 distance_to_tp=distance_to_tp,
-                current_volatility_atr=current_volatility_atr,
                 historical_mfe_speed=historical_mfe_speed,
                 current_time=current_time,
                 current_equity=current_equity
