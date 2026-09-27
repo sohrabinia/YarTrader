@@ -35,9 +35,10 @@ def test_bridge_auth_required():
     assert res_bad_auth.status_code == 401
 
 
-def test_bridge_valid_auth_status():
+def test_bridge_valid_auth_status(monkeypatch):
     """Verify operational endpoints accept valid Bearer tokens and return status with provenance metadata."""
     client = TestClient(app)
+    monkeypatch.setenv("MT5_BRIDGE_SECRET_TOKEN", "test_bridge_token_12345678901234567890123456789012")
     valid_token = get_or_create_bridge_secret_token()
 
     headers = {"Authorization": f"Bearer {valid_token}"}
@@ -88,9 +89,10 @@ def test_client_get_mt5_status_unauthorized():
         assert "401 Unauthorized" in health.last_error
 
 
-def test_client_timeout_fail_closed():
+def test_client_timeout_fail_closed(monkeypatch):
     """Verify timeout in MT5BridgeClient fails closed returning connected=False."""
     import requests
+    monkeypatch.setenv("MT5_BRIDGE_SECRET_TOKEN", "test_bridge_token_12345678901234567890123456789012")
     client = MT5BridgeClient()
 
     with patch("requests.get", side_effect=requests.exceptions.Timeout("Connection timed out")):
