@@ -351,6 +351,8 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                 self.assertNotIn('OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"', content)
                 self.assertIn('operator_owner_token.secret', content)
                 self.assertIn('icacls.exe', content)
+                self.assertIn('pythonservice', content.lower())
+                self.assertNotIn('nssm install', content.lower())
 
     def test_deployment_scripts_do_not_accept_operator_owner_token_parameter(self):
         """Verify param(...) block in PowerShell deployment scripts does NOT accept OperatorOwnerToken CLI parameter."""
