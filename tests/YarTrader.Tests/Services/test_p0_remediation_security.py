@@ -227,7 +227,7 @@ class TestP0RemediationSecurity(unittest.TestCase):
     def test_production_mode_fail_closed_on_placeholder_db_token(self) -> None:
         """Verifies that ProductionSettings initialization raises ValidationException if a default placeholder is used."""
         for placeholder in ["prod-token-secure", "dev-token-12345", "test-token-77777"]:
-            with patch.dict(os.environ, {"TRADEYAR_ENV": "production", "RG_DB_SECURE_TOKEN": placeholder}):
+            with patch.dict(os.environ, {"YARTRADER_ENV": "production", "RG_DB_SECURE_TOKEN": placeholder}):
                 with self.assertRaises(ValidationException) as ctx:
                     ProductionSettings()
                 self.assertIn("insecure placeholder", str(ctx.exception).lower())
