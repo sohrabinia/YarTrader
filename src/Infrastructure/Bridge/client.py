@@ -21,8 +21,7 @@ class MT5BridgeClient:
           1. MT5_BRIDGE_SECRET_TOKEN environment variable
           2. <YarTraderStorageRoot>\\Secrets\\mt5_bridge_token.secret
           3. C:\\YarTraderAI\\Secrets\\mt5_bridge_token.secret
-          4. Canonical relative paths (YarTraderStorageRoot\\Secrets, Secrets\\)
-          5. Legacy compatibility fallbacks (TradeYarStorageRoot\\Secrets) — NOT CANONICAL
+        Only canonical absolute storage paths are accepted; no relative or legacy fallbacks.
         Fail-closed: Raises RuntimeError if token cannot be safely resolved.
         """
         env_token = os.getenv("MT5_BRIDGE_SECRET_TOKEN")
@@ -36,12 +35,6 @@ class MT5BridgeClient:
             candidate_files = [
                 secret_file,
                 os.path.join(r"C:\YarTraderAI\Secrets", "mt5_bridge_token.secret"),
-                os.path.join(r"C:\Projects\YarTrader\YarTraderStorageRoot\Secrets", "mt5_bridge_token.secret"),
-                os.path.join("YarTraderStorageRoot", "Secrets", "mt5_bridge_token.secret"),
-                os.path.join("Secrets", "mt5_bridge_token.secret"),
-                # Legacy compatibility fallbacks - NOT CANONICAL
-                os.path.join("TradeYarStorageRoot", "Secrets", "mt5_bridge_token.secret"),
-                os.path.join(r"C:\Projects\YarTrader\TradeYarStorageRoot\Secrets", "mt5_bridge_token.secret"),
             ]
             for cf in candidate_files:
                 if os.path.exists(cf):
