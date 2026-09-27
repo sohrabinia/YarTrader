@@ -35,11 +35,11 @@ def test_bridge_auth_required():
     assert res_bad_auth.status_code == 401
 
 
-def test_bridge_valid_auth_status():
-    """Verify operational endpoints accept valid Bearer tokens and return status with provenance metadata."""
+def test_bridge_valid_auth_status(monkeypatch):
+    """Verify operational endpoints accept the canonical environment token."""
+    monkeypatch.setenv("MT5_BRIDGE_SECRET_TOKEN", "test_bridge_token_1234567890")
     client = TestClient(app)
     valid_token = get_or_create_bridge_secret_token()
-
     headers = {"Authorization": f"Bearer {valid_token}"}
     response = client.get("/mt5/status", headers=headers)
     assert response.status_code == 200
@@ -205,7 +205,7 @@ def test_client_and_bridge_token_contract_parity(monkeypatch, tmp_path):
 
 
 def test_missing_token_raises_runtime_error(monkeypatch, tmp_path):
-    """Verify MT5BridgeClient._resolve_token fails closed when no token or secret file exists."""
+    """Verify both bridge and client fail closed when no canonical token exists."""
     monkeypatch.delenv("MT5_BRIDGE_SECRET_TOKEN", raising=False)
     monkeypatch.setenv("YarTraderStorageRoot", str(tmp_path / "NonExistentRoot"))
 
@@ -216,3 +216,7 @@ def test_missing_token_raises_runtime_error(monkeypatch, tmp_path):
         with pytest.raises(RuntimeError) as exc_info:
             MT5BridgeClient()
         assert "MT5 Bridge Client Security Failure" in str(exc_info.value)
+
+        with pytest.raises(RuntimeError) as bridge_exc:
+            get_or_create_bridge_secret_token()
+        assert "MT5 Bridge Security Failure" in str(bridge_exc.value)
