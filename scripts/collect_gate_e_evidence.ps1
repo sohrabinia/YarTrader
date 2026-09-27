@@ -98,7 +98,7 @@ $treeCleanStatus = if ($treeClean) { 'PROVEN' } else { 'FAILED' }
 Record-ForensicOperation -OperationName 'GitHeadVerification' -Status $provenanceStatus -Reason ("Local HEAD: $currentHead vs Expected: $ExpectedSha")
 Record-ForensicOperation -OperationName 'GitTreeCleanliness' -Status $treeCleanStatus -Reason ("Status Short: '$statusShort'")
 
-# 2. Windows Service Identity & Cryptographic Runtime SHA Provenance Chain (Blocker #1 Requirement: Strict Git Worktree / Service Binding - NO Unverified File Fallback)
+# 2. Windows Service Identity & Cryptographic Runtime SHA Provenance Chain (Blocker #1 Requirement: Strict Application Root Binding)
 $tsService = Get-IsoUtcTimestamp
 Write-Host "`n[2/8] Inspecting YarTrader Windows Service Identity & Cryptographic Runtime SHA Chain..." -ForegroundColor Yellow
 $yarService = $null
@@ -148,7 +148,7 @@ if ($yarService) {
     Record-ForensicOperation -OperationName 'YarTraderServiceLookup' -Status 'NOT PROVEN' -Reason 'YarTrader Windows service not found on deployment host'
 }
 
-# Cryptographic Runtime SHA Provenance Chain (Blocker #1 Strict Contract)
+# Cryptographic Runtime SHA Provenance Chain (Blocker #1 Requirement: No Unverified Global Fallback)
 $runtimeDeployedSha = 'NOT PROVEN'
 $deployedShaSourceFile = 'N/A'
 $runtimeShaStatus = 'NOT PROVEN'
@@ -164,7 +164,9 @@ if ($appRoot -ne 'N/A' -and (Test-Path $appRoot)) {
                 $runtimeDeployedSha = $gitShaFromAppRoot
                 $deployedShaSourceFile = "git -C $appRoot rev-parse HEAD"
             }
-        } catch {}
+        } catch {
+            Record-ForensicOperation -OperationName 'GitRevParseAppRoot' -Status 'FAILED' -Reason 'git rev-parse HEAD failed in application root' -ExceptionMsg $_.Exception.Message
+        }
     } else {
         $shaFileInAppRoot = Join-Path $appRoot 'deployed_sha.txt'
         if (Test-Path $shaFileInAppRoot) {
@@ -174,7 +176,9 @@ if ($appRoot -ne 'N/A' -and (Test-Path $appRoot)) {
                     $runtimeDeployedSha = $shaVal
                     $deployedShaSourceFile = $shaFileInAppRoot
                 }
-            } catch {}
+            } catch {
+                Record-ForensicOperation -OperationName 'ReadDeployedShaAppRoot' -Status 'FAILED' -Reason 'Failed reading deployed_sha.txt in application root' -ExceptionMsg $_.Exception.Message
+            }
         }
     }
 }
@@ -381,9 +385,14 @@ $caseBResult = "Not executed"
 $caseCResult = "Service lookup in progress"
 
 if ($serviceProc) {
-    $caseCStatus = 'PROVEN'
-    $caseCResult = "PROVEN [Service PID=$servicePid, Account=$serviceAccount, SessionId=$serviceSessionId, Executable=$serviceExePath, AppRoot=$appRoot]"
-    Record-ForensicOperation -OperationName 'CaseC_ProductionServiceIdentity' -Status 'PROVEN' -Reason $caseCResult
+    if ($serviceSessionId -eq 0 -and $serviceAccount -like '*SYSTEM*') {
+        $caseCStatus = 'PROVEN'
+        $caseCResult = "PROVEN [Service PID=$servicePid, Account=$serviceAccount, SessionId=$serviceSessionId, Executable=$serviceExePath, AppRoot=$appRoot]"
+    } else {
+        $caseCStatus = 'FAILED'
+        $caseCResult = "FAILED [Service PID=$servicePid exists but SessionId=$serviceSessionId != 0 or Account=$serviceAccount != LocalSystem]"
+    }
+    Record-ForensicOperation -OperationName 'CaseC_ProductionServiceIdentity' -Status $caseCStatus -Reason $caseCResult
 } else {
     $caseCStatus = 'NOT PROVEN'
     $caseCResult = "NOT PROVEN [YarTrader Windows service not found on deployment host]"
@@ -883,6 +892,8 @@ $gateEPassed = (
     ($mdCountStatus -eq 'PROVEN') -and
     ($realDataStatus -eq 'PROVEN') -and
     ($session0IpcStatus -eq 'PROVEN') -and
+    ($caseBStatus -eq 'PROVEN') -and
+    ($caseCStatus -eq 'PROVEN') -and
     ($recoveryAResult -eq 'PROVEN') -and
     ($recoveryBResult -like 'PROVEN*') -and
     ($recoveryCResult -like 'PROVEN*') -and
