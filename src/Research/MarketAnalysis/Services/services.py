@@ -228,7 +228,7 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
                     "alignment": intel_res.get("alignment", {}),
                     "latest_price": candles_dicts[-1]["close"]
                 },
-                risk_status="APPROVED" if action in ["BUY", "SELL"] else "CHECKED",
+                risk_status="PENDING" if action in ["BUY", "SELL"] else "CHECKED",
                 execution_status="PENDING" if action in ["BUY", "SELL"] else "SKIPPED",
                 configuration_version="1.2.0",
                 timestamp=datetime.now().isoformat()
