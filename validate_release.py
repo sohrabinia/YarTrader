@@ -223,21 +223,21 @@ class ReleaseValidationPlatform:
         # from any summary-like line instead of depending on one exact prefix.
         summary_lines = [
             line for line in lines
-            if any(re.search(rf"\\b\\d+\\s+{word}\\b", line)
+            if any(re.search(rf"\b\d+\s+{word}\b", line)
                    for word in ("passed", "failed", "skipped", "warnings"))
         ]
 
         for line in reversed(summary_lines):
-            m = re.search(r"(\\d+)\\s+passed\\b", line)
+            m = re.search(r"(\d+)\s+passed\b", line)
             if m:
                 passed = int(m.group(1))
-            m = re.search(r"(\\d+)\\s+failed\\b", line)
+            m = re.search(r"(\d+)\s+failed\b", line)
             if m:
                 failed = int(m.group(1))
-            m = re.search(r"(\\d+)\\s+skipped\\b", line)
+            m = re.search(r"(\d+)\s+skipped\b", line)
             if m:
                 skipped = int(m.group(1))
-            m = re.search(r"(\\d+)\\s+warnings?\\b", line)
+            m = re.search(r"(\d+)\s+warnings?\b", line)
             if m:
                 warnings = int(m.group(1))
             if passed or failed or skipped:
