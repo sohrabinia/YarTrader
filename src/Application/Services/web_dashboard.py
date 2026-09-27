@@ -2589,51 +2589,6 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
             setTimeout(fetchStatus, 500);
         }
 
-        // Collapsible Chat chatbot
-        let isChatOpen = false;
-        function toggleChatbot() {
-            isChatOpen = !isChatOpen;
-            const widget = document.getElementById('chat-widget');
-            const body = document.getElementById('chat-body');
-            if (isChatOpen) {
-                widget.style.transform = 'translateY(0)';
-                body.style.display = 'flex';
-            } else {
-                widget.style.transform = 'translateY(360px)';
-                body.style.display = 'none';
-            }
-        }
-
-        async function sendChatMessage() {
-            const input = document.getElementById('chat-input');
-            const msg = input.value.trim();
-            if (!msg) return;
-
-            appendChatBubble(msg, 'user');
-            input.value = '';
-
-            try {
-                const response = await fetch('/api/chat/assistant?lang=' + currentLang, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: msg })
-                });
-                const data = await response.json();
-                appendChatBubble(data.response, 'bot');
-            } catch (e) {
-                appendChatBubble("Error communicating with YarTrader Cognitive AI.", 'bot');
-            }
-        }
-
-        function appendChatBubble(text, sender) {
-            const container = document.getElementById('chat-messages');
-            const bubble = document.createElement('div');
-            bubble.className = 'chat-bubble ' + sender;
-            bubble.innerText = text;
-            container.appendChild(bubble);
-            container.scrollTop = container.scrollHeight;
-        }
-
         window.addEventListener('hashchange', handleRoute);
 
         window.onload = () => {
@@ -3340,25 +3295,6 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
         </div>
     </div>
 
-    <!-- Collapsible Floating AI Support Chatbot Widget -->
-    <div class="chatbot-widget" id="chat-widget">
-        <div class="chatbot-header" onclick="toggleChatbot()">
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div class="ai-pulse"></div>
-                <span data-i18n="assistant_title">YarTrader Cognitive AI Active</span>
-            </div>
-            <span>▲ / ▼</span>
-        </div>
-        <div class="chatbot-body" id="chat-body" style="display: none;">
-            <div class="chatbot-messages" id="chat-messages">
-                <div class="chat-bubble bot" data-i18n="assistant_greet">سلام! من دستیار هوشمند هوش شناختی بازار شما هستم. می‌توانید درباره الگوهای تاریخی، علل تصمیم‌گیری، اشتباهات یا دستاوردهای شناختی مغز معامله‌گر از من بپرسید.</div>
-            </div>
-            <div class="chatbot-input-container">
-                <input class="chatbot-input" id="chat-input" type="text" placeholder="سوال خود را مطرح کنید..." data-i18n="assistant_placeholder" onkeydown="if(event.key === 'Enter') sendChatMessage()" />
-                <button class="chatbot-send" onclick="sendChatMessage()" data-i18n="assistant_send">Send</button>
-            </div>
-        </div>
-    </div>
 </body>
 </html>
 """
