@@ -236,8 +236,7 @@ Write-Host ('Deployed SHA : ' + $runtimeDeployedSha + ' (Source: ' + $deployedSh
 #   1. MT5_BRIDGE_SECRET_TOKEN environment variable (PROVEN)
 #   2. <YarTraderStorageRoot>\Secrets\mt5_bridge_token.secret (PROVEN)
 #   3. C:\YarTraderAI\Secrets\mt5_bridge_token.secret (PROVEN)
-#   4. Canonical relative paths (YarTraderStorageRoot\Secrets, Secrets\) (PROVEN)
-#   5. No legacy storage-root fallback — canonical YarTraderStorageRoot only
+#   No relative or legacy path fallback
 
 $healthResp = $null
 $statusResp = $null
@@ -262,10 +261,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
 
     $canonicalCandidateTokenFiles = @(
         $authoritativeTokenFile,
-        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
-        'C:\Projects\YarTrader\YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
-        'YarTraderStorageRoot\Secrets\mt5_bridge_token.secret',
-        'Secrets\mt5_bridge_token.secret'
+        'C:\YarTraderAI\Secrets\mt5_bridge_token.secret'
     )
 
     $legacyCandidateTokenFiles = @()
