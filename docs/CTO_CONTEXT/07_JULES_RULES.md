@@ -20,3 +20,7 @@
 5. **Production Safety Primacy**:
    - Maintain hard-locked `LIVE_TRADING_ENABLED = False`.
    - Enforce fail-closed error handling on missing configuration, disconnected adapters, or invalid account metrics.
+
+6. **Mandatory Documentation Impact Review**:
+   - Perform a Documentation Impact Review for every code change / PR in accordance with `AGENTS.md`.
+   - Update affected documentation in the same PR whenever documented architecture, APIs, security, data, deployment, or behavior is modified.

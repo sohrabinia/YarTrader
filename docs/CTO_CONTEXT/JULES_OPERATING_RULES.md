@@ -26,3 +26,7 @@
 * `LIVE_TRADING_ENABLED = False` MUST remain hard-locked across all adapters and safety gates.
 * Real accounts (`is_real = True`) MUST be unconditionally rejected.
 * Daily 8% loss limit and 2.0% max account risk ceiling MUST be strictly enforced.
+
+### 6. Mandatory Documentation Impact Review
+* Every task/PR MUST execute a Documentation Impact Review prior to completion as governed by `AGENTS.md`.
+* Affected documentation (Architecture, API, Auth/Security, Data, Deployment, Safety, Testing, User Behavior) MUST be updated in the same PR when behavior or contracts change.
