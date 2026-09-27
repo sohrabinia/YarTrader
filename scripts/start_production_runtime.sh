@@ -9,14 +9,12 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
 # 1. Enforce Production Storage Root Isolation
-export TradeYarStorageRoot="${TradeYarStorageRoot:-/tmp/YarTraderAI}"
-export YarTraderStorageRoot="$TradeYarStorageRoot"
+export YarTraderStorageRoot="${YarTraderStorageRoot:-/tmp/YarTraderAI}"
 
-mkdir -p "$TradeYarStorageRoot/Logs"
+mkdir -p "$YarTraderStorageRoot/Logs"
 
 # 2. Environment Variables Configuration
 export YARTRADER_ENV="production"
-export TRADEYAR_ENV="production"
 export LIVE_TRADING_ENABLED="False"
 export YARTRADER_API_HOST="0.0.0.0"
 export YARTRADER_API_PORT="8000"
@@ -24,8 +22,8 @@ export PYTHONPATH=".:$PYTHONPATH"
 
 echo "============================================================"
 echo " YarTrader Production Runtime Launcher"
-echo " Storage Root  : $TradeYarStorageRoot"
-echo " Logs Directory : $TradeYarStorageRoot/Logs"
+echo " Storage Root  : $YarTraderStorageRoot"
+echo " Logs Directory : $YarTraderStorageRoot/Logs"
 echo " API Binding    : http://$YARTRADER_API_HOST:$YARTRADER_API_PORT"
 echo "============================================================"
 
