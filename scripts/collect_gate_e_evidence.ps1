@@ -58,8 +58,16 @@ $treeClean = [string]::IsNullOrWhiteSpace($statusShort)
 
 # Runtime Deployed SHA verification attempt
 $runtimeDeployedSha = 'NOT PROVEN'
-if (Test-Path 'C:\YarTraderAI\Runtime\deployed_sha.txt') {
-    $runtimeDeployedSha = (Get-Content 'C:\YarTraderAI\Runtime\deployed_sha.txt' -Raw).Trim()
+$candidateShaFiles = @(
+    'C:\YarTraderAI\Runtime\deployed_sha.txt',
+    'TradeYarStorageRoot\Runtime\deployed_sha.txt',
+    'Runtime\deployed_sha.txt'
+)
+foreach ($sf in $candidateShaFiles) {
+    if (Test-Path $sf) {
+        $runtimeDeployedSha = (Get-Content $sf -Raw).Trim()
+        break
+    }
 }
 
 # 2. Windows Service Identity (Deterministic Service Binding via Win32_Service.ProcessId)
@@ -91,9 +99,19 @@ Write-Host "`n[3/8] Inspecting Interactive Session and Process Topology..." -For
 
 $activeConsoleSessionId = 'NOT PROVEN'
 try {
-    $explorerProc = Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($explorerProc) {
-        $activeConsoleSessionId = $explorerProc.SessionId
+    $explorerProcs = Get-CimInstance Win32_Process -Filter "Name='explorer.exe'" -ErrorAction SilentlyContinue
+    if ($explorerProcs) {
+        if ($explorerProcs.Count -eq 1) {
+            $activeConsoleSessionId = $explorerProcs[0].SessionId
+        } else {
+            # Find unique process associated with active interactive user session
+            $uniqueSessions = $explorerProcs | Select-Object -ExpandProperty SessionId -Unique
+            if ($uniqueSessions -and $uniqueSessions.Count -eq 1) {
+                $activeConsoleSessionId = $uniqueSessions[0]
+            } else {
+                Write-Warning "Multiple explorer.exe instances in distinct sessions detected."
+            }
+        }
     }
 } catch {}
 
@@ -117,7 +135,7 @@ if ($bridgeProcs) {
     }
 }
 
-# Enumerate all terminal64.exe instances to avoid arbitrary selection
+# Enumerate all terminal64.exe instances WITHOUT Select-Object -First 1
 $mt5Procs = $procs | Where-Object { $_.Name -eq 'terminal64.exe' }
 $mt5Proc = $null
 $mt5Ambiguous = $false
@@ -126,13 +144,13 @@ if ($mt5Procs) {
     if ($mt5Procs.Count -eq 1) {
         $mt5Proc = $mt5Procs[0]
     } else {
-        # Select instance matching active console session if unique
+        # Select instance matching active console session strictly if unique
         $sessionMt5 = $mt5Procs | Where-Object { $_.SessionId -eq $activeConsoleSessionId }
         if ($sessionMt5 -and $sessionMt5.Count -eq 1) {
             $mt5Proc = $sessionMt5[0]
         } else {
             $mt5Ambiguous = $true
-            Write-Warning 'Multiple terminal64.exe instances detected; ambiguity present.'
+            Write-Warning 'Multiple terminal64.exe instances detected in active session; ambiguity present.'
         }
     }
 }
@@ -149,8 +167,9 @@ try {
     $netConns = Get-NetTCPConnection -LocalPort 5001 -State Listen -ErrorAction SilentlyContinue
     if ($netConns) {
         # Strict IPv4 loopback check ONLY (Reject ::1 or 0.0.0.0)
-        $validListener = $netConns | Where-Object { $_.LocalAddress -eq '127.0.0.1' } | Select-Object -First 1
-        if ($validListener) {
+        $validListeners = $netConns | Where-Object { $_.LocalAddress -eq '127.0.0.1' }
+        if ($validListeners -and $validListeners.Count -eq 1) {
+            $validListener = $validListeners[0]
             $listenerAddr = $validListener.LocalAddress
             $listenerPid = $validListener.OwningProcess
             $bridgePid = if ($bridgeProc) { $bridgeProc.ProcessId } else { 'N/A' }
@@ -160,8 +179,10 @@ try {
             } else {
                 $port5001Details = 'FAILED [OwningProcess ' + $listenerPid + ' does not match Bridge PID ' + $bridgePid + ']'
             }
+        } elseif ($validListeners -and $validListeners.Count -gt 1) {
+            $port5001Details = 'FAILED [Ambiguous multiple TCP listeners active on 127.0.0.1:5001]'
         } else {
-            $nonIpv4Addr = $netConns.LocalAddress
+            $nonIpv4Addr = ($netConns | Select-Object -ExpandProperty LocalAddress) -join ', '
             $port5001Details = 'FAILED [Listener found on non-IPv4 loopback address: ' + $nonIpv4Addr + ']'
         }
     } else {
@@ -203,7 +224,7 @@ if ($callerSessionId -eq 0 -and $callerUser -like '*SYSTEM*') {
     Write-Warning ('Collector caller is in Session ' + $callerSessionId + ' as ' + $callerUser + ' [not Session 0 LocalSystem]. Direct Session 0 IPC diagnostic marked NOT PROVEN.')
 }
 
-# 6. Token Inspection & Query Bridge API Endpoints (Recovery A Baseline)
+# 6. Authoritative Token Resolution & Query Bridge API Endpoints (Recovery A Baseline)
 $tsApi = Get-IsoUtcTimestamp
 Write-Host "`n[6/8] Querying MT5 Interactive Bridge API [Recovery A Baseline]..." -ForegroundColor Yellow
 $healthResp = $null
@@ -219,17 +240,26 @@ try {
     Write-Host ('GET /health: FAILED - ' + $_) -ForegroundColor Red
 }
 
-$secretFile = 'C:\YarTraderAI\Secrets\mt5_bridge_token.secret'
-if (-not (Test-Path $secretFile)) {
-    $secretFile = 'Secrets\mt5_bridge_token.secret'
-}
+# Inspect authoritative secret token file paths aligned with start_mt5_bridge.ps1
+$candidateTokenFiles = @(
+    'TradeYarStorageRoot\Secrets\mt5_bridge_token.secret',
+    'C:\YarTraderAI\Secrets\mt5_bridge_token.secret',
+    'Secrets\mt5_bridge_token.secret'
+)
 
 $token = $null
-if (Test-Path $secretFile) {
-    $token = (Get-Content $secretFile -Raw).Trim()
-    $tokenSourceDetails = 'Resolved from file: ' + $secretFile
-    $tokenResolved = $true
-} elseif (-not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
+foreach ($tf in $candidateTokenFiles) {
+    if (Test-Path $tf) {
+        $token = (Get-Content $tf -Raw).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($token)) {
+            $tokenSourceDetails = 'Resolved from file: ' + $tf
+            $tokenResolved = $true
+            break
+        }
+    }
+}
+
+if (-not $tokenResolved -and -not [string]::IsNullOrWhiteSpace($env:MT5_BRIDGE_SECRET_TOKEN)) {
     $token = $env:MT5_BRIDGE_SECRET_TOKEN.Trim()
     $tokenSourceDetails = 'Resolved from ENV: MT5_BRIDGE_SECRET_TOKEN'
     $tokenResolved = $true
@@ -306,15 +336,17 @@ if ($ExecuteRecoveryTest) {
             Write-Host ('Restarting MT5 terminal: ' + $mt5ExePath + ' at ' + $restartTimeUtc + '...') -ForegroundColor Yellow
             Start-Process -FilePath $mt5ExePath
 
-            # Polling reconnect with timeout (up to 20 seconds)
+            # Polling reconnect with timeout (up to 20 seconds) - Deterministic new PID resolution
             $reconnected = $false
             $newMt5Pid = 'N/A'
+            $newMt5ProcCandidate = $null
             $reconnectTimeUtc = 'NOT PROVEN'
             for ($i = 0; $i -lt 10; $i++) {
                 Start-Sleep -Seconds 2
-                $newMt5Proc = Get-CimInstance Win32_Process -Filter "Name='terminal64.exe'" -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($newMt5Proc -and $newMt5Proc.ProcessId -ne $oldMt5Pid) {
-                    $newMt5Pid = $newMt5Proc.ProcessId
+                $candidateMt5s = Get-CimInstance Win32_Process -Filter "Name='terminal64.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.ProcessId -ne $oldMt5Pid }
+                if ($candidateMt5s -and $candidateMt5s.Count -eq 1) {
+                    $newMt5ProcCandidate = $candidateMt5s[0]
+                    $newMt5Pid = $newMt5ProcCandidate.ProcessId
                 }
                 try {
                     $statusRespC = Invoke-RestMethod -Uri 'http://127.0.0.1:5001/mt5/status' -Headers @{ Authorization = ('Bearer ' + $token) } -Method Get -TimeoutSec 3
@@ -326,12 +358,12 @@ if ($ExecuteRecoveryTest) {
                 } catch {}
             }
 
-            if ($reconnected -and $newMt5Pid -ne 'N/A' -and $newMt5Pid -ne $oldMt5Pid) {
-                $newSessionId = if ($newMt5Proc) { $newMt5Proc.SessionId } else { 'N/A' }
+            if ($reconnected -and $newMt5Pid -ne 'N/A' -and $newMt5Pid -ne $oldMt5Pid -and $newMt5ProcCandidate) {
+                $newSessionId = $newMt5ProcCandidate.SessionId
                 $recoveryCResult = 'PROVEN [Restarted MT5 at ' + $restartTimeUtc + '; Verified new PID ' + $newMt5Pid + ' in Session ' + $newSessionId + '; Bridge re-established connected: true at ' + $reconnectTimeUtc + ']'
                 Write-Host 'Recovery C: SUCCESS' -ForegroundColor Green
             } else {
-                $recoveryCResult = 'FAILED [Bridge failed to re-establish connection or new PID not confirmed]'
+                $recoveryCResult = 'FAILED [Bridge failed to re-establish connection or new PID ambiguous]'
             }
         } else {
             $recoveryCResult = 'NOT PROVEN [MT5 executable path unavailable for restart]'
@@ -393,7 +425,7 @@ $gateEPassed = (
     -not $mt5Ambiguous -and
     $mt5SessionValid -and
     $port5001Proven -and
-    ($healthResp -ne $null) -and
+    ($healthResp -ne $null -and $healthResp.status -eq 'HEALTHY') -and
     ($statusResp -ne $null -and $statusResp.connected -eq $true) -and
     $exactCountProven -and
     $realDataProven -and
@@ -424,7 +456,7 @@ $mt5SessionStatusStr = if ($mt5SessionValid) { 'PROVEN' } else { 'NOT PROVEN' }
 $port5001StatusStr = if ($port5001Proven) { 'PROVEN' } else { 'NOT PROVEN' }
 
 $healthStatusVal = if ($healthResp) { $healthResp.status } else { 'N/A' }
-$healthStatusStr = if ($healthResp) { 'PROVEN' } else { 'NOT PROVEN' }
+$healthStatusStr = if ($healthResp -and $healthResp.status -eq 'HEALTHY') { 'PROVEN' } else { 'NOT PROVEN' }
 
 $mt5ConnVal = if ($statusResp) { $statusResp.connected } else { 'N/A' }
 $mt5ServerVal = if ($statusResp) { $statusResp.server } else { 'N/A' }
