@@ -59,8 +59,8 @@ $treeClean = [string]::IsNullOrWhiteSpace($statusShort)
 # Runtime Deployed SHA verification attempt
 $runtimeDeployedSha = 'NOT PROVEN'
 $candidateShaFiles = @(
-    'C:\YarTraderAI\Runtime\deployed_sha.txt',
     'TradeYarStorageRoot\Runtime\deployed_sha.txt',
+    'C:\YarTraderAI\Runtime\deployed_sha.txt',
     'Runtime\deployed_sha.txt'
 )
 foreach ($sf in $candidateShaFiles) {
@@ -110,10 +110,17 @@ try {
                 $activeConsoleSessionId = $uniqueSessions[0]
             } else {
                 Write-Warning "Multiple explorer.exe instances in distinct sessions detected."
+                $activeConsoleSessionId = 'NOT PROVEN'
             }
         }
+    } else {
+        Write-Warning "No explorer.exe processes found on host."
+        $activeConsoleSessionId = 'NOT PROVEN'
     }
-} catch {}
+} catch {
+    Write-Warning ("Exception discovering interactive explorer session: " + $_.Exception.Message)
+    $activeConsoleSessionId = 'NOT PROVEN'
+}
 
 Write-Host ('Active Interactive Session ID: ' + $activeConsoleSessionId)
 
@@ -163,9 +170,12 @@ $tsPort = Get-IsoUtcTimestamp
 Write-Host "`n[4/8] Inspecting Strict TCP Port 5001 Listener..." -ForegroundColor Yellow
 $port5001Proven = $false
 $port5001Details = 'NOT PROVEN'
+$allObservedListenersStr = 'None'
+
 try {
     $netConns = Get-NetTCPConnection -LocalPort 5001 -State Listen -ErrorAction SilentlyContinue
     if ($netConns) {
+        $allObservedListenersStr = ($netConns | ForEach-Object { ($_.LocalAddress + ':' + $_.LocalPort + ' (PID: ' + $_.OwningProcess + ')') }) -join '; '
         # Strict IPv4 loopback check ONLY (Reject ::1 or 0.0.0.0)
         $validListeners = $netConns | Where-Object { $_.LocalAddress -eq '127.0.0.1' }
         if ($validListeners -and $validListeners.Count -eq 1) {
@@ -189,9 +199,10 @@ try {
         $port5001Details = 'FAILED [No TCP listener active on port 5001]'
     }
 } catch {
-    $port5001Details = 'Get-NetTCPConnection exception: ' + $_
+    $port5001Details = 'Get-NetTCPConnection exception: ' + $_.Exception.Message
 }
 Write-Host ('Port 5001 Status: ' + $port5001Details)
+Write-Host ('All Observed Listeners: ' + $allObservedListenersStr)
 
 # 5. Session 0 Genuine Identity Inspection
 $tsS0 = Get-IsoUtcTimestamp
@@ -218,7 +229,7 @@ if ($callerSessionId -eq 0 -and $callerUser -like '*SYSTEM*') {
             $session0IpcProven = $true
         }
     } catch {
-        $session0IpcDetails = 'Exception testing Session 0 IPC: ' + $_
+        $session0IpcDetails = 'Exception testing Session 0 IPC: ' + $_.Exception.Message
     }
 } else {
     Write-Warning ('Collector caller is in Session ' + $callerSessionId + ' as ' + $callerUser + ' [not Session 0 LocalSystem]. Direct Session 0 IPC diagnostic marked NOT PROVEN.')
@@ -237,7 +248,8 @@ try {
     $healthResp = Invoke-RestMethod -Uri 'http://127.0.0.1:5001/health' -Method Get -TimeoutSec 5
     Write-Host 'GET /health: SUCCESS' -ForegroundColor Green
 } catch {
-    Write-Host ('GET /health: FAILED - ' + $_) -ForegroundColor Red
+    Write-Host ('GET /health: FAILED - ' + $_.Exception.Message) -ForegroundColor Red
+    $healthResp = $null
 }
 
 # Inspect authoritative secret token file paths aligned with start_mt5_bridge.ps1
@@ -270,7 +282,8 @@ if ($tokenResolved -and -not [string]::IsNullOrWhiteSpace($token)) {
         $statusResp = Invoke-RestMethod -Uri 'http://127.0.0.1:5001/mt5/status' -Headers @{ Authorization = ('Bearer ' + $token) } -Method Get -TimeoutSec 5
         Write-Host 'GET /mt5/status: SUCCESS' -ForegroundColor Green
     } catch {
-        Write-Host ('GET /mt5/status: FAILED - ' + $_) -ForegroundColor Red
+        Write-Host ('GET /mt5/status: FAILED - ' + $_.Exception.Message) -ForegroundColor Red
+        $statusResp = $null
     }
 
     try {
@@ -278,7 +291,8 @@ if ($tokenResolved -and -not [string]::IsNullOrWhiteSpace($token)) {
         $marketDataResp = Invoke-RestMethod -Uri 'http://127.0.0.1:5001/market-data' -Headers @{ Authorization = ('Bearer ' + $token) } -Method Post -ContentType 'application/json' -Body $body -TimeoutSec 5
         Write-Host 'POST /market-data [XAUUSD H1 count=2]: SUCCESS' -ForegroundColor Green
     } catch {
-        Write-Host ('POST /market-data: FAILED - ' + $_) -ForegroundColor Red
+        Write-Host ('POST /market-data: FAILED - ' + $_.Exception.Message) -ForegroundColor Red
+        $marketDataResp = $null
     }
 } else {
     Write-Warning $tokenSourceDetails
@@ -320,7 +334,9 @@ if ($ExecuteRecoveryTest) {
         $statusRespB = $null
         try {
             $statusRespB = Invoke-RestMethod -Uri 'http://127.0.0.1:5001/mt5/status' -Headers @{ Authorization = ('Bearer ' + $token) } -Method Get -TimeoutSec 5
-        } catch {}
+        } catch {
+            $statusRespB = $null
+        }
 
         if (-not $oldProcExists -and $statusRespB -and $statusRespB.connected -eq $false) {
             $recoveryBResult = 'PROVEN [Stopped MT5 PID ' + $oldMt5Pid + ' at ' + $stopTimeUtc + '; Verified process exit and Bridge connected: false fail-closed]'
@@ -341,13 +357,11 @@ if ($ExecuteRecoveryTest) {
             $newMt5Pid = 'N/A'
             $newMt5ProcCandidate = $null
             $reconnectTimeUtc = 'NOT PROVEN'
+            $statusRespC = $null
+            $marketDataRespC = $null
+
             for ($i = 0; $i -lt 10; $i++) {
                 Start-Sleep -Seconds 2
-                $candidateMt5s = Get-CimInstance Win32_Process -Filter "Name='terminal64.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.ProcessId -ne $oldMt5Pid }
-                if ($candidateMt5s -and $candidateMt5s.Count -eq 1) {
-                    $newMt5ProcCandidate = $candidateMt5s[0]
-                    $newMt5Pid = $newMt5ProcCandidate.ProcessId
-                }
                 try {
                     $statusRespC = Invoke-RestMethod -Uri 'http://127.0.0.1:5001/mt5/status' -Headers @{ Authorization = ('Bearer ' + $token) } -Method Get -TimeoutSec 3
                     if ($statusRespC -and $statusRespC.connected -eq $true) {
@@ -355,15 +369,65 @@ if ($ExecuteRecoveryTest) {
                         $reconnectTimeUtc = Get-IsoUtcTimestamp
                         break
                     }
-                } catch {}
+                } catch {
+                    $statusRespC = $null
+                }
             }
 
-            if ($reconnected -and $newMt5Pid -ne 'N/A' -and $newMt5Pid -ne $oldMt5Pid -and $newMt5ProcCandidate) {
-                $newSessionId = $newMt5ProcCandidate.SessionId
-                $recoveryCResult = 'PROVEN [Restarted MT5 at ' + $restartTimeUtc + '; Verified new PID ' + $newMt5Pid + ' in Session ' + $newSessionId + '; Bridge re-established connected: true at ' + $reconnectTimeUtc + ']'
+            # Verify new terminal64.exe process topology after restart
+            $candidateMt5s = Get-CimInstance Win32_Process -Filter "Name='terminal64.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.ProcessId -ne $oldMt5Pid }
+            if ($candidateMt5s) {
+                if ($candidateMt5s.Count -eq 1) {
+                    $newMt5ProcCandidate = $candidateMt5s[0]
+                    $newMt5Pid = $newMt5ProcCandidate.ProcessId
+                } else {
+                    Write-Warning "Multiple terminal64.exe processes detected after restart; ambiguity present."
+                }
+            }
+
+            # Verify Bridge process PID remained unchanged and listener is intact
+            $currentBridgeProcs = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*mt5_bridge*' }
+            $bridgeUnchanged = ($currentBridgeProcs -and $currentBridgeProcs.Count -eq 1 -and $currentBridgeProcs[0].ProcessId -eq $bridgeProc.ProcessId)
+
+            # Verify TCP 5001 listener still owned by same Bridge PID
+            $listenerIntact = $false
+            try {
+                $netConnsC = Get-NetTCPConnection -LocalPort 5001 -State Listen -ErrorAction SilentlyContinue
+                $validListenersC = $netConnsC | Where-Object { $_.LocalAddress -eq '127.0.0.1' }
+                if ($validListenersC -and $validListenersC.Count -eq 1 -and $validListenersC[0].OwningProcess -eq $bridgeProc.ProcessId) {
+                    $listenerIntact = $true
+                }
+            } catch {
+                Write-Warning ("Exception inspecting TCP 5001 listener during Recovery C: " + $_.Exception.Message)
+            }
+
+            # Verify market data query on reconnected Bridge
+            if ($reconnected -and $tokenResolved) {
+                try {
+                    $bodyC = @{ symbol = 'XAUUSD'; timeframe = 'H1'; count = 2 } | ConvertTo-Json
+                    $marketDataRespC = Invoke-RestMethod -Uri 'http://127.0.0.1:5001/market-data' -Headers @{ Authorization = ('Bearer ' + $token) } -Method Post -ContentType 'application/json' -Body $bodyC -TimeoutSec 5
+                } catch {
+                    Write-Warning ("Exception querying market-data during Recovery C: " + $_.Exception.Message)
+                    $marketDataRespC = $null
+                }
+            }
+
+            $mdCountCOk = ($marketDataRespC -and $marketDataRespC.symbol -eq 'XAUUSD' -and $marketDataRespC.timeframe -eq 'H1' -and $marketDataRespC.candles -and $marketDataRespC.candles.Count -eq 2)
+
+            if ($reconnected -and
+                $newMt5ProcCandidate -and
+                $newMt5Pid -ne 'N/A' -and
+                $newMt5Pid -ne $oldMt5Pid -and
+                ($newMt5ProcCandidate.ExecutablePath -eq $mt5Proc.ExecutablePath) -and
+                ($newMt5ProcCandidate.SessionId -eq $activeConsoleSessionId) -and
+                $bridgeUnchanged -and
+                $listenerIntact -and
+                $mdCountCOk) {
+
+                $recoveryCResult = 'PROVEN [Restarted MT5 at ' + $restartTimeUtc + '; Verified new PID ' + $newMt5Pid + ' in Session ' + $newMt5ProcCandidate.SessionId + '; Path matches; Bridge PID ' + $bridgeProc.ProcessId + ' unchanged; Port 5001 listener intact; connected: true restored; XAUUSD H1 count=2 verified at ' + $reconnectTimeUtc + ']'
                 Write-Host 'Recovery C: SUCCESS' -ForegroundColor Green
             } else {
-                $recoveryCResult = 'FAILED [Bridge failed to re-establish connection or new PID ambiguous]'
+                $recoveryCResult = 'FAILED [Recovery C validation failed: reconnected=' + $reconnected + ', newPid=' + $newMt5Pid + ', bridgeUnchanged=' + $bridgeUnchanged + ', listenerIntact=' + $listenerIntact + ', marketDataOk=' + $mdCountCOk + ']'
             }
         } else {
             $recoveryCResult = 'NOT PROVEN [MT5 executable path unavailable for restart]'
@@ -502,7 +566,7 @@ $reportContent = @"
 | :--- | :--- | :--- | :--- | :--- | :---: |
 | **1. Provenance Match** | Local: `$currentHead` | `$ExpectedSha` | `git rev-parse HEAD` | $startTimeUtc | $provenanceStatusStr |
 | **2. Clean Working Tree** | Short Status: `$statusShort` | Empty | `git status --short` | $startTimeUtc | $treeCleanStatusStr |
-| **3. Deployed Runtime SHA** | Deployed: `$runtimeDeployedSha` | `$ExpectedSha` | `C:\YarTraderAI\Runtime\deployed_sha.txt` | $startTimeUtc | $runtimeShaStatusStr |
+| **3. Deployed Runtime SHA** | Deployed: `$runtimeDeployedSha` | `$ExpectedSha` | `TradeYarStorageRoot\Runtime\deployed_sha.txt` | $startTimeUtc | $runtimeShaStatusStr |
 | **4. Session 0 Service Identity** | SessionId: $serviceSessionId, User: $serviceAccount | SessionId: 0, User: LocalSystem | `Win32_Service` / `Win32_Process` | $tsService | $serviceStatusStr |
 | **5. Interactive Session Bridge** | SessionId: $bridgeProcSessionId, Ambiguous: $bridgeAmbiguous | SessionId: $activeConsoleSessionId (Unique) | `Win32_Process` (PID $bridgeProcPid) | $tsProc | $bridgeSessionStatusStr |
 | **6. Interactive Session MT5** | SessionId: $mt5ProcSessionId, Ambiguous: $mt5Ambiguous | SessionId: $activeConsoleSessionId (Unique) | `Win32_Process` (PID $mt5ProcPid) | $tsProc | $mt5SessionStatusStr |
@@ -532,6 +596,7 @@ $procTable
 ## TCP Port 5001 Listener Details
 ```text
 $port5001Details
+All Observed Listeners: $allObservedListenersStr
 ```
 
 ---
