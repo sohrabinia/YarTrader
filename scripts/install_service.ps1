@@ -122,7 +122,7 @@ Write-Host "Using pywin32 service host: $PythonServiceExe" -ForegroundColor Gree
 
 # Let pywin32 install the ServiceFramework using its supported PythonService.exe
 # host and PythonClass registry entry.
-& $PythonPath $ScriptPath install --startup delayed
+& $PythonPath $ScriptPath install --startup=delayed
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to install YarTrader through pywin32 ServiceFramework."
     Exit 1
