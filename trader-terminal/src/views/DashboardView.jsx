@@ -43,13 +43,13 @@ export default function DashboardView({
           </div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', fontWeight: 'bold' }}>
-              ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'DEMO PAPER')}
+              ENVIRONMENT: {backendState === 'LIVE' ? 'CONNECTED' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'CHECKING')}
             </span>
             <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
               SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE ACTIVE' : 'FAIL-CLOSED (LIVE DISABLED)')}
             </span>
             <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(79, 182, 199, 0.15)', color: 'var(--signal)', border: '1px solid var(--signal)', fontWeight: 'bold' }}>
-              DATA: {backendState === 'LIVE' ? 'LIVE INGESTION' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : 'MOCK / DEMO INGESTION')}
+              DATA: {backendState === 'LIVE' ? 'CONNECTED FEED' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : 'CHECKING')}
             </span>
           </div>
         </div>
@@ -57,10 +57,10 @@ export default function DashboardView({
         {/* Market State & Intelligence Command Status Grid */}
         <div className="status-board" style={{ margin: '15px 0 0 0' }}>
           <MetricCard title="Market Session State" value={signals && signals[0] ? (signals[0].posture || 'OPEN') : 'OPEN'} status="passed" />
-          <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'QUALIFIED SETUP') : 'QUALIFIED SETUP'} status="primary" />
-          <MetricCard title="Pre-Entry 120s Feasibility" value="PASSED (>121s)" status="passed" />
-          <MetricCard title="TP-Time Feasibility" value="VALIDATED" status="passed" />
-          <MetricCard title="Execution Eligibility" value={backendState === 'LIVE' ? 'LIVE ELIGIBLE' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'DEMO ELIGIBLE'))} status="passed" />
+          <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'DATA AVAILABLE') : 'DATA UNAVAILABLE'} status="primary" />
+          <MetricCard title="Pre-Entry 120s Feasibility" value="NOT VERIFIED" status="passed" />
+          <MetricCard title="TP-Time Feasibility" value="NOT VERIFIED" status="passed" />
+          <MetricCard title="Execution Eligibility" value={backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO VERIFIED' : 'NOT VERIFIED')} status="passed" />
         </div>
       </div>
 
@@ -76,7 +76,7 @@ export default function DashboardView({
             <ConfidenceBadge score={signals[0]?.confidence || 85} />
           </div>
           <div className="text-[0.75rem] text-[var(--text-dark)] leading-relaxed">
-            Market structure showing strong bullish alignment across canonical timeframes. Zero classical technical indicators are used.
+            Market structure and multi-timeframe context are derived from the current data feed. No classical technical indicators are used.
           </div>
         </div>
       </ChartContainer>
