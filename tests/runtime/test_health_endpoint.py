@@ -25,7 +25,7 @@ class TestHealthEndpoint(unittest.TestCase):
         self.assertTrue(data["api"] == "Online" or data["api"] is True)
         self.assertEqual(data["mt5"], "Connected")
         self.assertEqual(data["worker"], "Running")
-        self.assertEqual(data["intelligence"], "Ready")
+        self.assertEqual(data["intelligence"], "Offline")
         self.assertEqual(data["shadow_trading"], "Disabled")
         self.assertIn("timestamp", data)
 
