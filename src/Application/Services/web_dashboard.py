@@ -389,7 +389,8 @@ def initialize_validation_state() -> None:
             pass
 
 # Pre-load status from disk right on startup
-initialize_validation_state()
+# Validation state starts from the current process only. Historical report files are
+# artifacts, not live status, and must never be presented as the result of a new run.
 
 
 def run_acceptance_runner_thread():
