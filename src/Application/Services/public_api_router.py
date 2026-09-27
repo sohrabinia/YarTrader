@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
+import os
 from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
 
 router = APIRouter(prefix="/api/public", tags=["Public SaaS API"])
@@ -117,20 +118,22 @@ def initiate_purchase(payload: PurchasePayload):
 @router.get("/markets")
 def get_supported_markets():
     """Returns the canonical runtime market universe grouped by configured category."""
-    import yaml
     from pathlib import Path
+    from src.ShadowTrading.Engine.SymbolRegistry import parse_market_universe_yaml
 
     universe_path = Path("config/market_universe.yaml")
     if not universe_path.exists():
         raise HTTPException(status_code=503, detail="Canonical market universe configuration is unavailable.")
 
-    with universe_path.open("r", encoding="utf-8") as handle:
-        config = yaml.safe_load(handle) or {}
-
-    grouped = []
-    for category, symbols in (config.get("categories") or {}).items():
-        grouped.append({
-            "category": category,
-            "symbols": list(symbols or [])
-        })
-    return grouped
+    try:
+        with universe_path.open("r", encoding="utf-8") as handle:
+            parsed = parse_market_universe_yaml(handle.read())
+        grouped = []
+        for category, symbols in parsed.get("market_universe", {}).items():
+            grouped.append({
+                "category": category,
+                "symbols": sorted(symbols.keys())
+            })
+        return grouped
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Canonical market universe is invalid: {exc}") from exc
