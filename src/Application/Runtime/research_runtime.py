@@ -70,29 +70,22 @@ class ResearchRuntime:
     def history(self) -> List[ResearchResult]:
         return self._history
 
+    @staticmethod
+    def _timeframe_start(end_time: datetime, timeframe: str) -> datetime:
+        """Return the canonical lookback window for one timeframe."""
+        windows = {
+            "M1": timedelta(hours=10), "M5": timedelta(days=2), "M15": timedelta(days=6),
+            "H1": timedelta(days=22), "H4": timedelta(days=52), "D1": timedelta(days=205),
+            "W1": timedelta(days=210), "MN1": timedelta(days=900)
+        }
+        return end_time - windows.get(timeframe.upper(), timedelta(days=2))
+
     def run_once(self) -> ResearchResult:
         """Executes a single synchronous loop cycle of the research pipeline."""
         # 1. Start Cycle
         tf_upper = self._timeframe.upper()
-        if "M1" == tf_upper:
-            start_time = datetime.now() - timedelta(hours=10) # 600 minutes (>= 500)
-        elif "M5" == tf_upper:
-            start_time = datetime.now() - timedelta(days=2) # 576 bars (>= 500)
-        elif "M15" == tf_upper:
-            start_time = datetime.now() - timedelta(days=6) # 576 bars (>= 500)
-        elif "H1" in tf_upper:
-            start_time = datetime.now() - timedelta(days=22) # 528 hours (>= 500)
-        elif "H4" in tf_upper:
-            start_time = datetime.now() - timedelta(days=52) # 312 bars (>= 300)
-        elif "D1" in tf_upper or "DAILY" in tf_upper:
-            start_time = datetime.now() - timedelta(days=205) # 205 days (>= 200)
-        elif "W1" in tf_upper:
-            start_time = datetime.now() - timedelta(days=210) # 30 weeks (>= 14)
-        elif "MN1" in tf_upper:
-            start_time = datetime.now() - timedelta(days=900) # 30 months (>= 14)
-        else:
-            start_time = datetime.now() - timedelta(days=2)
         end_time = datetime.now()
+        start_time = self._timeframe_start(end_time, tf_upper)
 
         # Write start step to logs
         self._log_evidence(f"Starting research iteration for {self._symbol} on {self._timeframe}...")
@@ -151,12 +144,36 @@ class ResearchRuntime:
             if candles_count == 0:
                 raise ValidationException(f"Received empty candle series for {self._symbol} from {self._provider_name}.")
 
+            # Production Brain receives all canonical raw timeframes at the same end-time.
+            all_timeframe_candles: Dict[str, List[Dict[str, Any]]] = {}
+            if isinstance(self._research_engine, PrimitiveMarketResearchEngine):
+                from src.Core.timeframes import SUPPORTED_TIMEFRAMES
+                for mtf in SUPPORTED_TIMEFRAMES.keys():
+                    mtf_upper = mtf.upper()
+                    if mtf_upper == tf_upper:
+                        mtf_points = data_response.DataPoints
+                    else:
+                        mtf_start = self._timeframe_start(end_time, mtf_upper)
+                        mtf_req = MarketDataRequest(Asset=self._symbol, StartTime=mtf_start, EndTime=end_time, Timeframe=mtf_upper)
+                        mtf_response = self._provider.retrieve_market_data(mtf_req)
+                        mtf_points = mtf_response.DataPoints
+                    all_timeframe_candles[mtf_upper] = [
+                        {"timestamp": p.Timestamp.isoformat() if hasattr(p.Timestamp, "isoformat") else str(p.Timestamp),
+                         "open": float(p.Open), "high": float(p.High), "low": float(p.Low),
+                         "close": float(p.Close), "volume": float(p.Volume)}
+                        for p in mtf_points
+                    ]
+                missing_mtf = [name for name, rows in all_timeframe_candles.items() if not rows]
+                if missing_mtf:
+                    raise ValidationException(f"Missing canonical multi-timeframe market data for {self._symbol}: {', '.join(missing_mtf)}")
+                self._log_evidence("MTF Raw Context: " + ", ".join(f"{name}={len(rows)}" for name, rows in all_timeframe_candles.items()))
+
             # 4. Construct Research Request with Enrichment context
             research_req = ResearchRequest(
                 Asset=self._symbol,
                 StartTime=start_time,
                 EndTime=end_time,
-                Context={"timeframe": self._timeframe}
+                Context={"timeframe": self._timeframe, "all_timeframe_candles": all_timeframe_candles, "mtf_timeframes": list(all_timeframe_candles.keys())}
             )
 
             # 5. Run the decorated FeatureExtractionResearchEngine
@@ -192,6 +209,7 @@ class ResearchRuntime:
                         symbol=self._symbol,
                         timeframe=self._timeframe,
                         candles=candles_dicts,
+                        all_timeframe_candles=all_timeframe_candles or None,
                         newborn_brain_report=newborn_report_dict
                     )
 
