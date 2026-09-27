@@ -96,7 +96,7 @@ class ExecutionIntelligenceCore:
 
         # 1. Market Narrative
         narrative_res = self.narrative_engine.analyze_narrative(candles)
-        narrative_res["data_source"] = "MT5_XAUUSD_M1_RATES"
+        narrative_res["data_source"] = "RAW_MARKET_DATA"
         narrative_res["data_mode"] = "REAL"
         narrative_res["candle_count"] = candle_count
         narrative_res["latest_candle_timestamp"] = latest_ts
@@ -122,6 +122,12 @@ class ExecutionIntelligenceCore:
 
         alignment_res = self.alignment_engine.align_structures(symbol, alignment_narratives)
         state["alignment"] = alignment_res
+        state["multi_timeframe_context"] = {
+            "timeframes_evaluated": sorted(alignment_narratives.keys()),
+            "count": len(alignment_narratives),
+            "indicator_free": True,
+            "source": "RAW_OHLCV"
+        }
 
         # 5. Pattern Similarity & Unified Fractal Analysis
         # Current structural signature: last 4 swing heights
@@ -174,7 +180,11 @@ class ExecutionIntelligenceCore:
             "alignment": alignment_res,
             "similarity": similarity_res,
             "fractal": state.get("fractal", {}),
-            "strategy_evaluation": strategy_eval_res,
+            "strategy_evaluation": {
+                "status": "DISCONNECTED",
+                "decision_authority": "BRAIN",
+                "legacy_strategy_orchestrator": "NOT_USED"
+            },
             "portfolio_risk": portfolio_res,
             "plan": plan_res["plan"]
         }
