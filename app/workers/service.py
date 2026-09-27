@@ -26,6 +26,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 # Signal to web_dashboard to bypass duplicate background worker loops
+os.environ["TRADEYAR_SERVICE_RUN"] = "True"
 os.environ["YARTRADER_SERVICE_RUN"] = "True"
 
 from src.Application.Deployment.storage import YarTraderStorageManager
@@ -37,7 +38,7 @@ def _get_service_log_file() -> str:
     return os.path.join(service_log_dir, "service.log")
 
 def log_service_message(message: str) -> None:
-    """Logs dedicated service messages directly to YarTraderStorageRoot/Logs/service/service.log and main application.log."""
+    """Logs dedicated service messages directly to TradeYarStorageRoot/Logs/service/service.log and main application.log."""
     timestamp = datetime.now().isoformat()
     log_entry = f"[{timestamp}] [SERVICE] {message}\n"
     try:
@@ -145,12 +146,27 @@ class YarTraderServiceHost:
             )
             self.uvicorn_thread.start()
 
-            # Confirm socket binding readiness
-            self._verify_uvicorn_readiness()
+            # Confirm socket binding readiness. A Windows service is not
+            # considered successfully started unless the API is actually
+            # reachable; fail closed so SCM does not report RUNNING while
+            # port 8000 is dead.
+            ready = self._verify_uvicorn_readiness()
+            if not ready:
+                self.last_error = self.last_error or (
+                    f"FastAPI failed readiness check on "
+                    f"http://{self.config.api_host}:{self.config.api_port}"
+                )
+                log_service_message(
+                    f"Service startup aborted: {self.last_error}"
+                )
+                self.stop()
+                raise RuntimeError(self.last_error)
         except Exception as e:
             self.fastapi_ready = False
             self.last_error = f"FastAPI startup exception: {str(e)}"
             log_service_message(f"Exception during FastAPI startup: {str(e)}")
+            self.stop()
+            raise RuntimeError(self.last_error) from e
 
     def _verify_uvicorn_readiness(self, timeout_sec: float = 5.0) -> bool:
         """Polls server state or socket availability before declaring FastAPI started."""
@@ -215,6 +231,7 @@ class YarTraderServiceHost:
 
 
 # Backward compatibility alias
+TradeYarAIServiceHost = YarTraderServiceHost
 
 
 if WINDOWS_SERVICE_SUPPORTED:
@@ -266,14 +283,17 @@ if WINDOWS_SERVICE_SUPPORTED:
                 raise
 
     # Backward compatibility alias
+    TradeYarAIWindowsService = YarTraderWindowsService
 else:
     class YarTraderWindowsService:
+        pass
+    class TradeYarAIWindowsService:
         pass
 
 
 def run_standalone():
     """Standalone CLI process entrypoint with SIGINT/SIGTERM signal handling."""
-    host = YarTraderServiceHost()
+    host = TradeYarAIServiceHost()
 
     def handle_signal(signum, frame):
         log_service_message(f"Received signal {signum}. Shutting down...")
@@ -303,7 +323,7 @@ def run_standalone():
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] in ["install", "remove", "start", "stop", "debug", "update"]:
         if WINDOWS_SERVICE_SUPPORTED:
-            win32serviceutil.HandleCommandLine(YarTraderWindowsService)
+            win32serviceutil.HandleCommandLine(TradeYarAIWindowsService)
         else:
             log_service_message("Windows Service packages are not installed on this system. Running standalone instead...")
             run_standalone()
@@ -312,7 +332,7 @@ if __name__ == "__main__":
         if WINDOWS_SERVICE_SUPPORTED:
             try:
                 servicemanager.Initialize()
-                servicemanager.PrepareToHostSingle(YarTraderWindowsService)
+                servicemanager.PrepareToHostSingle(TradeYarAIWindowsService)
                 servicemanager.StartServiceCtrlDispatcher()
             except Exception as e:
                 # If we cannot connect to SCM (e.g. running interactively), fallback to standalone console
