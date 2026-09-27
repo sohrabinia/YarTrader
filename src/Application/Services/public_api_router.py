@@ -13,21 +13,30 @@ class SocialLoginPayload(BaseModel):
 # 1. Supported Markets & Stats
 @router.get("/metrics")
 def get_public_metrics():
-    """Returns compliant SaaS platform metrics and performance stats."""
+    """Returns only metrics backed by current product configuration/runtime state."""
+    from src.Core.timeframes import SUPPORTED_TIMEFRAMES
+    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+
+    registry = SymbolRegistry.get_instance()
+    registered = registry.get_all_registered()
+    active_symbols = sorted(
+        symbol for symbol, info in registered.items()
+        if info.get("active", True)
+    )
     return {
-        "symbols_active": 50,
-        "timeframes_active": 4,
-        "research_contexts": 200,
+        "symbols_active": len(active_symbols),
+        "timeframes_active": len(SUPPORTED_TIMEFRAMES),
+        "research_contexts": None,
         "providers": {
-            "mt5": "CONNECTED",
-            "crypto_provider": "CONNECTED"
+            "mt5": "CHECKING",
+            "crypto_provider": "NOT_EXPOSED"
         },
-        "runtime_mode": "PRODUCTION",
-        "active_markets_count": 30,
-        "historical_simulated_trades": 125420,
-        "platform_uptime_pct": 99.9,
+        "runtime_mode": os.environ.get("YARTRADER_ENV", "UNKNOWN").upper(),
+        "active_markets_count": len(active_symbols),
+        "historical_simulated_trades": None,
+        "platform_uptime_pct": None,
         "apes_fin_compliant": True,
-        "compliance_disclaimer": "Simulated performance results have certain inherent limitations. Unlike an actual performance record, simulated results do not represent actual trading."
+        "compliance_disclaimer": "No simulated performance or uptime figures are published unless backed by recorded runtime evidence."
     }
 
 # 2. SaaS Pricing Tiers & Subscription Plans
@@ -107,9 +116,21 @@ def initiate_purchase(payload: PurchasePayload):
 # 4. Supported Instrument Categories
 @router.get("/markets")
 def get_supported_markets():
-    """Returns list of SaaS supported market assets."""
-    return [
-        {"category": "Forex", "symbols": ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"]},
-        {"category": "Commodities", "symbols": ["XAUUSD", "XAGUSD", "USOIL"]},
-        {"category": "Crypto", "symbols": ["BTCUSD", "ETHUSD", "SOLUSD"]}
-    ]
+    """Returns the canonical runtime market universe grouped by configured category."""
+    import yaml
+    from pathlib import Path
+
+    universe_path = Path("config/market_universe.yaml")
+    if not universe_path.exists():
+        raise HTTPException(status_code=503, detail="Canonical market universe configuration is unavailable.")
+
+    with universe_path.open("r", encoding="utf-8") as handle:
+        config = yaml.safe_load(handle) or {}
+
+    grouped = []
+    for category, symbols in (config.get("categories") or {}).items():
+        grouped.append({
+            "category": category,
+            "symbols": list(symbols or [])
+        })
+    return grouped
