@@ -236,8 +236,7 @@ Write-Host ('Deployed SHA : ' + $runtimeDeployedSha + ' (Source: ' + $deployedSh
 #   1. MT5_BRIDGE_SECRET_TOKEN environment variable (PROVEN)
 #   2. <YarTraderStorageRoot>\Secrets\mt5_bridge_token.secret (PROVEN)
 #   3. C:\YarTraderAI\Secrets\mt5_bridge_token.secret (PROVEN)
-#   4. Canonical relative paths (YarTraderStorageRoot\Secrets, Secrets\) (PROVEN)
-#   5. Legacy compatibility fallbacks (TradeYarStorageRoot\Secrets) (NOT PROVEN — LEGACY COMPATIBILITY ONLY)
+#   Canonical storage only: YarTraderStorageRoot\Secrets or C:\YarTraderAI\Secrets
 
 $healthResp = $null
 $statusResp = $null
@@ -919,13 +918,10 @@ $candidateLogs = @(
     'C:\Projects\YarTrader\Logs\bridge.log',
     'C:\YarTraderAI\Logs\runtime.log',
     'C:\YarTraderAI\Logs\bridge.log',
-    'TradeYarStorageRoot\Logs\runtime.log',
-    'TradeYarStorageRoot\Logs\bridge.log',
     'YarTraderStorageRoot\Logs\runtime.log',
     'YarTraderStorageRoot\Logs\bridge.log',
-    'runtime_logs\runtime.log',
-    'Logs\runtime.log',
-    'Logs\bridge.log'
+    'C:\YarTraderAI\Logs\runtime.log',
+    'C:\YarTraderAI\Logs\bridge.log'
 )
 
 foreach ($lf in $candidateLogs) {
