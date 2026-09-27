@@ -7,9 +7,9 @@ from src.Application.Deployment.config import ProductionConfig, ConfigManager
 from src.Application.Deployment.observability import StructuredLogger
 
 
-class TestTradeYarStorageIsolation(unittest.TestCase):
+class TestYarTraderStorageIsolation(unittest.TestCase):
     """
-    Automated test suite verifying Phase 39: TradeYar AI Storage Isolation.
+    Automated test suite verifying Phase 39: YarTrader AI Storage Isolation.
     Ensures that all runtime directories are strictly placed and write-isolated
     under YarTraderStorageRoot, preventing fallback writes to OS system directories.
     """
@@ -19,7 +19,7 @@ class TestTradeYarStorageIsolation(unittest.TestCase):
         YarTraderStorageManager.reset()
 
         # We configure a safe testing storage root path
-        self.test_root = os.path.join(os.getcwd(), "test_TradeYarAI")
+        self.test_root = os.path.join(os.getcwd(), "test_YarTraderAI")
         self.manager = YarTraderStorageManager.get_manager(self.test_root)
 
     def tearDown(self) -> None:
@@ -45,7 +45,7 @@ class TestTradeYarStorageIsolation(unittest.TestCase):
         if os.path.exists(self.test_root):
             shutil.rmtree(self.test_root)
 
-        logger = StructuredLogger(service_name="TradeYar_Test")
+        logger = StructuredLogger(service_name="YarTrader_Test")
         logger.info("OperationalStep", {"payload": "test"})
 
         expected_log_file = os.path.join(self.manager.get_log_dir(), "yartrader.log")
