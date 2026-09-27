@@ -29,11 +29,11 @@ class AuthRepository:
             if is_production:
                 if not admin_pw_hash or admin_pw_hash in ("*", "placeholder", ""):
                     raise ValidationException(
-                        "Production Configuration Error: YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH / TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH must be configured with a secure, non-empty PBKDF2 hash."
+                        "Production Configuration Error: YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH must be configured with a secure, non-empty PBKDF2 hash."
                     )
                 if admin_email == "admin-disabled@yartrader.app" or not admin_email:
                     raise ValidationException(
-                        "Production Configuration Error: YARTRADER_DEFAULT_ADMIN_EMAIL / TRADEYAR_DEFAULT_ADMIN_EMAIL must be configured with a valid production administrator email."
+                        "Production Configuration Error: YARTRADER_DEFAULT_ADMIN_EMAIL must be configured with a valid production administrator email."
                     )
                 default_data = {
                     admin_email: {
