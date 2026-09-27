@@ -104,5 +104,5 @@ $env:MT5_BRIDGE_PORT = $Port
 $env:PYTHONPATH = $ProjectRoot
 
 # 3. Launch Uvicorn Bridge Agent
-Write-Host " Launching MT5 Interactive Bridge on $HostAddress:$Port..." -ForegroundColor Green
+Write-Host " Launching MT5 Interactive Bridge on ${HostAddress}:$Port..." -ForegroundColor Green
 & $VenvPython -m src.Infrastructure.Bridge.mt5_bridge
