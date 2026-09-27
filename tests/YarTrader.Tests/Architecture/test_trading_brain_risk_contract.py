@@ -46,7 +46,7 @@ def test_planner_rejects_structure_with_rr_below_minimum():
         symbol="XAUUSD",
         timeframe="H1",
         narrative={"trend": "BULLISH", "data_source": "RAW_MARKET_DATA"},
-        liquidity={"latest_sweep": None, "resting_bsl": [2651.0], "resting_ssl": []},
+        liquidity={"latest_sweep": None, "resting_bsl": [2650.5], "resting_ssl": []},
         zones={
             "order_blocks": [{"type": "BULLISH_OB", "bottom": 2649.5}],
             "fair_value_gaps": [],
