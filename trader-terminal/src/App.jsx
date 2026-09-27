@@ -66,7 +66,7 @@ function MainApp() {
     setRoutePath(normPath);
   };
   const [theme, setTheme] = useState(() => localStorage.getItem('yartrader_theme') || 'dark');
-  const [backendState, setBackendState] = useState('CHECKING'); // 'LIVE', 'DEMO', 'UNREACHABLE', 'CHECKING'
+  const [backendState, setBackendState] = useState('CHECKING'); // 'CONNECTED', 'DEMO', 'UNREACHABLE', 'CHECKING'
   const [appVersion, setAppVersion] = useState('7.0');
 
   useEffect(() => {
@@ -85,7 +85,7 @@ function MainApp() {
     try {
       const statusRes = await apiService.get('/api/runtime/frontend-status');
       if (statusRes && statusRes.api === 'connected') {
-        setBackendState('LIVE');
+        setBackendState('CONNECTED');
         return;
       }
     } catch (statusErr) {
@@ -165,10 +165,10 @@ function MainApp() {
       tier_id: 'institutional',
       name: lang === 'fa' ? 'Institutional SCM Terminal (سازمانی)' : 'Institutional SCM Terminal',
       price_usd: '$299/mo',
-      max_symbols: 50,
+      max_symbols: 30,
       enabled_timeframes: ['Micro', 'Short', 'Medium', 'Macro'],
       features: [
-        '50 Active Concurrent Symbols',
+        '30 Active Concurrent Symbols',
         'All Horizon Signals (Micro to Macro)',
         'Priority SRE support & dedicated server access'
       ]
@@ -227,7 +227,7 @@ function MainApp() {
   // Pattern detail and Pricing detail modal state
   const [selectedPattern, setSelectedPattern] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [signalTab, setSignalTab] = useState('live'); // 'live', 'shadow', 'backtest', 'historical'
+  const [signalTab, setSignalTab] = useState('live'); // 'live', 'backtest', 'historical' — live trading remains hard-disabled
 
   // SRE Admin Control Center states & Tab selection
   const [adminTab, setAdminTab] = useState('overview'); // 'overview', 'system', 'data', 'trading', 'intelligence', 'users', 'errors', 'audit'
@@ -1349,7 +1349,7 @@ function MainApp() {
                   </div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', fontWeight: 'bold' }}>
-                      ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'DEMO PAPER')}
+                      ENVIRONMENT: {backendState === 'CONNECTED' ? 'CONNECTED FEED' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'DEMO PAPER')}
                     </span>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
                       SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE ACTIVE' : 'FAIL-CLOSED (LIVE DISABLED)')}
