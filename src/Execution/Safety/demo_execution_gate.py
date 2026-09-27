@@ -41,6 +41,13 @@ class DemoExecutionGate:
         if not demo_mode_flag:
             raise ValidationException("DemoExecutionGate: Demo execution is disabled (demo_mode_flag=False).")
 
+        # DEMO execution is intentionally restricted to XAUUSD only.
+        requested_symbol = str(getattr(request, "Symbol", "XAUUSD") or "").upper()
+        if requested_symbol != "XAUUSD":
+            raise ValidationException(
+                f"DemoExecutionGate Violation: DEMO execution is restricted to XAUUSD; requested symbol was '{requested_symbol}'."
+            )
+
         # Check 2: Live trading explicitly disabled & MetaTraderSafetyGate
         MetaTraderSafetyGate.verify_operation(
             terminal_type="MT5",
