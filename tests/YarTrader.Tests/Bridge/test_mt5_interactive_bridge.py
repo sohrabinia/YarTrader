@@ -205,6 +205,21 @@ def test_client_and_bridge_token_contract_parity(monkeypatch, tmp_path):
     assert resolved_bridge == client.token
 
 
+def test_legacy_tradeyar_token_path_is_ignored(monkeypatch, tmp_path):
+    """Verify legacy TradeYar storage paths cannot satisfy the canonical token contract."""
+    monkeypatch.delenv("MT5_BRIDGE_SECRET_TOKEN", raising=False)
+    monkeypatch.setenv("YarTraderStorageRoot", str(tmp_path / "YarTraderStorageRoot"))
+
+    def legacy_only_exists(path):
+        return "TradeYarStorageRoot" in str(path)
+
+    with patch("os.path.exists", side_effect=legacy_only_exists):
+        with pytest.raises(RuntimeError):
+            MT5BridgeClient()
+        with pytest.raises(RuntimeError):
+            get_or_create_bridge_secret_token()
+
+
 def test_missing_token_raises_runtime_error(monkeypatch, tmp_path):
     """Verify both bridge and client fail closed when no canonical token exists."""
     monkeypatch.delenv("MT5_BRIDGE_SECRET_TOKEN", raising=False)
