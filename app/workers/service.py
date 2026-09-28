@@ -198,7 +198,7 @@ class YarTraderServiceHost:
         # 1. Stop workers
         try:
             self.research_worker.stop()
-            central_runtime_state.update_state("shadow_status", "Stopped")
+            central_runtime_state.update_state("shadow_status", "Disabled")
         except Exception as e:
             log_service_message(f"Exception during worker shutdown: {str(e)}")
 
