@@ -227,7 +227,7 @@ function MainApp() {
   // Pattern detail and Pricing detail modal state
   const [selectedPattern, setSelectedPattern] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [signalTab, setSignalTab] = useState('live'); // 'live', 'shadow', 'backtest', 'historical'
+  const [signalTab, setSignalTab] = useState('live'); // 'live', 'backtest', 'historical'
 
   // SRE Admin Control Center states & Tab selection
   const [adminTab, setAdminTab] = useState('overview'); // 'overview', 'system', 'data', 'trading', 'intelligence', 'users', 'errors', 'audit'
