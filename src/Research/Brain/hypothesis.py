@@ -47,6 +47,16 @@ class HypothesisEngine:
                         "average_mae": 0.0,
                         "average_observed_bars": 0.0,
                     },
+                    "anticipation": {
+                        "state": "NO_EDGE",
+                        "direction": "WAIT",
+                        "confidence_pct": 0.0,
+                        "similar_situations_found": 0,
+                        "continuation_pct": 0.0,
+                        "reversal_pct": 0.0,
+                        "future_data_visible_at_decision": false,
+                        "execution_trigger": "NEXT_VALID_MARKET_TRIGGER",
+                    },
                 }
             )
 
