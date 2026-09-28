@@ -109,8 +109,10 @@ class DemoExecutionGate:
             if sym_trade_mode == 0:
                 raise ValidationException(f"DemoExecutionGate Violation: Symbol '{request.Symbol}' trade mode is DISABLED (0).")
 
-        # Check 7: Daily Loss Limit Gate (8% Ceiling) - Strictly Fail Closed
+        # Check 7: Daily Loss Limit Gate (8% Ceiling) - fail closed for NEW entries.
+        # CLOSE requests must remain executable so risk can still be flattened after a loss limit trips.
         import math
+        order_type = str(getattr(request, "OrderType", "")).upper()
         raw_equity = acc_info.get("equity") if isinstance(acc_info, dict) else None
         if raw_equity is None or isinstance(raw_equity, bool) or not isinstance(raw_equity, (int, float)):
             raise ValidationException("DemoExecutionGate Violation: Account equity is missing, boolean, or non-numeric. Execution strictly blocked.")
@@ -123,21 +125,22 @@ class DemoExecutionGate:
         if equity_val <= 0 or not math.isfinite(equity_val):
             raise ValidationException(f"DemoExecutionGate Violation: Account equity ({raw_equity}) must be positive and finite. Execution strictly blocked.")
 
-        try:
-            from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
-            daily_status = DailyLossKillSwitch.get_instance().evaluate_entry_allowed(equity_val)
-            allowed = bool(daily_status.get("allowed", False))
-            reason = daily_status.get("reason")
-            loss_pct = daily_status.get("daily_loss_pct", 0.0)
-            if not allowed:
-                raise ValidationException(
-                    f"DemoExecutionGate Violation: Daily 8% loss limit active / session-entry gate "
-                    f"({reason}, loss={loss_pct}%). Execution strictly blocked."
-                )
-        except ValidationException:
-            raise
-        except Exception as ex:
-            raise ValidationException(f"DemoExecutionGate Violation: DailyLossKillSwitch evaluation error: {ex}")
+        if order_type != "CLOSE":
+            try:
+                from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+                daily_status = DailyLossKillSwitch.get_instance().evaluate_entry_allowed(equity_val)
+                allowed = bool(daily_status.get("allowed", False))
+                reason = daily_status.get("reason")
+                loss_pct = daily_status.get("daily_loss_pct", 0.0)
+                if not allowed:
+                    raise ValidationException(
+                        f"DemoExecutionGate Violation: Daily 8% loss limit active / session-entry gate "
+                        f"({reason}, loss={loss_pct}%). Execution strictly blocked."
+                    )
+            except ValidationException:
+                raise
+            except Exception as ex:
+                raise ValidationException(f"DemoExecutionGate Violation: DailyLossKillSwitch evaluation error: {ex}")
 
         # Check 8: Position sizing bounds
         if hasattr(request, "Volume") and sym_info is not None:
@@ -147,10 +150,10 @@ class DemoExecutionGate:
                 raise ValidationException(f"DemoExecutionGate Violation: Volume {request.Volume} out of bounds [{vol_min}, {vol_max}].")
 
         # Check 9: Dynamic SL/TP Side Validation (Dynamic Market Geometry)
-        order_type = str(getattr(request, "OrderType", "")).upper()
         symbol = str(getattr(request, "Symbol", "")).upper()
 
-        if hasattr(request, "Price") and request.Price > 0:
+        request_price = getattr(request, "Price", None)
+        if isinstance(request_price, (int, float)) and not isinstance(request_price, bool) and math.isfinite(float(request_price)) and float(request_price) > 0:
             sl = getattr(request, "StopLoss", None)
             tp = getattr(request, "TakeProfit", None)
 
