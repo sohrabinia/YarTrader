@@ -222,7 +222,8 @@ class CognitiveReplayLoop:
         sig = self.discovery_engine.extract_signature(available_data)
         hypothesis = self.hypothesis_engine.formulate_hypothesis(
             current_signature=sig,
-            historical_patterns=self.memory_system.get_patterns()
+            historical_patterns=self.memory_system.get_patterns(),
+            current_behavior_profile=self.discovery_engine.extract_behavior_profile(available_data),
         )
 
         evaluated_trades = []
