@@ -106,14 +106,6 @@ MOCK_BLOG_ARTICLES = [
         "author": "Dr. Aras Noori",
         "published_at": "2026-08-15",
         "content": "Classical indicators like RSI, EMA, and MACD fail because they compress non-linear tick sequences into delayed, lossy broker candles. In v3.2, YarTrader replaces MT5 standard timeframes entirely with integer tick-bar structures, enabling raw price-action similarity detection without subjective bias."
-    },
-    {
-        "id": "2",
-        "title": "Implementing Autonomous Shadow Execution under APES-Standard Guidelines",
-        "category": "Platform Governance",
-        "author": "SRE Architecture Lead",
-        "published_at": "2026-08-10",
-        "content": "To meet strict simulation-only constraints, YarTrader operates a virtual wallet position lifecycle tracker called the Shadow Trading Engine. Closed positions are retrospectively audited by an independent Judge Brain and stored to cumulative Experience Memory databases."
     }
 ]
 
@@ -176,7 +168,7 @@ def run_research_background_loop():
     central_runtime_state.update_multiple({
         "worker_status": "Running",
         "research_status": "Running",
-        "shadow_status": "Running"
+        "shadow_status": "Disabled"
     })
 
     # Top-level crash isolation loop: background thread failures can NEVER kill FastAPI API process
@@ -1060,7 +1052,7 @@ def get_robots_txt():
 # ==============================================================================
 VALID_PUBLIC_SUBPATHS = {
     "", "features", "pricing", "guide", "faq", "blog", "news", "about", "contact",
-    "support", "dashboard", "admin", "operator", "Operator", "live", "demo", "shadow", "backtest",
+    "support", "dashboard", "admin", "operator", "Operator", "live", "demo", "backtest",
     "signals", "execution-intel", "learning", "login", "register", "forgot-password"
 }
 
@@ -2289,7 +2281,7 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
                 let grid = document.getElementById('signals-grid-container');
                 grid.innerHTML = '';
                 if (!signals || signals.length === 0) {
-                    grid.innerHTML = '<div style="grid-column: span 3; padding: 30px; text-align: center; color: var(--text-muted);" data-i18n="no_signals">No signals active for this horizon. Try triggering validation or adding predictive shadow orders!</div>';
+                    grid.innerHTML = '<div style="grid-column: span 3; padding: 30px; text-align: center; color: var(--text-muted);" data-i18n="no_signals">No signals are currently active for this horizon.</div>';
                     const noSigEl = grid.querySelector('[data-i18n="no_signals"]');
                     if (noSigEl && locales['no_signals']) noSigEl.innerText = locales['no_signals'];
                     return;
@@ -2699,7 +2691,7 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
                         </div>
                         <div class="status-item" style="text-align: inherit; padding: 20px;">
                             <h3 style="color: var(--primary); margin-top: 0;" data-i18n="feature_3_title">Virtual Position Tracker</h3>
-                            <p style="font-size: 0.9em; line-height: 1.6; color: var(--text-muted);" data-i18n="feature_3_desc">The cognitive simulated Shadow Trading Engine automatically monitors SL/TP triggers on virtual capital, audited by an independent Judge Brain.</p>
+                            <p style="font-size: 0.9em; line-height: 1.6; color: var(--text-muted);" data-i18n="feature_3_desc">The cognitive Brain evaluates market structure and produces evidence-based Signals; execution remains behind the Demo safety gates.</p>
                         </div>
                         <div class="status-item" style="text-align: inherit; padding: 20px;">
                             <h3 style="color: var(--primary); margin-top: 0;" data-i18n="feature_4_title">Active Learning Loop</h3>
@@ -2741,7 +2733,7 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
             <div id="shell-terminal" style="display: none;">
                 <div class="card">
                     <h2 style="margin-top: 0; color: var(--primary);" data-i18n="terminal_title">Cognitive Multi-Asset Signal Hub</h2>
-                    <p style="color: var(--text-muted); margin-bottom: 20px;" data-i18n="terminal_desc">Interactive read-only dashboard reflecting live signals compiled from virtual shadow trades.</p>
+                    <p style="color: var(--text-muted); margin-bottom: 20px;" data-i18n="terminal_desc">Interactive read-only dashboard reflecting live Signals from the canonical research runtime.</p>
 
                     <!-- Horizons navigation tabs and Asset Filter -->
                     <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 25px; background-color: rgba(30, 41, 59, 0.3); padding: 12px; border-radius: 12px; border: 1px solid var(--border-dark); align-items: center;">
@@ -3251,7 +3243,7 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
                             <tr>
                                 <th data-i18n="col_symbol">Symbol</th>
                                 <th data-i18n="col_timeframe">Internal Frame</th>
-                                <th data-i18n="col_shadow_cycles">Total Shadow Cycles</th>
+                                <th data-i18n="col_signal_cycles">Signal Cycles</th>
                                 <th data-i18n="col_wins_losses">Result Wins/Losses</th>
                                 <th data-i18n="col_win_rate">Win Rate</th>
                                 <th data-i18n="col_avg_confidence">Avg Confidence</th>
@@ -3743,7 +3735,7 @@ def get_api_v1_health():
         "api": "Online",
         "research_worker": "Running",
         "intelligence_worker": "Running",
-        "shadow_worker": "Running"
+        "shadow_worker": "Disabled"
     }
 
     # Memory status & statistics
@@ -4308,89 +4300,59 @@ def get_user_markets():
         {"market_id": "pound", "name": "Pound / GBPUSD", "status": "ACTIVE"}
     ]
 
+def _collect_live_signals() -> list[dict[str, Any]]:
+    """Build truthful Signal records from canonical ResearchRuntime decisions."""
+    signals: list[dict[str, Any]] = []
+    for runtime in (global_research_runtime, global_m1_research_runtime):
+        history = getattr(runtime, "_history", []) or []
+        if not history:
+            continue
+        latest = history[-1]
+        decision = (getattr(latest, "Findings", {}) or {}).get("autonomous_decision", {}) or {}
+        action = str(decision.get("action", "WAIT")).upper()
+        if action not in {"BUY", "SELL"}:
+            continue
+        signals.append({
+            "signal_id": str(decision.get("decision_id", "SIGNAL-UNKNOWN")),
+            "symbol": str(decision.get("symbol", getattr(runtime, "_symbol", "UNKNOWN"))),
+            "direction": action,
+            "entry_zone": float(decision.get("entry", 0.0)),
+            "invalidation_level": float(decision.get("stop_loss", 0.0)),
+            "target_zone": float(decision.get("take_profit", 0.0)),
+            "confidence": float(decision.get("confidence", 0.0)),
+            "reason": decision.get("reasoning", []),
+            "status": "ACTIVE",
+            "timestamp": decision.get("timestamp"),
+        })
+    return signals
+
 @app.get("/api/signals")
 @app.get("/api/signals/pipeline")
 def get_signals_pipeline_diagnostic(market: Optional[str] = None, horizon: Optional[str] = None):
-    """
-    Exposes complete diagnostic telemetry for the Signals Pipeline:
-    Candidates Evaluated, Rejected by Macro, Rejected by Structure, Rejected by Risk, Accepted Signals.
-    Does NOT fabricate fake signals.
-    """
-    clean_signals = _collect_live_signals()
-
-    candidates_count = len([]) * 3 + len(clean_signals) + 12
-    rejected_macro = max(0, int(candidates_count * 0.35))
-    rejected_structure = max(0, int(candidates_count * 0.40))
-    rejected_risk = max(0, int(candidates_count * 0.20))
-    accepted_signals = len(clean_signals)
-
+    """Truthful Signal telemetry; Signal never creates or owns virtual trades."""
+    signals = _collect_live_signals()
+    if market:
+        m = market.lower()
+        signals = [s for s in signals if (m == "gold" and "XAU" in s["symbol"]) or (m == "bitcoin" and "BTC" in s["symbol"]) or (m == "euro" and "EUR" in s["symbol"]) or (m == "pound" and "GBP" in s["symbol"])]
     return {
         "pipeline_status": "ONLINE",
         "diagnostic_counts": {
-            "candidates_evaluated": candidates_count,
-            "rejected_by_macro": rejected_macro,
-            "rejected_by_structure": rejected_structure,
-            "rejected_by_risk": rejected_risk,
-            "accepted_signals": accepted_signals
+            "candidates_evaluated": 0,
+            "rejected_by_macro": 0,
+            "rejected_by_structure": 0,
+            "rejected_by_risk": 0,
+            "accepted_signals": len(signals)
         },
-        "live_signals_count": len([s for s in clean_signals if s.get("status") == "ACTIVE"]),
-                "backtest_signals_count": 0,
-        "historical_signals_count": len([s for s in clean_signals if s.get("status") != "ACTIVE"]),
-        "signals": clean_signals
+        "live_signals_count": len(signals),
+        "backtest_signals_count": 0,
+        "historical_signals_count": 0,
+        "signals": signals
     }
-
 
 @app.get("/api/user/signals")
 def get_user_signals(market: Optional[str] = None, horizon: Optional[str] = None):
-    """Exposes clean AI Signals filterable by market asset and simplified timeframe horizons."""
-    signals = _collect_live_signals()
-
-    # Simple mapping of simplified horizons to internal resolution frame ranges
-    # Short = 1, 4; Medium = 16, 64; Long = 256, 1024
-    allowed_frames = []
-    if horizon:
-        h_lower = horizon.lower()
-        if "short" in h_lower:
-            allowed_frames = [1, 4]
-        elif "medium" in h_lower:
-            allowed_frames = [16, 64]
-        elif "long" in h_lower:
-            allowed_frames = [256, 1024]
-
-    mapped = []
-    for s in signals:
-        # Resolve related shadow trade custom structure to check horizons
-        trade_id = s.get("shadow_trade_id")
-        trade = next((t for t in [] if t.trade_id == trade_id), None)
-
-        # Filters
-        if market:
-            m_lower = market.lower()
-            if m_lower == "gold" and "XAU" not in s["symbol"]:
-                continue
-            if m_lower == "bitcoin" and "BTC" not in s["symbol"]:
-                continue
-            if m_lower == "euro" and "EUR" not in s["symbol"]:
-                continue
-            if m_lower == "pound" and "GBP" not in s["symbol"]:
-                continue
-
-        if allowed_frames and trade and trade.custom_time_structure not in allowed_frames:
-            continue
-
-        mapped.append({
-            "signal_id": s["signal_id"],
-            "symbol": s["symbol"],
-            "direction": s["direction"],
-            "entry_zone": s["entry_zone"],
-            "invalidation_level": s["invalidation_level"],
-            "target_zone": s["target_zone"],
-            "confidence": s["confidence"],
-            "reason": s["reason"],
-            "status": s["status"]
-        })
-
-    return mapped
+    """Exposes canonical Signal records without any Shadow dependency."""
+    return get_signals_pipeline_diagnostic(market=market, horizon=horizon)["signals"]
 
 @app.get("/api/user/history")
 def get_user_signals_history(market: Optional[str] = None):
