@@ -349,11 +349,14 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                 self.assertNotIn("SUPER_SECRET", content)
                 self.assertNotIn("token_val", content)
                 self.assertNotIn('OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"', content)
-                self.assertIn("operator_owner_token.secret", content)
-                self.assertIn("icacls.exe", content)
                 self.assertIn("nssm", content.lower())
                 self.assertNotIn("pythonservice", content.lower())
                 self.assertNotIn("sc.exe create", content.lower())
+
+        with open(install_script_path, "r", encoding="utf-8") as f:
+            install_content = f.read()
+        self.assertIn("operator_owner_token.secret", install_content)
+        self.assertIn("icacls.exe", install_content)
 
     def test_no_local_fake_task_history(self):
         """Verify task history and status endpoints report unsupported state rather than local fake history."""
