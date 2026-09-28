@@ -16,7 +16,7 @@ def test_shadow_mode_zero_broker_balance():
     Test 1: Checks that virtual balance allows simulation trades to proceed
     even if the broker balance is $0 under SHADOW mode.
     """
-    os.environ["TRADEYAR_TRADING_MODE"] = "SHADOW"
+    os.environ["YARTRADER_TRADING_MODE"] = "SHADOW"
     os.environ["VIRTUAL_CAPITAL_INITIAL_BALANCE"] = "1000.0"
 
     # Instantiate PredictiveShadowEngine (or get singleton instance and reset config)
