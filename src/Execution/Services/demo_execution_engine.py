@@ -267,6 +267,26 @@ class DemoExecutionEngine:
             Comment=comment
         )
 
+        # Close requests are execution requests too: they must pass the same
+        # authoritative DEMO/XAUUSD safety boundary before reaching the broker.
+        try:
+            DemoExecutionGate.verify_demo_execution_eligibility(
+                adapter_or_mt5=self.adapter,
+                request=req,
+                demo_mode_flag=self.demo_mode
+            )
+        except ValidationException as ve:
+            logger.error(f"[DemoExecutionEngine] Close blocked by authoritative DemoExecutionGate: {ve}")
+            return OrderResponse(
+                OrderId="0",
+                Symbol=symbol.upper(),
+                Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc),
+                Retcode=10013,
+                Comment=str(ve),
+                RawResponse={"reason": "DEMO_EXECUTION_GATE_REJECTED"}
+            )
+
         response = self.adapter.send_order_to_broker(req)
 
         # Confirm closure from broker position list
