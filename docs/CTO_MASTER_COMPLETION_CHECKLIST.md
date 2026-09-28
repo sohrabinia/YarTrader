@@ -42,20 +42,20 @@
 ## Auth / i18n
 - [x] Customer login UI is Google/Gmail-only.
 - [ ] Backend customer-auth endpoints are proven Google-only in production.
-- [ ] FA/EN/TR/AR locale key parity is proven on the final HEAD.
+- [x] FA/EN/TR/AR locale key parity is proven on the final HEAD.
 - [ ] All user-visible strings are localized; no accidental key/English fallback remains.
 - [ ] RTL/LTR and typography are verified for FA/AR vs EN/TR.
 
 ## UI / UX / Brand
 - [ ] First-impression public website reviewed for human/institutional product quality.
-- [ ] No fabricated metrics, fake activity, or misleading status claims remain.
+- [x] No fabricated metrics, fake activity, or misleading status claims remain in the reviewed active UI; historical snapshots are explicitly marked superseded.
 - [ ] Typography, spacing, hierarchy, charts, tables, empty/loading/error states are polished.
 - [ ] Responsive behavior is verified across desktop/tablet/mobile.
 - [ ] Trading terminology is consistent across all four languages.
 - [ ] Live/Disabled, Demo, Backtest, Signal, and Prop states are visually truthful.
 
 ## Gate E / Production Runtime
-- [ ] Exact final HEAD CI succeeds.
+- [x] Exact final HEAD CI succeeds (Run #1328 on `d6190daabbecc915098a225728c50ed93f645bcc`).
 - [ ] Windows Session 0 service identity proven.
 - [ ] Interactive Session 2 bridge proven.
 - [ ] Authenticated Alpari-MT5-Demo proven.
@@ -67,6 +67,6 @@
 ## Final Release
 - [ ] Exact base / merge-base / HEAD and diff verified.
 - [ ] Full test suite passes on final HEAD.
-- [ ] Frontend production build passes on final HEAD.
+- [x] Frontend production build passes on final HEAD (included in exact-HEAD CI).
 - [ ] Final forensic report reconciles source + tests + runtime evidence.
 - [ ] Only after all mandatory gates are PROVEN: merge PR.
