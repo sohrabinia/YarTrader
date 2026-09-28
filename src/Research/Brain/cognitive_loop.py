@@ -93,6 +93,7 @@ class CognitiveReplayLoop:
                     self._pending_trade_context[virtual_trade.trade_id] = {
                         "hypothesis": hypothesis,
                         "signature": list(sig),
+                        "behavior_profile": self.discovery_engine.extract_behavior_profile(available_data),
                         "decision_time": decision_time.isoformat(),
                     }
 
@@ -121,7 +122,8 @@ class CognitiveReplayLoop:
                 self._learn_from_closed_trade(
                     signature=closed_signature,
                     trade=closed_trade,
-                    judge_result=judge_res
+                    judge_result=judge_res,
+                    behavior_profile=context.get("behavior_profile", {}),
                 )
 
                 evaluated_trades.append((closed_trade, closed_hypothesis, judge_res))
@@ -242,7 +244,8 @@ class CognitiveReplayLoop:
             self._learn_from_closed_trade(
                 signature=closed_signature,
                 trade=closed_trade,
-                judge_result=judge_res
+                judge_result=judge_res,
+                behavior_profile=context.get("behavior_profile", {}),
             )
             evaluated_trades.append((closed_trade, judge_res))
 
@@ -319,7 +322,8 @@ class CognitiveReplayLoop:
         self,
         signature: List[float],
         trade: Any,
-        judge_result: Dict[str, Any]
+        judge_result: Dict[str, Any],
+        behavior_profile: Optional[Dict[str, float]] = None,
     ) -> None:
         """Apply only post-outcome learning to Pattern Memory."""
         matches = self.discovery_engine.find_matches(
