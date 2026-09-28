@@ -397,6 +397,14 @@ class ResearchRuntime:
             stats = self._cognitive_loop.memory_system.get_learning_statistics()
             self._brain_learning_stats = stats
             self._brain_learning_status = "RUNNING" if episode else "NO_NEW_CANDLE"
+            try:
+                from src.Application.Runtime.runtime_state import central_runtime_state
+                central_runtime_state.update_multiple({
+                    "brain_learning_status": self._brain_learning_status,
+                    "brain_learning_stats": stats,
+                })
+            except Exception:
+                pass
 
             return {
                 "status": self._brain_learning_status,
@@ -406,6 +414,11 @@ class ResearchRuntime:
             }
         except Exception as exc:
             self._brain_learning_status = "ERROR"
+            try:
+                from src.Application.Runtime.runtime_state import central_runtime_state
+                central_runtime_state.update_state("brain_learning_status", "ERROR")
+            except Exception:
+                pass
             self._log_evidence(f"Cognitive Learning error: {exc}")
             return {"status": "ERROR", "episodes_processed": 0, "error": str(exc)}
 
