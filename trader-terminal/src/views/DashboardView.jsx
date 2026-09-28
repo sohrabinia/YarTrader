@@ -56,11 +56,11 @@ export default function DashboardView({
 
         {/* Market State & Intelligence Command Status Grid */}
         <div className="status-board" style={{ margin: '15px 0 0 0' }}>
-          <MetricCard title="Market Session State" value={signals && signals[0] ? (signals[0].posture || 'OPEN') : 'OPEN'} status="passed" />
+          <MetricCard title="Market Session State" value={signals && signals[0] ? (signals[0].posture || signals[0].status || 'DATA UNAVAILABLE') : 'DATA UNAVAILABLE'} status={signals && signals[0] ? 'passed' : 'warning'} />
           <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'DATA AVAILABLE') : 'DATA UNAVAILABLE'} status="primary" />
           <MetricCard title="Pre-Entry 120s Feasibility" value="NOT VERIFIED" status="warning" />
           <MetricCard title="TP-Time Feasibility" value="NOT VERIFIED" status="warning" />
-          <MetricCard title="Execution Eligibility" value={backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO VERIFIED' : 'NOT VERIFIED')} status="passed" />
+          <MetricCard title="Execution Eligibility" value={backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO VERIFIED' : 'NOT VERIFIED')} status={demoReport && demoReport.account_id ? 'passed' : 'warning'} />
         </div>
       </div>
 
@@ -84,7 +84,7 @@ export default function DashboardView({
       {/* Position Lifecycle Visualizer */}
       <div className="card">
         <h3 className="text-sm font-bold text-[var(--primary)] uppercase tracking-wider mb-3">Position Lifecycle Pipeline</h3>
-        <PositionTimelineStepper currentStage="OPENED" />
+        <PositionTimelineStepper currentStage={signals?.[0]?.position_stage || 'WAITING'} />
       </div>
 
     </div>
