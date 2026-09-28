@@ -230,8 +230,17 @@ class ResearchRuntime:
                     )
 
                     plan = intel_res.get("plan", {})
-                    action = str(plan.get("action", "WAIT")).upper()
-                    if action not in ["BUY", "SELL", "WAIT", "AVOID"]:
+                    # CANONICAL_BRAIN is the sole source of trading direction.
+                    # Execution Intelligence may calculate execution metadata, but it
+                    # must never replace or override the Brain's learned decision.
+                    brain_report = newborn_report_dict if isinstance(newborn_report_dict, dict) else {}
+                    brain_hypothesis = brain_report.get("hypothesis", {}) if isinstance(brain_report.get("hypothesis", {}), dict) else {}
+                    action = str(
+                        brain_hypothesis.get("expected_direction")
+                        or brain_report.get("expected_direction")
+                        or "WAIT"
+                    ).upper()
+                    if action not in ["BUY", "SELL", "WAIT"]:
                         action = "WAIT"
 
                     entry = float(plan.get("entry", 0.0))
@@ -274,7 +283,10 @@ class ResearchRuntime:
                                 "market_regime": intel_res.get("narrative", {}).get("regime", "TRENDING"),
                                 "scale_state": "MULTISCALE_STABLE" if fractal_res.get("scales_evaluated_count", 0) > 0 else "SINGLE_SCALE"
                             },
-                            "latest_price": candles_dicts[-1]["close"]
+                            "latest_price": candles_dicts[-1]["close"],
+                            "decision_authority": "CANONICAL_BRAIN",
+                            "brain_hypothesis": brain_hypothesis,
+                            "anticipation": brain_hypothesis.get("meta", {}).get("anticipation", {}) if isinstance(brain_hypothesis.get("meta", {}), dict) else {}
                         },
                         risk_status="PENDING" if action in ["BUY", "SELL"] else "CHECKED",
                         execution_status="PENDING" if action in ["BUY", "SELL"] else "SKIPPED",
