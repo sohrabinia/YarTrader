@@ -340,6 +340,17 @@ class ProfessionalRiskEngine:
 
         return campaign
 
+    @staticmethod
+    def estimate_win_probability(outcomes: List[str], prior_strength: float = 2.0) -> float:
+        """Evidence-based smoothed probability from closed outcomes only."""
+        wins = sum(1 for outcome in outcomes if str(outcome).upper() == "WIN")
+        losses = sum(1 for outcome in outcomes if str(outcome).upper() == "LOSS")
+        decisive = wins + losses
+        if decisive == 0:
+            return 0.50
+        strength = max(0.0, float(prior_strength))
+        return (wins + strength * 0.50) / (decisive + strength)
+
     def evaluate_trade_risk(
         self,
         symbol: str,
@@ -352,9 +363,17 @@ class ProfessionalRiskEngine:
         spread_pip: float = 1.0,
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,
-        win_probability: float = 0.55
+        win_probability: Optional[float] = None
     ) -> RiskEvaluationResult:
-        if direction not in ["BUY", "SELL"]:
+        # No fabricated win-rate default. Without evidence, use a neutral prior.
+        if win_probability is None:
+            win_probability = 0.50
+        try:
+            win_probability = float(win_probability)
+        except (TypeError, ValueError):
+            win_probability = -1.0
+
+        if direction not in ["BUY", "SELL"] or not math.isfinite(win_probability) or not 0.0 <= win_probability <= 1.0:
             return RiskEvaluationResult(
                 is_valid=False,
                 direction="WAIT",
