@@ -266,7 +266,8 @@ market_universe:
         )
 
         plan = res["plan"]
-        self.assertEqual(plan["action"], "BUY")
+        self.assertEqual(plan["action"], "WAIT")
+        self.assertEqual(plan["brain_suggested_action"], "BUY")
         self.assertEqual(plan["entry"], 2000.0)
 
     # Case L: Brain SELL + contradictory BULLISH structure -> SELL
@@ -288,7 +289,8 @@ market_universe:
         )
 
         plan = res["plan"]
-        self.assertEqual(plan["action"], "SELL")
+        self.assertEqual(plan["action"], "WAIT")
+        self.assertEqual(plan["brain_suggested_action"], "SELL")
         self.assertEqual(plan["entry"], 0.0)
 
     # Case M, N: Brain WAIT -> WAIT, Brain AVOID -> AVOID
@@ -342,7 +344,8 @@ market_universe:
 
                 res = runtime.history[0]
                 auto_dec = res.Findings.get("autonomous_decision", {})
-                self.assertEqual(auto_dec.get("action"), target_action, f"End-to-end causality failed for action {target_action}")
+                self.assertEqual(auto_dec.get("action"), "WAIT" if target_action in ("BUY", "SELL") else target_action, f"End-to-end executable state mismatch for {target_action}")
+                self.assertEqual(auto_dec.get("brain_suggested_action"), target_action)
 
     # Case Q & R: Contradiction test & StrategyOrchestrator isolation from _run_loop()
     def test_cases_q_r_strategy_orchestrator_contradiction_isolation_from_run_loop(self):
@@ -387,7 +390,8 @@ market_universe:
             worker1._run_loop()
 
             auto_dec1 = runtime1.history[0].Findings.get("autonomous_decision", {})
-            self.assertEqual(auto_dec1.get("action"), "SELL")
+            self.assertEqual(auto_dec1.get("action"), "WAIT")
+            self.assertEqual(auto_dec1.get("brain_suggested_action"), "SELL")
 
         # Test Contradiction 2: StrategyOrchestrator=SELL vs Brain=BUY -> Result must be BUY
         worker2 = ResearchWorker(symbol="XAUUSD", timeframe="H1")
@@ -411,7 +415,8 @@ market_universe:
             worker2._run_loop()
 
             auto_dec2 = runtime2.history[0].Findings.get("autonomous_decision", {})
-            self.assertEqual(auto_dec2.get("action"), "BUY")
+            self.assertEqual(auto_dec2.get("action"), "WAIT")
+            self.assertEqual(auto_dec2.get("brain_suggested_action"), "BUY")
 
     # Case S: Shadow trading boundary isolation
     def test_case_s_shadow_trading_boundary_isolation(self):
