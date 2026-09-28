@@ -351,7 +351,7 @@ class ResearchRuntime:
         try:
             from src.Research.Brain.models import MarketObservation
             from src.Research.Brain.cognitive_loop import CognitiveReplayLoop
-            from src.Research.Brain.memory import MarketMemorySystem
+            from src.Research.Brain.live_memory import get_live_memory_system
 
             observations = [
                 MarketObservation(
@@ -374,13 +374,13 @@ class ResearchRuntime:
 
             latest_time = observations[-1].timestamp
             if self._brain_last_observation_time is not None and latest_time <= self._brain_last_observation_time:
-                stats = MarketMemorySystem().get_learning_statistics()
+                stats = get_live_memory_system().get_learning_statistics()
                 self._brain_learning_status = "NO_NEW_CANDLE"
                 self._brain_learning_stats = stats
                 return {"status": self._brain_learning_status, **stats, "episodes_processed": 0}
 
             if self._cognitive_loop is None:
-                memory = MarketMemorySystem()
+                memory = get_live_memory_system()
                 self._cognitive_loop = CognitiveReplayLoop(
                     symbol=self._symbol,
                     timeframe=self._timeframe,
