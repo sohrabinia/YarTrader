@@ -409,6 +409,7 @@ class ResearchRuntime:
             return {
                 "status": self._brain_learning_status,
                 "episodes_processed": 1 if episode else 0,
+                "events_total": len(self._cognitive_loop.memory_system.get_events()),
                 **stats,
                 "last_observation_time": latest_time.isoformat(),
             }
