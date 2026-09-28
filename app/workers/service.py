@@ -240,13 +240,18 @@ if WINDOWS_SERVICE_SUPPORTED:
         def SvcDoRun(self):
             try:
                 log_service_message("SERVICE_START_REQUESTED")
-                # Start service host
-                self.host.start()
-                log_service_message("SERVICE_HOST_STARTED")
 
-                # Report RUNNING status to SCM
+                # Report RUNNING to SCM before starting the potentially slow
+                # research/API initialization. Windows requires the service to
+                # acknowledge startup within the SCM timeout window.
                 self.ReportServiceStatus(win32service.SERVICE_RUNNING)
                 log_service_message("SERVICE_RUNNING")
+
+                # Start service host after SCM has accepted the service as running.
+                # Research/MT5 initialization can legitimately take longer than
+                # the default Windows service startup timeout.
+                self.host.start()
+                log_service_message("SERVICE_HOST_STARTED")
 
                 # Wait for SCM stop notification
                 win32event.WaitForSingleObject(self.hWaitStop, win32event.INFINITE)
