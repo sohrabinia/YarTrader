@@ -242,7 +242,7 @@ if WINDOWS_SERVICE_SUPPORTED:
         """Native Windows Service Lifecycle handler for YarTrader."""
         _svc_name_ = "YarTrader"
         _svc_display_name_ = "YarTrader Production Runtime Service"
-        _svc_description_ = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
+        _svc_description_ = "Coordinates the 24/7 background AI runtime, MT5 connector, canonical Brain research, and DEMO execution."
 
         def __init__(self, args):
             win32serviceutil.ServiceFramework.__init__(self, args)
