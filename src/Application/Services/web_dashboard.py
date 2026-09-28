@@ -3741,23 +3741,20 @@ def get_api_v1_health():
     # Memory status & statistics
     try:
         memory_stats = global_memory_system.get_learning_statistics()
-        if not memory_stats or memory_stats.get("total_experiences", 0) == 0:
+        if not memory_stats:
             memory_stats = {
-                "total_experiences": 1500,
-                "patterns_created": 45,
-                "concepts_learned": 18
+                "total_experiences": 0,
+                "events_total": 0,
+                "patterns_created": 0,
+                "concepts_learned": 0,
             }
-        else:
-            # Ensure required fields are always >0 or >=0 as requested
-            if memory_stats.get("patterns_created", 0) == 0:
-                memory_stats["patterns_created"] = 45
-            if memory_stats.get("concepts_learned", 0) == 0:
-                memory_stats["concepts_learned"] = 18
     except Exception as e:
         memory_stats = {
-            "total_experiences": 1500,
-            "patterns_created": 45,
-            "concepts_learned": 18
+            "total_experiences": 0,
+            "events_total": 0,
+            "patterns_created": 0,
+            "concepts_learned": 0,
+            "error": str(e),
         }
 
     # Dependency health checks
@@ -3925,14 +3922,14 @@ def get_devops_metrics():
         import resource
         mem_bytes = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
     except (ImportError, AttributeError):
-        mem_bytes = 145.4 * 1024 * 1024 # robust fallback representation in bytes
+        mem_bytes = 0
 
     return {
-        "pipeline_latency_ms": 12.45,
-        "api_response_ms": 4.12,
+        "pipeline_latency_ms": None,
+        "api_response_ms": None,
         "memory_used_mb": round(mem_bytes / (1024 * 1024), 2),
         "thread_count": threading.active_count(),
-        "active_connections": 1,
+        "active_connections": None,
         "timestamp": datetime.now().isoformat()
     }
 
