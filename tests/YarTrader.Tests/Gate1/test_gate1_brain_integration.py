@@ -289,7 +289,8 @@ class TestGate1BrainIntegration(unittest.TestCase):
             zones={}, alignment=bearish_alignment, similarity={}, portfolio_risk={"approved": True},
             current_price=2005.0, newborn_brain_report=brain_buy
         )
-        self.assertEqual(res_d["plan"]["action"], "BUY")
+        self.assertEqual(res_d["plan"]["action"], "WAIT")
+        self.assertEqual(res_d["plan"]["brain_suggested_action"], "BUY")
 
         # Case E: Brain SELL + bullish alignment -> SELL (Brain is sole authority)
         brain_sell = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
@@ -298,7 +299,8 @@ class TestGate1BrainIntegration(unittest.TestCase):
             zones={}, alignment=bullish_alignment, similarity={}, portfolio_risk={"approved": True},
             current_price=2005.0, newborn_brain_report=brain_sell
         )
-        self.assertEqual(res_e["plan"]["action"], "SELL")
+        self.assertEqual(res_e["plan"]["action"], "WAIT")
+        self.assertEqual(res_e["plan"]["brain_suggested_action"], "SELL")
 
     def test_brain_cannot_directly_execute(self):
         """
