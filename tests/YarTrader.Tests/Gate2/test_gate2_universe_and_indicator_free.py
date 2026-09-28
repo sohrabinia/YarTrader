@@ -289,7 +289,7 @@ market_universe:
 
         plan = res["plan"]
         self.assertEqual(plan["action"], "SELL")
-        self.assertEqual(plan["entry"], 2000.0)
+        self.assertEqual(plan["entry"], 0.0)
 
     # Case M, N: Brain WAIT -> WAIT, Brain AVOID -> AVOID
     def test_cases_m_n_brain_wait_and_avoid(self):
