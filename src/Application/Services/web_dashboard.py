@@ -923,7 +923,7 @@ def get_gold_fractal_demo_validation(symbol: str = "XAUUSD"):
 @app.get("/api/portfolio/risk")
 def get_portfolio_risk(virtual_balance: float = 10000.0):
     core = ExecutionIntelligenceCore.get_instance()
-        active_trades = []
+    active_trades = []
     portfolio_res = core.portfolio_engine.calculate_portfolio_risk(active_trades, virtual_balance)
     return portfolio_res
 
