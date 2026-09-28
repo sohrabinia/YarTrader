@@ -55,6 +55,7 @@ class MarketMemorySystem:
 
         return {
             "total_experiences": len(exps),
+            "events_total": len(self.events),
             "patterns_created": len(pats),
             "concepts_learned": con_count,
             "successful_patterns": successful_patterns,
@@ -67,7 +68,7 @@ class MarketMemorySystem:
         with self._lock:
             # Check for duplication using timestamp bounds
             exists = any(
-                e.start_time == event.start_time and e.end_time == event.end_time and e.timeframe == event.timeframe
+                e.symbol == event.symbol and e.start_time == event.start_time and e.end_time == event.end_time and e.timeframe == event.timeframe
                 for e in self.events
             )
             if not exists:
