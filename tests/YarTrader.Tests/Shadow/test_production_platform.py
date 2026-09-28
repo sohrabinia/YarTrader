@@ -28,14 +28,14 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         data = resp.json()
         self.assertEqual(len(data), 4)
         self.assertEqual(data[3]["tier_id"], "institutional")
-        self.assertIn("50 Active Symbols", data[3]["features"])
+        self.assertIn("30 Active Symbols", data[3]["features"])
 
         # Check compliance disclaimers
         resp2 = self.client.get("/api/public/metrics")
         self.assertEqual(resp2.status_code, 200)
         metrics = resp2.json()
         self.assertEqual(metrics["active_markets_count"], 30)
-        self.assertIn("Simulated performance results", metrics["compliance_disclaimer"])
+        self.assertIn("No simulated performance", metrics["compliance_disclaimer"])
 
     def test_user_terminal_horizon_signals(self) -> None:
         # Add predictive order on Macro horizon (frame 256)
