@@ -49,6 +49,10 @@ class ResearchRuntime:
         self.last_successful_cycle: Optional[datetime] = None
         self.cycle_count: int = 0
         self.last_error: Optional[str] = None
+        self._cognitive_loop = None
+        self._brain_last_observation_time: Optional[datetime] = None
+        self._brain_learning_status: str = "NOT_STARTED"
+        self._brain_learning_stats: Dict[str, Any] = {}
 
     @property
     def provider(self) -> MetaTrader5Provider:
@@ -174,6 +178,18 @@ class ResearchRuntime:
                 StartTime=start_time,
                 EndTime=end_time,
                 Context={"timeframe": self._timeframe, "all_timeframe_candles": all_timeframe_candles, "mtf_timeframes": list(all_timeframe_candles.keys())}
+            )
+
+            # 4b. Feed the same canonical raw candles into the existing CognitiveReplayLoop.
+            # This is research/simulation only; it has no order/execution authority.
+            brain_learning = self._run_live_cognitive_learning(data_response.DataPoints)
+            self._log_evidence(
+                "Cognitive Learning: "
+                f"{brain_learning.get('status', 'UNKNOWN')} "
+                f"episodes={brain_learning.get('episodes_processed', 0)} "
+                f"events={brain_learning.get('events_total', 0)} "
+                f"patterns={brain_learning.get('patterns_created', 0)} "
+                f"concepts={brain_learning.get('concepts_learned', 0)}"
             )
 
             # 5. Run the decorated FeatureExtractionResearchEngine
@@ -329,6 +345,69 @@ class ResearchRuntime:
             self.last_error = str(e)
             self._log_evidence(f"Research cycle encountered an error: {str(e)}")
             raise
+
+    def _run_live_cognitive_learning(self, data_points: List[Any]) -> Dict[str, Any]:
+        """Feeds new real market candles into the canonical CognitiveReplayLoop."""
+        try:
+            from src.Research.Brain.models import MarketObservation
+            from src.Research.Brain.cognitive_loop import CognitiveReplayLoop
+            from src.Research.Brain.memory import MarketMemorySystem
+
+            observations = [
+                MarketObservation(
+                    symbol=self._symbol,
+                    timeframe=self._timeframe,
+                    timestamp=p.Timestamp,
+                    high=float(p.High),
+                    low=float(p.Low),
+                    open_price=float(p.Open),
+                    close_price=float(p.Close),
+                    volume=float(p.Volume),
+                    meta={"provider": self._provider_name, "source": "ResearchRuntime"},
+                )
+                for p in data_points
+            ]
+            observations.sort(key=lambda o: o.timestamp)
+            if len(observations) < 5:
+                self._brain_learning_status = "WAITING_FOR_DATA"
+                return {"status": self._brain_learning_status, "episodes_processed": 0}
+
+            latest_time = observations[-1].timestamp
+            if self._brain_last_observation_time is not None and latest_time <= self._brain_last_observation_time:
+                stats = MarketMemorySystem().get_learning_statistics()
+                self._brain_learning_status = "NO_NEW_CANDLE"
+                self._brain_learning_stats = stats
+                return {"status": self._brain_learning_status, **stats, "episodes_processed": 0}
+
+            if self._cognitive_loop is None:
+                memory = MarketMemorySystem()
+                self._cognitive_loop = CognitiveReplayLoop(
+                    symbol=self._symbol,
+                    timeframe=self._timeframe,
+                    observations=observations,
+                    memory_system=memory,
+                )
+            else:
+                self._cognitive_loop.replay_engine.update_observations(
+                    observations, current_time=latest_time
+                )
+
+            episode = self._cognitive_loop.process_live_observation(observations)
+            self._brain_last_observation_time = latest_time
+            stats = self._cognitive_loop.memory_system.get_learning_statistics()
+            self._brain_learning_stats = stats
+            self._brain_learning_status = "RUNNING" if episode else "NO_NEW_CANDLE"
+
+            return {
+                "status": self._brain_learning_status,
+                "episodes_processed": 1 if episode else 0,
+                **stats,
+                "last_observation_time": latest_time.isoformat(),
+            }
+        except Exception as exc:
+            self._brain_learning_status = "ERROR"
+            self._log_evidence(f"Cognitive Learning error: {exc}")
+            return {"status": "ERROR", "episodes_processed": 0, "error": str(exc)}
 
     def start_polling_loop(self, interval_seconds: float = 60.0, limit_cycles: Optional[int] = None) -> None:
         """
