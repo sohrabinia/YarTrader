@@ -16,9 +16,9 @@ export default function IntelligenceView({ t, signals, fractalStatus, regimeAnal
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <IntelligenceCard title="تحلیل فرکتال (Fractal Engine)" score={88} regime="BULLISH EXPANSION" explanation="تشخیص الگوی تکرارشونده Base Detector v1.1 در تایم‌فریم‌های M5 و H1." />
-        <RiskCard level="LOW" score={15} maxLimit={50} summary="ریسک کلی پورتفوی در محدوده امن. حد ضرر شناور و نسبت سود به زیان > 1.8." />
-        <IntelligenceCard title="رژیم بازار (Market Regime)" score={92} regime="HIGH LIQUIDITY / TRENDING" explanation="تراکم نقدینگی در نواحی Swing High و جذب اردرهای نهادی." />
+        <IntelligenceCard title="Fractal Evidence" score={fractalStatus?.fractal_score ?? null} regime={fractalStatus?.status || 'DATA UNAVAILABLE'} explanation={fractalStatus?.evidence_state || 'No verified fractal evidence available.'} />
+        <RiskCard level={riskMetrics?.level || 'DATA UNAVAILABLE'} score={riskMetrics?.score ?? riskMetrics?.risk_score} maxLimit={riskMetrics?.max_limit} summary={riskMetrics?.summary || 'No verified risk telemetry available.'} />
+        <IntelligenceCard title="Observed Market State" score={signals?.[0]?.confidence} regime={regimeAnalysis?.regime || regimeAnalysis?.state || signals?.[0]?.regime || 'DATA UNAVAILABLE'} explanation={signals?.[0]?.reason || signals?.[0]?.narrative || 'No verified market-state explanation available.'} />
       </div>
 
       <div className="card">
@@ -29,10 +29,10 @@ export default function IntelligenceView({ t, signals, fractalStatus, regimeAnal
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DecisionCard
           title="سیگنال خرید طلا (XAUUSD Buy Setup)"
-          recommendation="BUY / LONG"
-          confidence={87}
-          rr="1 : 2.4"
-          reason="شکست ساختار (BOS) در M15 + پولبک به ناحیه تقاضای Base"
+          recommendation={signals?.[0]?.direction || signals?.[0]?.action || 'WAIT'}
+          confidence={signals?.[0]?.confidence}
+          rr={signals?.[0]?.risk_reward != null ? String(signals[0].risk_reward) : undefined}
+          reason={signals?.[0]?.reason || signals?.[0]?.narrative || 'No verified decision rationale is available.'}
         />
         <DecisionCard
           title="سیگنال یورو دلار (EURUSD Wait Setup)"
