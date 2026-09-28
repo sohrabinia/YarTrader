@@ -22,7 +22,11 @@ class HypothesisEngine:
         Groups them into supporting (aligned with expected outcome) and
         contradicting samples, and calculates a confidence percentage.
         """
-        matches = self.discovery_engine.find_matches(current_signature, historical_patterns)
+        matches = self.discovery_engine.find_matches(
+            current_signature,
+            historical_patterns,
+            current_behavior_profile=current_behavior_profile,
+        )
 
         if not matches:
             return Hypothesis(
