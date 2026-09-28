@@ -292,7 +292,8 @@ market_universe:
         plan = res["plan"]
         self.assertEqual(plan["action"], "WAIT")
         self.assertEqual(plan["brain_suggested_action"], "SELL")
-        self.assertEqual(plan["entry"], 2000.0)
+        self.assertEqual(plan["entry"], 0.0)
+        self.assertEqual(plan["execution_block_reason"], "MISSING_MARKET_STRUCTURE_LEVELS")
 
     # Case M, N: Brain WAIT -> WAIT, Brain AVOID -> AVOID
     def test_cases_m_n_brain_wait_and_avoid(self):
