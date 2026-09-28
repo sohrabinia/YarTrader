@@ -1,7 +1,7 @@
 import math
 import uuid
 from datetime import datetime
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from src.Research.Brain.models import MarketObservation, PatternMemory
 
 class PatternDiscoveryEngine:
@@ -54,7 +54,8 @@ class PatternDiscoveryEngine:
     def find_matches(
         self,
         current_sig: List[float],
-        historical_patterns: List[PatternMemory]
+        historical_patterns: List[PatternMemory],
+        current_behavior_profile: Optional[Dict[str, float]] = None,
     ) -> List[Tuple[PatternMemory, float]]:
         """
         Scans historical pattern memory and returns list of matching patterns and their
@@ -65,7 +66,17 @@ class PatternDiscoveryEngine:
 
         matches: List[Tuple[PatternMemory, float]] = []
         for pat in historical_patterns:
-            score = self.calculate_similarity(current_sig, pat.sequence_signature)
+            sequence_score = self.calculate_similarity(current_sig, pat.sequence_signature)
+            score = sequence_score
+            if current_behavior_profile:
+                historical_profile = {}
+                for outcome in reversed(getattr(pat, "outcomes", [])):
+                    if isinstance(outcome, dict) and outcome.get("behavior_profile"):
+                        historical_profile = outcome["behavior_profile"]
+                        break
+                if historical_profile:
+                    profile_score = 1.0 - self.profile_distance(current_behavior_profile, historical_profile)
+                    score = (sequence_score * 0.70) + (profile_score * 0.30)
             if score >= self.similarity_threshold:
                 matches.append((pat, score))
 
