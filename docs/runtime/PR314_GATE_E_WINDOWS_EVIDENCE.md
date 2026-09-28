@@ -1,9 +1,9 @@
-# PR #314 GATE E WINDOWS RUNTIME EVIDENCE REPORT
+# PR #319 GATE E WINDOWS RUNTIME EVIDENCE REPORT
 
 **Status:** `OPEN / DO NOT MERGE`
 **Repository:** `sohrabinia/YarTrader`
 **Pull Request:** `https://github.com/sohrabinia/YarTrader/pull/314`
-**Target Pull Request Base SHA:** `588be9ba436cc169f29e7c2d79f2d8fce033b13f`
+**Target Pull Request Base SHA:** `00d676016d130120b10c4e9bd9d2b0e39b3ad0ee`
 
 ---
 
@@ -13,7 +13,7 @@ This document is generated dynamically directly on the physical Windows deployme
 
 ```powershell
 .\scripts\collect_gate_e_evidence.ps1 `
-  -ExpectedSha "<EXACT_CURRENT_PR314_HEAD>" `
+  -ExpectedSha "<EXACT_CURRENT_PR319_HEAD>" `
   -ExecuteRecoveryTest
 ```
 
@@ -69,4 +69,4 @@ In non-Windows container environments (such as Linux devboxes), live Windows pro
 
 ## Final Runtime Gate Conclusion
 
-`PR #314 FINAL RUNTIME GATE: INCOMPLETE / NOT PROVEN`
+`PR #319 FINAL RUNTIME GATE: INCOMPLETE / NOT PROVEN`
