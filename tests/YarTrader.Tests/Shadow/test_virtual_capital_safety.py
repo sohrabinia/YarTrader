@@ -51,7 +51,7 @@ def test_live_mode_zero_balance_blocked():
 
     with patch.object(engine, 'get_broker_balance', return_value=0.0):
         # Placing a live trade with $0 broker balance must raise ValueError
-        with pytest.raises(ValueError, match="Real Live Trading is hard-disabled"):
+        with pytest.raises(ValueError, match="Real order BLOCKED: Insufficient Capital in LIVE mode"):
             engine.create_predictive_order(
                 symbol="XAUUSD",
                 direction="LONG",

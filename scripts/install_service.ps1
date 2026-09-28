@@ -1,125 +1,146 @@
 # Install YarTrader Windows Service Script
-# Canonical production registration: NSSM -> venv Python -> service.py console runner.
-# pywin32 ServiceFramework remains available for diagnostics/debugging only.
+# This script installs and registers YarTrader as a Windows Service running 24/7 on Windows Server using the local virtual environment Python.
 
 param(
     [string]$OperatorOwnerId = "owner_sohrab",
-    [string]$YarOperatorRuntimeUrl = "http://127.0.0.1:3000",
-    [string]$NssmPath = ""
+    [string]$YarOperatorRuntimeUrl = "http://127.0.0.1:3000"
 )
-
-$ErrorActionPreference = "Stop"
 
 $ServiceName = "YarTrader"
 $ServiceDisplayName = "YarTrader Production Runtime Service"
-$ServiceDescription = "Coordinates the 24/7 background AI runtime, MT5 connector, research, and DEMO execution."
-$VenvPython = (Resolve-Path (Join-Path $PSScriptRoot "..\.venv\Scripts\python.exe")).Path
-$ScriptPath = (Resolve-Path (Join-Path $PSScriptRoot "..\app\workers\service.py")).Path
-$WorkDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$LogDir = Join-Path $WorkDir "logs\windows_service"
-$StdoutLog = Join-Path $LogDir "service_stdout.log"
-$StderrLog = Join-Path $LogDir "service_stderr.log"
+$ServiceDescription = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
+
+# 1. Resolve local virtual environment Python
+$VenvPython = "$PSScriptRoot\..\.venv\Scripts\python.exe"
+$GlobalPython = "C:\Program Files\Python312\python.exe"
+$ScriptPath = "$PSScriptRoot\..\app\workers\service.py"
+$WorkDir = "$PSScriptRoot\.."
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "Installing YarTrader Windows Service (NSSM)..." -ForegroundColor Cyan
+Write-Host "Installing YarTrader Windows Service..." -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
-$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
-    [Security.Principal.WindowsBuiltInRole]::Administrator
-)
-if (-not $isAdmin) { throw "Deployment Failed: this script must be run as Administrator." }
-
-if ([string]::IsNullOrWhiteSpace($OperatorOwnerId)) { throw "Deployment Failed: OPERATOR_OWNER_ID is required." }
-if ([string]::IsNullOrWhiteSpace($YarOperatorRuntimeUrl)) { throw "Deployment Failed: YAROPERATOR_RUNTIME_URL is required." }
-if (-not ($YarOperatorRuntimeUrl.StartsWith("http://127.0.0.1") -or $YarOperatorRuntimeUrl.StartsWith("http://localhost"))) {
-    throw "Deployment Failed: YAROPERATOR_RUNTIME_URL must be loopback-only."
+# Check Administrator Privileges
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Error "Error: This script must be run as an Administrator!"
+    Exit 1
 }
 
+# 2. Operator Credentials & Runtime Validation
+if ([string]::IsNullOrWhiteSpace($OperatorOwnerId)) {
+    Write-Error "Deployment Failed: OPERATOR_OWNER_ID is required and cannot be empty!"
+    Exit 1
+}
+
+if ([string]::IsNullOrWhiteSpace($YarOperatorRuntimeUrl)) {
+    Write-Error "Deployment Failed: YAROPERATOR_RUNTIME_URL is required and cannot be empty!"
+    Exit 1
+}
+
+if (-not ($YarOperatorRuntimeUrl.StartsWith("http://127.0.0.1") -or $YarOperatorRuntimeUrl.StartsWith("http://localhost"))) {
+    Write-Error "Deployment Failed: YAROPERATOR_RUNTIME_URL must point to an internal local endpoint (e.g. http://127.0.0.1:3000) for security isolation!"
+    Exit 1
+}
+
+# Read token strictly from deployment environment variable or existing secret file (never via CLI parameter)
 $SecretsDir = Join-Path $WorkDir "secrets"
 $SecretsFile = Join-Path $SecretsDir "operator_owner_token.secret"
+
 $OperatorOwnerToken = $env:OPERATOR_OWNER_TOKEN
-if ([string]::IsNullOrWhiteSpace($OperatorOwnerToken) -and (Test-Path $SecretsFile)) {
-    $OperatorOwnerToken = (Get-Content -Path $SecretsFile -Raw -ErrorAction SilentlyContinue).Trim()
-}
 if ([string]::IsNullOrWhiteSpace($OperatorOwnerToken)) {
-    throw "Deployment Failed: OPERATOR_OWNER_TOKEN environment variable or $SecretsFile is required."
+    if (Test-Path $SecretsFile) {
+        $OperatorOwnerToken = (Get-Content -Path $SecretsFile -Raw -ErrorAction SilentlyContinue).Trim()
+    }
 }
-if (-not (Test-Path $SecretsDir)) { New-Item -ItemType Directory -Force -Path $SecretsDir | Out-Null }
+
+if ([string]::IsNullOrWhiteSpace($OperatorOwnerToken)) {
+    Write-Error "Deployment Failed: OPERATOR_OWNER_TOKEN environment variable (\$env:OPERATOR_OWNER_TOKEN) or secret file ($SecretsFile) is required!"
+    Exit 1
+}
+
+# Persist secret token to ACL-restricted secret file
+if (-not (Test-Path $SecretsDir)) {
+    New-Item -ItemType Directory -Force -Path $SecretsDir | Out-Null
+}
 Set-Content -Path $SecretsFile -Value $OperatorOwnerToken -Encoding UTF8 -NoNewline -Force
 icacls.exe "$SecretsFile" /inheritance:r /grant:r "SYSTEM:(F)" /grant:r "Administrators:(F)" | Out-Null
 
-if ([string]::IsNullOrWhiteSpace($NssmPath) -and -not [string]::IsNullOrWhiteSpace($env:NSSM_PATH)) {
-    $NssmPath = $env:NSSM_PATH
-}
-if ([string]::IsNullOrWhiteSpace($NssmPath)) {
-    $cmd = Get-Command nssm.exe -ErrorAction SilentlyContinue
-    if ($cmd) { $NssmPath = $cmd.Source }
-}
-if ([string]::IsNullOrWhiteSpace($NssmPath)) {
-    $known = @(
-        "C:\Tools\nssm\nssm-2.24-101-g897c7ad\win64\nssm.exe",
-        "C:\Tools\nssm\win64\nssm.exe"
-    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if ($known) { $NssmPath = $known }
-}
-if ([string]::IsNullOrWhiteSpace($NssmPath) -or -not (Test-Path $NssmPath)) {
-    throw "Deployment Failed: NSSM executable not found. Supply -NssmPath or set NSSM_PATH."
-}
-$NssmPath = (Resolve-Path $NssmPath).Path
+Write-Host "Service Environment Validation Check:" -ForegroundColor Green
+Write-Host "  OPERATOR_OWNER_ID: configured" -ForegroundColor Green
+Write-Host "  YAROPERATOR_RUNTIME_URL: configured" -ForegroundColor Green
+Write-Host "  OPERATOR_OWNER_TOKEN: configured (secured in ACL-restricted secret store)" -ForegroundColor Green
 
-New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+# Resolve target Python path
+if (Test-Path $VenvPython) {
+    $PythonPath = Resolve-Path $VenvPython
+    Write-Host "Detected Local Virtual Environment Python!" -ForegroundColor Green
+} else {
+    Write-Host "Warning: Virtual environment Python at .venv\Scripts\python.exe not found." -ForegroundColor Yellow
+    # Fallback to global Python or PATH python
+    $PythonPath = $GlobalPython
+    if (-not (Test-Path $PythonPath)) {
+        $PythonPath = (Get-Command python.exe -ErrorAction SilentlyContinue).Source
+    }
+    if (-not $PythonPath) {
+        Write-Error "Error: python.exe was not found. Please install Python 3.12 or specify PythonPath."
+        Exit 1
+    }
+}
 
-$existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if ($existing) {
-    Write-Host "Stopping existing '$ServiceName' service..." -ForegroundColor Yellow
-    sc.exe stop $ServiceName | Out-Null
-    Start-Sleep -Seconds 2
-    Write-Host "Removing existing '$ServiceName' registration..." -ForegroundColor Yellow
+Write-Host "Using Python executable: $PythonPath" -ForegroundColor Yellow
+Write-Host "Using Service Script path: $ScriptPath" -ForegroundColor Yellow
+Write-Host "Working Directory: $WorkDir" -ForegroundColor Yellow
+
+# Check if service already exists
+$existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($existingService) {
+    Write-Host "Service '$ServiceName' already exists. Re-installing..." -ForegroundColor Yellow
+    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
     sc.exe delete $ServiceName | Out-Null
-    Start-Sleep -Seconds 3
+    Start-Sleep -Seconds 2
 }
 
-Write-Host "Registering NSSM service..." -ForegroundColor Yellow
-& $NssmPath install $ServiceName $VenvPython $ScriptPath
-if ($LASTEXITCODE -ne 0) { throw "NSSM service installation failed with exit code $LASTEXITCODE." }
+# Register service using sc.exe (Native Windows Service Controller)
+# SCM runs Python with service script path argument
+$BinPath = """$PythonPath"" ""$ScriptPath"""
+Write-Host "Registering service natively via sc.exe..." -ForegroundColor Yellow
 
-& $NssmPath set $ServiceName AppDirectory $WorkDir
-& $NssmPath set $ServiceName DisplayName $ServiceDisplayName
-& $NssmPath set $ServiceName Description $ServiceDescription
-& $NssmPath set $ServiceName ObjectName LocalSystem
-& $NssmPath set $ServiceName Start SERVICE_AUTO_START
-& $NssmPath set $ServiceName AppNoConsole 1
-& $NssmPath set $ServiceName AppThrottle 5000
-& $NssmPath set $ServiceName AppRestartDelay 5000
-& $NssmPath set $ServiceName AppExit Default Restart
-& $NssmPath set $ServiceName AppStopMethodSkip 0
-& $NssmPath set $ServiceName AppStopMethodConsole 5000
-& $NssmPath set $ServiceName AppStopMethodWindow 5000
-& $NssmPath set $ServiceName AppStopMethodThreads 5000
-& $NssmPath set $ServiceName AppStdout $StdoutLog
-& $NssmPath set $ServiceName AppStderr $StderrLog
-& $NssmPath set $ServiceName AppEnvironmentExtra "OPERATOR_OWNER_ID=$OperatorOwnerId" "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl"
-if ($LASTEXITCODE -ne 0) { throw "NSSM configuration failed with exit code $LASTEXITCODE." }
+sc.exe create $ServiceName binPath= $BinPath start= auto DisplayName= "$ServiceDisplayName" | Out-Null
 
-sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Native sc.exe creation failed. Checking for NSSM..." -ForegroundColor Yellow
+    $nssm = (Get-Command nssm.exe -ErrorAction SilentlyContinue).Source
+    if ($nssm) {
+        & $nssm install $ServiceName "$PythonPath" """$ScriptPath"""
+        & $nssm set $ServiceName AppDirectory "$WorkDir"
+        & $nssm set $ServiceName Description "$ServiceDescription"
+        & $nssm set $ServiceName Start SERVICE_AUTO_START
+        & $nssm set $ServiceName AppEnvironmentExtra "OPERATOR_OWNER_ID=$OperatorOwnerId" "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl"
+        Write-Host "Successfully registered via NSSM!" -ForegroundColor Green
+    } else {
+        Write-Error "Failed to install service natively and nssm.exe was not found in PATH."
+        Write-Host "Please download NSSM and place it in your system PATH, or ensure win32service is installed." -ForegroundColor Yellow
+        Exit 1
+    }
+} else {
+    # Set service description natively
+    sc.exe description $ServiceName "$ServiceDescription" | Out-Null
 
-$service = Get-CimInstance Win32_Service -Filter "Name='$ServiceName'"
-if (-not $service) { throw "Deployment verification failed: YarTrader service was not registered." }
-if ($service.StartName -ne "LocalSystem") { throw "Deployment verification failed: service account is '$($service.StartName)', expected LocalSystem." }
-if ($service.PathName -notmatch "(?i)nssm\.exe") { throw "Deployment verification failed: service is not hosted by NSSM. PathName='$($service.PathName)'" }
+    # Configure recovery options: Automatic restart on failure
+    sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
 
-$app = (& $NssmPath get $ServiceName Application).Trim()
-$appDir = (& $NssmPath get $ServiceName AppDirectory).Trim()
-$appParams = (& $NssmPath get $ServiceName AppParameters).Trim()
+    # Register non-sensitive environment variables via SCM Registry Key
+    $RegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
+    if (Test-Path $RegPath) {
+        $EnvMultiString = @(
+            "OPERATOR_OWNER_ID=$OperatorOwnerId",
+            "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl"
+        )
+        Set-ItemProperty -Path $RegPath -Name "Environment" -Value $EnvMultiString -Type MultiString -ErrorAction SilentlyContinue
+    }
 
-if ($app -ne $VenvPython) { throw "Deployment verification failed: NSSM Application='$app'; expected '$VenvPython'." }
-if ($appDir -ne $WorkDir) { throw "Deployment verification failed: NSSM AppDirectory='$appDir'; expected '$WorkDir'." }
-if ($appParams -ne $ScriptPath) { throw "Deployment verification failed: NSSM AppParameters='$appParams'; expected '$ScriptPath'." }
+    Write-Host "Successfully registered YarTrader Windows Service natively!" -ForegroundColor Green
+}
 
-Write-Host "YarTrader NSSM service registration verified." -ForegroundColor Green
-Write-Host "  Service: $ServiceName" -ForegroundColor Green
-Write-Host "  NSSM: $NssmPath" -ForegroundColor Green
-Write-Host "  Python: $VenvPython" -ForegroundColor Green
-Write-Host "  Entrypoint: $ScriptPath" -ForegroundColor Green
-Write-Host "  Account: LocalSystem" -ForegroundColor Green
-Write-Host "  Startup: Automatic" -ForegroundColor Green
+Write-Host "To start the service, run: .\start_service.ps1" -ForegroundColor Green

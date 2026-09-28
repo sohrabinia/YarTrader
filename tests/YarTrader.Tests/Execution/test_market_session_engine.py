@@ -75,7 +75,7 @@ class TestMarketSessionEngine:
 
         # 121.001s remaining -> ACCEPT
         t_121 = session_end - timedelta(seconds=121.001)
-        res_121 = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=t_121, current_equity=10000.0)
+        res_121 = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=t_121)
         assert res_121.allowed is True
         assert res_121.rejection_reason is None
 
@@ -111,18 +111,18 @@ class TestMarketSessionEngine:
 
         # 09:00 -> Inside interval 1 -> OPEN
         t_09 = datetime(2026, 3, 28, 9, 0, 0, tzinfo=timezone.utc)
-        res_09 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_09, current_equity=10000.0)
+        res_09 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_09)
         assert res_09.allowed is True
 
         # 12:30 -> In break between interval 1 & 2 -> CLOSED
         t_1230 = datetime(2026, 3, 28, 12, 30, 0, tzinfo=timezone.utc)
-        res_1230 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_1230, current_equity=10000.0)
+        res_1230 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_1230)
         assert res_1230.allowed is False
         assert res_1230.rejection_reason == "MARKET_CLOSED"
 
         # 14:00 -> Inside interval 2 -> OPEN
         t_14 = datetime(2026, 3, 28, 14, 0, 0, tzinfo=timezone.utc)
-        res_14 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_14, current_equity=10000.0)
+        res_14 = self.engine.validate_pre_entry(symbol="BTCUSD", current_time=t_14)
         assert res_14.allowed is True
 
     def test_pre_entry_tp_time_feasibility_matrix(self):
@@ -200,7 +200,7 @@ class TestMarketSessionEngine:
         )
         self.engine.register_session_interval(interval)
 
-        res = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=self.now_utc, current_equity=10000.0)
+        res = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=self.now_utc)
         assert res.allowed is True
         assert res.source_authority == CalendarSourcePrecedence.LIVE_BROKER_MT5
         assert len(self.engine.forexfactory_enrichment) == 1

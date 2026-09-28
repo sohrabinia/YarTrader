@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 import sys
 import site
@@ -23,15 +21,16 @@ import time
 import socket
 import signal
 import threading
+import uvicorn
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 # Signal to web_dashboard to bypass duplicate background worker loops
 os.environ["YARTRADER_SERVICE_RUN"] = "True"
 
+from src.Application.Deployment.storage import YarTraderStorageManager
 
 def _get_service_log_file() -> str:
-    from src.Application.Deployment.storage import YarTraderStorageManager
     storage_mgr = YarTraderStorageManager.get_manager()
     service_log_dir = os.path.join(storage_mgr.get_logs_dir(), "service")
     os.makedirs(service_log_dir, exist_ok=True)
@@ -59,6 +58,14 @@ def log_service_message(message: str) -> None:
     except Exception:
         pass
 
+from app.core.config import ProductionConfig
+from app.workers.research_worker import ResearchWorker
+from app.workers.intelligence_worker import IntelligenceWorker
+from src.Application.Runtime.runtime_state import central_runtime_state
+
+# Import existing FastAPI app
+from src.Application.Services.web_dashboard import app as fastapi_app
+
 # Dual Mode: Check if we are running as a Windows Service
 try:
     import win32serviceutil
@@ -72,10 +79,6 @@ except ImportError:
 class YarTraderServiceHost:
     """Orchestrator for the YarTrader Windows Service runtime and background workers."""
     def __init__(self, config: Optional[ProductionConfig] = None) -> None:
-        from app.core.config import ProductionConfig
-        from app.workers.research_worker import ResearchWorker
-        from app.workers.intelligence_worker import IntelligenceWorker
-
         self.config = config or ProductionConfig()
         self.is_running = False
         self.fastapi_ready = False
@@ -96,10 +99,6 @@ class YarTraderServiceHost:
             return
         self.is_running = True
         self.fastapi_ready = False
-
-        from src.Application.Runtime.runtime_state import central_runtime_state
-        import uvicorn
-        from src.Application.Services.web_dashboard import app as fastapi_app
 
         log_service_message("Service Started")
         central_runtime_state.update_state("worker_status", "Running")
@@ -193,8 +192,6 @@ class YarTraderServiceHost:
         self.is_running = False
         self.fastapi_ready = False
 
-        from src.Application.Runtime.runtime_state import central_runtime_state
-
         log_service_message("Shutdown Requested")
         central_runtime_state.update_state("worker_status", "Stopped")
 
@@ -230,34 +227,26 @@ if WINDOWS_SERVICE_SUPPORTED:
         def __init__(self, args):
             win32serviceutil.ServiceFramework.__init__(self, args)
             self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-            # Defer runtime-host construction until after SCM startup is
-            # acknowledged. Worker construction/import-time initialization can
-            # exceed the Windows service startup timeout.
-            self.host: Optional[YarTraderServiceHost] = None
+            self.host = YarTraderServiceHost()
 
         def SvcStop(self):
             log_service_message("SERVICE_STOP_REQUESTED")
             # Report stop pending to SCM
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-            if self.host is not None:
-                self.host.stop()
+            self.host.stop()
             log_service_message("SERVICE_HOST_STOPPED")
             win32event.SetEvent(self.hWaitStop)
 
         def SvcDoRun(self):
             try:
-                # Acknowledge startup before any application/storage logging or
-                # runtime imports. This is the critical Windows SCM contract.
-                self.ReportServiceStatus(win32service.SERVICE_RUNNING)
                 log_service_message("SERVICE_START_REQUESTED")
-                log_service_message("SERVICE_RUNNING")
-
-                # Construct and start the runtime host only after SCM has
-                # accepted the service as running. This keeps all potentially
-                # slow worker construction outside the SCM startup window.
-                self.host = YarTraderServiceHost()
+                # Start service host
                 self.host.start()
                 log_service_message("SERVICE_HOST_STARTED")
+
+                # Report RUNNING status to SCM
+                self.ReportServiceStatus(win32service.SERVICE_RUNNING)
+                log_service_message("SERVICE_RUNNING")
 
                 # Wait for SCM stop notification
                 win32event.WaitForSingleObject(self.hWaitStop, win32event.INFINITE)

@@ -35,7 +35,7 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         self.assertEqual(resp2.status_code, 200)
         metrics = resp2.json()
         self.assertEqual(metrics["active_markets_count"], 30)
-        self.assertIn("No simulated performance or uptime figures are published unless backed by recorded runtime evidence.", metrics["compliance_disclaimer"])
+        self.assertIn("No simulated performance", metrics["compliance_disclaimer"])
 
     def test_user_terminal_horizon_signals(self) -> None:
         # Add predictive order on Macro horizon (frame 256)

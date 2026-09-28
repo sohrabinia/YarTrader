@@ -350,7 +350,7 @@ class PredictiveShadowEngine:
     ) -> ShadowTrade:
         """Registers a predictive shadow order in its isolated SymbolTimeContext with strict safety checks."""
         # 1. Trading Mode Resolver Safety Audit
-        trading_mode = os.environ.get("YARTRADER_TRADING_MODE", os.environ.get("TRADEYAR_TRADING_MODE"))
+        trading_mode = os.environ.get("YARTRADER_TRADING_MODE")
 
         # Default fallback to SHADOW ONLY IF not explicitly configured, but log it
         if trading_mode is None:
@@ -368,21 +368,36 @@ class PredictiveShadowEngine:
             )
             raise ValueError(f"Execution BLOCKED: Unknown trading mode '{trading_mode}'")
 
-        risk_percent = 0.5
         broker_balance = self.get_broker_balance()
+        risk_percent = 1.0 # default risk sizing
 
-        # LIVE trading is permanently closed. This legacy predictive engine is
-        # simulation/signal-only and is never an execution authority.
+        # LIVE Mode strict checks
         if trading_mode == "LIVE":
-            logger.error("SECURITY VIOLATION: LIVE trading is hard-disabled in YarTrader.")
-            raise ValueError("Real Live Trading is hard-disabled")
+            capital_source = "MT5AccountBalance"
+            if broker_balance <= 0.0:
+                logger.error(
+                    f"LIVE EXECUTION BLOCKED: Insufficient Capital. "
+                    f"Broker balance is {broker_balance} USD. Real execution requires positive balance."
+                )
+                raise ValueError("Real order BLOCKED: Insufficient Capital in LIVE mode")
 
-        capital_source = "VirtualSimulationAccount"
-        virtual_balance_used = self.virtual_capital_balance
-        logger.info(
-            f"SHADOW/SIGNAL SIMULATION ORDER REGISTERED: Virtual Balance={virtual_balance_used} USD. "
-            "No MT5 order placement is permitted by this engine."
-        )
+            logger.warning(
+                f"LIVE ORDER ALLOWED: Symbol={symbol}, Direction={direction}, "
+                f"Entry={entry}, Stop={stop}, Target={target}, Broker Balance={broker_balance}"
+            )
+            # Live execution is supported but we prevent virtual capital leak
+            virtual_balance_used = None
+        else:
+            # SHADOW Mode checks
+            capital_source = "VirtualSimulationAccount"
+            virtual_balance_used = self.virtual_capital_balance
+
+            # Forbid any direct MT5 execution commands
+            # Emit safety audit logs
+            logger.info(
+                f"SHADOW SIMULATION ORDER ALLOWED: Utilizing Virtual Capital. "
+                f"Virtual Balance={virtual_balance_used} USD. MT5 order placement strictly blocked."
+            )
 
         # Structured Audit Logging for observability
         logger.info(

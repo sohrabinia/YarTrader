@@ -95,8 +95,7 @@ class ExecutionIntelligencePlanner:
 
                 resting_bsl = liquidity.get("resting_bsl", [])
                 if resting_bsl:
-                    first_bsl = resting_bsl[0]
-                    take_profit = float(first_bsl.get("level", 0.0)) if isinstance(first_bsl, dict) else float(first_bsl)
+                    take_profit = resting_bsl[0]["level"]
 
             elif brain_suggested_action == "SELL":
                 action = "SELL"
@@ -108,33 +107,27 @@ class ExecutionIntelligencePlanner:
 
                 resting_ssl = liquidity.get("resting_ssl", [])
                 if resting_ssl:
-                    first_ssl = resting_ssl[0]
-                    take_profit = float(first_ssl.get("level", 0.0)) if isinstance(first_ssl, dict) else float(first_ssl)
+                    take_profit = resting_ssl[0]["level"]
             else:
                 action = "WAIT"
 
         # No fabricated SL/TP values are permitted. A BUY/SELL plan is actionable
         # only when both levels come from observed market structure/liquidity and
         # produce the canonical minimum risk/reward ratio.
-        execution_ready = True
-        execution_block_reason = None
         if action in ["BUY", "SELL"]:
             if stop_loss <= 0.0 or take_profit <= 0.0:
-                execution_ready = False
-                execution_block_reason = "MISSING_MARKET_STRUCTURE_LEVELS"
+                action = "WAIT"
+                entry = 0.0
+                stop_loss = 0.0
+                take_profit = 0.0
             else:
                 risk_dist = abs(entry - stop_loss)
                 reward_dist = abs(take_profit - entry)
                 if risk_dist <= 0.0 or reward_dist <= 0.0 or (reward_dist / risk_dist) < 1.5:
-                    # Once concrete market levels exist, an invalid RR is an
-                    # authoritative no-trade decision rather than a mere
-                    # execution-readiness warning.
                     action = "WAIT"
                     entry = 0.0
                     stop_loss = 0.0
                     take_profit = 0.0
-                    execution_ready = False
-                    execution_block_reason = "RISK_REWARD_BELOW_MINIMUM"
 
         # Strategy identity is strictly Multi-Timeframe Continuous Market Intelligence Core
         selected_strategy_name = "Multi-Timeframe Continuous Market Intelligence"
@@ -192,8 +185,6 @@ class ExecutionIntelligencePlanner:
                 "latest_candle_timestamp": latest_candle_timestamp,
                 "context_identity": context_identity,
                 "risk_budget_percent": 0.5,
-                "execution_ready": execution_ready,
-                "execution_block_reason": execution_block_reason,
                 "decision_cycle_id": decision_cycle_id
             }
         }
