@@ -1792,7 +1792,7 @@ function MainApp() {
               {adminTab === 'overview' && (
                 <div>
                   <div className="status-board" style={{ marginBottom: '25px' }}>
-                    <MetricCard title="Total Users" value={devopsMetrics && devopsMetrics.total_users != null ? devopsMetrics.total_users.toLocaleString() : "DATA UNAVAILABLE"} status="primary" />
+                    <MetricCard title="Total Users" value={devopsMetrics && devopsMetrics.total_users != null ? devopsMetrics.total_users.toLocaleString() : "DATA UNAVAILABLE"} status={devopsMetrics && devopsMetrics.total_users != null ? "primary" : "warning"} />
                     <MetricCard title="Active Symbols" value={`${adminSymbols.length} / 30`} status="passed" />
                     <MetricCard title="API Server SLA" value={devopsMetrics && devopsMetrics.system_health_pct != null ? `${devopsMetrics.system_health_pct}%` : "DATA UNAVAILABLE"} status="passed" />
                     <MetricCard title="Broker MT5 Link" value={devopsStatus && devopsStatus.mt5_connected != null ? (devopsStatus.mt5_connected ? (devopsStatus.mt5_server || 'CONNECTED') : 'DISCONNECTED') : 'DATA UNAVAILABLE'} status="passed" />
