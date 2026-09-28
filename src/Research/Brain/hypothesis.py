@@ -39,16 +39,22 @@ class HypothesisEngine:
         outcome_agg = self.discovery_engine.aggregate_outcomes(matches)
         continuation_pct = outcome_agg["continuation_pct"]
         reversal_pct = outcome_agg["reversal_pct"]
+        buy_pct = float(outcome_agg.get("buy_pct", 0.0))
+        sell_pct = float(outcome_agg.get("sell_pct", 0.0))
+        directional_samples = int(outcome_agg.get("directional_samples", 0))
 
-        if continuation_pct > 55.0:
+        # Direction is learned from actual historical decision outcomes, not
+        # inferred from the generic continuation/reversal labels.
+        # Until enough directional evidence exists, the Brain stays in WAIT.
+        if directional_samples >= 3 and buy_pct > 60.0 and buy_pct > sell_pct:
             expected_direction = "BUY"
-            confidence = continuation_pct
-        elif reversal_pct > 55.0:
+            confidence = buy_pct
+        elif directional_samples >= 3 and sell_pct > 60.0 and sell_pct > buy_pct:
             expected_direction = "SELL"
-            confidence = reversal_pct
+            confidence = sell_pct
         else:
             expected_direction = "WAIT"
-            confidence = max(continuation_pct, reversal_pct)
+            confidence = max(buy_pct, sell_pct, continuation_pct, reversal_pct)
 
         supporting: List[Dict[str, Any]] = []
         contradicting: List[Dict[str, Any]] = []
@@ -82,6 +88,7 @@ class HypothesisEngine:
             validation_status="PENDING",
             meta={
                 "total_matches_count": len(matches),
+                "directional_evidence_required": 3,
                 "outcome_agg": outcome_agg
             }
         )
