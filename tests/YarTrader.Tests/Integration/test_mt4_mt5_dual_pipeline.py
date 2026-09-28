@@ -238,6 +238,12 @@ def test_q_anti_lookahead_leakage_proof():
 
 def test_r_eod_position_flattening_invariant():
     class FakeAdapter:
+        def get_account_info(self):
+            return {"login": "52961173", "server": "Alpari-MT5-Demo", "trade_mode": 0, "is_real": False, "platform": "MT5", "equity": 10000.0}
+        def get_terminal_info(self):
+            return {"trade_allowed": True, "tradeapi_disabled": False}
+        def get_symbol_info(self, symbol):
+            return {"trade_mode": 4, "volume_min": 0.01, "volume_max": 100.0}
         def get_positions(self, symbol=None):
             return [{"ticket": 999999, "volume": 0.01, "symbol": "XAUUSD"}]
         def send_order_to_broker(self, req):
