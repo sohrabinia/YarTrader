@@ -113,6 +113,13 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             DemoExecutionGate.verify_demo_execution_eligibility(self.mock_adapter, req, demo_mode_flag=True)
         self.assertIn("Buy order SL 2360.0 must be below entry price 2350.0", str(ctx.exception))
 
+    def test_08_rr_below_minimum_is_rejected_at_execution_gate(self):
+        """Direct execution callers cannot bypass the canonical RR >= 1.5 gate."""
+        req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2350.0, StopLoss=2340.0, TakeProfit=2355.0)
+        with self.assertRaises(ValidationException) as ctx:
+            DemoExecutionGate.verify_demo_execution_eligibility(self.mock_adapter, req, demo_mode_flag=True)
+        self.assertIn("Real RR (0.50) < 1.5 minimum threshold", str(ctx.exception))
+
     def test_08_failed_order_check_prevents_order_send(self):
         """Test 8: DemoExecutionEngine logs failure if adapter order placement fails."""
         self.mock_adapter.send_order_to_broker.return_value = OrderResponse(
