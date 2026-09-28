@@ -111,28 +111,34 @@ class ProductionConfig:
                 print(f"Warning: Failed to load config from {config_path}: {e}")
 
     def _load_env_overrides(self) -> None:
-        self.api_host = os.environ.get("YARTRADER_API_HOST", os.environ.get("RG_API_HOST", self.api_host))
+        self.api_host = os.environ.get("YARTRADER_API_HOST", os.environ.get("TRADEYAR_API_HOST", os.environ.get("RG_API_HOST", self.api_host)))
 
-        env_port = os.environ.get("YARTRADER_API_PORT", os.environ.get("RG_API_PORT"))
+        env_port = os.environ.get("YARTRADER_API_PORT", os.environ.get("TRADEYAR_API_PORT", os.environ.get("RG_API_PORT")))
         if env_port:
-            self.api_port = int(env_port)
+            try:
+                self.api_port = int(env_port)
+            except (TypeError, ValueError) as exc:
+                raise ConfigurationException(f"Invalid API port: {env_port!r}") from exc
 
-        self.mt5_symbol = os.environ.get("YARTRADER_MT5_SYMBOL", os.environ.get("RG_MT5_SYMBOL", self.mt5_symbol))
-        self.mt5_timeframe = os.environ.get("YARTRADER_MT5_TIMEFRAME", os.environ.get("RG_MT5_TIMEFRAME", self.mt5_timeframe))
-        self.logging_level = os.environ.get("YARTRADER_LOG_LEVEL", os.environ.get("RG_LOG_LEVEL", self.logging_level)).upper()
-        self.logging_rotation = os.environ.get("YARTRADER_LOG_ROTATION", self.logging_rotation)
+        self.mt5_symbol = os.environ.get("YARTRADER_MT5_SYMBOL", os.environ.get("TRADEYAR_MT5_SYMBOL", os.environ.get("RG_MT5_SYMBOL", self.mt5_symbol)))
+        self.mt5_timeframe = os.environ.get("YARTRADER_MT5_TIMEFRAME", os.environ.get("TRADEYAR_MT5_TIMEFRAME", os.environ.get("RG_MT5_TIMEFRAME", self.mt5_timeframe)))
+        self.logging_level = os.environ.get("YARTRADER_LOG_LEVEL", os.environ.get("TRADEYAR_LOG_LEVEL", os.environ.get("RG_LOG_LEVEL", self.logging_level))).upper()
+        self.logging_rotation = os.environ.get("YARTRADER_LOG_ROTATION", os.environ.get("TRADEYAR_LOG_ROTATION", self.logging_rotation))
 
-        env_res = os.environ.get("YARTRADER_WORKERS_RESEARCH")
+        env_res = os.environ.get("YARTRADER_WORKERS_RESEARCH", os.environ.get("TRADEYAR_WORKERS_RESEARCH"))
         if env_res:
             self.workers_research = env_res.lower() == "true"
 
-        env_intel = os.environ.get("YARTRADER_WORKERS_INTELLIGENCE")
+        env_intel = os.environ.get("YARTRADER_WORKERS_INTELLIGENCE", os.environ.get("TRADEYAR_WORKERS_INTELLIGENCE"))
         if env_intel:
             self.workers_intelligence = env_intel.lower() == "true"
 
-        env_conf = os.environ.get("YARTRADER_AI_CONFIDENCE_THRESHOLD")
+        env_conf = os.environ.get("YARTRADER_AI_CONFIDENCE_THRESHOLD", os.environ.get("TRADEYAR_AI_CONFIDENCE_THRESHOLD"))
         if env_conf:
-            self.ai_confidence_threshold = int(env_conf)
+            try:
+                self.ai_confidence_threshold = int(env_conf)
+            except (TypeError, ValueError) as exc:
+                raise ConfigurationException(f"Invalid confidence threshold: {env_conf!r}") from exc
 
         self.mt5_password = os.environ.get("YARTRADER_MT5_PASSWORD")
         self.api_key = os.environ.get("YARTRADER_API_KEY")
