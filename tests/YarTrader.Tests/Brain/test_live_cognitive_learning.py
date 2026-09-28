@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta
-from src.Research.Brain.models import MarketObservation
+from src.Research.Brain.models import MarketObservation, MarketEvent
 from src.Research.Brain.cognitive_loop import CognitiveReplayLoop
 from src.Research.Brain.memory import MarketMemorySystem
 
@@ -54,3 +54,25 @@ def test_live_cognitive_step_is_incremental_and_read_only(tmp_path):
     # The cognitive loop only creates VirtualTrade records; it has no broker adapter.
     assert hasattr(loop.simulation_brain, "active_trades")
     assert not hasattr(loop.simulation_brain, "order_send")
+
+
+def test_brain_event_memory_persists_and_scopes_deduplication_by_symbol(tmp_path):
+    storage = str(tmp_path / "brain_memory")
+    memory = MarketMemorySystem(storage_dir=storage)
+    start = datetime(2026, 1, 1, 0, 0, 0)
+    event_a = MarketEvent(
+        symbol="XAUUSD", timeframe="H1", start_time=start, end_time=start + timedelta(hours=1),
+        price_change=2.0, duration_candles=1, previous_sequence_len=3,
+        reaction_type="extension", reaction_magnitude=1.0
+    )
+    event_b = MarketEvent(
+        symbol="EURUSD", timeframe="H1", start_time=start, end_time=start + timedelta(hours=1),
+        price_change=0.002, duration_candles=1, previous_sequence_len=3,
+        reaction_type="extension", reaction_magnitude=0.001
+    )
+    memory.add_event(event_a)
+    memory.add_event(event_a)
+    memory.add_event(event_b)
+    reloaded = MarketMemorySystem(storage_dir=storage)
+    assert len(reloaded.get_events()) == 2
+    assert reloaded.get_learning_statistics()["events_total"] == 2
