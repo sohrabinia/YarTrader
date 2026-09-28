@@ -1939,9 +1939,9 @@ function MainApp() {
                 <div className="card">
                   <h3 style={{ marginTop: 0, color: 'var(--warning)' }}>⚠️ System Error Feed & Exception Log</h3>
                   <div style={{ background: '#020408', padding: '15px', borderRadius: '8px', color: '#38BDF8', fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                    <div>[INFO] System initialized cleanly. Zero unhandled exceptions.</div>
-                    <div>[INFO] Live Trading Safety Gate active (`LIVE_TRADING_ENABLED=False`).</div>
-                    <div>[INFO] MT5 Provider operating in Demo Mode on account #52961173.</div>
+                    <div>[INFO] No runtime error events are currently available from the authoritative production event feed.</div>
+                    <div>[INFO] Live Trading is hard-blocked by the authoritative execution safety boundary.</div>
+                    <div>[INFO] Runtime status shown here is sourced from live API evidence when available; no connection is asserted from static UI data.</div>
                   </div>
                 </div>
               )}
@@ -1953,9 +1953,13 @@ function MainApp() {
                   <DataTable
                     headers={['Event ID', 'Timestamp', 'Subsystem', 'Action Event', 'Severity', 'Details']}
                     rows={[
-                      { id: 'evt-1001', time: '12:00:00', sys: 'SRE Safety Gate', action: 'Live Trading Hard-Blocked (Fail-Closed)', sev: 'INFO' },
-                      { id: 'evt-1002', time: '12:00:01', sys: 'MT5 Provider', action: 'Connected to Alpari-MT5-Demo (#52961173)', sev: 'INFO' },
-                      { id: 'evt-1003', time: '12:00:05', sys: 'Signal Engine', action: 'Evaluated 30 active symbol pairs', sev: 'INFO' }
+                      {
+                        id: 'runtime-feed-unavailable',
+                        time: '—',
+                        sys: 'Runtime Event Feed',
+                        action: 'No verified runtime events are currently available.',
+                        sev: 'INFO'
+                      }
                     ].map(evt => [
                       evt.id,
                       evt.time,
