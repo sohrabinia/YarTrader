@@ -92,7 +92,7 @@ def test_unknown_mode_fails_closed():
     """
     Test 4: If trading context is unknown, fail closed.
     """
-    os.environ["TRADEYAR_TRADING_MODE"] = "UNKNOWN_MODE"
+    os.environ["YARTRADER_TRADING_MODE"] = "UNKNOWN_MODE"
 
     engine = PredictiveShadowEngine.get_instance()
 
