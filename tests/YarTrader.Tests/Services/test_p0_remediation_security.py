@@ -232,16 +232,14 @@ class TestP0RemediationSecurity(unittest.TestCase):
                     ProductionSettings()
                 self.assertIn("insecure placeholder", str(ctx.exception).lower())
 
-    def test_production_mode_fail_closed_on_missing_admin_password_hash(self) -> None:
-        """Verifies that AuthRepository raises ValidationException in production if TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH is unset/insecure."""
-        # Using a temporary mock filepath for the user JSON DB
+    def test_production_mode_admin_seed_requires_secure_password_hash(self) -> None:
+        """Internal admin bootstrap remains fail-closed when production seed credentials are absent."""
         test_filepath = "runtime_logs/auth_test_prod_fail.json"
         if os.path.exists(test_filepath):
             os.remove(test_filepath)
-
         try:
             with patch.dict(os.environ, {
-                "TRADEYAR_ENV": "production",
+                "YARTRADER_ENV": "production",
                 "YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH": "",
                 "YARTRADER_DEFAULT_ADMIN_EMAIL": "admin@yartrader.app"
             }):
