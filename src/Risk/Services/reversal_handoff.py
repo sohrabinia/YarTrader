@@ -117,7 +117,7 @@ class ReversalHandoffManager:
             spread_pip=spread_pip,
             commission_per_lot=commission_per_lot,
             estimated_slippage_pip=estimated_slippage_pip,
-            win_probability=market_structure.get("win_probability", 0.55)
+            win_probability=market_structure.get("win_probability")
         )
 
         if not risk_eval.is_valid:
