@@ -371,7 +371,12 @@ class PredictiveShadowEngine:
         broker_balance = self.get_broker_balance()
         risk_percent = 1.0 # default risk sizing
 
-        # LIVE is permanently closed. The production product is DEMO/RESEARCH only.\n        if trading_mode == "LIVE":\n            logger.error("LIVE EXECUTION BLOCKED: Real-money trading is hard-disabled by product safety policy.")\n            raise ValueError("Real order BLOCKED: LIVE trading is hard-disabled")\n\n        else:
+        # LIVE is permanently closed. The production product is DEMO/RESEARCH only.
+        if trading_mode == "LIVE":
+            logger.error("LIVE EXECUTION BLOCKED: Real-money trading is hard-disabled by product safety policy.")
+            raise ValueError("Real order BLOCKED: LIVE trading is hard-disabled")
+
+        else:
             # SHADOW Mode checks
             capital_source = "VirtualSimulationAccount"
             virtual_balance_used = self.virtual_capital_balance
