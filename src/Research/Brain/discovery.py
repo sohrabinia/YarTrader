@@ -88,6 +88,11 @@ class PatternDiscoveryEngine:
         total_reversal = 0
         total_buy = 0.0
         total_sell = 0.0
+        learning_samples = 0
+        target_reached_samples = 0
+        total_mfe = 0.0
+        total_mae = 0.0
+        total_observed_bars = 0
 
         for pat, score in matches:
             weight = score  # Give higher weight to closer similarity
@@ -96,6 +101,15 @@ class PatternDiscoveryEngine:
             total_reversal += int(pat.reversal_count * weight)
             total_buy += float(getattr(pat, "buy_count", 0)) * weight
             total_sell += float(getattr(pat, "sell_count", 0)) * weight
+            for outcome in getattr(pat, "outcomes", []):
+                learning = outcome.get("learning_outcome", {}) if isinstance(outcome, dict) else {}
+                if learning:
+                    learning_samples += 1
+                    if learning.get("target_reached"):
+                        target_reached_samples += 1
+                    total_mfe += float(learning.get("max_favorable_movement", 0.0))
+                    total_mae += abs(float(learning.get("max_adverse_movement", 0.0)))
+                    total_observed_bars += int(learning.get("observations_tracked", 0))
 
         sum_outcomes = total_continuation + total_reversal
         continuation_pct = (total_continuation / sum_outcomes * 100.0) if sum_outcomes > 0 else 50.0
@@ -113,6 +127,11 @@ class PatternDiscoveryEngine:
             "directional_samples": int(directional_total),
             "buy_pct": round(buy_pct, 2),
             "sell_pct": round(sell_pct, 2),
+            "learning_samples": learning_samples,
+            "target_reached_pct": round((target_reached_samples / learning_samples * 100.0) if learning_samples else 0.0, 2),
+            "average_mfe": round(total_mfe / learning_samples, 4) if learning_samples else 0.0,
+            "average_mae": round(total_mae / learning_samples, 4) if learning_samples else 0.0,
+            "average_observed_bars": round(total_observed_bars / learning_samples, 2) if learning_samples else 0.0,
             "outcome_summary": (
                 f"Found {len(matches)} similar patterns with "
                 f"{continuation_pct:.1f}% continuation vs {reversal_pct:.1f}% reversal; "
@@ -120,11 +139,47 @@ class PatternDiscoveryEngine:
             )
         }
 
+    def extract_behavior_profile(self, observations: List[MarketObservation], window_size: int = 12) -> Dict[str, float]:
+        """Extracts raw price-action behavior without assigning a trading regime label."""
+        if len(observations) < 3:
+            return {}
+        recent = observations[-window_size:]
+        closes = [o.close_price for o in recent]
+        ranges = [max(0.0, o.high - o.low) for o in recent]
+        changes = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+        abs_total = sum(abs(x) for x in changes)
+        net = closes[-1] - closes[0]
+        sign_changes = sum(
+            1 for a, b in zip(changes, changes[1:]) if a != 0 and b != 0 and (a > 0) != (b > 0)
+        )
+        prior_avg_range = sum(ranges[:-1]) / max(1, len(ranges) - 1)
+        return {
+            "directional_efficiency": abs(net) / abs_total if abs_total else 0.0,
+            "net_change_normalized": net / max(ranges) if max(ranges) else 0.0,
+            "range_expansion": ranges[-1] / prior_avg_range if prior_avg_range else 0.0,
+            "reversal_frequency": sign_changes / max(1, len(changes) - 1),
+            "average_range": sum(ranges) / len(ranges),
+        }
+
+    def profile_distance(self, a: Dict[str, float], b: Dict[str, float]) -> float:
+        """Returns a bounded distance between raw behavioral profiles."""
+        if not a or not b:
+            return 1.0
+        keys = sorted(set(a).intersection(b))
+        if not keys:
+            return 1.0
+        diffs = []
+        for key in keys:
+            scale = max(abs(float(a[key])), abs(float(b[key])), 1.0)
+            diffs.append(abs(float(a[key]) - float(b[key])) / scale)
+        return min(1.0, sum(diffs) / len(diffs))
+
     def create_new_pattern(
         self,
         sig: List[float],
         is_continuation: bool = True,
         direction: str = "WAIT",
+        behavior_profile: Dict[str, float] = None,
     ) -> PatternMemory:
         """Constructs a brand-new PatternMemory record representing a discovered sequence fingerprint."""
         return PatternMemory(
@@ -139,6 +194,7 @@ class PatternDiscoveryEngine:
                 "timestamp": datetime.now().isoformat(),
                 "is_continuation": is_continuation,
                 "direction": direction,
+                "behavior_profile": behavior_profile or {},
             }],
             created_at=datetime.now()
         )
