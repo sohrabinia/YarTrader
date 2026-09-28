@@ -350,7 +350,7 @@ class PredictiveShadowEngine:
     ) -> ShadowTrade:
         """Registers a predictive shadow order in its isolated SymbolTimeContext with strict safety checks."""
         # 1. Trading Mode Resolver Safety Audit
-        trading_mode = os.environ.get("YARTRADER_TRADING_MODE")
+        trading_mode = os.environ.get("YARTRADER_TRADING_MODE", os.environ.get("TRADEYAR_TRADING_MODE"))
 
         # Default fallback to SHADOW ONLY IF not explicitly configured, but log it
         if trading_mode is None:
@@ -371,9 +371,12 @@ class PredictiveShadowEngine:
         broker_balance = self.get_broker_balance()
         risk_percent = 1.0 # default risk sizing
 
-        # LIVE Mode strict checks
+        # LIVE trading is permanently closed. This legacy predictive engine is simulation/signal-only and is never an execution authority.
         if trading_mode == "LIVE":
-            capital_source = "MT5AccountBalance"
+            logger.error("SECURITY VIOLATION: LIVE trading is hard-disabled in YarTrader.")
+            raise ValueError("Real Live Trading is hard-disabled")
+        if trading_mode == "SHADOW":
+            capital_source = "VirtualSimulationAccount"
             if broker_balance <= 0.0:
                 logger.error(
                     f"LIVE EXECUTION BLOCKED: Insufficient Capital. "
