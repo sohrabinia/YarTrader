@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from src.Research.Brain.memory import MarketMemorySystem
+from src.Research.Brain.live_memory import get_live_memory_system
 from src.Intelligence.Explanation.explainer import DecisionExplainer
 
 # Setup directory paths relative to repo root
@@ -90,7 +91,7 @@ global_m1_research_runtime = ResearchRuntime(
     evidence_dir="runtime_logs"
 )
 
-global_memory_system = MarketMemorySystem()
+global_memory_system = get_live_memory_system()
 global_decision_explainer = DecisionExplainer(memory_system=global_memory_system)
 
 # Initialize secure social authentication and role-based session services from shared singleton
