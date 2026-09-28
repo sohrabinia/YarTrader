@@ -149,6 +149,10 @@ class PatternMemory:
     occurrences_count: int
     continuation_count: int
     reversal_count: int
+    # Directional outcome counts make pre-move signals direction-aware.
+    # Defaults preserve backward compatibility with older persisted patterns.
+    buy_count: int = 0
+    sell_count: int = 0
     outcomes: List[Dict[str, Any]] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
 
@@ -165,6 +169,8 @@ class PatternMemory:
             occurrences_count=int(data["occurrences_count"]),
             continuation_count=int(data["continuation_count"]),
             reversal_count=int(data["reversal_count"]),
+            buy_count=int(data.get("buy_count", 0)),
+            sell_count=int(data.get("sell_count", 0)),
             outcomes=data.get("outcomes", []),
             created_at=datetime.fromisoformat(data["created_at"])
         )
