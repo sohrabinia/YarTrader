@@ -1,3 +1,47 @@
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_non_xauusd_order_reaches_generic_broker_adapter(self, mock_verify):
+        """The broker adapter remains symbol-generic; DEMO XAUUSD policy belongs to DemoExecutionGate."""
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+
+        mock_sym = MagicMock()
+        mock_sym.visible = True
+        mock_sym.volume_min = 0.01
+        mock_sym.volume_step = 0.01
+        mock_sym.volume_max = 100.0
+        mock_sym.digits = 5
+        mock_sym.filling_mode = 1
+        mock_sym.trade_stops_level = 0
+        mock_sym.point = 0.00001
+        mock_mt5.symbol_info.return_value = mock_sym
+
+        mock_tick = MagicMock()
+        mock_tick.bid = 1.10000
+        mock_tick.ask = 1.10020
+        mock_mt5.symbol_info_tick.return_value = mock_tick
+
+        mock_check = MagicMock()
+        mock_check.retcode = 10030
+        mock_check.comment = "Unsupported filling mode"
+        mock_check._asdict.return_value = {"retcode": 10030, "comment": "Unsupported filling mode"}
+        mock_mt5.order_check.return_value = mock_check
+
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        req = OrderRequest(Symbol="EURUSD", OrderType="BUY", Volume=0.01)
+        resp = self.adapter.send_order_to_broker(req)
+
+        self.assertEqual(resp.Status, "Failed")
+        self.assertEqual(resp.Retcode, 10030)
+        mock_mt5.symbol_info.assert_called_once_with("EURUSD")
+        mock_mt5.order_check.assert_called()
+        mock_mt5.order_send.assert_not_called()
+
 import unittest
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone
