@@ -207,11 +207,27 @@ class ResearchWorker:
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
 
-        # Canonical production policy: normal DEMO execution always targets 0.5%.
-        # Environment configuration cannot silently raise or lower the target; the
-        # ProfessionalRiskEngine still enforces the immutable 2.0% hard ceiling.
+        # Canonical production policy: normal DEMO execution targets 0.5%.
+        # A supplied environment value is validated fail-closed so malformed
+        # deployment configuration can never silently fall back to a usable risk.
         from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE")
         requested_risk_pct = ProductionRiskPolicy.TARGET_RISK_PCT
+        if raw_risk_env is not None:
+            try:
+                configured_risk = float(raw_risk_env)
+            except (TypeError, ValueError):
+                print(f"[ResearchWorker] Execution BLOCKED: invalid RISK_PCT_PER_TRADE={raw_risk_env!r}.")
+                return None
+            if not math.isfinite(configured_risk) or configured_risk <= 0.0 or configured_risk > 2.0:
+                print(f"[ResearchWorker] Execution BLOCKED: RISK_PCT_PER_TRADE outside (0, 2].")
+                return None
+            if abs(configured_risk - ProductionRiskPolicy.TARGET_RISK_PCT) > 1e-9:
+                print(
+                    f"[ResearchWorker] Execution BLOCKED: configured risk {configured_risk}% "
+                    f"does not match mandatory production target {ProductionRiskPolicy.TARGET_RISK_PCT}%."
+                )
+                return None
 
         sizing_res = risk_engine.evaluate_equity_risk_and_position_size(
             symbol=symbol,
