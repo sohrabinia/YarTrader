@@ -66,6 +66,10 @@ class BacktestAndLearningEngine:
 
         memory = self.get_market_memory(symbol)
 
+        # Adaptive learning state: only CLOSED trades before the current bar are eligible.
+        # This prevents look-ahead bias while allowing win probability to improve with evidence.
+        observed_spreads: List[float] = []
+
         # Walk-forward bar by bar chronologically
         for i in range(start_index, len(candles)):
             current_bar = candles[i]
@@ -109,34 +113,26 @@ class BacktestAndLearningEngine:
                 open_position["mae"] = mae
 
                 if exit_reason:
-                    # Close position with execution friction (spread + commission)
+                    # Close position with observed execution friction (spread + commission).
                     pnl_dist = (exit_price - open_position["entry"]) if pos_direction == "BUY" else (open_position["entry"] - exit_price)
                     multiplier = 100.0 if "XAU" in symbol.upper() else 10000.0
                     raw_pnl = pnl_dist * open_position["volume"] * multiplier
 
-                    # Asset-Class Specific Execution Friction Model
                     sym_upper = symbol.upper()
                     vol = open_position["volume"]
+                    exit_spread_pip = self._resolve_spread_pip(current_bar, symbol)
+                    entry_spread_pip = float(open_position.get("entry_spread_pip", exit_spread_pip))
+                    effective_spread_pip = (entry_spread_pip + exit_spread_pip) / 2.0
+                    observed_spreads.append(effective_spread_pip)
 
-                    if "XAU" in sym_upper:
-                        # Gold: $0.20 spread ($20/lot) + $7/lot commission
-                        spread_cost_usd = 0.20 * vol * 100.0
-                        commission_cost_usd = 7.0 * vol
-                        total_friction_usd = spread_cost_usd + commission_cost_usd
-                    elif "XAG" in sym_upper:
-                        # Silver: $0.02 spread ($100/lot on 5000 oz) + $7/lot commission
-                        spread_cost_usd = 0.02 * vol * 5000.0
-                        commission_cost_usd = 7.0 * vol
-                        total_friction_usd = spread_cost_usd + commission_cost_usd
-                    elif any(c in sym_upper for c in ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK", "LTC", "BCH", "NEAR", "UNI", "ATOM"]):
-                        # Crypto: 0.10% (10 bps) combined fee/spread on trade value
-                        notional_value_usd = exit_price * vol
-                        total_friction_usd = notional_value_usd * 0.0010
+                    # Asset-Class Specific Execution Friction Model
+                    pip_size = 0.1 if ("XAU" in sym_upper or "GOLD" in sym_upper) else (0.01 if "JPY" in sym_upper else 0.0001)
+                    contract_size = 100.0 if ("XAU" in sym_upper or "GOLD" in sym_upper) else (5000.0 if "XAG" in sym_upper else 100000.0)
+                    spread_cost_usd = effective_spread_pip * pip_size * vol * contract_size
+                    commission_cost_usd = 7.0 * vol
+                    if any(c in sym_upper for c in ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK", "LTC", "BCH", "NEAR", "UNI", "ATOM"]):
+                        total_friction_usd = (exit_price * vol * 0.0010) + commission_cost_usd
                     else:
-                        # Forex: 1.0 pip spread + $7/lot commission
-                        pip_dist = 0.01 if "JPY" in sym_upper else 0.0001
-                        spread_cost_usd = 1.0 * pip_dist * vol * 100000.0
-                        commission_cost_usd = 7.0 * vol
                         total_friction_usd = spread_cost_usd + commission_cost_usd
 
                     trade_pnl = raw_pnl - total_friction_usd
@@ -159,6 +155,9 @@ class BacktestAndLearningEngine:
                     open_position["pnl"] = round(trade_pnl, 2)
                     open_position["r_multiple"] = r_multiple
                     open_position["outcome"] = outcome
+                    open_position["spread_pip_exit"] = round(exit_spread_pip, 4)
+                    open_position["effective_spread_pip"] = round(effective_spread_pip, 4)
+                    open_position["spread_cost_usd"] = round(spread_cost_usd, 4)
 
                     # 2. Trigger Post-Trade Learning Update via JudgeBrain and MarketMemorySystem
                     learning_res = self._process_post_trade_learning(memory, open_position)
@@ -192,6 +191,8 @@ class BacktestAndLearningEngine:
                         "take_profit": float(plan.get("take_profit", 0.0)),
                         "risk_reward": float(plan.get("risk_reward", 0.0)),
                         "confidence": float(plan.get("confidence", 70.0)),
+                        "win_probability_at_entry": self._estimate_adaptive_win_probability(closed_trades, plan.get("strategy", "FAST_SCALP"), action),
+                        "entry_spread_pip": round(self._resolve_spread_pip(current_bar, symbol), 4),
                         "volume": 0.01,
                         "entry_time": bar_time,
                         "market_context": eval_res.get("narrative", {}),
@@ -206,6 +207,8 @@ class BacktestAndLearningEngine:
         bes = sum(1 for t in closed_trades if t["outcome"] == "BREAKEVEN")
         total_closed = len(closed_trades)
         win_rate = (wins / total_closed * 100.0) if total_closed > 0 else 0.0
+        adaptive_probabilities = [float(t.get("win_probability_at_entry", 0.5)) for t in closed_trades]
+        avg_adaptive_probability = sum(adaptive_probabilities) / len(adaptive_probabilities) if adaptive_probabilities else 0.5
 
         net_pnl = balance - initial_balance
 
@@ -220,9 +223,38 @@ class BacktestAndLearningEngine:
             "losses": losses,
             "breakevens": bes,
             "win_rate_pct": round(win_rate, 2),
+            "adaptive_win_probability_pct": round(avg_adaptive_probability * 100.0, 2),
+            "average_observed_spread_pip": round(sum(observed_spreads) / len(observed_spreads), 4) if observed_spreads else 0.0,
             "learning_updates_count": learning_updates_count,
             "closed_trades": closed_trades
         }
+
+    @staticmethod
+    def _resolve_spread_pip(bar: Dict[str, Any], symbol: str) -> float:
+        """Resolve observed spread without inventing a tighter value than the feed provides."""
+        for key in ("spread_pip", "spread_pips"):
+            value = bar.get(key)
+            if isinstance(value, (int, float)) and value >= 0:
+                return float(value)
+        bid = bar.get("bid", bar.get("Bid"))
+        ask = bar.get("ask", bar.get("Ask"))
+        if isinstance(bid, (int, float)) and isinstance(ask, (int, float)) and ask >= bid:
+            s = symbol.upper()
+            pip_size = 0.1 if ("XAU" in s or "GOLD" in s) else (0.01 if "JPY" in s else 0.0001)
+            return (float(ask) - float(bid)) / pip_size
+        s = symbol.upper()
+        return 2.0 if ("XAU" in s or "GOLD" in s or "XAG" in s) else 1.0
+
+    @staticmethod
+    def _estimate_adaptive_win_probability(closed_trades: List[Dict[str, Any]], strategy: str, direction: str, prior_strength: float = 2.0) -> float:
+        """Estimate probability from PRIOR closed outcomes only; no look-ahead."""
+        relevant = [t for t in closed_trades if str(t.get("strategy", "")).upper() == str(strategy).upper() and str(t.get("direction", "")).upper() == str(direction).upper()]
+        wins = sum(1 for t in relevant if t.get("outcome") == "WIN")
+        losses = sum(1 for t in relevant if t.get("outcome") == "LOSS")
+        decisive = wins + losses
+        if decisive == 0:
+            return 0.5
+        return (wins + (prior_strength * 0.5)) / (decisive + prior_strength)
 
     def _process_post_trade_learning(self, memory: MarketMemorySystem, closed_trade: Dict[str, Any]) -> Dict[str, Any]:
         """
