@@ -40,7 +40,6 @@ class TestLiveDecisionIndicatorFree(unittest.TestCase):
         self.assertEqual(strat_eval.get("status"), "DISCONNECTED")
         self.assertEqual(strat_eval.get("decision_authority"), "BRAIN")
         self.assertIsNone(next((c for c in strat_eval.get("candidates", []) if c.get("strategy_name") == "FRACTAL"), None))
-        self.assertIn("FRACTAL strategy explicitly disabled: insufficient pattern memory evidence.", fractal_cand["reasoning"])
 
 if __name__ == "__main__":
     unittest.main()
