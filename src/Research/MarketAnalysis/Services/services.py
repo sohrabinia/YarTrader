@@ -233,7 +233,8 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
                 risk_status="PENDING" if action in ["BUY", "SELL"] else "CHECKED",
                 execution_status="PENDING" if action in ["BUY", "SELL"] else "SKIPPED",
                 configuration_version="1.2.0",
-                timestamp=datetime.now().isoformat()
+                timestamp=datetime.now().isoformat(),
+                brain_suggested_action=str(plan.get("brain_suggested_action", "WAIT")).upper()
             )
             auto_dec_dict = auto_decision.to_dict()
         except Exception:
