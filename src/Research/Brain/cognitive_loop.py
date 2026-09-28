@@ -77,7 +77,8 @@ class CognitiveReplayLoop:
             sig = self.discovery_engine.extract_signature(available_data)
             hypothesis = self.hypothesis_engine.formulate_hypothesis(
                 current_signature=sig,
-                historical_patterns=self.memory_system.get_patterns()
+                historical_patterns=self.memory_system.get_patterns(),
+                current_behavior_profile=self.discovery_engine.extract_behavior_profile(available_data),
             )
 
             decision_time = latest_obs.timestamp
@@ -261,6 +262,7 @@ class CognitiveReplayLoop:
                 self._pending_trade_context[virtual_trade.trade_id] = {
                     "hypothesis": hypothesis,
                     "signature": list(sig),
+                    "behavior_profile": self.discovery_engine.extract_behavior_profile(available_data),
                     "decision_time": latest_obs.timestamp.isoformat(),
                 }
 
@@ -366,6 +368,7 @@ class CognitiveReplayLoop:
                 signature,
                 is_continuation=is_success,
                 direction=str(getattr(trade, "decision_action", "WAIT")).upper(),
+                behavior_profile=behavior_profile or {},
             )
             if learning_outcome:
                 new_pattern.outcomes[-1]["learning_outcome"] = learning_outcome
