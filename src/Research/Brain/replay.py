@@ -118,6 +118,17 @@ class MarketReplayEngine:
         # Return True if there are still observations at or after the new time
         return any(o.timestamp >= self._current_time for o in self._all_observations)
 
+    def update_observations(self, observations: List[MarketObservation], current_time: Optional[datetime] = None) -> None:
+        """Refreshes the read-only observation window while preserving the live replay cursor."""
+        self._all_observations = sorted(observations, key=lambda o: o.timestamp)
+        if not self._all_observations:
+            self._current_time = None
+            return
+        if current_time is not None:
+            self._current_time = current_time
+        elif self._current_time is None:
+            self._current_time = self._all_observations[0].timestamp
+
     def _get_last_obs_at_cursor(self) -> Optional[MarketObservation]:
         available = self.get_available_data()
         return available[-1] if available else None
