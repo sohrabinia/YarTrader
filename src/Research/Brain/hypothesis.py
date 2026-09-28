@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from src.Research.Brain.models import Hypothesis, PatternMemory
 from src.Research.Brain.discovery import PatternDiscoveryEngine
 
@@ -14,7 +14,8 @@ class HypothesisEngine:
     def formulate_hypothesis(
         self,
         current_signature: List[float],
-        historical_patterns: List[PatternMemory]
+        historical_patterns: List[PatternMemory],
+        current_behavior_profile: Optional[Dict[str, float]] = None
     ) -> Hypothesis:
         """
         Formulates a hypothesis by finding matches in historical patterns.
@@ -32,7 +33,17 @@ class HypothesisEngine:
                 contradicting_samples=[],
                 confidence=0.0,
                 validation_status="PENDING",
-                meta={"reason": "No historical pattern matches found."}
+                meta={
+                    "reason": "No historical pattern matches found.",
+                    "behavior_profile": current_behavior_profile or {},
+                    "move_expectation": {
+                        "learning_samples": 0,
+                        "target_reached_pct": 0.0,
+                        "average_mfe": 0.0,
+                        "average_mae": 0.0,
+                        "average_observed_bars": 0.0,
+                    },
+                }
             )
 
         # Decide expected direction from outcomes
@@ -106,6 +117,14 @@ class HypothesisEngine:
             meta={
                 "total_matches_count": len(matches),
                 "directional_evidence_required": 3,
-                "outcome_agg": outcome_agg
+                "outcome_agg": outcome_agg,
+                "behavior_profile": current_behavior_profile or {},
+                "move_expectation": {
+                    "learning_samples": outcome_agg.get("learning_samples", 0),
+                    "target_reached_pct": outcome_agg.get("target_reached_pct", 0.0),
+                    "average_mfe": outcome_agg.get("average_mfe", 0.0),
+                    "average_mae": outcome_agg.get("average_mae", 0.0),
+                    "average_observed_bars": outcome_agg.get("average_observed_bars", 0.0),
+                }
             }
         )
