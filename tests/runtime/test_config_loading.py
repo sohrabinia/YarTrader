@@ -43,7 +43,7 @@ class TestConfigLoading(unittest.TestCase):
 
     def test_invalid_port_validation(self):
         """Verifies that setting an invalid port raises a validation error."""
-        os.environ["TRADEYAR_API_PORT"] = "-1"
+        os.environ["YARTRADER_API_PORT"] = "-1"
         with self.assertRaises(ConfigurationException):
             ProductionConfig()
 
