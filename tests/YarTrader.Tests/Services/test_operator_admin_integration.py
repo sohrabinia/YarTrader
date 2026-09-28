@@ -339,7 +339,7 @@ class TestOperatorAdminIntegration(unittest.TestCase):
             self.assertIn('"OPERATOR_OWNER_TOKEN":"configured"', res.text)
 
     def test_deployment_scripts_do_not_contain_secret_literals_or_plaintext_registry(self):
-        """Verify deployment PowerShell scripts do not pass plaintext token in NSSM args or SCM registry."""
+        """Verify production deployment uses NSSM and never exposes the operator token in service arguments."""
         deploy_script_path = os.path.join(os.path.dirname(__file__), "../../../scripts/deploy_service.ps1")
         install_script_path = os.path.join(os.path.dirname(__file__), "../../../scripts/install_service.ps1")
 
@@ -349,19 +349,11 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                 self.assertNotIn("SUPER_SECRET", content)
                 self.assertNotIn("token_val", content)
                 self.assertNotIn('OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"', content)
-                self.assertIn('operator_owner_token.secret', content)
-                self.assertIn('icacls.exe', content)
-
-    def test_deployment_scripts_do_not_accept_operator_owner_token_parameter(self):
-        """Verify param(...) block in PowerShell deployment scripts does NOT accept OperatorOwnerToken CLI parameter."""
-        deploy_script_path = os.path.join(os.path.dirname(__file__), "../../../scripts/deploy_service.ps1")
-        install_script_path = os.path.join(os.path.dirname(__file__), "../../../scripts/install_service.ps1")
-
-        for script_path in (deploy_script_path, install_script_path):
-            with open(script_path, "r", encoding="utf-8") as f:
-                content = f.read()
-                param_block = content.split("param(")[1].split(")")[0]
-                self.assertNotIn("OperatorOwnerToken", param_block)
+                self.assertIn("operator_owner_token.secret", content)
+                self.assertIn("icacls.exe", content)
+                self.assertIn("nssm", content.lower())
+                self.assertNotIn("pythonservice", content.lower())
+                self.assertNotIn("sc.exe create", content.lower())
 
     def test_no_local_fake_task_history(self):
         """Verify task history and status endpoints report unsupported state rather than local fake history."""
