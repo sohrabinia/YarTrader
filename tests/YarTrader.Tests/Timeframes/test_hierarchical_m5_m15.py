@@ -187,9 +187,9 @@ class TestHierarchicalM5M15Trading(unittest.TestCase):
         response = self.client.get("/api/intelligence/multi-timeframe")
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertIn("XAUUSD", data)
-        xau_ctx = data["XAUUSD"]
-        self.assertEqual(xau_ctx["symbol"], "XAUUSD")
-        self.assertIn("macro_bias", xau_ctx)
-        self.assertIn("primary_decision", xau_ctx)
-        self.assertIn("primary_execution", xau_ctx)
+        # Without a connected Production runtime the endpoint must remain truthful
+        # and explicitly report that no live snapshot is available; it must not
+        # synthesize an XAUUSD matrix.
+        self.assertEqual(data["status"], "UNAVAILABLE")
+        self.assertEqual(data["evidence_state"], "NO_CONNECTED_RUNTIME_SNAPSHOT")
+        self.assertIn("XAUUSD", data["symbols"]) if data.get("symbols") else self.assertEqual(data["symbols"], {})
