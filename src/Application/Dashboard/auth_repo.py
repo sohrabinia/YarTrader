@@ -17,13 +17,24 @@ class AuthRepository:
         self.users: Dict[str, Dict[str, Any]] = self._load_db()
 
     def _load_db(self) -> Dict[str, Dict[str, Any]]:
-        is_production = (os.environ.get("YARTRADER_ENV") == "production" or
-                         os.environ.get("RG_ENV") == "production")
+        is_production = (
+            os.environ.get("YARTRADER_ENV") == "production"
+            or os.environ.get("TRADEYAR_ENV") == "production"
+            or os.environ.get("RG_ENV") == "production"
+        )
 
         if not os.path.exists(self.filepath):
             # Derive primary administrator details safely without exposing personal identities
-            admin_email = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", "admin-disabled@yartrader.app").strip().lower()
-            admin_pw_hash = os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH", "")
+            admin_email = (
+                os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL")
+                or os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL")
+                or "admin-disabled@yartrader.app"
+            ).strip().lower()
+            admin_pw_hash = (
+                os.environ.get("YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH")
+                or os.environ.get("TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH")
+                or ""
+            )
 
             # Seed default admin and user accounts
             if is_production:
@@ -137,7 +148,11 @@ class AuthRepository:
         if not email or not isinstance(email, str):
             return False
         email_clean = email.strip().lower()
-        default_admin = os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL", "").strip().lower()
+        default_admin = (
+            os.environ.get("YARTRADER_DEFAULT_ADMIN_EMAIL")
+            or os.environ.get("TRADEYAR_DEFAULT_ADMIN_EMAIL")
+            or ""
+        ).strip().lower()
         admin_list = {"m.a.sohrabinia@gmail.com", "m.a.sorabinia@gmail.com", "admin@yartrader.app"}
         if default_admin:
             admin_list.add(default_admin)
