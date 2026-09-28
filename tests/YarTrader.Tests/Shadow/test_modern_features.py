@@ -5,18 +5,13 @@ from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app, global_auth_service
 
 class TestModernFeaturesIntegration(unittest.TestCase):
-    """
-    Standard Engineering integration tests for TradeYar AI v3.2 new features.
-    Verifies Social Auth callbacks, Role-based route guards, and AI chatbot reasoning.
-    """
+    """Customer authentication and public content integration tests."""
 
     def setUp(self) -> None:
         self.client = TestClient(app)
-        # Clear mock session states
         global_auth_service.active_sessions = {}
 
     def test_social_login_google_only(self) -> None:
-        # Test Google Auth
         google_payload = {
             "id_token": "mock_token_google_test-google@tradeyar.ai_google-12345_Google User",
             "email": "test-google@tradeyar.ai",
@@ -32,7 +27,7 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         self.assertEqual(data["user"]["email"], "test-google@tradeyar.ai")
         self.assertEqual(data["user"]["role"], "USER")
 
-        # Test Apple Auth returns 404 Not Found
+        # Customer-facing non-Google providers remain unavailable.
         apple_payload = {
             "email": "test-apple@tradeyar.ai",
             "provider_id": "apple-67890",
@@ -42,7 +37,6 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         self.assertEqual(resp2.status_code, 404)
 
     def test_pristine_blog_endpoints(self) -> None:
-        # List blog articles
         resp = self.client.get("/api/blog")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
@@ -51,48 +45,27 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         self.assertIsNotNone(article_1)
         self.assertEqual(article_1["title"], "Decoupling Market Reality: The Death of Classical Technical Indicators")
 
-        # Retrieve specific article
         resp2 = self.client.get("/api/blog/1")
         self.assertEqual(resp2.status_code, 200)
         art = resp2.json()
         self.assertEqual(art["author"], "Dr. Aras Noori")
         self.assertIn("Classical indicators like RSI", art["content"])
 
-        # Non-existing article
         resp3 = self.client.get("/api/blog/999")
         self.assertEqual(resp3.status_code, 404)
 
-    def test_chatbot_assistant_explanations(self) -> None:
-        # The general conversational assistant belongs to YarOperator, not YarTrader.
-        # YarTrader intentionally does not expose the legacy /api/chat/assistant route.
-        prompt = {"message": "چرا معامله باز کردی؟"}
-        resp = self.client.post("/api/chat/assistant", json=prompt)
+    def test_chatbot_assistant_is_not_exposed_by_yartrader(self) -> None:
+        resp = self.client.post("/api/chat/assistant", json={"message": "چرا معامله باز کردی؟"})
         self.assertEqual(resp.status_code, 404)
 
-    def test_jwt_admin_route_guards(self) -> None:
-        # 1. Query string token parameter on admin endpoints MUST be rejected with 401
-        user_data = {
-            "email": "user@tradeyar.ai",
-            "role": "USER",
-            "name": "Standard Trader"
-        }
-        user_token = global_auth_service.create_session(user_data)
-        resp_qs = self.client.get(f"/api/admin/shadow-trades?token={user_token}")
-        self.assertEqual(resp_qs.status_code, 401)
-
-        # 2. Query admin endpoint with USER Bearer token (MUST be blocked with 403 Forbidden)
-        resp1 = self.client.get("/api/admin/shadow-trades", headers={"Authorization": f"Bearer {user_token}"})
-        self.assertEqual(resp1.status_code, 403)
-        self.assertEqual(resp1.json()["detail"], "Forbidden: Administrator privilege required")
-
-        # 3. Create an ADMIN session
-        admin_data = {
-            "email": "admin@tradeyar.ai",
+    def test_retired_shadow_admin_route_is_closed(self) -> None:
+        admin_token = global_auth_service.create_session({
+            "email": "admin@yartrader.app",
             "role": "ADMIN",
-            "name": "Super Admin"
-        }
-        admin_token = global_auth_service.create_session(admin_data)
-
-        # 4. Query admin endpoint with ADMIN Bearer token (MUST succeed with 200 OK)
-        resp2 = self.client.get("/api/admin/shadow-trades", headers={"Authorization": f"Bearer {admin_token}"})
-        self.assertEqual(resp2.status_code, 200)
+            "name": "Admin"
+        })
+        response = self.client.get(
+            "/api/admin/shadow-trades",
+            headers={"Authorization": f"Bearer {admin_token}"}
+        )
+        self.assertEqual(response.status_code, 410)
