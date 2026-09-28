@@ -740,6 +740,45 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
             DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req, demo_mode_flag=True)
         self.assertIn("Daily 8% loss limit active", str(ctx.exception))
 
+    def test_non_xauusd_demo_entry_is_rejected_at_authoritative_gate(self):
+        """DEMO execution is XAUUSD-only; this policy is enforced before broker dispatch."""
+        mock_adapter = MagicMock()
+        mock_adapter.get_account_info.return_value = {
+            "login": "52961173",
+            "server": "Alpari-MT5-Demo",
+            "trade_mode": 0,
+            "equity": 10000.0,
+        }
+        mock_adapter.get_terminal_info.return_value = {
+            "connected": True,
+            "trade_allowed": True,
+        }
+        mock_adapter.get_symbol_info.return_value = {
+            "name": "EURUSD",
+            "trade_mode": 4,
+            "volume_min": 0.01,
+            "volume_max": 100.0,
+            "volume_step": 0.01,
+        }
+
+        req = OrderRequest(
+            Symbol="EURUSD",
+            OrderType="BUY",
+            Volume=0.01,
+            Price=1.1000,
+            StopLoss=1.0950,
+            TakeProfit=1.1100,
+        )
+
+        with self.assertRaises(ValidationException) as ctx:
+            DemoExecutionGate.verify_demo_execution_eligibility(
+                mock_adapter, req, demo_mode_flag=True
+            )
+
+        self.assertIn("restricted to XAUUSD", str(ctx.exception))
+        mock_adapter.get_account_info.assert_not_called()
+        mock_adapter.get_terminal_info.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
