@@ -67,7 +67,7 @@ def test_shadow_mode_blocks_mt5_order_send():
     """
     Test 3: Confirms that SHADOW mode does not call any live order send or broker mutations.
     """
-    os.environ["TRADEYAR_TRADING_MODE"] = "SHADOW"
+    os.environ["YARTRADER_TRADING_MODE"] = "SHADOW"
 
     engine = PredictiveShadowEngine.get_instance()
 
