@@ -39,8 +39,9 @@ class TestMultiTimeframeSupport(unittest.TestCase):
         self.assertIn("subsystems", data)
         subsystems = data["subsystems"]
         self.assertEqual(subsystems["research_worker"], "Running")
-        self.assertEqual(subsystems["intelligence_worker"], "Running")
-        self.assertEqual(subsystems["shadow_worker"], "Running")
+        # IntelligenceWorker and ShadowWorker are intentionally closed in the canonical architecture.
+        self.assertEqual(subsystems["intelligence_worker"], "Stopped")
+        self.assertEqual(subsystems["shadow_worker"], "Disabled")
 
     def test_alignment_sorting_weights(self) -> None:
         engine = MultiTimeframeAlignmentEngine()
