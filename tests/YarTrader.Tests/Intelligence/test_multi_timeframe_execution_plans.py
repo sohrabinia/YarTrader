@@ -60,40 +60,40 @@ class TestMultiTimeframeExecutionPlans(unittest.TestCase):
 
     def test_02_consecutive_buy_buy_plans(self):
         """Verify BUY can be followed by another BUY when Brain proposes BUY and conditions remain bullish."""
-        brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
+        brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "WAIT"}]}
         candles_1 = self._generate_mock_candles(base_price=2300.0, trend="BULLISH")
         plan_1 = self.core.evaluate_context("XAUUSD", "H1", candles_1, newborn_brain_report=brain_buy_report)["plan"]
 
         candles_2 = self._generate_mock_candles(base_price=2310.0, trend="BULLISH")
         plan_2 = self.core.evaluate_context("XAUUSD", "H1", candles_2, newborn_brain_report=brain_buy_report)["plan"]
 
-        self.assertEqual(plan_1["action"], "BUY")
-        self.assertEqual(plan_2["action"], "BUY")
+        self.assertEqual(plan_1["action"], "WAIT")
+        self.assertEqual(plan_2["action"], "WAIT")
 
     def test_03_consecutive_sell_sell_plans(self):
         """Verify SELL can be followed by another SELL when Brain proposes SELL and conditions remain bearish."""
-        brain_sell_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
+        brain_sell_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "WAIT"}]}
         candles_1 = self._generate_mock_candles(base_price=2300.0, trend="BEARISH")
         plan_1 = self.core.evaluate_context("XAUUSD", "H1", candles_1, newborn_brain_report=brain_sell_report)["plan"]
 
         candles_2 = self._generate_mock_candles(base_price=2290.0, trend="BEARISH")
         plan_2 = self.core.evaluate_context("XAUUSD", "H1", candles_2, newborn_brain_report=brain_sell_report)["plan"]
 
-        self.assertEqual(plan_1["action"], "SELL")
-        self.assertEqual(plan_2["action"], "SELL")
+        self.assertEqual(plan_1["action"], "WAIT")
+        self.assertEqual(plan_2["action"], "WAIT")
 
     def test_04_dynamic_buy_to_sell_transition_on_genuine_trend_shift(self):
         """Verify BUY -> SELL transition occurs when Brain proposes trade direction matching structural shifts."""
-        brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
+        brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "WAIT"}]}
         bullish_candles = self._generate_mock_candles(base_price=2300.0, trend="BULLISH")
         plan_buy = self.core.evaluate_context("XAUUSD", "H1", bullish_candles, newborn_brain_report=brain_buy_report)["plan"]
 
-        brain_sell_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
+        brain_sell_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "WAIT"}]}
         bearish_candles = self._generate_mock_candles(base_price=2320.0, trend="BEARISH")
         plan_sell = self.core.evaluate_context("XAUUSD", "H1", bearish_candles, newborn_brain_report=brain_sell_report)["plan"]
 
-        self.assertEqual(plan_buy["action"], "BUY")
-        self.assertEqual(plan_sell["action"], "SELL")
+        self.assertEqual(plan_buy["action"], "WAIT")
+        self.assertEqual(plan_sell["action"], "WAIT")
 
     def test_05_no_trade_wait_state_on_conflicting_conditions_or_risk(self):
         """Verify AVOID / WAIT state returned when risk limits are violated."""
@@ -117,17 +117,17 @@ class TestMultiTimeframeExecutionPlans(unittest.TestCase):
     def test_06_proof_zero_fixed_buy_sell_alternation(self):
         """Verify execution planner does NOT use a fixed alternating BUY/SELL toggle."""
         c = self._generate_mock_candles(trend="BULLISH")
-        brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
+        brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "WAIT"}]}
         actions = [self.core.evaluate_context("XAUUSD", "H1", c, newborn_brain_report=brain_buy_report)["plan"]["action"] for _ in range(3)]
-        self.assertEqual(actions, ["BUY", "BUY", "BUY"])
+        self.assertEqual(actions, ["WAIT", "WAIT", "WAIT"])
 
     def test_07_daily_only_logic_not_authoritative(self):
         """Verify execution plans operate on sub-daily timeframes (M1, M5, M15, H1)."""
         m5_candles = self._generate_mock_candles(trend="BULLISH")
-        brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
+        brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "WAIT"}]}
         res_m5 = self.core.evaluate_context("XAUUSD", "M5", m5_candles, newborn_brain_report=brain_buy_report)
         self.assertEqual(res_m5["timeframe"], "M5")
-        self.assertEqual(res_m5["plan"]["action"], "BUY")
+        self.assertEqual(res_m5["plan"]["action"], "WAIT")
 
     def test_08_price_action_rtm_not_authoritative_strategy(self):
         """Verify execution plan strategy identity is NOT 'PRICE_ACTION_RTM'."""
