@@ -58,8 +58,8 @@ export default function DashboardView({
         <div className="status-board" style={{ margin: '15px 0 0 0' }}>
           <MetricCard title="Market Session State" value={signals && signals[0] ? (signals[0].posture || 'OPEN') : 'OPEN'} status="passed" />
           <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'DATA AVAILABLE') : 'DATA UNAVAILABLE'} status="primary" />
-          <MetricCard title="Pre-Entry 120s Feasibility" value="NOT VERIFIED" status="passed" />
-          <MetricCard title="TP-Time Feasibility" value="NOT VERIFIED" status="passed" />
+          <MetricCard title="Pre-Entry 120s Feasibility" value="NOT VERIFIED" status="warning" />
+          <MetricCard title="TP-Time Feasibility" value="NOT VERIFIED" status="warning" />
           <MetricCard title="Execution Eligibility" value={backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO VERIFIED' : 'NOT VERIFIED')} status="passed" />
         </div>
       </div>
@@ -73,7 +73,7 @@ export default function DashboardView({
         <div className="p-4 bg-slate-900/60 border border-[var(--border-dark)] rounded flex flex-col gap-2">
           <div className="flex justify-between items-center text-xs text-[var(--primary)] font-bold">
             <span>STRUCTURE MAP (HH / HL / LH / LL)</span>
-            <ConfidenceBadge score={signals[0]?.confidence || 85} />
+            <ConfidenceBadge score={signals[0]?.confidence ?? null} />
           </div>
           <div className="text-[0.75rem] text-[var(--text-dark)] leading-relaxed">
             Market structure and multi-timeframe context are derived from the current data feed. No classical technical indicators are used.
