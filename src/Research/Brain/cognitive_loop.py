@@ -190,6 +190,131 @@ class CognitiveReplayLoop:
 
         return session_episodes
 
+    def process_live_observation(self, observations: List[MarketObservation]) -> Optional[ReplayEpisode]:
+        """Processes one newly-closed live candle through the existing cognitive learning chain.
+
+        This is observational/research-only: SimulationBrain creates virtual trades only.
+        No broker/order/execution component is reachable from this method.
+        """
+        if len(observations) < 5:
+            return None
+
+        ordered = sorted(observations, key=lambda o: o.timestamp)
+        latest_obs = ordered[-1]
+        last_processed = getattr(self, "_last_live_observation_time", None)
+        if last_processed is not None and latest_obs.timestamp <= last_processed:
+            return None
+
+        self.replay_engine.update_observations(ordered, current_time=latest_obs.timestamp)
+        available_data = self.replay_engine.get_available_data()
+        if len(available_data) < 5:
+            return None
+
+        closed_trades = self.simulation_brain.update_active_trades(latest_obs)
+
+        seq = self.observation_brain.process_observations(available_data)
+        for evt in seq.events:
+            self.memory_system.add_event(evt)
+
+        sig = self.discovery_engine.extract_signature(available_data)
+        hypothesis = self.hypothesis_engine.formulate_hypothesis(
+            current_signature=sig,
+            historical_patterns=self.memory_system.get_patterns()
+        )
+
+        evaluated_trades = []
+        for closed_trade in closed_trades:
+            context = self._pending_trade_context.pop(closed_trade.trade_id, None)
+            if not context:
+                continue
+            closed_hypothesis = context["hypothesis"]
+            closed_signature = context["signature"]
+            outcome_ticks = [{
+                "close": closed_trade.exit_price,
+                "timestamp": closed_trade.exit_time.isoformat()
+                if closed_trade.exit_time else latest_obs.timestamp.isoformat()
+            }]
+            judge_res = self.judge_brain.evaluate_hypothesis_and_decision(
+                hypothesis=closed_hypothesis,
+                virtual_trade=closed_trade,
+                actual_outcome_ticks=outcome_ticks
+            )
+            self._learn_from_closed_trade(
+                signature=closed_signature,
+                trade=closed_trade,
+                judge_result=judge_res
+            )
+            evaluated_trades.append((closed_trade, judge_res))
+
+        virtual_trade = None
+        if hypothesis.expected_direction != "WAIT":
+            virtual_trade = self.simulation_brain.make_virtual_decision(
+                action=hypothesis.expected_direction,
+                entry_price=latest_obs.close_price,
+                timestamp=latest_obs.timestamp,
+                expected_scenario=hypothesis.expected_direction
+            )
+            if virtual_trade is not None:
+                self._pending_trade_context[virtual_trade.trade_id] = {
+                    "hypothesis": hypothesis,
+                    "signature": list(sig),
+                    "decision_time": latest_obs.timestamp.isoformat(),
+                }
+
+        priorities = self.active_learning.analyze_weaknesses_and_set_priorities(
+            self.memory_system.get_patterns()
+        )
+        current_judge = self.judge_brain.evaluate_hypothesis_and_decision(
+            hypothesis=hypothesis,
+            virtual_trade=None,
+            actual_outcome_ticks=[]
+        )
+        current_judge["outcome_status"] = "PENDING"
+        current_judge["learning_feedback"] = (
+            "Live research decision recorded; outcome remains pending until a later "
+            "market observation closes the virtual trade."
+        )
+
+        episode = ReplayEpisode(
+            episode_id=f"live-{uuid.uuid4().hex[:8]}",
+            symbol=self.symbol,
+            start_time=available_data[0].timestamp,
+            decision_time=latest_obs.timestamp,
+            market_context={
+                "current_price": latest_obs.close_price,
+                "timeframe": self.timeframe,
+                "available_history_count": len(available_data),
+                "decision_data_cutoff": latest_obs.timestamp.isoformat(),
+                "future_data_visible_at_decision": False,
+                "live_mode": True,
+                "closed_trades_evaluated_this_step": len(evaluated_trades),
+            },
+            observed_sequence=[evt.to_dict() for evt in seq.events[-3:]],
+            brain_hypothesis=hypothesis.to_dict(),
+            simulation_decision=virtual_trade.to_dict() if virtual_trade else None,
+            actual_outcome={
+                "final_result": "PENDING" if virtual_trade else "WAIT",
+                "max_fav": virtual_trade.max_favorable_movement if virtual_trade else 0.0,
+                "max_adv": virtual_trade.max_adverse_movement if virtual_trade else 0.0,
+            },
+            judge_result=current_judge,
+            learning_feedback={
+                "feedback": current_judge["learning_feedback"],
+                "reasoning_score": current_judge["reasoning_quality_score"],
+                "decision_score": current_judge["decision_quality_score"],
+                "active_learning_priorities": priorities[:10],
+                "closed_trades_evaluated_this_step": len(evaluated_trades),
+            }
+        )
+
+        self.episodes.append(episode)
+        self.memory_system.consolidate_patterns_to_concepts(
+            min_samples=4,
+            min_validation_score=0.70
+        )
+        self._last_live_observation_time = latest_obs.timestamp
+        return episode
+
     def _learn_from_closed_trade(
         self,
         signature: List[float],
