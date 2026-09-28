@@ -17,7 +17,8 @@ class SimulationBrain:
         spread_points: float = 2.0,
         slippage_points: float = 1.0,
         commission_points: float = 0.5,
-        execution_delay_ms: int = 150
+        execution_delay_ms: int = 150,
+        learning_horizon_candles: int = 24
     ) -> None:
         self.symbol = symbol
         self.timeframe = timeframe
@@ -25,6 +26,8 @@ class SimulationBrain:
         self.slippage_points = slippage_points
         self.commission_points = commission_points
         self.execution_delay_ms = execution_delay_ms
+        # Research horizon, not a trading TP/SL rule. It allows post-floor learning.
+        self.learning_horizon_candles = max(1, int(learning_horizon_candles))
 
         self.active_trades: List[VirtualTrade] = []
         self.closed_trades: List[VirtualTrade] = []
@@ -108,8 +111,15 @@ class SimulationBrain:
                 fav_excursion = max(0.0, bid_high - trade.entry_price)
                 adv_excursion = min(0.0, bid_low - trade.entry_price)
 
+                if fav_excursion > trade.max_favorable_movement:
+                    trade.peak_favorable_time = timestamp
+                if adv_excursion < trade.max_adverse_movement:
+                    trade.peak_adverse_time = timestamp
                 trade.max_favorable_movement = max(trade.max_favorable_movement, fav_excursion)
                 trade.max_adverse_movement = min(trade.max_adverse_movement, adv_excursion)
+                trade.observations_tracked += 1
+                if bid_high >= trade.virtual_target:
+                    trade.target_reached = True
 
                 # Check Stop Loss breach (with exit slippage)
                 if bid_low <= trade.virtual_stop:
@@ -119,12 +129,20 @@ class SimulationBrain:
                     trade.final_result = "FAILURE"
                     trade.reason_of_failure = "Stop loss breach."
                     closed_this_cycle.append(trade)
-                # Check Take Profit trigger (with exit slippage)
-                elif bid_high >= trade.virtual_target:
+                # Reaching the minimum target does not end the research observation.
+                elif trade.observations_tracked >= self.learning_horizon_candles:
                     trade.status = "CLOSED"
                     trade.exit_time = timestamp
-                    trade.exit_price = trade.virtual_target - self.slippage_points
-                    trade.final_result = "SUCCESS"
+                    trade.exit_price = bid_high
+                    trade.final_result = "WINDOW_COMPLETE"
+                    trade.learning_outcome = {
+                        "target_reached": trade.target_reached,
+                        "max_favorable_movement": trade.max_favorable_movement,
+                        "max_adverse_movement": trade.max_adverse_movement,
+                        "observations_tracked": trade.observations_tracked,
+                        "peak_favorable_time": trade.peak_favorable_time.isoformat() if trade.peak_favorable_time else None,
+                        "peak_adverse_time": trade.peak_adverse_time.isoformat() if trade.peak_adverse_time else None,
+                    }
                     closed_this_cycle.append(trade)
                 else:
                     still_active.append(trade)
@@ -137,8 +155,15 @@ class SimulationBrain:
                 fav_excursion = max(0.0, trade.entry_price - ask_low)
                 adv_excursion = min(0.0, trade.entry_price - ask_high)
 
+                if fav_excursion > trade.max_favorable_movement:
+                    trade.peak_favorable_time = timestamp
+                if adv_excursion < trade.max_adverse_movement:
+                    trade.peak_adverse_time = timestamp
                 trade.max_favorable_movement = max(trade.max_favorable_movement, fav_excursion)
                 trade.max_adverse_movement = min(trade.max_adverse_movement, adv_excursion)
+                trade.observations_tracked += 1
+                if ask_low <= trade.virtual_target:
+                    trade.target_reached = True
 
                 # Check Stop Loss breach (with exit slippage)
                 if ask_high >= trade.virtual_stop:
@@ -148,12 +173,20 @@ class SimulationBrain:
                     trade.final_result = "FAILURE"
                     trade.reason_of_failure = "Stop loss breach."
                     closed_this_cycle.append(trade)
-                # Check Take Profit trigger (with exit slippage)
-                elif ask_low <= trade.virtual_target:
+                # Reaching the minimum target does not end the research observation.
+                elif trade.observations_tracked >= self.learning_horizon_candles:
                     trade.status = "CLOSED"
                     trade.exit_time = timestamp
-                    trade.exit_price = trade.virtual_target + self.slippage_points
-                    trade.final_result = "SUCCESS"
+                    trade.exit_price = ask_low
+                    trade.final_result = "WINDOW_COMPLETE"
+                    trade.learning_outcome = {
+                        "target_reached": trade.target_reached,
+                        "max_favorable_movement": trade.max_favorable_movement,
+                        "max_adverse_movement": trade.max_adverse_movement,
+                        "observations_tracked": trade.observations_tracked,
+                        "peak_favorable_time": trade.peak_favorable_time.isoformat() if trade.peak_favorable_time else None,
+                        "peak_adverse_time": trade.peak_adverse_time.isoformat() if trade.peak_adverse_time else None,
+                    }
                     closed_this_cycle.append(trade)
                 else:
                     still_active.append(trade)
