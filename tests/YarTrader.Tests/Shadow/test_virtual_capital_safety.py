@@ -45,7 +45,7 @@ def test_live_mode_zero_balance_blocked():
     """
     Test 2: Checks that LIVE execution is blocked if Broker Balance is <= 0.
     """
-    os.environ["TRADEYAR_TRADING_MODE"] = "LIVE"
+    os.environ["YARTRADER_TRADING_MODE"] = "LIVE"
 
     engine = PredictiveShadowEngine.get_instance()
 
