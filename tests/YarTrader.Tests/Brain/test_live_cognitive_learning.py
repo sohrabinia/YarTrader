@@ -1,0 +1,56 @@
+import os
+from datetime import datetime, timedelta
+from src.Research.Brain.models import MarketObservation
+from src.Research.Brain.cognitive_loop import CognitiveReplayLoop
+from src.Research.Brain.memory import MarketMemorySystem
+
+
+def _observations(count=12):
+    start = datetime(2026, 1, 1, 0, 0, 0)
+    rows = []
+    price = 2000.0
+    for i in range(count):
+        open_price = price
+        close_price = price + (1.5 if i % 2 == 0 else -0.8)
+        rows.append(
+            MarketObservation(
+                symbol="XAUUSD",
+                timeframe="H1",
+                timestamp=start + timedelta(hours=i),
+                high=max(open_price, close_price) + 1.0,
+                low=min(open_price, close_price) - 1.0,
+                open_price=open_price,
+                close_price=close_price,
+                volume=100.0 + i,
+                meta={"provider": "ControlledOfflineFixture"},
+            )
+        )
+        price = close_price
+    return rows
+
+
+def test_live_cognitive_step_is_incremental_and_read_only(tmp_path):
+    memory = MarketMemorySystem(storage_dir=str(tmp_path / "brain_memory"))
+    observations = _observations()
+
+    loop = CognitiveReplayLoop(
+        symbol="XAUUSD",
+        timeframe="H1",
+        observations=observations,
+        memory_system=memory,
+    )
+
+    first = loop.process_live_observation(observations)
+    assert first is not None
+    assert first.market_context["live_mode"] is True
+    assert first.market_context["future_data_visible_at_decision"] is False
+    assert len(memory.get_events()) > 0
+
+    # Replaying the same candle must be idempotent.
+    second = loop.process_live_observation(observations)
+    assert second is None
+    assert len(memory.get_events()) > 0
+
+    # The cognitive loop only creates VirtualTrade records; it has no broker adapter.
+    assert hasattr(loop.simulation_brain, "active_trades")
+    assert not hasattr(loop.simulation_brain, "order_send")
