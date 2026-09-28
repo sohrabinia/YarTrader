@@ -114,20 +114,18 @@ class ExecutionIntelligencePlanner:
         # No fabricated SL/TP values are permitted. A BUY/SELL plan is actionable
         # only when both levels come from observed market structure/liquidity and
         # produce the canonical minimum risk/reward ratio.
+        execution_ready = True
+        execution_block_reason = None
         if action in ["BUY", "SELL"]:
             if stop_loss <= 0.0 or take_profit <= 0.0:
-                action = "WAIT"
-                entry = 0.0
-                stop_loss = 0.0
-                take_profit = 0.0
+                execution_ready = False
+                execution_block_reason = "MISSING_MARKET_STRUCTURE_LEVELS"
             else:
                 risk_dist = abs(entry - stop_loss)
                 reward_dist = abs(take_profit - entry)
                 if risk_dist <= 0.0 or reward_dist <= 0.0 or (reward_dist / risk_dist) < 1.5:
-                    action = "WAIT"
-                    entry = 0.0
-                    stop_loss = 0.0
-                    take_profit = 0.0
+                    execution_ready = False
+                    execution_block_reason = "RISK_REWARD_BELOW_MINIMUM"
 
         # Strategy identity is strictly Multi-Timeframe Continuous Market Intelligence Core
         selected_strategy_name = "Multi-Timeframe Continuous Market Intelligence"
@@ -185,6 +183,8 @@ class ExecutionIntelligencePlanner:
                 "latest_candle_timestamp": latest_candle_timestamp,
                 "context_identity": context_identity,
                 "risk_budget_percent": 0.5,
+                "execution_ready": execution_ready,
+                "execution_block_reason": execution_block_reason,
                 "decision_cycle_id": decision_cycle_id
             }
         }
