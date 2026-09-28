@@ -97,66 +97,50 @@ $existingService = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($existingService) {
     Write-Host "Service '$ServiceName' already exists. Re-installing..." -ForegroundColor Yellow
     Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
-    & $PythonPath $ScriptPath remove
+    sc.exe delete $ServiceName | Out-Null
     Start-Sleep -Seconds 2
 }
 
-# pywin32 must host the service through PythonService.exe. Registering
-# python.exe directly causes SCM/process ownership mismatches for a
-# ServiceFramework implementation and can leave SCM reporting RUNNING while
-# the actual API host is unavailable.
-$PyWin32Probe = & $PythonPath -c "import win32serviceutil, win32service; print(win32serviceutil.LocatePythonServiceExe())" 2>&1
+# Register service using sc.exe (Native Windows Service Controller)
+# SCM runs Python with service script path argument
+$BinPath = """$PythonPath"" ""$ScriptPath"""
+Write-Host "Registering service natively via sc.exe..." -ForegroundColor Yellow
+
+sc.exe create $ServiceName binPath= $BinPath start= auto DisplayName= "$ServiceDisplayName" | Out-Null
+
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "Deployment Failed: pywin32 is not installed in the target virtual environment. Install requirements first."
-    Write-Host $PyWin32Probe -ForegroundColor Red
-    Exit 1
+    Write-Host "Native sc.exe creation failed. Checking for NSSM..." -ForegroundColor Yellow
+    $nssm = (Get-Command nssm.exe -ErrorAction SilentlyContinue).Source
+    if ($nssm) {
+        & $nssm install $ServiceName "$PythonPath" """$ScriptPath"""
+        & $nssm set $ServiceName AppDirectory "$WorkDir"
+        & $nssm set $ServiceName Description "$ServiceDescription"
+        & $nssm set $ServiceName Start SERVICE_AUTO_START
+        & $nssm set $ServiceName AppEnvironmentExtra "OPERATOR_OWNER_ID=$OperatorOwnerId" "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl"
+        Write-Host "Successfully registered via NSSM!" -ForegroundColor Green
+    } else {
+        Write-Error "Failed to install service natively and nssm.exe was not found in PATH."
+        Write-Host "Please download NSSM and place it in your system PATH, or ensure win32service is installed." -ForegroundColor Yellow
+        Exit 1
+    }
+} else {
+    # Set service description natively
+    sc.exe description $ServiceName "$ServiceDescription" | Out-Null
+
+    # Configure recovery options: Automatic restart on failure
+    sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
+
+    # Register non-sensitive environment variables via SCM Registry Key
+    $RegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
+    if (Test-Path $RegPath) {
+        $EnvMultiString = @(
+            "OPERATOR_OWNER_ID=$OperatorOwnerId",
+            "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl"
+        )
+        Set-ItemProperty -Path $RegPath -Name "Environment" -Value $EnvMultiString -Type MultiString -ErrorAction SilentlyContinue
+    }
+
+    Write-Host "Successfully registered YarTrader Windows Service natively!" -ForegroundColor Green
 }
-
-$PythonServiceExe = (& $PythonPath -c "import win32serviceutil; print(win32serviceutil.LocatePythonServiceExe())" 2>&1 | Select-Object -Last 1).Trim()
-if ([string]::IsNullOrWhiteSpace($PythonServiceExe) -or -not (Test-Path $PythonServiceExe)) {
-    Write-Error "Deployment Failed: pywin32 PythonService.exe host was not found at '$PythonServiceExe'."
-    Exit 1
-}
-
-Write-Host "Using pywin32 service host: $PythonServiceExe" -ForegroundColor Green
-
-# Let pywin32 install the ServiceFramework using its supported PythonService.exe
-# host and PythonClass registry entry.
-& $PythonPath $ScriptPath install --startup=delayed
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "Failed to install YarTrader through pywin32 ServiceFramework."
-    Exit 1
-}
-
-# Set service description and recovery options after pywin32 registration.
-sc.exe description $ServiceName "$ServiceDescription" | Out-Null
-sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
-
-# Register non-sensitive environment variables via SCM Registry Key.
-$RegPath = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
-if (Test-Path $RegPath) {
-    $EnvMultiString = @(
-        "OPERATOR_OWNER_ID=$OperatorOwnerId",
-        "YAROPERATOR_RUNTIME_URL=$YarOperatorRuntimeUrl"
-    )
-    Set-ItemProperty -Path $RegPath -Name "Environment" -Value $EnvMultiString -Type MultiString -ErrorAction Stop
-}
-
-$InstalledImagePath = (Get-ItemProperty -Path $RegPath -Name ImagePath).ImagePath
-if ($InstalledImagePath -notmatch "(?i)pythonservice(_d)?\.exe") {
-    Write-Error "Deployment verification failed: YarTrader is not registered with pywin32 PythonService.exe. ImagePath='$InstalledImagePath'"
-    Exit 1
-}
-
-$PythonClassPath = Join-Path $RegPath "PythonClass"
-if (-not (Test-Path $PythonClassPath)) {
-    Write-Error "Deployment verification failed: pywin32 PythonClass registry entry is missing."
-    Exit 1
-}
-
-Write-Host "Successfully registered YarTrader through pywin32 ServiceFramework!" -ForegroundColor Green
-Write-Host "  ImagePath: $InstalledImagePath" -ForegroundColor Green
-Write-Host "  PythonClass: configured" -ForegroundColor Green
-Write-Host "  Startup: delayed automatic" -ForegroundColor Green
 
 Write-Host "To start the service, run: .\start_service.ps1" -ForegroundColor Green

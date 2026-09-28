@@ -62,10 +62,21 @@ class TestModernFeaturesIntegration(unittest.TestCase):
         resp3 = self.client.get("/api/blog/999")
         self.assertEqual(resp3.status_code, 404)
 
-    def test_chatbot_assistant_endpoint_is_not_exposed(self) -> None:
-        """Legacy chatbot endpoint is not exposed after the Operator boundary hardening."""
-        response = self.client.post("/api/chat/assistant", json={"message": "test"})
-        self.assertEqual(response.status_code, 404)
+    def test_chatbot_assistant_explanations(self) -> None:
+        # Test why open trade prompt
+        prompt1 = {"message": "چرا معامله باز کردی؟"}
+        resp1 = self.client.post("/api/chat/assistant", json=prompt1)
+        self.assertEqual(resp1.status_code, 200)
+        data1 = resp1.json()
+        self.assertTrue("TradeYar" in data1["status"] or "YarTrader" in data1["status"])
+        self.assertIn("تصمیم", data1["response"])
+
+        # Test learn/cognitive prompt in English
+        prompt2 = {"message": "What did you learn today?"}
+        resp2 = self.client.post("/api/chat/assistant", json=prompt2)
+        self.assertEqual(resp2.status_code, 200)
+        data2 = resp2.json()
+        self.assertIsNotNone(data2["response"])
 
     def test_jwt_admin_route_guards(self) -> None:
         # 1. Query string token parameter on admin endpoints MUST be rejected with 401

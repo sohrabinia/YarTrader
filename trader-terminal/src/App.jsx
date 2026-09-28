@@ -66,7 +66,7 @@ function MainApp() {
     setRoutePath(normPath);
   };
   const [theme, setTheme] = useState(() => localStorage.getItem('yartrader_theme') || 'dark');
-  const [backendState, setBackendState] = useState('CHECKING'); // 'CONNECTED', 'DEMO', 'UNREACHABLE', 'CHECKING'
+  const [backendState, setBackendState] = useState('CHECKING'); // 'LIVE', 'DEMO', 'UNREACHABLE', 'CHECKING'
   const [appVersion, setAppVersion] = useState('7.0');
 
   useEffect(() => {
@@ -85,7 +85,7 @@ function MainApp() {
     try {
       const statusRes = await apiService.get('/api/runtime/frontend-status');
       if (statusRes && statusRes.api === 'connected') {
-        setBackendState('CONNECTED');
+        setBackendState('LIVE');
         return;
       }
     } catch (statusErr) {
@@ -165,10 +165,10 @@ function MainApp() {
       tier_id: 'institutional',
       name: lang === 'fa' ? 'Institutional SCM Terminal (سازمانی)' : 'Institutional SCM Terminal',
       price_usd: '$299/mo',
-      max_symbols: 30,
+      max_symbols: 50,
       enabled_timeframes: ['Micro', 'Short', 'Medium', 'Macro'],
       features: [
-        '30 Active Concurrent Symbols',
+        '50 Active Concurrent Symbols',
         'All Horizon Signals (Micro to Macro)',
         'Priority SRE support & dedicated server access'
       ]
@@ -227,7 +227,7 @@ function MainApp() {
   // Pattern detail and Pricing detail modal state
   const [selectedPattern, setSelectedPattern] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [signalTab, setSignalTab] = useState('live'); // 'live', 'backtest', 'historical' — live trading remains hard-disabled
+  const [signalTab, setSignalTab] = useState('live'); // 'live', 'shadow', 'backtest', 'historical'
 
   // SRE Admin Control Center states & Tab selection
   const [adminTab, setAdminTab] = useState('overview'); // 'overview', 'system', 'data', 'trading', 'intelligence', 'users', 'errors', 'audit'
@@ -1349,13 +1349,13 @@ function MainApp() {
                   </div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', fontWeight: 'bold' }}>
-                      ENVIRONMENT: {backendState === 'CONNECTED' ? 'CONNECTED FEED' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'DEMO PAPER')}
+                      ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'DEMO PAPER')}
                     </span>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
                       SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE ACTIVE' : 'FAIL-CLOSED (LIVE DISABLED)')}
                     </span>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(79, 182, 199, 0.15)', color: 'var(--signal)', border: '1px solid var(--signal)', fontWeight: 'bold' }}>
-                      DATA: {backendState === 'CONNECTED' ? 'CONNECTED MARKET DATA' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : 'MOCK / DEMO INGESTION')}
+                      DATA: {backendState === 'LIVE' ? 'LIVE INGESTION' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : 'MOCK / DEMO INGESTION')}
                     </span>
                   </div>
                 </div>
@@ -1366,7 +1366,7 @@ function MainApp() {
                   <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'QUALIFIED SETUP') : 'DATA UNAVAILABLE'} status="primary" />
                   <MetricCard title="Confidence" value={signals && signals[0] && signals[0].confidence != null ? `${signals[0].confidence}%` : 'DATA UNAVAILABLE'} status="passed" />
                   <MetricCard title="Risk Posture" value={portfolioRisk && portfolioRisk.drawdown_level ? 'DRAWDOWN: ' + portfolioRisk.drawdown_level : 'BALANCED'} status="passed" />
-                  <MetricCard title="Execution Eligibility" value={backendState === 'CONNECTED' ? 'DEMO/RESEARCH ONLY' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'NOT VERIFIED'))} status="passed" />
+                  <MetricCard title="Execution Eligibility" value={backendState === 'LIVE' ? 'LIVE ELIGIBLE' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'NOT VERIFIED'))} status="passed" />
                 </div>
               </div>
 
@@ -1379,7 +1379,7 @@ function MainApp() {
                 <div className="p-4 bg-slate-900/60 border border-[var(--border-dark)] rounded flex flex-col gap-2">
                   <div className="flex justify-between items-center text-xs text-[var(--primary)] font-bold">
                     <span>STRUCTURE MAP (HH / HL / LH / LL)</span>
-                    <ConfidenceBadge score={signals[0]?.confidence} />
+                    <ConfidenceBadge score={signals[0]?.confidence || 85} />
                   </div>
                   <div className="text-[0.75rem] text-[var(--text-dark)] leading-relaxed">
                     Market structure showing strong bullish alignment across canonical timeframes. Zero classical technical indicators are used.

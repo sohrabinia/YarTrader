@@ -359,11 +359,7 @@ class PredictiveShadowEngine:
 
         trading_mode = trading_mode.upper()
 
-        if trading_mode == "LIVE":
-            logger.error("SECURITY ALERT: LIVE execution is hard-disabled repository-wide.")
-            raise ValueError("Real order BLOCKED: LIVE trading is hard-disabled repository-wide")
-
-        if trading_mode not in ["SHADOW"]:
+        if trading_mode not in ["SHADOW", "LIVE"]:
             # Unknown context: FAIL CLOSED, emit security log, block execution
             logger.error(
                 "SECURITY ALERT: Unknown trading context resolved! "

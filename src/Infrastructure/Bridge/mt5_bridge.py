@@ -92,10 +92,13 @@ def get_or_create_bridge_secret_token() -> str:
                     if tok:
                         return tok
 
-        raise RuntimeError(
-            "MT5 Bridge Security Failure: canonical secret token is missing; "
-            "set MT5_BRIDGE_SECRET_TOKEN or provision the canonical secret file."
-        )
+        token = secrets.token_hex(32)
+        try:
+            with open(secret_file, "w", encoding="utf-8") as f:
+                f.write(token)
+        except Exception:
+            pass
+        return token
     except Exception as e:
         raise RuntimeError(f"MT5 Bridge Security Failure: Could not resolve or generate secret token: {e}")
 

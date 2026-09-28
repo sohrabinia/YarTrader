@@ -282,25 +282,23 @@ class TestGate1BrainIntegration(unittest.TestCase):
         self.assertEqual(res_c["plan"]["action"], "AVOID")
         self.assertEqual(res_c["plan"]["decision_source"], "BRAIN")
 
-        # Case D: Brain BUY is preserved as Brain authority, but the execution plan fails closed without SL/TP structure
+        # Case D: Brain BUY + bearish alignment -> BUY (Brain is sole authority)
         brain_buy = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
         res_d = planner.generate_execution_plan(
             symbol="XAUUSD", timeframe="H1", narrative=narrative_bearish, liquidity={},
             zones={}, alignment=bearish_alignment, similarity={}, portfolio_risk={"approved": True},
             current_price=2005.0, newborn_brain_report=brain_buy
         )
-        self.assertEqual(res_d["plan"]["action"], "WAIT")
-        self.assertEqual(res_d["plan"]["decision_source"], "BRAIN")
+        self.assertEqual(res_d["plan"]["action"], "BUY")
 
-        # Case E: Brain SELL is preserved as Brain authority, but the execution plan fails closed without SL/TP structure
+        # Case E: Brain SELL + bullish alignment -> SELL (Brain is sole authority)
         brain_sell = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
         res_e = planner.generate_execution_plan(
             symbol="XAUUSD", timeframe="H1", narrative=narrative_bullish, liquidity={},
             zones={}, alignment=bullish_alignment, similarity={}, portfolio_risk={"approved": True},
             current_price=2005.0, newborn_brain_report=brain_sell
         )
-        self.assertEqual(res_e["plan"]["action"], "WAIT")
-        self.assertEqual(res_e["plan"]["decision_source"], "BRAIN")
+        self.assertEqual(res_e["plan"]["action"], "SELL")
 
     def test_brain_cannot_directly_execute(self):
         """

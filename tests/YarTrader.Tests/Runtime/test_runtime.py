@@ -45,10 +45,10 @@ class TestTradeYarRuntimeAndConfiguration(unittest.TestCase):
 
     def test_environment_resolution(self) -> None:
         """Verify fallback and resolution of EnvironmentType from env vars."""
-        os.environ["YARTRADER_ENV"] = "simulation"
+        os.environ["TRADEYAR_ENV"] = "simulation"
         self.assertEqual(get_current_environment(), EnvironmentType.SIMULATION)
 
-        os.environ["YARTRADER_ENV"] = "invalid_environment"
+        os.environ["TRADEYAR_ENV"] = "invalid_environment"
         self.assertEqual(get_current_environment(), EnvironmentType.DEVELOPMENT)
 
     def test_settings_by_environment(self) -> None:

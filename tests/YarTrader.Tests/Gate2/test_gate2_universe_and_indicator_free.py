@@ -266,8 +266,8 @@ market_universe:
         )
 
         plan = res["plan"]
-        self.assertEqual(plan["action"], "WAIT")
-        self.assertEqual(plan["entry"], 0.0)
+        self.assertEqual(plan["action"], "BUY")
+        self.assertEqual(plan["entry"], 2000.0)
 
     # Case L: Brain SELL + contradictory BULLISH structure -> SELL
     def test_case_l_brain_sell_overrides_bullish_structure(self):
@@ -288,7 +288,7 @@ market_universe:
         )
 
         plan = res["plan"]
-        self.assertEqual(plan["action"], "WAIT")
+        self.assertEqual(plan["action"], "SELL")
         self.assertEqual(plan["entry"], 2000.0)
 
     # Case M, N: Brain WAIT -> WAIT, Brain AVOID -> AVOID

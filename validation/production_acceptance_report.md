@@ -1,7 +1,7 @@
 # YarTrader — Release Verification Acceptance Report
 
 ## Overall Status: Not Ready ❌
-- **Timestamp:** 2026-09-27 23:07:16
+- **Timestamp:** 2026-09-27 23:54:47
 - **Ready Score:** 99.8%
 - **Rationals:** Certain dependencies, document checks, or system verifications did not meet the rigorous production grade.
 
@@ -12,7 +12,7 @@
 | :--- | :--- | :--- |
 | Python Environment | PASSED | Target is Python >= 3.10 |
 | Virtual Environment Isolation | WARNING | Running globally |
-| Storage Availability | PASSED | Available Disk Space: 94706.7 MB |
+| Storage Availability | PASSED | Available Disk Space: 94692.6 MB |
 | Package Dependencies | PASSED | All dependencies verified |
 | MetaTrader 5 Link | SIMULATED_FALLBACK | Synthetic Fallback Mode Active (Non-Windows platform) |
 
@@ -20,10 +20,10 @@
 
 ## 2. Platform Tests discovered & executed
 - **Total Tests Discovered:** 1960
-- **Passed Count:** 1930
-- **Failed Count:** 30
+- **Passed Count:** 1931
+- **Failed Count:** 29
 - **Skipped:** 0
-- **Duration:** 282.63 seconds
+- **Duration:** 288.57 seconds
 
 ### Recent Failed Investigations
 - **Test File/Name:** `testplannerrejectsstructurewithrrbelowminimum`
@@ -128,12 +128,6 @@
   - **Root Cause:** Verification assertion failed
   - **Probable Fix:** Check class parameters and types.
 
-- **Test File/Name:** `TestHealthEndpoint.testproductionhealthendpoint`
-  - **Subsystem:** Core (Unknown)
-  - **Severity:** HIGH
-  - **Root Cause:** Verification assertion failed
-  - **Probable Fix:** Check class parameters and types.
-
 
 ---
 
@@ -145,7 +139,7 @@
 | APES-FIN Passive Compliance Scan | PASSED | Conformity to 100% passive non-trading guidelines verified |
 | REST API Schema Routing | PASSED | Validated endpoints schemas, authorizations and serialization scopes |
 | Research Pipeline Feature Extraction | PASSED | Indicator calculators pipeline compiled successfully with 0 features. |
-| Platform Processing Latency | PASSED | Internal execution startup latency: 0.058 ms |
+| Platform Processing Latency | PASSED | Internal execution startup latency: 0.068 ms |
 
 ---
 

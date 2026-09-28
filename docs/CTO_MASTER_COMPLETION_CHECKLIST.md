@@ -5,17 +5,17 @@
 ## Product / Brain
 - [x] One existing Brain architecture retained; no second Brain introduced.
 - [x] Brain remains advisory/learning authority and has no order-placement API.
-- [x] Raw-market multi-timeframe perception is proven in the controlled offline production-runtime path; physical Windows runtime remains Gate-E evidence.
-- [x] M1/M5/M15/H1/H4/D1/W1/MN1 are exposed to the Brain at the same controlled point-in-time boundary.
-- [x] Cross-timeframe context is proven indicator-free in the controlled runtime path.
-- [x] Self-learning loop is proven to update memory only from closed outcomes without changing safety invariants.
-- [x] Learning remains advisory and has no execution authority.
+- [ ] Raw-market multi-timeframe perception is proven on the production runtime.
+- [ ] M1/M5/M15/H1/H4/D1/W1/MN1 are all available to the production Brain at the same point-in-time boundary.
+- [ ] Cross-timeframe context is proven indicator-free and non-rule-dependent.
+- [ ] Self-learning loop is proven to update memory from outcomes without changing safety invariants.
+- [ ] Learning can improve market knowledge/behavior without acquiring execution authority.
 
 ## Backtest
-- [x] Point-in-time replay is covered by the causal replay loop and regression tests.
+- [ ] Point-in-time replay is proven against future leakage / look-ahead.
 - [ ] No future candle, future outcome, or post-decision information can affect a historical decision.
 - [ ] Costs/slippage/spread and ambiguous candle handling are evidence-backed.
-- [x] Controlled research/replay paths use the same Brain decision authority contract.
+- [ ] Backtest uses the same Brain decision authority as production research.
 
 ## Execution / Risk
 - [x] LIVE trading infrastructure is retained but hard-disabled/fail-closed.
@@ -37,12 +37,12 @@
 - [x] Production default research path is PrimitiveMarketResearchEngine.
 - [x] TechnicalAnalysisEngine is not on the default production path.
 - [x] ATR/True-Range Gate-3 base detector is disconnected from FractalEngine.
-- [x] Production decision-path reachability and indicator-free regression tests pass on the final CI HEAD.
+- [ ] Full production reachability audit proves no forbidden indicator reaches executable decision logic.
 
 ## Auth / i18n
 - [x] Customer login UI is Google/Gmail-only.
-- [x] Customer-auth contract tests prove password endpoints are disabled and Google is the only exposed customer social-auth provider.
-- [x] FA/EN/TR/AR locale key parity passes on the final HEAD.
+- [ ] Backend customer-auth endpoints are proven Google-only in production.
+- [ ] FA/EN/TR/AR locale key parity is proven on the final HEAD.
 - [ ] All user-visible strings are localized; no accidental key/English fallback remains.
 - [ ] RTL/LTR and typography are verified for FA/AR vs EN/TR.
 
@@ -55,7 +55,7 @@
 - [ ] Live/Disabled, Demo, Backtest, Signal, and Prop states are visually truthful.
 
 ## Gate E / Production Runtime
-- [ ] Exact current PR head CI succeeds after main-line service reconciliation; prior final-code CI run #1173 was green.
+- [ ] Exact final HEAD CI succeeds.
 - [ ] Windows Session 0 service identity proven.
 - [ ] Interactive Session 2 bridge proven.
 - [ ] Authenticated Alpari-MT5-Demo proven.
@@ -66,7 +66,7 @@
 
 ## Final Release
 - [ ] Exact base / merge-base / HEAD and diff verified.
-- [ ] Full test suite passes on the current PR head; prior final-code validation recorded 1,960 passed / 0 failed.
-- [ ] Frontend production build passes on the current PR head; prior final-code build was green.
-- [ ] Final forensic report reconciles source + tests + physical Windows runtime evidence.
+- [ ] Full test suite passes on final HEAD.
+- [ ] Frontend production build passes on final HEAD.
+- [ ] Final forensic report reconciles source + tests + runtime evidence.
 - [ ] Only after all mandatory gates are PROVEN: merge PR.

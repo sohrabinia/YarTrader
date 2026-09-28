@@ -35,10 +35,13 @@ class TestLiveDecisionIndicatorFree(unittest.TestCase):
         self.assertIsNone(sim.get("best_match"))
         self.assertEqual(sim.get("evidence_state"), "INSUFFICIENT_EVIDENCE")
 
-        # Legacy StrategyOrchestrator is disconnected from the canonical Brain path.
+        # Confirm FRACTAL strategy is explicitly disabled in strategy evaluation
         strat_eval = res.get("strategy_evaluation", {})
-        self.assertEqual(strat_eval.get("decision_authority"), "BRAIN")
-        self.assertEqual(strat_eval.get("legacy_strategy_orchestrator"), "NOT_USED")
+        fractal_cand = next((c for c in strat_eval.get("candidates", []) if c.get("strategy_name") == "FRACTAL"), None)
+        self.assertIsNotNone(fractal_cand)
+        self.assertEqual(fractal_cand["direction"], "WAIT")
+        self.assertEqual(fractal_cand["confidence"], 0.0)
+        self.assertIn("FRACTAL strategy explicitly disabled: insufficient pattern memory evidence.", fractal_cand["reasoning"])
 
 if __name__ == "__main__":
     unittest.main()

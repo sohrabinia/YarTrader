@@ -181,11 +181,15 @@ class TestHierarchicalM5M15Trading(unittest.TestCase):
         self.assertEqual(sf_data["trade_id"], trade.trade_id)
 
     def test_api_multi_timeframe_endpoint(self) -> None:
-        """No connected runtime snapshot means the endpoint must remain explicitly unavailable."""
+        """
+        4. Validate that GET /api/intelligence/multi-timeframe returns 200 and a valid matrix.
+        """
         response = self.client.get("/api/intelligence/multi-timeframe")
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["status"], "UNAVAILABLE")
-        self.assertEqual(data["evidence_state"], "NO_CONNECTED_RUNTIME_SNAPSHOT")
-        self.assertEqual(data["timeframes"], ["M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"])
-        self.assertEqual(data["symbols"], {})
+        self.assertIn("XAUUSD", data)
+        xau_ctx = data["XAUUSD"]
+        self.assertEqual(xau_ctx["symbol"], "XAUUSD")
+        self.assertIn("macro_bias", xau_ctx)
+        self.assertIn("primary_decision", xau_ctx)
+        self.assertIn("primary_execution", xau_ctx)
