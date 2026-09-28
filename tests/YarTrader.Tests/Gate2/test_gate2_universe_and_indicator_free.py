@@ -268,7 +268,8 @@ market_universe:
         plan = res["plan"]
         self.assertEqual(plan["action"], "WAIT")
         self.assertEqual(plan["brain_suggested_action"], "BUY")
-        self.assertEqual(plan["entry"], 2000.0)
+        self.assertEqual(plan["entry"], 0.0)
+        self.assertEqual(plan["execution_block_reason"], "MISSING_MARKET_STRUCTURE_LEVELS")
 
     # Case L: Brain SELL + contradictory BULLISH structure -> SELL
     def test_case_l_brain_sell_overrides_bullish_structure(self):
@@ -344,7 +345,11 @@ market_universe:
 
                 res = runtime.history[0]
                 auto_dec = res.Findings.get("autonomous_decision", {})
-                self.assertEqual(auto_dec.get("action"), target_action, f"End-to-end causality failed for action {target_action}")
+                intel_summary = res.Findings.get("intel_summary", {})
+                plan = intel_summary.get("plan", {})
+                self.assertEqual(plan.get("brain_suggested_action"), target_action, f"Brain causality lost for action {target_action}")
+                expected_action = target_action if target_action in ["WAIT", "AVOID"] else "WAIT"
+                self.assertEqual(auto_dec.get("action"), expected_action, f"Execution gate changed unexpectedly for Brain action {target_action}")
 
     # Case Q & R: Contradiction test & StrategyOrchestrator isolation from _run_loop()
     def test_cases_q_r_strategy_orchestrator_contradiction_isolation_from_run_loop(self):
@@ -389,7 +394,9 @@ market_universe:
             worker1._run_loop()
 
             auto_dec1 = runtime1.history[0].Findings.get("autonomous_decision", {})
-            self.assertEqual(auto_dec1.get("action"), "SELL")
+            plan1 = runtime1.history[0].Findings.get("intel_summary", {}).get("plan", {})
+            self.assertEqual(plan1.get("brain_suggested_action"), "SELL")
+            self.assertEqual(auto_dec1.get("action"), "WAIT")
 
         # Test Contradiction 2: StrategyOrchestrator=SELL vs Brain=BUY -> Result must be BUY
         worker2 = ResearchWorker(symbol="XAUUSD", timeframe="H1")
@@ -413,7 +420,9 @@ market_universe:
             worker2._run_loop()
 
             auto_dec2 = runtime2.history[0].Findings.get("autonomous_decision", {})
-            self.assertEqual(auto_dec2.get("action"), "BUY")
+            plan2 = runtime2.history[0].Findings.get("intel_summary", {}).get("plan", {})
+            self.assertEqual(plan2.get("brain_suggested_action"), "BUY")
+            self.assertEqual(auto_dec2.get("action"), "WAIT")
 
     # Case S: Shadow trading boundary isolation
     def test_case_s_shadow_trading_boundary_isolation(self):
