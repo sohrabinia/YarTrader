@@ -196,7 +196,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.adapter._initialized = True
 
         req = OrderRequest(
-            Symbol="BITCOIN",
+            Symbol="XAUUSD",
             OrderType="CLOSE",
             Volume=0.01,
             PositionTicket=368555219
@@ -265,7 +265,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.adapter._initialized = True
 
         req = OrderRequest(
-            Symbol="BITCOIN",
+            Symbol="XAUUSD",
             OrderType="CLOSE",
             Volume=0.01,
             PositionTicket=368555219
@@ -314,7 +314,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.adapter._initialized = True
 
         req = OrderRequest(
-            Symbol="BITCOIN",
+            Symbol="XAUUSD",
             OrderType="Buy",
             Volume=0.01
         )
@@ -358,7 +358,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.adapter._initialized = True
 
         req = OrderRequest(
-            Symbol="BITCOIN",
+            Symbol="XAUUSD",
             OrderType="Buy",
             Volume=0.01
         )
@@ -367,6 +367,26 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
 
         self.assertEqual(resp.Status, "Failed")
         self.assertEqual(resp.Retcode, 10030)
+        mock_mt5.order_send.assert_not_called()
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_non_xauusd_order_is_blocked_at_broker_boundary(self, mock_verify):
+        """Canonical DEMO broker boundary rejects every non-XAUUSD order request."""
+        mock_mt5 = MagicMock()
+        mock_acc = MagicMock()
+        mock_acc.login = 52961173
+        mock_acc.server = "Alpari-MT5-Demo"
+        mock_acc.trade_mode = 0
+        mock_mt5.account_info.return_value = mock_acc
+        self.adapter._mt5 = mock_mt5
+        self.adapter._initialized = True
+
+        req = OrderRequest(Symbol="EURUSD", OrderType="BUY", Volume=0.01)
+        with self.assertRaises(ValidationException) as ctx:
+            self.adapter.send_order_to_broker(req)
+
+        self.assertIn("restricted to XAUUSD DEMO", str(ctx.exception))
+        mock_mt5.order_check.assert_not_called()
         mock_mt5.order_send.assert_not_called()
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
@@ -482,7 +502,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.adapter._initialized = True
 
         req = OrderRequest(
-            Symbol="BITCOIN",
+            Symbol="XAUUSD",
             OrderType="CLOSE",
             Volume=0.01,
             PositionTicket=368555219
@@ -656,7 +676,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.adapter._initialized = True
 
         req = OrderRequest(
-            Symbol="BITCOIN",
+            Symbol="XAUUSD",
             OrderType="CLOSE",
             Volume=0.01,
             PositionTicket=368555219
@@ -772,7 +792,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.adapter._initialized = True
 
         req = OrderRequest(
-            Symbol="BITCOIN",
+            Symbol="XAUUSD",
             OrderType="CLOSE",
             Volume=0.01,
             PositionTicket=368555219
