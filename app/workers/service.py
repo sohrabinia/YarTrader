@@ -145,12 +145,27 @@ class YarTraderServiceHost:
             )
             self.uvicorn_thread.start()
 
-            # Confirm socket binding readiness
-            self._verify_uvicorn_readiness()
+            # Confirm socket binding readiness. A production service is not
+            # considered successfully started unless the API is reachable.
+            # Fail closed so SCM does not report a healthy service while the
+            # production API is dead.
+            ready = self._verify_uvicorn_readiness()
+            if not ready:
+                self.last_error = self.last_error or (
+                    f"FastAPI failed readiness check on "
+                    f"http://{self.config.api_host}:{self.config.api_port}"
+                )
+                log_service_message(
+                    f"Service startup aborted: {self.last_error}"
+                )
+                self.stop()
+                raise RuntimeError(self.last_error)
         except Exception as e:
             self.fastapi_ready = False
             self.last_error = f"FastAPI startup exception: {str(e)}"
             log_service_message(f"Exception during FastAPI startup: {str(e)}")
+            self.stop()
+            raise RuntimeError(self.last_error) from e
 
     def _verify_uvicorn_readiness(self, timeout_sec: float = 5.0) -> bool:
         """Polls server state or socket availability before declaring FastAPI started."""
