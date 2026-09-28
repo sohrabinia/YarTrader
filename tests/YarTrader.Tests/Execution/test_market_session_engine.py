@@ -75,7 +75,7 @@ class TestMarketSessionEngine:
 
         # 121.001s remaining -> ACCEPT
         t_121 = session_end - timedelta(seconds=121.001)
-        res_121 = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=t_121)
+        res_121 = self.engine.validate_pre_entry(symbol="XAUUSD", current_time=t_121, current_equity=10000.0)
         assert res_121.allowed is True
         assert res_121.rejection_reason is None
 
