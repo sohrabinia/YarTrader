@@ -142,7 +142,6 @@ class AutonomousTradingDecision:
     execution_status: str  # INITIATED | SUBMITTED | REJECTED | FILLED | SKIPPED
     configuration_version: str
     timestamp: str
-    brain_suggested_action: str = "WAIT"
 
     def to_dict(self) -> Dict[str, Any]:
         reasoning_list = self.reasoning if isinstance(self.reasoning, list) else [str(self.reasoning)]
@@ -163,8 +162,7 @@ class AutonomousTradingDecision:
             "risk_status": self.risk_status,
             "execution_status": self.execution_status,
             "configuration_version": self.configuration_version,
-            "timestamp": self.timestamp,
-            "brain_suggested_action": self.brain_suggested_action.upper()
+            "timestamp": self.timestamp
         }
 
     @classmethod
@@ -186,6 +184,5 @@ class AutonomousTradingDecision:
             risk_status=d.get("risk_status", "APPROVED"),
             execution_status=d.get("execution_status", "INITIATED"),
             configuration_version=d.get("configuration_version", "1.2.0"),
-            timestamp=d.get("timestamp", datetime.now().isoformat()),
-            brain_suggested_action=d.get("brain_suggested_action", "WAIT").upper()
+            timestamp=d.get("timestamp", datetime.now().isoformat())
         )

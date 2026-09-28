@@ -62,4 +62,3 @@ def test_planner_rejects_structure_with_rr_below_minimum():
     )
     assert result["plan"]["action"] == "WAIT"
     assert result["plan"]["risk_reward"] == 0.0
-    assert result["plan"]["brain_suggested_action"] == "BUY"

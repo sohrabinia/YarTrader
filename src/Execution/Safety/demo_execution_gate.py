@@ -131,7 +131,7 @@ class DemoExecutionGate:
             loss_pct = daily_status.get("daily_loss_pct", 0.0)
             if not allowed:
                 raise ValidationException(
-                    f"DemoExecutionGate Violation: Daily 8% loss limit active "
+                    f"DemoExecutionGate Violation: Daily 8% loss/session-entry gate active "
                     f"({reason}, loss={loss_pct}%). Execution strictly blocked."
                 )
         except ValidationException:

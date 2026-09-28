@@ -95,7 +95,7 @@ class ExecutionIntelligencePlanner:
 
                 resting_bsl = liquidity.get("resting_bsl", [])
                 if resting_bsl:
-                    take_profit = (resting_bsl[0].get("level", 0.0) if isinstance(resting_bsl[0], dict) else float(resting_bsl[0]))
+                    take_profit = resting_bsl[0]["level"]
 
             elif brain_suggested_action == "SELL":
                 action = "SELL"
@@ -107,7 +107,7 @@ class ExecutionIntelligencePlanner:
 
                 resting_ssl = liquidity.get("resting_ssl", [])
                 if resting_ssl:
-                    take_profit = (resting_ssl[0].get("level", 0.0) if isinstance(resting_ssl[0], dict) else float(resting_ssl[0]))
+                    take_profit = resting_ssl[0]["level"]
             else:
                 action = "WAIT"
 

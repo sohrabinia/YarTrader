@@ -208,7 +208,7 @@ class TestP0RemediationSecurity(unittest.TestCase):
     def test_social_login_missing_config_fails_closed_in_production(self) -> None:
         """Verifies that social validation immediately fails closed in production mode if configuration is missing."""
         token = "some-token"
-        with patch.dict(os.environ, {"YARTRADER_ENV": "production", "GOOGLE_CLIENT_ID": ""}):
+        with patch.dict(os.environ, {"TRADEYAR_ENV": "production", "GOOGLE_CLIENT_ID": ""}):
             with self.assertRaises(ValidationException) as ctx:
                 validate_social_token(token, "google")
             self.assertIn("configuration error", str(ctx.exception).lower())
@@ -232,16 +232,18 @@ class TestP0RemediationSecurity(unittest.TestCase):
                     ProductionSettings()
                 self.assertIn("insecure placeholder", str(ctx.exception).lower())
 
-    def test_production_mode_admin_seed_requires_secure_password_hash(self) -> None:
-        """Internal admin bootstrap remains fail-closed when production seed credentials are absent."""
+    def test_production_mode_fail_closed_on_missing_admin_password_hash(self) -> None:
+        """Verifies that AuthRepository raises ValidationException in production if TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH is unset/insecure."""
+        # Using a temporary mock filepath for the user JSON DB
         test_filepath = "runtime_logs/auth_test_prod_fail.json"
         if os.path.exists(test_filepath):
             os.remove(test_filepath)
+
         try:
             with patch.dict(os.environ, {
-                "YARTRADER_ENV": "production",
-                "YARTRADER_DEFAULT_ADMIN_PASSWORD_HASH": "",
-                "YARTRADER_DEFAULT_ADMIN_EMAIL": "admin@yartrader.app"
+                "TRADEYAR_ENV": "production",
+                "TRADEYAR_DEFAULT_ADMIN_PASSWORD_HASH": "",
+                "TRADEYAR_DEFAULT_ADMIN_EMAIL": "admin@yartrader.app"
             }):
                 with self.assertRaises(ValidationException) as ctx:
                     AuthRepository(filepath=test_filepath)

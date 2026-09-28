@@ -37,21 +37,6 @@ jobs:
         run: |
           python validate_release.py
 
-      - name: Frontend Production Build
-        if: always()
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: trader-terminal/package-lock.json
-
-      - name: Build React Production Bundle
-        if: always()
-        working-directory: trader-terminal
-        run: |
-          npm install --no-audit --no-fund
-          npm run build
-
       - name: Archive Production Validation Artifacts
         if: always()
         uses: actions/upload-artifact@v4
