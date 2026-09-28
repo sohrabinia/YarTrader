@@ -1352,7 +1352,7 @@ function MainApp() {
                       ENVIRONMENT: {backendState === 'CONNECTED' ? 'CONNECTED FEED' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'DEMO / RESEARCH')}
                     </span>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
-                      SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE DISABLED' : 'FAIL-CLOSED (LIVE DISABLED)')}
+                      SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'FAIL-CLOSED (LIVE DISABLED)'}
                     </span>
                     <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(79, 182, 199, 0.15)', color: 'var(--signal)', border: '1px solid var(--signal)', fontWeight: 'bold' }}>
                       DATA: {backendState === 'CONNECTED' ? 'CONNECTED MARKET DATA' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : 'DEMO / RESEARCH DATA')}
@@ -1362,10 +1362,10 @@ function MainApp() {
 
                 {/* Market State & Intelligence Command Status Grid */}
                 <div className="status-board" style={{ margin: '15px 0 0 0' }}>
-                  <MetricCard title="Market State" value={signals && signals[0] ? (signals[0].posture || 'QUALIFIED') : 'DATA UNAVAILABLE'} status="passed" />
-                  <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'QUALIFIED SETUP') : 'DATA UNAVAILABLE'} status="primary" />
+                  <MetricCard title="Market State" value={signals && signals[0] ? signals[0].posture : 'DATA UNAVAILABLE'} status="passed" />
+                  <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative) : 'DATA UNAVAILABLE'} status="primary" />
                   <MetricCard title="Confidence" value={signals && signals[0] && signals[0].confidence != null ? `${signals[0].confidence}%` : 'DATA UNAVAILABLE'} status="passed" />
-                  <MetricCard title="Risk Posture" value={portfolioRisk && portfolioRisk.drawdown_level ? 'DRAWDOWN: ' + portfolioRisk.drawdown_level : 'BALANCED'} status="passed" />
+                  <MetricCard title="Risk Posture" value={portfolioRisk && portfolioRisk.drawdown_level ? 'DRAWDOWN: ' + portfolioRisk.drawdown_level : 'DATA UNAVAILABLE'} status="passed" />
                   <MetricCard title="Execution Eligibility" value={backendState === 'CONNECTED' ? 'DEMO/RESEARCH ONLY' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'NOT VERIFIED'))} status="passed" />
                 </div>
               </div>
