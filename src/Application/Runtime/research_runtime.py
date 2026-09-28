@@ -263,7 +263,8 @@ class ResearchRuntime:
                         risk_status="PENDING" if action in ["BUY", "SELL"] else "CHECKED",
                         execution_status="PENDING" if action in ["BUY", "SELL"] else "SKIPPED",
                         configuration_version="1.2.0",
-                        timestamp=timestamp_now
+                        timestamp=timestamp_now,
+                        brain_suggested_action=str(plan.get("brain_suggested_action", "WAIT")).upper()
                     )
 
                     result.Findings["autonomous_decision"] = auto_decision.to_dict()
