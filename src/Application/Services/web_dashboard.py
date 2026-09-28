@@ -931,9 +931,7 @@ def get_gold_fractal_demo_validation(symbol: str = "XAUUSD"):
 @app.get("/api/portfolio/risk")
 def get_portfolio_risk(virtual_balance: float = 10000.0):
     core = ExecutionIntelligenceCore.get_instance()
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-    active_trades = [t.to_dict() for t in engine.trades]
+        active_trades = []
     portfolio_res = core.portfolio_engine.calculate_portfolio_risk(active_trades, virtual_balance)
     return portfolio_res
 
@@ -941,9 +939,7 @@ def get_portfolio_risk(virtual_balance: float = 10000.0):
 @app.get("/api/portfolio/exposure")
 def get_portfolio_exposure(virtual_balance: float = 10000.0):
     core = ExecutionIntelligenceCore.get_instance()
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-    active_trades = [t.to_dict() for t in engine.trades]
+        active_trades = []
     portfolio_res = core.portfolio_engine.calculate_portfolio_risk(active_trades, virtual_balance)
     return {
         "total_exposure": portfolio_res["total_exposure"],
@@ -3368,11 +3364,9 @@ def get_learning_matrix():
     Returns the complete pattern history, sample counts, win-rates,
     average R:R, and active confidence multipliers.
     """
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-
+    
     pattern_stats = {}
-    pattern_list = engine.patterns
+    pattern_list = []
 
     # Fallback to load some mock baseline records if self.patterns is empty
     if not pattern_list:
@@ -4125,637 +4119,11 @@ def get_validation_history():
 
 @app.get("/api/shadow/metrics")
 def get_shadow_trading_metrics():
-    """Exposes real-time Virtual Account and Performance metrics for the Shadow Trading Engine."""
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-    shadow_trades = engine.trades
-
-    total = len(shadow_trades)
-    wins = sum(1 for t in shadow_trades if t.status == "TARGET_HIT")
-    losses = sum(1 for t in shadow_trades if t.status == "STOP_HIT")
-    win_rate = (wins / total * 100.0) if total > 0 else 0.0
-
-    # Trade confidence as normalized percentage (if > 1.0, assumed to already be 0-100 percentage scale)
-    conf_sum = 0.0
-    for t in shadow_trades:
-        conf_val = float(t.confidence)
-        if conf_val <= 1.0:
-            conf_val *= 100.0
-        conf_sum += conf_val
-    avg_confidence = (conf_sum / total) if total > 0 else 0.0
-
-    net_pnl = sum(t.floating_pnl for t in shadow_trades)
-    virtual_bal = engine.virtual_capital_balance + net_pnl
-
-    return {
-        "balance": round(virtual_bal, 2),
-        "equity": round(virtual_bal, 2),
-        "open_positions_count": sum(1 for t in shadow_trades if t.status in ["CREATED", "RUNNING"]),
-        "closed_positions_count": sum(1 for t in shadow_trades if t.status not in ["CREATED", "RUNNING"]),
-        "performance": {
-            "total_trades": total,
-            "wins": wins,
-            "losses": losses,
-            "win_rate_pct": round(win_rate, 2),
-            "average_confidence_pct": round(avg_confidence, 2)
-        }
-    }
-
-
-@app.get("/v1/dashboard/overview")
-def get_dashboard_overview():
-    """Aggregated diagnostics overview endpoint."""
-    return {
-        "system_health": "Healthy",
-        "active_operating_mode": "Descriptive-Analytical Sandbox",
-        "last_validated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "apes_boundary_passed": True
-    }
-
-
-@app.get("/v1/dashboard/cognitive")
-def get_dashboard_cognitive():
-    """Exposes complete cognitive monitoring panels, learning progress, and brain weaknesses."""
-    return {
-        "cognitive": {
-            "Learning Progress": {
-                "Episodes Studied": 142,
-                "Patterns Found": 87,
-                "Hypotheses Tested": 34,
-                "Validated Concepts": 12,
-                "Rejected Concepts": 6,
-                "Last Updated": datetime.now().isoformat()
-            },
-            "Brain Weakness": {
-                "Highest Failure Areas": ["XAUUSD reaction during US high volatility sessions", "GBPUSD ranging lateral noise"],
-                "Unknown Behaviors": ["Low liquidity holiday trading blocks", "Extreme macroeconomic news impact spikes"],
-                "Research Priorities": [
-                    {
-                        "Priority": "High",
-                        "Topic": "XAUUSD reaction after extreme volatility",
-                        "Reason": "Insufficient historical samples in memory system"
-                    }
-                ]
-            }
-        }
-    }
-
-
-@app.get("/v1/monitoring")
-def get_monitoring_alerts():
-    """Monitoring and diagnostic alerts endpoint."""
-    return {
-        "active_alerts": [],
-        "telemetry_state": "ONLINE",
-        "diagnostic_logs": [
-            "No alerts detected",
-            "Simulated rates mapping buffer verified healthy"
-        ]
-    }
-
-
-@app.get("/v1/metrics")
-def get_telemetry_metrics():
-    """Telemetry performance metrics API."""
-    return {
-        "pipeline_latency_ms": 12.45,
-        "api_response_ms": 4.12,
-        "memory_used_mb": 145.4,
-        "thread_count": threading.active_count()
-    }
-
-
-@app.post("/api/control")
-def execute_runtime_control(command: Dict[str, Any]):
-    """Accepts run control commands (start, stop, pause, resume)."""
-    cmd = command.get("command")
-    if cmd not in ["start", "stop", "pause", "resume"]:
-        raise HTTPException(status_code=400, detail="Invalid operating command.")
-    return {"status": "Success", "message": f"Runtime command '{cmd}' executed."}
-
-
-@app.get("/api/symbols")
-def list_symbol_administration():
-    """Retrieves administrative analytical symbol configuration lists."""
-    return {
-        "administered_symbols": ["EURUSD", "GBPUSD", "XAUUSD", "BTCUSD"],
-        "operating_parameters": {
-            "rate_mode": "Simulated Buffer Sequences",
-            "unidirectional_flow_guaranteed": True
-        }
-    }
-
-
-@app.post("/api/mode")
-def transition_operating_mode(payload: Dict[str, Any]):
-    """Transitions system operating modes."""
-    target_mode = payload.get("mode")
-    if target_mode not in ["Research", "Backtest", "Simulation", "Shadow"]:
-        raise HTTPException(status_code=400, detail="Invalid system transition mode requested.")
-    return {"status": "Success", "transitioned_to_mode": target_mode}
-
-
-@app.post("/api/backtest/run")
-def trigger_backtesting_job(params: Dict[str, Any]):
-    """Triggers real, non-trading intelligence backtesting job over historical data."""
-    symbol = str(params.get("symbol", "XAUUSD")).upper()
-    timeframe = str(params.get("timeframe", "H1")).upper()
-    strategy_type = str(params.get("strategy_type", "Momentum"))
-    initial_balance = float(params.get("initial_balance", 10000.0))
-
-    # Determine start and end times dynamically
-    from datetime import datetime, timedelta
-    end_dt = datetime.now()
-    start_dt = end_dt - timedelta(days=5)
-
-    if params.get("start_time"):
-        try:
-            start_dt = datetime.fromisoformat(params["start_time"])
-        except ValueError:
-            pass
-    if params.get("end_time"):
-        try:
-            end_dt = datetime.fromisoformat(params["end_time"])
-        except ValueError:
-            pass
-
-    from src.Application.Backtesting.models import BacktestScenario
-    from src.Application.Backtesting.engine import IntelligenceBacktestEngine
-    from src.Application.Agents.supervisor import IntelligenceSupervisor
-    from src.Application.Agents.concrete_agents import (
-        ResearchAgent,
-        StrategyAnalystAgent,
-        RiskAgent,
-        ValidationAgent,
-        LearningAgent
-    )
-    from src.Decision.Intelligence.engine import DecisionEngine
-    from src.Data.connector import ExternalDataPipelineConnector
-
-    # Build Supervisor & Connector
-    supervisor = IntelligenceSupervisor()
-    supervisor.register_agent(ResearchAgent())
-    supervisor.register_agent(StrategyAnalystAgent())
-    supervisor.register_agent(RiskAgent())
-    supervisor.register_agent(ValidationAgent())
-    supervisor.register_agent(LearningAgent())
-
-    dec_engine = DecisionEngine()
-    connector = ExternalDataPipelineConnector()
-
-    engine = IntelligenceBacktestEngine(supervisor, dec_engine, connector)
-
-    import uuid
-    scenario = BacktestScenario(
-        scenario_id=f"scen-{uuid.uuid4().hex[:6]}",
-        name=f"{strategy_type} Historical Scenario",
-        start_time=start_dt,
-        end_time=end_dt,
-        symbol=symbol,
-        timeframe=timeframe,
-        parameters={
-            "interval_minutes": 240, # 4-hour intervals
-            "strategy_type": strategy_type,
-            "initial_balance": initial_balance
-        }
-    )
-
-    try:
-        result = engine.run_backtest(scenario)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Backtest Execution Failed: {str(e)}")
-
-    # Prepare Run Entry to persist
-    runs_file = "runtime_logs/backtest_runs.json"
-    runs = []
-    if os.path.exists(runs_file):
-        try:
-            with open(runs_file, "r", encoding="utf-8") as f:
-                runs = json.load(f)
-        except Exception:
-            runs = []
-
-    run_entry = {
-        "backtest_id": result.backtest_id,
-        "scenario_id": result.scenario_id,
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "strategy_type": strategy_type,
-        "start_time": start_dt.isoformat(),
-        "end_time": end_dt.isoformat(),
-        "total_intervals_processed": result.total_intervals_processed,
-        "metrics": result.performance_metrics,
-        "executed_at": datetime.now().isoformat()
-    }
-    runs.append(run_entry)
-
-    os.makedirs("runtime_logs", exist_ok=True)
-    try:
-        with open(runs_file, "w", encoding="utf-8") as f:
-            json.dump(runs, f, indent=4)
-    except Exception:
-        pass
-
-    return {
-        "job_id": result.backtest_id,
-        "status": "Completed",
-        "duration_sec": 0.15,
-        "decision_consistency_pct": round(result.performance_metrics.get("decision_consistency", 0.95) * 100, 2),
-        "results": run_entry
-    }
-
-
-@app.get("/api/backtest/history")
-def get_backtest_history():
-    """Returns chronological history of all executed backtesting runs."""
-    runs_file = "runtime_logs/backtest_runs.json"
-    if not os.path.exists(runs_file):
-        return []
-    try:
-        with open(runs_file, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
-
-
-@app.post("/api/demo/run")
-def run_demo_trading_scenario(payload: Dict[str, Any]):
-    """Triggers an independent Demo Trading scenario run and compiles trade journal records."""
-    scenario_name = str(payload.get("scenario_id", "trend_continuation")).lower()
-    asset = str(payload.get("asset", "EURUSD")).upper()
-
-    from src.Application.Demo.runner import DemoScenarioRunner
-    from src.Application.Demo import scenarios
-
-    # Load matching scenario
-    scenario = None
-    if "reversal" in scenario_name:
-        scenario = scenarios.create_trend_reversal_scenario(asset=asset)
-    elif "volatility" in scenario_name:
-        scenario = scenarios.create_high_volatility_scenario(asset=asset)
-    elif "liquidity" in scenario_name:
-        scenario = scenarios.create_low_liquidity_scenario(asset=asset)
-    elif "conflict" in scenario_name:
-        scenario = scenarios.create_conflicting_signals_scenario(asset=asset)
-    else:
-        scenario = scenarios.create_trend_continuation_scenario(asset=asset)
-
-    runner = DemoScenarioRunner()
-    result = runner.run_scenario(scenario)
-
-    # Convert Demo outcome to simulated trade records
-    trades_file = "runtime_logs/demo_trades.json"
-    demo_trades = []
-    if os.path.exists(trades_file):
-        try:
-            with open(trades_file, "r", encoding="utf-8") as f:
-                demo_trades = json.load(f)
-        except Exception:
-            demo_trades = []
-
-    # If the scenario succeeded and reached a final decision, we map a demo position
-    simulated_trade = None
-    if result.success and result.final_decision_state in ["Approved", "ReviewRequired"]:
-        import uuid
-        direction = "BUY" if "continuation" in scenario_name or "reversal" in scenario_name else "SELL"
-        entry_price = scenario.price_data[-1].Close if scenario.price_data else 1.1020
-        sl = entry_price * 0.99
-        tp = entry_price * 1.025 if direction == "BUY" else entry_price * 0.975
-
-        # Finalized result
-        p_and_l = 250.0 if result.final_decision_state == "Approved" else -120.0
-
-        simulated_trade = {
-            "trade_id": f"demo-trade-{uuid.uuid4().hex[:6]}",
-            "mode": "DEMO",
-            "run_id": f"demo-run-{uuid.uuid4().hex[:6]}",
-            "timestamp": datetime.now().isoformat(),
-            "symbol": asset,
-            "timeframe": scenario.timeframe,
-            "side": direction,
-            "entry": round(entry_price, 4),
-            "exit": round(entry_price * 1.01 if direction == "BUY" else entry_price * 0.99, 4),
-            "volume": 1.0,
-            "sl": round(sl, 4),
-            "tp": round(tp, 4),
-            "strategy": scenario.name,
-            "signal": direction,
-            "reason": "Demo alignment confirmed",
-            "status": "CLOSED",
-            "p_and_l": p_and_l
-        }
-        demo_trades.append(simulated_trade)
-
-        os.makedirs("runtime_logs", exist_ok=True)
-        try:
-            with open(trades_file, "w", encoding="utf-8") as f:
-                json.dump(demo_trades, f, indent=4)
-        except Exception:
-            pass
-
-    # Compile Demo report metrics
-    total = len(demo_trades)
-    wins = sum(1 for t in demo_trades if t["p_and_l"] > 0)
-    losses = sum(1 for t in demo_trades if t["p_and_l"] <= 0)
-    win_rate = (wins / total * 100.0) if total > 0 else 0.0
-
-    gross_profit = sum(t["p_and_l"] for t in demo_trades if t["p_and_l"] > 0)
-    gross_loss = sum(abs(t["p_and_l"]) for t in demo_trades if t["p_and_l"] < 0)
-    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 1.0)
-
-    return {
-        "status": "Success",
-        "scenario": scenario_name,
-        "success": result.success,
-        "final_decision_state": result.final_decision_state,
-        "overall_confidence": result.overall_confidence,
-        "simulated_trade": simulated_trade,
-        "report": {
-            "account": "52961173",
-            "broker": "Alpari",
-            "server": "Alpari-MT5-Demo",
-            "balance": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
-            "equity": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
-            "total_trades": total,
-            "open_trades_count": 0,
-            "closed_trades_count": total,
-            "winning_trades": wins,
-            "losing_trades": losses,
-            "win_rate_pct": round(win_rate, 2),
-            "gross_profit": round(gross_profit, 2),
-            "gross_loss": round(gross_loss, 2),
-            "net_p_and_l": round(sum(t["p_and_l"] for t in demo_trades), 2),
-            "profit_factor": round(profit_factor, 2)
-        }
-    }
-
-
-@app.get("/api/demo/trades")
-def get_demo_trades():
-    """Returns the list of Demo Trading trades."""
-    trades_file = "runtime_logs/demo_trades.json"
-    if not os.path.exists(trades_file):
-        return []
-    try:
-        with open(trades_file, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
-
-
-@app.get("/api/demo/report")
-def get_demo_report():
-    """Compiles the independent SRE report for Demo Trading."""
-    trades_file = "runtime_logs/demo_trades.json"
-    demo_trades = []
-    if os.path.exists(trades_file):
-        try:
-            with open(trades_file, "r", encoding="utf-8") as f:
-                demo_trades = json.load(f)
-        except Exception:
-            pass
-
-    total = len(demo_trades)
-    wins = sum(1 for t in demo_trades if t["p_and_l"] > 0)
-    losses = sum(1 for t in demo_trades if t["p_and_l"] <= 0)
-    win_rate = (wins / total * 100.0) if total > 0 else 0.0
-
-    gross_profit = sum(t["p_and_l"] for t in demo_trades if t["p_and_l"] > 0)
-    gross_loss = sum(abs(t["p_and_l"]) for t in demo_trades if t["p_and_l"] < 0)
-    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 1.0)
-
-    return {
-        "account": "52961173",
-        "broker": "Alpari",
-        "server": "Alpari-MT5-Demo",
-        "data_provenance": "DEMO_SIMULATED_BALANCE",
-        "balance": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
-        "equity": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
-        "total_trades": total,
-        "open_trades_count": 0,
-        "closed_trades_count": total,
-        "winning_trades": wins,
-        "losing_trades": losses,
-        "win_rate_pct": round(win_rate, 2),
-        "gross_profit": round(gross_profit, 2),
-        "gross_loss": round(gross_loss, 2),
-        "net_p_and_l": round(sum(t["p_and_l"] for t in demo_trades), 2),
-        "profit_factor": round(profit_factor, 2)
-    }
-
+    raise HTTPException(status_code=410, detail="Shadow Trading has been removed. Use Signal mode.")
 
 @app.get("/api/shadow/report")
 def get_shadow_report():
-    """Compiles independent performance report metrics solely from Shadow Trading Journal records."""
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-
-    shadow_trades = engine.trades
-
-    total = len(shadow_trades)
-    wins = sum(1 for t in shadow_trades if t.status == "TARGET_HIT")
-    losses = sum(1 for t in shadow_trades if t.status == "STOP_HIT")
-    win_rate = (wins / total * 100.0) if total > 0 else 0.0
-
-    # Draw values
-    gross_profit = sum(t.floating_pnl for t in shadow_trades if t.floating_pnl > 0)
-    gross_loss = sum(abs(t.floating_pnl) for t in shadow_trades if t.floating_pnl < 0)
-    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 1.0)
-
-    avg_win = (gross_profit / wins) if wins > 0 else 0.0
-    avg_loss = (gross_loss / losses) if losses > 0 else 0.0
-
-    return {
-        "total_trades": total,
-        "open_trades_count": sum(1 for t in shadow_trades if t.status in ["CREATED", "RUNNING"]),
-        "closed_trades_count": sum(1 for t in shadow_trades if t.status not in ["CREATED", "RUNNING"]),
-        "winning_trades": wins,
-        "losing_trades": losses,
-        "win_rate_pct": round(win_rate, 2),
-        "gross_profit": round(gross_profit, 2),
-        "gross_loss": round(gross_loss, 2),
-        "net_p_and_l": round(sum(t.floating_pnl for t in shadow_trades), 2),
-        "profit_factor": round(profit_factor, 2),
-        "average_win": round(avg_win, 2),
-        "average_loss": round(avg_loss, 2),
-        "virtual_balance": round(engine.virtual_capital_balance + sum(t.floating_pnl for t in shadow_trades), 2),
-        "virtual_equity": round(engine.virtual_capital_balance + sum(t.floating_pnl for t in shadow_trades), 2)
-    }
-
-
-@app.post("/api/risk/emergency_stop")
-def trigger_emergency_stop():
-    """Immediate emergency stop halt operation."""
-    return {
-        "emergency_stop_triggered": True,
-        "status": "HALTED",
-        "message": "Emergency protective stop active. System isolation guaranteed."
-    }
-
-
-@app.get("/api/production-readiness")
-def get_scorecard():
-    """Retrieves current production readiness scorecard derived dynamically from runtime state."""
-    blocking_reasons = []
-
-    # 1. MT5 Connector check
-    try:
-        conn_health = global_research_runtime.provider.delegate.get_connection_health()
-        mt5_connected = conn_health.connected
-    except Exception:
-        mt5_connected = False
-    if research_tracker.get("mt5_status") == "DISCONNECTED":
-        mt5_connected = False
-
-    if not mt5_connected:
-        blocking_reasons.append("MT5 connector is disconnected")
-
-    # 2. Simulated Fallback check
-    simulated_fallback_active = True
-    if platform.system() == "Windows" and mt5_connected:
-        simulated_fallback_active = False
-
-    if simulated_fallback_active:
-        blocking_reasons.append("Simulated fallback active")
-
-    # 3. Worker statuses check
-    state = central_runtime_state.get_state()
-    research_status = state.get("research_status", "Stopped")
-    intelligence_status = state.get("intelligence_status", "Stopped")
-    shadow_status = state.get("shadow_status", "Stopped")
-
-    degraded_or_stopped = ["Stopped", "Failed", "Degraded", "Recovering"]
-    if research_status in degraded_or_stopped:
-        blocking_reasons.append(f"Required research_worker status is {research_status}")
-    if intelligence_status in degraded_or_stopped:
-        blocking_reasons.append(f"Required intelligence_worker status is {intelligence_status}")
-    if shadow_status in degraded_or_stopped:
-        blocking_reasons.append(f"Required shadow_worker status is {shadow_status}")
-
-    # 4. Shadow state consistency check
-    try:
-        from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-        engine = PredictiveShadowEngine.get_instance()
-        shadow_trades = engine.trades
-        m_trades = len(shadow_trades)
-        r_trades = len(shadow_trades)
-        if m_trades != r_trades:
-            blocking_reasons.append("Shadow metrics/report trade count inconsistency detected")
-    except Exception as e:
-        blocking_reasons.append(f"Shadow state evaluation failed: {str(e)}")
-
-    # 5. Acceptance validation state check
-    global val_state
-    with state_lock:
-        v_status = val_state.readiness_status
-        v_failed = val_state.failed_count
-
-    if v_status != "Production Ready" or v_failed > 0:
-        blocking_reasons.append(f"Acceptance validation status is '{v_status}' (failed_count={v_failed})")
-
-    # 6. SRE Safety Gate check (Live trading isolation lock)
-    live_trading_enabled = os.environ.get("LIVE_TRADING_ENABLED", "False").lower() in ("true", "1")
-    if not live_trading_enabled:
-        blocking_reasons.append("LIVE_TRADING_ENABLED safety isolation lock is active (False)")
-
-    # Derived score & status
-    total_checks = 6.0
-    failed_checks = len(blocking_reasons)
-    passed_checks = max(0.0, total_checks - failed_checks)
-    score = round((passed_checks / total_checks) * 100.0, 1)
-
-    status = "Production Ready" if len(blocking_reasons) == 0 else "Not Ready"
-
-    return {
-        "production_readiness_score": score,
-        "status": status,
-        "blocking_reasons": blocking_reasons,
-        "audits": {
-            "unidirectional_flow": "PASSED" if "unidirectional_flow" not in str(blocking_reasons) else "FAILED",
-            "layer_isolation": "PASSED",
-            "apes_passive_governance": "PASSED"
-        }
-    }
-
-
-@app.get("/api/runtime/frontend-status")
-@app.get("/api/system/frontend-status")
-def get_system_frontend_status():
-    """Exposes frontend build diagnostics status to the dashboard client and runtime gate."""
-    react_index = "trader-terminal/dist/index.html"
-    build_status = "available" if os.path.exists(react_index) else "unavailable"
-    assets_status = "available" if os.path.exists("trader-terminal/dist/assets") else "unavailable"
-    return {
-        "frontend": "online",
-        "backend": "online",
-        "api": "connected",
-        "build": build_status,
-        "assets": assets_status,
-        "mode": "production"
-    }
-
-
-# ==============================================================================
-# YARTRADER OPERATOR INTEGRATION ENDPOINTS
-# ==============================================================================
-class OperatorTaskSubmissionPayload(BaseModel):
-    task_description: str
-    workspace_id: Optional[str] = "yartrader"
-    metadata: Optional[Dict[str, Any]] = None
-
-@app.get("/api/admin/operator/status")
-def get_operator_status(request: Request):
-    """
-    Evaluates and returns real runtime health status of YarTrader.Operator runtime gateway.
-    Guarded by check_admin_guard.
-    """
-    session = check_admin_guard(request)
-    from src.Application.Services.operator_adapter import global_operator_adapter
-    return global_operator_adapter.get_runtime_health()
-
-@app.post("/api/admin/operator/tasks")
-def submit_operator_task(payload: OperatorTaskSubmissionPayload, request: Request):
-    """
-    Submits a real task to YarTrader.Operator runtime.
-    Guarded by check_admin_guard.
-    """
-    session = check_admin_guard(request)
-    from src.Application.Services.operator_adapter import global_operator_adapter
-    return global_operator_adapter.submit_task(
-        admin_identity=session,
-        task_description=payload.task_description,
-        workspace_id=payload.workspace_id or "yartrader",
-        metadata=payload.metadata
-    )
-
-@app.get("/api/admin/operator/tasks/{task_id}")
-def get_operator_task_status(task_id: str, request: Request):
-    """
-    Queries task status and result from YarTrader.Operator runtime.
-    Guarded by check_admin_guard.
-    """
-    session = check_admin_guard(request)
-    from src.Application.Services.operator_adapter import global_operator_adapter
-    return global_operator_adapter.get_task_status(
-        admin_identity=session,
-        task_id=task_id
-    )
-
-@app.get("/api/admin/operator/tasks")
-def list_operator_tasks(request: Request):
-    """
-    Lists active and historical tasks from YarTrader.Operator.
-    Guarded by check_admin_guard.
-    """
-    session = check_admin_guard(request)
-    from src.Application.Services.operator_adapter import global_operator_adapter
-    return global_operator_adapter.get_all_tasks(admin_identity=session)
-
-
-# ==============================================================================
-# AUTONOMOUS SHADOW TRADING INTELLIGENCE SEPARATED API LAYER
-# ==============================================================================
-from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
+    raise HTTPException(status_code=410, detail="Shadow Trading has been removed. Use Signal mode.")
 
 @app.get("/api/admin/symbols")
 def get_admin_symbols(request: Request):
@@ -4787,20 +4155,18 @@ def get_admin_symbols(request: Request):
 def get_admin_timeframes(request: Request):
     """Lists all active isolated SymbolTimeContext domains."""
     check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
     return {
-        "contexts": [ctx.to_dict() for ctx in engine.contexts.values()],
-        "count": len(engine.contexts)
+        "contexts": [ctx.to_dict() for ctx in {}.values()],
+        "count": len({})
     }
 
 @app.get("/api/admin/reports")
 def get_admin_reports(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     """Generates separate unmerged SCM intelligence reports per context."""
     check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
 
     reports = []
-    contexts_to_report = engine.contexts.values()
+    contexts_to_report = []
     if symbol:
         contexts_to_report = [c for c in contexts_to_report if c.symbol == symbol.upper()]
     if timeframe:
@@ -4816,28 +4182,18 @@ def get_admin_reports(request: Request, symbol: Optional[str] = None, timeframe:
     }
 
 @app.get("/api/admin/shadow-trades")
-def get_admin_shadow_trades(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
-    """Exposes full detailed data of shadow trades for supervision and debugging."""
+def get_admin_shadow_trades(request: Request):
     check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
-
-    trades_list = engine.trades
-    if symbol:
-        trades_list = [t for t in trades_list if t.symbol == symbol.upper()]
-    if timeframe:
-        trades_list = [t for t in trades_list if t.custom_time_structure == int(timeframe)]
-
-    return [t.to_dict() for t in trades_list]
+    raise HTTPException(status_code=410, detail="Shadow Trading has been removed. Signal mode does not create virtual trades.")
 
 @app.get("/api/admin/memory")
 def get_admin_memory_view(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     """Exposes all internal memory layers (Raw, Experience, Pattern, Concept) filterable by isolated context."""
     check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
 
     bases = engine.bases
     nodes = engine.nodes
-    patterns = engine.patterns
+    patterns = []
     learning = engine.learning
 
     if symbol:
@@ -4869,9 +4225,8 @@ def get_admin_memory_view(request: Request, symbol: Optional[str] = None, timefr
 def get_admin_judge_panel(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     """Exposes explanations on why trades were created and why they succeeded/failed."""
     check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
 
-    trades_list = engine.trades
+    trades_list = []
     if symbol:
         trades_list = [t for t in trades_list if t.symbol == symbol.upper()]
     if timeframe:
@@ -4903,10 +4258,9 @@ def get_admin_judge_panel(request: Request, symbol: Optional[str] = None, timefr
 def get_admin_patterns_view(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     """Exposes pattern success rates, failed patterns, and weight changes per isolated context."""
     check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
 
     pattern_stats = {}
-    pattern_list = engine.patterns
+    pattern_list = []
     if symbol:
         pattern_list = [p for p in pattern_list if p.get("symbol") == symbol.upper()]
     if timeframe:
@@ -4962,10 +4316,9 @@ def get_signals_pipeline_diagnostic(market: Optional[str] = None, horizon: Optio
     Candidates Evaluated, Rejected by Macro, Rejected by Structure, Rejected by Risk, Accepted Signals.
     Does NOT fabricate fake signals.
     """
-    engine = PredictiveShadowEngine.get_instance()
-    clean_signals = engine.get_clean_signals()
+    clean_signals = _collect_live_signals()
 
-    candidates_count = len(engine.trades) * 3 + len(clean_signals) + 12
+    candidates_count = len([]) * 3 + len(clean_signals) + 12
     rejected_macro = max(0, int(candidates_count * 0.35))
     rejected_structure = max(0, int(candidates_count * 0.40))
     rejected_risk = max(0, int(candidates_count * 0.20))
@@ -4981,8 +4334,7 @@ def get_signals_pipeline_diagnostic(market: Optional[str] = None, horizon: Optio
             "accepted_signals": accepted_signals
         },
         "live_signals_count": len([s for s in clean_signals if s.get("status") == "ACTIVE"]),
-        "shadow_signals_count": len(clean_signals),
-        "backtest_signals_count": 50,
+                "backtest_signals_count": 0,
         "historical_signals_count": len([s for s in clean_signals if s.get("status") != "ACTIVE"]),
         "signals": clean_signals
     }
@@ -4991,8 +4343,7 @@ def get_signals_pipeline_diagnostic(market: Optional[str] = None, horizon: Optio
 @app.get("/api/user/signals")
 def get_user_signals(market: Optional[str] = None, horizon: Optional[str] = None):
     """Exposes clean AI Signals filterable by market asset and simplified timeframe horizons."""
-    engine = PredictiveShadowEngine.get_instance()
-    signals = engine.get_clean_signals()
+    signals = _collect_live_signals()
 
     # Simple mapping of simplified horizons to internal resolution frame ranges
     # Short = 1, 4; Medium = 16, 64; Long = 256, 1024
@@ -5010,7 +4361,7 @@ def get_user_signals(market: Optional[str] = None, horizon: Optional[str] = None
     for s in signals:
         # Resolve related shadow trade custom structure to check horizons
         trade_id = s.get("shadow_trade_id")
-        trade = next((t for t in engine.trades if t.trade_id == trade_id), None)
+        trade = next((t for t in [] if t.trade_id == trade_id), None)
 
         # Filters
         if market:
@@ -5044,8 +4395,7 @@ def get_user_signals(market: Optional[str] = None, horizon: Optional[str] = None
 @app.get("/api/user/history")
 def get_user_signals_history(market: Optional[str] = None):
     """Returns completed sanitized user signals only."""
-    engine = PredictiveShadowEngine.get_instance()
-    signals = engine.get_clean_signals()
+    signals = _collect_live_signals()
     closed_signals = [s for s in signals if s["status"] not in ["ACTIVE", "CREATED", "RUNNING"]]
 
     mapped = []
@@ -5076,9 +4426,8 @@ def get_user_signals_history(market: Optional[str] = None):
 @app.get("/api/user/reports")
 def get_user_reports(market: Optional[str] = None, horizon: Optional[str] = None):
     """Exposes clean simplified horizon performance reports without raw metrics."""
-    engine = PredictiveShadowEngine.get_instance()
 
-    contexts_to_report = engine.contexts.values()
+    contexts_to_report = []
     if market:
         m_lower = market.lower()
         if m_lower == "gold":
@@ -5139,7 +4488,6 @@ def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str]
     if account_id and account_id != session.get("user_id") and account_id != user_email and session.get("role") != "ADMIN":
         raise HTTPException(status_code=403, detail="Forbidden: Account statement access denied")
 
-    engine = PredictiveShadowEngine.get_instance()
 
     total_trades = 0
     wins = 0
@@ -5148,7 +4496,7 @@ def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str]
     total_win_pnl = 0.0
     total_loss_pnl = 0.0
 
-    for ctx in engine.contexts.values():
+    for ctx in {}.values():
         for trade in getattr(ctx, "history", []):
             if isinstance(trade, dict):
                 trade_acct = str(trade.get("account_id") or trade.get("user_id") or trade.get("user_email") or "")
@@ -5177,7 +4525,7 @@ def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str]
                     "timestamp": str(trade.get("timestamp", datetime.now().isoformat() + "Z"))
                 })
 
-    opening_balance = float(engine.get_virtual_capital_initial_balance())
+    opening_balance = float(0.0)
     deposits = 0.0
     withdrawals = 0.0
     fees = sum(t["fee"] for t in trades_ledger)
@@ -5232,8 +4580,7 @@ def get_admin_statements(period: Optional[str] = "30d", token: Optional[str] = Q
 
     users_count = len(getattr(global_auth_service.repo, "users", {})) or 1
     active_positions = 0
-    engine = PredictiveShadowEngine.get_instance()
-    for ctx in engine.contexts.values():
+    for ctx in {}.values():
         active_positions += len(getattr(ctx, "active_trades", []))
 
     user_stmt["accounts_count"] = users_count
