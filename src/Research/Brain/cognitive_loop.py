@@ -330,7 +330,8 @@ class CognitiveReplayLoop:
         """Apply only post-outcome learning to Pattern Memory."""
         matches = self.discovery_engine.find_matches(
             signature,
-            self.memory_system.get_patterns()
+            self.memory_system.get_patterns(),
+            current_behavior_profile=behavior_profile,
         )
         learning_outcome = getattr(trade, "learning_outcome", {}) or {}
         is_success = (
