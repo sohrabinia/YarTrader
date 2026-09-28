@@ -246,12 +246,10 @@ if WINDOWS_SERVICE_SUPPORTED:
 
         def SvcDoRun(self):
             try:
-                log_service_message("SERVICE_START_REQUESTED")
-
-                # Report RUNNING to SCM before starting the potentially slow
-                # research/API initialization. Windows requires the service to
-                # acknowledge startup within the SCM timeout window.
+                # Acknowledge startup before any application/storage logging or
+                # runtime imports. This is the critical Windows SCM contract.
                 self.ReportServiceStatus(win32service.SERVICE_RUNNING)
+                log_service_message("SERVICE_START_REQUESTED")
                 log_service_message("SERVICE_RUNNING")
 
                 # Construct and start the runtime host only after SCM has
