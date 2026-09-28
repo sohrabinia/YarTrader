@@ -371,23 +371,7 @@ class PredictiveShadowEngine:
         broker_balance = self.get_broker_balance()
         risk_percent = 1.0 # default risk sizing
 
-        # LIVE Mode strict checks
-        if trading_mode == "LIVE":
-            capital_source = "MT5AccountBalance"
-            if broker_balance <= 0.0:
-                logger.error(
-                    f"LIVE EXECUTION BLOCKED: Insufficient Capital. "
-                    f"Broker balance is {broker_balance} USD. Real execution requires positive balance."
-                )
-                raise ValueError("Real order BLOCKED: Insufficient Capital in LIVE mode")
-
-            logger.warning(
-                f"LIVE ORDER ALLOWED: Symbol={symbol}, Direction={direction}, "
-                f"Entry={entry}, Stop={stop}, Target={target}, Broker Balance={broker_balance}"
-            )
-            # Live execution is supported but we prevent virtual capital leak
-            virtual_balance_used = None
-        else:
+        # LIVE is permanently closed. The production product is DEMO/RESEARCH only.\n        if trading_mode == "LIVE":\n            logger.error("LIVE EXECUTION BLOCKED: Real-money trading is hard-disabled by product safety policy.")\n            raise ValueError("Real order BLOCKED: LIVE trading is hard-disabled")\n\n        else:
             # SHADOW Mode checks
             capital_source = "VirtualSimulationAccount"
             virtual_balance_used = self.virtual_capital_balance
