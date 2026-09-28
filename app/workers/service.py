@@ -227,13 +227,17 @@ if WINDOWS_SERVICE_SUPPORTED:
         def __init__(self, args):
             win32serviceutil.ServiceFramework.__init__(self, args)
             self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-            self.host = YarTraderServiceHost()
+            # Defer runtime-host construction until after SCM startup is
+            # acknowledged. Worker construction/import-time initialization can
+            # exceed the Windows service startup timeout.
+            self.host: Optional[YarTraderServiceHost] = None
 
         def SvcStop(self):
             log_service_message("SERVICE_STOP_REQUESTED")
             # Report stop pending to SCM
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-            self.host.stop()
+            if self.host is not None:
+                self.host.stop()
             log_service_message("SERVICE_HOST_STOPPED")
             win32event.SetEvent(self.hWaitStop)
 
@@ -247,9 +251,10 @@ if WINDOWS_SERVICE_SUPPORTED:
                 self.ReportServiceStatus(win32service.SERVICE_RUNNING)
                 log_service_message("SERVICE_RUNNING")
 
-                # Start service host after SCM has accepted the service as running.
-                # Research/MT5 initialization can legitimately take longer than
-                # the default Windows service startup timeout.
+                # Construct and start the runtime host only after SCM has
+                # accepted the service as running. This keeps all potentially
+                # slow worker construction outside the SCM startup window.
+                self.host = YarTraderServiceHost()
                 self.host.start()
                 log_service_message("SERVICE_HOST_STARTED")
 
