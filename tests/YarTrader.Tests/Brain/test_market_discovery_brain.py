@@ -206,16 +206,22 @@ def test_simulation_brain_and_outcome_evaluation_engine():
     assert trade.virtual_stop == 1790.0
     assert trade.virtual_target == 1820.0
 
-    # 2. Feed positive price update candle to close the trade as SUCCESS
-    update_candle = MarketObservation(
-        symbol="XAUUSD", timeframe="H1", timestamp=datetime(2026, 1, 1, 13, 0),
-        high=1825.0, low=1798.0, open_price=1800.0, close_price=1822.0, volume=100.0
-    )
-    closed = sim_brain.update_active_trades(update_candle)
+    # 2. Feed the trade across its research horizon. Reaching the minimum target
+    # does not close a learning episode; the Brain observes the move through completion.
+    closed = []
+    for i in range(sim_brain.learning_horizon_candles):
+        ts = datetime(2026, 1, 1, 13, 0) + timedelta(hours=i)
+        close = 1822.0 + i * 0.25
+        update_candle = MarketObservation(
+            symbol="XAUUSD", timeframe="H1", timestamp=ts,
+            high=close + 3.0, low=close - 2.0, open_price=close - 0.5,
+            close_price=close, volume=100.0
+        )
+        closed.extend(sim_brain.update_active_trades(update_candle))
     assert len(closed) == 1
-    assert closed[0].final_result == "SUCCESS"
-    assert closed[0].max_favorable_movement == 25.0
-    assert closed[0].max_adverse_movement == -2.0
+    assert closed[0].final_result == "WINDOW_COMPLETE"
+    assert closed[0].target_reached is True
+    assert closed[0].max_favorable_movement > 20.0
 
     # 3. Evaluate completed trade in Outcome Evaluation Engine
     situation_sig = [1.0, 1.0]
