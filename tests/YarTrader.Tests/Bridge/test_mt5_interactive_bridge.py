@@ -9,6 +9,12 @@ from src.Infrastructure.Bridge.client import MT5BridgeClient
 from src.Data.Providers.MT5.mt5 import MT5DataProvider, MT5ConnectionHealth
 
 
+@pytest.fixture(autouse=True)
+def bridge_secret(monkeypatch):
+    """Provide an explicit test-only bridge secret; production remains fail-closed."""
+    monkeypatch.setenv("MT5_BRIDGE_SECRET_TOKEN", "test_bridge_secret_token_1234567890")
+
+
 def test_bridge_health_endpoint():
     """Verify unauthenticated GET /health probe returns HTTP 200 with rich metadata."""
     client = TestClient(app)
