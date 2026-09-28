@@ -165,7 +165,27 @@ class DemoExecutionGate:
                 if tp and tp > 0 and tp >= request.Price:
                     raise ValidationException(f"DemoExecutionGate Violation: Sell order TP {tp} must be below entry price {request.Price}.")
 
-        # Check 10: Position Exclusivity Guard (At most 1 active directional position per symbol)
+        # Check 10: Canonical minimum risk/reward gate.
+        # This must be enforced inside the authoritative execution gate as well
+        # as upstream planners/workers, so direct callers cannot bypass RR >= 1.5.
+        if order_type in ["BUY", "SELL", "LONG", "SHORT"]:
+            if not (getattr(request, "Price", None) and getattr(request, "StopLoss", None) and getattr(request, "TakeProfit", None)):
+                raise ValidationException(
+                    "DemoExecutionGate Violation: Entry, StopLoss, and TakeProfit are required for executable DEMO orders."
+                )
+            risk_distance = abs(float(request.Price) - float(request.StopLoss))
+            reward_distance = abs(float(request.TakeProfit) - float(request.Price))
+            if risk_distance <= 0.0 or reward_distance <= 0.0:
+                raise ValidationException(
+                    "DemoExecutionGate Violation: Risk/Reward geometry is invalid. Execution strictly blocked."
+                )
+            real_rr = reward_distance / risk_distance
+            if not math.isfinite(real_rr) or real_rr < 1.5:
+                raise ValidationException(
+                    f"DemoExecutionGate Violation: Real RR ({real_rr:.2f}) < 1.5 minimum threshold. Execution strictly blocked."
+                )
+
+        # Check 11: Position Exclusivity Guard (At most 1 active directional position per symbol)
         if order_type != "CLOSE" and hasattr(request, "Symbol"):
             get_pos_fn = getattr(adapter_or_mt5, "get_positions", None)
             if callable(get_pos_fn):
