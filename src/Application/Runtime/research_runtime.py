@@ -182,7 +182,10 @@ class ResearchRuntime:
 
             # 4b. Feed the same canonical raw candles into the existing CognitiveReplayLoop.
             # This is research/simulation only; it has no order/execution authority.
-            brain_learning = self._run_live_cognitive_learning(data_response.DataPoints)
+            brain_learning = self._run_live_cognitive_learning(
+                data_response.DataPoints,
+                multi_timeframe_candles=all_timeframe_candles,
+            )
             self._log_evidence(
                 "Cognitive Learning: "
                 f"{brain_learning.get('status', 'UNKNOWN')} "
@@ -330,7 +333,11 @@ class ResearchRuntime:
             self._log_evidence(f"Research cycle encountered an error: {str(e)}")
             raise
 
-    def _run_live_cognitive_learning(self, data_points: List[Any]) -> Dict[str, Any]:
+    def _run_live_cognitive_learning(
+        self,
+        data_points: List[Any],
+        multi_timeframe_candles: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+    ) -> Dict[str, Any]:
         """Feeds new real market candles into the canonical CognitiveReplayLoop."""
         try:
             from src.Research.Brain.models import MarketObservation
@@ -352,6 +359,34 @@ class ResearchRuntime:
                 for p in data_points
             ]
             observations.sort(key=lambda o: o.timestamp)
+
+            multi_timeframe_observations: Dict[str, List[MarketObservation]] = {}
+            for tf_name, rows in (multi_timeframe_candles or {}).items():
+                tf_rows: List[MarketObservation] = []
+                for row in rows:
+                    try:
+                        ts_value = row.get("timestamp")
+                        ts = datetime.fromisoformat(str(ts_value).replace("Z", "+00:00"))
+                        tf_rows.append(
+                            MarketObservation(
+                                symbol=self._symbol,
+                                timeframe=str(tf_name).upper(),
+                                timestamp=ts,
+                                high=float(row["high"]),
+                                low=float(row["low"]),
+                                open_price=float(row["open"]),
+                                close_price=float(row["close"]),
+                                volume=float(row.get("volume", 0.0)),
+                                meta={"provider": self._provider_name, "source": "ResearchRuntime", "context_only": True},
+                            )
+                        )
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                if len(tf_rows) >= 5:
+                    multi_timeframe_observations[str(tf_name).upper()] = sorted(
+                        tf_rows, key=lambda o: o.timestamp
+                    )
+
             if len(observations) < 5:
                 self._brain_learning_status = "WAITING_FOR_DATA"
                 return {"status": self._brain_learning_status, "episodes_processed": 0}
@@ -376,7 +411,10 @@ class ResearchRuntime:
                     observations, current_time=latest_time
                 )
 
-            episode = self._cognitive_loop.process_live_observation(observations)
+            episode = self._cognitive_loop.process_live_observation(
+                observations,
+                multi_timeframe_observations=multi_timeframe_observations,
+            )
             self._brain_last_observation_time = latest_time
             stats = self._cognitive_loop.memory_system.get_learning_statistics()
             stats["events_total"] = len(self._cognitive_loop.memory_system.get_events())
