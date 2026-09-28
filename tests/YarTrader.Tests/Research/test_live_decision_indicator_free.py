@@ -38,10 +38,10 @@ class TestLiveDecisionIndicatorFree(unittest.TestCase):
         # Confirm FRACTAL strategy is explicitly disabled in strategy evaluation
         strat_eval = res.get("strategy_evaluation", {})
         fractal_cand = next((c for c in strat_eval.get("candidates", []) if c.get("strategy_name") == "FRACTAL"), None)
-        self.assertIsNotNone(fractal_cand)
-        self.assertEqual(fractal_cand["direction"], "WAIT")
-        self.assertEqual(fractal_cand["confidence"], 0.0)
-        self.assertIn("FRACTAL strategy explicitly disabled: insufficient pattern memory evidence.", fractal_cand["reasoning"])
+        self.assertIsNone(fractal_cand)
+        self.assertEqual(strat_eval.get("status"), "DISCONNECTED")
+        self.assertEqual(strat_eval.get("decision_authority"), "BRAIN")
+        self.assertEqual(strat_eval.get("legacy_strategy_orchestrator"), "NOT_USED")
 
 if __name__ == "__main__":
     unittest.main()
