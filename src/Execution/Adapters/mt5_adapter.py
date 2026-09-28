@@ -226,13 +226,9 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
         mt5 = self._mt5
         # 2. Validate Symbol
-        # The canonical production DEMO execution universe is XAUUSD only.
-        # Enforce this again at the broker boundary so direct adapter callers cannot bypass DemoExecutionGate policy.
-        if str(request.Symbol or "").upper() != "XAUUSD":
-            raise ValidationException(
-                f"MT5 broker execution is restricted to XAUUSD DEMO; requested symbol was '{request.Symbol}'."
-            )
-
+        # The adapter is intentionally symbol-generic. The canonical 30-symbol
+        # research/universe boundary is separate from the DEMO execution policy.
+        # XAUUSD-only is enforced by DemoExecutionGate before DEMO entry execution.
         sym_info = mt5.symbol_info(request.Symbol)
         if sym_info is None:
             raise ValidationException(f"Symbol '{request.Symbol}' is not available in MT5 terminal.")
