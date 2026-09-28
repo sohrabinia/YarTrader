@@ -5,7 +5,7 @@ Executes Layer 1, Layer 2, and Layer 3 orchestrations:
 1. Strict Data Integrity Validation (No data fabrication / fake defaults)
 2. Multi-Timeframe Structural Containment Mapping
 3. Layer 1: Rolling Hurst Exponent, Higuchi Fractal Dimension, Multi-scale Wavelet
-4. ATR-Normalized Scale-Invariant Structural Similarity
+4. Raw-price-geometry Scale-Invariant Structural Similarity
 5. Dynamic State-Dependent Pattern Query (NO_EVIDENCE when missing)
 6. Partial Trailing Scale Group Exclusion in Multiscale Base Detection
 7. Layer 2: MultiTimeframeStateBuilder (CONTINUATION, PULLBACK, REVERSAL, RANGE, NO_TRADE)
@@ -302,9 +302,9 @@ class FractalEngine(IFractalEngine):
                 if complete_bars:
                     complete_scales_x4[scale_factor] = complete_bars
 
-        # Gate 3 ATR/True-Range base detector is intentionally excluded from the
-        # live ResearchRuntime path. Canonical production intelligence is
-        # indicator-free and must consume raw price geometry only.
+        # Legacy Gate 3 ATR/True-Range base detection remains intentionally disconnected
+        # from the live ResearchRuntime path. Canonical production intelligence is
+        # indicator-free and consumes raw price geometry only.
         detected_bases_count = 0
 
         latest_ts = primary_obs[-1].timestamp.isoformat()
