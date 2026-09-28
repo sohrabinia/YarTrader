@@ -335,10 +335,16 @@ class CognitiveReplayLoop:
                 best_pattern.continuation_count += 1
             else:
                 best_pattern.reversal_count += 1
+            direction = str(getattr(trade, "decision_action", "WAIT")).upper()
+            if direction == "BUY":
+                best_pattern.buy_count = getattr(best_pattern, "buy_count", 0) + 1
+            elif direction == "SELL":
+                best_pattern.sell_count = getattr(best_pattern, "sell_count", 0) + 1
             best_pattern.outcomes.append({
                 "trade_id": trade.trade_id,
                 "timestamp": trade.exit_time.isoformat() if trade.exit_time else datetime.now().isoformat(),
                 "outcome": trade.final_result,
+                "direction": direction,
                 "judge_vetted_accuracy": judge_result.get("pattern_accuracy", 0.0),
                 "is_lucky_win": judge_result.get("was_influenced_by_luck", False),
             })
@@ -346,6 +352,7 @@ class CognitiveReplayLoop:
         else:
             new_pattern = self.discovery_engine.create_new_pattern(
                 signature,
-                is_continuation=is_success
+                is_continuation=is_success,
+                direction=str(getattr(trade, "decision_action", "WAIT")).upper(),
             )
             self.memory_system.add_pattern(new_pattern)
