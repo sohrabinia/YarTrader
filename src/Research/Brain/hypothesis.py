@@ -64,39 +64,23 @@ class HypothesisEngine:
             expected_direction = "SELL"
             confidence = sell_pct
         else:
-            # Backward-compatible structural direction for legacy patterns:
-            # continuation follows the direction of the latest normalized move;
-            # reversal points against it. This avoids treating every continuation
-            # as BUY and every reversal as SELL.
-            current_move = current_signature[-1] if current_signature else 0.0
-            continuation_direction = "BUY" if current_move > 0 else ("SELL" if current_move < 0 else "WAIT")
-            reversal_direction = (
-                "SELL" if continuation_direction == "BUY"
-                else ("BUY" if continuation_direction == "SELL" else "WAIT")
-            )
-            if directional_samples == 0 and continuation_pct > 60.0 and continuation_direction != "WAIT":
-                expected_direction = continuation_direction
-                confidence = continuation_pct
-            elif directional_samples == 0 and reversal_pct > 60.0 and reversal_direction != "WAIT":
-                expected_direction = reversal_direction
-                confidence = reversal_pct
-            else:
-                expected_direction = "WAIT"
-                confidence = max(buy_pct, sell_pct, continuation_pct, reversal_pct)
+            # No directional evidence means the Brain has not learned enough to
+            # choose BUY or SELL. Do not infer direction from the current candle.
+            expected_direction = "WAIT"
+            confidence = max(buy_pct, sell_pct)
 
         supporting: List[Dict[str, Any]] = []
         contradicting: List[Dict[str, Any]] = []
 
         for pat, score in matches:
             pat_dict = pat.to_dict()
-            # If our hypothesis is BUY (continuation of current movement structure),
-            # any pattern with continuation_count > reversal_count is supporting,
-            # otherwise it is contradicting.
-            is_supporting_pat = False
-            if expected_direction == "BUY":
-                is_supporting_pat = pat.continuation_count >= pat.reversal_count
-            elif expected_direction == "SELL":
-                is_supporting_pat = pat.reversal_count >= pat.continuation_count
+            # Evidence is directional only when the historical pattern actually
+            # contains learned directional outcomes. No regime or candle-direction
+            # rule is substituted for missing evidence.
+            is_supporting_pat = (
+                (expected_direction == "BUY" and getattr(pat, "buy_count", 0) >= getattr(pat, "sell_count", 0))
+                or (expected_direction == "SELL" and getattr(pat, "sell_count", 0) >= getattr(pat, "buy_count", 0))
+            )
 
             item = {"pattern_id": pat.pattern_id, "similarity_score": score, "pattern_details": pat_dict}
             if is_supporting_pat:
