@@ -87,3 +87,34 @@ def test_research_runtime_does_not_invoke_shadow_trading():
     assert "ShadowTradingEngine" not in source
     assert "handle_decision(" not in source
     assert "update_market_price(" not in source
+
+
+def test_live_brain_exposes_pre_move_anticipation_state():
+    """The canonical Brain must expose a pre-move state without execution authority."""
+    observations = _observations()
+    memory = MarketMemorySystem(storage_dir=os.path.join(os.getcwd(), "runtime_logs", "test_anticipation_memory"))
+    loop = CognitiveReplayLoop(
+        symbol="XAUUSD",
+        timeframe="H1",
+        observations=observations,
+        memory_system=memory,
+    )
+
+    episode = loop.process_live_observation(observations)
+    assert episode is not None
+    hypothesis = episode.brain_hypothesis or {}
+    anticipation = hypothesis.get("meta", {}).get("anticipation", {})
+    assert anticipation.get("state") in {"PRE_MOVE", "NO_EDGE"}
+    assert anticipation.get("future_data_visible_at_decision") is False
+    assert anticipation.get("execution_trigger") == "NEXT_VALID_MARKET_TRIGGER"
+
+
+def test_research_runtime_uses_brain_as_direction_authority():
+    """Execution intelligence may enrich prices, but cannot replace Brain direction."""
+    import inspect
+    from src.Application.Runtime.research_runtime import ResearchRuntime
+
+    source = inspect.getsource(ResearchRuntime.run_once)
+    assert "CANONICAL_BRAIN" in source
+    assert "brain_hypothesis.get(\"expected_direction\"" in source
+    assert 'action = str(plan.get("action", "WAIT"))' not in source
