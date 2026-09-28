@@ -5,7 +5,7 @@ Executes Layer 1, Layer 2, and Layer 3 orchestrations:
 1. Strict Data Integrity Validation (No data fabrication / fake defaults)
 2. Multi-Timeframe Structural Containment Mapping
 3. Layer 1: Rolling Hurst Exponent, Higuchi Fractal Dimension, Multi-scale Wavelet
-4. ATR-Normalized Scale-Invariant Structural Similarity
+4. Scale-Invariant Structural Similarity (indicator-free price geometry)
 5. Dynamic State-Dependent Pattern Query (NO_EVIDENCE when missing)
 6. Partial Trailing Scale Group Exclusion in Multiscale Base Detection
 7. Layer 2: MultiTimeframeStateBuilder (CONTINUATION, PULLBACK, REVERSAL, RANGE, NO_TRADE)
