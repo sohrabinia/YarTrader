@@ -89,10 +89,10 @@ def test_research_runtime_does_not_invoke_shadow_trading():
     assert "update_market_price(" not in source
 
 
-def test_live_brain_exposes_pre_move_anticipation_state():
+def test_live_brain_exposes_pre_move_anticipation_state(tmp_path):
     """The canonical Brain must expose a pre-move state without execution authority."""
     observations = _observations()
-    memory = MarketMemorySystem(storage_dir=os.path.join(os.getcwd(), "runtime_logs", "test_anticipation_memory"))
+    memory = MarketMemorySystem(storage_dir=str(tmp_path / "brain_memory"))
     loop = CognitiveReplayLoop(
         symbol="XAUUSD",
         timeframe="H1",
