@@ -395,6 +395,7 @@ class ResearchRuntime:
             episode = self._cognitive_loop.process_live_observation(observations)
             self._brain_last_observation_time = latest_time
             stats = self._cognitive_loop.memory_system.get_learning_statistics()
+            stats["events_total"] = len(self._cognitive_loop.memory_system.get_events())
             self._brain_learning_stats = stats
             self._brain_learning_status = "RUNNING" if episode else "NO_NEW_CANDLE"
             try:
