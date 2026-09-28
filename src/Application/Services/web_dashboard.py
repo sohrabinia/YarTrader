@@ -3884,7 +3884,7 @@ def get_production_health():
         "intelligence": "Ready",
         "brain_learning": {
             "status": brain_learning_status,
-            "episodes_processed": brain_learning_stats.get("total_experiences", 0),
+            "experiences_total": brain_learning_stats.get("total_experiences", 0),
             "events_total": brain_learning_stats.get("events_total", 0),
             "patterns_created": brain_learning_stats.get("patterns_created", 0),
             "concepts_learned": brain_learning_stats.get("concepts_learned", 0),
