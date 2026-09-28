@@ -86,29 +86,46 @@ class PatternDiscoveryEngine:
         total_occurrences = 0
         total_continuation = 0
         total_reversal = 0
+        total_buy = 0.0
+        total_sell = 0.0
 
         for pat, score in matches:
             weight = score  # Give higher weight to closer similarity
             total_occurrences += pat.occurrences_count
             total_continuation += int(pat.continuation_count * weight)
             total_reversal += int(pat.reversal_count * weight)
+            total_buy += float(getattr(pat, "buy_count", 0)) * weight
+            total_sell += float(getattr(pat, "sell_count", 0)) * weight
 
         sum_outcomes = total_continuation + total_reversal
         continuation_pct = (total_continuation / sum_outcomes * 100.0) if sum_outcomes > 0 else 50.0
         reversal_pct = (total_reversal / sum_outcomes * 100.0) if sum_outcomes > 0 else 50.0
+
+        directional_total = total_buy + total_sell
+        buy_pct = (total_buy / directional_total * 100.0) if directional_total > 0 else 0.0
+        sell_pct = (total_sell / directional_total * 100.0) if directional_total > 0 else 0.0
 
         return {
             "similar_situations_found": len(matches),
             "total_occurrences_cataloged": total_occurrences,
             "continuation_pct": round(continuation_pct, 2),
             "reversal_pct": round(reversal_pct, 2),
+            "directional_samples": int(directional_total),
+            "buy_pct": round(buy_pct, 2),
+            "sell_pct": round(sell_pct, 2),
             "outcome_summary": (
                 f"Found {len(matches)} similar patterns with "
-                f"{continuation_pct:.1f}% continuation vs {reversal_pct:.1f}% reversal likelihood."
+                f"{continuation_pct:.1f}% continuation vs {reversal_pct:.1f}% reversal; "
+                f"directional evidence is {buy_pct:.1f}% BUY vs {sell_pct:.1f}% SELL."
             )
         }
 
-    def create_new_pattern(self, sig: List[float], is_continuation: bool = True) -> PatternMemory:
+    def create_new_pattern(
+        self,
+        sig: List[float],
+        is_continuation: bool = True,
+        direction: str = "WAIT",
+    ) -> PatternMemory:
         """Constructs a brand-new PatternMemory record representing a discovered sequence fingerprint."""
         return PatternMemory(
             pattern_id=f"pat-{uuid.uuid4().hex[:8]}",
@@ -116,6 +133,12 @@ class PatternDiscoveryEngine:
             occurrences_count=1,
             continuation_count=1 if is_continuation else 0,
             reversal_count=0 if is_continuation else 1,
-            outcomes=[{"timestamp": datetime.now().isoformat(), "is_continuation": is_continuation}],
+            buy_count=1 if direction == "BUY" else 0,
+            sell_count=1 if direction == "SELL" else 0,
+            outcomes=[{
+                "timestamp": datetime.now().isoformat(),
+                "is_continuation": is_continuation,
+                "direction": direction,
+            }],
             created_at=datetime.now()
         )
