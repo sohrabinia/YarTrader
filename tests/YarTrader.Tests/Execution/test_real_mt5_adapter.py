@@ -196,7 +196,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.adapter._initialized = True
 
         req = OrderRequest(
-            Symbol="XAUUSD",
+            Symbol="BITCOIN",
             OrderType="CLOSE",
             Volume=0.01,
             PositionTicket=368555219
@@ -886,7 +886,7 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
             decision_id="DEC-368555219",
             trade_id="TR-368555219",
             cycle_id="CYC-368555219",
-            symbol="XAUUSD",
+            symbol="BITCOIN",
             timeframe="M15",
             direction="BUY",
             planned_entry=78311.0,
