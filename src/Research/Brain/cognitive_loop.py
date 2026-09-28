@@ -326,7 +326,14 @@ class CognitiveReplayLoop:
             signature,
             self.memory_system.get_patterns()
         )
-        is_success = trade.final_result == "SUCCESS"
+        learning_outcome = getattr(trade, "learning_outcome", {}) or {}
+        is_success = (
+            trade.final_result == "SUCCESS"
+            or (
+                trade.final_result == "WINDOW_COMPLETE"
+                and bool(learning_outcome.get("target_reached", False))
+            )
+        )
 
         if matches:
             best_pattern, _ = matches[0]
@@ -347,6 +354,7 @@ class CognitiveReplayLoop:
                 "direction": direction,
                 "judge_vetted_accuracy": judge_result.get("pattern_accuracy", 0.0),
                 "is_lucky_win": judge_result.get("was_influenced_by_luck", False),
+                "learning_outcome": learning_outcome,
             })
             self.memory_system.add_pattern(best_pattern)
         else:
@@ -355,4 +363,6 @@ class CognitiveReplayLoop:
                 is_continuation=is_success,
                 direction=str(getattr(trade, "decision_action", "WAIT")).upper(),
             )
+            if learning_outcome:
+                new_pattern.outcomes[-1]["learning_outcome"] = learning_outcome
             self.memory_system.add_pattern(new_pattern)
