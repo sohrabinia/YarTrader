@@ -15,7 +15,8 @@ class HypothesisEngine:
         self,
         current_signature: List[float],
         historical_patterns: List[PatternMemory],
-        current_behavior_profile: Optional[Dict[str, float]] = None
+        current_behavior_profile: Optional[Dict[str, float]] = None,
+        multi_timeframe_context: Optional[Dict[str, Dict[str, float]]] = None
     ) -> Hypothesis:
         """Formulates a hypothesis from historical pattern evidence only."""
         matches = self.discovery_engine.find_matches(
@@ -36,6 +37,7 @@ class HypothesisEngine:
                 meta={
                     "reason": "No historical pattern matches found.",
                     "behavior_profile": current_behavior_profile or {},
+                    "multi_timeframe_context": multi_timeframe_context or {},
                     "move_expectation": {
                         "learning_samples": 0,
                         "target_reached_pct": 0.0,
@@ -100,6 +102,7 @@ class HypothesisEngine:
                 "directional_evidence_required": 3,
                 "outcome_agg": outcome_agg,
                 "behavior_profile": current_behavior_profile or {},
+                "multi_timeframe_context": multi_timeframe_context or {},
                 "move_expectation": {
                     "learning_samples": outcome_agg.get("learning_samples", 0),
                     "target_reached_pct": outcome_agg.get("target_reached_pct", 0.0),
