@@ -4309,6 +4309,8 @@ def _collect_live_signals() -> list[dict[str, Any]]:
         action = str(decision.get("action", "WAIT")).upper()
         if action not in {"BUY", "SELL"}:
             continue
+        evidence = decision.get("evidence", {}) or {}
+        anticipation = evidence.get("anticipation", {}) or {}
         signals.append({
             "signal_id": str(decision.get("decision_id", "SIGNAL-UNKNOWN")),
             "symbol": str(decision.get("symbol", getattr(runtime, "_symbol", "UNKNOWN"))),
@@ -4319,6 +4321,9 @@ def _collect_live_signals() -> list[dict[str, Any]]:
             "confidence": float(decision.get("confidence", 0.0)),
             "reason": decision.get("reasoning", []),
             "status": "ACTIVE",
+            "signal_timing": anticipation.get("state", "UNKNOWN"),
+            "anticipation": anticipation,
+            "decision_authority": evidence.get("decision_authority", "CANONICAL_BRAIN"),
             "timestamp": decision.get("timestamp"),
         })
     return signals
