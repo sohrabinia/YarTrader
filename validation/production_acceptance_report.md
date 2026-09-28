@@ -1,9 +1,9 @@
 # YarTrader — Release Verification Acceptance Report
 
-## Overall Status: Not Ready ❌
+## Overall Status: Historical / Superseded — Not Release Evidence
 - **Timestamp:** 2026-09-27 23:54:47
-- **Ready Score:** 99.8%
-- **Rationals:** Certain dependencies, document checks, or system verifications did not meet the rigorous production grade.
+- **Ready Score:** Historical snapshot — superseded
+- **Status note:** This artifact is a historical workspace snapshot and is not evidence for the current release candidate. Current acceptance must use exact-HEAD CI plus runtime/production evidence.
 
 ---
 
