@@ -55,7 +55,7 @@
 - [ ] Live/Disabled, Demo, Backtest, Signal, and Prop states are visually truthful.
 
 ## Gate E / Production Runtime
-- [x] Exact final HEAD CI succeeds (Run #1328 on `d6190daabbecc915098a225728c50ed93f645bcc`).
+- [x] Exact final HEAD CI succeeds on `0455f093666e8954527bb0434de6d6c592056193` (Run #1334; Production Validation + frontend production build succeeded).
 - [ ] Windows Session 0 service identity proven.
 - [ ] Interactive Session 2 bridge proven.
 - [ ] Authenticated Alpari-MT5-Demo proven.
@@ -65,8 +65,8 @@
 - [ ] Final Gate E derived status = PROVEN.
 
 ## Final Release
-- [ ] Exact base / merge-base / HEAD and diff verified.
-- [ ] Full test suite passes on final HEAD.
+- [x] Exact base / merge-base / HEAD and diff verified: base/merge-base `00d676016d130120b10c4e9bd9d2b0e39b3ad0ee`, HEAD `0455f093666e8954527bb0434de6d6c592056193`, 320 commits ahead / 0 behind.
+- [x] Full autonomous validation suite passes on final HEAD (Run #1334).
 - [x] Frontend production build passes on final HEAD (included in exact-HEAD CI).
 - [ ] Final forensic report reconciles source + tests + runtime evidence.
 - [ ] Only after all mandatory gates are PROVEN: merge PR.
