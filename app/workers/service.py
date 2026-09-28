@@ -126,7 +126,12 @@ class YarTraderServiceHost:
                 host=self.config.api_host,
                 port=self.config.api_port,
                 log_level=self.config.logging_level.lower(),
-                loop="asyncio"
+                loop="asyncio",
+                # Windows SCM/pywin32 services do not have the interactive stdio
+                # environment assumed by Uvicorn's default dictConfig formatter.
+                # The application owns logging, so disable Uvicorn's default
+                # logging configuration to keep service startup fail-safe.
+                log_config=None,
             )
             self.uvicorn_server = uvicorn.Server(uvicorn_config)
 
