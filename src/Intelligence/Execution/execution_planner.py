@@ -126,6 +126,13 @@ class ExecutionIntelligencePlanner:
                 risk_dist = abs(entry - stop_loss)
                 reward_dist = abs(take_profit - entry)
                 if risk_dist <= 0.0 or reward_dist <= 0.0 or (reward_dist / risk_dist) < 1.5:
+                    # Once concrete market levels exist, an invalid RR is an
+                    # authoritative no-trade decision rather than a mere
+                    # execution-readiness warning.
+                    action = "WAIT"
+                    entry = 0.0
+                    stop_loss = 0.0
+                    take_profit = 0.0
                     execution_ready = False
                     execution_block_reason = "RISK_REWARD_BELOW_MINIMUM"
 
