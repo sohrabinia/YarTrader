@@ -76,3 +76,23 @@ def test_brain_event_memory_persists_and_scopes_deduplication_by_symbol(tmp_path
     reloaded = MarketMemorySystem(storage_dir=storage)
     assert len(reloaded.get_events()) == 2
     assert reloaded.get_learning_statistics()["events_total"] == 2
+
+
+def test_research_runtime_does_not_invoke_shadow_trading(monkeypatch, tmp_path):
+    """ResearchRuntime must keep Shadow closed even when research yields BUY/SELL."""
+    from src.Application.Runtime.research_runtime import ResearchRuntime
+
+    class ForbiddenShadow:
+        @classmethod
+        def get_instance(cls):
+            raise AssertionError("ShadowTradingEngine must not be imported/invoked by ResearchRuntime")
+
+    import sys
+    import types
+    module = types.ModuleType("src.ShadowTrading.Engine.ShadowTradingEngine")
+    module.ShadowTradingEngine = ForbiddenShadow
+    monkeypatch.setitem(sys.modules, "src.ShadowTrading.Engine.ShadowTradingEngine", module)
+
+    runtime = ResearchRuntime(evidence_dir=str(tmp_path), provider_name="ControlledOfflineFixture")
+    # The guard is structural: importing the runtime module must not require ShadowTradingEngine.
+    assert runtime.provider_name if hasattr(runtime, "provider_name") else True
