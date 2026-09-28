@@ -165,6 +165,7 @@ class CognitiveReplayLoop:
                     "available_history_count": len(available_data),
                     "decision_data_cutoff": decision_time.isoformat(),
                     "future_data_visible_at_decision": False,
+                    "multi_timeframe_context": hypothesis.meta.get("multi_timeframe_context", {}),
                 },
                 observed_sequence=[evt.to_dict() for evt in seq.events[-3:]],
                 brain_hypothesis=hypothesis.to_dict(),
@@ -193,7 +194,11 @@ class CognitiveReplayLoop:
 
         return session_episodes
 
-    def process_live_observation(self, observations: List[MarketObservation]) -> Optional[ReplayEpisode]:
+    def process_live_observation(
+        self,
+        observations: List[MarketObservation],
+        multi_timeframe_observations: Optional[Dict[str, List[MarketObservation]]] = None,
+    ) -> Optional[ReplayEpisode]:
         """Processes one newly-closed live candle through the existing cognitive learning chain.
 
         This is observational/research-only: SimulationBrain creates virtual trades only.
@@ -220,10 +225,17 @@ class CognitiveReplayLoop:
             self.memory_system.add_event(evt)
 
         sig = self.discovery_engine.extract_signature(available_data)
+        current_behavior_profile = self.discovery_engine.extract_behavior_profile(available_data)
+        multi_timeframe_context = {
+            str(tf).upper(): self.discovery_engine.extract_behavior_profile(rows)
+            for tf, rows in (multi_timeframe_observations or {}).items()
+            if rows and len(rows) >= 5
+        }
         hypothesis = self.hypothesis_engine.formulate_hypothesis(
             current_signature=sig,
             historical_patterns=self.memory_system.get_patterns(),
-            current_behavior_profile=self.discovery_engine.extract_behavior_profile(available_data),
+            current_behavior_profile=current_behavior_profile,
+            multi_timeframe_context=multi_timeframe_context,
         )
 
         evaluated_trades = []
