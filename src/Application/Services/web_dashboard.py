@@ -3871,6 +3871,9 @@ def get_production_health():
         "live_trading_enabled": False  # Hard safety gate lock
     }
 
+    brain_learning_status = state.get("brain_learning_status", "NOT_STARTED")
+    brain_learning_stats = state.get("brain_learning_stats", {})
+
     return {
         "status": overall_status,
         "runtime": "production",
@@ -3879,6 +3882,14 @@ def get_production_health():
         "service": "YarTrader",
         "mt5": mt5_status,
         "intelligence": "Ready",
+        "brain_learning": {
+            "status": brain_learning_status,
+            "episodes_processed": brain_learning_stats.get("total_experiences", 0),
+            "events_total": brain_learning_stats.get("events_total", 0),
+            "patterns_created": brain_learning_stats.get("patterns_created", 0),
+            "concepts_learned": brain_learning_stats.get("concepts_learned", 0),
+            "last_learning_update": brain_learning_stats.get("last_learning_update"),
+        },
         "worker": worker_status,
         "research_worker": research_status,
         "intelligence_worker": intelligence_status,
