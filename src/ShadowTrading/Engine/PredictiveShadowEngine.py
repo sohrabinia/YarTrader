@@ -360,7 +360,7 @@ class PredictiveShadowEngine:
         trading_mode = trading_mode.upper()
 
         if trading_mode not in ["SHADOW", "LIVE"]:
-            # Unknown context: FAIL CLOSED, emit security log, block execution
+            # Unknown context: FAIL CLOSED, emit security log, block execution.
             logger.error(
                 "SECURITY ALERT: Unknown trading context resolved! "
                 f"YARTRADER_TRADING_MODE is '{trading_mode}'. "
@@ -368,10 +368,17 @@ class PredictiveShadowEngine:
             )
             raise ValueError(f"Execution BLOCKED: Unknown trading mode '{trading_mode}'")
 
+        # LIVE execution is permanently disabled in the current product architecture.
+        # PredictiveShadowEngine is simulation-only; real broker execution belongs behind
+        # the authoritative DEMO/safety gates and there is no LIVE order path here.
+        if trading_mode == "LIVE":
+            logger.error("SECURITY ALERT: PredictiveShadowEngine LIVE mode is hard-disabled.")
+            raise ValueError("Real Live Trading is hard-disabled")
+
         broker_balance = self.get_broker_balance()
         risk_percent = 1.0 # default risk sizing
 
-        # LIVE Mode strict checks
+        # LIVE is rejected above; retain this branch only as a defensive invariant.
         if trading_mode == "LIVE":
             capital_source = "MT5AccountBalance"
             if broker_balance <= 0.0:
