@@ -35,11 +35,11 @@ export default function IntelligenceView({ t, signals, fractalStatus, regimeAnal
           reason={signals?.[0]?.reason || signals?.[0]?.narrative || 'No verified decision rationale is available.'}
         />
         <DecisionCard
-          title="سیگنال یورو دلار (EURUSD Wait Setup)"
-          recommendation="WAIT / HOLD"
-          confidence={45}
-          rr="1 : 1.1"
-          reason="عدم شفافیت در رژیم نقدینگی تایم‌فریم H4. سفارش مسدود گردید."
+          title="Learning / Anticipation"
+          recommendation={signals?.[0]?.anticipation?.state || signals?.[0]?.brain_hypothesis?.meta?.anticipation?.state || 'DATA UNAVAILABLE'}
+          confidence={signals?.[0]?.anticipation?.confidence_pct ?? signals?.[0]?.brain_hypothesis?.meta?.anticipation?.confidence_pct}
+          rr={undefined}
+          reason={signals?.[0]?.anticipation?.execution_trigger || 'No verified anticipation state is available.'}
         />
       </div>
     </div>
