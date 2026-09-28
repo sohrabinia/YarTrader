@@ -53,8 +53,25 @@ class HypothesisEngine:
             expected_direction = "SELL"
             confidence = sell_pct
         else:
-            expected_direction = "WAIT"
-            confidence = max(buy_pct, sell_pct, continuation_pct, reversal_pct)
+            # Backward-compatible structural direction for legacy patterns:
+            # continuation follows the direction of the latest normalized move;
+            # reversal points against it. This avoids treating every continuation
+            # as BUY and every reversal as SELL.
+            current_move = current_signature[-1] if current_signature else 0.0
+            continuation_direction = "BUY" if current_move > 0 else ("SELL" if current_move < 0 else "WAIT")
+            reversal_direction = (
+                "SELL" if continuation_direction == "BUY"
+                else ("BUY" if continuation_direction == "SELL" else "WAIT")
+            )
+            if directional_samples == 0 and continuation_pct > 60.0 and continuation_direction != "WAIT":
+                expected_direction = continuation_direction
+                confidence = continuation_pct
+            elif directional_samples == 0 and reversal_pct > 60.0 and reversal_direction != "WAIT":
+                expected_direction = reversal_direction
+                confidence = reversal_pct
+            else:
+                expected_direction = "WAIT"
+                confidence = max(buy_pct, sell_pct, continuation_pct, reversal_pct)
 
         supporting: List[Dict[str, Any]] = []
         contradicting: List[Dict[str, Any]] = []
