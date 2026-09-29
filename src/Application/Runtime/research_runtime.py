@@ -253,38 +253,8 @@ class ResearchRuntime:
                 except Exception as ie:
                     self._log_evidence(f"ExecutionIntelligence evaluation error: {str(ie)}")
 
-            # Update Shadow Trading Engine with latest market price and decision
-            try:
-                from src.ShadowTrading.Engine.ShadowTradingEngine import ShadowTradingEngine
-                shadow_engine = ShadowTradingEngine.get_instance()
-
-                latest_price = data_response.DataPoints[-1].Close
-
-                # Update open position prices first (recalculates floating PnL and handles SL/TP hits)
-                shadow_engine.update_market_price(self._symbol, latest_price, timeframe=self._timeframe)
-
-                auto_dec_dict = result.Findings.get("autonomous_decision", {})
-                decision_action = auto_dec_dict.get("action", "WAIT")
-                confidence = auto_dec_dict.get("confidence", 50.0)
-                reasoning_list = auto_dec_dict.get("reasoning", [])
-                reason_text = " ".join(reasoning_list) if isinstance(reasoning_list, list) else str(reasoning_list)
-
-                evidence_payload = {
-                    "signature": [latest_price],
-                    "raw_findings": result.Findings
-                }
-
-                shadow_engine.handle_decision(
-                    decision_action=decision_action,
-                    current_price=latest_price,
-                    confidence=confidence,
-                    reason=reason_text,
-                    evidence=evidence_payload,
-                    symbol=self._symbol,
-                    timeframe=self._timeframe
-                )
-            except Exception as se:
-                self._log_evidence(f"Shadow Trading update skipped or errored: {str(se)}")
+            # Shadow mode is retired. Research results flow only to the canonical
+            # ResearchRuntime snapshot/history and the guarded DEMO execution boundary.
 
             # 7. Store Result
             self._history.append(result)
