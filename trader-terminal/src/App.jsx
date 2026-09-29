@@ -28,6 +28,7 @@ import OperatorView from './views/OperatorView.jsx';
 import GuideView from './views/GuideView.jsx';
 import FaqView from './views/FaqView.jsx';
 import WalletView from './views/WalletView.jsx';
+import BillingView from './views/BillingView.jsx';
 
 // Import Global Functional Command Palette Component
 import CommandPalette from './components/common/CommandPalette.jsx';
@@ -2032,7 +2033,7 @@ function MainApp() {
           )}
 
           {/* AUTHENTICATION VIEWS */}
-          {(routePath === '/wallet' || routePath === '/billing') && <WalletView lang={lang} />}
+          {routePath === '/wallet' && <WalletView lang={lang} />}\n          {routePath === '/billing' && <BillingView lang={lang} />}
 
           {routePath === '/login' && (
             <div id="shell-login">
