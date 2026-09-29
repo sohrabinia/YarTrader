@@ -175,6 +175,12 @@ class YarTraderServiceHost:
         port = self.config.api_port
 
         while time.time() - start_time < timeout_sec:
+            # If the Uvicorn thread already crashed, do not let an unrelated
+            # process listening on the same port make this service appear ready.
+            if self.last_error and self.last_error.startswith("Uvicorn server crashed:"):
+                self.fastapi_ready = False
+                return False
+
             if self.uvicorn_server and getattr(self.uvicorn_server, "started", False):
                 self.fastapi_ready = True
                 log_service_message(f"FastAPI Started and Listening at http://{host}:{port}")
@@ -242,23 +248,41 @@ if WINDOWS_SERVICE_SUPPORTED:
         _svc_description_ = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
 
         def __init__(self, args):
+            # Keep the SCM-facing constructor lightweight. Constructing the
+            # full application host here can consume the SCM startup window
+            # before startup progress is reported.
             win32serviceutil.ServiceFramework.__init__(self, args)
             self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-            self.host = YarTraderServiceHost()
+            self.host: Optional[YarTraderServiceHost] = None
+            self.ReportServiceStatus(
+                win32service.SERVICE_START_PENDING,
+                waitHint=120000
+            )
+
+        def _ensure_host(self) -> YarTraderServiceHost:
+            if self.host is None:
+                self.host = YarTraderServiceHost()
+            return self.host
 
         def SvcStop(self):
             log_service_message("SERVICE_STOP_REQUESTED")
             # Report stop pending to SCM
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-            self.host.stop()
+            if self.host is not None:
+                self.host.stop()
             log_service_message("SERVICE_HOST_STOPPED")
             win32event.SetEvent(self.hWaitStop)
 
         def SvcDoRun(self):
             try:
                 log_service_message("SERVICE_START_REQUESTED")
-                # Start service host
-                self.host.start()
+                # Keep SCM in START_PENDING while the application host
+                # initializes and completes its API readiness gate.
+                self.ReportServiceStatus(
+                    win32service.SERVICE_START_PENDING,
+                    waitHint=120000
+                )
+                self._ensure_host().start()
                 log_service_message("SERVICE_HOST_STARTED")
 
                 # Report RUNNING status to SCM
