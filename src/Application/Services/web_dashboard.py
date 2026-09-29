@@ -3959,13 +3959,14 @@ def get_production_health():
     if research_status == "Running" or intelligence_status == "Running" or research_tracker.get("worker_status") == "RUNNING":
         worker_status = "Running"
 
-    # Determine MT5 connectivity status dynamically from provider
+    # Determine MT5 connectivity status dynamically from the authoritative provider.
+    # Production ResearchWorker reports lifecycle state through central_runtime_state;
+    # research_tracker belongs to the legacy web-dashboard worker and must not
+    # override a healthy provider result.
     try:
         conn_health = global_research_runtime.provider.delegate.get_connection_health()
-        mt5_connected = conn_health.connected
+        mt5_connected = bool(conn_health.connected)
     except Exception:
-        mt5_connected = False
-    if research_tracker.get("mt5_status") == "DISCONNECTED":
         mt5_connected = False
     mt5_status = "Connected" if mt5_connected else "Disconnected"
 
