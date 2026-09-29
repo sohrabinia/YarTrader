@@ -142,13 +142,42 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
             evidence_dir=self.evidence_dir
         )
 
-        # Run 2 cycles with short interval
-        runtime.start_polling_loop(interval_seconds=0.01, limit_cycles=2)
-        self.assertEqual(len(runtime.history), 2)
+        # Production cadence is never below M1; limit to one cycle for this lifecycle test.
+        runtime.start_polling_loop(interval_seconds=0.01, limit_cycles=1)
+        self.assertEqual(len(runtime.history), 1)
 
         # Stop check
         runtime.stop()
         self.assertFalse(runtime._is_running)
+
+    def test_runtime_rejects_tick_and_accepts_m1(self) -> None:
+        """M1 is the minimum supported timeframe; tick/sub-minute analysis is disabled."""
+        m1_runtime = ResearchRuntime(
+            provider=self.adapter,
+            symbol="XAUUSD",
+            timeframe="M1",
+            evidence_dir=self.evidence_dir
+        )
+        self.assertEqual(m1_runtime.timeframe, "M1")
+
+        with self.assertRaises(ValidationException):
+            ResearchRuntime(
+                provider=self.adapter,
+                symbol="XAUUSD",
+                timeframe="TICK",
+                evidence_dir=self.evidence_dir
+            )
+
+    def test_runtime_polling_interval_is_clamped_to_m1(self) -> None:
+        """Polling cannot be configured below the one-minute market cadence."""
+        runtime = ResearchRuntime(
+            provider=self.adapter,
+            symbol="XAUUSD",
+            timeframe="M1",
+            evidence_dir=self.evidence_dir
+        )
+        runtime.start_polling_loop(interval_seconds=0.01, limit_cycles=1)
+        self.assertEqual(runtime.cycle_count, 1)
 
     # 3. Dedicated Live Research & Intelligence Pipeline Tests (Phase 21 Activation)
     def test_live_market_research_integration_flow(self) -> None:
