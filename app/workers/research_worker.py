@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from src.Application.Runtime.runtime_state import central_runtime_state
+from src.Application.Runtime.research_runtime import validate_research_timeframe, MIN_RESEARCH_TIMEFRAME_SECONDS
 
 
 def is_autonomous_demo_enabled() -> bool:
@@ -34,8 +35,9 @@ class ResearchWorker:
     """Manages the background research worker polling loop."""
     def __init__(self, symbol: str = "XAUUSD", timeframe: str = "H1", interval_sec: float = 60.0, cooldown_sec: float = 300.0) -> None:
         self.default_symbol = symbol
-        self.timeframe = timeframe
-        self.interval_sec = interval_sec
+        self.timeframe = validate_research_timeframe(timeframe)
+        # Never schedule faster than the minimum M1 market cadence.
+        self.interval_sec = max(float(interval_sec), MIN_RESEARCH_TIMEFRAME_SECONDS)
         self.cooldown_sec = cooldown_sec
 
         # Cache of active ResearchRuntimes per (symbol, timeframe)
@@ -51,6 +53,9 @@ class ResearchWorker:
         self.status = "IDLE"
         self.error_count = 0
         self.demo_engine = None
+        # Global single-flight guard: Brain/research cycles are strictly serialized.
+        # A second worker/thread can never overlap an active research cycle.
+        self._analysis_lock = threading.Lock()
         central_runtime_state.update_state("research_status", "Stopped")
 
     def _get_or_create_runtime(self, symbol: str, tf: str, asset_class: str = "Forex", provider: str = "MT5") -> ResearchRuntime:
@@ -280,7 +285,15 @@ class ResearchWorker:
                         else:
                             print("MT5: Connected")
 
-                        res = runtime.run_once()
+                        # Strict single-flight: never run two Brain/research cycles at once.
+                        acquired = self._analysis_lock.acquire(blocking=False)
+                        if not acquired:
+                            print("[ResearchWorker] Research cycle skipped: another Brain/research cycle is still running.")
+                            continue
+                        try:
+                            res = runtime.run_once()
+                        finally:
+                            self._analysis_lock.release()
 
                         self.last_analysis_time = datetime.now()
                         if res.Request.EndTime:
