@@ -13,6 +13,58 @@ from src.Data.MarketData.Providers.providers import MetaTrader5Provider
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from src.Research.MarketAnalysis.Services.services import FeatureExtractionResearchEngine
 
+
+
+class ControlledMT5Delegate:
+    """Deterministic offline delegate for adapter/runtime tests; never touches MT5."""
+    def __init__(self, count: int = 600) -> None:
+        self.count = count
+        self._connected = True
+        self.metadata = type("Metadata", (), {"provider_id": "controlled-mt5-test"})()
+
+    def set_connected(self, connected: bool) -> None:
+        self._connected = connected
+
+    def fetch_market_data(self, request):
+        from src.Data.Market.models import CandleRecord, MarketDataMetadata, MarketDataResponse
+        now = datetime.now()
+        if not self._connected:
+            return MarketDataResponse(
+                request=request,
+                candles=[],
+                metadata=MarketDataMetadata(
+                    provider_id=self.metadata.provider_id,
+                    retrieved_at=now,
+                    latency_ms=0.0
+                ),
+                is_success=False,
+                error_message="Controlled test delegate is disconnected."
+            )
+        candles = []
+        for i in range(self.count):
+            p = 2000.0 + (i * 0.1)
+            candles.append(
+                CandleRecord(
+                    timestamp=now - timedelta(minutes=(self.count - i)),
+                    open=p,
+                    high=p + 0.5,
+                    low=p - 0.5,
+                    close=p + 0.2,
+                    volume=100.0
+                )
+            )
+        return MarketDataResponse(
+            request=request,
+            candles=candles,
+            metadata=MarketDataMetadata(
+                provider_id=self.metadata.provider_id,
+                retrieved_at=now,
+                latency_ms=0.0
+            ),
+            is_success=True,
+            error_message=None
+        )
+
 class TestResearchRuntimeAndAdapter(unittest.TestCase):
     """
     Unit and integration tests for the Phase 21 Live Research Runtime & MT5 Adapter.
@@ -34,7 +86,7 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
                 pass
 
         # Build mock-ready delegate
-        self.delegate = MT5DataProvider(provider_id="test-mt5-del", server="Demo-Server")
+        self.delegate = ControlledMT5Delegate()
         self.adapter = MetaTrader5Provider(delegate=self.delegate)
         self.now = datetime.now()
 
