@@ -9,7 +9,7 @@ This document audits the Learning Intelligence System, Market Memory System, and
 
 - **Historical Outcome Ledger**: `src/Learning/Services/trade_ledger.py`
 - **Market Memory System**: `src/Learning/Services/memory_system.py`
-- **Data Persistence**: Json/disk-backed ledger under `runtime_logs/learning_memory.json`
+- **Data Persistence**: Json/disk-backed ledger under `runtime_logs/brain_memory/*.json`
 - **Minimum Sample Gate**: Enforces $N \ge 5$ completed trade outcomes before promoting a cognitive market pattern concept.
 - **Out-of-Sample Validation**: Evaluates out-of-sample win rates against historical baseline before granting parameter weight multipliers.
 
