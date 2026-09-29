@@ -84,15 +84,15 @@ DI Container IFractalEngine resolved: <class 'src.Research.Brain.fractal_engine.
       "signature": [2328.5, 2329.0, 2329.5, 2330.0],
       "similarity_score": 88.5,
       "occurrences": 32,
-      "success_rate_pct": 71.8,
+      "success_rate_pct": null,
       "outcomes": ["TARGET_HIT", "TARGET_HIT", "STOP_HIT"],
       "description": "Baseline Expansion Continuation pattern"
     },
     "all_matches": [...],
     "total_occurrences": 32,
-    "average_similarity_score": 88.5,
-    "success_rate_pct": 71.8,
-    "summary": "Found 1 similar historical structures. Best match has 88.5% similarity and 71.8% success rate."
+    "average_similarity_score": null,
+    "success_rate_pct": null,
+    "summary": "Historical example retained for documentation only; no runtime similarity or success-rate value is asserted."
   },
   "scales_evaluated_count": 8,
   "detected_bases_count": 0,
