@@ -3768,27 +3768,11 @@ def get_api_v1_health():
         "intelligence_worker": "Running",
     }
 
-    # Memory status & statistics
+    # Memory status & statistics — report repository truth; never seed synthetic counters.
     try:
         memory_stats = global_memory_system.get_learning_statistics()
-        if not memory_stats or memory_stats.get("total_experiences", 0) == 0:
-            memory_stats = {
-                "total_experiences": 1500,
-                "patterns_created": 45,
-                "concepts_learned": 18
-            }
-        else:
-            # Ensure required fields are always >0 or >=0 as requested
-            if memory_stats.get("patterns_created", 0) == 0:
-                memory_stats["patterns_created"] = 45
-            if memory_stats.get("concepts_learned", 0) == 0:
-                memory_stats["concepts_learned"] = 18
     except Exception as e:
-        memory_stats = {
-            "total_experiences": 1500,
-            "patterns_created": 45,
-            "concepts_learned": 18
-        }
+        memory_stats = {"status": "unavailable", "error": str(e)}
 
     # Dependency health checks
     try:
@@ -4146,30 +4130,9 @@ def get_dashboard_overview():
 
 @app.get("/v1/dashboard/cognitive")
 def get_dashboard_cognitive():
-    """Exposes complete cognitive monitoring panels, learning progress, and brain weaknesses."""
-    return {
-        "cognitive": {
-            "Learning Progress": {
-                "Episodes Studied": 142,
-                "Patterns Found": 87,
-                "Hypotheses Tested": 34,
-                "Validated Concepts": 12,
-                "Rejected Concepts": 6,
-                "Last Updated": datetime.now().isoformat()
-            },
-            "Brain Weakness": {
-                "Highest Failure Areas": ["XAUUSD reaction during US high volatility sessions", "GBPUSD ranging lateral noise"],
-                "Unknown Behaviors": ["Low liquidity holiday trading blocks", "Extreme macroeconomic news impact spikes"],
-                "Research Priorities": [
-                    {
-                        "Priority": "High",
-                        "Topic": "XAUUSD reaction after extreme volatility",
-                        "Reason": "Insufficient historical samples in memory system"
-                    }
-                ]
-            }
-        }
-    }
+    """Exposes real learning statistics; unknown areas remain explicitly unknown."""
+    stats = global_memory_system.get_learning_statistics()
+    return {"cognitive": {"learning_statistics": stats, "data_state": "REAL_LEARNING_MEMORY"}}
 
 
 @app.get("/v1/monitoring")
