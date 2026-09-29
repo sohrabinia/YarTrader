@@ -25,6 +25,7 @@ import IntelligenceView from './views/IntelligenceView.jsx';
 import DemoView from './views/DemoView.jsx';
 import AdminView from './views/AdminView.jsx';
 import AdminWalletView from './views/AdminWalletView.jsx';
+import AdminFinancialView from './views/AdminFinancialView.jsx';
 import OperatorView from './views/OperatorView.jsx';
 import GuideView from './views/GuideView.jsx';
 import FaqView from './views/FaqView.jsx';
@@ -364,7 +365,7 @@ function MainApp() {
       navigateTo('/login');
       return;
     }
-    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/Operator' || routePath === '/operator' || routePath === '/learning' || routePath === '/wallet' || routePath === '/billing' || routePath === '/admin/wallet';
+    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/Operator' || routePath === '/operator' || routePath === '/learning' || routePath === '/wallet' || routePath === '/billing' || routePath === '/admin/wallet' || routePath === '/admin/financial';
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
       showNotification(
@@ -2037,6 +2038,7 @@ function MainApp() {
           {routePath === '/wallet' && <WalletView lang={lang} />}\n          {routePath === '/billing' && <BillingView lang={lang} />}
 
           {routePath === '/admin/wallet' && <AdminWalletView />}
+          {routePath === '/admin/financial' && <AdminFinancialView />}
 
           {routePath === '/login' && (
             <div id="shell-login">
