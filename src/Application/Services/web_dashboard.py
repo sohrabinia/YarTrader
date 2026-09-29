@@ -3959,25 +3959,26 @@ def get_production_health():
     if research_status == "Running" or intelligence_status == "Running" or research_tracker.get("worker_status") == "RUNNING":
         worker_status = "Running"
 
-    # Determine MT5 connectivity status dynamically from provider
+    # Determine MT5 connectivity status dynamically from the authoritative provider.
+    # Production ResearchWorker reports lifecycle state through central_runtime_state;
+    # research_tracker belongs to the legacy web-dashboard worker and must not
+    # override a healthy provider result.
     try:
         conn_health = global_research_runtime.provider.delegate.get_connection_health()
-        mt5_connected = conn_health.connected
+        mt5_connected = bool(conn_health.connected)
     except Exception:
-        mt5_connected = False
-    if research_tracker.get("mt5_status") == "DISCONNECTED":
         mt5_connected = False
     mt5_status = "Connected" if mt5_connected else "Disconnected"
 
     # Shadow Trading is DEPRECATED & REMOVED repository-wide (SHADOW = ZERO)
     shadow_status_active = "Disabled"
 
-    # Harden SRE Health Accuracy against fake reporting
+    # Harden SRE Health Accuracy against stale legacy worker state.
+    # In production, central_runtime_state is authoritative for managed workers.
     overall_status = "healthy"
     degraded_states = ["Failed", "Degraded", "Recovering"]
     if (research_status in degraded_states or
-        intelligence_status in degraded_states or
-        research_tracker.get("worker_status") in degraded_states):
+        intelligence_status in degraded_states):
         overall_status = "degraded"
 
     # Redacted public terminal operational health summary (no accounts, servers, or internal topology)
