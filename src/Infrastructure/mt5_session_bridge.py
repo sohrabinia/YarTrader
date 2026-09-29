@@ -270,12 +270,48 @@ class MT5SessionAgent(ThreadingHTTPServer):
                 return fn()
             if method == "account_info":
                 return fn()
-            if method.startswith("copy_rates") or method.startswith("history_"):
+            if method == "copy_rates_range":
+                date_from = params.get("date_from")
+                date_to = params.get("date_to")
+                if isinstance(date_from, str):
+                    date_from = datetime.fromisoformat(date_from)
+                if isinstance(date_to, str):
+                    date_to = datetime.fromisoformat(date_to)
+                return fn(params["symbol"], params["timeframe"], date_from, date_to)
+            if method == "copy_rates_from":
+                date_to = params.get("date_to")
+                if isinstance(date_to, str):
+                    date_to = datetime.fromisoformat(date_to)
+                return fn(params["symbol"], params["timeframe"], date_to, params["count"])
+            if method == "copy_rates_from_pos":
+                return fn(params["symbol"], params["timeframe"], params["start"], params["count"])
+            if method == "history_orders_get":
                 converted = dict(params)
                 for key in ("date_from", "date_to"):
                     if isinstance(converted.get(key), str):
                         converted[key] = datetime.fromisoformat(converted[key])
-                return fn(**converted)
+                if converted.get("ticket") is not None:
+                    return fn(ticket=converted["ticket"])
+                if converted.get("date_from") is not None and converted.get("date_to") is not None:
+                    if converted.get("group") is not None:
+                        return fn(converted["date_from"], converted["date_to"], group=converted["group"])
+                    return fn(converted["date_from"], converted["date_to"])
+                if converted.get("group") is not None:
+                    return fn(group=converted["group"])
+                return fn()
+            if method == "history_deals_get":
+                converted = dict(params)
+                for key in ("date_from", "date_to"):
+                    if isinstance(converted.get(key), str):
+                        converted[key] = datetime.fromisoformat(converted[key])
+                if converted.get("ticket") is not None:
+                    return fn(ticket=converted["ticket"])
+                if converted.get("position") is not None:
+                    return fn(position=converted["position"])
+                if converted.get("date_from") is not None and converted.get("date_to") is not None:
+                    return fn(converted["date_from"], converted["date_to"])
+                return fn()
+            return fn(**params)
             return fn(**params)
 
         if method == "symbol_select":
