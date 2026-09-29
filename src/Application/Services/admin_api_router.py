@@ -249,6 +249,42 @@ async def payment_gateway_webhook(request: Request):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+
+# ==============================================================================
+# RECEIVE-ONLY USDT WALLET ADMINISTRATION
+# ==============================================================================
+class ReceiveWalletPayload(BaseModel):
+    network: str
+    address: str
+    label: Optional[str] = None
+
+@router.get("/wallet/receive")
+def admin_get_receive_wallet(request: Request, token: Optional[str] = None):
+    enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.receive_wallet_manager import ReceiveWalletManager
+    return ReceiveWalletManager().public_config()
+
+@router.post("/wallet/receive")
+def admin_set_receive_wallet(payload: ReceiveWalletPayload, request: Request, token: Optional[str] = None):
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.receive_wallet_manager import ReceiveWalletManager
+    try:
+        result = ReceiveWalletManager().set_network(payload.network, payload.address, payload.label)
+        from app.core.logging import log_audit
+        log_audit("WALLET_RECEIVE_CONFIG", action="SET", network=payload.network.upper(), actor=session.get("email"))
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/wallet/receive/{network}")
+def admin_remove_receive_wallet(network: str, request: Request, token: Optional[str] = None):
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.receive_wallet_manager import ReceiveWalletManager
+    result = ReceiveWalletManager().remove_network(network)
+    from app.core.logging import log_audit
+    log_audit("WALLET_RECEIVE_CONFIG", action="REMOVE", network=network.upper(), actor=session.get("email"))
+    return result
+
 # ==============================================================================
 # P2-3 — SUPPORT TICKETING ADMIN ENDPOINTS
 # ==============================================================================
