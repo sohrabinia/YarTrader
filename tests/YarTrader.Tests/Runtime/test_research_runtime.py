@@ -342,38 +342,51 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         from fastapi.testclient import TestClient
         from src.Application.Services.web_dashboard import app, global_research_runtime
 
-        # Populate runtime history for endpoint verification
-        global_research_runtime.run_once()
+        # The production singleton is intentionally backed by the real MT5 provider.
+        # For this unit/API test, replace only the singleton's provider/engine with the
+        # deterministic fixture so the test never depends on host MT5 availability.
+        original_provider = global_research_runtime._provider
+        original_engine = global_research_runtime._research_engine
+        global_research_runtime._provider = self.adapter
+        global_research_runtime._research_engine = FeatureExtractionResearchEngine(
+            data_provider=self.adapter
+        )
+        try:
+            global_research_runtime.run_once()
 
-        client = TestClient(app)
+            client = TestClient(app)
 
-        # A. Current endpoint
-        resp_curr = client.get("/api/research/current?timeframe=H1")
-        self.assertEqual(resp_curr.status_code, 200)
-        curr_data = resp_curr.json()
-        self.assertEqual(curr_data["symbol"], "XAUUSD")
-        self.assertEqual(curr_data["timeframe"], "H1")
-        self.assertIn(curr_data["bias"], ["Bullish", "Bearish", "Neutral", "UNAVAILABLE"])
-        self.assertIn("confidence", curr_data)
-        self.assertIn("reasoning", curr_data)
-        self.assertIn("indicators", curr_data)
-        self.assertIn("timestamp", curr_data)
+            # A. Current endpoint
 
-        # B. History endpoint
-        resp_hist = client.get("/api/research/history")
-        self.assertEqual(resp_hist.status_code, 200)
-        hist_data = resp_hist.json()
-        self.assertGreater(len(hist_data), 0)
-        self.assertEqual(hist_data[-1]["symbol"], "XAUUSD")
+            resp_curr = client.get("/api/research/current?timeframe=H1")
+            self.assertEqual(resp_curr.status_code, 200)
+            curr_data = resp_curr.json()
+            self.assertEqual(curr_data["symbol"], "XAUUSD")
+            self.assertEqual(curr_data["timeframe"], "H1")
+            self.assertIn(curr_data["bias"], ["Bullish", "Bearish", "Neutral", "UNAVAILABLE"])
+            self.assertIn("confidence", curr_data)
+            self.assertIn("reasoning", curr_data)
+            self.assertIn("indicators", curr_data)
+            self.assertIn("timestamp", curr_data)
 
-        # C. Health endpoint
-        resp_health = client.get("/api/research/health")
-        self.assertEqual(resp_health.status_code, 200)
-        health_data = resp_health.json()
-        self.assertIn(health_data["mt5_status"], ["CONNECTED", "DISCONNECTED", "ONLINE", "OFFLINE"])
-        self.assertIsNotNone(health_data["last_analysis_time"])
-        self.assertIn("worker_running", health_data)
-        self.assertIn("last_result_id", health_data)
+            # B. History endpoint
+            resp_hist = client.get("/api/research/history")
+            self.assertEqual(resp_hist.status_code, 200)
+            hist_data = resp_hist.json()
+            self.assertGreater(len(hist_data), 0)
+            self.assertEqual(hist_data[-1]["symbol"], "XAUUSD")
+
+            # C. Health endpoint
+            resp_health = client.get("/api/research/health")
+            self.assertEqual(resp_health.status_code, 200)
+            health_data = resp_health.json()
+            self.assertIn(health_data["mt5_status"], ["CONNECTED", "DISCONNECTED", "ONLINE", "OFFLINE"])
+            self.assertIsNotNone(health_data["last_analysis_time"])
+            self.assertIn("worker_running", health_data)
+            self.assertIn("last_result_id", health_data)
+        finally:
+            global_research_runtime._provider = original_provider
+            global_research_runtime._research_engine = original_engine
 
     def test_strict_read_only_compliance_no_trading_api(self) -> None:
         """Verify that absolutely no active trading functions (buy, sell, order_send) are defined or called."""
