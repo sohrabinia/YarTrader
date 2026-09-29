@@ -3,6 +3,28 @@ import time
 import json
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
+
+
+# Production research/Brain scheduling contract:
+# - M1 is the minimum supported market timeframe.
+# - Tick/sub-minute streams are never accepted by the research runtime.
+# - One runtime instance executes one cycle at a time (no overlapping cycles).
+MIN_RESEARCH_TIMEFRAME_SECONDS = 60
+_TIMEFRAME_SECONDS = {
+    "M1": 60, "M5": 300, "M15": 900, "M30": 1800,
+    "H1": 3600, "H4": 14400, "D1": 86400, "W1": 604800, "MN1": 2592000,
+}
+
+
+def validate_research_timeframe(timeframe: str) -> str:
+    """Normalize and fail closed for tick/sub-minute research timeframes."""
+    normalized = str(timeframe or "").strip().upper()
+    seconds = _TIMEFRAME_SECONDS.get(normalized)
+    if seconds is None or seconds < MIN_RESEARCH_TIMEFRAME_SECONDS:
+        raise ValidationException(
+            f"Unsupported research timeframe '{timeframe}'. Minimum supported timeframe is M1 (60s); tick/sub-minute analysis is disabled."
+        )
+    return normalized
 from src.Infrastructure.exceptions import ValidationException
 from src.Data.MarketData.Providers.providers import MetaTrader5Provider
 from src.Data.MarketData.Models.models import MarketDataRequest
@@ -26,10 +48,10 @@ class ResearchRuntime:
         provider_name: str = "MT5",
         asset_class: str = "Forex"
     ) -> None:
+        self._timeframe = validate_research_timeframe(timeframe)
         self._provider = provider or MetaTrader5Provider()
         self._research_engine = research_engine or PrimitiveMarketResearchEngine(data_provider=self._provider)
         self._symbol = symbol
-        self._timeframe = timeframe
 
         from src.Application.Deployment.storage import YarTraderStorageManager
         storage_mgr = YarTraderStorageManager.get_manager()
@@ -287,6 +309,7 @@ class ResearchRuntime:
         Starts a continuous thread polling runtime loop.
         Can be limited to a specific cycle count (useful for testing or one-off jobs).
         """
+        interval_seconds = max(float(interval_seconds), MIN_RESEARCH_TIMEFRAME_SECONDS)
         self._is_running = True
         self.worker_started_at = datetime.now()
         cycle_count = 0
