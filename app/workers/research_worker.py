@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from src.Application.Runtime.runtime_state import central_runtime_state
-from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
 
 
 def is_autonomous_demo_enabled() -> bool:
@@ -69,11 +68,26 @@ class ResearchWorker:
         return self.runtimes[key]
 
     def _get_active_matrix(self) -> list:
+        """Build the active research matrix from the canonical market-universe config."""
         try:
-            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-            return SymbolRegistry.get_instance().get_active_matrix()
+            import yaml
+            from pathlib import Path
+            path = Path(__file__).resolve().parents[2] / "config" / "market_universe.yaml"
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else {}
+            matrix = []
+            for asset_class, symbols in (data or {}).items():
+                if not isinstance(symbols, dict):
+                    continue
+                for symbol, spec in symbols.items():
+                    if not isinstance(spec, dict) or not spec.get("enabled", True):
+                        continue
+                    provider = str(spec.get("provider", "MT5"))
+                    timeframes = spec.get("timeframes") or [self.timeframe]
+                    for tf in timeframes:
+                        matrix.append((str(symbol).upper(), str(tf).upper(), str(asset_class), provider))
+            return matrix
         except Exception:
-            return []
+            return [(self.default_symbol.upper(), self.timeframe.upper(), "Commodities", "MT5")]
 
     def start(self) -> None:
         """Starts the background worker thread."""
@@ -254,9 +268,7 @@ class ResearchWorker:
     def _run_loop(self) -> None:
         """Worker loop running on the background thread."""
         try:
-            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-            registry = SymbolRegistry.get_instance()
-            active_matrix = registry.get_active_matrix()
+            active_matrix = self._get_active_matrix()
             unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
             configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
 
