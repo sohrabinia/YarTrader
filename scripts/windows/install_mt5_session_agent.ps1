@@ -24,16 +24,15 @@ if ([string]::IsNullOrWhiteSpace($token)) {
     [Environment]::SetEnvironmentVariable("YARTRADER_MT5_BRIDGE_TOKEN", $token, "Machine")
 }
 
-# Register the agent as an interactive user task. New-ScheduledTaskAction
-# supports an explicit working directory, avoiding schtasks.exe quoting and
-# file-entrypoint sys.path problems.
+# Register the agent as an interactive user task. The working directory is
+# explicit so the module entrypoint can import the repository's src package.
 $action = New-ScheduledTaskAction `
     -Execute $python `
     -Argument "-m app.workers.mt5_session_agent" `
     -WorkingDirectory $repo
 $principal = New-ScheduledTaskPrincipal `
     -UserId "$env:USERDOMAIN\$env:USERNAME" `
-    -LogonType InteractiveToken `
+    -LogonType Interactive `
     -RunLevel Highest
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
 
