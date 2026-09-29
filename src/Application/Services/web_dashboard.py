@@ -4792,6 +4792,86 @@ def admin_update_ticket_status(ticket_id: str, payload: AdminTicketStatusPayload
 
 
 # ---------------------------------------------------------------------------
+# DEMO execution/reporting surface
+# ---------------------------------------------------------------------------
+@app.post("/api/demo/run")
+def run_demo_scenario(payload: Dict[str, Any]):
+    """Run a deterministic DEMO-only scenario and persist the observed result."""
+    scenario_name = str(payload.get("scenario_id", "trend_continuation")).lower()
+    asset = str(payload.get("asset", "XAUUSD")).upper()
+
+    from src.Application.Demo.runner import DemoScenarioRunner
+    from src.Application.Demo import scenarios
+
+    if "reversal" in scenario_name:
+        scenario = scenarios.create_trend_reversal_scenario(asset=asset)
+    elif "volatility" in scenario_name:
+        scenario = scenarios.create_high_volatility_scenario(asset=asset)
+    elif "liquidity" in scenario_name:
+        scenario = scenarios.create_low_liquidity_scenario(asset=asset)
+    elif "conflict" in scenario_name:
+        scenario = scenarios.create_conflicting_signals_scenario(asset=asset)
+    else:
+        scenario = scenarios.create_trend_continuation_scenario(asset=asset)
+
+    result = DemoScenarioRunner().run_scenario(scenario)
+    record = {
+        "run_id": f"demo-{int(time.time() * 1000)}",
+        "mode": "DEMO",
+        "scenario": scenario.scenario_id,
+        "asset": scenario.asset,
+        "timeframe": scenario.timeframe,
+        "success": bool(result.success),
+        "final_decision_state": result.final_decision_state,
+        "overall_confidence": result.overall_confidence,
+        "data_provenance": "DEMO_SCENARIO_SIMULATION",
+        "completed_at": datetime.now().isoformat(),
+    }
+    os.makedirs("runtime_logs", exist_ok=True)
+    path = "runtime_logs/demo_trades.json"
+    records = []
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                records = json.load(handle)
+        except (OSError, ValueError, TypeError):
+            records = []
+    if not isinstance(records, list):
+        records = []
+    records.append(record)
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(records[-200:], handle, indent=2)
+
+    return {"status": "Success", "success": bool(result.success), "result": record}
+
+
+@app.get("/api/demo/trades")
+def get_demo_trades():
+    path = "runtime_logs/demo_trades.json"
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        return data if isinstance(data, list) else []
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+@app.get("/api/demo/report")
+def get_demo_report():
+    trades = get_demo_trades()
+    successful = sum(1 for item in trades if item.get("success") is True)
+    return {
+        "mode": "DEMO",
+        "data_provenance": "DEMO_SCENARIO_SIMULATION",
+        "total_runs": len(trades),
+        "successful_runs": successful,
+        "failed_runs": len(trades) - successful,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Canonical dashboard compatibility endpoints
 # These endpoints are descriptive/control-plane contracts only. They do not
 # create trading decisions and never enable LIVE execution.
