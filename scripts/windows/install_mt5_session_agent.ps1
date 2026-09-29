@@ -12,7 +12,15 @@ if (-not (Test-Path $entry)) { throw "MT5 bridge entrypoint not found: $entry" }
 
 $token = [Environment]::GetEnvironmentVariable("YARTRADER_MT5_BRIDGE_TOKEN", "Machine")
 if ([string]::IsNullOrWhiteSpace($token)) {
-    $token = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+    $bytes = New-Object byte[] 32
+    $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $rng.GetBytes($bytes)
+    }
+    finally {
+        $rng.Dispose()
+    }
+    $token = [BitConverter]::ToString($bytes).Replace("-", "").ToLowerInvariant()
     [Environment]::SetEnvironmentVariable("YARTRADER_MT5_BRIDGE_TOKEN", $token, "Machine")
 }
 
