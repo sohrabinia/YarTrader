@@ -42,7 +42,7 @@ This document establishes the strict HTTP API contract between the client fronte
 ## 🔐 User Identity and Authentication (`/api/auth/*`)
 
 ### 1. User Sign-In
-- **Endpoint:** `POST /api/auth/login`
+- **Endpoint:** `POST /api/auth/google`
 - **Method:** `POST`
 - **Payload Schema:**
 ```json
