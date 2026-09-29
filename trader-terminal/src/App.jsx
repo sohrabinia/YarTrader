@@ -2092,84 +2092,23 @@ function MainApp() {
           {/* AUTHENTICATION VIEWS */}
           {routePath === '/login' && (
             <div id="shell-login">
-              <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)' }}>
-                <div style={{ display: 'flex', borderBottom: '1px solid var(--border-dark)', marginBottom: '20px' }}>
-                  <button
-                    type="button"
-                    className={`sub-tab ${authMode === 'login' ? 'active' : ''}`}
-                    style={{ flex: 1, paddingBottom: '12px', textAlign: 'center', background: 'none', border: 'none', fontSize: '1em', fontWeight: 'bold' }}
-                    onClick={() => setAuthMode('login')}
-                  >
-                    {t('login_title') || (lang === 'fa' ? 'ورود' : 'Sign In')}
-                  </button>
-                  <button
-                    type="button"
-                    className={`sub-tab ${authMode === 'register' ? 'active' : ''}`}
-                    style={{ flex: 1, paddingBottom: '12px', textAlign: 'center', background: 'none', border: 'none', fontSize: '1em', fontWeight: 'bold' }}
-                    onClick={() => setAuthMode('register')}
-                  >
-                    {lang === 'fa' ? 'ثبت‌نام' : 'Register'}
-                  </button>
-                </div>
-
-                {/* Email / Password Form */}
-                <form onSubmit={handleEmailAuthSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
-                  {authMode === 'register' && (
-                    <div className="form-group" style={{ margin: 0 }}>
-                      <label className="form-label">{lang === 'fa' ? 'نام و نام خانوادگی' : 'Full Name'}</label>
-                      <input
-                        type="text"
-                        className="input-field"
-                        placeholder={lang === 'fa' ? 'نام شما' : 'Your Name'}
-                        value={authName}
-                        onChange={(e) => setAuthName(e.target.value)}
-                      />
-                    </div>
-                  )}
-
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">{lang === 'fa' ? 'آدرس ایمیل' : 'Email Address'}</label>
-                    <input
-                      type="email"
-                      className="input-field"
-                      placeholder="user@example.com"
-                      required
-                      value={authEmail}
-                      onChange={(e) => setAuthEmail(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">{lang === 'fa' ? 'رمز عبور' : 'Password'}</label>
-                    <input
-                      type="password"
-                      className="input-field"
-                      placeholder="••••••••"
-                      required
-                      value={authPassword}
-                      onChange={(e) => setAuthPassword(e.target.value)}
-                    />
-                  </div>
-
-                  <button type="submit" className="btn" style={{ width: '100%', padding: '12px', fontSize: '1em' }} disabled={authSubmitting}>
-                    {authSubmitting
-                      ? (lang === 'fa' ? 'در حال پردازش...' : 'Processing...')
-                      : (authMode === 'register'
-                          ? (lang === 'fa' ? 'ایجاد حساب کاربری' : 'Create Account')
-                          : (lang === 'fa' ? 'ورود به حساب' : 'Sign In'))}
-                  </button>
-                </form>
-
-                <div style={{ display: 'flex', alignItems: 'center', margin: '20px 0', color: 'var(--text-muted)', fontSize: '0.85em' }}>
-                  <div style={{ flex: 1, height: '1px', background: 'var(--border-dark)' }}></div>
-                  <span style={{ padding: '0 10px' }}>{lang === 'fa' ? 'یا' : 'OR'}</span>
-                  <div style={{ flex: 1, height: '1px', background: 'var(--border-dark)' }}></div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <button type="button" className="social-btn social-google" style={{ width: '100%', padding: '12px', fontSize: '0.95em', justifyContent: 'center' }} onClick={() => handleSocialLogin('Google')}>
-                    <span>🌐</span> Continue with Google
-                  </button>
+              <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)', textAlign: 'center' }}>
+                <h2 style={{ marginBottom: '10px' }}>{t('login_title') || (lang === 'fa' ? 'ورود به YarTrader' : 'Sign in to YarTrader')}</h2>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
+                  {lang === 'fa'
+                    ? 'ورود کاربران فقط با حساب Google انجام می‌شود.'
+                    : 'Customer sign-in is available only through Google.'}
+                </p>
+                <button
+                  type="button"
+                  className="social-btn social-google"
+                  style={{ width: '100%', padding: '13px', fontSize: '1em', justifyContent: 'center' }}
+                  onClick={() => handleSocialLogin('Google')}
+                >
+                  <span>🌐</span> {lang === 'fa' ? 'ادامه با Google' : 'Continue with Google'}
+                </button>
+                <div style={{ marginTop: '18px', fontSize: '0.82em', color: 'var(--text-muted)' }}>
+                  {lang === 'fa' ? 'حساب و احراز هویت مشتری از مسیر Google مدیریت می‌شود.' : 'Customer identity is managed through Google.'}
                 </div>
               </div>
             </div>
