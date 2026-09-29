@@ -281,6 +281,7 @@ class MT5DataProvider(IDataProvider):
         server: str = "Demo-Server",
         supported_symbols: Optional[List[str]] = None
     ) -> None:
+        global mt5
         supported_symbols = supported_symbols or ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY"]
         self._metadata = DataProviderMetadata(
             provider_id=provider_id,
