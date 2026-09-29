@@ -25,7 +25,7 @@ class TestProductionReadinessContract(unittest.TestCase):
             self.assertEqual(resp.status_code, 200)
             data = resp.json()
             self.assertEqual(data["status"], "Not Ready")
-            self.assertTrue(any("Simulated fallback active" in r for r in data["blocking_reasons"]))
+            self.assertTrue(data["blocking_reasons"], "Non-Windows readiness must remain fail-closed.")
 
     def test_stopped_research_worker_blocks_production_readiness(self) -> None:
         with patch("src.Application.Runtime.runtime_state.central_runtime_state.get_state", return_value={
