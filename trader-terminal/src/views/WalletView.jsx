@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { apiService } from '../services/api.js';
 
 export default function WalletView({ lang = 'en' }) {
-  const [wallet, setWallet] = useState(null);
+  const [wallet, setWallet] = useState(null);\n  const [deposits, setDeposits] = useState([]);\n  const [form, setForm] = useState({network:'TON',tx_hash:'',amount_usdt:''});\n  const [submitMsg, setSubmitMsg] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const rtl = lang === 'fa' || lang === 'ar';
@@ -37,6 +37,18 @@ export default function WalletView({ lang = 'en' }) {
       <span className="status-passed">RECEIVE ONLY</span>
     </div>
     <div style={{padding:'12px 14px',border:'1px solid var(--border-dark)',borderRadius:8,margin:'18px 0',color:'var(--text-muted)'}}>⚠️ {text?.warning}</div>
+    <div style={{marginTop:24,padding:18,border:'1px solid var(--border-dark)',borderRadius:10}}>
+      <h3 style={{marginTop:0}}>Deposit confirmation</h3>
+      <p style={{color:'var(--text-muted)',fontSize:13}}>After sending USDT to one of the addresses above, submit the transaction hash here. Credit is added only after administrative verification.</p>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:10}}>
+        <select className="form-input" value={form.network} onChange={e=>setForm({...form,network:e.target.value})}>{['TON','TRC20','ERC20','BEP20','SOLANA'].map(n=><option key={n}>{n}</option>)}</select>
+        <input className="form-input" placeholder="Transaction hash" value={form.tx_hash} onChange={e=>setForm({...form,tx_hash:e.target.value})}/>
+        <input className="form-input" type="number" min="0" step="0.000001" placeholder="USDT amount" value={form.amount_usdt} onChange={e=>setForm({...form,amount_usdt:e.target.value})}/>
+        <button className="btn" onClick={async()=>{try{const r=await apiService.post('/api/user/wallet/deposits',form);setDeposits([r,...deposits]);setForm({...form,tx_hash:'',amount_usdt:''});setSubmitMsg('Deposit submitted for verification.')}catch(e){setSubmitMsg(e.message||'Submission failed.')}}}>Submit deposit</button>
+      </div>
+      {submitMsg && <div style={{marginTop:10,color:'var(--text-muted)'}}>{submitMsg}</div>}
+    </div>
+    {deposits.length>0 && <div style={{marginTop:24}}><h3>Deposit history</h3>{deposits.map(d=><div key={d.deposit_id} style={{padding:'12px 0',borderBottom:'1px solid var(--border-dark)'}}><strong>{d.amount_usdt} USDT</strong> · {d.network} · {d.status}<div style={{fontSize:12,color:'var(--text-muted)',wordBreak:'break-all'}}>{d.tx_hash}</div></div>)}</div>}
     {networks.length === 0 ? <div style={{padding:'35px 10px',textAlign:'center',color:'var(--text-muted)'}}>{text?.empty}</div> :
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:16}}>
         {networks.map((n) => <div key={n.network} style={{border:'1px solid var(--border-dark)',borderRadius:10,padding:18}}>
