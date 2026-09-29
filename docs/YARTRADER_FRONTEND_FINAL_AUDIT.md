@@ -35,7 +35,7 @@ Evaluating all 18 core platform pages against readiness criteria (`PASS`, `PARTI
 | **Dashboard** | `#/dashboard` | `PASS` | Command center hero, horizon tabs, asset filter, signals grid, compounding simulator. |
 | **Market Intel** | `#/dashboard` & `#/signals` | `PASS` | Active symbol market states, prices, changes %, and posture filters. |
 | **Research** | `#/blog` | `PASS` | Renders research article feed with tags and author metadata. |
-| **Fractal Intel** | `#/execution-intel` | `PARTIAL` | Renders fractal status card (Score: 0.85, Similarity: 88.5%). Needs dedicated multi-scale graph. |
+| **Fractal Intel** | `#/execution-intel` | `PARTIAL` | Renders fractal status card (Score: unavailable until live evidence exists, Similarity: unavailable until live evidence exists). Needs dedicated multi-scale graph. |
 | **Regime Analysis**| `#/dashboard` & `#/signals` | `PARTIAL` | Regime posture textually attached to signals. Needs dedicated regime shift gauge. |
 | **Decision Center** | `#/execution-intel` | `PASS` | 5-stage execution cascade, XAI reasoning trace, and advisory trade plan (Entry, SL, TP, R:R). |
 | **Risk Dashboard** | `#/execution-intel` | `PASS` | Portfolio heat, risk budget remaining, drawdown level, SRE risk approval boolean. |

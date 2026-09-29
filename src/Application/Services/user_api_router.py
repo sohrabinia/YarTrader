@@ -2,7 +2,6 @@ import os
 from fastapi import APIRouter, HTTPException, Header, Depends, Query
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
-from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
 from src.Application.Dashboard.auth_service import global_auth_service
 from src.Growth.Agents.SecurityCostAgents import TierEntitlementMiddleware
 
@@ -57,132 +56,68 @@ def get_user_session_and_enforce_tier(authorization: Optional[str] = Header(None
     return session
 
 
-# 1. Clean User Signals (Micro, Short, Medium, Macro views)
+# 1. Canonical User Signals
+
+def _snapshot_signals(market: Optional[str] = None, horizon: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Build customer-facing signals from persisted ResearchRuntime snapshots only."""
+    snapshot_dir = "runtime_logs/research_snapshots"
+    if not os.path.exists(snapshot_dir): return []
+    market_symbols = {"gold":{"XAUUSD"},"bitcoin":{"BTCUSD"},"euro":{"EURUSD"},"pound":{"GBPUSD"}}
+    horizon_map = {"micro":{"M1"},"short":{"M5","M15","H1"},"medium":{"H4","D1"},"macro":{"W1","MN1"}}
+    allowed_symbols = market_symbols.get((market or "").lower()) if market else None
+    allowed_tfs = horizon_map.get((horizon or "").lower()) if horizon else None
+    try:
+        files=[os.path.join(snapshot_dir,f) for f in os.listdir(snapshot_dir) if f.endswith(".json")]
+        files.sort(key=lambda path: os.path.getmtime(path), reverse=True)
+    except OSError: return []
+    latest_by_key={}
+    for path in files:
+        try:
+            with open(path,"r",encoding="utf-8") as fh: data=json.load(fh)
+            symbol=str(data.get("symbol") or data.get("asset") or "").upper()
+            timeframe=str(data.get("timeframe") or "H1").upper()
+            if allowed_symbols and symbol not in allowed_symbols: continue
+            if allowed_tfs and timeframe not in allowed_tfs: continue
+            decision=(data.get("findings",{}) or {}).get("autonomous_decision",{}) or {}
+            action=str(decision.get("action","WAIT")).upper()
+            if action not in {"BUY","SELL"}: continue
+            key=(symbol,timeframe)
+            if key in latest_by_key: continue
+            latest_by_key[key]={"signal_id":decision.get("decision_id") or data.get("report_id") or f"research-{symbol}-{timeframe}","symbol":symbol,"direction":action,"entry_zone":decision.get("entry_price"),"invalidation_level":decision.get("stop_loss"),"target_zone":decision.get("take_profit"),"confidence":decision.get("confidence",0),"reason":decision.get("reasoning",[]),"status":"ACTIVE","timeframe":timeframe,"timestamp":data.get("timestamp") or data.get("created_at"),"evidence_state":"REAL_RESEARCH_SNAPSHOT"}
+        except (OSError,ValueError,TypeError,json.JSONDecodeError): continue
+    return list(latest_by_key.values())
+
 @router.get("/signals")
 def get_user_signals(market: Optional[str] = None, horizon: Optional[str] = None, session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
-    """Exposes clean AI Signals filterable by asset and simplified horizons (Micro, Short, Medium, Macro)."""
-    engine = PredictiveShadowEngine.get_instance()
-    signals = engine.get_clean_signals()
+    """Exposes real research decisions; no Shadow engine is consulted."""
+    return _snapshot_signals(market, horizon)
 
-    # Horizons map to custom tick frames:
-    # Micro = [1], Short = [4], Medium = [16, 64], Macro = [256, 1024]
-    allowed_frames = []
-    if horizon:
-        h_lower = horizon.lower()
-        if "micro" in h_lower:
-            allowed_frames = [1]
-        elif "short" in h_lower:
-            allowed_frames = [4]
-        elif "medium" in h_lower:
-            allowed_frames = [16, 64]
-        elif "macro" in h_lower:
-            allowed_frames = [256, 1024]
-
-    mapped = []
-    for s in signals:
-        trade_id = s.get("shadow_trade_id")
-        trade = next((t for t in engine.trades if t.trade_id == trade_id), None)
-
-        # Filter Asset Category
-        if market:
-            m_lower = market.lower()
-            if m_lower == "gold" and "XAU" not in s["symbol"]:
-                continue
-            if m_lower == "bitcoin" and "BTC" not in s["symbol"]:
-                continue
-            if m_lower == "euro" and "EUR" not in s["symbol"]:
-                continue
-
-        if allowed_frames and trade and trade.custom_time_structure not in allowed_frames:
-            continue
-
-        # Map to simplified horizon name
-        tf = trade.custom_time_structure if trade else 64
-        horizon_name = "Micro" if tf == 1 else ("Short" if tf == 4 else ("Medium" if tf in [16, 64] else "Macro"))
-
-        mapped.append({
-            "signal_id": s["signal_id"],
-            "symbol": s["symbol"],
-            "direction": s["direction"],
-            "entry_zone": s["entry_zone"],
-            "invalidation_level": s["invalidation_level"],
-            "target_zone": s["target_zone"],
-            "confidence": s["confidence"],
-            "reason": s["reason"],
-            "status": s["status"],
-            "horizon": horizon_name
-        })
-
-    return mapped
-
-# 2. Equity Growth Simulator
 @router.get("/equity-simulation")
 def simulate_equity_growth(initial_balance: float = 10000.0, monthly_growth_pct: float = 8.5, months: int = 6, session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
-    """Generates sequential equity projection simulation records for SaaS dashboard charts."""
-    series = []
-    current = initial_balance
-    series.append({
-        "month": "M0",
-        "balance": round(current, 2)
-    })
-    for i in range(1, months + 1):
-        current *= (1.0 + (monthly_growth_pct / 100.0))
-        series.append({
-            "month": f"M{i}",
-            "balance": round(current, 2)
-        })
-    return {
-        "initial_balance": initial_balance,
-        "final_balance": round(current, 2),
-        "total_growth_pct": round(((current - initial_balance) / initial_balance * 100.0), 2),
-        "projection": series
-    }
+    """User-controlled hypothetical projection; never presented as historical performance."""
+    if initial_balance <= 0 or months < 0 or months > 120: raise HTTPException(status_code=400, detail="Invalid simulation parameters")
+    series=[{"month":"M0","balance":round(initial_balance,2)}]; current=initial_balance
+    for i in range(1,months+1): current*=1.0+(monthly_growth_pct/100.0); series.append({"month":f"M{i}","balance":round(current,2)})
+    return {"simulation":True,"initial_balance":initial_balance,"final_balance":round(current,2),"total_growth_pct":round(((current-initial_balance)/initial_balance*100.0),2),"projection":series}
 
-# 3. Clean User Horizon Reports
 @router.get("/reports")
 def get_user_horizon_reports(market: Optional[str] = None, session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
-    """Exposes simplified non-technical performance statistics per asset & horizon."""
-    engine = PredictiveShadowEngine.get_instance()
+    signals=_snapshot_signals(market=market); grouped={}
+    for signal in signals:
+        key=(signal["symbol"],signal["timeframe"]); item=grouped.setdefault(key,{"asset":signal["symbol"],"timeframe":signal["timeframe"],"signals":0,"confidence_sum":0.0}); item["signals"]+=1; item["confidence_sum"]+=float(signal.get("confidence") or 0.0)
+    return [{"asset":v["asset"],"horizon":v["timeframe"],"signal_count":v["signals"],"average_confidence":round(v["confidence_sum"]/v["signals"],2) if v["signals"] else None,"win_rate":None,"data_state":"REAL_RESEARCH_ONLY"} for v in grouped.values()]
 
-    contexts_to_report = engine.contexts.values()
-    if market:
-        m_lower = market.lower()
-        if m_lower == "gold":
-            contexts_to_report = [c for c in contexts_to_report if "XAU" in c.symbol]
-        elif m_lower == "bitcoin":
-            contexts_to_report = [c for c in contexts_to_report if "BTC" in c.symbol]
-        elif m_lower == "euro":
-            contexts_to_report = [c for c in contexts_to_report if "EUR" in c.symbol]
-
-    horizon_reports = []
-    for ctx in contexts_to_report:
-        stats = ctx.get_statistics()
-        tf = ctx.timeframe
-        horizon_name = "Micro" if tf == 1 else ("Short" if tf == 4 else ("Medium" if tf in [16, 64] else "Macro"))
-        horizon_reports.append({
-            "asset": ctx.symbol,
-            "horizon": horizon_name,
-            "win_rate": stats["win_rate_pct"],
-            "total_cycles": stats["completed_trades"],
-            "average_confidence": stats["average_confidence_pct"]
-        })
-
-    return horizon_reports
-
-# 4. Multi-Timeframe Decision Fusion Signal
 @router.get("/fusion/{symbol}")
 def get_symbol_decision_fusion(symbol: str, session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
-    """Synthesizes active multi-timeframe horizon alignment signals solely from internal frames."""
-    engine = PredictiveShadowEngine.get_instance()
-    try:
-        fusion = engine.runtime_manager.synthesize_symbol_decision_fusion(symbol)
-        return fusion
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """Returns the latest canonical research decision without Shadow runtime state."""
+    from src.Application.Services.web_dashboard import get_current_analysis
+    analysis=get_current_analysis(symbol=symbol.upper(),timeframe="H1")
+    return {"symbol":symbol.upper(),"action":analysis.get("bias","WAIT"),"confidence":analysis.get("confidence",0),"reasoning":analysis.get("reasoning",[]),"timestamp":analysis.get("timestamp"),"evidence_state":"REAL_RESEARCH_SNAPSHOT" if analysis.get("status")!="degraded" else "INSUFFICIENT_EVIDENCE"}
 
+@router.get("/history")
+def get_user_signals_history(market: Optional[str] = None, session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    return _snapshot_signals(market=market)
 
-# ==============================================================================
-# P2-1 — DOUBLE-ENTRY FINANCIAL LEDGER ENDPOINTS
 # ==============================================================================
 @router.get("/ledger/balance")
 def get_ledger_balance(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):

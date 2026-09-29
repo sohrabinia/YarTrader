@@ -42,13 +42,12 @@ This document establishes the strict HTTP API contract between the client fronte
 ## 🔐 User Identity and Authentication (`/api/auth/*`)
 
 ### 1. User Sign-In
-- **Endpoint:** `POST /api/auth/login`
+- **Endpoint:** `POST /api/auth/google`
 - **Method:** `POST`
 - **Payload Schema:**
 ```json
 {
-  "email": "user@example.com",
-  "password": "hashed_or_plain_string_via_pbkdf2"
+  "id_token": "Google ID token"
 }
 ```
 - **Response Schema (200 OK):**
@@ -103,51 +102,10 @@ This document establishes the strict HTTP API contract between the client fronte
 }
 ```
 
-### 3. Shadow Trading Metrics
+### 3. Retired Shadow Trading API
 - **Endpoint:** `GET /api/shadow/metrics`
-- **Method:** `GET`
-- **Response Schema:**
-```json
-{
-  "virtual_account": {
-    "balance": 100000.00,
-    "equity": 101245.50,
-    "margin_used": 1500.00,
-    "free_margin": 99745.50
-  },
-  "metrics": {
-    "total_trades": 142,
-    "win_rate_pct": 68.3,
-    "profit_factor": 1.84,
-    "max_drawdown_pct": 4.2
-  }
-}
-```
-
-### 4. Shadow Position History (Closed)
-- **Endpoint:** `GET /api/user/history`
-- **Method:** `GET`
-- **Response Schema:**
-```json
-[
-  {
-    "position_id": "sh-90342",
-    "symbol": "XAUUSD",
-    "timeframe": "H4",
-    "direction": "LONG",
-    "entry_price": 2315.40,
-    "exit_price": 2328.10,
-    "sl": 2305.00,
-    "tp": 2335.00,
-    "pnl": 1270.00,
-    "opened_at": "2023-11-19T10:00:00Z",
-    "closed_at": "2023-11-20T04:15:00Z",
-    "exit_reason": "TAKE_PROFIT"
-  }
-]
-```
-
----
+- **Status:** `410 Gone`
+- **Policy:** Shadow mode is retired in v0.2.0. Customer Signal mode is sourced from canonical ResearchRuntime snapshots.
 
 ## 🎮 Demo Trading Broker Integration Endpoints (`/api/v1/demo/*`)
 

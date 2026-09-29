@@ -39,7 +39,7 @@ The YarTrader backend is built on **FastAPI** (`src/Application/Services/web_das
 * `GET /api/research/latest`: Returns live market research feed.
 * `GET /api/intelligence/status`: Returns multi-timeframe intelligence pipeline status.
 * `GET /api/intelligence/explain/{decision_id}`: Returns XAI decision rationale and evidence steps.
-* `GET /api/fractal/status`: Returns `{ status: "CONNECTED", fractal_score: 0.85, similarity_score: 88.5, scale_state: "MULTISCALE_STABLE" }`.
+* `GET /api/fractal/status`: Returns only live-derived fractal state; unavailable similarity/score values must be represented as null or an explicit insufficient-evidence state.
 
 ### 2.3 Decision & Risk Engine (`src/services/decision/` & `risk/`)
 * `GET /api/execution/plans?symbol=XAUUSD&timeframe=H1`: Returns advisory trade plan `{ action, entry_price, stop_loss, take_profit, risk_reward, style }`.

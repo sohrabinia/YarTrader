@@ -2,7 +2,6 @@ import os
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
-from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
 
 router = APIRouter(prefix="/api/admin", tags=["Admin SRE Operations API"])
 
@@ -78,87 +77,58 @@ class SymbolRegistration(BaseModel):
 
 @router.post("/symbols")
 def register_new_active_symbol_context(payload: SymbolRegistration, request: Request, token: Optional[str] = None):
-    """SRE administrative action to dynamically spin up a new SymbolTimeContext."""
+    """Admin action for the canonical market universe; no Shadow/runtime context is created."""
     session = enforce_admin_token(request if request.headers.get("authorization") else token)
     admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Market.Universe.symbol_registry import SymbolRegistry
     registry_inst = SymbolRegistry.get_instance()
-    engine = PredictiveShadowEngine.get_instance()
     try:
         symbol_upper = payload.symbol.upper()
         tfs = payload.timeframes or ["H1"]
         registry_inst.register_symbol(symbol_upper, tfs)
-
-        tf_int = payload.timeframe if payload.timeframe is not None else 64
-        ctx = engine.get_or_create_context(symbol_upper, tf_int)
+        info = registry_inst.get_all_registered().get(symbol_upper, {})
 
         from app.core.logging import log_audit
         log_audit("SYMBOL_REGISTRY_CHANGE", action="REGISTER", symbol=symbol_upper, timeframes=tfs, actor=admin_email)
 
         return {
             "status": "Success",
-            "message": f"Successfully created isolated cognitive context: {ctx.context_id}",
-            "context": ctx.to_dict()
+            "message": f"Symbol '{symbol_upper}' is registered in the canonical market universe.",
+            "context": {
+                "symbol": symbol_upper,
+                "timeframes": info.get("timeframes", tfs),
+                "asset_class": info.get("asset_class", "Forex"),
+                "provider": info.get("provider", "MT5"),
+                "active": bool(info.get("active", True)),
+            }
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# 3. Independent Per-Context Reporting & Analytics
+# 3. Canonical Market Universe Reporting
 @router.get("/reports")
 def get_admin_reports(request: Request, symbol: Optional[str] = None, timeframe: Optional[Any] = None, token: Optional[str] = None):
-    """Generates distinct separate reports per timeframe and symbol without mixing statistics."""
+    """Reports canonical market-universe state without consulting retired Shadow runtime state."""
     enforce_admin_token(request if request.headers.get("authorization") else token)
-    engine = PredictiveShadowEngine.get_instance()
-
-    target_symbol = symbol.upper() if symbol else "XAUUSD"
-
-    from src.Core.timeframes import TimeframeNormalizer
-    contexts_to_report = []
-
-    if target_symbol in engine.runtime_manager.symbol_brains:
-        brains = engine.runtime_manager.symbol_brains[target_symbol]
-        unique_contexts = {}
-        for tf, ctx in brains.items():
-            try:
-                tf_canon = TimeframeNormalizer.normalize(tf)
-            except Exception:
-                tf_canon = tf
-
-            if timeframe is not None:
-                try:
-                    filter_tf_canon = TimeframeNormalizer.normalize(timeframe)
-                except Exception:
-                    filter_tf_canon = timeframe
-                if tf_canon != filter_tf_canon:
-                    continue
-
-            if tf_canon not in unique_contexts:
-                unique_contexts[tf_canon] = ctx
-            else:
-                import logging
-                logger = logging.getLogger("AdminReportsAPI")
-                logger.warning(
-                    f"SRE DATA PROBLEM DETECTED: Duplicate context found for symbol={target_symbol}, "
-                    f"timeframe={tf_canon}. Original: {unique_contexts[tf_canon].context_id}, "
-                    f"Duplicate: {ctx.context_id}"
-                )
-
-        contexts_to_report = list(unique_contexts.values())
-
-    def sort_key(ctx):
-        tf = ctx.timeframe
-        if isinstance(tf, int):
-            return (0, tf)
-        return (1, str(tf))
-
-    contexts_to_report.sort(key=sort_key)
-    reports = [ctx.get_statistics() for ctx in contexts_to_report]
-
-    return {
-        "symbol": target_symbol,
-        "count": len(reports),
-        "reports": reports
-    }
+    from src.Market.Universe.symbol_registry import SymbolRegistry
+    registry = SymbolRegistry.get_instance().get_all_registered()
+    target = symbol.upper() if symbol else None
+    reports = []
+    for sym, info in sorted(registry.items()):
+        if target and sym != target:
+            continue
+        tfs = info.get("timeframes", [])
+        if timeframe is not None and str(timeframe) not in {str(tf) for tf in tfs}:
+            continue
+        reports.append({
+            "symbol": sym,
+            "active": bool(info.get("active", True)),
+            "asset_class": info.get("asset_class", "Forex"),
+            "provider": info.get("provider", "MT5"),
+            "timeframes": tfs,
+            "status": "ACTIVE" if info.get("active", True) else "DISABLED",
+        })
+    return {"symbol": target or "ALL", "count": len(reports), "reports": reports}
 
 # 4. SRE Backup snapshot operation
 @router.post("/backup")
