@@ -6,7 +6,6 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from src.Application.Runtime.runtime_state import central_runtime_state
-from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
 
 
 def is_autonomous_demo_enabled() -> bool:
@@ -70,7 +69,7 @@ class ResearchWorker:
 
     def _get_active_matrix(self) -> list:
         try:
-            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+            from src.Market.Universe.symbol_registry import SymbolRegistry
             return SymbolRegistry.get_instance().get_active_matrix()
         except Exception:
             return []
@@ -243,7 +242,7 @@ class ResearchWorker:
     def _run_loop(self) -> None:
         """Worker loop running on the background thread."""
         try:
-            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+            from src.Market.Universe.symbol_registry import SymbolRegistry
             registry = SymbolRegistry.get_instance()
             active_matrix = registry.get_active_matrix()
             unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
