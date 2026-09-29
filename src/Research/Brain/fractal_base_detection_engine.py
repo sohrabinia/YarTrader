@@ -43,7 +43,6 @@ class Gate3BaseDetectorEngine:
         min_duration_bars: int = 4,
         max_compression_threshold: float = 1.2,
         expansion_threshold: float = 1.5,
-        atr_period: int = 14,
         max_base_duration_bars: int = 50,
         offline_lookahead_bars: int = 20,
     ) -> None:
@@ -55,9 +54,6 @@ class Gate3BaseDetectorEngine:
         )
         self.expansion_threshold = self._require_positive_float(
             expansion_threshold, "expansion_threshold"
-        )
-        self.atr_period = self._require_int(
-            atr_period, "atr_period", minimum=1
         )
         self.max_base_duration_bars = self._require_int(
             max_base_duration_bars, "max_base_duration_bars", minimum=self.min_duration_bars
@@ -232,51 +228,6 @@ class Gate3BaseDetectorEngine:
         return parsed.astimezone(timezone.utc)
 
     @staticmethod
-    def _calculate_atr(
-        bars: List[Dict[str, Any]],
-        period: int = 14,
-    ) -> List[Optional[float]]:
-        """
-        Causal rolling ATR.
-
-        For each bar i, ATR uses only bars <= i.
-        `None` is returned until at least one valid true range exists; no
-        arbitrary ATR fallback is used.
-        """
-        if not bars:
-            return []
-
-        period = max(1, int(period))
-        true_ranges: List[float] = []
-        atrs: List[Optional[float]] = []
-
-        for i, bar in enumerate(bars):
-            if i == 0:
-                tr = bar["high"] - bar["low"]
-            else:
-                prev_close = bars[i - 1]["close"]
-                tr = max(
-                    bar["high"] - bar["low"],
-                    abs(bar["high"] - prev_close),
-                    abs(bar["low"] - prev_close),
-                )
-
-            if not math.isfinite(tr) or tr < 0.0:
-                atrs.append(None)
-                true_ranges.append(float("nan"))
-                continue
-
-            true_ranges.append(tr)
-            valid_window = [
-                x for x in true_ranges[max(0, len(true_ranges) - period):]
-                if math.isfinite(x)
-            ]
-            atr = sum(valid_window) / len(valid_window) if valid_window else None
-            atrs.append(atr if atr is not None and math.isfinite(atr) and atr > 0.0 else None)
-
-        return atrs
-
-    @staticmethod
     def _internal_movement_count(closes: List[float]) -> int:
         count = 0
         direction = 0
@@ -296,7 +247,6 @@ class Gate3BaseDetectorEngine:
         *,
         scale_label: str,
         start_index: int,
-        local_atr: float,
     ) -> Dict[str, Any]:
         local_high = max(b["high"] for b in window)
         local_low = min(b["low"] for b in window)
@@ -305,14 +255,11 @@ class Gate3BaseDetectorEngine:
         if not math.isfinite(local_range) or local_range < 0.0:
             raise ValueError("invalid local range")
 
-        if local_atr <= 0.0 or not math.isfinite(local_atr):
-            raise ValueError("invalid ATR")
-
         local_mid = (local_high + local_low) / 2.0
         if not math.isfinite(local_mid) or local_mid <= 0.0:
             raise ValueError("invalid positive-price midpoint")
 
-        compression_ratio = local_range / local_atr
+        compression_ratio = local_range / local_mid
         if not math.isfinite(compression_ratio):
             raise ValueError("invalid compression ratio")
 
@@ -380,7 +327,6 @@ class Gate3BaseDetectorEngine:
                 "min_duration_bars": self.min_duration_bars,
                 "max_compression_threshold": self.max_compression_threshold,
                 "expansion_threshold": self.expansion_threshold,
-                "atr_period": self.atr_period,
             },
         }
 
@@ -404,7 +350,6 @@ class Gate3BaseDetectorEngine:
         if len(normalized) < self.min_duration_bars:
             return []
 
-        atrs = self._calculate_atr(normalized, period=self.atr_period)
         bases: List[Dict[str, Any]] = []
 
         i = 0
@@ -420,13 +365,6 @@ class Gate3BaseDetectorEngine:
 
             for length in range(self.min_duration_bars, max_length + 1):
                 end_index = i + length - 1
-                local_atr = atrs[end_index]
-
-                # No arbitrary ATR fallback. If the observed ATR is invalid,
-                # this candidate is simply not eligible.
-                if local_atr is None:
-                    continue
-
                 window = normalized[i:end_index + 1]
 
                 try:
@@ -434,7 +372,6 @@ class Gate3BaseDetectorEngine:
                         window,
                         scale_label=scale_label,
                         start_index=i,
-                        local_atr=local_atr,
                     )
                 except ValueError:
                     continue
