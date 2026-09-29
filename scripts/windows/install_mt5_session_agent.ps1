@@ -24,10 +24,6 @@ if ([string]::IsNullOrWhiteSpace($token)) {
     [Environment]::SetEnvironmentVariable("YARTRADER_MT5_BRIDGE_TOKEN", $token, "Machine")
 }
 
-$deleteOutput = & schtasks.exe /Delete /TN "$task" /F 2>&1
-if ($LASTEXITCODE -ne 0 -and ($deleteOutput -join " ") -notmatch "cannot find|not exist|does not exist") {
-    throw "Failed to remove existing MT5 Session Agent task: $($deleteOutput -join " ")"
-}
 $action = '"' + $python + '" "' + $entry + '"'
 $createOutput = & schtasks.exe /Create /TN "$task" /TR $action /SC ONLOGON /RL HIGHEST /F 2>&1
 if ($LASTEXITCODE -ne 0) {
