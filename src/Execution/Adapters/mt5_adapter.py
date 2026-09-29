@@ -33,7 +33,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             self._try_import_and_init()
 
     def _try_import_and_init(self) -> bool:
-        """Attempts to import MetaTrader5 and initialize terminal connection."""
+        """Initialize native MT5 or fall back to the Session-2 loopback bridge."""
         try:
             import MetaTrader5 as mt5
             self._mt5 = mt5
@@ -42,7 +42,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 logger.info("[RealMT5BrokerAdapter] MetaTrader5 initialized successfully.")
                 return True
 
-            # Fallback to explicit terminal path if standard initialize has no IPC connection
+            # Explicit terminal path is retained as a same-session fallback.
             import os
             default_path = r"C:\Program Files\MetaTrader 5\terminal64.exe"
             if os.path.exists(default_path) and self._mt5.initialize(default_path):
@@ -50,8 +50,35 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 logger.info(f"[RealMT5BrokerAdapter] MetaTrader5 initialized via path: {default_path}")
                 return True
 
-            err = self._mt5.last_error()
-            logger.warning(f"[RealMT5BrokerAdapter] MT5 initialize failed: {err}")
+            native_err = self._mt5.last_error()
+
+            # Production Windows services run as LocalSystem/Session 0 while the
+            # interactive MT5 terminal runs in the operator session.  The Python
+            # package's native IPC cannot cross that session boundary, so use the
+            # authenticated loopback bridge when configured.
+            try:
+                from src.Infrastructure.mt5_session_bridge import (
+                    MT5SessionBridgeClient,
+                    MT5BridgeProxy,
+                )
+                bridge = MT5SessionBridgeClient()
+                if bridge.configured:
+                    proxy = MT5BridgeProxy(bridge)
+                    health = bridge.call("health")
+                    if health and health.get("connected"):
+                        self._mt5 = proxy
+                        self._initialized = True
+                        logger.info(
+                            "[RealMT5BrokerAdapter] Native MT5 IPC unavailable "
+                            f"({native_err}); Session-2 MT5 bridge connected."
+                        )
+                        return True
+            except Exception as bridge_err:
+                logger.warning(
+                    f"[RealMT5BrokerAdapter] Session-2 MT5 bridge unavailable: {bridge_err}"
+                )
+
+            logger.warning(f"[RealMT5BrokerAdapter] MT5 initialize failed: {native_err}")
             return False
         except ImportError:
             logger.warning("[RealMT5BrokerAdapter] MetaTrader5 Python package not available.")
