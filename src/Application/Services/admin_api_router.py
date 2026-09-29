@@ -48,7 +48,7 @@ def enforce_admin_token(req_or_tok: Any = None, token: Optional[str] = None):
 def get_admin_symbols(request: Request):
     """Lists currently registered active symbols and validates maximum limits ceiling."""
     enforce_admin_token(request)
-    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+    from src.Market.Universe.symbol_registry import SymbolRegistry
     registry_inst = SymbolRegistry.get_instance()
     registry = registry_inst.get_all_registered()
     active_symbols = sorted([sym for sym, info in registry.items() if info.get("active", True)])
@@ -81,7 +81,7 @@ def register_new_active_symbol_context(payload: SymbolRegistration, request: Req
     """SRE administrative action to dynamically spin up a new SymbolTimeContext."""
     session = enforce_admin_token(request if request.headers.get("authorization") else token)
     admin_email = session.get("email", "sre-admin@yartrader.app")
-    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+    from src.Market.Universe.symbol_registry import SymbolRegistry
     registry_inst = SymbolRegistry.get_instance()
     engine = PredictiveShadowEngine.get_instance()
     try:
