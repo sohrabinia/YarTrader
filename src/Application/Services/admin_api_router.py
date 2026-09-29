@@ -250,6 +250,37 @@ async def payment_gateway_webhook(request: Request):
 
 
 
+
+# ==============================================================================
+# ADMIN FINANCIAL CONTROL PLANE
+# ==============================================================================
+@router.get("/financial/overview")
+def admin_financial_overview(request: Request, token: Optional[str] = None):
+    """Authoritative financial dashboard data: ledger, deposits, invoices and subscriptions."""
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.ledger_manager import LedgerManager
+    from src.Application.Dashboard.deposit_manager import DepositManager
+    from src.Application.Dashboard.billing_manager import BillingManager
+    ledger = LedgerManager()._load()
+    deposits = DepositManager().list_all()
+    billing = BillingManager()._load()
+    accounts = []
+    for account_id, account in ledger.get("accounts", {}).items():
+        accounts.append({"account_id":account_id,"balance":account.get("balance",0),"currency":account.get("currency","USD")})
+    return {
+        "currency":"USD",
+        "ledger":{"account_count":len(accounts),"transaction_count":len(ledger.get("transactions",[])),"accounts":accounts},
+        "deposits":{"count":len(deposits),"pending":sum(1 for x in deposits if x.get("status")=="PENDING"),"verified":sum(1 for x in deposits if x.get("status")=="VERIFIED"),"rejected":sum(1 for x in deposits if x.get("status")=="REJECTED"),"items":deposits},
+        "billing":{"invoice_count":len(billing.get("invoices",[])),"invoices":billing.get("invoices",[]),"subscription_count":len(billing.get("subscriptions",{}))},
+        "access":{"role":session.get("role"),"receive_only_wallet":True,"withdrawals_enabled":False}
+    }
+
+@router.get("/financial/ledger")
+def admin_financial_ledger(request: Request, token: Optional[str] = None):
+    enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.ledger_manager import LedgerManager
+    return LedgerManager()._load()
+
 # ==============================================================================
 # USDT DEPOSIT REVIEW
 # ==============================================================================
