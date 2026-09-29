@@ -33,7 +33,7 @@ def get_user_session_and_enforce_tier(authorization: Optional[str] = Header(None
     user_tier = session.get("tier", "FREE")
 
     # Fetch active symbol limit
-    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+    from src.Market.Universe.symbol_registry import SymbolRegistry
     registry = SymbolRegistry.get_instance()
     symbol_count = len(registry.get_all_registered())
 

@@ -183,7 +183,7 @@ def run_research_background_loop():
     # Top-level crash isolation loop: background thread failures can NEVER kill FastAPI API process
     while True:
         try:
-            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+            from src.Market.Universe.symbol_registry import SymbolRegistry
             registry = SymbolRegistry.get_instance()
 
             # Cache of active ResearchRuntimes per (symbol, timeframe)
@@ -325,7 +325,7 @@ async def lifespan_context(app: FastAPI):
     log_event("INFO", "web_dashboard_startup", message="FastAPI lifespan starting up...")
     try:
         # 1. Initialize SymbolRegistry to force registry load
-        from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+        from src.Market.Universe.symbol_registry import SymbolRegistry
         SymbolRegistry.get_instance()
 
         # 2. Start the worker thread if not in test/service host mode
@@ -3431,7 +3431,7 @@ def get_multi_timeframe():
     """
     Exposes the 9-layer market perception matrix for all active symbols.
     """
-    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+    from src.Market.Universe.symbol_registry import SymbolRegistry
     from src.Research.Brain.multi_timeframe import MultiTimeframePerception
     from src.Research.Brain.models import MarketObservation
     from datetime import datetime, timedelta
@@ -4879,7 +4879,7 @@ from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngi
 def get_admin_symbols(request: Request):
     """Lists current active symbols and allows registering a new symbol dynamically."""
     check_admin_guard(request)
-    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+    from src.Market.Universe.symbol_registry import SymbolRegistry
     registry_inst = SymbolRegistry.get_instance()
     registry = registry_inst.get_all_registered()
     active_symbols = sorted([sym for sym, info in registry.items() if info.get("active", True)])

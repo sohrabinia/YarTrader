@@ -18,7 +18,7 @@ from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
 from src.Execution.Models.models import OrderRequest, OrderResponse, ExecutionResult
 from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
 from src.Execution.Services.trade_journal import TradeJournalManager, TradeJournalRecord
-from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
+from src.Market.Universe.symbol_registry import SymbolRegistry
 from src.Application.Deployment.storage import YarTraderStorageManager
 from src.Infrastructure.Configuration.config import ConfigurationManager
 from src.Infrastructure.exceptions import ValidationException

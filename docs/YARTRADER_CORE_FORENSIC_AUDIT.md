@@ -225,7 +225,7 @@ To prove that the Decision Brain is fully capable of generating actionable `BUY`
 Audited directly inside Python worker process context:
 
 ```text
-AUTONOMOUS_DEMO_TRADING_ENABLED = true (default)
+AUTONOMOUS_DEMO_TRADING_ENABLED = false when unset; only explicit runtime value 'true' enables DEMO execution
 MINIMUM_RR = 1.5 (default)
 MINIMUM_CONFIDENCE = 50.0 (default)
 LIVE_TRADING_ENABLED = false (default)
