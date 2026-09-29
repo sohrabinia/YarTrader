@@ -251,6 +251,38 @@ async def payment_gateway_webhook(request: Request):
 
 
 # ==============================================================================
+# USDT DEPOSIT REVIEW
+# ==============================================================================
+@router.get("/wallet/deposits")
+def admin_list_deposits(request: Request, status: Optional[str] = None, token: Optional[str] = None):
+    enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.deposit_manager import DepositManager
+    return {"deposits": DepositManager().list_all(status)}
+
+@router.post("/wallet/deposits/{deposit_id}/verify")
+def admin_verify_deposit(deposit_id: str, request: Request, token: Optional[str] = None):
+    session=enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.deposit_manager import DepositManager
+    try:
+        rec=DepositManager().set_status(deposit_id,"VERIFIED",session.get("email",""))
+        from app.core.logging import log_audit
+        log_audit("USDT_DEPOSIT_REVIEW",action="VERIFY",deposit_id=deposit_id,actor=session.get("email"))
+        return rec
+    except Exception as e: raise HTTPException(status_code=400,detail=str(e))
+
+@router.post("/wallet/deposits/{deposit_id}/reject")
+def admin_reject_deposit(deposit_id: str, request: Request, token: Optional[str] = None):
+    session=enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.deposit_manager import DepositManager
+    try:
+        rec=DepositManager().set_status(deposit_id,"REJECTED",session.get("email",""))
+        from app.core.logging import log_audit
+        log_audit("USDT_DEPOSIT_REVIEW",action="REJECT",deposit_id=deposit_id,actor=session.get("email"))
+        return rec
+    except Exception as e: raise HTTPException(status_code=400,detail=str(e))
+
+
+# ==============================================================================
 # RECEIVE-ONLY USDT WALLET ADMINISTRATION
 # ==============================================================================
 class ReceiveWalletPayload(BaseModel):
