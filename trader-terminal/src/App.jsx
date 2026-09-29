@@ -1972,7 +1972,7 @@ function MainApp() {
                       `${u.tier || 'FREE'} Tier`,
                       u.social_providers && u.social_providers.length > 0
                         ? u.social_providers.map(p => p.toUpperCase()).join(', ')
-                        : 'EMAIL/PASSWORD',
+                        : 'GOOGLE',
                       <span className="status-passed">{u.status || 'Active'}</span>
                     ])}
                     emptyMessage="No registered user accounts found."
