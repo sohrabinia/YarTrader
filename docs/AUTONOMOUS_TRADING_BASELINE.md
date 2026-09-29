@@ -57,7 +57,7 @@ Safety & Governance Flags:
   - LIVE_TRADING_ENABLED: False (Fail-closed)
   - YARTRADER_ENV: development
   - MT5_DEMO_MODE: True
-  - Kill Switch (autonomous_demo_trading_enabled): True (default active)
+  - Kill Switch (autonomous_demo_trading_enabled): False unless AUTONOMOUS_DEMO_TRADING_ENABLED=true is explicitly present in the runtime environment
 ```
 
 ---
