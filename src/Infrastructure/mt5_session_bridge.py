@@ -270,7 +270,7 @@ class MT5SessionAgent(ThreadingHTTPServer):
                 return fn()
             if method == "account_info":
                 return fn()
-            if method.startswith("copy_rates"):
+            if method.startswith("copy_rates") or method.startswith("history_"):
                 converted = dict(params)
                 for key in ("date_from", "date_to"):
                     if isinstance(converted.get(key), str):
