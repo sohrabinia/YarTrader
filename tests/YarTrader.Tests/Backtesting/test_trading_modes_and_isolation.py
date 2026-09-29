@@ -109,30 +109,26 @@ class TestTradingModesAndIsolation(unittest.TestCase):
             self.assertNotEqual(trades_a[0]["direction"], trades_b[0]["direction"])
 
     def test_demo_execution_persistence_isolation(self) -> None:
-        """Verifies Demo Trading runs write to independent demo_trades.json, completely isolated from shadow trades."""
-        # Trigger Demo Scenario
+        """Verifies DEMO scenario execution is persisted without fabricated broker/account telemetry."""
         resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"})
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["success"])
+        self.assertEqual(data["result"]["mode"], "DEMO")
+        self.assertEqual(data["result"]["data_provenance"], "DEMO_SCENARIO_SIMULATION")
 
-        # Fetch Demo Trades
         trades_resp = self.client.get("/api/demo/trades")
         self.assertEqual(trades_resp.status_code, 200)
         demo_trades = trades_resp.json()
         self.assertGreater(len(demo_trades), 0)
+        self.assertTrue(all(t["mode"] == "DEMO" for t in demo_trades))
 
-        # Ensure every demo trade has explicit DEMO mode
-        for t in demo_trades:
-            self.assertEqual(t["mode"], "DEMO")
-
-        # Fetch independent Demo SRE Report
         report_resp = self.client.get("/api/demo/report")
         self.assertEqual(report_resp.status_code, 200)
-        rep = report_resp.json()
-        self.assertEqual(rep["account"], "52961173")
-        self.assertEqual(rep["server"], "Alpari-MT5-Demo")
-        self.assertGreaterEqual(rep["total_trades"], len(demo_trades))
+        report = report_resp.json()
+        self.assertEqual(report["mode"], "DEMO")
+        self.assertEqual(report["data_provenance"], "DEMO_SCENARIO_SIMULATION")
+        self.assertGreaterEqual(report["total_runs"], len(demo_trades))
 
     def test_safety_gate_mt4_rejection(self) -> None:
         """Confirms that MT4 real money execution is completely blocked to satisfy fail-closed SRE directives."""
