@@ -293,11 +293,30 @@ class MT5DataProvider(IDataProvider):
         self._mapper = MT5DataMapper()
         self._initialized = False
 
-        # Attempt initialization if MT5 is available
+        # Attempt native initialization first. In production the service can run
+        # as LocalSystem/Session 0 while terminal64.exe runs in the interactive
+        # operator session. If native IPC cannot cross that boundary, use the
+        # authenticated loopback Session-2 bridge.
         if MT5_AVAILABLE and mt5 is not None:
             try:
                 if mt5.initialize():
                     self._initialized = True
+            except Exception:
+                self._initialized = False
+
+        if not self._initialized and is_production:
+            try:
+                from src.Infrastructure.mt5_session_bridge import (
+                    MT5SessionBridgeClient,
+                    MT5BridgeProxy,
+                )
+                bridge = MT5SessionBridgeClient()
+                if bridge.configured:
+                    proxy = MT5BridgeProxy(bridge)
+                    health = bridge.call("health")
+                    if health and health.get("connected"):
+                        mt5 = proxy
+                        self._initialized = True
             except Exception:
                 self._initialized = False
 
