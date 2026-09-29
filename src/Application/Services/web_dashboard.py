@@ -4673,464 +4673,78 @@ def get_admin_symbols(request: Request):
 
 @app.get("/api/admin/timeframes")
 def get_admin_timeframes(request: Request):
-    """Lists all active isolated SymbolTimeContext domains."""
     check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
-    return {
-        "contexts": [ctx.to_dict() for ctx in engine.contexts.values()],
-        "count": len(engine.contexts)
-    }
+    from src.Market.Universe.symbol_registry import SymbolRegistry
+    registry=SymbolRegistry.get_instance().get_all_registered()
+    rows=[{"symbol":sym,"timeframes":info.get("timeframes",[]),"active":bool(info.get("active",True))} for sym,info in sorted(registry.items())]
+    return {"contexts":rows,"count":len(rows),"data_state":"CANONICAL_MARKET_UNIVERSE"}
 
 @app.get("/api/admin/reports")
 def get_admin_reports(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
-    """Generates separate unmerged SCM intelligence reports per context."""
     check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
+    from src.Market.Universe.symbol_registry import SymbolRegistry
+    registry=SymbolRegistry.get_instance().get_all_registered(); reports=[]
+    for sym,info in sorted(registry.items()):
+        if symbol and sym != symbol.upper(): continue
+        tfs=info.get("timeframes",[])
+        if timeframe is not None and str(timeframe) not in {str(tf) for tf in tfs}: continue
+        reports.append({"symbol":sym,"active":bool(info.get("active",True)),"provider":info.get("provider","MT5"),"asset_class":info.get("asset_class","Forex"),"timeframes":tfs,"data_state":"CANONICAL_MARKET_UNIVERSE"})
+    return {"symbol":symbol.upper() if symbol else "ALL","count":len(reports),"reports":reports}
 
-    reports = []
-    contexts_to_report = engine.contexts.values()
-    if symbol:
-        contexts_to_report = [c for c in contexts_to_report if c.symbol == symbol.upper()]
-    if timeframe:
-        contexts_to_report = [c for c in contexts_to_report if c.timeframe == int(timeframe)]
-
-    for ctx in contexts_to_report:
-        reports.append(ctx.get_statistics())
-
-    return {
-        "reports": reports,
-        "count": len(reports),
-        "timestamp": datetime.now().isoformat()
-    }
-
-@app.get("/api/admin/shadow-trades")
-def get_admin_shadow_trades(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
-    """Exposes full detailed data of shadow trades for supervision and debugging."""
+@app.get("/api/admin/trades")
+def get_admin_trades(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
-
-    trades_list = engine.trades
-    if symbol:
-        trades_list = [t for t in trades_list if t.symbol == symbol.upper()]
-    if timeframe:
-        trades_list = [t for t in trades_list if t.custom_time_structure == int(timeframe)]
-
-    return [t.to_dict() for t in trades_list]
+    return {"trades":[],"count":0,"data_state":"SHADOW_RETIRED"}
 
 @app.get("/api/admin/memory")
-def get_admin_memory_view(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
-    """Exposes all internal memory layers (Raw, Experience, Pattern, Concept) filterable by isolated context."""
+def get_admin_memory(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
+    return {"events":len(global_memory_system.events),"experiences":len(global_memory_system.experiences),"patterns":len(global_memory_system.patterns),"concepts":len(global_memory_system.concepts),"statistics":global_memory_system.get_learning_statistics(),"data_state":"REAL_LEARNING_MEMORY"}
 
-    bases = engine.bases
-    nodes = engine.nodes
-    patterns = engine.patterns
-    learning = engine.learning
-
-    if symbol:
-        symbol_upper = symbol.upper()
-        bases = [b for b in bases if b.get("symbol") == symbol_upper]
-        nodes = [n for n in nodes if n.get("symbol") == symbol_upper]
-        patterns = [p for p in patterns if p.get("symbol") == symbol_upper]
-        learning = [l for l in learning if l.get("symbol") == symbol_upper]
-
-    if timeframe:
-        tf_val = int(timeframe)
-        bases = [b for b in bases if b.get("timeframe") == tf_val]
-        nodes = [n for n in nodes if n.get("timeframe") == tf_val]
-        patterns = [p for p in patterns if p.get("timeframe") == tf_val]
-        learning = [l for l in learning if l.get("timeframe") == tf_val]
-
-    return {
-        "bases_count": len(bases),
-        "nodes_count": len(nodes),
-        "patterns_count": len(patterns),
-        "learning_count": len(learning),
-        "bases": bases[:50],
-        "nodes": nodes[:50],
-        "patterns": patterns[:50],
-        "learning": learning[:50]
-    }
-
-@app.get("/api/admin/judge")
-def get_admin_judge_panel(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
-    """Exposes explanations on why trades were created and why they succeeded/failed."""
+@app.get("/api/admin/explanations")
+def get_admin_explanations(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
     check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
+    return {"evaluations":[],"count":0,"data_state":"NO_SHADOW_EXPLANATIONS"}
 
-    trades_list = engine.trades
-    if symbol:
-        trades_list = [t for t in trades_list if t.symbol == symbol.upper()]
-    if timeframe:
-        trades_list = [t for t in trades_list if t.custom_time_structure == int(timeframe)]
-
-    evaluations = []
-    for trade in trades_list:
-        if trade.status in ["TARGET_HIT", "STOP_HIT"]:
-            evaluations.append({
-                "trade_id": trade.trade_id,
-                "symbol": trade.symbol,
-                "direction": trade.direction,
-                "timeframe": trade.custom_time_structure,
-                "pattern": trade.pattern,
-                "judge_result": {
-                    "structure_detection": "Correct" if "Continuation" in trade.pattern else "Valid",
-                    "entry_timing": "Good" if trade.status == "TARGET_HIT" else "Suboptimal",
-                    "base_analysis": "Valid" if trade.base_id != "B-None" else "N/A",
-                    "target": "Reached" if trade.status == "TARGET_HIT" else "Unreached",
-                    "learning_update": "Positive" if trade.status == "TARGET_HIT" else "Negative"
-                }
-            })
-    return {
-        "judge_evaluations": evaluations,
-        "total_evaluated": len(evaluations)
-    }
-
-@app.get("/api/admin/patterns")
-def get_admin_patterns_view(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
-    """Exposes pattern success rates, failed patterns, and weight changes per isolated context."""
-    check_admin_guard(request)
-    engine = PredictiveShadowEngine.get_instance()
-
-    pattern_stats = {}
-    pattern_list = engine.patterns
-    if symbol:
-        pattern_list = [p for p in pattern_list if p.get("symbol") == symbol.upper()]
-    if timeframe:
-        pattern_list = [p for p in pattern_list if p.get("timeframe") == int(timeframe)]
-
-    for outcome in pattern_list:
-        pat = outcome["pattern"]
-        res = outcome["result"]
-
-        if pat not in pattern_stats:
-            pattern_stats[pat] = {"success": 0, "failure": 0, "total": 0}
-
-        pattern_stats[pat]["total"] += 1
-        if res == "TARGET_HIT":
-            pattern_stats[pat]["success"] += 1
-        else:
-            pattern_stats[pat]["failure"] += 1
-
-    compiled = []
-    for pat, stats in pattern_stats.items():
-        acc = (stats["success"] / stats["total"]) if stats["total"] > 0 else 0.0
-        weight_update = 0.04 if acc >= 0.6 else -0.04
-        compiled.append({
-            "pattern": pat,
-            "previous_cases": stats["total"] + 10,
-            "success": stats["success"] + 7,
-            "failure": stats["failure"] + 3,
-            "accuracy": round(acc * 100, 2),
-            "updated_weight": round(weight_update, 2)
-        })
-
-    return {
-        "patterns_performance": compiled,
-        "total_active_patterns": len(compiled)
-    }
-
-
-@app.get("/api/user/markets")
-def get_user_markets():
-    """Exposes simplified non-trading asset categories for external users."""
-    return [
-        {"market_id": "gold", "name": "Gold / XAUUSD", "status": "ACTIVE"},
-        {"market_id": "bitcoin", "name": "Bitcoin / BTCUSD", "status": "ACTIVE"},
-        {"market_id": "euro", "name": "Euro / EURUSD", "status": "ACTIVE"},
-        {"market_id": "pound", "name": "Pound / GBPUSD", "status": "ACTIVE"}
-    ]
+@app.get("/api/admin/pattern-stats")
+def get_admin_pattern_stats(request: Request, symbol: Optional[str] = None, timeframe: Optional[int] = None):
+    check_admin_guard(request); rows=[]
+    for pat in global_memory_system.patterns.values():
+        total=int(pat.occurrences_count or 0)
+        rows.append({"pattern_id":pat.pattern_id,"occurrences":total,"continuation_count":int(pat.continuation_count or 0),"reversal_count":int(pat.reversal_count or 0),"success_rate_pct":round((pat.continuation_count/total)*100.0,2) if total else None})
+    return {"patterns":rows,"count":len(rows),"data_state":"REAL_LEARNING_MEMORY"}
 
 @app.get("/api/signals")
 @app.get("/api/signals/pipeline")
 def get_signals_pipeline_diagnostic(market: Optional[str] = None, horizon: Optional[str] = None):
-    """
-    Exposes complete diagnostic telemetry for the Signals Pipeline:
-    Candidates Evaluated, Rejected by Macro, Rejected by Structure, Rejected by Risk, Accepted Signals.
-    Does NOT fabricate fake signals.
-    """
-    engine = PredictiveShadowEngine.get_instance()
-    clean_signals = engine.get_clean_signals()
-
-    candidates_count = len(engine.trades) * 3 + len(clean_signals) + 12
-    rejected_macro = max(0, int(candidates_count * 0.35))
-    rejected_structure = max(0, int(candidates_count * 0.40))
-    rejected_risk = max(0, int(candidates_count * 0.20))
-    accepted_signals = len(clean_signals)
-
-    return {
-        "pipeline_status": "ONLINE",
-        "diagnostic_counts": {
-            "candidates_evaluated": candidates_count,
-            "rejected_by_macro": rejected_macro,
-            "rejected_by_structure": rejected_structure,
-            "rejected_by_risk": rejected_risk,
-            "accepted_signals": accepted_signals
-        },
-        "live_signals_count": len([s for s in clean_signals if s.get("status") == "ACTIVE"]),
-        "shadow_signals_count": len(clean_signals),
-        "backtest_signals_count": 50,
-        "historical_signals_count": len([s for s in clean_signals if s.get("status") != "ACTIVE"]),
-        "signals": clean_signals
-    }
-
+    from src.Application.Services.user_api_router import _snapshot_signals
+    signals=_snapshot_signals(market,horizon)
+    return {"pipeline_status":"ONLINE","diagnostic_counts":{"candidates_evaluated":len(signals),"rejected_by_macro":None,"rejected_by_structure":None,"rejected_by_risk":None,"accepted_signals":len(signals)},"live_signals_count":len(signals),"shadow_signals_count":0,"backtest_signals_count":None,"historical_signals_count":0,"signals":signals,"data_state":"REAL_RESEARCH_SNAPSHOT"}
 
 @app.get("/api/user/signals")
 def get_user_signals(market: Optional[str] = None, horizon: Optional[str] = None):
-    """Exposes clean AI Signals filterable by market asset and simplified timeframe horizons."""
-    engine = PredictiveShadowEngine.get_instance()
-    signals = engine.get_clean_signals()
-
-    # Simple mapping of simplified horizons to internal resolution frame ranges
-    # Short = 1, 4; Medium = 16, 64; Long = 256, 1024
-    allowed_frames = []
-    if horizon:
-        h_lower = horizon.lower()
-        if "short" in h_lower:
-            allowed_frames = [1, 4]
-        elif "medium" in h_lower:
-            allowed_frames = [16, 64]
-        elif "long" in h_lower:
-            allowed_frames = [256, 1024]
-
-    mapped = []
-    for s in signals:
-        # Resolve related shadow trade custom structure to check horizons
-        trade_id = s.get("shadow_trade_id")
-        trade = next((t for t in engine.trades if t.trade_id == trade_id), None)
-
-        # Filters
-        if market:
-            m_lower = market.lower()
-            if m_lower == "gold" and "XAU" not in s["symbol"]:
-                continue
-            if m_lower == "bitcoin" and "BTC" not in s["symbol"]:
-                continue
-            if m_lower == "euro" and "EUR" not in s["symbol"]:
-                continue
-            if m_lower == "pound" and "GBP" not in s["symbol"]:
-                continue
-
-        if allowed_frames and trade and trade.custom_time_structure not in allowed_frames:
-            continue
-
-        mapped.append({
-            "signal_id": s["signal_id"],
-            "symbol": s["symbol"],
-            "direction": s["direction"],
-            "entry_zone": s["entry_zone"],
-            "invalidation_level": s["invalidation_level"],
-            "target_zone": s["target_zone"],
-            "confidence": s["confidence"],
-            "reason": s["reason"],
-            "status": s["status"]
-        })
-
-    return mapped
+    from src.Application.Services.user_api_router import _snapshot_signals
+    return _snapshot_signals(market,horizon)
 
 @app.get("/api/user/history")
 def get_user_signals_history(market: Optional[str] = None):
-    """Returns completed sanitized user signals only."""
-    engine = PredictiveShadowEngine.get_instance()
-    signals = engine.get_clean_signals()
-    closed_signals = [s for s in signals if s["status"] not in ["ACTIVE", "CREATED", "RUNNING"]]
-
-    mapped = []
-    for s in closed_signals:
-        if market:
-            m_lower = market.lower()
-            if m_lower == "gold" and "XAU" not in s["symbol"]:
-                continue
-            if m_lower == "bitcoin" and "BTC" not in s["symbol"]:
-                continue
-            if m_lower == "euro" and "EUR" not in s["symbol"]:
-                continue
-            if m_lower == "pound" and "GBP" not in s["symbol"]:
-                continue
-        mapped.append({
-            "signal_id": s["signal_id"],
-            "symbol": s["symbol"],
-            "direction": s["direction"],
-            "entry_zone": s["entry_zone"],
-            "invalidation_level": s["invalidation_level"],
-            "target_zone": s["target_zone"],
-            "confidence": s["confidence"],
-            "reason": s["reason"],
-            "status": s["status"]
-        })
-    return mapped
+    from src.Application.Services.user_api_router import _snapshot_signals
+    return _snapshot_signals(market=market)
 
 @app.get("/api/user/reports")
 def get_user_reports(market: Optional[str] = None, horizon: Optional[str] = None):
-    """Exposes clean simplified horizon performance reports without raw metrics."""
-    engine = PredictiveShadowEngine.get_instance()
-
-    contexts_to_report = engine.contexts.values()
-    if market:
-        m_lower = market.lower()
-        if m_lower == "gold":
-            contexts_to_report = [c for c in contexts_to_report if "XAU" in c.symbol]
-        elif m_lower == "bitcoin":
-            contexts_to_report = [c for c in contexts_to_report if "BTC" in c.symbol]
-        elif m_lower == "euro":
-            contexts_to_report = [c for c in contexts_to_report if "EUR" in c.symbol]
-        elif m_lower == "pound":
-            contexts_to_report = [c for c in contexts_to_report if "GBP" in c.symbol]
-
-    allowed_frames = []
-    if horizon:
-        h_lower = horizon.lower()
-        if "short" in h_lower:
-            allowed_frames = [1, 4]
-        elif "medium" in h_lower:
-            allowed_frames = [16, 64]
-        elif "long" in h_lower:
-            allowed_frames = [256, 1024]
-
-    if allowed_frames:
-        contexts_to_report = [c for c in contexts_to_report if c.timeframe in allowed_frames]
-
-    horizon_reports = []
-    for ctx in contexts_to_report:
-        stats = ctx.get_statistics()
-        horizon_name = "Short Horizon" if ctx.timeframe in [1, 4] else ("Medium Horizon" if ctx.timeframe in [16, 64] else "Long Horizon")
-        horizon_reports.append({
-            "asset": ctx.symbol,
-            "horizon": horizon_name,
-            "win_rate": stats["win_rate_pct"],
-            "total_evaluated_cycles": stats["completed_trades"],
-            "confidence": stats["average_confidence_pct"]
-        })
-
-    return horizon_reports
-
+    from src.Application.Services.user_api_router import _snapshot_signals
+    signals=_snapshot_signals(market,horizon); grouped={}
+    for sgn in signals:
+        key=(sgn["symbol"],sgn["timeframe"]); row=grouped.setdefault(key,{"asset":sgn["symbol"],"horizon":sgn["timeframe"],"signal_count":0,"confidence":0.0}); row["signal_count"]+=1; row["confidence"]+=float(sgn.get("confidence") or 0.0)
+    return [{**v,"average_confidence":round(v["confidence"]/v["signal_count"],2) if v["signal_count"] else None,"win_rate":None,"data_state":"REAL_RESEARCH_ONLY"} for v in grouped.values()]
 
 @app.get("/api/user/statements")
 def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str] = None, token: Optional[str] = Query(None)):
-    """Exposes formal user financial account statements with opening/closing balances, realized/unrealized P&L, fees, and trade ledgers."""
-    is_production = os.environ.get("YARTRADER_ENV") == "production" or os.environ.get("TRADEYAR_ENV") == "production" or os.environ.get("RG_ENV") == "production"
-
-    session = None
-    if token:
-        session = global_auth_service.validate_session(token)
-
-    if not session:
-        if is_production or token is not None:
-            raise HTTPException(status_code=401, detail="Authentication token missing or invalid")
-        # Testing/validation mode fallback when token is omitted
-        session = {"email": "test-user@yartrader.app", "role": "USER", "user_id": "DEMO-ACC-7890"}
-
-    user_email = session.get("email", "test-user@yartrader.app")
-    effective_account = account_id or session.get("user_id", user_email)
-
-    if account_id and account_id != session.get("user_id") and account_id != user_email and session.get("role") != "ADMIN":
-        raise HTTPException(status_code=403, detail="Forbidden: Account statement access denied")
-
-    engine = PredictiveShadowEngine.get_instance()
-
-    total_trades = 0
-    wins = 0
-    losses = 0
-    trades_ledger = []
-    total_win_pnl = 0.0
-    total_loss_pnl = 0.0
-
-    for ctx in engine.contexts.values():
-        for trade in getattr(ctx, "history", []):
-            if isinstance(trade, dict):
-                trade_acct = str(trade.get("account_id") or trade.get("user_id") or trade.get("user_email") or "")
-                # Enforce account-level data isolation
-                if effective_account not in ["SYSTEM-AGGREGATE", "DEMO-ACC-7890", user_email] and trade_acct and trade_acct not in [effective_account, user_email]:
-                    continue
-
-                total_trades += 1
-                pnl = float(trade.get("pnl", 0.0))
-                fee = float(trade.get("fee", 0.0))
-                if pnl > 0:
-                    wins += 1
-                    total_win_pnl += pnl
-                elif pnl < 0:
-                    losses += 1
-                    total_loss_pnl += abs(pnl)
-
-                trades_ledger.append({
-                    "trade_id": str(trade.get("trade_id", f"TRD-{len(trades_ledger)+1:04d}")),
-                    "symbol": str(getattr(ctx, "symbol", "XAUUSD")),
-                    "direction": str(trade.get("direction", "BUY")),
-                    "entry_price": float(trade.get("entry_price", 0.0)),
-                    "exit_price": float(trade.get("exit_price", 0.0)),
-                    "pnl": round(pnl, 2),
-                    "fee": round(fee, 2),
-                    "timestamp": str(trade.get("timestamp", datetime.now().isoformat() + "Z"))
-                })
-
-    opening_balance = float(engine.get_virtual_capital_initial_balance())
-    deposits = 0.0
-    withdrawals = 0.0
-    fees = sum(t["fee"] for t in trades_ledger)
-    realized_pnl = sum(t["pnl"] for t in trades_ledger)
-    unrealized_pnl = 0.0
-    closing_balance = round(opening_balance + deposits - withdrawals + realized_pnl - fees, 2)
-    win_rate_pct = round((wins / total_trades * 100.0), 2) if total_trades > 0 else 0.0
-    profit_factor = round(total_win_pnl / total_loss_pnl, 2) if total_loss_pnl > 0 else (None if total_win_pnl > 0 else 0.0)
-
-    # Dynamic drawdown calculation from equity curve peak
-    peak_balance = opening_balance
-    running_balance = opening_balance
-    max_drawdown_amount = 0.0
-    for t in trades_ledger:
-        running_balance += (t["pnl"] - t["fee"])
-        if running_balance > peak_balance:
-            peak_balance = running_balance
-        dd = peak_balance - running_balance
-        if dd > max_drawdown_amount:
-            max_drawdown_amount = dd
-    max_drawdown_pct = round((max_drawdown_amount / peak_balance * 100.0), 2) if peak_balance > 0 else 0.0
-
-    return {
-        "statement_id": f"STM-{effective_account}-{period.upper()}-20260330",
-        "account_id": effective_account,
-        "period": period,
-        "currency": "USD",
-        "generated_at": datetime.now().isoformat() + "Z",
-        "opening_balance": opening_balance,
-        "deposits": deposits,
-        "withdrawals": withdrawals,
-        "realized_pnl": round(realized_pnl, 2),
-        "unrealized_pnl": round(unrealized_pnl, 2),
-        "fees": round(fees, 2),
-        "closing_balance": closing_balance,
-        "risk_summary": {
-            "max_drawdown_pct": max_drawdown_pct,
-            "risk_exposure_pct": 0.0,
-            "profit_factor": profit_factor,
-            "win_rate_pct": win_rate_pct,
-            "total_trades": total_trades
-        },
-        "trade_ledger": trades_ledger[:50]
-    }
+    return {"period":period,"account_id":account_id,"total_trades":0,"wins":0,"losses":0,"realized_pnl":0.0,"unrealized_pnl":0.0,"data_state":"SHADOW_RETIRED","message":"Shadow virtual-account statements are retired in v0.2.0."}
 
 
-@app.get("/api/admin/statements")
-def get_admin_statements(period: Optional[str] = "30d", token: Optional[str] = Query(None)):
-    """Exposes administrative aggregate statement overview across all system trading accounts."""
-    admin_session = check_admin_guard(token)
-    user_stmt = get_user_statements(period=period, account_id="SYSTEM-AGGREGATE", token=token)
-
-    users_count = len(getattr(global_auth_service.repo, "users", {})) or 1
-    active_positions = 0
-    engine = PredictiveShadowEngine.get_instance()
-    for ctx in engine.contexts.values():
-        active_positions += len(getattr(ctx, "active_trades", []))
-
-    user_stmt["accounts_count"] = users_count
-    user_stmt["active_positions"] = active_positions
-    user_stmt["audit_status"] = "AUDITED_LIVE" if user_stmt["risk_summary"]["total_trades"] > 0 else "IDLE"
-    return user_stmt
-
-
-# ==============================================================================
+ ==============================================================================
 # SECURE SOCIAL AUTHENTICATION & BLOG REST API ENDPOINTS
 # ==============================================================================
 from pydantic import BaseModel, EmailStr
