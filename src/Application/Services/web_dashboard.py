@@ -932,24 +932,20 @@ def get_gold_fractal_demo_validation(symbol: str = "XAUUSD"):
 @app.get("/api/portfolio/risk")
 def get_portfolio_risk(virtual_balance: float = 10000.0):
     core = ExecutionIntelligenceCore.get_instance()
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-    active_trades = [t.to_dict() for t in engine.trades]
-    portfolio_res = core.portfolio_engine.calculate_portfolio_risk(active_trades, virtual_balance)
+    portfolio_res = core.portfolio_engine.calculate_portfolio_risk([], virtual_balance)
+    portfolio_res["data_state"] = "NO_SHADOW_POSITIONS"
     return portfolio_res
 
 
 @app.get("/api/portfolio/exposure")
 def get_portfolio_exposure(virtual_balance: float = 10000.0):
     core = ExecutionIntelligenceCore.get_instance()
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-    active_trades = [t.to_dict() for t in engine.trades]
-    portfolio_res = core.portfolio_engine.calculate_portfolio_risk(active_trades, virtual_balance)
+    portfolio_res = core.portfolio_engine.calculate_portfolio_risk([], virtual_balance)
     return {
         "total_exposure": portfolio_res["total_exposure"],
         "asset_concentrations_pct": portfolio_res["asset_concentrations_pct"],
-        "correlation_exposure_pct": portfolio_res["correlation_exposure_pct"]
+        "correlation_exposure_pct": portfolio_res["correlation_exposure_pct"],
+        "data_state": "NO_SHADOW_POSITIONS",
     }
 
 
@@ -3492,127 +3488,20 @@ def get_intelligence_status():
 
 @app.get("/api/intelligence/learning-matrix")
 def get_learning_matrix():
-    """
-    Returns the complete pattern history, sample counts, win-rates,
-    average R:R, and active confidence multipliers.
-    """
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-
-    pattern_stats = {}
-    pattern_list = engine.patterns
-
-    # Fallback to load some mock baseline records if self.patterns is empty
-    if not pattern_list:
-        pattern_list = [
-            {
-                "pattern_key": "XAUUSD_M5_M15_H4D1_LiquiditySweep_TrendContinuation",
-                "pattern": "Liquidity Sweep Continuation",
-                "result": "TARGET_HIT",
-                "max_rr_achieved": 2.5,
-                "mae": -0.5,
-                "mfe": 2.5
-            },
-            {
-                "pattern_key": "XAUUSD_M5_M15_H4D1_LiquiditySweep_TrendContinuation",
-                "pattern": "Liquidity Sweep Continuation",
-                "result": "STOP_HIT",
-                "max_rr_achieved": 0.0,
-                "mae": -1.0,
-                "mfe": 0.2
-            },
-            {
-                "pattern_key": "BTCUSD_M5_M15_H4D1_OrderBlockBreakout_Accumulation",
-                "pattern": "Order Block Breakout",
-                "result": "TARGET_HIT",
-                "max_rr_achieved": 3.1,
-                "mae": -0.3,
-                "mfe": 3.1
-            }
-        ]
-
-    for item in pattern_list:
-        key = item.get("pattern_key")
-        if not key:
-            sym = item.get("symbol", "XAUUSD")
-            pat_name = item.get("pattern", "BaseBreakout").replace(" ", "")
-            key = f"{sym}_M5_M15_H4D1_{pat_name}_Accumulation"
-
-        if key not in pattern_stats:
-            pattern_stats[key] = {
-                "pattern_key": key,
-                "pattern_name": item.get("pattern", "Market Structure"),
-                "sample_count": 0,
-                "win_count": 0,
-                "total_rr": 0.0,
-                "mae_list": [],
-                "mfe_list": []
-            }
-
-        stats = pattern_stats[key]
-        stats["sample_count"] += 1
-        if item.get("result") in ["TARGET_HIT", "Win"]:
-            stats["win_count"] += 1
-        stats["total_rr"] += item.get("max_rr_achieved", 0.0)
-        stats["mae_list"].append(item.get("mae", 0.0))
-        stats["mfe_list"].append(item.get("mfe", 0.0))
-
-    matrix = []
-    for key, stats in pattern_stats.items():
-        count = stats["sample_count"]
-        win_rate = (stats["win_count"] / count) * 100.0 if count > 0 else 0.0
-        avg_rr = stats["total_rr"] / count if count > 0 else 0.0
-
-        # Calculate active confidence multiplier based on statistical gates
-        direction = 1.0 if win_rate >= 50.0 else -1.0
-        if count < 30:
-            shift = 0.0
-        elif 30 <= count < 100:
-            shift = direction * 0.02
-        elif 100 <= count < 500:
-            shift = direction * 0.05
-        else:
-            shift = direction * 0.10
-
-        multiplier = round(1.0 + shift, 2)
-
-        matrix.append({
-            "pattern_key": key,
-            "pattern_name": stats["pattern_name"],
-            "sample_count": count,
-            "win_rate_pct": round(win_rate, 2),
-            "average_rr": round(avg_rr, 2),
-            "average_mae": round(sum(stats["mae_list"]) / len(stats["mae_list"]), 2) if stats["mae_list"] else 0.0,
-            "average_mfe": round(sum(stats["mfe_list"]) / len(stats["mfe_list"]), 2) if stats["mfe_list"] else 0.0,
-            "active_confidence_multiplier": multiplier
+    """Returns only persisted MarketMemorySystem patterns; no synthetic baseline records."""
+    pattern_list = list(global_memory_system.patterns.values())
+    rows = []
+    for pat in pattern_list:
+        total = int(pat.occurrences_count or 0)
+        wins = int(pat.continuation_count or 0)
+        rows.append({
+            "pattern_key": pat.pattern_id,
+            "pattern": pat.pattern_id,
+            "sample_count": total,
+            "win_rate": round((wins / total) * 100.0, 2) if total else None,
+            "data_state": "REAL_LEARNING_MEMORY",
         })
-
-    return matrix
-
-
-@app.get("/api/intelligence/explain/{decision_id}")
-def explain_decision(decision_id: str, question: Optional[str] = None, lang: str = "fa"):
-    """Explains a virtual decision or answers a conversational prompt."""
-    if question:
-        ans = global_decision_explainer.answer_question(question, lang=lang)
-    else:
-        # Map certain pseudo-decision_id terms to corresponding query topics
-        dec_lower = decision_id.lower()
-        if "wait" in dec_lower or "no" in dec_lower or "none" in dec_lower:
-            ans = global_decision_explainer.explain_why_no_trade(lang=lang)
-        elif "mistake" in dec_lower or "error" in dec_lower:
-            ans = global_decision_explainer.explain_mistake(lang=lang)
-        elif "unknown" in dec_lower or "not_know" in dec_lower:
-            ans = global_decision_explainer.explain_what_not_known(lang=lang)
-        elif "learned" in dec_lower or "learn" in dec_lower:
-            ans = global_decision_explainer.explain_what_learned(lang=lang)
-        else:
-            ans = global_decision_explainer.explain_why_open_trade(lang=lang)
-
-    return {
-        "decision_id": decision_id,
-        "explanation": ans
-    }
+    return {"patterns": rows, "count": len(rows), "data_state": "REAL_LEARNING_MEMORY"}
 
 
 @app.get("/api/intelligence/learning-report")
@@ -3877,7 +3766,6 @@ def get_api_v1_health():
         "api": "Online",
         "research_worker": "Running",
         "intelligence_worker": "Running",
-        "shadow_worker": "Running"
     }
 
     # Memory status & statistics
@@ -4011,8 +3899,6 @@ def get_production_health():
         "worker": worker_status,
         "research_worker": research_status,
         "intelligence_worker": intelligence_status,
-        "shadow_worker": shadow_status,
-        "shadow_trading": shadow_status_active,
         "mt5_details": mt5_report,
         "mt4_details": mt4_report,
         "timestamp": datetime.now().isoformat()
@@ -4243,41 +4129,8 @@ def get_validation_history():
 
 @app.get("/api/shadow/metrics")
 def get_shadow_trading_metrics():
-    """Exposes real-time Virtual Account and Performance metrics for the Shadow Trading Engine."""
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-    shadow_trades = engine.trades
-
-    total = len(shadow_trades)
-    wins = sum(1 for t in shadow_trades if t.status == "TARGET_HIT")
-    losses = sum(1 for t in shadow_trades if t.status == "STOP_HIT")
-    win_rate = (wins / total * 100.0) if total > 0 else 0.0
-
-    # Trade confidence as normalized percentage (if > 1.0, assumed to already be 0-100 percentage scale)
-    conf_sum = 0.0
-    for t in shadow_trades:
-        conf_val = float(t.confidence)
-        if conf_val <= 1.0:
-            conf_val *= 100.0
-        conf_sum += conf_val
-    avg_confidence = (conf_sum / total) if total > 0 else 0.0
-
-    net_pnl = sum(t.floating_pnl for t in shadow_trades)
-    virtual_bal = engine.virtual_capital_balance + net_pnl
-
-    return {
-        "balance": round(virtual_bal, 2),
-        "equity": round(virtual_bal, 2),
-        "open_positions_count": sum(1 for t in shadow_trades if t.status in ["CREATED", "RUNNING"]),
-        "closed_positions_count": sum(1 for t in shadow_trades if t.status not in ["CREATED", "RUNNING"]),
-        "performance": {
-            "total_trades": total,
-            "wins": wins,
-            "losses": losses,
-            "win_rate_pct": round(win_rate, 2),
-            "average_confidence_pct": round(avg_confidence, 2)
-        }
-    }
+    """Shadow mode is retired in v0.2.0; Signal mode is the customer-facing research product."""
+    raise HTTPException(status_code=410, detail="Shadow mode has been retired; use Signal/Research endpoints.")
 
 
 @app.get("/v1/dashboard/overview")
@@ -4664,41 +4517,8 @@ def get_demo_report():
 
 @app.get("/api/shadow/report")
 def get_shadow_report():
-    """Compiles independent performance report metrics solely from Shadow Trading Journal records."""
-    from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-    engine = PredictiveShadowEngine.get_instance()
-
-    shadow_trades = engine.trades
-
-    total = len(shadow_trades)
-    wins = sum(1 for t in shadow_trades if t.status == "TARGET_HIT")
-    losses = sum(1 for t in shadow_trades if t.status == "STOP_HIT")
-    win_rate = (wins / total * 100.0) if total > 0 else 0.0
-
-    # Draw values
-    gross_profit = sum(t.floating_pnl for t in shadow_trades if t.floating_pnl > 0)
-    gross_loss = sum(abs(t.floating_pnl) for t in shadow_trades if t.floating_pnl < 0)
-    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 1.0)
-
-    avg_win = (gross_profit / wins) if wins > 0 else 0.0
-    avg_loss = (gross_loss / losses) if losses > 0 else 0.0
-
-    return {
-        "total_trades": total,
-        "open_trades_count": sum(1 for t in shadow_trades if t.status in ["CREATED", "RUNNING"]),
-        "closed_trades_count": sum(1 for t in shadow_trades if t.status not in ["CREATED", "RUNNING"]),
-        "winning_trades": wins,
-        "losing_trades": losses,
-        "win_rate_pct": round(win_rate, 2),
-        "gross_profit": round(gross_profit, 2),
-        "gross_loss": round(gross_loss, 2),
-        "net_p_and_l": round(sum(t.floating_pnl for t in shadow_trades), 2),
-        "profit_factor": round(profit_factor, 2),
-        "average_win": round(avg_win, 2),
-        "average_loss": round(avg_loss, 2),
-        "virtual_balance": round(engine.virtual_capital_balance + sum(t.floating_pnl for t in shadow_trades), 2),
-        "virtual_equity": round(engine.virtual_capital_balance + sum(t.floating_pnl for t in shadow_trades), 2)
-    }
+    """Shadow mode is retired in v0.2.0; Signal mode is the customer-facing research product."""
+    raise HTTPException(status_code=410, detail="Shadow mode has been retired; use Signal/Research endpoints.")
 
 
 @app.post("/api/risk/emergency_stop")
@@ -4750,18 +4570,7 @@ def get_scorecard():
     if shadow_status in degraded_or_stopped:
         blocking_reasons.append(f"Required shadow_worker status is {shadow_status}")
 
-    # 4. Shadow state consistency check
-    try:
-        from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-        engine = PredictiveShadowEngine.get_instance()
-        shadow_trades = engine.trades
-        m_trades = len(shadow_trades)
-        r_trades = len(shadow_trades)
-        if m_trades != r_trades:
-            blocking_reasons.append("Shadow metrics/report trade count inconsistency detected")
-    except Exception as e:
-        blocking_reasons.append(f"Shadow state evaluation failed: {str(e)}")
-
+    # 4. Shadow mode is retired and therefore not a production readiness dependency.
     # 5. Acceptance validation state check
     global val_state
     with state_lock:
@@ -4873,8 +4682,6 @@ def list_operator_tasks(request: Request):
 # ==============================================================================
 # AUTONOMOUS SHADOW TRADING INTELLIGENCE SEPARATED API LAYER
 # ==============================================================================
-from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine
-
 @app.get("/api/admin/symbols")
 def get_admin_symbols(request: Request):
     """Lists current active symbols and allows registering a new symbol dynamically."""
