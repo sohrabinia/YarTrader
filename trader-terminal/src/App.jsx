@@ -246,14 +246,7 @@ function MainApp() {
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
   const [selectedAuditTrail, setSelectedAuditTrail] = useState(null);
 
-  // Auth Forms states
-  const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authName, setAuthName] = useState('');
-  const [authSubmitting, setAuthPasswordSubmitting] = useState(false);
-
-  // Floating Chatbot state
+  // Customer authentication is Google-only; no password state is kept in the client.
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState([
@@ -463,58 +456,6 @@ function MainApp() {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
     localStorage.setItem('yartrader_theme', nextTheme);
-  };
-
-  // Email / Password Auth Operations
-  const handleEmailAuthSubmit = async (e) => {
-    e.preventDefault();
-    if (!authEmail || !authPassword) {
-      showNotification(lang === 'fa' ? 'لطفاً ایمیل و رمز عبور را وارد کنید.' : 'Email and password are required.', 'warning');
-      return;
-    }
-
-    if (authMode === 'register' && authPassword.length < 6) {
-      showNotification(lang === 'fa' ? 'رمز عبور باید حداقل ۶ کاراکتر باشد.' : 'Password must be at least 6 characters.', 'warning');
-      return;
-    }
-
-    setAuthPasswordSubmitting(true);
-    try {
-      const endpoint = authMode === 'register' ? '/api/auth/register' : '/api/auth/login';
-      const payload = authMode === 'register'
-        ? { email: authEmail, password: authPassword, name: authName }
-        : { email: authEmail, password: authPassword };
-
-      const res = await apiService.post(endpoint, payload);
-      const tokenVal = res.session_token || res.token;
-      const roleVal = (res.user && res.user.role) || res.role || 'USER';
-      const nameVal = (res.user && res.user.name) || res.username || authName || authEmail.split('@')[0];
-
-      localStorage.setItem('yartrader_token', tokenVal);
-      localStorage.setItem('yartrader_role', roleVal);
-      localStorage.setItem('yartrader_name', nameVal);
-      setToken(tokenVal);
-      setRole(roleVal);
-      setName(nameVal);
-
-      showNotification(
-        authMode === 'register'
-          ? (lang === 'fa' ? 'ثبت‌نام با موفقیت انجام شد.' : 'Registration successful.')
-          : (lang === 'fa' ? 'ورود با موفقیت انجام شد.' : 'Sign in successful.'),
-        'success'
-      );
-      setAuthEmail('');
-      setAuthPassword('');
-      setAuthName('');
-      navigateTo('/dashboard');
-    } catch (err) {
-      showNotification(
-        err.message || (lang === 'fa' ? 'خطا در احراز هویت.' : 'Authentication failed.'),
-        'failed'
-      );
-    } finally {
-      setAuthPasswordSubmitting(false);
-    }
   };
 
   // Auth Operations
