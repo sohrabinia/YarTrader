@@ -24,7 +24,10 @@ if ([string]::IsNullOrWhiteSpace($token)) {
     [Environment]::SetEnvironmentVariable("YARTRADER_MT5_BRIDGE_TOKEN", $token, "Machine")
 }
 
-$action = '"' + $python + '" "' + $entry + '"'
+# The entrypoint imports the repository's src package. Running the file directly
+# does not reliably put the repository root on sys.path, so execute it as a
+# module with the repository as the working directory.
+$action = 'cmd /d /c "cd /d "' + $repo + '" && "' + $python + '" -m app.workers.mt5_session_agent"'
 $createOutput = & schtasks.exe /Create /TN "$task" /TR $action /SC ONLOGON /RL HIGHEST /F 2>&1
 if ($LASTEXITCODE -ne 0) {
     throw "Failed to create MT5 Session Agent task: $($createOutput -join " ")"
