@@ -47,7 +47,8 @@ class OutcomeEvaluationEngine:
         if trade.status != "CLOSED":
             raise ValueError("Cannot evaluate a trade that is still open.")
 
-        lesson = "Success confirmed in standard scenario."
+        learning_success = bool(trade.final_result == "SUCCESS" or (trade.final_result == "WINDOW_COMPLETE" and trade.target_reached))
+        lesson = ("Learning horizon completed after the minimum target was reached; post-target extension/exhaustion was retained for Brain learning." if learning_success and trade.final_result == "WINDOW_COMPLETE" else "Success confirmed in standard scenario.")
         if trade.final_result == "FAILURE":
             lesson = (
                 f"Failure occurred due to: {trade.reason_of_failure or 'unknown'}. "
@@ -62,7 +63,7 @@ class OutcomeEvaluationEngine:
             timestamp=trade.exit_time or datetime.now(),
             situation_signature=situation_signature,
             decision_action=trade.decision_action,
-            outcome_result=trade.final_result or "NEUTRAL",
+            outcome_result="SUCCESS" if learning_success else (trade.final_result or "NEUTRAL"),
             lesson_feedback=lesson,
             max_favorable_excursion=trade.max_favorable_movement,
             max_adverse_excursion=trade.max_adverse_movement,
