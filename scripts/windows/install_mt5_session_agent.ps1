@@ -24,14 +24,26 @@ if ([string]::IsNullOrWhiteSpace($token)) {
     [Environment]::SetEnvironmentVariable("YARTRADER_MT5_BRIDGE_TOKEN", $token, "Machine")
 }
 
-# The entrypoint imports the repository's src package. Running the file directly
-# does not reliably put the repository root on sys.path, so execute it as a
-# module with the repository as the working directory.
-$action = 'cmd /d /c "cd /d "' + $repo + '" && "' + $python + '" -m app.workers.mt5_session_agent"'
-$createOutput = & schtasks.exe /Create /TN "$task" /TR $action /SC ONLOGON /RL HIGHEST /F 2>&1
-if ($LASTEXITCODE -ne 0) {
-    throw "Failed to create MT5 Session Agent task: $($createOutput -join " ")"
-}
+# Register the agent as an interactive user task. New-ScheduledTaskAction
+# supports an explicit working directory, avoiding schtasks.exe quoting and
+# file-entrypoint sys.path problems.
+$action = New-ScheduledTaskAction `
+    -Execute $python `
+    -Argument "-m app.workers.mt5_session_agent" `
+    -WorkingDirectory $repo
+$principal = New-ScheduledTaskPrincipal `
+    -UserId "$env:USERDOMAIN\$env:USERNAME" `
+    -LogonType InteractiveToken `
+    -RunLevel Highest
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+
+Unregister-ScheduledTask -TaskName $task -Confirm:$false -ErrorAction SilentlyContinue
+Register-ScheduledTask `
+    -TaskName $task `
+    -Action $action `
+    -Principal $principal `
+    -Trigger $trigger `
+    -Force | Out-Null
 
 Write-Host "MT5 Session Agent task installed for the current user." -ForegroundColor Green
 Write-Host "The agent must run in the same Windows session as terminal64.exe." -ForegroundColor Yellow
