@@ -16,8 +16,8 @@ This document provides a forensic audit tracing the origins of marketing metric 
 ### Claim 2: "Pattern Occurrences / Learning Matrix (312 Occurrences)"
 - **Source Code Location**: `src/Application/Services/web_dashboard.py` (line 3131)
 - **Origin**: Dynamically aggregated from `PredictiveShadowEngine.get_instance().patterns`. Fallback baseline records are seeded when in-memory engine patterns list is empty.
-- **Data Provenance**: **DYNAMIC HYBRID (REAL RUNTIME WHEN ACTIVE / SEEDED FALLBACK WHEN IDLE)**
-- **Forensic Assessment**: When backtest runs or shadow trades execute, outcomes log into `runtime_logs/learning_memory.json`, dynamically populating the learning matrix. When idle or freshly started, fallback baseline templates seed the UI table.
+- **Data Provenance**: **REAL RUNTIME ONLY; no seeded fallback**
+- **Forensic Assessment**: When backtest runs or shadow trades execute, outcomes log into `runtime_logs/learning_memory.json`, dynamically populating the learning matrix. When idle or freshly started, the UI reports insufficient evidence instead of seeding synthetic baseline templates.
 
 ---
 
