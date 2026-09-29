@@ -27,6 +27,7 @@ import AdminView from './views/AdminView.jsx';
 import OperatorView from './views/OperatorView.jsx';
 import GuideView from './views/GuideView.jsx';
 import FaqView from './views/FaqView.jsx';
+import WalletView from './views/WalletView.jsx';
 
 // Import Global Functional Command Palette Component
 import CommandPalette from './components/common/CommandPalette.jsx';
@@ -361,7 +362,7 @@ function MainApp() {
       navigateTo('/login');
       return;
     }
-    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/Operator' || routePath === '/operator' || routePath === '/learning';
+    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/Operator' || routePath === '/operator' || routePath === '/learning' || routePath === '/wallet' || routePath === '/billing';
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
       showNotification(
@@ -2031,6 +2032,8 @@ function MainApp() {
           )}
 
           {/* AUTHENTICATION VIEWS */}
+          {(routePath === '/wallet' || routePath === '/billing') && <WalletView lang={lang} />}
+
           {routePath === '/login' && (
             <div id="shell-login">
               <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)', textAlign: 'center' }}>
