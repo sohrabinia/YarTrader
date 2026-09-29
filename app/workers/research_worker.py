@@ -291,14 +291,7 @@ class ResearchWorker:
                             print("[ResearchWorker] Research cycle skipped: another Brain/research cycle is still running.")
                             continue
                         try:
-                            acquired = self._analysis_lock.acquire(blocking=False)
-                        if not acquired:
-                            print("[ResearchWorker] Research cycle skipped: another Brain/research cycle is still running.")
-                            continue
-                        try:
                             res = runtime.run_once()
-                        finally:
-                            self._analysis_lock.release()
                         finally:
                             self._analysis_lock.release()
 

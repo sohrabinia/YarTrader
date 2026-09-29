@@ -4691,7 +4691,7 @@ def get_user_statements(period: Optional[str] = "30d", account_id: Optional[str]
     return {"period":period,"account_id":account_id,"total_trades":0,"wins":0,"losses":0,"realized_pnl":0.0,"unrealized_pnl":0.0,"data_state":"SHADOW_RETIRED","message":"Shadow virtual-account statements are retired in v0.2.0."}
 
 
- ==============================================================================
+# ==============================================================================
 # SECURE SOCIAL AUTHENTICATION & BLOG REST API ENDPOINTS
 # ==============================================================================
 from pydantic import BaseModel, EmailStr
