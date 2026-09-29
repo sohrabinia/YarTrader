@@ -147,6 +147,19 @@ def get_billing_subscription(session: Dict[str, Any] = Depends(get_user_session_
 
 
 
+@router.get("/ledger/statement")
+def get_ledger_statement(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    from src.Application.Dashboard.ledger_manager import LedgerManager
+    email = session["email"].lower()
+    data = LedgerManager().get_account_statement(email)
+    return {"email":email,"balance_cents":data["balance"],"balance_usd":round(data["balance"]/100.0,2),"currency":"USD","transactions":data["transactions"]}
+
+@router.get("/billing/invoices")
+def get_billing_invoices(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    from src.Application.Dashboard.billing_manager import BillingManager
+    return {"invoices": BillingManager().get_user_invoices(session["email"])}
+
+
 # ==============================================================================
 # RECEIVE-ONLY USDT WALLET
 # ==============================================================================
