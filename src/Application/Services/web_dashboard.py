@@ -174,8 +174,20 @@ def run_research_background_loop():
     # Top-level crash isolation loop: background thread failures can NEVER kill FastAPI API process
     while True:
         try:
-            from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-            registry = SymbolRegistry.get_instance()
+            # Canonical market universe is owned by Research/Configuration; the retired
+            # ShadowTrading registry is deliberately not part of the runtime path.
+            try:
+                from pathlib import Path
+                import yaml
+                universe_path = Path(project_root) / "config" / "market_universe.yaml"
+                universe = yaml.safe_load(universe_path.read_text(encoding="utf-8")) if universe_path.exists() else {}
+                configured_symbols = []
+                for group in (universe or {}).values():
+                    if isinstance(group, dict):
+                        configured_symbols.extend(str(symbol).upper() for symbol in group.keys())
+                configured_symbols = list(dict.fromkeys(configured_symbols))
+            except Exception:
+                configured_symbols = ["XAUUSD"]
 
             # Cache of active ResearchRuntimes per (symbol, timeframe)
             runtimes = {}
@@ -315,11 +327,9 @@ from contextlib import asynccontextmanager
 async def lifespan_context(app: FastAPI):
     log_event("INFO", "web_dashboard_startup", message="FastAPI lifespan starting up...")
     try:
-        # 1. Initialize SymbolRegistry to force registry load
-        from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-        SymbolRegistry.get_instance()
+        # The retired ShadowTrading registry is not initialized by the production runtime.
 
-        # 2. Start the worker thread if not in test/service host mode
+        # 1. Start the worker thread if not in test/service host mode
         is_service_run = (os.environ.get("YARTRADER_SERVICE_RUN") == "True" or
                           os.environ.get("YARTRADER_SERVICE_RUN") == "True")
         if not is_service_run and "pytest" not in sys.modules:
@@ -4118,10 +4128,7 @@ def get_shadow_report():
 def get_admin_symbols(request: Request):
     """Lists current active symbols and allows registering a new symbol dynamically."""
     check_admin_guard(request)
-    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-    registry_inst = SymbolRegistry.get_instance()
-    registry = registry_inst.get_all_registered()
-    active_symbols = sorted([sym for sym, info in registry.items() if info.get("active", True)])
+    active_symbols = sorted(_canonical_runtime_symbols())
 
     return {
         "active_symbols": active_symbols,
@@ -4791,6 +4798,22 @@ def admin_update_ticket_status(ticket_id: str, payload: AdminTicketStatusPayload
 
 
 
+def _canonical_runtime_symbols():
+    """Return symbols from the canonical market-universe configuration only."""
+    try:
+        from pathlib import Path
+        import yaml
+        path = Path(project_root) / "config" / "market_universe.yaml"
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) if path.exists() else {}
+        symbols = []
+        for group in (data or {}).values():
+            if isinstance(group, dict):
+                symbols.extend(str(symbol).upper() for symbol in group.keys())
+        return list(dict.fromkeys(symbols)) or ["XAUUSD"]
+    except Exception:
+        return ["XAUUSD"]
+
+
 # ---------------------------------------------------------------------------
 # DEMO execution/reporting surface
 # ---------------------------------------------------------------------------
@@ -4937,10 +4960,7 @@ def execute_runtime_control(payload: _ControlPayload):
 
 @app.get("/api/symbols")
 def list_symbol_administration():
-    from src.ShadowTrading.Engine.SymbolRegistry import SymbolRegistry
-    symbols = sorted({item[0] for item in SymbolRegistry.get_instance().get_active_matrix()})
-    if not symbols:
-        symbols = ["EURUSD"]
+    symbols = sorted(_canonical_runtime_symbols())
     return {"administered_symbols": symbols}
 
 @app.post("/api/mode")
