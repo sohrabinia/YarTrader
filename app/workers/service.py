@@ -242,23 +242,44 @@ if WINDOWS_SERVICE_SUPPORTED:
         _svc_description_ = "Coordinates the 24/7 background AI runtime, MT5 connector, intelligence, and shadow execution."
 
         def __init__(self, args):
+            # Keep the SCM-facing constructor lightweight. The previous
+            # implementation constructed the full application host here,
+            # before SvcDoRun could report startup progress to SCM. On
+            # Windows this can consume the SCM startup window and surface as
+            # ERROR_SERVICE_REQUEST_TIMEOUT (1053) even though the same
+            # pythonservice.exe works in interactive debug mode.
             win32serviceutil.ServiceFramework.__init__(self, args)
             self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-            self.host = YarTraderServiceHost()
+            self.host: Optional[YarTraderServiceHost] = None
+            self.ReportServiceStatus(
+                win32service.SERVICE_START_PENDING,
+                waitHint=120000
+            )
+
+        def _ensure_host(self) -> YarTraderServiceHost:
+            if self.host is None:
+                self.host = YarTraderServiceHost()
+            return self.host
 
         def SvcStop(self):
             log_service_message("SERVICE_STOP_REQUESTED")
             # Report stop pending to SCM
             self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-            self.host.stop()
+            if self.host is not None:
+                self.host.stop()
             log_service_message("SERVICE_HOST_STOPPED")
             win32event.SetEvent(self.hWaitStop)
 
         def SvcDoRun(self):
             try:
                 log_service_message("SERVICE_START_REQUESTED")
-                # Start service host
-                self.host.start()
+                # Explicitly keep SCM in START_PENDING while the application
+                # host is constructed and its API readiness gate completes.
+                self.ReportServiceStatus(
+                    win32service.SERVICE_START_PENDING,
+                    waitHint=120000
+                )
+                self._ensure_host().start()
                 log_service_message("SERVICE_HOST_STARTED")
 
                 # Report RUNNING status to SCM
