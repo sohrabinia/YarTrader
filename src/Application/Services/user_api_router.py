@@ -146,6 +146,17 @@ def get_billing_subscription(session: Dict[str, Any] = Depends(get_user_session_
     return manager.get_subscription(email)
 
 
+
+# ==============================================================================
+# RECEIVE-ONLY USDT WALLET
+# ==============================================================================
+@router.get("/wallet/receive")
+def get_receive_wallet(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    """Returns configured public USDT receive addresses. No withdrawal or signing capability exists."""
+    from src.Application.Dashboard.receive_wallet_manager import ReceiveWalletManager
+    return ReceiveWalletManager().public_config()
+
+
 # ==============================================================================
 # P2-3 — SUPPORT TICKETING SYSTEM ENDPOINTS
 # ==============================================================================
