@@ -3973,12 +3973,12 @@ def get_production_health():
     # Shadow Trading is DEPRECATED & REMOVED repository-wide (SHADOW = ZERO)
     shadow_status_active = "Disabled"
 
-    # Harden SRE Health Accuracy against fake reporting
+    # Harden SRE Health Accuracy against stale legacy worker state.
+    # In production, central_runtime_state is authoritative for managed workers.
     overall_status = "healthy"
     degraded_states = ["Failed", "Degraded", "Recovering"]
     if (research_status in degraded_states or
-        intelligence_status in degraded_states or
-        research_tracker.get("worker_status") in degraded_states):
+        intelligence_status in degraded_states):
         overall_status = "degraded"
 
     # Redacted public terminal operational health summary (no accounts, servers, or internal topology)
