@@ -24,9 +24,15 @@ if ([string]::IsNullOrWhiteSpace($token)) {
     [Environment]::SetEnvironmentVariable("YARTRADER_MT5_BRIDGE_TOKEN", $token, "Machine")
 }
 
-schtasks.exe /Delete /TN "$task" /F 2>$null | Out-Null
+$deleteOutput = & schtasks.exe /Delete /TN "$task" /F 2>&1
+if ($LASTEXITCODE -ne 0 -and ($deleteOutput -join " ") -notmatch "cannot find|not exist|does not exist") {
+    throw "Failed to remove existing MT5 Session Agent task: $($deleteOutput -join " ")"
+}
 $action = '"' + $python + '" "' + $entry + '"'
-schtasks.exe /Create /TN "$task" /TR $action /SC ONLOGON /RL HIGHEST /F | Out-Null
+$createOutput = & schtasks.exe /Create /TN "$task" /TR $action /SC ONLOGON /RL HIGHEST /F 2>&1
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to create MT5 Session Agent task: $($createOutput -join " ")"
+}
 
 Write-Host "MT5 Session Agent task installed for the current user." -ForegroundColor Green
 Write-Host "The agent must run in the same Windows session as terminal64.exe." -ForegroundColor Yellow
