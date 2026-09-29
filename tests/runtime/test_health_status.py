@@ -1,5 +1,5 @@
 import unittest
-from src.Application.Services.web_dashboard import get_production_health, research_tracker
+from src.Application.Services.web_dashboard import get_production_health, research_tracker, global_research_runtime
 from src.Application.Runtime.runtime_state import central_runtime_state
 
 class TestHealthStatus(unittest.TestCase):
@@ -49,7 +49,11 @@ class TestHealthStatus(unittest.TestCase):
             "shadow_status": "Stopped"
         })
 
-        with patch.dict("src.Application.Services.web_dashboard.research_tracker", {"mt5_status": "DISCONNECTED", "worker_status": "STOPPED"}):
+        with patch.object(
+            global_research_runtime.provider.delegate,
+            "get_connection_health",
+            return_value=type("Health", (), {"connected": False})(),
+        ):
             health = get_production_health()
             self.assertIn(health["status"], ["Healthy", "healthy"])
             self.assertEqual(health["mt5"], "Disconnected")

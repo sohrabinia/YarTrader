@@ -349,10 +349,16 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                 self.assertNotIn("SUPER_SECRET", content)
                 self.assertNotIn("token_val", content)
                 self.assertNotIn('OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"', content)
-                self.assertIn('operator_owner_token.secret', content)
                 self.assertIn('icacls.exe', content)
                 self.assertIn('pythonservice', content.lower())
                 self.assertNotIn('nssm install', content.lower())
+
+        # The canonical installer owns secret-file handling; the wrapper deployment
+        # script delegates to it rather than duplicating the implementation.
+        with open(install_script_path, "r", encoding="utf-8") as f:
+            canonical = f.read()
+        self.assertIn("operator_owner_token.secret", canonical)
+        self.assertIn("icacls.exe", canonical)
 
     def test_deployment_scripts_do_not_accept_operator_owner_token_parameter(self):
         """Verify param(...) block in PowerShell deployment scripts does NOT accept OperatorOwnerToken CLI parameter."""
