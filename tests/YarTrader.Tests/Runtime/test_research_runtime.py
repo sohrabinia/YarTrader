@@ -202,6 +202,17 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         runtime.stop()
         self.assertFalse(runtime._is_running)
 
+    def test_research_worker_single_flight_lock_is_non_reentrant(self) -> None:
+        """Regression guard: the worker lock must allow one holder and reject a second acquisition."""
+        from app.workers.research_worker import ResearchWorker
+
+        worker = ResearchWorker(symbol="XAUUSD", timeframe="M1")
+        self.assertTrue(worker._analysis_lock.acquire(blocking=False))
+        try:
+            self.assertFalse(worker._analysis_lock.acquire(blocking=False))
+        finally:
+            worker._analysis_lock.release()
+
     def test_runtime_rejects_tick_and_accepts_m1(self) -> None:
         """M1 is the minimum supported timeframe; tick/sub-minute analysis is disabled."""
         m1_runtime = ResearchRuntime(
