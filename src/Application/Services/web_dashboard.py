@@ -4965,7 +4965,7 @@ def list_symbol_administration():
 
 @app.post("/api/mode")
 def transition_operating_mode(payload: _ModePayload):
-    allowed = {"Research", "Backtest", "Simulation", "Shadow"}
+    allowed = {"Research", "Backtest", "Simulation"}
     if payload.mode not in allowed:
         raise HTTPException(status_code=400, detail="Unsupported operating mode")
     return {"transitioned_to_mode": payload.mode}
