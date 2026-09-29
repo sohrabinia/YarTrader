@@ -3466,22 +3466,9 @@ def get_learning_matrix():
 
 @app.get("/api/intelligence/learning-report")
 def get_intelligence_learning_report():
-    """Compiles detailed, dynamic cognitive learning report details."""
-    stats = global_memory_system.get_learning_statistics()
-    return {
-        "timestamp": datetime.now().isoformat(),
-        "statistics": stats,
-        "repeated_mistakes": _mock_replay_session["error_analysis"]["repeated_mistakes"],
-        "failed_concepts": _mock_replay_session["error_analysis"]["failed_concepts"],
-        "weakness_areas": _mock_replay_session["error_analysis"]["weakness_areas"],
-        "research_priorities": [
-            {
-                "priority": "High",
-                "topic": "XAUUSD reaction after London Open",
-                "reason": "Highest similarity clusters lacking post-event news cases"
-            }
-        ]
-    }
+    """Compiles learning report from persisted MarketMemorySystem only."""
+    stats=global_memory_system.get_learning_statistics()
+    return {"timestamp":datetime.now().isoformat(),"statistics":stats,"repeated_mistakes":[],"failed_concepts":[],"weakness_areas":[],"research_priorities":[],"data_state":"REAL_LEARNING_MEMORY"}
 
 
 @app.get("/api/research/latest")
@@ -3825,11 +3812,11 @@ def get_production_health():
 
     # MT4 operational health summary (no accounts, servers, or internal topology)
     mt4_report = {
-        "terminal_running": True,  # Simulated as always active
-        "connected": True,
-        "role": "LIVE_SIMULATION",
-        "simulation_enabled": True,
-        "live_trading_enabled": False  # Hard safety gate lock
+        "terminal_running": False,
+        "connected": False,
+        "role": "DISABLED",
+        "simulation_enabled": False,
+        "live_trading_enabled": False
     }
 
     return {
@@ -3839,7 +3826,7 @@ def get_production_health():
         "workers": True,
         "service": "YarTrader",
         "mt5": mt5_status,
-        "intelligence": "Ready" if _mock_replay_session["active"] else "Offline",
+        "intelligence": state.get("intelligence_status", "Stopped"),
         "worker": worker_status,
         "research_worker": research_status,
         "intelligence_worker": intelligence_status,
