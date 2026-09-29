@@ -3365,61 +3365,21 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
     return HTMLResponse(content=html_content)
 # ==============================================================================
 
-# Global variable to hold temporary training session replay data
-# Instantiated with empty mock details
-_mock_replay_session = {
-    "active": True,
-    "current_episode_id": "ep-9941a3",
-    "processed_episodes_count": 142,
-    "total_episodes_count": 500,
-    "progress_pct": 28.4,
-    "brain_knowledge": {
-        "concepts_count": 18,
-        "patterns_discovered": 45,
-        "patterns_rejected_by_integrity": 12,
-        "hypotheses_tested": 312,
-        "decision_quality_trend": [0.52, 0.58, 0.65, 0.72, 0.78, 0.81]
-    },
-    "error_analysis": {
-        "repeated_mistakes": [
-            {"pattern_signature": [1.0, -0.5, 0.2], "mistake_count": 8, "uncertainty_score": 9.2, "issue": "Timing lag under wide spreads"}
-        ],
-        "failed_concepts": ["Short consolidation exit", "Rapid mean-reversion attempt"],
-        "weakness_areas": ["Low-volume consolidation", "Wide spread extensions"]
-    }
-}
-
+# Replay/learning monitoring is sourced from the real MarketMemorySystem.
 @app.get("/api/replay/training-monitor")
 def get_replay_training_monitor():
-    """Retrieves current replay session, processed episodes, and progress metrics."""
-    return {
-        "status": "RUNNING" if _mock_replay_session["active"] else "IDLE",
-        "current_episode": _mock_replay_session["current_episode_id"],
-        "episodes_processed": _mock_replay_session["processed_episodes_count"],
-        "episodes_total": _mock_replay_session["total_episodes_count"],
-        "progress_pct": _mock_replay_session["progress_pct"]
-    }
+    stats=global_memory_system.get_learning_statistics()
+    return {"status":"IDLE","current_episode":None,"episodes_processed":stats.get("total_experiences",0),"episodes_total":None,"progress_pct":None,"data_state":"REAL_LEARNING_MEMORY"}
 
 @app.get("/api/replay/learning-status")
 def get_brain_learning_status():
-    """Retrieves brain knowledge growth, validated concepts count, and confidence levels."""
-    return {
-        "concepts_count": _mock_replay_session["brain_knowledge"]["concepts_count"],
-        "patterns_discovered": _mock_replay_session["brain_knowledge"]["patterns_discovered"],
-        "patterns_rejected": _mock_replay_session["brain_knowledge"]["patterns_rejected_by_integrity"],
-        "hypotheses_tested": _mock_replay_session["brain_knowledge"]["hypotheses_tested"],
-        "decision_quality_trend": _mock_replay_session["brain_knowledge"]["decision_quality_trend"],
-        "unknown_areas_count": len(_mock_replay_session["error_analysis"]["weakness_areas"])
-    }
+    stats=global_memory_system.get_learning_statistics()
+    return {"concepts_count":stats.get("concepts_learned",0),"patterns_discovered":stats.get("patterns_created",0),"patterns_rejected":stats.get("failed_patterns",0),"hypotheses_tested":None,"decision_quality_trend":None,"unknown_areas_count":None,"data_state":"REAL_LEARNING_MEMORY"}
 
 @app.get("/api/replay/error-analysis")
 def get_replay_error_analysis():
-    """Retrieves repeated mistakes, failed concepts, and uncertainty/weakness areas."""
-    return {
-        "repeated_mistakes": _mock_replay_session["error_analysis"]["repeated_mistakes"],
-        "failed_concepts": _mock_replay_session["error_analysis"]["failed_concepts"],
-        "weakness_areas": _mock_replay_session["error_analysis"]["weakness_areas"]
-    }
+    stats=global_memory_system.get_learning_statistics()
+    return {"repeated_mistakes":[],"failed_concepts":[],"weakness_areas":[],"statistics":stats,"data_state":"REAL_LEARNING_MEMORY"}
 
 
 @app.get("/api/intelligence/multi-timeframe")
@@ -3506,22 +3466,9 @@ def get_learning_matrix():
 
 @app.get("/api/intelligence/learning-report")
 def get_intelligence_learning_report():
-    """Compiles detailed, dynamic cognitive learning report details."""
-    stats = global_memory_system.get_learning_statistics()
-    return {
-        "timestamp": datetime.now().isoformat(),
-        "statistics": stats,
-        "repeated_mistakes": _mock_replay_session["error_analysis"]["repeated_mistakes"],
-        "failed_concepts": _mock_replay_session["error_analysis"]["failed_concepts"],
-        "weakness_areas": _mock_replay_session["error_analysis"]["weakness_areas"],
-        "research_priorities": [
-            {
-                "priority": "High",
-                "topic": "XAUUSD reaction after London Open",
-                "reason": "Highest similarity clusters lacking post-event news cases"
-            }
-        ]
-    }
+    """Compiles learning report from persisted MarketMemorySystem only."""
+    stats=global_memory_system.get_learning_statistics()
+    return {"timestamp":datetime.now().isoformat(),"statistics":stats,"repeated_mistakes":[],"failed_concepts":[],"weakness_areas":[],"research_priorities":[],"data_state":"REAL_LEARNING_MEMORY"}
 
 
 @app.get("/api/research/latest")
@@ -3865,11 +3812,11 @@ def get_production_health():
 
     # MT4 operational health summary (no accounts, servers, or internal topology)
     mt4_report = {
-        "terminal_running": True,  # Simulated as always active
-        "connected": True,
-        "role": "LIVE_SIMULATION",
-        "simulation_enabled": True,
-        "live_trading_enabled": False  # Hard safety gate lock
+        "terminal_running": False,
+        "connected": False,
+        "role": "DISABLED",
+        "simulation_enabled": False,
+        "live_trading_enabled": False
     }
 
     return {
@@ -3879,7 +3826,7 @@ def get_production_health():
         "workers": True,
         "service": "YarTrader",
         "mt5": mt5_status,
-        "intelligence": "Ready" if _mock_replay_session["active"] else "Offline",
+        "intelligence": state.get("intelligence_status", "Stopped"),
         "worker": worker_status,
         "research_worker": research_status,
         "intelligence_worker": intelligence_status,
