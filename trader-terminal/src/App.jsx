@@ -24,6 +24,7 @@ import DashboardView from './views/DashboardView.jsx';
 import IntelligenceView from './views/IntelligenceView.jsx';
 import DemoView from './views/DemoView.jsx';
 import AdminView from './views/AdminView.jsx';
+import AdminWalletView from './views/AdminWalletView.jsx';
 import OperatorView from './views/OperatorView.jsx';
 import GuideView from './views/GuideView.jsx';
 import FaqView from './views/FaqView.jsx';
@@ -363,7 +364,7 @@ function MainApp() {
       navigateTo('/login');
       return;
     }
-    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/Operator' || routePath === '/operator' || routePath === '/learning' || routePath === '/wallet' || routePath === '/billing';
+    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/Operator' || routePath === '/operator' || routePath === '/learning' || routePath === '/wallet' || routePath === '/billing' || routePath === '/admin/wallet';
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
       showNotification(
@@ -371,7 +372,7 @@ function MainApp() {
         'warning'
       );
     }
-    if ((routePath === '/admin' || routePath === '/Operator' || routePath === '/operator') && token && role !== 'ADMIN') {
+    if ((routePath === '/admin' || routePath === '/admin/wallet' || routePath === '/Operator' || routePath === '/operator') && token && role !== 'ADMIN') {
       showNotification(
         lang === 'fa' ? 'دسترسی فقط برای کاربران با نقش مدیریت (ADMIN) مجاز است.' : 'Admin role is required.',
         'warning'
@@ -2034,6 +2035,8 @@ function MainApp() {
 
           {/* AUTHENTICATION VIEWS */}
           {routePath === '/wallet' && <WalletView lang={lang} />}\n          {routePath === '/billing' && <BillingView lang={lang} />}
+
+          {routePath === '/admin/wallet' && <AdminWalletView />}
 
           {routePath === '/login' && (
             <div id="shell-login">
