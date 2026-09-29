@@ -67,6 +67,9 @@ def test_service_host_port_binding_failure():
         assert host.fastapi_ready is False
         assert host.last_error is not None
         assert "Port binding failure" in host.last_error or "Address already in use" in host.last_error
+        # A crashed Uvicorn thread must fail readiness even if another
+        # process happens to be listening on the configured port.
+        assert host._verify_uvicorn_readiness(timeout_sec=0.2) is False
 
         host.stop()
 
