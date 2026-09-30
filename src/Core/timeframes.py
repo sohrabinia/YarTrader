@@ -27,6 +27,14 @@ SUPPORTED_TIMEFRAMES = {
         "validation_rules": {"min_candles": 14},
         "minimum_lookback_days": 6
     },
+    "M30": {
+        "identifier": "M30",
+        "minutes": 30,
+        "category": "intraday",
+        "mt5_mapping": 30,  # TIMEFRAME_M30
+        "validation_rules": {"min_candles": 14},
+        "minimum_lookback_days": 12
+    },
     "H1": {
         "identifier": "H1",
         "minutes": 60,
@@ -76,7 +84,7 @@ class TimeframeNormalizer:
         """
         Normalizes a timeframe into a canonical internal representation.
         Supports both traditional integer tick counts (must be > 0)
-        and new multi-timeframe string IDs ("Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1").
+        and new multi-timeframe string IDs ("Tick", "M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1").
         Maps mixed representations ("M5", "m5", 5, "5") to standard string IDs.
         """
         import sys
@@ -94,6 +102,7 @@ class TimeframeNormalizer:
             if timeframe > 0:
                 if timeframe == 5: return "M5"
                 if timeframe == 15: return "M15"
+                if timeframe == 30: return "M30"
                 if timeframe == 60: return "H1"
                 if timeframe == 240: return "H4"
                 if timeframe == 1440: return "D1"
@@ -120,6 +129,7 @@ class TimeframeNormalizer:
                 if val > 0:
                     if val == 5: return "M5"
                     if val == 15: return "M15"
+                    if val == 30: return "M30"
                     if val == 60: return "H1"
                     if val == 240: return "H4"
                     if val == 1440: return "D1"
