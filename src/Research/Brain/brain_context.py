@@ -33,6 +33,12 @@ def _iso(ts: datetime) -> str:
     return ts.astimezone(timezone.utc).isoformat()
 
 
+def _as_utc(ts: datetime) -> datetime:
+    """Normalize legacy naive and timezone-aware timestamps to UTC-aware values."""
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
+
 def _leq(a: datetime, b: datetime) -> bool:
     """Compare timestamps safely across legacy naive and timezone-aware sources."""
     if a.tzinfo is None:
@@ -52,7 +58,7 @@ def _price_direction(a: float, b: float) -> str:
 
 def _swing_points(observations: List[MarketObservation], window: int = 2) -> List[Dict[str, Any]]:
     """Return only confirmed pivots; the pivot candle must be strictly in the past."""
-    ordered = sorted(observations, key=lambda o: o.timestamp)
+    ordered = sorted(observations, key=lambda o: _as_utc(o.timestamp))
     points: List[Dict[str, Any]] = []
     if len(ordered) < 2 * window + 1:
         return points
@@ -68,7 +74,7 @@ def _swing_points(observations: List[MarketObservation], window: int = 2) -> Lis
 
 
 def _structure_snapshot(observations: List[MarketObservation]) -> Dict[str, Any]:
-    ordered = sorted(observations, key=lambda o: o.timestamp)
+    ordered = sorted(observations, key=lambda o: _as_utc(o.timestamp))
     if not ordered:
         return {"confirmed_swings": [], "latest_swing_high": None, "latest_swing_low": None, "labels": [], "breaks": []}
 
@@ -95,7 +101,7 @@ def _structure_snapshot(observations: List[MarketObservation]) -> Dict[str, Any]
     def enrich(point: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         if not point:
             return None
-        age = max(0, (latest.timestamp - datetime.fromisoformat(point["timestamp"])).total_seconds())
+        age = max(0, (_as_utc(latest.timestamp) - _as_utc(datetime.fromisoformat(point["timestamp"]))).total_seconds())
         return {**point, "age_seconds": age, "distance_from_current": latest.close_price - point["price"]}
 
     return {
@@ -112,7 +118,7 @@ def _tf_snapshot(observations: List[MarketObservation], decision_time: datetime)
     """Snapshot is strictly point-in-time: timestamp <= decision_time."""
     ordered = sorted(
         [o for o in observations if _leq(o.timestamp, decision_time)],
-        key=lambda o: o.timestamp,
+        key=lambda o: _as_utc(o.timestamp),
     )
     if not ordered:
         return {"available": False}
@@ -153,7 +159,7 @@ def discover_cross_symbol_relations(
     """Discover temporal relationships; no symbol pair is predefined."""
     aligned: Dict[str, List[MarketObservation]] = {}
     for symbol, observations in observations_by_symbol.items():
-        eligible = sorted([o for o in observations if _leq(o.timestamp, decision_time)], key=lambda o: o.timestamp)
+        eligible = sorted([o for o in observations if _leq(o.timestamp, decision_time)], key=lambda o: _as_utc(o.timestamp))
         if len(eligible) >= min_samples:
             aligned[symbol.upper()] = eligible
 
@@ -162,8 +168,8 @@ def discover_cross_symbol_relations(
     for i, source in enumerate(symbols):
         for target in symbols[i + 1:]:
             a, b = aligned[source], aligned[target]
-            amap = {o.timestamp: o.close_price for o in a}
-            bmap = {o.timestamp: o.close_price for o in b}
+            amap = {_as_utc(o.timestamp): o.close_price for o in a}
+            bmap = {_as_utc(o.timestamp): o.close_price for o in b}
             common = sorted(set(amap) & set(bmap))
             if len(common) < min_samples:
                 continue
@@ -240,10 +246,10 @@ class PointInTimeContextCache:
         key = (observation.symbol.upper(), observation.timeframe.upper())
         bucket = self._data.setdefault(key, [])
         bucket.append(observation)
-        bucket.sort(key=lambda o: o.timestamp)
+        bucket.sort(key=lambda o: _as_utc(o.timestamp))
         # Deduplicate by timestamp and keep only the recent bounded window.
-        unique: Dict[datetime, MarketObservation] = {o.timestamp: o for o in bucket}
-        self._data[key] = list(sorted(unique.values(), key=lambda o: o.timestamp)[-self.max_per_scope:])
+        unique: Dict[datetime, MarketObservation] = {_as_utc(o.timestamp): o for o in bucket}
+        self._data[key] = list(sorted(unique.values(), key=lambda o: _as_utc(o.timestamp))[-self.max_per_scope:])
 
     def snapshot_symbol(self, symbol: str, decision_time: datetime) -> Dict[str, List[MarketObservation]]:
         symbol = symbol.upper()

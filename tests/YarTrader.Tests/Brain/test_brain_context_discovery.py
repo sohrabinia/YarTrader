@@ -90,3 +90,16 @@ def test_context_cache_is_bounded_and_point_in_time():
     assert snap["M1"][-1].close_price == 104
     past = cache.snapshot_symbol("XAUUSD", t0 + timedelta(minutes=3))
     assert past["M1"][-1].close_price == 103
+
+
+def test_structure_snapshot_normalizes_mixed_naive_and_aware_timestamps():
+    naive = datetime(2026, 1, 1, 0, 0)
+    aware = naive.replace(tzinfo=timezone.utc) + timedelta(minutes=6)
+    obs = [
+        candle("XAUUSD", "M1", naive + timedelta(minutes=i), v)
+        for i, v in enumerate([100, 102, 101, 104, 99, 103, 102])
+    ]
+    obs[-1] = candle("XAUUSD", "M1", aware, 102)
+    ctx = build_brain_context("XAUUSD", "M1", aware, {"M1": obs})
+    assert ctx["history"]["M1"]["available"] is True
+    assert ctx["history"]["M1"]["structure"]["latest_swing_high"] is not None
