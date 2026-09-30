@@ -211,6 +211,7 @@ class MarketMemorySystem:
                 exp for exp in self.experiences.values()
                 if (exp.meta.get("is_validated") is True or exp.outcome_result in ["SUCCESS", "FAILURE"])
                 and not exp.meta.get("is_lucky_win", False)
+                and not exp.meta.get("is_promoted_to_pattern", False)
             ]
 
         for exp in validated_exps:
@@ -283,6 +284,13 @@ class MarketMemorySystem:
                     self.patterns[pid] = new_pat
                     self._save_layer("patterns")
                     promoted_patterns.append(new_pat)
+
+        if validated_exps:
+            with self._lock:
+                for exp in validated_exps:
+                    if exp.situation_signature:
+                        exp.meta["is_promoted_to_pattern"] = True
+                self._save_layer("experiences")
 
         return promoted_patterns
 
