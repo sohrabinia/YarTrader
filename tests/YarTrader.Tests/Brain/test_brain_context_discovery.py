@@ -71,13 +71,13 @@ def test_cross_symbol_relation_is_discovered_not_hard_coded():
     assert any(r["source_symbol"] == "AAA" and r["target_symbol"] == "BBB" and r["lag_bars"] == 2 for r in relations)
 
 
-def test_pattern_matching_requires_same_context_when_context_is_known():
+def test_pattern_matching_reuses_patterns_across_context_lineage_when_scope_matches():
     engine = PatternDiscoveryEngine(similarity_threshold=0.8)
     p = engine.create_new_pattern([1.0, -0.5, 0.25, 0.1], symbol="XAUUSD", timeframe="M1",
                                   timeframe_signature=["M1", "M15"], context_id="ctx-a",
                                   context_signature={"history": {"M15": {"last_close": 1}}})
     assert engine.find_matches([1.0, -0.5, 0.25, 0.1], [p], "XAUUSD", "M1", ["M1", "M15"], "ctx-a")
-    assert engine.find_matches([1.0, -0.5, 0.25, 0.1], [p], "XAUUSD", "M1", ["M1", "M15"], "ctx-b") == []
+    assert engine.find_matches([1.0, -0.5, 0.25, 0.1], [p], "XAUUSD", "M1", ["M1", "M15"], "ctx-b")
 
 
 def test_context_cache_is_bounded_and_point_in_time():
