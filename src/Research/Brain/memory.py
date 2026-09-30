@@ -253,6 +253,8 @@ class MarketMemorySystem:
             scope_symbol = str(exp.meta.get("pattern_symbol", exp.symbol)).upper()
             scope_timeframe = str(exp.meta.get("pattern_timeframe", exp.timeframe)).upper()
             scope_tfs = sorted({str(tf).upper() for tf in exp.meta.get("timeframe_signature", [scope_timeframe]) if tf})
+            scope_context_id = str(exp.meta.get("context_id", ""))
+            scope_context_signature = exp.meta.get("context_signature", {}) or {}
 
             # Look for matching pattern in the exact market/timeframe scope.
             matched_pattern = None
@@ -264,6 +266,7 @@ class MarketMemorySystem:
                     if p.symbol.upper() == scope_symbol
                     and p.timeframe.upper() == scope_timeframe
                     and sorted(p.timeframe_signature or [p.timeframe.upper()]) == scope_tfs
+                    and (not scope_context_id or not p.context_id or p.context_id == scope_context_id)
                     and p.status != "RETIRED"
                 ]
 
@@ -317,6 +320,7 @@ class MarketMemorySystem:
                     "symbol": scope_symbol,
                     "timeframe": scope_timeframe,
                     "timeframe_signature": scope_tfs,
+                    "context_id": scope_context_id,
                     "signature": [round(float(v), 8) for v in sig],
                 }, sort_keys=True, separators=(",", ":"))
                 pid = f"pat-{hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]}"
@@ -340,6 +344,8 @@ class MarketMemorySystem:
                     symbol=scope_symbol,
                     timeframe=scope_timeframe,
                     timeframe_signature=scope_tfs,
+                    context_id=scope_context_id,
+                    context_signature=scope_context_signature,
                     version=1,
                     status="ACTIVE",
                     family_id=pid,
