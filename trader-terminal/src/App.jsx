@@ -179,6 +179,21 @@ function MainApp() {
     }
   ];
 
+  const planI18n = {
+    free: { name: t('plan_free'), features: ['plan_free_feature_symbols', 'plan_free_feature_signals', 'plan_free_feature_frames'] },
+    daily: { name: t('plan_daily'), features: ['plan_daily_feature_symbols', 'plan_daily_feature_updates', 'plan_daily_feature_insights'] },
+    pro: { name: t('plan_pro'), features: ['plan_pro_feature_symbols', 'plan_pro_feature_signals', 'plan_pro_feature_assistant'] },
+    institutional: { name: t('plan_institutional'), features: ['plan_institutional_feature_symbols', 'plan_institutional_feature_signals', 'plan_institutional_feature_support'] }
+  };
+  const localizePlan = (plan) => {
+    const copy = planI18n[plan.tier_id];
+    return copy ? { ...plan, name: copy.name, features: copy.features.map(key => t(key)) } : plan;
+  };
+  const localizeTimeframe = (value) => {
+    const key = String(value || '').toLowerCase();
+    const map = { micro: 'tf_micro', short: 'tf_short', medium: 'tf_medium', macro: 'tf_macro' };
+    return map[key] ? t(map[key]) : value;
+  };
   const [subscriptionPlans, setSubscriptionPlans] = useState(DEFAULT_SUBSCRIPTION_PLANS);
 
   // Prop Challenge states
@@ -347,15 +362,14 @@ function MainApp() {
   // Dynamic Route Theme Mapping: Public pages -> Light editorial, Terminal/Admin -> Dark
   useEffect(() => {
     const savedTheme = localStorage.getItem('yartrader_theme');
-    if (savedTheme) {
-      setTheme(savedTheme);
+    const isPublic = routePath === '/' || routePath === '/features' || routePath === '/pricing' || routePath === '/blog' || routePath === '/login' || routePath === '/register' || routePath === '/forgot-password' || routePath === '/faq' || routePath === '/guide';
+
+    // Public/customer-facing surfaces always use the light editorial theme.
+    // The persisted terminal preference must not make login, pricing, guide, etc. unreadable.
+    if (isPublic) {
+      setTheme('light');
     } else {
-      const isPublic = routePath === '/' || routePath === '/features' || routePath === '/pricing' || routePath === '/blog' || routePath === '/login' || routePath === '/register' || routePath === '/forgot-password' || routePath === '/faq' || routePath === '/guide';
-      if (isPublic) {
-        setTheme('light');
-      } else {
-        setTheme('dark');
-      }
+      setTheme(savedTheme || 'dark');
     }
   }, [routePath]);
 
@@ -860,7 +874,7 @@ function MainApp() {
       const errorText = rawMsg && !rawMsg.includes('[object Object]')
         ? rawMsg
         : (lang === 'fa' ? 'ارتباط با دستیار برقرار نشد. لطفاً دوباره تلاش کنید.' :
-           lang === 'tr' ? 'Asistan ile bağlantı kurulamadı. Lütfen tekrar deneyin.' :
+           lang === 'tr' ? 'Asistan ile baÄŸlantÄ± kurulamadÄ±. LÃ¼tfen tekrar deneyin.' :
            lang === 'ar' ? 'تعذر الاتصال بالمساعد الذكي. يرجى المحاولة مرة أخرى.' :
            'The assistant could not be reached. Please try again.');
       setChatMessages(prev => [...prev, { text: errorText, sender: 'bot', isError: true, lastUserText: userMsg }]);
@@ -926,10 +940,10 @@ function MainApp() {
             onChange={(e) => changeLanguage(e.target.value)}
             style={{ width: '120px', padding: '6px' }}
           >
-            <option value="fa">فارسی</option>
-            <option value="en">English</option>
-            <option value="tr">Türkçe</option>
-            <option value="ar">العربية</option>
+            <option value="fa">{t("lang_fa")}</option>
+            <option value="en">{t("lang_en")}</option>
+            <option value="tr">{t("lang_tr")}</option>
+            <option value="ar">{t("lang_ar")}</option>
           </select>
         </div>
       </div>
@@ -954,14 +968,14 @@ function MainApp() {
           <a href={`/${lang}/pricing`} className={`sidebar-link ${routePath === '/pricing' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/pricing'); }}>{t('nav_pricing')}</a>
           <a href={`/${lang}/blog`} className={`sidebar-link ${routePath === '/blog' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/blog'); }}>{t('nav_blog')}</a>
           <a href={`/${lang}/guide`} className={`sidebar-link ${routePath === '/guide' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/guide'); }}>{t('nav_guide') || (lang === 'fa' ? '📚 راهنما' : '📚 Guide')}</a>
-          <a href={`/${lang}/faq`} className={`sidebar-link ${routePath === '/faq' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/faq'); }}>{t('nav_faq') || (lang === 'fa' ? '❓ سوالات متداول' : '❓ FAQ')}</a>
+          <a href={`/${lang}/faq`} className={`sidebar-link ${routePath === '/faq' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/faq'); }}>{t('nav_faq') || (lang === 'fa' ? '❓ سوالات متداول' : 'â“ FAQ')}</a>
           {token && <a href={`/${lang}/dashboard`} className={`sidebar-link ${routePath === '/dashboard' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/dashboard'); }}>{t('nav_terminal')}</a>}
 
           {/* Trading Modes Section */}
           {token && (
             <div style={{ margin: '10px 0', borderTop: '1px solid var(--border-dark)', paddingTop: '10px' }}>
               <div style={{ fontSize: '0.75em', textTransform: 'uppercase', color: 'var(--text-muted)', paddingLeft: '10px', marginBottom: '5px', fontWeight: 'bold' }}>
-                {lang === 'fa' ? 'حالت‌های معاملاتی' : lang === 'tr' ? 'İşlem Modları' : lang === 'ar' ? 'أنماط التداول' : 'TRADING MODES'}
+                {t("nav_trading_modes")}
               </div>
               <a href={`/${lang}/backtest`} className={`sidebar-link ${routePath.startsWith('/backtest') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/backtest'); }}>{t('nav_backtest')}</a>
               <a href={`/${lang}/demo`} className={`sidebar-link ${routePath === '/demo' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/demo'); }}>{t('nav_demo')}</a>
@@ -973,7 +987,7 @@ function MainApp() {
           {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
           {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
           {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
-          {token && role === 'ADMIN' && <a href={`/${lang}/Operator`} className={`sidebar-link ${routePath === '/Operator' || routePath === '/operator' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/Operator'); }}>🤖 {lang === 'fa' ? 'اپراتور' : 'Operator'}</a>}
+          {token && role === 'ADMIN' && <a href={`/${lang}/Operator`} className={`sidebar-link ${routePath === '/Operator' || routePath === '/operator' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/Operator'); }}>{t("nav_operator")}</a>}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {token && (
@@ -1074,13 +1088,13 @@ function MainApp() {
                       role="button"
                       onKeyDown={(e) => e.key === 'Enter' && setSelectedPlan(plan)}
                     >
-                      <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>{plan.name}</h3>
-                      <div className="status-val" style={{ fontSize: '1.5em', margin: '10px 0', color: 'var(--text-dark)' }}>{plan.price_usd || plan.price}</div>
+                      <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>{localizePlan(plan).name}</h3>
+                      <div className="status-val" style={{ fontSize: '1.5em', margin: '10px 0', color: 'var(--text-dark)' }}>{plan.tier_id === 'free' ? t('free_price') : (plan.price_usd || plan.price)}</div>
                       <p style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                        {plan.description || `Max Active Symbols: ${plan.max_symbols} | Timeframes: ${plan.enabled_timeframes?.join(', ')}`}
+                        {t('pricing_plan_limits', { symbols: plan.max_symbols, timeframes: plan.enabled_timeframes?.map(localizeTimeframe).join(', ') || t('all_timeframes') })}
                       </p>
                       <button className="btn" style={{ width: '100%', marginTop: '15px', fontSize: '0.9em' }}>
-                        {lang === 'fa' ? 'مشاهده جزئیات و انتخاب' : 'View Details & Select'}
+                        {t('pricing_view_details')}
                       </button>
                     </div>
                   ))}
@@ -1091,24 +1105,24 @@ function MainApp() {
               {selectedPlan && (
                 <div className="card" style={{ borderTop: '4px solid var(--primary)', background: 'rgba(15, 23, 42, 0.98)', marginTop: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                    <h3 style={{ margin: 0, color: 'var(--primary)' }}>💎 {selectedPlan.name} Plan Details</h3>
-                    <button className="btn btn-secondary" onClick={() => setSelectedPlan(null)}>✕ Close</button>
+                    <h3 style={{ margin: 0, color: 'var(--primary)' }}>💎 {localizePlan(selectedPlan).name} {t('pricing_plan_details')}</h3>
+                    <button className="btn btn-secondary" onClick={() => setSelectedPlan(null)}>✕ {t('close')}</button>
                   </div>
                   <div className="status-board" style={{ marginBottom: '20px' }}>
-                    <MetricCard title="Price" value={selectedPlan.price_usd || selectedPlan.price} status="passed" />
-                    <MetricCard title="Max Active Symbols" value={selectedPlan.max_symbols || '30 / 30'} status="primary" />
-                    <MetricCard title="Enabled Timeframes" value={selectedPlan.enabled_timeframes?.join(', ') || 'All 8 Canonical'} status="neutral" />
+                    <MetricCard title={t('price')} value={selectedPlan.price_usd || selectedPlan.price} status="passed" />
+                    <MetricCard title={t('max_active_symbols')} value={selectedPlan.max_symbols || '30 / 30'} status="primary" />
+                    <MetricCard title={t('enabled_timeframes')} value={selectedPlan.enabled_timeframes?.map(localizeTimeframe).join(', ') || t('all_canonical_timeframes')} status="neutral" />
                   </div>
-                  <h4 style={{ color: 'var(--primary)', margin: '10px 0' }}>Plan Capabilities & Features:</h4>
+                  <h4 style={{ color: 'var(--primary)', margin: '10px 0' }}>{t('pricing_capabilities')}</h4>
                   <ul style={{ lineHeight: '1.8', fontSize: '0.95em', color: 'var(--text-dark)', paddingLeft: '20px' }}>
-                    {selectedPlan.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
+                    {localizePlan(selectedPlan).features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
                   </ul>
                   <div style={{ display: 'flex', gap: '15px', marginTop: '25px' }}>
                     <button className="btn" style={{ flex: 1 }} onClick={() => { setNotif({ show: true, msg: lang === 'fa' ? 'درخواست ارتقای پلن ثبت شد.' : 'Plan upgrade requested.', type: 'success' }); setSelectedPlan(null); }}>
-                      {lang === 'fa' ? 'انتخاب و ارتقا به این پلن' : 'Choose Plan'}
+                      {t('choose_plan')}
                     </button>
                     <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setSelectedPlan(null)}>
-                      {lang === 'fa' ? 'انصراف' : 'Cancel'}
+                      {t('cancel')}
                     </button>
                   </div>
                 </div>
@@ -1118,39 +1132,35 @@ function MainApp() {
               <div className="card" style={{ marginTop: '25px', borderTop: '4px solid var(--accent)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
                   <h3 style={{ margin: 0, color: 'var(--primary)' }}>
-                    🎯 {lang === 'fa' ? 'پلن مدیریت ریسک چالش پراپ (Prop Firm Challenge Plan)' : lang === 'tr' ? 'Prop Firm Challenge & Risk Gate' : lang === 'ar' ? 'خطة تحدي شركات التداول (Prop Firm)' : 'Prop Firm Challenge Plan & Risk Gate'}
+                    🎯 {t('prop_challenge_title')}
                   </h3>
                   <StatusBadge
                     status={propChallengeData && propChallengeData.is_configured ? "passed" : "neutral"}
-                    label={propChallengeData && propChallengeData.is_configured ? (propChallengeData.status || "CONFIGURED") : "PROP ACCOUNT NOT CONFIGURED"}
+                    label={propChallengeData && propChallengeData.is_configured ? (propChallengeData.status || t('configured')) : t('prop_not_configured')}
                   />
                 </div>
 
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px', lineHeight: '1.6' }}>
-                  {lang === 'fa'
-                    ? 'چارچوب ارزیابی قوانین، حد ضرر روزانه و حداکثر افت سرمایه (Drawdown) مطابق با استانداردهای شرکت‌های پراپ. این سیستم صرفاً گیت ریسک و مدیریت تعهدات است.'
-                    : 'Configurable risk limits, daily loss boundaries, and drawdown protection framework built directly into the YarTrader Risk Engine.'}
+                  {t('prop_challenge_desc')}
                 </p>
 
                 {/* Status or Unconfigured Alert */}
                 {(!propChallengeData || !propChallengeData.is_configured) ? (
                   <div className="status-item" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
                     <div style={{ fontWeight: 'bold', color: 'var(--danger)', marginBottom: '5px' }}>
-                      ⚠️ {lang === 'fa' ? 'حساب پراپ تنظیم نشده است (PROP ACCOUNT NOT CONFIGURED)' : 'PROP ACCOUNT NOT CONFIGURED'}
+                      ⚠️ {t('prop_not_configured')}
                     </div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-dark)' }}>
-                      {lang === 'fa'
-                        ? 'برای فعال‌سازی و ارزیابی زنده ریسک چالش، قوانین پارامتریک زیر را تنظیم و ذخیره نمایید.'
-                        : 'To activate live risk rules evaluation, please configure your prop firm parameters below.'}
+                      {t('prop_config_prompt')}
                     </div>
                   </div>
                 ) : (
                   <div className="status-board" style={{ marginBottom: '20px' }}>
-                    <MetricCard title="Account Equity" value={`$${(propChallengeData.metrics?.current_equity || 0).toLocaleString()}`} status="passed" />
-                    <MetricCard title="Daily P/L" value={`$${(propChallengeData.metrics?.daily_pl || 0).toLocaleString()}`} status={propChallengeData.metrics?.daily_pl >= 0 ? "passed" : "failed"} />
-                    <MetricCard title="Remaining Daily Loss" value={`$${(propChallengeData.metrics?.remaining_daily_loss || 0).toLocaleString()}`} status="primary" />
-                    <MetricCard title="Remaining Drawdown" value={`$${(propChallengeData.metrics?.remaining_drawdown || 0).toLocaleString()}`} status="neutral" />
-                    <MetricCard title="Challenge Progress" value={`${propChallengeData.metrics?.challenge_progress_pct || 0}%`} status="passed" />
+                    <MetricCard title={t('account_equity')} value={`$${(propChallengeData.metrics?.current_equity || 0).toLocaleString()}`} status="passed" />
+                    <MetricCard title={t('daily_pl')} value={`$${(propChallengeData.metrics?.daily_pl || 0).toLocaleString()}`} status={propChallengeData.metrics?.daily_pl >= 0 ? "passed" : "failed"} />
+                    <MetricCard title={t('remaining_daily_loss')} value={`$${(propChallengeData.metrics?.remaining_daily_loss || 0).toLocaleString()}`} status="primary" />
+                    <MetricCard title={t('remaining_drawdown')} value={`$${(propChallengeData.metrics?.remaining_drawdown || 0).toLocaleString()}`} status="neutral" />
+                    <MetricCard title={t('challenge_progress')} value={`${propChallengeData.metrics?.challenge_progress_pct || 0}%`} status="passed" />
                   </div>
                 )}
 
@@ -1344,7 +1354,7 @@ function MainApp() {
 
           {/* DEDICATED TRADING MODE 2: DEMO TRADING PAGE */}
           {routePath === '/demo' && (
-            <DemoView t={t} demoReport={demoReport} backendState={backendState} />
+            <DemoView t={t} lang={lang} demoReport={demoReport} backendState={backendState} />
           )}
 
 
@@ -1383,164 +1393,21 @@ function MainApp() {
             </div>
           )}
 
-          {/* CUSTOMER FINANCIAL TERMINAL SHELL (COMMAND CENTER) */}
           {routePath === '/dashboard' && (
-            <div id="shell-terminal">
-              {/* Institutional Environment & Command Header */}
-              <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary)', background: 'linear-gradient(180deg, rgba(18, 30, 44, 0.9) 0%, rgba(11, 20, 32, 0.95) 100%)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
-                  <div>
-                    <h2 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.4rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span>🏛️</span> {t('terminal_title')}
-                    </h2>
-                    <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '0.85rem' }}>
-                      {t('terminal_desc')}
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', fontWeight: 'bold' }}>
-                      ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'DEMO PAPER')}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
-                      SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE ACTIVE' : 'FAIL-CLOSED (LIVE DISABLED)')}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(79, 182, 199, 0.15)', color: 'var(--signal)', border: '1px solid var(--signal)', fontWeight: 'bold' }}>
-                      DATA: {backendState === 'LIVE' ? 'LIVE INGESTION' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : 'MOCK / DEMO INGESTION')}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Market State & Intelligence Command Status Grid */}
-                <div className="status-board" style={{ margin: '15px 0 0 0' }}>
-                  <MetricCard title="Market State" value={signals && signals[0] ? (signals[0].posture || 'QUALIFIED') : 'DATA UNAVAILABLE'} status="passed" />
-                  <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'QUALIFIED SETUP') : 'DATA UNAVAILABLE'} status="primary" />
-                  <MetricCard title="Confidence" value={signals && signals[0] && signals[0].confidence != null ? `${signals[0].confidence}%` : 'DATA UNAVAILABLE'} status="passed" />
-                  <MetricCard title="Risk Posture" value={portfolioRisk && portfolioRisk.drawdown_level ? 'DRAWDOWN: ' + portfolioRisk.drawdown_level : 'BALANCED'} status="passed" />
-                  <MetricCard title="Execution Eligibility" value={backendState === 'LIVE' ? 'LIVE ELIGIBLE' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'NOT VERIFIED'))} status="passed" />
-                </div>
-              </div>
-
-              {/* Chart Container Abstraction Component */}
-              <ChartContainer
-                title={`${selectedAsset === 'gold' ? 'XAUUSD (Gold)' : selectedAsset === 'bitcoin' ? 'BTCUSD (Bitcoin)' : selectedAsset === 'euro' ? 'EURUSD (Euro)' : 'Multi-Asset Overview'} - ${activeHorizon.toUpperCase()} Horizon`}
-                subtitle="Pure Price Action, Market Structure & Liquidity Map"
-                activeTimeframe={activeHorizon === 'micro' ? 'M1' : activeHorizon === 'short' ? 'M15' : activeHorizon === 'medium' ? 'H1' : 'D1'}
-              >
-                <div className="p-4 bg-slate-900/60 border border-[var(--border-dark)] rounded flex flex-col gap-2">
-                  <div className="flex justify-between items-center text-xs text-[var(--primary)] font-bold">
-                    <span>STRUCTURE MAP (HH / HL / LH / LL)</span>
-                    <ConfidenceBadge score={signals[0]?.confidence || 85} />
-                  </div>
-                  <div className="text-[0.75rem] text-[var(--text-dark)] leading-relaxed">
-                    Market structure showing strong bullish alignment across canonical timeframes. Zero classical technical indicators are used.
-                  </div>
-                </div>
-              </ChartContainer>
-
-              <div className="card">
-                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('terminal_title')}</h2>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('terminal_desc')}</p>
-
-                {/* Horizons tabs and Asset selector */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginBottom: '25px', backgroundColor: 'rgba(30, 41, 59, 0.3)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-dark)', alignItems: 'center' }}>
-                  {['micro', 'short', 'medium', 'macro'].map((hType) => (
-                    <button
-                      key={hType}
-                      className="btn"
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        backgroundColor: activeHorizon === hType ? 'var(--primary)' : 'transparent',
-                        color: activeHorizon === hType ? 'white' : 'var(--text-muted)'
-                      }}
-                      onClick={() => setActiveHorizon(hType)}
-                    >
-                      {hType === 'micro' && `⚡ ${t('horizon_micro') || 'Micro'}`}
-                      {hType === 'short' && `📊 ${t('horizon_short') || 'Short'}`}
-                      {hType === 'medium' && `📈 ${t('horizon_medium') || 'Medium'}`}
-                      {hType === 'macro' && `💎 ${t('horizon_macro') || 'Macro'}`}
-                    </button>
-                  ))}
-
-                  <select
-                    className="select-field"
-                    value={selectedAsset}
-                    onChange={(e) => setSelectedAsset(e.target.value)}
-                    style={{ minWidth: '150px' }}
-                  >
-                    <option value="all">🌐 All Assets</option>
-                    <option value="gold">🏆 XAUUSD (Gold)</option>
-                    <option value="bitcoin">₿ BTCUSD (Bitcoin)</option>
-                    <option value="euro">💶 EURUSD (Euro)</option>
-                  </select>
-                </div>
-
-                {/* Signals Feed Grid */}
-                <div className="blog-grid">
-                  {signals && Array.isArray(signals) && signals.length > 0 ? (
-                    signals
-                      .filter(s => {
-                        if (selectedAsset === 'all') return true;
-                        const sym = s.symbol ? s.symbol.toUpperCase() : '';
-                        if (selectedAsset === 'gold' && sym.includes('XAU')) return true;
-                        if (selectedAsset === 'bitcoin' && (sym.includes('BTC') || sym.includes('BITCOIN'))) return true;
-                        if (selectedAsset === 'euro' && sym.includes('EUR')) return true;
-                        return s.symbol_class === selectedAsset;
-                      })
-                      .map((sig, idx) => (
-                        <IntelligenceCard
-                          key={idx}
-                          symbol={sig.symbol}
-                          posture={sig.posture || sig.direction}
-                          timeframe={sig.timeframe}
-                          confidence={sig.confidence}
-                          entry={sig.entry_zone}
-                          target={sig.target_zone}
-                          invalidation={sig.invalidation_level}
-                          narrative={sig.narrative || sig.reason}
-                        />
-                      ))
-                  ) : (
-                    <EmptyState
-                      title="No signals active for this horizon."
-                      description="No setups passed all qualification and risk gates for this timeframe."
-                      className="grid-col-span-full"
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Equity Growth simulator */}
-              <div className="card">
-                <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('compounding_title')}</h3>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-                  <div className="form-group">
-                    <label className="form-label">{t('compounding_initial')}</label>
-                    <input className="input-field" type="number" value={compounding.simBalance} onChange={(e) => setCompounding({ ...compounding, simBalance: e.target.value })} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Monthly Growth %</label>
-                    <input className="input-field" type="number" value={compounding.simYield} onChange={(e) => setCompounding({ ...compounding, simYield: e.target.value })} step="0.1" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Months Duration</label>
-                    <input className="input-field" type="number" value={compounding.simMonths} onChange={(e) => setCompounding({ ...compounding, simMonths: e.target.value })} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '18px' }}>
-                    <button className="btn" style={{ width: '100%' }} onClick={runCompoundingSimulation}>{t('simulate_btn')}</button>
-                  </div>
-                </div>
-
-                <div className="status-board">
-                  <MetricCard title={t('compounding_initial')} value={compounding.initial} status="neutral" />
-                  <MetricCard title={t('compounding_projected')} value={compounding.final} status="passed" />
-                  <MetricCard title={t('compounding_yield')} value={compounding.growth} status="passed" />
-                </div>
-              </div>
-            </div>
+            <DashboardView
+              t={t}
+              lang={lang}
+              backendState={backendState}
+              devopsStatus={devopsStatus}
+              signals={signals}
+              demoReport={demoReport}
+              selectedAsset={selectedAsset}
+              setSelectedAsset={setSelectedAsset}
+              activeHorizon={activeHorizon}
+              setActiveHorizon={setActiveHorizon}
+              portfolioRisk={portfolioRisk}
+            />
           )}
-
           {/* EXECUTION INTELLIGENCE ZONE */}
           {routePath === '/execution-intel' && (
             <div id="shell-execution-intel">

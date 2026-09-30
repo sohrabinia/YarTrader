@@ -114,6 +114,7 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
             self._base_engine = ResearchEngine()
         else:
             self._base_engine = base_engine
+        self._live_brains: Dict[tuple, Any] = {}
 
     @property
     def data_provider(self) -> IMarketDataProvider:
@@ -164,7 +165,11 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
         if not newborn_report_dict:
             try:
                 from src.Research.Brain.live_brain import LiveAnalysisBrain
-                newborn_brain = LiveAnalysisBrain(request.Asset, timeframe)
+                brain_key = (request.Asset.upper(), timeframe.upper())
+                newborn_brain = self._live_brains.get(brain_key)
+                if newborn_brain is None:
+                    newborn_brain = LiveAnalysisBrain(request.Asset, timeframe)
+                    self._live_brains[brain_key] = newborn_brain
                 newborn_report = None
                 for dp in data_points:
                     raw_candle_dict = {
