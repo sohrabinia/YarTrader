@@ -60,6 +60,7 @@ class PatternDiscoveryEngine:
         symbol: str = "",
         timeframe: str = "",
         timeframe_signature: List[str] = None,
+        context_id: str = "",
     ) -> List[Tuple[PatternMemory, float]]:
         """
         Scans historical pattern memory and returns list of matching patterns and their
@@ -76,6 +77,10 @@ class PatternDiscoveryEngine:
             if timeframe and pat.timeframe.upper() != timeframe.upper():
                 continue
             if wanted_tfs and pat.timeframe_signature and sorted(pat.timeframe_signature) != wanted_tfs:
+                continue
+            # A learned pattern is only comparable inside the exact point-in-time context
+            # it was learned from. Empty legacy IDs remain backward-compatible.
+            if context_id and pat.context_id and pat.context_id != context_id:
                 continue
             if pat.status == "RETIRED":
                 continue
@@ -139,6 +144,8 @@ class PatternDiscoveryEngine:
         symbol: str = "",
         timeframe: str = "",
         timeframe_signature: List[str] = None,
+        context_id: str = "",
+        context_signature: Dict[str, Any] = None,
     ) -> PatternMemory:
         """Constructs a deterministic pattern identity for a scoped sequence fingerprint."""
         scope_tfs = sorted({str(tf).upper() for tf in (timeframe_signature or ([timeframe] if timeframe else []))})
@@ -147,6 +154,7 @@ class PatternDiscoveryEngine:
             "timeframe": timeframe.upper(),
             "timeframe_signature": scope_tfs,
             "signature": [round(float(v), 8) for v in sig],
+            "context_id": context_id,
         }, sort_keys=True, separators=(",", ":"))
         pattern_id = f"pat-{hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]}"
         return PatternMemory(
@@ -160,5 +168,7 @@ class PatternDiscoveryEngine:
             symbol=symbol.upper(),
             timeframe=timeframe.upper(),
             timeframe_signature=scope_tfs,
+            context_id=context_id,
+            context_signature=context_signature or {},
             family_id=pattern_id,
         )
