@@ -118,9 +118,13 @@ class LiveAnalysisBrain:
 
         # 5b. Consolidate learning layers after observed outcomes and refresh active-learning priorities.
         promoted_experiences = self.memory_system.promote_raw_events_to_experiences(self.symbol, self.timeframe)
-        promoted_patterns = self.memory_system.promote_experiences_to_patterns()
-        priorities = self.active_learning.analyze_weaknesses_and_set_priorities(self.memory_system.get_patterns())
-        consolidated = self.memory_system.consolidate_patterns_to_concepts(min_samples=4, min_validation_score=0.70)
+        promoted_patterns = []
+        priorities = []
+        consolidated = []
+        if promoted_experiences or closed_trades:
+            promoted_patterns = self.memory_system.promote_experiences_to_patterns()
+            priorities = self.active_learning.analyze_weaknesses_and_set_priorities(self.memory_system.get_patterns())
+            consolidated = self.memory_system.consolidate_patterns_to_concepts(min_samples=4, min_validation_score=0.70)
         self._last_learning_summary = {
             "promoted_experiences": len(promoted_experiences),
             "promoted_patterns": len(promoted_patterns),
