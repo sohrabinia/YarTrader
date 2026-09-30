@@ -25,6 +25,10 @@ class ControlledMT5Delegate:
     def set_connected(self, connected: bool) -> None:
         self._connected = connected
 
+    def get_connection_health(self):
+        """Match the production delegate health contract without touching MT5."""
+        return type("Health", (), {"connected": self._connected})()
+
     def fetch_market_data(self, request):
         from src.Data.Market.models import CandleRecord, MarketDataMetadata, MarketDataResponse
         now = datetime.now()
