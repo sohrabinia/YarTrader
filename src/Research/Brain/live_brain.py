@@ -38,7 +38,7 @@ class LiveAnalysisBrain:
         self._processed_candle_timestamps = set()
         self._last_report: Optional[AnalysisReport] = None
 
-    def process_live_candle(self, raw_candle: Dict[str, Any]) -> AnalysisReport:
+    def process_live_candle(self, raw_candle: Dict[str, Any], simulate_virtual_trade: bool = True) -> AnalysisReport:
         """
         Processes a new live candle, updates sequence perception, discovers matching
         patterns, creates simulated decisions, and evaluates reasoning quality.
@@ -104,9 +104,10 @@ class LiveAnalysisBrain:
         decision = hypothesis.expected_direction
         expected = "Continuation" if decision == "BUY" else ("Reversal" if decision == "SELL" else "Stable")
 
-        # 5. Simulate the hypothesis only; this path has no broker/execution capability.
+        # 5. Optional virtual simulation. Backtests and execution paths can consume the
+        # Brain hypothesis without creating a second hidden trade/learning loop.
         virtual_trade = None
-        if decision in ("BUY", "SELL") and not self.simulation_brain.active_trades:
+        if simulate_virtual_trade and decision in ("BUY", "SELL") and not self.simulation_brain.active_trades:
             virtual_trade = self.simulation_brain.make_virtual_decision(
                 action=decision,
                 entry_price=latest_obs.close_price,
@@ -156,7 +157,8 @@ class LiveAnalysisBrain:
                     "matched_patterns": len(matched),
                     "continuation_likelihood": outcome_agg["continuation_pct"],
                     "reversal_likelihood": outcome_agg["reversal_pct"],
-                    "suggested_virtual_action": decision
+                    "suggested_virtual_action": decision,
+                    "hypothesis_confidence": float(hypothesis.confidence)
                 }
             ],
             simulated_trades=[
