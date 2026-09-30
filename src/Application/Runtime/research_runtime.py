@@ -182,7 +182,10 @@ class ResearchRuntime:
             )
 
             # 5. Run the decorated FeatureExtractionResearchEngine
-            result = self._research_engine.analyze_market(research_req)
+            if isinstance(self._research_engine, (PrimitiveMarketResearchEngine, FeatureExtractionResearchEngine)):
+                result = self._research_engine.analyze_market(research_req, market_data_response=data_response)
+            else:
+                result = self._research_engine.analyze_market(research_req)
 
             # 6. Verify outputs and confirm features are generated
             features_generated = ("feature_set" in result.Findings) or ("primitive_observation" in result.Findings)
