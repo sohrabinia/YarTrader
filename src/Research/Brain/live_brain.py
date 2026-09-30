@@ -68,6 +68,7 @@ class LiveAnalysisBrain:
             observations_by_symbol=context_observations_by_symbol,
         )
         context_id = brain_context["context_id"]
+        effective_timeframes = sorted({str(tf).upper() for tf in tf_history})
         if latest_obs.timestamp in self._processed_candle_timestamps:
             if self._last_report is None:
                 raise ValueError("Duplicate candle received before a live Brain report was established.")
@@ -107,7 +108,7 @@ class LiveAnalysisBrain:
                     "trade_id": closed_trade.trade_id,
                     "pattern_symbol": self.symbol.upper(),
                     "pattern_timeframe": self.timeframe.upper(),
-                    "timeframe_signature": sorted({str(tf).upper() for tf in (timeframe_signature or list(tf_history.keys()) or [self.timeframe])}),
+                    "timeframe_signature": sorted({str(tf).upper() for tf in (effective_timeframes)}),
                     "context_id": context_id,
                     "context_signature": brain_context,
                     "favorable_excursion": float(closed_trade.max_favorable_movement),
