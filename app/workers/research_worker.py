@@ -53,6 +53,7 @@ class ResearchWorker:
         self.status = "IDLE"
         self.error_count = 0
         self.demo_engine = None
+        self.cycle_count = 0
         # Global single-flight guard: Brain/research cycles are strictly serialized.
         # A second worker/thread can never overlap an active research cycle.
         self._analysis_lock = threading.Lock()
@@ -319,6 +320,14 @@ class ResearchWorker:
                             self.last_candle_time = res.Request.EndTime
                         self.status = "RUNNING"
                         self.error_count = 0
+                        self.cycle_count += 1
+                        central_runtime_state.update_multiple({
+                            "research_status": "Running",
+                            "last_cycle_time": self.last_analysis_time.isoformat(),
+                            "research_cycle_count": self.cycle_count,
+                            "research_last_successful_cycle": self.last_analysis_time.isoformat(),
+                            "research_last_error": None,
+                        })
 
                         candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", []))
                         print(f"Candles: {candles_count}")

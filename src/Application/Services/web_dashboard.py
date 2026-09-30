@@ -3631,14 +3631,14 @@ def get_research_health():
 
     return {
         "mt5_status": "ONLINE" if research_tracker["mt5_status"] == "CONNECTED" else "DISCONNECTED",
-        "worker_running": _worker_started and research_tracker["worker_status"] == "RUNNING",
+        "worker_running": central_runtime_state.get_key("research_status") == "Running",
         "last_analysis_time": research_tracker["last_analysis_time"] or datetime.now().isoformat(),
         "symbol": global_research_runtime.symbol,
         "timeframe": global_research_runtime.timeframe,
         "worker_started_at": global_research_runtime.worker_started_at.isoformat() if global_research_runtime.worker_started_at else None,
-        "last_successful_cycle": global_research_runtime.last_successful_cycle.isoformat() if global_research_runtime.last_successful_cycle else None,
-        "cycle_count": global_research_runtime.cycle_count,
-        "last_error": global_research_runtime.last_error,
+        "last_successful_cycle": central_runtime_state.get_key("research_last_successful_cycle"),
+        "cycle_count": central_runtime_state.get_key("research_cycle_count", 0),
+        "last_error": central_runtime_state.get_key("research_last_error"),
         "last_candle_time": research_tracker["last_candle_time"],
         "last_result_id": last_res_id
     }
