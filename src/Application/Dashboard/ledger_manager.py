@@ -57,6 +57,18 @@ class LedgerManager:
             data = self._load()
             return data.get("accounts", {}).get(account_id, {}).get("balance", 0)
 
+    def get_account_statement(self, account_id: str) -> Dict[str, Any]:
+        with self.lock:
+            data = self._load()
+            txs = []
+            for tx in data.get("transactions", []):
+                entries = [e for e in tx.get("entries", []) if e.get("account_id") == account_id]
+                if entries:
+                    txs.append({"transaction_id":tx.get("transaction_id"),"timestamp":tx.get("timestamp"),
+                                "description":tx.get("description"),"currency":tx.get("currency"),
+                                "status":tx.get("status"),"entries":entries})
+            return {"account_id":account_id,"balance":self.get_account_balance(account_id),"transactions":txs}
+
     def post_transaction(self, idempotency_key: str, entries: List[Dict[str, Any]], description: str, currency: str = "USD") -> Dict[str, Any]:
         """
         Atomically posts a double-entry transaction.
