@@ -262,7 +262,7 @@ class BacktestAndLearningEngine:
 
                 if action in ["BUY", "SELL"]:
                     open_position = {
-                        "trade_id": f"BT-{symbol.upper()}-{uuid.uuid4().hex[:6]}",
+                        "trade_id": f"BT-{symbol.upper()}-{timeframe.upper()}-{str(bar_time).replace(":", "").replace("+", "p").replace("-", "")}-{action}",
                         "symbol": symbol.upper(),
                         "timeframe": timeframe,
                         "strategy": plan.get("strategy", "FAST_SCALP"),
@@ -352,6 +352,44 @@ class BacktestAndLearningEngine:
 
         judge_eval = self.judge.evaluate_decision_outcome(sim_dec, closed_trade.get("market_context", {}), outcome_payload)
 
+        # Retrospective review: learn from both wins and losses without a second decision cycle.
+        entry = float(closed_trade["entry"])
+        exit_price = float(closed_trade["exit_price"])
+        risk_dist = abs(entry - float(closed_trade["stop_loss"]))
+        realized_favorable = abs(exit_price - entry)
+        mfe = abs(float(closed_trade.get("mfe", 0.0)))
+        mae = abs(float(closed_trade.get("mae", 0.0)))
+        capture_ratio = min(1.0, realized_favorable / mfe) if mfe > 0 else 0.0
+        adverse_ratio = mae / risk_dist if risk_dist > 0 else 0.0
+        missed_favorable = max(0.0, mfe - realized_favorable)
+        if outcome == "WIN":
+            why = "clean directional follow-through"
+            if adverse_ratio >= 0.80:
+                why = "profitable despite substantial adverse excursion; timing/entry quality needs review"
+            elif adverse_ratio >= 0.40:
+                why = "profitable after meaningful adverse excursion"
+            improvement = "Review exit/management: favorable movement exceeded realized movement." if missed_favorable > max(risk_dist * 0.25, 0.0) else "No material post-exit opportunity identified from available excursion data."
+        elif outcome == "LOSS":
+            why = "directional thesis failed or risk was reached"
+            if mfe >= risk_dist * 0.50:
+                why = "loss occurred after meaningful favorable movement; entry/management timing needs review"
+            improvement = "Review entry/management because favorable movement existed before failure." if mfe >= risk_dist * 0.50 else "Review market-context hypothesis; little favorable movement followed entry."
+        else:
+            why = "trade produced no material net outcome after friction"
+            improvement = "Review whether waiting for clearer evidence would improve expectancy."
+        post_trade_review = {
+            "outcome": outcome,
+            "why": why,
+            "could_have_done_better": improvement,
+            "mfe": round(mfe, 6),
+            "mae": round(mae, 6),
+            "realized_favorable_move": round(realized_favorable, 6),
+            "missed_favorable_move": round(missed_favorable, 6),
+            "favorable_capture_ratio": round(capture_ratio, 4),
+            "adverse_to_initial_risk_ratio": round(adverse_ratio, 4),
+            "counterfactual_future_data_used_for_decision": False,
+        }
+
         # Store experience record
         from src.Research.Brain.models import ExperienceMemory
         exp = ExperienceMemory(
@@ -362,13 +400,20 @@ class BacktestAndLearningEngine:
             situation_signature=[closed_trade["entry"], closed_trade["stop_loss"], closed_trade["take_profit"]],
             decision_action=closed_trade["direction"],
             outcome_result=outcome_payload["final_result"],
-            lesson_feedback=judge_eval["learning_feedback"],
+            lesson_feedback=(
+                judge_eval["learning_feedback"]
+                + f" Post-trade review: {post_trade_review['why']}. "
+                + post_trade_review["could_have_done_better"]
+            ),
             max_favorable_excursion=closed_trade.get("mfe", 0.0),
             max_adverse_excursion=closed_trade.get("mae", 0.0),
             meta={
                 "strategy": strategy,
                 "r_multiple": closed_trade.get("r_multiple", 0.0),
-                "judge_eval": judge_eval
+                "judge_eval": judge_eval,
+                "post_trade_review": post_trade_review,
+                "is_lucky_win": bool(judge_eval.get("is_lucky_win", False)),
+                "learning_update_id": f"learn-{closed_trade['trade_id']}"
             }
         )
 
