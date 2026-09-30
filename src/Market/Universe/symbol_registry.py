@@ -181,7 +181,11 @@ class SymbolRegistry:
         with self.lock:
             matrix = []
             active_count = 0
-            for symbol, info in sorted(self.registry.items()):
+            # XAUUSD is the sole DEMO execution symbol. Keep it first so the
+            # execution-capable Brain decision is evaluated at the start of each
+            # research cycle instead of waiting behind the entire 30-symbol matrix.
+            ordered_symbols = sorted(self.registry.items(), key=lambda item: (item[0].upper() != "XAUUSD", item[0]))
+            for symbol, info in ordered_symbols:
                 if info.get("active", True):
                     if active_count >= self.max_symbols:
                         break
