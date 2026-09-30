@@ -120,7 +120,7 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
     def data_provider(self) -> IMarketDataProvider:
         return self._data_provider
 
-    def analyze_market(self, request: ResearchRequest) -> ResearchResult:
+    def analyze_market(self, request: ResearchRequest, market_data_response=None) -> ResearchResult:
         """
         Retrieves primitive market data and context intelligence without technical indicators.
         """
@@ -133,7 +133,8 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
         )
 
         try:
-            market_data_response = self._data_provider.retrieve_market_data(data_req)
+            if market_data_response is None:
+                market_data_response = self._data_provider.retrieve_market_data(data_req)
         except Exception as e:
             raise ValidationException(
                 f"Validation Error: Failed to fetch market data for primitive research: {str(e)}"
@@ -324,10 +325,11 @@ class FeatureExtractionResearchEngine(IResearchEngine):
     def feature_pipeline(self) -> FeaturePipeline:
         return self._feature_pipeline
 
-    def analyze_market(self, request: ResearchRequest) -> ResearchResult:
+    def analyze_market(self, request: ResearchRequest, market_data_response=None) -> ResearchResult:
         """
-        Retrieves market data, executes feature calculations to generate observations,
-        and builds a ResearchResult rich in market feature analytics.
+        Executes feature calculations on the caller-supplied market data when provided.
+        This preserves the selected universe provider (for example Crypto) end-to-end
+        instead of silently re-fetching the same symbol through MT5.
         """
         # 1. Fetch market data points from provider
         timeframe = request.Context.get("timeframe", "H1")
@@ -339,7 +341,8 @@ class FeatureExtractionResearchEngine(IResearchEngine):
         )
 
         try:
-            market_data_response = self._data_provider.retrieve_market_data(data_req)
+            if market_data_response is None:
+                market_data_response = self._data_provider.retrieve_market_data(data_req)
         except Exception as e:
             raise ValidationException(
                 f"Validation Error: Failed to fetch market data for feature extraction: {str(e)}"
