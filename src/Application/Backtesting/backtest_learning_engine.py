@@ -25,6 +25,7 @@ class BacktestAndLearningEngine:
         os.makedirs(self.storage_dir, exist_ok=True)
 
         self.memory_systems: Dict[str, MarketMemorySystem] = {}
+        self.live_brains: Dict[tuple, Any] = {}
         self.judge = JudgeBrain()
         self.intel_core = ExecutionIntelligenceCore.get_instance()
 
@@ -35,6 +36,13 @@ class BacktestAndLearningEngine:
             sym_dir = os.path.join(self.storage_dir, f"memory_{sym_upper}")
             self.memory_systems[sym_upper] = MarketMemorySystem(storage_dir=sym_dir)
         return self.memory_systems[sym_upper]
+
+    def get_live_brain(self, symbol: str, timeframe: str):
+        from src.Research.Brain.live_brain import LiveAnalysisBrain
+        key = (symbol.upper(), timeframe.upper())
+        if key not in self.live_brains:
+            self.live_brains[key] = LiveAnalysisBrain(symbol.upper(), timeframe.upper(), memory_system=self.get_market_memory(symbol))
+        return self.live_brains[key]
 
     def run_mt5_backtest(
         self,
@@ -133,6 +141,7 @@ class BacktestAndLearningEngine:
         learning_updates_count = 0
 
         memory = self.get_market_memory(symbol)
+        canonical_brain = self.get_live_brain(symbol, timeframe)
 
         # Walk-forward bar by bar chronologically
         for i in range(start_index, len(candles)):
@@ -248,13 +257,17 @@ class BacktestAndLearningEngine:
                 except (TypeError, ValueError):
                     decision_due = True
             if not open_position and decision_due:
+                brain_report = canonical_brain.process_live_candle({
+                    "timestamp": str(bar_time), "open": float(current_bar["open"]),
+                    "high": float(current_bar["high"]), "low": float(current_bar["low"]),
+                    "close": float(current_bar["close"]), "volume": float(current_bar.get("volume", 0.0))
+                }, simulate_virtual_trade=False)
+                brain_report_dict = brain_report.to_dict()
                 mtf_context = all_timeframe_candles_provider(bar_time) if all_timeframe_candles_provider else None
                 eval_res = self.intel_core.evaluate_context(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    candles=history_candles,
-                    all_timeframe_candles=mtf_context,
-                    virtual_balance=balance
+                    symbol=symbol, timeframe=timeframe, candles=history_candles,
+                    all_timeframe_candles=mtf_context, virtual_balance=balance,
+                    newborn_brain_report=brain_report_dict
                 )
 
                 plan = eval_res.get("plan", {})
