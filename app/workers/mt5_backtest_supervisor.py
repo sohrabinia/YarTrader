@@ -56,6 +56,7 @@ def run_forever():
         years = int(job.get("years", 10))
         balance = float(job.get("initial_balance", 10000.0))
         sleep_sec = float(job.get("sleep", 1.0))
+        chunk_timeout_sec = max(60.0, float(job.get("chunk_timeout_sec", 900.0)))
 
         cp = checkpoint(job)
         if cp and cp.get("status") == "COMPLETED":
@@ -86,12 +87,14 @@ def run_forever():
         try:
             result = subprocess.run(
                 cmd, cwd=str(ROOT), stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT, text=True, timeout=None,
+                stderr=subprocess.STDOUT, text=True, timeout=chunk_timeout_sec,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             for line in result.stdout.splitlines()[-8:]:
                 log(line)
             log(f"CHUNK_EXIT rc={result.returncode}")
+        except subprocess.TimeoutExpired:
+            log(f"CHUNK_TIMEOUT seconds={chunk_timeout_sec:.0f}")
         except Exception as exc:
             log(f"CHUNK_EXCEPTION {type(exc).__name__}: {exc}")
         time.sleep(max(2.0, sleep_sec))
