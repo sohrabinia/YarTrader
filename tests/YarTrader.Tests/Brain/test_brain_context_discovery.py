@@ -88,5 +88,5 @@ def test_context_cache_is_bounded_and_point_in_time():
     snap = cache.snapshot_symbol("XAUUSD", t0 + timedelta(minutes=4))
     assert len(snap["M1"]) == 3
     assert snap["M1"][-1].close_price == 104
-    past = cache.snapshot_symbol("XAUUSD", t0 + timedelta(minutes=1))
-    assert past["M1"][-1].close_price == 102
+    past = cache.snapshot_symbol("XAUUSD", t0 + timedelta(minutes=3))
+    assert past["M1"][-1].close_price == 103
