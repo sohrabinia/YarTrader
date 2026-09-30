@@ -4129,11 +4129,18 @@ def list_symbol_administration():
 
 @app.post("/api/mode")
 def transition_operating_mode(payload: Dict[str, Any]):
-    """Transitions system operating modes."""
-    target_mode = payload.get("mode")
-    if target_mode not in ["Research", "Backtest", "Simulation", "Shadow"]:
-        raise HTTPException(status_code=400, detail="Invalid system transition mode requested.")
-    return {"status": "Success", "transitioned_to_mode": target_mode}
+    """Validates the canonical learning-cycle modes; Shadow is retired and LIVE is never selectable."""
+    target_mode = str(payload.get("mode", "")).strip().title()
+    allowed_modes = {"Research", "Backtest", "Demo", "Signal", "Prop"}
+    if target_mode not in allowed_modes:
+        raise HTTPException(status_code=400, detail="Invalid or retired system transition mode requested.")
+    return {
+        "status": "Success",
+        "transitioned_to_mode": target_mode,
+        "learning_cycle": ["Research", "Backtest", "Demo", "Signal", "Prop"],
+        "live_trading": "DISABLED",
+        "shadow": "RETIRED"
+    }
 
 
 @app.post("/api/backtest/run")
