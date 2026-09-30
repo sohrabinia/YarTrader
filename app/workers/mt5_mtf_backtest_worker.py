@@ -166,6 +166,9 @@ def run(symbol, years, initial_balance, sleep_sec, max_chunks=0):
             # Preserve resumable checkpoint state while a chunked run is still active.
             # Only replace the checkpoint with terminal final-state shape after completion.
             if completed:
+                # Preserve resumable checkpoint state while a chunked run is still active.
+            # Only replace the checkpoint with terminal final-state shape after completion.
+            if completed:
                 atomic_json(checkpoint_path, final)
             atomic_json(base / primary_tf / "final_result.json", final)
             summaries[primary_tf] = final
