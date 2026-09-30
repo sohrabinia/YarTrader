@@ -6,7 +6,6 @@ import json
 
 from src.Research.Brain.memory import MarketMemorySystem
 from src.Research.Brain.judge import JudgeBrain
-from src.Intelligence.Execution.core import ExecutionIntelligenceCore
 
 class BacktestAndLearningEngine:
     """
@@ -27,7 +26,6 @@ class BacktestAndLearningEngine:
         self.memory_systems: Dict[str, MarketMemorySystem] = {}
         self.live_brains: Dict[tuple, Any] = {}
         self.judge = JudgeBrain()
-        self.intel_core = ExecutionIntelligenceCore.get_instance()
 
     def get_market_memory(self, symbol: str) -> MarketMemorySystem:
         """Sequential multi-market knowledge isolation: separate memory per market symbol."""
@@ -257,39 +255,52 @@ class BacktestAndLearningEngine:
                     decision_due = True
             mtf_context = all_timeframe_candles_provider(bar_time) if all_timeframe_candles_provider else None
             brain_scope = sorted(mtf_context.keys()) if mtf_context else [timeframe]
+            from src.Research.Brain.models import MarketObservation
+            context_observations = {}
+            for ctx_tf, ctx_candles in (mtf_context or {}).items():
+                context_observations[ctx_tf] = [
+                    MarketObservation(
+                        symbol=symbol.upper(),
+                        timeframe=ctx_tf.upper(),
+                        timestamp=datetime.fromisoformat(str(c["timestamp"]).replace("Z", "+00:00")),
+                        open_price=float(c["open"]),
+                        high=float(c["high"]),
+                        low=float(c["low"]),
+                        close_price=float(c["close"]),
+                        volume=float(c.get("volume", 0.0)),
+                    )
+                    for c in ctx_candles
+                ]
             brain_report = canonical_brain.process_live_candle({
                 "timestamp": str(bar_time), "open": float(current_bar["open"]),
                 "high": float(current_bar["high"]), "low": float(current_bar["low"]),
                 "close": float(current_bar["close"]), "volume": float(current_bar.get("volume", 0.0))
-            }, simulate_virtual_trade=False, timeframe_signature=brain_scope)
+            }, simulate_virtual_trade=False, timeframe_signature=brain_scope,
+               context_observations_by_tf=context_observations)
             latest_brain_report = brain_report.to_dict()
             if not open_position and decision_due:
                 brain_report_dict = latest_brain_report
-                eval_res = self.intel_core.evaluate_context(
-                    symbol=symbol, timeframe=timeframe, candles=history_candles,
-                    all_timeframe_candles=mtf_context, virtual_balance=balance,
-                    newborn_brain_report=brain_report_dict
-                )
+                hypothesis = (brain_report_dict.get("active_hypotheses") or [{}])[0]
+                action = hypothesis.get("suggested_virtual_action", "WAIT")
+                params = hypothesis.get("trade_parameters") or {}
+                confidence = float(hypothesis.get("hypothesis_confidence", 0.0))
 
-                plan = eval_res.get("plan", {})
-                action = plan.get("action", "WAIT")
-
-                if action in ["BUY", "SELL"]:
+                if action in ["BUY", "SELL"] and confidence >= 50.0 and params.get("stop_loss") and params.get("take_profit") and float(params.get("risk_reward", 0.0)) >= 1.5:
                     open_position = {
                         "trade_id": f"BT-{symbol.upper()}-{timeframe.upper()}-{str(bar_time).replace(":", "").replace("+", "p").replace("-", "")}-{action}",
                         "symbol": symbol.upper(),
                         "timeframe": timeframe,
-                        "strategy": plan.get("strategy", "BRAIN_LEARNED"),
+                        "strategy": "BRAIN_LEARNED",
                         "direction": action,
-                        "entry": float(plan.get("entry", current_price)),
-                        "stop_loss": float(plan.get("stop_loss", 0.0)),
-                        "take_profit": float(plan.get("take_profit", 0.0)),
-                        "risk_reward": float(plan.get("risk_reward", 0.0)),
-                        "confidence": float(plan.get("confidence", 0.0)),
+                        "entry": float(params.get("entry", current_price)),
+                        "stop_loss": float(params.get("stop_loss", 0.0)),
+                        "take_profit": float(params.get("take_profit", 0.0)),
+                        "risk_reward": float(params.get("risk_reward", 0.0)),
+                        "confidence": confidence,
                         "volume": 0.01,
                         "entry_time": bar_time,
-                        "market_context": eval_res.get("narrative", {}),
-                        "reasoning": plan.get("reasoning", []),
+                        "market_context": hypothesis.get("context", {}),
+                        "reasoning": ["Brain hypothesis", *hypothesis.get("matched_pattern_ids", [])],
                         "mfe": 0.0,
                         "mae": 0.0
                     }
@@ -297,7 +308,7 @@ class BacktestAndLearningEngine:
                     open_position["brain_hypothesis_id"] = hypothesis.get("hypothesis_id")
                     open_position["brain_signature"] = list(hypothesis.get("sequence_signature", []))
                     open_position["brain_pattern_ids"] = list(hypothesis.get("matched_pattern_ids", []))
-                    risk_budget_pct = min(2.0, max(0.0, float(plan.get("risk_budget_percent", 0.5)))) / 100.0
+                    risk_budget_pct = 0.5 / 100.0
                     risk_dollars = max(0.0, balance * risk_budget_pct)
                     risk_distance = abs(open_position["entry"] - open_position["stop_loss"])
                     pnl_multiplier = 100.0 if "XAU" in symbol.upper() else 10000.0

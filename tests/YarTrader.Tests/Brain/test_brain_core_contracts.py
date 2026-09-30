@@ -89,3 +89,13 @@ class BrainPatternIdentityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_backtest_does_not_delegate_decision_to_execution_intelligence():
+    from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
+    import inspect
+    source = inspect.getsource(BacktestAndLearningEngine.run_backtest)
+    assert "evaluate_context(" not in source
+    assert "ExecutionIntelligenceCore" not in source
+    assert "suggested_virtual_action" in source
+    assert "context_observations_by_tf" in source
