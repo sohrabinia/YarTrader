@@ -129,23 +129,21 @@ def test_cognitive_replay_loop_e2e(sample_observations, tmp_path):
     # Setup thread-safe temporary memory system
     memory_dir = str(tmp_path / "brain_memory")
     mem_sys = MarketMemorySystem(storage_dir=memory_dir)
-
-    # Initial seed patterns so matches exist
-    seed_pat = PatternMemory(
-        pattern_id="pat-seed-1", sequence_signature=[1.0, 1.0, 1.0, 1.0],
-        occurrences_count=6, continuation_count=5, reversal_count=1
-    )
-    mem_sys.add_pattern(seed_pat)
-
     loop = CognitiveReplayLoop(
         symbol="XAUUSD", timeframe="H1",
         observations=sample_observations,
         memory_system=mem_sys
     )
 
-    episodes = loop.execute_replay_session(steps_count=5, scale="hours")
+    original_make = loop.simulation_brain.make_virtual_decision
+    def fast_virtual_decision(action, entry_price, timestamp, expected_scenario="Continuation"):
+        return original_make(action, entry_price, timestamp, stop_offset=2.0, target_offset=4.0, expected_scenario=expected_scenario)
+    loop.simulation_brain.make_virtual_decision = fast_virtual_decision
+
+    episodes = loop.execute_replay_session(steps_count=20, scale="hours")
     assert len(episodes) > 0
     assert len(mem_sys.get_events()) > 0
+    assert len(mem_sys.get_experiences()) > 0
 
     # Test active learning weakness identification
     priorities = loop.active_learning.analyze_weaknesses_and_set_priorities(mem_sys.get_patterns())
