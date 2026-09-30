@@ -941,10 +941,10 @@ function MainApp() {
             onChange={(e) => changeLanguage(e.target.value)}
             style={{ width: '120px', padding: '6px' }}
           >
-            <option value="fa">ÙØ§Ø±Ø³ÛŒ</option>
-            <option value="en">English</option>
-            <option value="tr">TÃ¼rkÃ§e</option>
-            <option value="ar">Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©</option>
+            <option value="fa">{t("lang_fa")}</option>
+            <option value="en">{t("lang_en")}</option>
+            <option value="tr">{t("lang_tr")}</option>
+            <option value="ar">{t("lang_ar")}</option>
           </select>
         </div>
       </div>
@@ -976,7 +976,7 @@ function MainApp() {
           {token && (
             <div style={{ margin: '10px 0', borderTop: '1px solid var(--border-dark)', paddingTop: '10px' }}>
               <div style={{ fontSize: '0.75em', textTransform: 'uppercase', color: 'var(--text-muted)', paddingLeft: '10px', marginBottom: '5px', fontWeight: 'bold' }}>
-                {lang === 'fa' ? 'Ø­Ø§Ù„Øªâ€ŒÙ‡Ø§ÛŒ Ù…Ø¹Ø§Ù…Ù„Ø§ØªÛŒ' : lang === 'tr' ? 'Ä°ÅŸlem ModlarÄ±' : lang === 'ar' ? 'Ø£Ù†Ù…Ø§Ø· Ø§Ù„ØªØ¯Ø§ÙˆÙ„' : 'TRADING MODES'}
+                {t("nav_trading_modes")}
               </div>
               <a href={`/${lang}/backtest`} className={`sidebar-link ${routePath.startsWith('/backtest') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/backtest'); }}>{t('nav_backtest')}</a>
               <a href={`/${lang}/demo`} className={`sidebar-link ${routePath === '/demo' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/demo'); }}>{t('nav_demo')}</a>
@@ -988,7 +988,7 @@ function MainApp() {
           {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
           {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
           {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
-          {token && role === 'ADMIN' && <a href={`/${lang}/Operator`} className={`sidebar-link ${routePath === '/Operator' || routePath === '/operator' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/Operator'); }}>ðŸ¤– {lang === 'fa' ? 'Ø§Ù¾Ø±Ø§ØªÙˆØ±' : 'Operator'}</a>}
+          {token && role === 'ADMIN' && <a href={`/${lang}/Operator`} className={`sidebar-link ${routePath === '/Operator' || routePath === '/operator' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/Operator'); }}>{t("nav_operator")}</a>}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {token && (

@@ -208,5 +208,11 @@
   "plan_pro_feature_assistant": "Conversational AI Assistant",
   "plan_institutional_feature_symbols": "50 Active Concurrent Symbols",
   "plan_institutional_feature_signals": "All Horizon Signals (Micro to Macro)",
-  "plan_institutional_feature_support": "Priority SRE support & dedicated server access"
+  "plan_institutional_feature_support": "Priority SRE support & dedicated server access",
+  "nav_trading_modes": "TRADING MODES",
+  "nav_operator": "🤖 Operator",
+  "lang_fa": "Persian",
+  "lang_en": "English",
+  "lang_tr": "Türkçe",
+  "lang_ar": "Arabic"
 }

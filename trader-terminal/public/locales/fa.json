@@ -208,5 +208,11 @@
   "plan_pro_feature_assistant": "دستیار هوش مصنوعی مکالمه‌ای",
   "plan_institutional_feature_symbols": "۵۰ نماد فعال همزمان",
   "plan_institutional_feature_signals": "تمام افق‌ها از Micro تا Macro",
-  "plan_institutional_feature_support": "پشتیبانی اولویت‌دار SRE و دسترسی سرور اختصاصی"
+  "plan_institutional_feature_support": "پشتیبانی اولویت‌دار SRE و دسترسی سرور اختصاصی",
+  "nav_trading_modes": "حالت‌های معاملاتی",
+  "nav_operator": "🤖 اپراتور",
+  "lang_fa": "فارسی",
+  "lang_en": "انگلیسی",
+  "lang_tr": "ترکی",
+  "lang_ar": "عربی"
 }

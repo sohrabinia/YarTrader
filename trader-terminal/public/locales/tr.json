@@ -208,5 +208,11 @@
   "plan_pro_feature_assistant": "Konuşmalı Yapay Zeka Asistanı",
   "plan_institutional_feature_symbols": "50 Aktif Eşzamanlı Sembol",
   "plan_institutional_feature_signals": "Micro'dan Macro'ya tüm ufuklar",
-  "plan_institutional_feature_support": "Öncelikli SRE desteği ve özel sunucu erişimi"
+  "plan_institutional_feature_support": "Öncelikli SRE desteği ve özel sunucu erişimi",
+  "nav_trading_modes": "İŞLEM MODLARI",
+  "nav_operator": "🤖 Operatör",
+  "lang_fa": "Farsça",
+  "lang_en": "İngilizce",
+  "lang_tr": "Türkçe",
+  "lang_ar": "Arapça"
 }

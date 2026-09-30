@@ -208,5 +208,11 @@
   "plan_pro_feature_assistant": "مساعد ذكاء اصطناعي تفاعلي",
   "plan_institutional_feature_symbols": "50 رمزاً نشطاً في الوقت نفسه",
   "plan_institutional_feature_signals": "جميع الآفاق من Micro إلى Macro",
-  "plan_institutional_feature_support": "دعم SRE ذو أولوية ووصول إلى خادم مخصص"
+  "plan_institutional_feature_support": "دعم SRE ذو أولوية ووصول إلى خادم مخصص",
+  "nav_trading_modes": "أنماط التداول",
+  "nav_operator": "🤖 المشغل",
+  "lang_fa": "الفارسية",
+  "lang_en": "الإنجليزية",
+  "lang_tr": "التركية",
+  "lang_ar": "العربية"
 }
