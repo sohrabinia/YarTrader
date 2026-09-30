@@ -6,7 +6,7 @@ export default function AdminFinancialView(){
  useEffect(load,[]);
  if(msg)return <div className="card"><h2>Financial Control</h2><div className="status-warn">{msg}</div></div>;
  if(!data)return <div className="card"><h2>Financial Control</h2><p>Loading…</p></div>;
- const money=(v,c='USD')=>(Number(v||0)/100).toFixed(2)+' '+c;
+ const money=(v,c='USD')=>{const n=Number(v||0);const value=c==='USDT'?n/1000000:n/100;return value.toFixed(c==='USDT'?6:2)+' '+c;};
  return <div className="space-y-6" style={{maxWidth:1200,margin:'0 auto'}}>
   <div className="card"><h2 style={{marginTop:0}}>💳 Financial Control Center</h2><p style={{color:'var(--text-muted)'}}>Authoritative financial state. No synthetic balances and no withdrawal capability.</p></div>
   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
