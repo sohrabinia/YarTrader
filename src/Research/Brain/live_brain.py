@@ -11,6 +11,7 @@ from src.Research.Brain.memory import MarketMemorySystem
 from src.Research.Brain.hypothesis import HypothesisEngine
 from src.Research.Brain.judge import JudgeBrain
 from src.Research.Brain.active_learning import ActiveLearningEngine
+from src.Research.Brain.brain_context import build_brain_context
 
 class LiveAnalysisBrain:
     """
@@ -43,6 +44,8 @@ class LiveAnalysisBrain:
         raw_candle: Dict[str, Any],
         simulate_virtual_trade: bool = True,
         timeframe_signature: Optional[List[str]] = None,
+        context_observations_by_tf: Optional[Dict[str, List[MarketObservation]]] = None,
+        context_observations_by_symbol: Optional[Dict[str, List[MarketObservation]]] = None,
     ) -> AnalysisReport:
         """
         Processes a new live candle, updates sequence perception, discovers matching
@@ -54,6 +57,17 @@ class LiveAnalysisBrain:
             raise ValueError("Invalild or missing raw candle data.")
 
         latest_obs = observations[-1]
+        # Build Brain input strictly from data known at this decision timestamp.
+        tf_history = dict(context_observations_by_tf or {})
+        tf_history.setdefault(self.timeframe, list(self.observation_brain.sequence.observations) + observations)
+        brain_context = build_brain_context(
+            symbol=self.symbol,
+            primary_timeframe=self.timeframe,
+            decision_time=latest_obs.timestamp,
+            observations_by_tf=tf_history,
+            observations_by_symbol=context_observations_by_symbol,
+        )
+        context_id = brain_context["context_id"]
         if latest_obs.timestamp in self._processed_candle_timestamps:
             if self._last_report is None:
                 raise ValueError("Duplicate candle received before a live Brain report was established.")
@@ -93,7 +107,9 @@ class LiveAnalysisBrain:
                     "trade_id": closed_trade.trade_id,
                     "pattern_symbol": self.symbol.upper(),
                     "pattern_timeframe": self.timeframe.upper(),
-                    "timeframe_signature": sorted({str(tf).upper() for tf in (timeframe_signature or [self.timeframe])}),
+                    "timeframe_signature": sorted({str(tf).upper() for tf in (timeframe_signature or list(tf_history.keys()) or [self.timeframe])}),
+                    "context_id": context_id,
+                    "context_signature": brain_context,
                     "favorable_excursion": float(closed_trade.max_favorable_movement),
                     "adverse_excursion": abs(float(closed_trade.max_adverse_movement)),
                 }
@@ -107,11 +123,21 @@ class LiveAnalysisBrain:
 
         # 4. Extract the raw signature and formulate the canonical Brain hypothesis.
         sig = self.discovery_engine.extract_signature(sequence.observations)
-        matched = self.discovery_engine.find_matches(sig, self.memory_system.get_patterns())
+        matched = self.discovery_engine.find_matches(
+            sig, self.memory_system.get_patterns(),
+            symbol=self.symbol,
+            timeframe=self.timeframe,
+            timeframe_signature=timeframe_signature or list(tf_history.keys()),
+            context_id=context_id,
+        )
         outcome_agg = self.discovery_engine.aggregate_outcomes(matched, sig)
         hypothesis = self.hypothesis_engine.formulate_hypothesis(
             current_signature=sig,
-            historical_patterns=self.memory_system.get_patterns()
+            historical_patterns=self.memory_system.get_patterns(),
+            symbol=self.symbol,
+            timeframe=self.timeframe,
+            timeframe_signature=timeframe_signature or list(tf_history.keys()),
+            context_id=context_id,
         )
         decision = hypothesis.expected_direction
         expected = "Continuation" if decision == "BUY" else ("Reversal" if decision == "SELL" else "Stable")
@@ -179,7 +205,9 @@ class LiveAnalysisBrain:
                     "suggested_virtual_action": decision,
                     "hypothesis_confidence": float(hypothesis.confidence),
                     "trade_parameters": trade_parameters,
-                    "timeframe_signature": sorted({str(tf).upper() for tf in (timeframe_signature or [self.timeframe])}),
+                    "timeframe_signature": sorted({str(tf).upper() for tf in (timeframe_signature or list(tf_history.keys()) or [self.timeframe])}),
+                    "context_id": context_id,
+                    "context": brain_context,
                 }
             ],
             simulated_trades=[
