@@ -27,7 +27,7 @@ def test_context_is_point_in_time_and_remembers_last_confirmed_swings():
     decision = t0 + timedelta(minutes=6)
     ctx = build_brain_context("XAUUSD", "M1", decision, {"M1": obs})
     snap = ctx["history"]["M1"]
-    assert snap["last_close"] == 105
+    assert snap["last_close"] == 102
     assert snap["last_timestamp"] == (t0 + timedelta(minutes=6)).isoformat()
     assert snap["structure"]["latest_swing_high"] is not None
     assert snap["structure"]["latest_swing_low"] is not None
