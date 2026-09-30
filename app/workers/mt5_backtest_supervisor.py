@@ -18,11 +18,14 @@ def log(message):
     with LOG.open("a", encoding="utf-8") as handle:
         handle.write(f"[{time.strftime('%Y-%m-%dT%H:%M:%S')}] {message}\n")
 
+def _read_json(path):
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
 def load_job():
     if not JOB.exists():
         return None
     try:
-        return json.loads(JOB.read_text(encoding="utf-8"))
+        return _read_json(JOB)
     except Exception as exc:
         log(f"JOB_READ_ERROR {type(exc).__name__}: {exc}")
         return None
@@ -35,8 +38,9 @@ def checkpoint(job):
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+        return _read_json(path)
+    except Exception as exc:
+        log(f"CHECKPOINT_READ_ERROR {type(exc).__name__}: {exc}")
         return None
 
 def run_forever():
