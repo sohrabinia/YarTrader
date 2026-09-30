@@ -22,7 +22,7 @@ def test_context_is_point_in_time_and_remembers_last_confirmed_swings():
     t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
     obs = [
         candle("XAUUSD", "M1", t0 + timedelta(minutes=i), v)
-        for i, v in enumerate([100, 105, 101, 104, 99, 103, 102, 200])
+        for i, v in enumerate([100, 102, 101, 104, 99, 103, 102, 200])
     ]
     decision = t0 + timedelta(minutes=6)
     ctx = build_brain_context("XAUUSD", "M1", decision, {"M1": obs})
