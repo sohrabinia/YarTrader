@@ -22,6 +22,39 @@ class TestMT5SessionBridge(unittest.TestCase):
         proxy.copy_rates_range("XAUUSD", 16385, "2026-09-29T10:00:00", "2026-09-29T11:00:00")
         client.call.assert_called_once_with("copy_rates_range", symbol="XAUUSD", timeframe=16385, date_from="2026-09-29T10:00:00", date_to="2026-09-29T11:00:00")
 
+    def test_jsonable_preserves_structured_mt5_rates_as_records(self):
+        class FakeDType:
+            names = ("time", "open", "high", "low", "close", "tick_volume")
+
+        class FakeRow:
+            def __init__(self, values):
+                self.values = values
+
+            def __getitem__(self, name):
+                return self.values[name]
+
+        class FakeRates:
+            dtype = FakeDType()
+
+            def __iter__(self):
+                return iter([
+                    FakeRow({
+                        "time": 1759140000,
+                        "open": 3800.0,
+                        "high": 3801.0,
+                        "low": 3799.0,
+                        "close": 3800.5,
+                        "tick_volume": 123,
+                    })
+                ])
+
+        from src.Infrastructure.mt5_session_bridge import _jsonable
+
+        payload = _jsonable(FakeRates())
+        self.assertEqual(payload[0]["time"], 1759140000)
+        self.assertEqual(payload[0]["close"], 3800.5)
+        self.assertEqual(payload[0]["tick_volume"], 123)
+
     def test_client_requires_token(self):
         with patch.dict(os.environ, {}, clear=True):
             client = MT5SessionBridgeClient()
