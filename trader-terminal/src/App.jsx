@@ -362,15 +362,14 @@ function MainApp() {
   // Dynamic Route Theme Mapping: Public pages -> Light editorial, Terminal/Admin -> Dark
   useEffect(() => {
     const savedTheme = localStorage.getItem('yartrader_theme');
-    if (savedTheme) {
-      setTheme(savedTheme);
+    const isPublic = routePath === '/' || routePath === '/features' || routePath === '/pricing' || routePath === '/blog' || routePath === '/login' || routePath === '/register' || routePath === '/forgot-password' || routePath === '/faq' || routePath === '/guide';
+
+    // Public/customer-facing surfaces always use the light editorial theme.
+    // The persisted terminal preference must not make login, pricing, guide, etc. unreadable.
+    if (isPublic) {
+      setTheme('light');
     } else {
-      const isPublic = routePath === '/' || routePath === '/features' || routePath === '/pricing' || routePath === '/blog' || routePath === '/login' || routePath === '/register' || routePath === '/forgot-password' || routePath === '/faq' || routePath === '/guide';
-      if (isPublic) {
-        setTheme('light');
-      } else {
-        setTheme('dark');
-      }
+      setTheme(savedTheme || 'dark');
     }
   }, [routePath]);
 
