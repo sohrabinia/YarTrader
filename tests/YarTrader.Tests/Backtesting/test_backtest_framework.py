@@ -47,7 +47,7 @@ class TestIntelligenceBacktestingFramework(unittest.TestCase):
         for i in range(100):
             p = 2000.0 + (i * 0.5)
             candles.append({
-                "timestamp": f"2026-01-01T{i:02d}:00:00",
+                "timestamp": (datetime(2026, 1, 1) + timedelta(hours=i)).isoformat(),
                 "open": p - 0.5,
                 "high": p + 5.0,
                 "low": p - 5.0,
