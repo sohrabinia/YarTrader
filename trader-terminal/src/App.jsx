@@ -1344,7 +1344,7 @@ function MainApp() {
 
           {/* DEDICATED TRADING MODE 2: DEMO TRADING PAGE */}
           {routePath === '/demo' && (
-            <DemoView t={t} demoReport={demoReport} backendState={backendState} />
+            <DemoView t={t} lang={lang} demoReport={demoReport} backendState={backendState} />
           )}
 
 

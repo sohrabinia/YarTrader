@@ -3,46 +3,29 @@ import MetricCard from '../design-system/MetricCard';
 import StatusBadge from '../design-system/StatusBadge';
 import DataTable from '../design-system/DataTable';
 
-export default function DemoView({ t, demoReport, backendState }) {
-  return (
-    <div id="shell-demo" className="space-y-6">
-      <div className="card" style={{ borderLeft: '4px solid var(--signal)' }}>
-        <div className="flex justify-between items-center flex-wrap gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-[var(--signal)] mb-1">🎮 مرکز اجرای آزمایشی (MT5 Demo Execution Engine)</h2>
-            <p className="text-sm text-[var(--text-dark)]">
-              اجرای اتونوموس سفارشات آزمایشی روی متاتریدر ۵ حساب #52961173 (Alpari-MT5-Demo) تحت ایزولاسیون کامل SRE.
-            </p>
-          </div>
-          <StatusBadge status="DEMO ACTIVE" type="passed" />
-        </div>
-      </div>
+const copy={
+ fa:{title:'مرکز اجرای آزمایشی MT5',desc:'وضعیت اجرای DEMO و داده‌های واقعی حساب متصل؛ بدون مسیر اجرای LIVE.',account:'شماره حساب دمو',balance:'موجودی حساب',validation:'اعتبارسنجی نشست و TP',liveLock:'قفل معاملات واقعی',history:'تاریخچه اجرای DEMO',unavailable:'داده در دسترس نیست',disabled:'غیرفعال',active:'DEMO فعال'},
+ en:{title:'MT5 Demo Execution Center',desc:'Authoritative DEMO execution state for the connected account; no LIVE execution path.',account:'Demo Account',balance:'Account Balance',validation:'Session & TP Validation',liveLock:'Live Trading Safety Gate',history:'DEMO Execution History',unavailable:'DATA UNAVAILABLE',disabled:'DISABLED',active:'DEMO ACTIVE'},
+ ar:{title:'مركز تنفيذ MT5 التجريبي',desc:'الحالة الفعلية لتنفيذ DEMO للحساب المتصل؛ لا يوجد مسار لتنفيذ التداول المباشر.',account:'حساب DEMO',balance:'رصيد الحساب',validation:'التحقق من الجلسة والهدف',liveLock:'بوابة أمان التداول المباشر',history:'سجل تنفيذ DEMO',unavailable:'البيانات غير متاحة',disabled:'معطل',active:'DEMO فعال'},
+ tr:{title:'MT5 Demo İşlem Merkezi',desc:'Bağlı hesabın gerçek DEMO yürütme durumu; CANLI işlem yolu bulunmaz.',account:'Demo Hesabı',balance:'Hesap Bakiyesi',validation:'Oturum ve TP Doğrulaması',liveLock:'Canlı İşlem Güvenlik Kapısı',history:'DEMO İşlem Geçmişi',unavailable:'VERİ YOK',disabled:'KAPALI',active:'DEMO AKTİF'}
+};
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <MetricCard title="شماره حساب آزمایشی" value="52961173" status="passed" subtitle="Alpari-MT5-Demo" />
-        <MetricCard title="موجودی حساب (Balance)" value="$10,450.00" status="passed" change="+$450.00" trend="up" />
-        <MetricCard title="اعتبارسنجی Session & TP" value="PASSED (>120s / Causal)" status="passed" subtitle="Pre-Entry Calendar Checked" />
-        <MetricCard title="قفل ایمنی معاملات واقعی" value="HARD DISABLED" status="primary" subtitle="LIVE_TRADING_ENABLED=False" />
-      </div>
-
-      <div className="card">
-        <h3 className="text-sm font-bold text-[var(--primary)] uppercase tracking-wider mb-3">تاریخچه اجرای معاملات DEMO</h3>
-        <DataTable
-          columns={[
-            { key: 'ticket', title: 'Ticket #' },
-            { key: 'symbol', title: 'Symbol' },
-            { key: 'type', title: 'Type' },
-            { key: 'volume', title: 'Lots' },
-            { key: 'sl', title: 'Stop Loss' },
-            { key: 'tp', title: 'Take Profit' },
-            { key: 'profit', title: 'P&L ($)' }
-          ]}
-          data={[
-            { ticket: '50192831', symbol: 'XAUUSD', type: 'BUY', volume: '0.10', sl: '2440.00', tp: '2475.00', profit: '+$120.00' },
-            { ticket: '50192832', symbol: 'EURUSD', type: 'SELL', volume: '0.20', sl: '1.0910', tp: '1.0820', profit: '+$74.50' }
-          ]}
-        />
-      </div>
-    </div>
-  );
+export default function DemoView({ lang='en', demoReport }) {
+ const c=copy[lang]||copy.en;
+ const report=demoReport||{};
+ const balance=report.balance ?? report.account_balance;
+ const trades=Array.isArray(report.trades)?report.trades:[];
+ const rows=trades.map(x=>[x.ticket||x.order_id||'—',x.symbol||'—',x.type||x.direction||'—',x.volume??'—',x.sl??'—',x.tp??'—',x.profit??x.pnl??'—']);
+ return <div id="shell-demo" className="space-y-6">
+  <div className="card demo-hero"><div><h2 className="demo-title">🎮 {c.title}</h2><p>{c.desc}</p></div><StatusBadge status={c.active} type="passed" /></div>
+  <div className="status-board">
+   <MetricCard title={c.account} value={report.account_id || c.unavailable} status="passed" subtitle={report.broker || 'MT5 Demo'} />
+   <MetricCard title={c.balance} value={balance != null ? '$'+Number(balance).toLocaleString() : c.unavailable} status="passed" />
+   <MetricCard title={c.validation} value={report.validation_status || c.unavailable} status="passed" />
+   <MetricCard title={c.liveLock} value={report.live_trading_enabled ? 'LIVE ENABLED' : c.disabled} status="primary" />
+  </div>
+  <div className="card"><h3 className="demo-section-title">{c.history}</h3>
+   <DataTable headers={['Ticket #','Symbol','Type','Lots','Stop Loss','Take Profit','P&L']} rows={rows} emptyMessage={c.unavailable}/>
+  </div>
+ </div>;
 }
