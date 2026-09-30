@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from src.Research.Brain.brain_context import build_brain_context, discover_cross_symbol_relations
+from src.Research.Brain.brain_context import build_brain_context, discover_cross_symbol_relations, PointInTimeContextCache
 from src.Research.Brain.discovery import PatternDiscoveryEngine
 from src.Research.Brain.models import MarketObservation
 
@@ -78,3 +78,15 @@ def test_pattern_matching_requires_same_context_when_context_is_known():
                                   context_signature={"history": {"M15": {"last_close": 1}}})
     assert engine.find_matches([1.0, -0.5, 0.25, 0.1], [p], "XAUUSD", "M1", ["M1", "M15"], "ctx-a")
     assert engine.find_matches([1.0, -0.5, 0.25, 0.1], [p], "XAUUSD", "M1", ["M1", "M15"], "ctx-b") == []
+
+
+def test_context_cache_is_bounded_and_point_in_time():
+    t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    cache = PointInTimeContextCache(max_per_scope=3)
+    for i in range(5):
+        cache.add(candle("XAUUSD", "M1", t0 + timedelta(minutes=i), 100 + i))
+    snap = cache.snapshot_symbol("XAUUSD", t0 + timedelta(minutes=4))
+    assert len(snap["M1"]) == 3
+    assert snap["M1"][-1].close_price == 104
+    past = cache.snapshot_symbol("XAUUSD", t0 + timedelta(minutes=1))
+    assert past["M1"][-1].close_price == 102
