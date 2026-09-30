@@ -11,7 +11,7 @@ from src.Research.Brain.memory import MarketMemorySystem
 from src.Research.Brain.hypothesis import HypothesisEngine
 from src.Research.Brain.judge import JudgeBrain
 from src.Research.Brain.active_learning import ActiveLearningEngine
-from src.Research.Brain.brain_context import build_brain_context
+from src.Research.Brain.brain_context import build_brain_context, GLOBAL_CONTEXT_CACHE
 
 class LiveAnalysisBrain:
     """
@@ -57,15 +57,22 @@ class LiveAnalysisBrain:
             raise ValueError("Invalild or missing raw candle data.")
 
         latest_obs = observations[-1]
+        GLOBAL_CONTEXT_CACHE.add(latest_obs)
         # Build Brain input strictly from data known at this decision timestamp.
+        # The bounded shared cache lets the Brain assemble MTF and cross-symbol context
+        # from the market stream itself; no symbol relationship is predefined.
         tf_history = dict(context_observations_by_tf or {})
+        cached_tf_history = GLOBAL_CONTEXT_CACHE.snapshot_symbol(self.symbol, latest_obs.timestamp)
+        for tf, items in cached_tf_history.items():
+            tf_history.setdefault(tf, items)
+
         tf_history.setdefault(self.timeframe, list(self.observation_brain.sequence.observations) + observations)
         brain_context = build_brain_context(
             symbol=self.symbol,
             primary_timeframe=self.timeframe,
             decision_time=latest_obs.timestamp,
             observations_by_tf=tf_history,
-            observations_by_symbol=context_observations_by_symbol,
+            observations_by_symbol=(context_observations_by_symbol or GLOBAL_CONTEXT_CACHE.snapshot_symbols(self.timeframe, latest_obs.timestamp)),
         )
         context_id = brain_context["context_id"]
         effective_timeframes = sorted({str(tf).upper() for tf in tf_history})
