@@ -1,6 +1,8 @@
 import os
 from typing import Optional
 
+from src.Application.Deployment.artifact_store import YarTraderArtifactStore
+
 
 class YarTraderStorageManager:
     """Manages isolated storage paths strictly derived from the configured storage root."""
@@ -65,6 +67,10 @@ class YarTraderStorageManager:
 
     def get_temp_dir(self) -> str:
         return self._temp_dir
+
+    def get_artifact_store(self) -> YarTraderArtifactStore:
+        """Return the universal adaptive artifact store under the configured data root."""
+        return YarTraderArtifactStore(os.path.join(self._data_dir, "artifacts"))
 
 
 # Backward compatibility alias
