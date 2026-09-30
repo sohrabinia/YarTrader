@@ -31,16 +31,48 @@ ALLOW_DEMO_ENV = "YARTRADER_MT5_BRIDGE_ALLOW_DEMO_EXECUTION"
 
 
 def _jsonable(value: Any) -> Any:
+    """Convert MT5/native values to JSON-safe primitives without losing row fields."""
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, datetime):
         return value.isoformat()
+
+    # MetaTrader5 copy_rates_* returns a NumPy structured ndarray in the
+    # interactive Session-2 process.  Serializing that ndarray with str()
+    # turns the entire candle series into one string, which later makes the
+    # production provider fail with "'str' object has no attribute 'time'".
+    dtype = getattr(value, "dtype", None)
+    field_names = getattr(dtype, "names", None) if dtype is not None else None
+    if field_names:
+        return [
+            {str(name): _jsonable(row[name]) for name in field_names}
+            for row in value
+        ]
+
     if hasattr(value, "_asdict"):
         return {str(k): _jsonable(v) for k, v in value._asdict().items()}
     if isinstance(value, dict):
         return {str(k): _jsonable(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
         return [_jsonable(v) for v in value]
+
+    # NumPy scalar values expose item(), which converts them to native Python
+    # ints/floats before json.dumps sees them.
+    item = getattr(value, "item", None)
+    if callable(item):
+        try:
+            return _jsonable(item())
+        except (TypeError, ValueError):
+            pass
+
+    # Generic array-like values (without named structured fields).
+    tolist = getattr(value, "tolist", None)
+    if callable(tolist):
+        try:
+            return _jsonable(tolist())
+        except (TypeError, ValueError):
+            pass
+
     return str(value)
 
 
