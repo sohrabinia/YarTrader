@@ -131,8 +131,8 @@ function MainApp() {
   const DEFAULT_SUBSCRIPTION_PLANS = [
     {
       tier_id: 'free',
-      name: lang === 'fa' ? 'Free Researcher (تحلیل‌گر پایه)' : 'Free Researcher',
-      price_usd: lang === 'fa' ? 'رایگان' : 'Free',
+      name: lang === 'fa' ? 'Free Researcher (ØªØ­Ù„ÛŒÙ„â€ŒÚ¯Ø± Ù¾Ø§ÛŒÙ‡)' : 'Free Researcher',
+      price_usd: lang === 'fa' ? 'Ø±Ø§ÛŒÚ¯Ø§Ù†' : 'Free',
       max_symbols: 3,
       enabled_timeframes: ['Short'],
       features: [
@@ -155,7 +155,7 @@ function MainApp() {
     },
     {
       tier_id: 'pro',
-      name: lang === 'fa' ? 'Professional Analyst (حرفه‌ای)' : 'Professional Analyst',
+      name: lang === 'fa' ? 'Professional Analyst (Ø­Ø±ÙÙ‡â€ŒØ§ÛŒ)' : 'Professional Analyst',
       price_usd: '$79/mo',
       max_symbols: 15,
       enabled_timeframes: ['Short', 'Medium'],
@@ -167,7 +167,7 @@ function MainApp() {
     },
     {
       tier_id: 'institutional',
-      name: lang === 'fa' ? 'Institutional SCM Terminal (سازمانی)' : 'Institutional SCM Terminal',
+      name: lang === 'fa' ? 'Institutional SCM Terminal (Ø³Ø§Ø²Ù…Ø§Ù†ÛŒ)' : 'Institutional SCM Terminal',
       price_usd: '$299/mo',
       max_symbols: 50,
       enabled_timeframes: ['Micro', 'Short', 'Medium', 'Macro'],
@@ -304,10 +304,10 @@ function MainApp() {
 
     // Dynamic SEO Metadata, OpenGraph, Twitter & Canonical Injection
     const localizedHomeTitles = {
-      fa: 'YarTrader — پلتفرم هوش مالی خودکار',
-      en: 'YarTrader — Autonomous Financial Intelligence Platform',
-      tr: 'YarTrader — Otonom Finansal Zeka Platformu',
-      ar: 'YarTrader — منصة الذكاء المالي الذاتي'
+      fa: 'YarTrader â€” Ù¾Ù„ØªÙØ±Ù… Ù‡ÙˆØ´ Ù…Ø§Ù„ÛŒ Ø®ÙˆØ¯Ú©Ø§Ø±',
+      en: 'YarTrader â€” Autonomous Financial Intelligence Platform',
+      tr: 'YarTrader â€” Otonom Finansal Zeka Platformu',
+      ar: 'YarTrader â€” Ù…Ù†ØµØ© Ø§Ù„Ø°ÙƒØ§Ø¡ Ø§Ù„Ù…Ø§Ù„ÙŠ Ø§Ù„Ø°Ø§ØªÙŠ'
     };
     const titles = {
       '/': localizedHomeTitles[lang] || localizedHomeTitles.en,
@@ -384,13 +384,13 @@ function MainApp() {
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
       showNotification(
-        lang === 'fa' ? 'لطفاً جهت دسترسی ابتدا وارد حساب کاربری خود شوید.' : 'Please sign in to access this zone.',
+        lang === 'fa' ? 'Ù„Ø·ÙØ§Ù‹ Ø¬Ù‡Øª Ø¯Ø³ØªØ±Ø³ÛŒ Ø§Ø¨ØªØ¯Ø§ ÙˆØ§Ø±Ø¯ Ø­Ø³Ø§Ø¨ Ú©Ø§Ø±Ø¨Ø±ÛŒ Ø®ÙˆØ¯ Ø´ÙˆÛŒØ¯.' : 'Please sign in to access this zone.',
         'warning'
       );
     }
     if ((routePath === '/admin' || routePath === '/admin/wallet' || routePath === '/Operator' || routePath === '/operator') && token && role !== 'ADMIN') {
       showNotification(
-        lang === 'fa' ? 'دسترسی فقط برای کاربران با نقش مدیریت (ADMIN) مجاز است.' : 'Admin role is required.',
+        lang === 'fa' ? 'Ø¯Ø³ØªØ±Ø³ÛŒ ÙÙ‚Ø· Ø¨Ø±Ø§ÛŒ Ú©Ø§Ø±Ø¨Ø±Ø§Ù† Ø¨Ø§ Ù†Ù‚Ø´ Ù…Ø¯ÛŒØ±ÛŒØª (ADMIN) Ù…Ø¬Ø§Ø² Ø§Ø³Øª.' : 'Admin role is required.',
         'warning'
       );
     }
@@ -491,7 +491,7 @@ function MainApp() {
       setToken(null);
       setRole(null);
       setName(null);
-      showNotification(lang === 'fa' ? 'با موفقیت از سیستم خارج شدید.' : 'Successfully logged out.', 'success');
+      showNotification(lang === 'fa' ? 'Ø¨Ø§ Ù…ÙˆÙÙ‚ÛŒØª Ø§Ø² Ø³ÛŒØ³ØªÙ… Ø®Ø§Ø±Ø¬ Ø´Ø¯ÛŒØ¯.' : 'Successfully logged out.', 'success');
       navigateTo('/');
     }
   };
@@ -500,7 +500,7 @@ function MainApp() {
     try {
       const idToken = googleResponse.credential;
       if (!idToken) {
-        throw new Error(lang === 'fa' ? 'توکن شناسایی گوگل دریافت نشد.' : 'Google ID token was not received.');
+        throw new Error(lang === 'fa' ? 'ØªÙˆÚ©Ù† Ø´Ù†Ø§Ø³Ø§ÛŒÛŒ Ú¯ÙˆÚ¯Ù„ Ø¯Ø±ÛŒØ§ÙØª Ù†Ø´Ø¯.' : 'Google ID token was not received.');
       }
       const res = await apiService.post('/api/auth/google', {
         id_token: idToken
@@ -515,10 +515,10 @@ function MainApp() {
       setToken(tokenVal);
       setRole(roleVal);
       setName(nameVal);
-      showNotification(lang === 'fa' ? 'ورود با گوگل با موفقیت انجام شد.' : 'Successfully signed in with Google.', 'success');
+      showNotification(lang === 'fa' ? 'ÙˆØ±ÙˆØ¯ Ø¨Ø§ Ú¯ÙˆÚ¯Ù„ Ø¨Ø§ Ù…ÙˆÙÙ‚ÛŒØª Ø§Ù†Ø¬Ø§Ù… Ø´Ø¯.' : 'Successfully signed in with Google.', 'success');
       navigateTo('/dashboard');
     } catch (err) {
-      showNotification(err.message || (lang === 'fa' ? 'خطا در ورود با گوگل.' : 'Google authentication failed.'), 'failed');
+      showNotification(err.message || (lang === 'fa' ? 'Ø®Ø·Ø§ Ø¯Ø± ÙˆØ±ÙˆØ¯ Ø¨Ø§ Ú¯ÙˆÚ¯Ù„.' : 'Google authentication failed.'), 'failed');
     }
   };
 
@@ -528,7 +528,7 @@ function MainApp() {
 
       if (!clientId) {
         showNotification(
-          lang === 'fa' ? 'جهت ورود با گوگل، تنظیم GOOGLE_CLIENT_ID در سرور لازم است.' : 'GOOGLE_CLIENT_ID environment configuration is required for Google Sign-In.',
+          lang === 'fa' ? 'Ø¬Ù‡Øª ÙˆØ±ÙˆØ¯ Ø¨Ø§ Ú¯ÙˆÚ¯Ù„ØŒ ØªÙ†Ø¸ÛŒÙ… GOOGLE_CLIENT_ID Ø¯Ø± Ø³Ø±ÙˆØ± Ù„Ø§Ø²Ù… Ø§Ø³Øª.' : 'GOOGLE_CLIENT_ID environment configuration is required for Google Sign-In.',
           'warning'
         );
         return;
@@ -543,19 +543,19 @@ function MainApp() {
           window.google.accounts.id.prompt();
         } catch (err) {
           showNotification(
-            lang === 'fa' ? 'خطا در بارگذاری سرویس شناسایی گوگل.' : 'Failed to initialize Google Identity Services.',
+            lang === 'fa' ? 'Ø®Ø·Ø§ Ø¯Ø± Ø¨Ø§Ø±Ú¯Ø°Ø§Ø±ÛŒ Ø³Ø±ÙˆÛŒØ³ Ø´Ù†Ø§Ø³Ø§ÛŒÛŒ Ú¯ÙˆÚ¯Ù„.' : 'Failed to initialize Google Identity Services.',
             'failed'
           );
         }
       } else {
         showNotification(
-          lang === 'fa' ? 'سرویس شناسایی گوگل در دسترس نیست. لطفاً اتصال اینترنت خود را بررسی کنید.' : 'Google Identity Services SDK is unavailable. Please check your network connection.',
+          lang === 'fa' ? 'Ø³Ø±ÙˆÛŒØ³ Ø´Ù†Ø§Ø³Ø§ÛŒÛŒ Ú¯ÙˆÚ¯Ù„ Ø¯Ø± Ø¯Ø³ØªØ±Ø³ Ù†ÛŒØ³Øª. Ù„Ø·ÙØ§Ù‹ Ø§ØªØµØ§Ù„ Ø§ÛŒÙ†ØªØ±Ù†Øª Ø®ÙˆØ¯ Ø±Ø§ Ø¨Ø±Ø±Ø³ÛŒ Ú©Ù†ÛŒØ¯.' : 'Google Identity Services SDK is unavailable. Please check your network connection.',
           'warning'
         );
       }
     } else {
       showNotification(
-        lang === 'fa' ? `پشتیبانی از ${provider} در حال آماده‌سازی است.` : `${provider} sign-in is under initialization.`,
+        lang === 'fa' ? `Ù¾Ø´ØªÛŒØ¨Ø§Ù†ÛŒ Ø§Ø² ${provider} Ø¯Ø± Ø­Ø§Ù„ Ø¢Ù…Ø§Ø¯Ù‡â€ŒØ³Ø§Ø²ÛŒ Ø§Ø³Øª.` : `${provider} sign-in is under initialization.`,
         'warning'
       );
     }
@@ -630,7 +630,7 @@ function MainApp() {
       setNotif({
         show: true,
         msg: lang === 'fa'
-          ? 'تنظیمات حساب پراپ با موفقیت ذخیره شد.'
+          ? 'ØªÙ†Ø¸ÛŒÙ…Ø§Øª Ø­Ø³Ø§Ø¨ Ù¾Ø±Ø§Ù¾ Ø¨Ø§ Ù…ÙˆÙÙ‚ÛŒØª Ø°Ø®ÛŒØ±Ù‡ Ø´Ø¯.'
           : 'Prop Challenge configuration saved successfully.',
         type: 'success'
       });
@@ -642,7 +642,7 @@ function MainApp() {
       setNotif({
         show: true,
         msg: lang === 'fa'
-          ? `خطا در ذخیره تنظیمات پراپ: ${err.message}`
+          ? `Ø®Ø·Ø§ Ø¯Ø± Ø°Ø®ÛŒØ±Ù‡ ØªÙ†Ø¸ÛŒÙ…Ø§Øª Ù¾Ø±Ø§Ù¾: ${err.message}`
           : `Failed to save Prop Challenge configuration: ${err.message}`,
         type: 'error'
       });
@@ -783,7 +783,7 @@ function MainApp() {
   const handleRegisterNewActiveSymbol = async () => {
     try {
       const currentToken = localStorage.getItem('yartrader_token') || token || '';
-      const promptSymbol = prompt(lang === 'fa' ? 'لطفاً نماد جدید را وارد کنید (مثلاً SOLUSD):' : 'Enter new symbol (e.g. SOLUSD):', "XAUUSD");
+      const promptSymbol = prompt(lang === 'fa' ? 'Ù„Ø·ÙØ§Ù‹ Ù†Ù…Ø§Ø¯ Ø¬Ø¯ÛŒØ¯ Ø±Ø§ ÙˆØ§Ø±Ø¯ Ú©Ù†ÛŒØ¯ (Ù…Ø«Ù„Ø§Ù‹ SOLUSD):' : 'Enter new symbol (e.g. SOLUSD):', "XAUUSD");
       if (!promptSymbol) return;
 
       const res = await apiService.post(`/api/admin/symbols?token=${encodeURIComponent(currentToken)}`, {
@@ -868,15 +868,15 @@ function MainApp() {
         message: userMsg,
         lang: lang
       });
-      const botResponse = res.response || res.answer || (lang === 'fa' ? 'پاسخی دریافت نشد.' : 'No response received.');
+      const botResponse = res.response || res.answer || (lang === 'fa' ? 'Ù¾Ø§Ø³Ø®ÛŒ Ø¯Ø±ÛŒØ§ÙØª Ù†Ø´Ø¯.' : 'No response received.');
       setChatMessages(prev => [...prev, { text: botResponse, sender: 'bot' }]);
     } catch (err) {
       const rawMsg = err?.message || (typeof err === 'string' ? err : String(err));
       const errorText = rawMsg && !rawMsg.includes('[object Object]')
         ? rawMsg
-        : (lang === 'fa' ? 'ارتباط با دستیار برقرار نشد. لطفاً دوباره تلاش کنید.' :
-           lang === 'tr' ? 'Asistan ile bağlantı kurulamadı. Lütfen tekrar deneyin.' :
-           lang === 'ar' ? 'تعذر الاتصال بالمساعد الذكي. يرجى المحاولة مرة أخرى.' :
+        : (lang === 'fa' ? 'Ø§Ø±ØªØ¨Ø§Ø· Ø¨Ø§ Ø¯Ø³ØªÛŒØ§Ø± Ø¨Ø±Ù‚Ø±Ø§Ø± Ù†Ø´Ø¯. Ù„Ø·ÙØ§Ù‹ Ø¯ÙˆØ¨Ø§Ø±Ù‡ ØªÙ„Ø§Ø´ Ú©Ù†ÛŒØ¯.' :
+           lang === 'tr' ? 'Asistan ile baÄŸlantÄ± kurulamadÄ±. LÃ¼tfen tekrar deneyin.' :
+           lang === 'ar' ? 'ØªØ¹Ø°Ø± Ø§Ù„Ø§ØªØµØ§Ù„ Ø¨Ø§Ù„Ù…Ø³Ø§Ø¹Ø¯ Ø§Ù„Ø°ÙƒÙŠ. ÙŠØ±Ø¬Ù‰ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ù…Ø±Ø© Ø£Ø®Ø±Ù‰.' :
            'The assistant could not be reached. Please try again.');
       setChatMessages(prev => [...prev, { text: errorText, sender: 'bot', isError: true, lastUserText: userMsg }]);
     }
@@ -930,7 +930,7 @@ function MainApp() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           {/* Theme Switcher */}
           <button className="btn" onClick={toggleTheme} title={t('theme_toggle')}>
-            {theme === 'dark' ? '☀️' : '🌙'}
+            {theme === 'dark' ? 'â˜€ï¸' : 'ðŸŒ™'}
           </button>
 
           {/* Bilingual Selector */}
@@ -941,10 +941,10 @@ function MainApp() {
             onChange={(e) => changeLanguage(e.target.value)}
             style={{ width: '120px', padding: '6px' }}
           >
-            <option value="fa">فارسی</option>
+            <option value="fa">ÙØ§Ø±Ø³ÛŒ</option>
             <option value="en">English</option>
-            <option value="tr">Türkçe</option>
-            <option value="ar">العربية</option>
+            <option value="tr">TÃ¼rkÃ§e</option>
+            <option value="ar">Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©</option>
           </select>
         </div>
       </div>
@@ -952,9 +952,9 @@ function MainApp() {
       {/* Backend Unreachable Banner */}
       {backendState === 'UNREACHABLE' && (
         <ErrorState
-          title={lang === 'fa' ? "اتصال به سرور برقرار نیست" : "Backend Unreachable"}
+          title={lang === 'fa' ? "Ø§ØªØµØ§Ù„ Ø¨Ù‡ Ø³Ø±ÙˆØ± Ø¨Ø±Ù‚Ø±Ø§Ø± Ù†ÛŒØ³Øª" : "Backend Unreachable"}
           message={lang === 'fa'
-            ? "اتصال به سرور برقرار نیست. داده‌های نمایش‌داده‌شده جنبه آزمایشی دارند."
+            ? "Ø§ØªØµØ§Ù„ Ø¨Ù‡ Ø³Ø±ÙˆØ± Ø¨Ø±Ù‚Ø±Ø§Ø± Ù†ÛŒØ³Øª. Ø¯Ø§Ø¯Ù‡â€ŒÙ‡Ø§ÛŒ Ù†Ù…Ø§ÛŒØ´â€ŒØ¯Ø§Ø¯Ù‡â€ŒØ´Ø¯Ù‡ Ø¬Ù†Ø¨Ù‡ Ø¢Ø²Ù…Ø§ÛŒØ´ÛŒ Ø¯Ø§Ø±Ù†Ø¯."
             : "Real-time connection is offline. Displayed data is Demo/Mock."}
           onRetry={checkBackendStatus}
         />
@@ -968,15 +968,15 @@ function MainApp() {
           <a href={`/${lang}/features`} className={`sidebar-link ${routePath === '/features' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/features'); }}>{t('nav_features')}</a>
           <a href={`/${lang}/pricing`} className={`sidebar-link ${routePath === '/pricing' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/pricing'); }}>{t('nav_pricing')}</a>
           <a href={`/${lang}/blog`} className={`sidebar-link ${routePath === '/blog' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/blog'); }}>{t('nav_blog')}</a>
-          <a href={`/${lang}/guide`} className={`sidebar-link ${routePath === '/guide' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/guide'); }}>{t('nav_guide') || (lang === 'fa' ? '📚 راهنما' : '📚 Guide')}</a>
-          <a href={`/${lang}/faq`} className={`sidebar-link ${routePath === '/faq' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/faq'); }}>{t('nav_faq') || (lang === 'fa' ? '❓ سوالات متداول' : '❓ FAQ')}</a>
+          <a href={`/${lang}/guide`} className={`sidebar-link ${routePath === '/guide' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/guide'); }}>{t('nav_guide') || (lang === 'fa' ? 'ðŸ“š Ø±Ø§Ù‡Ù†Ù…Ø§' : 'ðŸ“š Guide')}</a>
+          <a href={`/${lang}/faq`} className={`sidebar-link ${routePath === '/faq' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/faq'); }}>{t('nav_faq') || (lang === 'fa' ? 'â“ Ø³ÙˆØ§Ù„Ø§Øª Ù…ØªØ¯Ø§ÙˆÙ„' : 'â“ FAQ')}</a>
           {token && <a href={`/${lang}/dashboard`} className={`sidebar-link ${routePath === '/dashboard' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/dashboard'); }}>{t('nav_terminal')}</a>}
 
           {/* Trading Modes Section */}
           {token && (
             <div style={{ margin: '10px 0', borderTop: '1px solid var(--border-dark)', paddingTop: '10px' }}>
               <div style={{ fontSize: '0.75em', textTransform: 'uppercase', color: 'var(--text-muted)', paddingLeft: '10px', marginBottom: '5px', fontWeight: 'bold' }}>
-                {lang === 'fa' ? 'حالت‌های معاملاتی' : lang === 'tr' ? 'İşlem Modları' : lang === 'ar' ? 'أنماط التداول' : 'TRADING MODES'}
+                {lang === 'fa' ? 'Ø­Ø§Ù„Øªâ€ŒÙ‡Ø§ÛŒ Ù…Ø¹Ø§Ù…Ù„Ø§ØªÛŒ' : lang === 'tr' ? 'Ä°ÅŸlem ModlarÄ±' : lang === 'ar' ? 'Ø£Ù†Ù…Ø§Ø· Ø§Ù„ØªØ¯Ø§ÙˆÙ„' : 'TRADING MODES'}
               </div>
               <a href={`/${lang}/backtest`} className={`sidebar-link ${routePath.startsWith('/backtest') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/backtest'); }}>{t('nav_backtest')}</a>
               <a href={`/${lang}/demo`} className={`sidebar-link ${routePath === '/demo' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/demo'); }}>{t('nav_demo')}</a>
@@ -988,7 +988,7 @@ function MainApp() {
           {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
           {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
           {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
-          {token && role === 'ADMIN' && <a href={`/${lang}/Operator`} className={`sidebar-link ${routePath === '/Operator' || routePath === '/operator' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/Operator'); }}>🤖 {lang === 'fa' ? 'اپراتور' : 'Operator'}</a>}
+          {token && role === 'ADMIN' && <a href={`/${lang}/Operator`} className={`sidebar-link ${routePath === '/Operator' || routePath === '/operator' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/Operator'); }}>ðŸ¤– {lang === 'fa' ? 'Ø§Ù¾Ø±Ø§ØªÙˆØ±' : 'Operator'}</a>}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {token && (
@@ -1106,8 +1106,8 @@ function MainApp() {
               {selectedPlan && (
                 <div className="card" style={{ borderTop: '4px solid var(--primary)', background: 'rgba(15, 23, 42, 0.98)', marginTop: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                    <h3 style={{ margin: 0, color: 'var(--primary)' }}>💎 {localizePlan(selectedPlan).name} {t('pricing_plan_details')}</h3>
-                    <button className="btn btn-secondary" onClick={() => setSelectedPlan(null)}>✕ {t('close')}</button>
+                    <h3 style={{ margin: 0, color: 'var(--primary)' }}>ðŸ’Ž {localizePlan(selectedPlan).name} {t('pricing_plan_details')}</h3>
+                    <button className="btn btn-secondary" onClick={() => setSelectedPlan(null)}>âœ• {t('close')}</button>
                   </div>
                   <div className="status-board" style={{ marginBottom: '20px' }}>
                     <MetricCard title={t('price')} value={selectedPlan.price_usd || selectedPlan.price} status="passed" />
@@ -1119,7 +1119,7 @@ function MainApp() {
                     {localizePlan(selectedPlan).features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
                   </ul>
                   <div style={{ display: 'flex', gap: '15px', marginTop: '25px' }}>
-                    <button className="btn" style={{ flex: 1 }} onClick={() => { setNotif({ show: true, msg: lang === 'fa' ? 'درخواست ارتقای پلن ثبت شد.' : 'Plan upgrade requested.', type: 'success' }); setSelectedPlan(null); }}>
+                    <button className="btn" style={{ flex: 1 }} onClick={() => { setNotif({ show: true, msg: lang === 'fa' ? 'Ø¯Ø±Ø®ÙˆØ§Ø³Øª Ø§Ø±ØªÙ‚Ø§ÛŒ Ù¾Ù„Ù† Ø«Ø¨Øª Ø´Ø¯.' : 'Plan upgrade requested.', type: 'success' }); setSelectedPlan(null); }}>
                       {t('choose_plan')}
                     </button>
                     <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setSelectedPlan(null)}>
@@ -1133,7 +1133,7 @@ function MainApp() {
               <div className="card" style={{ marginTop: '25px', borderTop: '4px solid var(--accent)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
                   <h3 style={{ margin: 0, color: 'var(--primary)' }}>
-                    🎯 {t('prop_challenge_title')}
+                    ðŸŽ¯ {t('prop_challenge_title')}
                   </h3>
                   <StatusBadge
                     status={propChallengeData && propChallengeData.is_configured ? "passed" : "neutral"}
@@ -1149,7 +1149,7 @@ function MainApp() {
                 {(!propChallengeData || !propChallengeData.is_configured) ? (
                   <div className="status-item" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
                     <div style={{ fontWeight: 'bold', color: 'var(--danger)', marginBottom: '5px' }}>
-                      ⚠️ {t('prop_not_configured')}
+                      âš ï¸ {t('prop_not_configured')}
                     </div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-dark)' }}>
                       {t('prop_config_prompt')}
@@ -1168,7 +1168,7 @@ function MainApp() {
                 {/* Rules Configuration Form */}
                 <form onSubmit={handleSavePropConfig} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginTop: '15px' }}>
                   <div>
-                    <label className="form-label">{lang === 'fa' ? 'نام شرکت پراپ / اکانت' : 'Prop Firm Designation'}</label>
+                    <label className="form-label">{lang === 'fa' ? 'Ù†Ø§Ù… Ø´Ø±Ú©Øª Ù¾Ø±Ø§Ù¾ / Ø§Ú©Ø§Ù†Øª' : 'Prop Firm Designation'}</label>
                     <input
                       type="text"
                       className="form-control"
@@ -1177,7 +1177,7 @@ function MainApp() {
                     />
                   </div>
                   <div>
-                    <label className="form-label">{lang === 'fa' ? 'سرمایه اولیه ($)' : 'Account Size ($)'}</label>
+                    <label className="form-label">{lang === 'fa' ? 'Ø³Ø±Ù…Ø§ÛŒÙ‡ Ø§ÙˆÙ„ÛŒÙ‡ ($)' : 'Account Size ($)'}</label>
                     <input
                       type="number"
                       className="form-control"
@@ -1186,7 +1186,7 @@ function MainApp() {
                     />
                   </div>
                   <div>
-                    <label className="form-label">{lang === 'fa' ? 'حد ضرر روزانه (%)' : 'Daily Loss Limit (%)'}</label>
+                    <label className="form-label">{lang === 'fa' ? 'Ø­Ø¯ Ø¶Ø±Ø± Ø±ÙˆØ²Ø§Ù†Ù‡ (%)' : 'Daily Loss Limit (%)'}</label>
                     <input
                       type="number"
                       step="0.1"
@@ -1196,7 +1196,7 @@ function MainApp() {
                     />
                   </div>
                   <div>
-                    <label className="form-label">{lang === 'fa' ? 'حداکثر افت سرمایه (%)' : 'Max Drawdown (%)'}</label>
+                    <label className="form-label">{lang === 'fa' ? 'Ø­Ø¯Ø§Ú©Ø«Ø± Ø§ÙØª Ø³Ø±Ù…Ø§ÛŒÙ‡ (%)' : 'Max Drawdown (%)'}</label>
                     <input
                       type="number"
                       step="0.1"
@@ -1206,7 +1206,7 @@ function MainApp() {
                     />
                   </div>
                   <div>
-                    <label className="form-label">{lang === 'fa' ? 'ریسک در هر معامله (%)' : 'Risk Per Trade (%)'}</label>
+                    <label className="form-label">{lang === 'fa' ? 'Ø±ÛŒØ³Ú© Ø¯Ø± Ù‡Ø± Ù…Ø¹Ø§Ù…Ù„Ù‡ (%)' : 'Risk Per Trade (%)'}</label>
                     <input
                       type="number"
                       step="0.1"
@@ -1216,7 +1216,7 @@ function MainApp() {
                     />
                   </div>
                   <div>
-                    <label className="form-label">{lang === 'fa' ? 'حداکثر پوزیشن همزمان' : 'Max Concurrent Positions'}</label>
+                    <label className="form-label">{lang === 'fa' ? 'Ø­Ø¯Ø§Ú©Ø«Ø± Ù¾ÙˆØ²ÛŒØ´Ù† Ù‡Ù…Ø²Ù…Ø§Ù†' : 'Max Concurrent Positions'}</label>
                     <input
                       type="number"
                       className="form-control"
@@ -1226,14 +1226,14 @@ function MainApp() {
                   </div>
                   <div style={{ gridColumn: '1 / -1', marginTop: '10px' }}>
                     <button type="submit" className="btn" style={{ width: '100%' }}>
-                      {lang === 'fa' ? 'ذخیره قوانین چالش و به روزرسانی گیت ریسک' : 'Save Challenge Rules & Activate Risk Gate'}
+                      {lang === 'fa' ? 'Ø°Ø®ÛŒØ±Ù‡ Ù‚ÙˆØ§Ù†ÛŒÙ† Ú†Ø§Ù„Ø´ Ùˆ Ø¨Ù‡ Ø±ÙˆØ²Ø±Ø³Ø§Ù†ÛŒ Ú¯ÛŒØª Ø±ÛŒØ³Ú©' : 'Save Challenge Rules & Activate Risk Gate'}
                     </button>
                   </div>
                 </form>
 
                 {/* Safety & Compliance Disclaimer */}
                 <div style={{ marginTop: '20px', padding: '12px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: '1.5', fontStyle: 'italic' }}>
-                  🛡️ {propChallengeData?.disclaimer || 'The YarTrader Prop Firm Challenge Plan provides objective risk control monitoring and compliance gates. It strictly does NOT guarantee passing prop firm evaluations, profits, approvals, or financial returns.'}
+                  ðŸ›¡ï¸ {propChallengeData?.disclaimer || 'The YarTrader Prop Firm Challenge Plan provides objective risk control monitoring and compliance gates. It strictly does NOT guarantee passing prop firm evaluations, profits, approvals, or financial returns.'}
                 </div>
               </div>
             </div>
@@ -1286,7 +1286,7 @@ function MainApp() {
                 {/* Simulation trigger bar */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', background: 'rgba(30, 41, 59, 0.4)', padding: '15px', borderRadius: '8px', marginBottom: '25px', alignItems: 'flex-end' }}>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">{lang === 'fa' ? 'نماد معامله' : 'Symbol'}</label>
+                    <label className="form-label">{lang === 'fa' ? 'Ù†Ù…Ø§Ø¯ Ù…Ø¹Ø§Ù…Ù„Ù‡' : 'Symbol'}</label>
                     <select className="select-field" style={{ width: '100%' }} value={backtestForm.symbol} onChange={(e) => setBacktestForm({ ...backtestForm, symbol: e.target.value })}>
                       <option value="XAUUSD">XAUUSD (Gold)</option>
                       <option value="BTCUSD">BTCUSD (Bitcoin)</option>
@@ -1294,7 +1294,7 @@ function MainApp() {
                     </select>
                   </div>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">{lang === 'fa' ? 'تایم‌فریم' : 'Timeframe'}</label>
+                    <label className="form-label">{lang === 'fa' ? 'ØªØ§ÛŒÙ…â€ŒÙØ±ÛŒÙ…' : 'Timeframe'}</label>
                     <select className="select-field" style={{ width: '100%' }} value={backtestForm.timeframe} onChange={(e) => setBacktestForm({ ...backtestForm, timeframe: e.target.value })}>
                       <option value="1">1 Tick Frame (Micro)</option>
                       <option value="4">4 Tick Frame (M5)</option>
@@ -1305,11 +1305,11 @@ function MainApp() {
                     </select>
                   </div>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label">{lang === 'fa' ? 'تعداد کندل/بار' : 'Candles Count'}</label>
+                    <label className="form-label">{lang === 'fa' ? 'ØªØ¹Ø¯Ø§Ø¯ Ú©Ù†Ø¯Ù„/Ø¨Ø§Ø±' : 'Candles Count'}</label>
                     <input className="input-field" type="number" value={backtestForm.bars} onChange={(e) => setBacktestForm({ ...backtestForm, bars: e.target.value })} />
                   </div>
                   <button className="btn" style={{ width: '100%', height: '42px' }} onClick={runBacktestExecution} disabled={backtestRunning}>
-                    {backtestRunning ? (lang === 'fa' ? 'در حال اجرا...' : 'Running...') : t('backtest_run_new')}
+                    {backtestRunning ? (lang === 'fa' ? 'Ø¯Ø± Ø­Ø§Ù„ Ø§Ø¬Ø±Ø§...' : 'Running...') : t('backtest_run_new')}
                   </button>
                 </div>
 
@@ -1326,7 +1326,7 @@ function MainApp() {
                     status="primary"
                   />
                   <MetricCard
-                    title={lang === 'fa' ? 'وضعیت ارزیابی' : 'Validation Status'}
+                    title={lang === 'fa' ? 'ÙˆØ¶Ø¹ÛŒØª Ø§Ø±Ø²ÛŒØ§Ø¨ÛŒ' : 'Validation Status'}
                     value={backtestRuns && backtestRuns[0] && backtestRuns[0].provenance_status ? backtestRuns[0].provenance_status : "NOT REPORTED"}
                     status="passed"
                   />
@@ -1347,7 +1347,7 @@ function MainApp() {
                     run.sharpe_ratio || 'DATA UNAVAILABLE',
                     <StatusBadge status="passed" label={run.leakage_audit || 'NOT REPORTED'} />
                   ])}
-                  emptyMessage={lang === 'fa' ? 'هیچ بک‌تستی ثبت نشده است. از پنل بالا بک‌تست جدید اجرا کنید.' : 'No backtest runs found. Execute a new backtest using the panel above.'}
+                  emptyMessage={lang === 'fa' ? 'Ù‡ÛŒÚ† Ø¨Ú©â€ŒØªØ³ØªÛŒ Ø«Ø¨Øª Ù†Ø´Ø¯Ù‡ Ø§Ø³Øª. Ø§Ø² Ù¾Ù†Ù„ Ø¨Ø§Ù„Ø§ Ø¨Ú©â€ŒØªØ³Øª Ø¬Ø¯ÛŒØ¯ Ø§Ø¬Ø±Ø§ Ú©Ù†ÛŒØ¯.' : 'No backtest runs found. Execute a new backtest using the panel above.'}
                 />
               </div>
             </div>
@@ -1364,7 +1364,7 @@ function MainApp() {
             <div id="shell-live">
               <div className="card" style={{ borderTop: '6px solid var(--danger)', backgroundColor: 'rgba(194, 74, 62, 0.05)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
-                  <div style={{ fontSize: '2.5em' }}>🛑</div>
+                  <div style={{ fontSize: '2.5em' }}>ðŸ›‘</div>
                   <div>
                     <h2 style={{ margin: 0, color: 'var(--danger)' }}>{t('live_title')}</h2>
                     <div style={{ fontSize: '0.9em', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -1374,7 +1374,7 @@ function MainApp() {
                 </div>
 
                 <div style={{ background: 'rgba(194, 74, 62, 0.15)', border: '1px solid var(--danger)', borderRadius: '8px', padding: '20px', margin: '20px 0' }}>
-                  <h3 style={{ color: 'var(--danger)', marginTop: 0 }}>⚠️ HARD BLOCKED: Live Real-Money Execution Disabled</h3>
+                  <h3 style={{ color: 'var(--danger)', marginTop: 0 }}>âš ï¸ HARD BLOCKED: Live Real-Money Execution Disabled</h3>
                   <p style={{ lineHeight: '1.7', fontSize: '0.95em' }}>
                     {t('live_desc')}
                   </p>
@@ -1394,164 +1394,21 @@ function MainApp() {
             </div>
           )}
 
-          {/* CUSTOMER FINANCIAL TERMINAL SHELL (COMMAND CENTER) */}
           {routePath === '/dashboard' && (
-            <div id="shell-terminal">
-              {/* Institutional Environment & Command Header */}
-              <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--primary)', background: 'linear-gradient(180deg, rgba(18, 30, 44, 0.9) 0%, rgba(11, 20, 32, 0.95) 100%)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
-                  <div>
-                    <h2 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.4rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span>🏛️</span> {t('terminal_title')}
-                    </h2>
-                    <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '0.85rem' }}>
-                      {t('terminal_desc')}
-                    </p>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(227, 168, 59, 0.15)', color: 'var(--primary)', border: '1px solid var(--primary)', fontWeight: 'bold' }}>
-                      ENVIRONMENT: {backendState === 'LIVE' ? 'LIVE MT4' : (backendState === 'UNREACHABLE' ? 'UNREACHABLE' : 'DEMO PAPER')}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
-                      SAFETY GATE: {backendState === 'UNREACHABLE' ? 'UNREACHABLE' : (devopsStatus && devopsStatus.live_trading_enabled ? 'LIVE ACTIVE' : 'FAIL-CLOSED (LIVE DISABLED)')}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', padding: '4px 10px', borderRadius: '4px', background: 'rgba(79, 182, 199, 0.15)', color: 'var(--signal)', border: '1px solid var(--signal)', fontWeight: 'bold' }}>
-                      DATA: {backendState === 'LIVE' ? 'LIVE INGESTION' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : 'MOCK / DEMO INGESTION')}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Market State & Intelligence Command Status Grid */}
-                <div className="status-board" style={{ margin: '15px 0 0 0' }}>
-                  <MetricCard title="Market State" value={signals && signals[0] ? (signals[0].posture || 'QUALIFIED') : 'DATA UNAVAILABLE'} status="passed" />
-                  <MetricCard title="Inference" value={signals && signals[0] ? (signals[0].reason || signals[0].narrative || 'QUALIFIED SETUP') : 'DATA UNAVAILABLE'} status="primary" />
-                  <MetricCard title="Confidence" value={signals && signals[0] && signals[0].confidence != null ? `${signals[0].confidence}%` : 'DATA UNAVAILABLE'} status="passed" />
-                  <MetricCard title="Risk Posture" value={portfolioRisk && portfolioRisk.drawdown_level ? 'DRAWDOWN: ' + portfolioRisk.drawdown_level : 'BALANCED'} status="passed" />
-                  <MetricCard title="Execution Eligibility" value={backendState === 'LIVE' ? 'LIVE ELIGIBLE' : (backendState === 'UNREACHABLE' ? 'DATA UNAVAILABLE' : (demoReport && demoReport.account_id ? 'DEMO ELIGIBLE' : 'NOT VERIFIED'))} status="passed" />
-                </div>
-              </div>
-
-              {/* Chart Container Abstraction Component */}
-              <ChartContainer
-                title={`${selectedAsset === 'gold' ? 'XAUUSD (Gold)' : selectedAsset === 'bitcoin' ? 'BTCUSD (Bitcoin)' : selectedAsset === 'euro' ? 'EURUSD (Euro)' : 'Multi-Asset Overview'} - ${activeHorizon.toUpperCase()} Horizon`}
-                subtitle="Pure Price Action, Market Structure & Liquidity Map"
-                activeTimeframe={activeHorizon === 'micro' ? 'M1' : activeHorizon === 'short' ? 'M15' : activeHorizon === 'medium' ? 'H1' : 'D1'}
-              >
-                <div className="p-4 bg-slate-900/60 border border-[var(--border-dark)] rounded flex flex-col gap-2">
-                  <div className="flex justify-between items-center text-xs text-[var(--primary)] font-bold">
-                    <span>STRUCTURE MAP (HH / HL / LH / LL)</span>
-                    <ConfidenceBadge score={signals[0]?.confidence || 85} />
-                  </div>
-                  <div className="text-[0.75rem] text-[var(--text-dark)] leading-relaxed">
-                    Market structure showing strong bullish alignment across canonical timeframes. Zero classical technical indicators are used.
-                  </div>
-                </div>
-              </ChartContainer>
-
-              <div className="card">
-                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('terminal_title')}</h2>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('terminal_desc')}</p>
-
-                {/* Horizons tabs and Asset selector */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginBottom: '25px', backgroundColor: 'rgba(30, 41, 59, 0.3)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border-dark)', alignItems: 'center' }}>
-                  {['micro', 'short', 'medium', 'macro'].map((hType) => (
-                    <button
-                      key={hType}
-                      className="btn"
-                      style={{
-                        flex: 1,
-                        padding: '10px',
-                        backgroundColor: activeHorizon === hType ? 'var(--primary)' : 'transparent',
-                        color: activeHorizon === hType ? 'white' : 'var(--text-muted)'
-                      }}
-                      onClick={() => setActiveHorizon(hType)}
-                    >
-                      {hType === 'micro' && `⚡ ${t('horizon_micro') || 'Micro'}`}
-                      {hType === 'short' && `📊 ${t('horizon_short') || 'Short'}`}
-                      {hType === 'medium' && `📈 ${t('horizon_medium') || 'Medium'}`}
-                      {hType === 'macro' && `💎 ${t('horizon_macro') || 'Macro'}`}
-                    </button>
-                  ))}
-
-                  <select
-                    className="select-field"
-                    value={selectedAsset}
-                    onChange={(e) => setSelectedAsset(e.target.value)}
-                    style={{ minWidth: '150px' }}
-                  >
-                    <option value="all">🌐 All Assets</option>
-                    <option value="gold">🏆 XAUUSD (Gold)</option>
-                    <option value="bitcoin">₿ BTCUSD (Bitcoin)</option>
-                    <option value="euro">💶 EURUSD (Euro)</option>
-                  </select>
-                </div>
-
-                {/* Signals Feed Grid */}
-                <div className="blog-grid">
-                  {signals && Array.isArray(signals) && signals.length > 0 ? (
-                    signals
-                      .filter(s => {
-                        if (selectedAsset === 'all') return true;
-                        const sym = s.symbol ? s.symbol.toUpperCase() : '';
-                        if (selectedAsset === 'gold' && sym.includes('XAU')) return true;
-                        if (selectedAsset === 'bitcoin' && (sym.includes('BTC') || sym.includes('BITCOIN'))) return true;
-                        if (selectedAsset === 'euro' && sym.includes('EUR')) return true;
-                        return s.symbol_class === selectedAsset;
-                      })
-                      .map((sig, idx) => (
-                        <IntelligenceCard
-                          key={idx}
-                          symbol={sig.symbol}
-                          posture={sig.posture || sig.direction}
-                          timeframe={sig.timeframe}
-                          confidence={sig.confidence}
-                          entry={sig.entry_zone}
-                          target={sig.target_zone}
-                          invalidation={sig.invalidation_level}
-                          narrative={sig.narrative || sig.reason}
-                        />
-                      ))
-                  ) : (
-                    <EmptyState
-                      title="No signals active for this horizon."
-                      description="No setups passed all qualification and risk gates for this timeframe."
-                      className="grid-col-span-full"
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Equity Growth simulator */}
-              <div className="card">
-                <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>{t('compounding_title')}</h3>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-                  <div className="form-group">
-                    <label className="form-label">{t('compounding_initial')}</label>
-                    <input className="input-field" type="number" value={compounding.simBalance} onChange={(e) => setCompounding({ ...compounding, simBalance: e.target.value })} />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Monthly Growth %</label>
-                    <input className="input-field" type="number" value={compounding.simYield} onChange={(e) => setCompounding({ ...compounding, simYield: e.target.value })} step="0.1" />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Months Duration</label>
-                    <input className="input-field" type="number" value={compounding.simMonths} onChange={(e) => setCompounding({ ...compounding, simMonths: e.target.value })} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '18px' }}>
-                    <button className="btn" style={{ width: '100%' }} onClick={runCompoundingSimulation}>{t('simulate_btn')}</button>
-                  </div>
-                </div>
-
-                <div className="status-board">
-                  <MetricCard title={t('compounding_initial')} value={compounding.initial} status="neutral" />
-                  <MetricCard title={t('compounding_projected')} value={compounding.final} status="passed" />
-                  <MetricCard title={t('compounding_yield')} value={compounding.growth} status="passed" />
-                </div>
-              </div>
-            </div>
+            <DashboardView
+              t={t}
+              lang={lang}
+              backendState={backendState}
+              devopsStatus={devopsStatus}
+              signals={signals}
+              demoReport={demoReport}
+              selectedAsset={selectedAsset}
+              setSelectedAsset={setSelectedAsset}
+              activeHorizon={activeHorizon}
+              setActiveHorizon={setActiveHorizon}
+              portfolioRisk={portfolioRisk}
+            />
           )}
-
           {/* EXECUTION INTELLIGENCE ZONE */}
           {routePath === '/execution-intel' && (
             <div id="shell-execution-intel">
@@ -1559,7 +1416,7 @@ function MainApp() {
               <div className="card" style={{ marginBottom: '20px', borderTop: '4px solid var(--primary)', background: 'linear-gradient(180deg, rgba(18, 30, 44, 0.95) 0%, rgba(11, 20, 32, 0.9) 100%)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                   <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: '1.2rem', fontWeight: 'bold' }}>
-                    ⚡ 5-Stage Institutional Execution Cascade
+                    âš¡ 5-Stage Institutional Execution Cascade
                   </h3>
                   <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '4px', background: 'rgba(76, 154, 106, 0.15)', color: 'var(--accent)', border: '1px solid var(--accent)', fontWeight: 'bold' }}>
                     SRE AUDITED PIPELINE
@@ -1598,7 +1455,7 @@ function MainApp() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '25px' }}>
                 <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>📈 Market Structure Map (Pure Price Action)</h3>
+                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>ðŸ“ˆ Market Structure Map (Pure Price Action)</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '15px' }}>
                     Tracks Swing Highs and Lows chronologically. Zero technical indicators are used.
                   </p>
@@ -1610,7 +1467,7 @@ function MainApp() {
                 </div>
 
                 <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🧱 Institutional Supply/Demand Zones</h3>
+                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>ðŸ§± Institutional Supply/Demand Zones</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '15px' }}>
                     Identifies Order Blocks and Fair Value Gaps (FVG) with freshness metrics.
                   </p>
@@ -1643,7 +1500,7 @@ function MainApp() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🌐 Multi-Timeframe Structural Alignment</h3>
+                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>ðŸŒ Multi-Timeframe Structural Alignment</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '20px' }}>
                     Synthesizes trend alignment from higher timeframes (D1/H4) down to the execution frame.
                   </p>
@@ -1657,7 +1514,7 @@ function MainApp() {
                 </div>
 
                 <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🧠 Pattern Similarity Intelligence Feed</h3>
+                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>ðŸ§  Pattern Similarity Intelligence Feed</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '20px' }}>
                     Matches the current market structure signature with the 4-layered memory system.
                   </p>
@@ -1674,11 +1531,11 @@ function MainApp() {
 
                   {/* Fractal Intelligence Status Card */}
                   <div style={{ marginTop: '20px', background: 'rgba(30, 41, 59, 0.3)', border: '1px solid var(--primary)', borderRadius: '10px', padding: '18px' }}>
-                    <h4 style={{ color: 'var(--primary)', margin: '0 0 10px 0' }}>💠 Fractal Intelligence Status</h4>
+                    <h4 style={{ color: 'var(--primary)', margin: '0 0 10px 0' }}>ðŸ’  Fractal Intelligence Status</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.88rem' }}>
                       <div><strong>Status:</strong> <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>CONNECTED</span></div>
-                      <div><strong>Fractal Score:</strong> <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>—</span></div>
-                      <div><strong>Similarity Score:</strong> <span style={{ color: 'var(--warning)', fontWeight: 'bold' }}>—</span></div>
+                      <div><strong>Fractal Score:</strong> <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>â€”</span></div>
+                      <div><strong>Similarity Score:</strong> <span style={{ color: 'var(--warning)', fontWeight: 'bold' }}>â€”</span></div>
                       <div><strong>Scale State:</strong> <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>Awaiting live evidence</span></div>
                     </div>
                   </div>
@@ -1727,8 +1584,8 @@ function MainApp() {
                     ))
                   ) : (
                     <EmptyState
-                      title={lang === 'fa' ? 'هیچ سیگنال معتبری در این بخش فعال نیست' : 'No qualified signals in this tab'}
-                      description={lang === 'fa' ? 'علت: هیچ چیدمانی از تمامی فیلترهای ارزیابی و ریسک عبور نکرده است.' : 'Reason: No setup passed all qualification and risk gates.'}
+                      title={lang === 'fa' ? 'Ù‡ÛŒÚ† Ø³ÛŒÚ¯Ù†Ø§Ù„ Ù…Ø¹ØªØ¨Ø±ÛŒ Ø¯Ø± Ø§ÛŒÙ† Ø¨Ø®Ø´ ÙØ¹Ø§Ù„ Ù†ÛŒØ³Øª' : 'No qualified signals in this tab'}
+                      description={lang === 'fa' ? 'Ø¹Ù„Øª: Ù‡ÛŒÚ† Ú†ÛŒØ¯Ù…Ø§Ù†ÛŒ Ø§Ø² ØªÙ…Ø§Ù…ÛŒ ÙÛŒÙ„ØªØ±Ù‡Ø§ÛŒ Ø§Ø±Ø²ÛŒØ§Ø¨ÛŒ Ùˆ Ø±ÛŒØ³Ú© Ø¹Ø¨ÙˆØ± Ù†Ú©Ø±Ø¯Ù‡ Ø§Ø³Øª.' : 'Reason: No setup passed all qualification and risk gates.'}
                     />
                   )}
                 </div>
@@ -1754,7 +1611,7 @@ function MainApp() {
 
               {/* Performance Table */}
               <div className="card">
-                <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>📈 Multi-Timeframe Pattern Performance Table</h3>
+                <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>ðŸ“ˆ Multi-Timeframe Pattern Performance Table</h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginBottom: '15px' }}>
                   Click any pattern row to inspect detailed statistical evidence and failure information.
                 </p>
@@ -1770,10 +1627,10 @@ function MainApp() {
                     item.average_mfe || 'DATA UNAVAILABLE',
                     <StatusBadge status="passed" label={item.sample_count >= 30 ? 'VALIDATED' : 'PRELIMINARY'} />,
                     <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.8em' }} onClick={() => setSelectedPattern(item)}>
-                      {lang === 'fa' ? 'مشاهده' : 'Inspect'}
+                      {lang === 'fa' ? 'Ù…Ø´Ø§Ù‡Ø¯Ù‡' : 'Inspect'}
                     </button>
                   ])}
-                  emptyMessage={lang === 'fa' ? 'در حال بارگذاری الگوها...' : 'Loading pattern matrix data...'}
+                  emptyMessage={lang === 'fa' ? 'Ø¯Ø± Ø­Ø§Ù„ Ø¨Ø§Ø±Ú¯Ø°Ø§Ø±ÛŒ Ø§Ù„Ú¯ÙˆÙ‡Ø§...' : 'Loading pattern matrix data...'}
                 />
               </div>
 
@@ -1781,8 +1638,8 @@ function MainApp() {
               {selectedPattern && (
                 <div className="card" style={{ borderTop: '4px solid var(--accent)', background: 'rgba(15, 23, 42, 0.95)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                    <h3 style={{ margin: 0, color: 'var(--accent)' }}>🔎 {selectedPattern.pattern_name} ({selectedPattern.pattern_key})</h3>
-                    <button className="btn btn-secondary" onClick={() => setSelectedPattern(null)}>✕ Close</button>
+                    <h3 style={{ margin: 0, color: 'var(--accent)' }}>ðŸ”Ž {selectedPattern.pattern_name} ({selectedPattern.pattern_key})</h3>
+                    <button className="btn btn-secondary" onClick={() => setSelectedPattern(null)}>âœ• Close</button>
                   </div>
                   <div className="status-board">
                     <MetricCard title="Sample Size (N)" value={selectedPattern.sample_count} status="neutral" />
@@ -1811,12 +1668,12 @@ function MainApp() {
               {/* Top Navigation Sub-tabs for Admin Drill-down */}
               <div className="card" style={{ borderBottom: '2px solid var(--border-dark)', marginBottom: '20px', paddingBottom: '10px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' }}>
-                  <h2 style={{ color: 'var(--primary)', margin: 0 }}>🛡️ YarTrader SRE Operational Control Center</h2>
+                  <h2 style={{ color: 'var(--primary)', margin: 0 }}>ðŸ›¡ï¸ YarTrader SRE Operational Control Center</h2>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                     <input
                       className="input-field"
                       type="text"
-                      placeholder={lang === 'fa' ? 'جستجو در سیستم...' : 'Search admin area...'}
+                      placeholder={lang === 'fa' ? 'Ø¬Ø³ØªØ¬Ùˆ Ø¯Ø± Ø³ÛŒØ³ØªÙ…...' : 'Search admin area...'}
                       value={adminSearchQuery}
                       onChange={(e) => setAdminSearchQuery(e.target.value)}
                       style={{ width: '220px', padding: '6px 12px', fontSize: '0.88rem' }}
@@ -1829,14 +1686,14 @@ function MainApp() {
 
                 <div className="sub-nav-tabs" style={{ marginBottom: 0, borderBottom: 'none' }}>
                   {[
-                    { id: 'overview', label: lang === 'fa' ? '📊 خلاصه اجرایی' : '📊 Executive Overview' },
-                    { id: 'system', label: lang === 'fa' ? '⚙️ وضعیت سیستم' : '⚙️ System Status' },
-                    { id: 'data', label: lang === 'fa' ? '📡 جریان داده' : '📡 Data Ingestion' },
-                    { id: 'trading', label: lang === 'fa' ? '🎮 ایمنی معاملات' : '🎮 Trading Safety' },
-                    { id: 'intelligence', label: lang === 'fa' ? '🧠 سیگنال و مدل' : '🧠 Intelligence' },
-                    { id: 'users', label: lang === 'fa' ? '👥 کاربران' : '👥 User Management' },
-                    { id: 'errors', label: lang === 'fa' ? '⚠️ خطاها و هشدارها' : '⚠️ Error Feed' },
-                    { id: 'audit', label: lang === 'fa' ? '📜 دفتر ثبت وقایع (Audit)' : '📜 Audit Trail' }
+                    { id: 'overview', label: lang === 'fa' ? 'ðŸ“Š Ø®Ù„Ø§ØµÙ‡ Ø§Ø¬Ø±Ø§ÛŒÛŒ' : 'ðŸ“Š Executive Overview' },
+                    { id: 'system', label: lang === 'fa' ? 'âš™ï¸ ÙˆØ¶Ø¹ÛŒØª Ø³ÛŒØ³ØªÙ…' : 'âš™ï¸ System Status' },
+                    { id: 'data', label: lang === 'fa' ? 'ðŸ“¡ Ø¬Ø±ÛŒØ§Ù† Ø¯Ø§Ø¯Ù‡' : 'ðŸ“¡ Data Ingestion' },
+                    { id: 'trading', label: lang === 'fa' ? 'ðŸŽ® Ø§ÛŒÙ…Ù†ÛŒ Ù…Ø¹Ø§Ù…Ù„Ø§Øª' : 'ðŸŽ® Trading Safety' },
+                    { id: 'intelligence', label: lang === 'fa' ? 'ðŸ§  Ø³ÛŒÚ¯Ù†Ø§Ù„ Ùˆ Ù…Ø¯Ù„' : 'ðŸ§  Intelligence' },
+                    { id: 'users', label: lang === 'fa' ? 'ðŸ‘¥ Ú©Ø§Ø±Ø¨Ø±Ø§Ù†' : 'ðŸ‘¥ User Management' },
+                    { id: 'errors', label: lang === 'fa' ? 'âš ï¸ Ø®Ø·Ø§Ù‡Ø§ Ùˆ Ù‡Ø´Ø¯Ø§Ø±Ù‡Ø§' : 'âš ï¸ Error Feed' },
+                    { id: 'audit', label: lang === 'fa' ? 'ðŸ“œ Ø¯ÙØªØ± Ø«Ø¨Øª ÙˆÙ‚Ø§ÛŒØ¹ (Audit)' : 'ðŸ“œ Audit Trail' }
                   ].map((tab) => (
                     <div
                       key={tab.id}
@@ -1862,7 +1719,7 @@ function MainApp() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '25px' }}>
                     <div className="card">
-                      <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>⚡ System Health & Ingestion Summary</h3>
+                      <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>âš¡ System Health & Ingestion Summary</h3>
                       <div style={{ lineHeight: '2', fontSize: '0.9rem' }}>
                         <div><strong>Service Runtime:</strong> <span style={{ color: 'var(--accent)' }}>{devopsStatus && devopsStatus.status ? devopsStatus.status.toUpperCase() : 'DATA UNAVAILABLE'}</span></div>
                         <div><strong>Background Scheduler Loop:</strong> <span style={{ color: devopsStatus && devopsStatus.scheduler_active != null ? 'var(--accent)' : 'var(--text-muted)' }}>{devopsStatus && devopsStatus.scheduler_active != null ? (devopsStatus.scheduler_active ? 'ACTIVE' : 'STOPPED') : 'DATA UNAVAILABLE'}</span></div>
@@ -1872,7 +1729,7 @@ function MainApp() {
                     </div>
 
                     <div className="card">
-                      <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🎮 Trading Modes Activity</h3>
+                      <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>ðŸŽ® Trading Modes Activity</h3>
                       <div style={{ lineHeight: '2', fontSize: '0.9rem' }}>
                         <div><strong>Backtest Engine:</strong> {backtestRuns.length} historical simulations recorded</div>
                         <div><strong>Broker Demo Trades:</strong> {demoTrades.length} orders executed (Account #52961173)</div>
@@ -1886,7 +1743,7 @@ function MainApp() {
               {/* ADMIN TAB 2: SYSTEM STATUS */}
               {adminTab === 'system' && (
                 <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>⚙️ Service Subsystem Operational Monitors</h3>
+                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>âš™ï¸ Service Subsystem Operational Monitors</h3>
                   <div className="status-board" style={{ marginBottom: '20px' }}>
                     <MetricCard title="System API" value={devopsStatus && devopsStatus.system_health ? devopsStatus.system_health.toUpperCase() : "DATA UNAVAILABLE"} status="passed" />
                     <MetricCard title="MT5 Provider Link" value={devopsStatus && devopsStatus.api_connected != null ? (devopsStatus.api_connected ? "CONNECTED" : "DISCONNECTED") : "DATA UNAVAILABLE"} status="passed" />
@@ -1923,7 +1780,7 @@ function MainApp() {
               {/* ADMIN TAB 3: DATA INGESTION */}
               {adminTab === 'data' && (
                 <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>📡 Real-Time Market Data Ingestion Pipeline</h3>
+                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>ðŸ“¡ Real-Time Market Data Ingestion Pipeline</h3>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px' }}>
                     Monitors feed freshness, candle completeness, and missing tick detection.
                   </p>
@@ -1944,9 +1801,9 @@ function MainApp() {
               {/* ADMIN TAB 4: TRADING SAFETY */}
               {adminTab === 'trading' && (
                 <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--danger)' }}>🎮 Trading Execution Safety & Broker Boundaries</h3>
+                  <h3 style={{ marginTop: 0, color: 'var(--danger)' }}>ðŸŽ® Trading Execution Safety & Broker Boundaries</h3>
                   <div style={{ background: 'rgba(194, 74, 62, 0.1)', border: '1px solid var(--danger)', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
-                    <h4 style={{ margin: 0, color: 'var(--danger)' }}>🛑 LIVE TRADING HARD ISOLATION GATE</h4>
+                    <h4 style={{ margin: 0, color: 'var(--danger)' }}>ðŸ›‘ LIVE TRADING HARD ISOLATION GATE</h4>
                     <p style={{ fontSize: '0.9rem', marginTop: '8px', lineHeight: '1.6' }}>
                       The SRE Safety Gate prevents real-money order routing under all conditions (`LIVE_TRADING_ENABLED=False`).
                       Execution is strictly restricted to MT5 Demo (#52961173).
@@ -1958,7 +1815,7 @@ function MainApp() {
               {/* ADMIN TAB 5: INTELLIGENCE */}
               {adminTab === 'intelligence' && (
                 <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>🧠 Intelligence Engine & SCM Reports</h3>
+                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>ðŸ§  Intelligence Engine & SCM Reports</h3>
                   <DataTable
                     headers={[t('col_symbol'), t('col_timeframe'), 'Evaluation Cycles', t('col_wins_losses'), t('col_win_rate'), t('col_avg_confidence')]}
                     rows={adminReports.map(rep => [
@@ -1977,7 +1834,7 @@ function MainApp() {
               {/* ADMIN TAB 6: USER MANAGEMENT */}
               {adminTab === 'users' && (
                 <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>👥 User Accounts & Access Control</h3>
+                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>ðŸ‘¥ User Accounts & Access Control</h3>
                   <DataTable
                     headers={['Name', 'Email', 'Role', 'Subscription Tier', 'Auth Providers', 'Status']}
                     rows={adminUsers.map(u => [
@@ -1998,7 +1855,7 @@ function MainApp() {
               {/* ADMIN TAB 7: ERROR FEED */}
               {adminTab === 'errors' && (
                 <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--warning)' }}>⚠️ System Error Feed & Exception Log</h3>
+                  <h3 style={{ marginTop: 0, color: 'var(--warning)' }}>âš ï¸ System Error Feed & Exception Log</h3>
                   <div style={{ background: '#020408', padding: '15px', borderRadius: '8px', color: '#38BDF8', fontFamily: 'monospace', fontSize: '0.85rem' }}>
                     <div>[INFO] System initialized cleanly. Zero unhandled exceptions.</div>
                     <div>[INFO] Live Trading Safety Gate active (`LIVE_TRADING_ENABLED=False`).</div>
@@ -2010,7 +1867,7 @@ function MainApp() {
               {/* ADMIN TAB 8: AUDIT TRAIL */}
               {adminTab === 'audit' && (
                 <div className="card">
-                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>📜 Chronological System Event Audit Trail</h3>
+                  <h3 style={{ marginTop: 0, color: 'var(--primary)' }}>ðŸ“œ Chronological System Event Audit Trail</h3>
                   <DataTable
                     headers={['Event ID', 'Timestamp', 'Subsystem', 'Action Event', 'Severity', 'Details']}
                     rows={[
@@ -2033,7 +1890,7 @@ function MainApp() {
                     <div style={{ marginTop: '20px', padding: '15px', background: 'rgba(30, 41, 59, 0.5)', border: '1px solid var(--border-dark)', borderRadius: '8px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <h4 style={{ margin: 0, color: 'var(--primary)' }}>Event Details: {selectedAuditTrail.id}</h4>
-                        <button className="btn btn-secondary" style={{ padding: '2px 8px' }} onClick={() => setSelectedAuditTrail(null)}>✕ Close</button>
+                        <button className="btn btn-secondary" style={{ padding: '2px 8px' }} onClick={() => setSelectedAuditTrail(null)}>âœ• Close</button>
                       </div>
                       <p style={{ marginTop: '10px', fontSize: '0.9rem' }}>
                         Subsystem: {selectedAuditTrail.sys} | Action: {selectedAuditTrail.action}
@@ -2055,10 +1912,10 @@ function MainApp() {
           {routePath === '/login' && (
             <div id="shell-login">
               <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)', textAlign: 'center' }}>
-                <h2 style={{ marginBottom: '10px' }}>{t('login_title') || (lang === 'fa' ? 'ورود به YarTrader' : 'Sign in to YarTrader')}</h2>
+                <h2 style={{ marginBottom: '10px' }}>{t('login_title') || (lang === 'fa' ? 'ÙˆØ±ÙˆØ¯ Ø¨Ù‡ YarTrader' : 'Sign in to YarTrader')}</h2>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
                   {lang === 'fa'
-                    ? 'ورود کاربران فقط با حساب Google انجام می‌شود.'
+                    ? 'ÙˆØ±ÙˆØ¯ Ú©Ø§Ø±Ø¨Ø±Ø§Ù† ÙÙ‚Ø· Ø¨Ø§ Ø­Ø³Ø§Ø¨ Google Ø§Ù†Ø¬Ø§Ù… Ù…ÛŒâ€ŒØ´ÙˆØ¯.'
                     : 'Customer sign-in is available only through Google.'}
                 </p>
                 <button
@@ -2067,10 +1924,10 @@ function MainApp() {
                   style={{ width: '100%', padding: '13px', fontSize: '1em', justifyContent: 'center' }}
                   onClick={() => handleSocialLogin('Google')}
                 >
-                  <span>🌐</span> {lang === 'fa' ? 'ادامه با Google' : 'Continue with Google'}
+                  <span>ðŸŒ</span> {lang === 'fa' ? 'Ø§Ø¯Ø§Ù…Ù‡ Ø¨Ø§ Google' : 'Continue with Google'}
                 </button>
                 <div style={{ marginTop: '18px', fontSize: '0.82em', color: 'var(--text-muted)' }}>
-                  {lang === 'fa' ? 'حساب و احراز هویت مشتری از مسیر Google مدیریت می‌شود.' : 'Customer identity is managed through Google.'}
+                  {lang === 'fa' ? 'Ø­Ø³Ø§Ø¨ Ùˆ Ø§Ø­Ø±Ø§Ø² Ù‡ÙˆÛŒØª Ù…Ø´ØªØ±ÛŒ Ø§Ø² Ù…Ø³ÛŒØ± Google Ù…Ø¯ÛŒØ±ÛŒØª Ù…ÛŒâ€ŒØ´ÙˆØ¯.' : 'Customer identity is managed through Google.'}
                 </div>
               </div>
             </div>
@@ -2085,7 +1942,7 @@ function MainApp() {
             <div className="ai-pulse"></div>
             <span>{t('assistant_title')}</span>
           </div>
-          <span>▲ / ▼</span>
+          <span>â–² / â–¼</span>
         </div>
         {chatOpen && (
           <div className="chatbot-body" id="chat-body" style={{ display: 'flex' }}>
@@ -2103,7 +1960,7 @@ function MainApp() {
                         sendChatMessage(retryText);
                       }}
                     >
-                      {lang === 'fa' ? 'تلاش مجدد 🔄' : lang === 'tr' ? 'Tekrar Dene 🔄' : lang === 'ar' ? 'إعادة المحاولة 🔄' : 'Retry 🔄'}
+                      {lang === 'fa' ? 'ØªÙ„Ø§Ø´ Ù…Ø¬Ø¯Ø¯ ðŸ”„' : lang === 'tr' ? 'Tekrar Dene ðŸ”„' : lang === 'ar' ? 'Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© ðŸ”„' : 'Retry ðŸ”„'}
                     </button>
                   )}
                 </div>
@@ -2114,9 +1971,9 @@ function MainApp() {
             {/* Quick Context-Aware Prompts */}
             <div style={{ display: 'flex', gap: '6px', padding: '6px 12px', overflowX: 'auto', background: 'rgba(15, 23, 42, 0.4)', borderTop: '1px solid var(--border-dark)' }}>
               {[
-                { label: lang === 'fa' ? 'دلیل این تصمیم؟' : 'Why this decision?', text: 'چرا این تصمیم گرفته شد؟' },
-                { label: lang === 'fa' ? 'یادگیری هوش؟' : 'What is learned?', text: 'سیستم از بازار چه چیزی یاد گرفته؟' },
-                { label: lang === 'fa' ? 'علت عدم معامله؟' : 'Why no trade?', text: 'چرا معامله صورت نگرفت؟' }
+                { label: lang === 'fa' ? 'Ø¯Ù„ÛŒÙ„ Ø§ÛŒÙ† ØªØµÙ…ÛŒÙ…ØŸ' : 'Why this decision?', text: 'Ú†Ø±Ø§ Ø§ÛŒÙ† ØªØµÙ…ÛŒÙ… Ú¯Ø±ÙØªÙ‡ Ø´Ø¯ØŸ' },
+                { label: lang === 'fa' ? 'ÛŒØ§Ø¯Ú¯ÛŒØ±ÛŒ Ù‡ÙˆØ´ØŸ' : 'What is learned?', text: 'Ø³ÛŒØ³ØªÙ… Ø§Ø² Ø¨Ø§Ø²Ø§Ø± Ú†Ù‡ Ú†ÛŒØ²ÛŒ ÛŒØ§Ø¯ Ú¯Ø±ÙØªÙ‡ØŸ' },
+                { label: lang === 'fa' ? 'Ø¹Ù„Øª Ø¹Ø¯Ù… Ù…Ø¹Ø§Ù…Ù„Ù‡ØŸ' : 'Why no trade?', text: 'Ú†Ø±Ø§ Ù…Ø¹Ø§Ù…Ù„Ù‡ ØµÙˆØ±Øª Ù†Ú¯Ø±ÙØªØŸ' }
               ].map((qp, qpIdx) => (
                 <button
                   key={qpIdx}
@@ -2126,7 +1983,7 @@ function MainApp() {
                     setChatInput(qp.text);
                   }}
                 >
-                  ⚡ {qp.label}
+                  âš¡ {qp.label}
                 </button>
               ))}
             </div>
@@ -2137,7 +1994,7 @@ function MainApp() {
                 type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder={t('assistant_placeholder') || "سوال خود را مطرح کنید..."}
+                placeholder={t('assistant_placeholder') || "Ø³ÙˆØ§Ù„ Ø®ÙˆØ¯ Ø±Ø§ Ù…Ø·Ø±Ø­ Ú©Ù†ÛŒØ¯..."}
                 onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
               />
               <button className="chatbot-send" onClick={sendChatMessage}>{t('assistant_send') || 'Send'}</button>
