@@ -146,6 +146,55 @@ def get_billing_subscription(session: Dict[str, Any] = Depends(get_user_session_
     return manager.get_subscription(email)
 
 
+
+@router.get("/ledger/statement")
+def get_ledger_statement(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    from src.Application.Dashboard.ledger_manager import LedgerManager
+    email = session["email"].lower()
+    data = LedgerManager().get_account_statement(f"{email}:USDT")
+    return {
+        "email": email,
+        "balance_micro_usdt": data["balance"],
+        "balance_usdt": round(data["balance"] / 1_000_000.0, 6),
+        "currency": "USDT",
+        "transactions": data["transactions"],
+    }
+
+@router.get("/billing/invoices")
+def get_billing_invoices(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    from src.Application.Dashboard.billing_manager import BillingManager
+    return {"invoices": BillingManager().get_user_invoices(session["email"])}
+
+
+class UsdtDepositPayload(BaseModel):
+    network: str
+    tx_hash: str
+    amount_usdt: float
+
+@router.get("/wallet/deposits")
+def get_my_deposits(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    from src.Application.Dashboard.deposit_manager import DepositManager
+    return {"deposits": DepositManager().list_user(session["email"])}
+
+@router.post("/wallet/deposits")
+def submit_deposit(payload: UsdtDepositPayload, session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    from src.Application.Dashboard.deposit_manager import DepositManager
+    try:
+        return DepositManager().create(session["email"],payload.network,payload.tx_hash,payload.amount_usdt)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ==============================================================================
+# RECEIVE-ONLY USDT WALLET
+# ==============================================================================
+@router.get("/wallet/receive")
+def get_receive_wallet(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
+    """Returns configured public USDT receive addresses. No withdrawal or signing capability exists."""
+    from src.Application.Dashboard.receive_wallet_manager import ReceiveWalletManager
+    return ReceiveWalletManager().public_config()
+
+
 # ==============================================================================
 # P2-3 — SUPPORT TICKETING SYSTEM ENDPOINTS
 # ==============================================================================
