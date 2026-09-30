@@ -179,6 +179,21 @@ function MainApp() {
     }
   ];
 
+  const planI18n = {
+    free: { name: t('plan_free'), features: ['plan_free_feature_symbols', 'plan_free_feature_signals', 'plan_free_feature_frames'] },
+    daily: { name: t('plan_daily'), features: ['plan_daily_feature_symbols', 'plan_daily_feature_updates', 'plan_daily_feature_insights'] },
+    pro: { name: t('plan_pro'), features: ['plan_pro_feature_symbols', 'plan_pro_feature_signals', 'plan_pro_feature_assistant'] },
+    institutional: { name: t('plan_institutional'), features: ['plan_institutional_feature_symbols', 'plan_institutional_feature_signals', 'plan_institutional_feature_support'] }
+  };
+  const localizePlan = (plan) => {
+    const copy = planI18n[plan.tier_id];
+    return copy ? { ...plan, name: copy.name, features: copy.features.map(key => t(key)) } : plan;
+  };
+  const localizeTimeframe = (value) => {
+    const key = String(value || '').toLowerCase();
+    const map = { micro: 'tf_micro', short: 'tf_short', medium: 'tf_medium', macro: 'tf_macro' };
+    return map[key] ? t(map[key]) : value;
+  };
   const [subscriptionPlans, setSubscriptionPlans] = useState(DEFAULT_SUBSCRIPTION_PLANS);
 
   // Prop Challenge states
@@ -1074,13 +1089,13 @@ function MainApp() {
                       role="button"
                       onKeyDown={(e) => e.key === 'Enter' && setSelectedPlan(plan)}
                     >
-                      <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>{plan.name}</h3>
-                      <div className="status-val" style={{ fontSize: '1.5em', margin: '10px 0', color: 'var(--text-dark)' }}>{plan.price_usd || plan.price}</div>
+                      <h3 style={{ color: 'var(--primary)', marginTop: 0 }}>{localizePlan(plan).name}</h3>
+                      <div className="status-val" style={{ fontSize: '1.5em', margin: '10px 0', color: 'var(--text-dark)' }}>{plan.tier_id === 'free' ? t('free_price') : (plan.price_usd || plan.price)}</div>
                       <p style={{ fontSize: '0.9em', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-                        {plan.description || `Max Active Symbols: ${plan.max_symbols} | Timeframes: ${plan.enabled_timeframes?.join(', ')}`}
+                        {t('pricing_plan_limits', { symbols: plan.max_symbols, timeframes: plan.enabled_timeframes?.map(localizeTimeframe).join(', ') || t('all_timeframes') })}
                       </p>
                       <button className="btn" style={{ width: '100%', marginTop: '15px', fontSize: '0.9em' }}>
-                        {lang === 'fa' ? 'مشاهده جزئیات و انتخاب' : 'View Details & Select'}
+                        {t('pricing_view_details')}
                       </button>
                     </div>
                   ))}
@@ -1091,24 +1106,24 @@ function MainApp() {
               {selectedPlan && (
                 <div className="card" style={{ borderTop: '4px solid var(--primary)', background: 'rgba(15, 23, 42, 0.98)', marginTop: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                    <h3 style={{ margin: 0, color: 'var(--primary)' }}>💎 {selectedPlan.name} Plan Details</h3>
-                    <button className="btn btn-secondary" onClick={() => setSelectedPlan(null)}>✕ Close</button>
+                    <h3 style={{ margin: 0, color: 'var(--primary)' }}>💎 {localizePlan(selectedPlan).name} {t('pricing_plan_details')}</h3>
+                    <button className="btn btn-secondary" onClick={() => setSelectedPlan(null)}>✕ {t('close')}</button>
                   </div>
                   <div className="status-board" style={{ marginBottom: '20px' }}>
-                    <MetricCard title="Price" value={selectedPlan.price_usd || selectedPlan.price} status="passed" />
-                    <MetricCard title="Max Active Symbols" value={selectedPlan.max_symbols || '30 / 30'} status="primary" />
-                    <MetricCard title="Enabled Timeframes" value={selectedPlan.enabled_timeframes?.join(', ') || 'All 8 Canonical'} status="neutral" />
+                    <MetricCard title={t('price')} value={selectedPlan.price_usd || selectedPlan.price} status="passed" />
+                    <MetricCard title={t('max_active_symbols')} value={selectedPlan.max_symbols || '30 / 30'} status="primary" />
+                    <MetricCard title={t('enabled_timeframes')} value={selectedPlan.enabled_timeframes?.map(localizeTimeframe).join(', ') || t('all_canonical_timeframes')} status="neutral" />
                   </div>
-                  <h4 style={{ color: 'var(--primary)', margin: '10px 0' }}>Plan Capabilities & Features:</h4>
+                  <h4 style={{ color: 'var(--primary)', margin: '10px 0' }}>{t('pricing_capabilities')}</h4>
                   <ul style={{ lineHeight: '1.8', fontSize: '0.95em', color: 'var(--text-dark)', paddingLeft: '20px' }}>
-                    {selectedPlan.features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
+                    {localizePlan(selectedPlan).features?.map((f, fIdx) => <li key={fIdx}>{f}</li>)}
                   </ul>
                   <div style={{ display: 'flex', gap: '15px', marginTop: '25px' }}>
                     <button className="btn" style={{ flex: 1 }} onClick={() => { setNotif({ show: true, msg: lang === 'fa' ? 'درخواست ارتقای پلن ثبت شد.' : 'Plan upgrade requested.', type: 'success' }); setSelectedPlan(null); }}>
-                      {lang === 'fa' ? 'انتخاب و ارتقا به این پلن' : 'Choose Plan'}
+                      {t('choose_plan')}
                     </button>
                     <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setSelectedPlan(null)}>
-                      {lang === 'fa' ? 'انصراف' : 'Cancel'}
+                      {t('cancel')}
                     </button>
                   </div>
                 </div>
@@ -1118,39 +1133,35 @@ function MainApp() {
               <div className="card" style={{ marginTop: '25px', borderTop: '4px solid var(--accent)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
                   <h3 style={{ margin: 0, color: 'var(--primary)' }}>
-                    🎯 {lang === 'fa' ? 'پلن مدیریت ریسک چالش پراپ (Prop Firm Challenge Plan)' : lang === 'tr' ? 'Prop Firm Challenge & Risk Gate' : lang === 'ar' ? 'خطة تحدي شركات التداول (Prop Firm)' : 'Prop Firm Challenge Plan & Risk Gate'}
+                    🎯 {t('prop_challenge_title')}
                   </h3>
                   <StatusBadge
                     status={propChallengeData && propChallengeData.is_configured ? "passed" : "neutral"}
-                    label={propChallengeData && propChallengeData.is_configured ? (propChallengeData.status || "CONFIGURED") : "PROP ACCOUNT NOT CONFIGURED"}
+                    label={propChallengeData && propChallengeData.is_configured ? (propChallengeData.status || t('configured')) : t('prop_not_configured')}
                   />
                 </div>
 
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '20px', lineHeight: '1.6' }}>
-                  {lang === 'fa'
-                    ? 'چارچوب ارزیابی قوانین، حد ضرر روزانه و حداکثر افت سرمایه (Drawdown) مطابق با استانداردهای شرکت‌های پراپ. این سیستم صرفاً گیت ریسک و مدیریت تعهدات است.'
-                    : 'Configurable risk limits, daily loss boundaries, and drawdown protection framework built directly into the YarTrader Risk Engine.'}
+                  {t('prop_challenge_desc')}
                 </p>
 
                 {/* Status or Unconfigured Alert */}
                 {(!propChallengeData || !propChallengeData.is_configured) ? (
                   <div className="status-item" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
                     <div style={{ fontWeight: 'bold', color: 'var(--danger)', marginBottom: '5px' }}>
-                      ⚠️ {lang === 'fa' ? 'حساب پراپ تنظیم نشده است (PROP ACCOUNT NOT CONFIGURED)' : 'PROP ACCOUNT NOT CONFIGURED'}
+                      ⚠️ {t('prop_not_configured')}
                     </div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-dark)' }}>
-                      {lang === 'fa'
-                        ? 'برای فعال‌سازی و ارزیابی زنده ریسک چالش، قوانین پارامتریک زیر را تنظیم و ذخیره نمایید.'
-                        : 'To activate live risk rules evaluation, please configure your prop firm parameters below.'}
+                      {t('prop_config_prompt')}
                     </div>
                   </div>
                 ) : (
                   <div className="status-board" style={{ marginBottom: '20px' }}>
-                    <MetricCard title="Account Equity" value={`$${(propChallengeData.metrics?.current_equity || 0).toLocaleString()}`} status="passed" />
-                    <MetricCard title="Daily P/L" value={`$${(propChallengeData.metrics?.daily_pl || 0).toLocaleString()}`} status={propChallengeData.metrics?.daily_pl >= 0 ? "passed" : "failed"} />
-                    <MetricCard title="Remaining Daily Loss" value={`$${(propChallengeData.metrics?.remaining_daily_loss || 0).toLocaleString()}`} status="primary" />
-                    <MetricCard title="Remaining Drawdown" value={`$${(propChallengeData.metrics?.remaining_drawdown || 0).toLocaleString()}`} status="neutral" />
-                    <MetricCard title="Challenge Progress" value={`${propChallengeData.metrics?.challenge_progress_pct || 0}%`} status="passed" />
+                    <MetricCard title={t('account_equity')} value={`$${(propChallengeData.metrics?.current_equity || 0).toLocaleString()}`} status="passed" />
+                    <MetricCard title={t('daily_pl')} value={`$${(propChallengeData.metrics?.daily_pl || 0).toLocaleString()}`} status={propChallengeData.metrics?.daily_pl >= 0 ? "passed" : "failed"} />
+                    <MetricCard title={t('remaining_daily_loss')} value={`$${(propChallengeData.metrics?.remaining_daily_loss || 0).toLocaleString()}`} status="primary" />
+                    <MetricCard title={t('remaining_drawdown')} value={`$${(propChallengeData.metrics?.remaining_drawdown || 0).toLocaleString()}`} status="neutral" />
+                    <MetricCard title={t('challenge_progress')} value={`${propChallengeData.metrics?.challenge_progress_pct || 0}%`} status="passed" />
                   </div>
                 )}
 
