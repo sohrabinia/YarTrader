@@ -411,16 +411,29 @@ class ResearchRuntime:
             pass
 
     def _log_evidence(self, message: str) -> None:
-        """Appends formatted message to console, system log, and the dedicated runtime evidence log file."""
-        os.makedirs(self._evidence_dir, exist_ok=True)
+        """Write runtime evidence without allowing diagnostics to abort research cycles."""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_entry = f"[{timestamp}] {message}\\n"
         evidence_file = os.path.join(self._evidence_dir, "research_runtime_evidence.log")
 
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_entry = f"[{timestamp}] {message}\n"
+        try:
+            os.makedirs(self._evidence_dir, exist_ok=True)
+            with open(evidence_file, "a", encoding="utf-8") as f:
+                f.write(log_entry)
+        except Exception as exc:
+            diagnostic = (
+                f"Research evidence logging failed for {self._symbol} "
+                f"{self._timeframe}: {type(exc).__name__}: {exc}; "
+                f"path={evidence_file!r}"
+            )
+            # Evidence logging is diagnostic only; never let a filesystem/logging
+            # failure stop the autonomous research cycle.
+            print(f"[ResearchRuntime] {diagnostic}")
+            try:
+                from app.core.logging import log_event
+                log_event("ERROR", diagnostic, source="research_runtime")
+            except Exception:
+                pass
 
-        # Append to evidence file
-        with open(evidence_file, "a") as f:
-            f.write(log_entry)
-
-        # Also output to stdout for diagnostics
+        # Always retain the console trace even when the evidence file is unavailable.
         print(message)
