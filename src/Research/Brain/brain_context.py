@@ -153,7 +153,7 @@ def discover_cross_symbol_relations(
     """Discover temporal relationships; no symbol pair is predefined."""
     aligned: Dict[str, List[MarketObservation]] = {}
     for symbol, observations in observations_by_symbol.items():
-        eligible = sorted([o for o in observations if o.timestamp <= decision_time], key=lambda o: o.timestamp)
+        eligible = sorted([o for o in observations if _leq(o.timestamp, decision_time)], key=lambda o: o.timestamp)
         if len(eligible) >= min_samples:
             aligned[symbol.upper()] = eligible
 
@@ -248,17 +248,17 @@ class PointInTimeContextCache:
     def snapshot_symbol(self, symbol: str, decision_time: datetime) -> Dict[str, List[MarketObservation]]:
         symbol = symbol.upper()
         return {
-            tf: [o for o in observations if o.timestamp <= decision_time]
+            tf: [o for o in observations if _leq(o.timestamp, decision_time)]
             for (sym, tf), observations in self._data.items()
-            if sym == symbol and any(o.timestamp <= decision_time for o in observations)
+            if sym == symbol and any(_leq(o.timestamp, decision_time) for o in observations)
         }
 
     def snapshot_symbols(self, timeframe: str, decision_time: datetime) -> Dict[str, List[MarketObservation]]:
         timeframe = timeframe.upper()
         return {
-            sym: [o for o in observations if o.timestamp <= decision_time]
+            sym: [o for o in observations if _leq(o.timestamp, decision_time)]
             for (sym, tf), observations in self._data.items()
-            if tf == timeframe and any(o.timestamp <= decision_time for o in observations)
+            if tf == timeframe and any(_leq(o.timestamp, decision_time) for o in observations)
         }
 
 
