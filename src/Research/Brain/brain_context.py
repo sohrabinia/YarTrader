@@ -33,6 +33,15 @@ def _iso(ts: datetime) -> str:
     return ts.astimezone(timezone.utc).isoformat()
 
 
+def _leq(a: datetime, b: datetime) -> bool:
+    """Compare timestamps safely across legacy naive and timezone-aware sources."""
+    if a.tzinfo is None:
+        a = a.replace(tzinfo=timezone.utc)
+    if b.tzinfo is None:
+        b = b.replace(tzinfo=timezone.utc)
+    return a.astimezone(timezone.utc) <= b.astimezone(timezone.utc)
+
+
 def _price_direction(a: float, b: float) -> str:
     if b > a:
         return "UP"
@@ -102,7 +111,7 @@ def _structure_snapshot(observations: List[MarketObservation]) -> Dict[str, Any]
 def _tf_snapshot(observations: List[MarketObservation], decision_time: datetime) -> Dict[str, Any]:
     """Snapshot is strictly point-in-time: timestamp <= decision_time."""
     ordered = sorted(
-        [o for o in observations if o.timestamp <= decision_time],
+        [o for o in observations if _leq(o.timestamp, decision_time)],
         key=lambda o: o.timestamp,
     )
     if not ordered:
