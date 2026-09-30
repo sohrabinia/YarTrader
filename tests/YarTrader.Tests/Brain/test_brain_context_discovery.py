@@ -48,8 +48,18 @@ def test_context_changes_when_closed_higher_timeframe_context_changes():
 
 def test_cross_symbol_relation_is_discovered_not_hard_coded():
     t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    source = [candle("AAA", "M1", t0 + timedelta(minutes=i), 100 + i) for i in range(12)]
-    target = [candle("BBB", "M1", t0 + timedelta(minutes=i), 200 + max(0, i-2)) for i in range(12)]
+    increments = [1, 3, 2, 4, 1, 5, 2, 3, 4, 2, 5, 1]
+    source_prices = []
+    target_prices = []
+    a = b = 100.0
+    for i, inc in enumerate(increments):
+        a += inc
+        source_prices.append(a)
+        if i >= 2:
+            b += increments[i - 2]
+        target_prices.append(b)
+    source = [candle("AAA", "M1", t0 + timedelta(minutes=i), v) for i, v in enumerate(source_prices)]
+    target = [candle("BBB", "M1", t0 + timedelta(minutes=i), v) for i, v in enumerate(target_prices)]
     relations = discover_cross_symbol_relations(
         {"AAA": source, "BBB": target},
         t0 + timedelta(minutes=11),
