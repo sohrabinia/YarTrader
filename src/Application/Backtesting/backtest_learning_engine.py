@@ -107,6 +107,7 @@ class BacktestAndLearningEngine:
         initial_balance: float = 10000.0,
         start_index: int = 50,
         context_window: int = 500,
+        state: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Executes a chronological, walk-forward backtest simulation across historical candles.
@@ -122,9 +123,10 @@ class BacktestAndLearningEngine:
                 "summary": "Insufficient candles for backtest."
             }
 
-        balance = initial_balance
-        equity = initial_balance
-        open_position: Optional[Dict[str, Any]] = None
+        state = state or {}
+        balance = float(state.get("balance", initial_balance))
+        equity = float(state.get("equity", balance))
+        open_position: Optional[Dict[str, Any]] = state.get("open_position")
         closed_trades: List[Dict[str, Any]] = []
         learning_updates_count = 0
 
@@ -276,19 +278,39 @@ class BacktestAndLearningEngine:
 
         net_pnl = balance - initial_balance
 
+        previous_total = int(state.get("total_trades", 0))
+        previous_wins = int(state.get("wins", 0))
+        previous_losses = int(state.get("losses", 0))
+        previous_bes = int(state.get("breakevens", 0))
+        cumulative_total = previous_total + total_closed
+        cumulative_wins = previous_wins + wins
+        cumulative_losses = previous_losses + losses
+        cumulative_bes = previous_bes + bes
+        cumulative_win_rate = (cumulative_wins / cumulative_total * 100.0) if cumulative_total else 0.0
+        cumulative_learning = int(state.get("learning_updates_count", 0)) + learning_updates_count
         return {
             "symbol": symbol.upper(),
             "timeframe": timeframe,
             "initial_balance": initial_balance,
             "final_balance": round(balance, 2),
-            "net_pnl": round(net_pnl, 2),
-            "total_trades": total_closed,
-            "wins": wins,
-            "losses": losses,
-            "breakevens": bes,
-            "win_rate_pct": round(win_rate, 2),
-            "learning_updates_count": learning_updates_count,
-            "closed_trades": closed_trades
+            "net_pnl": round(balance - initial_balance, 2),
+            "total_trades": cumulative_total,
+            "wins": cumulative_wins,
+            "losses": cumulative_losses,
+            "breakevens": cumulative_bes,
+            "win_rate_pct": round(cumulative_win_rate, 2),
+            "learning_updates_count": cumulative_learning,
+            "closed_trades": closed_trades,
+            "state": {
+                "balance": balance,
+                "equity": equity,
+                "open_position": open_position,
+                "total_trades": cumulative_total,
+                "wins": cumulative_wins,
+                "losses": cumulative_losses,
+                "breakevens": cumulative_bes,
+                "learning_updates_count": cumulative_learning,
+            },
         }
 
     def _process_post_trade_learning(self, memory: MarketMemorySystem, closed_trade: Dict[str, Any]) -> Dict[str, Any]:
