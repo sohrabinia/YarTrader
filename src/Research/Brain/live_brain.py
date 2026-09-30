@@ -128,7 +128,7 @@ class LiveAnalysisBrain:
             sig, self.memory_system.get_patterns(),
             symbol=self.symbol,
             timeframe=self.timeframe,
-            timeframe_signature=timeframe_signature or list(tf_history.keys()),
+            timeframe_signature=effective_timeframes,
             context_id=context_id,
         )
         outcome_agg = self.discovery_engine.aggregate_outcomes(matched, sig)
