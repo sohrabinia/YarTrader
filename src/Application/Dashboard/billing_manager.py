@@ -64,6 +64,10 @@ class BillingManager:
                 "updated_at": None
             })
 
+    def get_user_invoices(self, email: str) -> List[Dict[str, Any]]:
+        with self.lock:
+            return [inv for inv in self._load().get("invoices", []) if str(inv.get("email","")).lower() == email.lower()]
+
     def process_signed_webhook(self, payload_bytes: bytes, signature: str, webhook_secret: str) -> Dict[str, Any]:
         """
         Securely verifies payment webhook signatures, checks idempotency keys,
