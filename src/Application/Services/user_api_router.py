@@ -151,8 +151,14 @@ def get_billing_subscription(session: Dict[str, Any] = Depends(get_user_session_
 def get_ledger_statement(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
     from src.Application.Dashboard.ledger_manager import LedgerManager
     email = session["email"].lower()
-    data = LedgerManager().get_account_statement(email)
-    return {"email":email,"balance_cents":data["balance"],"balance_usd":round(data["balance"]/100.0,2),"currency":"USD","transactions":data["transactions"]}
+    data = LedgerManager().get_account_statement(f"{email}:USDT")
+    return {
+        "email": email,
+        "balance_micro_usdt": data["balance"],
+        "balance_usdt": round(data["balance"] / 1_000_000.0, 6),
+        "currency": "USDT",
+        "transactions": data["transactions"],
+    }
 
 @router.get("/billing/invoices")
 def get_billing_invoices(session: Dict[str, Any] = Depends(get_user_session_and_enforce_tier)):
