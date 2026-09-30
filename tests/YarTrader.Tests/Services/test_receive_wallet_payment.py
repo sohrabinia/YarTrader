@@ -10,12 +10,18 @@ def test_receive_wallet_and_deposit_flow(tmp_path):
     assert out["withdrawals_enabled"] is False
     assert out["networks"][0]["network"]=="TON"
 
-    dep=DepositManager(str(tmp_path/"deposits.json"))
+    ledger=LedgerManager(str(tmp_path/"ledger.json"))
+    dep=DepositManager(str(tmp_path/"deposits.json"), ledger=ledger)
     rec=dep.create("user@example.com","TON","tx-test-1",12.5)
     assert rec["status"]=="PENDING"
     assert dep.list_user("user@example.com")[0]["amount_usdt"]==12.5
     verified=dep.set_status(rec["deposit_id"],"VERIFIED","admin@example.com")
     assert verified["status"]=="VERIFIED"
+    assert verified["ledger_transaction_id"]
+    assert ledger.get_account_balance("user@example.com:USDT")==12_500_000
+    statement=ledger.get_account_statement("user@example.com:USDT")
+    assert statement["balance"]==12_500_000
+    assert len(statement["transactions"])==1
 
 def test_ledger_statement(tmp_path):
     ledger=LedgerManager(str(tmp_path/"ledger.json"))
