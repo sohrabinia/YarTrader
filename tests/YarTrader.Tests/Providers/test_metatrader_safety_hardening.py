@@ -107,7 +107,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         self.assertNotIn("account", mt4_det)
         self.assertNotIn("server", mt4_det)
         self.assertEqual(mt4_det["live_trading_enabled"], False)
-        self.assertEqual(mt4_det["role"], "LIVE_SIMULATION")
+        self.assertEqual(mt4_det["role"], "DISABLED")
 
         # Confirm sensitive details, account numbers, and servers are not exposed publicly
         self.assertNotIn("52961173", str(data))

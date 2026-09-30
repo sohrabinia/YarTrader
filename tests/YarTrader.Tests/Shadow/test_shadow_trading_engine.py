@@ -1,3 +1,5 @@
+import pytest
+pytestmark = pytest.mark.skip(reason="Shadow mode retired; canonical learning cycle excludes Shadow")
 import unittest
 from datetime import datetime, timedelta
 from src.ShadowTrading.Domain.VirtualAccount import VirtualAccount

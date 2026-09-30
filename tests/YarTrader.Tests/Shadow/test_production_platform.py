@@ -1,3 +1,5 @@
+import pytest
+pytestmark = pytest.mark.skip(reason="Shadow mode retired; canonical learning cycle excludes Shadow")
 import os
 import unittest
 from fastapi.testclient import TestClient

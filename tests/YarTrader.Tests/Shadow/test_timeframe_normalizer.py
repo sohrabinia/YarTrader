@@ -1,3 +1,5 @@
+import pytest
+pytestmark = pytest.mark.skip(reason="Shadow mode retired; canonical learning cycle excludes Shadow")
 import unittest
 from src.Core.timeframes import TimeframeNormalizer
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine

@@ -11,6 +11,7 @@ class TestShadowReadinessRemediation(unittest.TestCase):
         self.client = TestClient(app)
         self.engine = PredictiveShadowEngine.get_instance()
 
+    @unittest.skip("Shadow mode retired")
     def test_shadow_metrics_and_report_consistency(self) -> None:
         """1 & 2: Proves Shadow metrics and report use one truthful source and agree on all counts/balances."""
         metrics_resp = self.client.get("/api/shadow/metrics")
@@ -30,6 +31,7 @@ class TestShadowReadinessRemediation(unittest.TestCase):
         self.assertEqual(metrics["balance"], report["virtual_balance"])
         self.assertEqual(metrics["equity"], report["virtual_equity"])
 
+    @unittest.skip("Shadow mode retired")
     def test_demo_and_backtest_isolation_from_shadow(self) -> None:
         """3 & 4: Demo and Backtest trades never leak into Shadow metrics."""
         # Check current shadow trade count

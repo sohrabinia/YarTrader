@@ -28,7 +28,7 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
         self.temp_lockout_file = f"runtime_logs/test_lockout_{uuid.uuid4().hex}.json"
 
         # Override SymbolRegistry configuration paths safely
-        self.patcher1 = patch("src.ShadowTrading.Engine.SymbolRegistry.REGISTRY_FILE", self.temp_registry_file)
+        self.patcher1 = patch("src.Market.Universe.symbol_registry.REGISTRY_FILE", self.temp_registry_file)
         self.patcher1.start()
 
         # Clear or initialize the registry instance for clean state isolation

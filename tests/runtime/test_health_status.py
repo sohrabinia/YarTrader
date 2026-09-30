@@ -33,7 +33,7 @@ class TestHealthStatus(unittest.TestCase):
             self.assertEqual(health["worker"], "Running")
             self.assertEqual(health["research_worker"], "Running")
             self.assertEqual(health["intelligence_worker"], "Running")
-            self.assertEqual(health["shadow_worker"], "Disabled")
+            self.assertNotIn("shadow_worker", health)
             self.assertEqual(health["shadow_trading"], "Disabled")
             self.assertIn("timestamp", health)
 

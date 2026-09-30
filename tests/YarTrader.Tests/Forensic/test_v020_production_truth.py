@@ -1,4 +1,4 @@
-import pathlib
+﻿import pathlib
 import unittest
 
 
@@ -18,7 +18,7 @@ class TestV020ProductionTruth(unittest.TestCase):
             self.assertNotIn("PredictiveShadowEngine", text, str(path))
 
     def test_customer_auth_ui_contains_no_password_field(self):
-        path = root / "trader-terminal/src/App.jsx"
+        path = pathlib.Path(__file__).resolve().parents[3] / "trader-terminal/src/App.jsx"
         text = path.read_text(encoding="utf-8")
         self.assertNotIn('type="password"', text)
         self.assertIn("/api/auth/google", text)
@@ -26,3 +26,4 @@ class TestV020ProductionTruth(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
