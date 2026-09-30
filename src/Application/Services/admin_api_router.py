@@ -249,6 +249,105 @@ async def payment_gateway_webhook(request: Request):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+
+
+# ==============================================================================
+# ADMIN FINANCIAL CONTROL PLANE
+# ==============================================================================
+@router.get("/financial/overview")
+def admin_financial_overview(request: Request, token: Optional[str] = None):
+    """Authoritative financial dashboard data: ledger, deposits, invoices and subscriptions."""
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.ledger_manager import LedgerManager
+    from src.Application.Dashboard.deposit_manager import DepositManager
+    from src.Application.Dashboard.billing_manager import BillingManager
+    ledger = LedgerManager()._load()
+    deposits = DepositManager().list_all()
+    billing = BillingManager()._load()
+    accounts = []
+    for account_id, account in ledger.get("accounts", {}).items():
+        accounts.append({"account_id":account_id,"balance":account.get("balance",0),"currency":account.get("currency","USD")})
+    return {
+        "currency":"USD",
+        "ledger":{"account_count":len(accounts),"transaction_count":len(ledger.get("transactions",[])),"accounts":accounts},
+        "deposits":{"count":len(deposits),"pending":sum(1 for x in deposits if x.get("status")=="PENDING"),"verified":sum(1 for x in deposits if x.get("status")=="VERIFIED"),"rejected":sum(1 for x in deposits if x.get("status")=="REJECTED"),"items":deposits},
+        "billing":{"invoice_count":len(billing.get("invoices",[])),"invoices":billing.get("invoices",[]),"subscription_count":len(billing.get("subscriptions",{}))},
+        "access":{"role":session.get("role"),"receive_only_wallet":True,"withdrawals_enabled":False}
+    }
+
+@router.get("/financial/ledger")
+def admin_financial_ledger(request: Request, token: Optional[str] = None):
+    enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.ledger_manager import LedgerManager
+    return LedgerManager()._load()
+
+# ==============================================================================
+# USDT DEPOSIT REVIEW
+# ==============================================================================
+@router.get("/wallet/deposits")
+def admin_list_deposits(request: Request, status: Optional[str] = None, token: Optional[str] = None):
+    enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.deposit_manager import DepositManager
+    return {"deposits": DepositManager().list_all(status)}
+
+@router.post("/wallet/deposits/{deposit_id}/verify")
+def admin_verify_deposit(deposit_id: str, request: Request, token: Optional[str] = None):
+    session=enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.deposit_manager import DepositManager
+    try:
+        rec=DepositManager().set_status(deposit_id,"VERIFIED",session.get("email",""))
+        from app.core.logging import log_audit
+        log_audit("USDT_DEPOSIT_REVIEW",action="VERIFY",deposit_id=deposit_id,actor=session.get("email"))
+        return rec
+    except Exception as e: raise HTTPException(status_code=400,detail=str(e))
+
+@router.post("/wallet/deposits/{deposit_id}/reject")
+def admin_reject_deposit(deposit_id: str, request: Request, token: Optional[str] = None):
+    session=enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.deposit_manager import DepositManager
+    try:
+        rec=DepositManager().set_status(deposit_id,"REJECTED",session.get("email",""))
+        from app.core.logging import log_audit
+        log_audit("USDT_DEPOSIT_REVIEW",action="REJECT",deposit_id=deposit_id,actor=session.get("email"))
+        return rec
+    except Exception as e: raise HTTPException(status_code=400,detail=str(e))
+
+
+# ==============================================================================
+# RECEIVE-ONLY USDT WALLET ADMINISTRATION
+# ==============================================================================
+class ReceiveWalletPayload(BaseModel):
+    network: str
+    address: str
+    label: Optional[str] = None
+
+@router.get("/wallet/receive")
+def admin_get_receive_wallet(request: Request, token: Optional[str] = None):
+    enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.receive_wallet_manager import ReceiveWalletManager
+    return ReceiveWalletManager().public_config()
+
+@router.post("/wallet/receive")
+def admin_set_receive_wallet(payload: ReceiveWalletPayload, request: Request, token: Optional[str] = None):
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.receive_wallet_manager import ReceiveWalletManager
+    try:
+        result = ReceiveWalletManager().set_network(payload.network, payload.address, payload.label)
+        from app.core.logging import log_audit
+        log_audit("WALLET_RECEIVE_CONFIG", action="SET", network=payload.network.upper(), actor=session.get("email"))
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/wallet/receive/{network}")
+def admin_remove_receive_wallet(network: str, request: Request, token: Optional[str] = None):
+    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    from src.Application.Dashboard.receive_wallet_manager import ReceiveWalletManager
+    result = ReceiveWalletManager().remove_network(network)
+    from app.core.logging import log_audit
+    log_audit("WALLET_RECEIVE_CONFIG", action="REMOVE", network=network.upper(), actor=session.get("email"))
+    return result
+
 # ==============================================================================
 # P2-3 — SUPPORT TICKETING ADMIN ENDPOINTS
 # ==============================================================================
