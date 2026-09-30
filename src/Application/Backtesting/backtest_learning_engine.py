@@ -83,11 +83,9 @@ class BacktestAndLearningEngine:
             if rates is None or len(rates) == 0:
                 raise RuntimeError(f"MT5 returned no history for {symbol}/{tf}: {mt5.last_error()}")
             first_time = datetime.fromtimestamp(int(rates[0]["time"]), timezone.utc)
-            if (end_time - first_time).days < 365 * years:
-                raise RuntimeError(
-                    f"MT5 history is shorter than requested {years} years: "
-                    f"received {(end_time - first_time).days} days."
-                )
+            actual_history_days = (end_time - first_time).days
+            if actual_history_days <= 0:
+                raise RuntimeError(f"MT5 returned invalid history window for {symbol}/{tf}.")
             candles = [
                 {
                     "timestamp": datetime.fromtimestamp(int(r["time"]), timezone.utc).isoformat(),
@@ -102,6 +100,8 @@ class BacktestAndLearningEngine:
             result["history_start"] = first_time.isoformat()
             result["history_end"] = end_time.isoformat()
             result["history_years_requested"] = years
+            result["history_years_actual"] = round(actual_history_days / 365.0, 2)
+            result["history_days_actual"] = actual_history_days
             result["history_bars"] = len(candles)
             return result
         finally:
