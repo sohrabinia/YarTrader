@@ -413,7 +413,7 @@ class ResearchRuntime:
     def _log_evidence(self, message: str) -> None:
         """Write runtime evidence without allowing diagnostics to abort research cycles."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_entry = f"[{timestamp}] {message}\\n"
+        log_entry = f"[{timestamp}] {message}\n"
         evidence_file = os.path.join(self._evidence_dir, "research_runtime_evidence.log")
 
         try:
