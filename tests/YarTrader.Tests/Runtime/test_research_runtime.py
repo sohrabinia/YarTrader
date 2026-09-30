@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta
 from typing import Optional, List
 from src.Infrastructure.exceptions import ValidationException
@@ -188,6 +189,30 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         self.assertIn("Candles Received:", content)
         self.assertIn("Features Generated: true", content)
         self.assertIn("Research Completed: true", content)
+
+    def test_evidence_logging_failure_does_not_abort_research_cycle(self) -> None:
+        """Regression: a service-context evidence-file failure must not stop a research cycle."""
+        runtime = ResearchRuntime(
+            provider=self.adapter,
+            symbol="XAUUSD",
+            timeframe="H1",
+            evidence_dir=self.evidence_dir
+        )
+
+        real_open = open
+
+        def failing_evidence_open(file, *args, **kwargs):
+            if str(file).endswith("research_runtime_evidence.log"):
+                raise OSError(22, "Invalid argument")
+            return real_open(file, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=failing_evidence_open):
+            result = runtime.run_once()
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.Request.Asset, "XAUUSD")
+        self.assertEqual(len(runtime.history), 1)
+        self.assertEqual(runtime.cycle_count, 1)
 
     def test_runtime_polling_loop_lifecycle(self) -> None:
         """Verify that start_polling_loop executes requested cycle limits and terminates gracefully."""
