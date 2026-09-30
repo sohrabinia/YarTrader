@@ -18,12 +18,26 @@ def test_round_trip_text_and_dedup(tmp_path: Path):
 @pytest.mark.parametrize(
     "payload,media_type",
     [
-        (b"\x00\x01\x02\xff" * 4096, "application/octet-stream"),
-        (b"\x89PNG\r\n" + b"\x00" * 8192, "image/png"),
-        (b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 8192, "video/mp4"),
+        pytest.param(
+            b"\x00\x01\x02\xff" * 4096,
+            "application/octet-stream",
+            id="binary",
+        ),
+        pytest.param(
+            b"\x89PNG\r\n" + b"\x00" * 8192,
+            "image/png",
+            id="png",
+        ),
+        pytest.param(
+            b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 8192,
+            "video/mp4",
+            id="mp4",
+        ),
     ],
 )
-def test_binary_round_trip_without_loss(tmp_path: Path, payload: bytes, media_type: str):
+def test_binary_round_trip_without_loss(
+    tmp_path: Path, payload: bytes, media_type: str
+):
     store = YarTraderArtifactStore(tmp_path)
     record = store.put(payload, media_type=media_type)
     assert store.get(record["id"]) == payload

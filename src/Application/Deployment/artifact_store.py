@@ -56,9 +56,15 @@ def _decompress(codec: int, data: bytes, expected_size: int) -> bytes:
         zstd = _zstd_module()
         if zstd is None:
             raise RuntimeError("zstd artifact requires Python compression.zstd")
-        result = zstd.decompress(data)
+        try:
+            result = zstd.decompress(data)
+        except Exception as exc:
+            raise ValueError("Artifact decompression failed") from exc
     elif codec == _CODEC_GZIP:
-        result = gzip.decompress(data)
+        try:
+            result = gzip.decompress(data)
+        except (OSError, EOFError) as exc:
+            raise ValueError("Artifact decompression failed") from exc
     else:
         raise ValueError(f"Unknown YarTrader artifact codec: {codec}")
     if len(result) != expected_size:
