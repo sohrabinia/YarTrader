@@ -54,11 +54,9 @@ class BacktestAndLearningEngine:
         """Run a chronological backtest directly from history exposed by the MT5 terminal.
 
         No external market-data download/provider is used. The terminal's own history is
-        the authoritative source, and the run fails closed if less than the requested
-        historical span is available.
+        the authoritative source. History is capped at the requested maximum, but shorter
+        terminal history is valid and is analyzed as-is.
         """
-        if years < 10:
-            raise ValueError("MT5 backtest requires at least 10 years of history.")
         import MetaTrader5 as mt5
 
         tf_map = {

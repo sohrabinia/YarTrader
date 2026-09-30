@@ -15,7 +15,7 @@ from src.Application.Backtesting.backtest_learning_engine import BacktestAndLear
 
 SCHEMA = 1
 PRIMARY_TIMEFRAME = "M5"
-TARGET_YEARS = {"MN1": 10, "W1": 10, "D1": 10, "H4": 10, "H1": 8, "M30": 6, "M15": 5, "M5": 3, "M1": 1}
+MAX_HISTORY_YEARS = 10
 ANALYSIS_TIMEFRAMES = ("MN1", "W1", "D1", "H4", "H1", "M30", "M15", "M5", "M1")
 MTF_TIMEFRAMES = ("M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1")
 PRIMARY_CHUNK_DAYS = 7
@@ -80,13 +80,13 @@ def closed_context_provider(series, timestamp):
             result[tf] = candles[start:idx + 1]
     return result
 
-def _probe_history(mt5, symbol, mapping, tf, requested_years, now):
-    target_start = now - timedelta(days=365 * requested_years + 30)
+def _probe_history(mt5, symbol, mapping, tf, max_history_years, now):
+    target_start = now - timedelta(days=365 * max_history_years + 30)
     rates = mt5.copy_rates_range(symbol, mapping[tf], target_start, now)
     if rates is None or not len(rates):
         return None
     first = datetime.fromtimestamp(int(rates[0]["time"]), timezone.utc)
-    return {"requested_years": requested_years, "target_start": target_start, "first": first, "rates": rates}
+    return {"max_history_years": max_history_years, "target_start": target_start, "first": first, "rates": rates}
 
 def run(symbol, years, initial_balance, sleep_sec, max_chunks=0):
     import MetaTrader5 as mt5
@@ -103,7 +103,7 @@ def run(symbol, years, initial_balance, sleep_sec, max_chunks=0):
         mapping = tf_map(mt5)
         availability = {}
         for tf in ANALYSIS_TIMEFRAMES:
-            probe = _probe_history(mt5, symbol, mapping, tf, TARGET_YEARS[tf], now)
+            probe = _probe_history(mt5, symbol, mapping, tf, MAX_HISTORY_YEARS, now)
             if probe:
                 availability[tf] = probe
         if not availability:
@@ -126,7 +126,6 @@ def run(symbol, years, initial_balance, sleep_sec, max_chunks=0):
             processed_chunks = int(checkpoint.get("processed_chunks", 0)) if checkpoint else 0
             processed_bars = int(checkpoint.get("processed_bars", 0)) if checkpoint else 0
             history_start = checkpoint.get("history_start") if checkpoint else tf_start.isoformat()
-            chunk_days = max(1, int((TIMEFRAME_DURATION[primary_tf].total_seconds() and 30)))
             primary_chunk_days = {"M1": 3, "M5": 7, "M15": 14, "M30": 21, "H1": 30, "H4": 60, "D1": 180, "W1": 365, "MN1": 730}[primary_tf]
             while next_start < now:
                 chunk_end = min(next_start + timedelta(days=primary_chunk_days), now)
@@ -157,13 +156,13 @@ def run(symbol, years, initial_balance, sleep_sec, max_chunks=0):
                 processed_bars += new_bars
                 processed_chunks += 1
                 next_start = parse_time(primary[-1]["timestamp"]) + TIMEFRAME_DURATION[primary_tf]
-                atomic_json(checkpoint_path, {"schema": SCHEMA, "status": "RUNNING", "symbol": symbol, "timeframe": primary_tf, "requested_years": TARGET_YEARS[primary_tf], "history_start": history_start, "history_end": now.isoformat(), "next_start": next_start.isoformat(), "processed_chunks": processed_chunks, "processed_bars": processed_bars, "state": state, "timeframe_cursors": cursor_map, "updated_at": datetime.now(timezone.utc).isoformat()})
-                print(f"MTF_PROGRESS {symbol}/{primary_tf} years={TARGET_YEARS[primary_tf]} actual_days={(now-tf_start).days} chunks={processed_chunks} bars={processed_bars}", flush=True)
+                atomic_json(checkpoint_path, {"schema": SCHEMA, "status": "RUNNING", "symbol": symbol, "timeframe": primary_tf, "max_history_years": MAX_HISTORY_YEARS, "history_start": history_start, "history_end": now.isoformat(), "next_start": next_start.isoformat(), "processed_chunks": processed_chunks, "processed_bars": processed_bars, "state": state, "timeframe_cursors": cursor_map, "updated_at": datetime.now(timezone.utc).isoformat()})
+                print(f"MTF_PROGRESS {symbol}/{primary_tf} max_years={MAX_HISTORY_YEARS} actual_days={(now-tf_start).days} chunks={processed_chunks} bars={processed_bars}", flush=True)
                 if max_chunks and processed_chunks >= max_chunks:
                     break
                 time.sleep(max(0.2, sleep_sec))
             completed = next_start >= now
-            final = {"status": "COMPLETED" if completed else "RUNNING", "symbol": symbol, "timeframe": primary_tf, "requested_years": TARGET_YEARS[primary_tf], "actual_history_start": history_start, "actual_history_end": now.isoformat(), "actual_history_days": (now-parse_time(history_start)).days, "processed_bars": processed_bars, "state": state}
+            final = {"status": "COMPLETED" if completed else "RUNNING", "symbol": symbol, "timeframe": primary_tf, "max_history_years": MAX_HISTORY_YEARS, "actual_history_start": history_start, "actual_history_end": now.isoformat(), "actual_history_days": (now-parse_time(history_start)).days, "processed_bars": processed_bars, "state": state}
             atomic_json(checkpoint_path, final)
             atomic_json(base / primary_tf / "final_result.json", final)
             summaries[primary_tf] = final
