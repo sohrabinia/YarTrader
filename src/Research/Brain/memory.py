@@ -6,6 +6,8 @@ import hashlib
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from src.Research.Brain.models import MarketEvent, PatternMemory, ExperienceMemory, ConceptMemory
+from src.Application.Deployment.artifact_store import YarTraderArtifactStore
+from src.Application.Deployment.storage import YarTraderStorageManager
 
 class MarketMemorySystem:
     """
@@ -18,9 +20,11 @@ class MarketMemorySystem:
     Enforces strict validation rules: No concept is promoted/created without at least
     min_samples occurrences, high consistency scores, and Judge approval.
     """
-    def __init__(self, storage_dir: Optional[str] = None) -> None:
+    def __init__(self, storage_dir: Optional[str] = None, artifact_store: Optional[YarTraderArtifactStore] = None) -> None:
         self._storage_dir = storage_dir or os.path.join("runtime_logs", "brain_memory")
         os.makedirs(self._storage_dir, exist_ok=True)
+        self._artifact_store = artifact_store or YarTraderStorageManager.get_manager().get_artifact_store()
+        self._artifact_manifest_path = os.path.join(self._storage_dir, "artifact_manifest.json")
         self._lock = threading.Lock()
 
         # In-memory storage buffers
@@ -590,12 +594,50 @@ class MarketMemorySystem:
 
             # Atomic swap
             os.replace(temp_filepath, filepath)
+
+            # Persist the serialized layer in the universal artifact store.
+            # Legacy JSON remains as a compatibility mirror until migration is complete.
+            artifact = self._artifact_store.put(
+                json.dumps(data, indent=4).encode("utf-8"),
+                media_type="application/json",
+                filename=f"{layer}_memory.json",
+                metadata={
+                    "producer": "MarketMemorySystem",
+                    "layer": layer,
+                    "legacy_path": filepath,
+                },
+            )
+            manifest = self._load_artifact_manifest()
+            manifest[layer] = artifact["id"]
+            tmp_manifest = self._artifact_manifest_path + ".tmp"
+            with open(tmp_manifest, "w", encoding="utf-8") as manifest_file:
+                json.dump(
+                    manifest,
+                    manifest_file,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            os.replace(tmp_manifest, self._artifact_manifest_path)
         except Exception:
             if os.path.exists(temp_filepath):
                 try:
                     os.remove(temp_filepath)
                 except OSError:
                     pass
+
+    def _load_artifact_manifest(self) -> Dict[str, str]:
+        if not os.path.exists(self._artifact_manifest_path):
+            return {}
+        try:
+            with open(self._artifact_manifest_path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            return {str(k): str(v) for k, v in raw.items()}
+        except (OSError, ValueError, TypeError):
+            return {}
+
+    def get_artifact_manifest(self) -> Dict[str, str]:
+        """Return universal-storage artifact IDs for Brain memory layers."""
+        return dict(self._load_artifact_manifest())
 
     def load_all(self) -> None:
         """
