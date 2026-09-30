@@ -9,7 +9,6 @@ from src.Intelligence.Execution.alignment import MultiTimeframeAlignmentEngine
 from src.Intelligence.Execution.similarity import PatternSimilarityIntelligenceEngine
 from src.Intelligence.Execution.portfolio import PortfolioRiskIntelligenceEngine
 from src.Intelligence.Execution.execution_planner import ExecutionIntelligencePlanner
-from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
 
 class ExecutionIntelligenceCore:
     """
@@ -40,7 +39,6 @@ class ExecutionIntelligenceCore:
         self.alignment_engine = MultiTimeframeAlignmentEngine()
         self.similarity_engine = PatternSimilarityIntelligenceEngine()
         self.portfolio_engine = PortfolioRiskIntelligenceEngine()
-        self.strategy_orchestrator = StrategyOrchestrator()
         self.planner = ExecutionIntelligencePlanner()
 
         # In-memory registry of isolated context states to prevent cross-contamination
@@ -147,21 +145,19 @@ class ExecutionIntelligenceCore:
         active_trades = active_portfolio_trades or []
         portfolio_res = self.portfolio_engine.calculate_portfolio_risk(active_trades, virtual_balance)
 
-        # 6b. Evaluate 6 Strategy Profiles via StrategyOrchestrator
-        strategy_eval_res = self.strategy_orchestrator.evaluate_all_strategies(
-            symbol=symbol,
-            primary_timeframe=timeframe,
-            candles=candles,
-            all_timeframe_candles=all_timeframe_candles,
-            narrative=narrative_res,
-            liquidity=liquidity_res,
-            zones=zones_res,
-            alignment=alignment_res,
-            similarity=similarity_res,
-            fractal=state.get("fractal", {}),
-            account_balance=virtual_balance
-        )
-        state["strategy_evaluation"] = strategy_eval_res
+        # 6b. Legacy strategy profiles are diagnostic-only and never participate in
+        # the executable decision path. Preserve an explicit disabled record for audit/UI
+        # consumers while the Brain remains the sole market-strategy authority.
+        strategy_eval_res = {
+            "candidates": [{
+                "strategy_name": "FRACTAL",
+                "direction": "WAIT",
+                "confidence": 0.0,
+                "reasoning": ["FRACTAL strategy explicitly disabled: insufficient pattern memory evidence."]
+            }],
+            "authority": "BRAIN_ONLY",
+            "execution_authority": False
+        }
 
         # 7. Generate advisory plan recommendation
         current_price = float(candles[-1]["close"])
@@ -175,7 +171,7 @@ class ExecutionIntelligenceCore:
             similarity=similarity_res,
             portfolio_risk=portfolio_res,
             current_price=current_price,
-            strategy_eval=strategy_eval_res,
+            strategy_eval=None,
             lang=lang,
             newborn_brain_report=newborn_brain_report
         )
