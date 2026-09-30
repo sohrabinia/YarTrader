@@ -293,31 +293,39 @@ class MT5DataProvider(IDataProvider):
         self._ping = 15.4
         self._mapper = MT5DataMapper()
         self._initialized = False
+        self._bridge_active = False
 
-        # Attempt native initialization first. In production the service can run
-        # as LocalSystem/Session 0 while terminal64.exe runs in the interactive
-        # operator session. If native IPC cannot cross that boundary, use the
-        # authenticated loopback Session-2 bridge.
-        if MT5_AVAILABLE and mt5 is not None:
-            try:
-                if mt5.initialize():
-                    self._initialized = True
-            except Exception:
-                self._initialized = False
-
-        if not self._initialized and is_production:
+        # Production always uses the authenticated Session-2 bridge. The
+        # service runs as LocalSystem/Session 0 while terminal64.exe runs in
+        # the interactive operator session, so a native mt5.initialize()
+        # result in Session 0 must never be treated as authoritative.
+        if is_production:
             try:
                 from src.Infrastructure.mt5_session_bridge import (
                     MT5SessionBridgeClient,
                     MT5BridgeProxy,
                 )
                 bridge = MT5SessionBridgeClient()
-                if bridge.configured:
-                    proxy = MT5BridgeProxy(bridge)
-                    health = bridge.call("health")
-                    if health and health.get("connected"):
-                        mt5 = proxy
-                        self._initialized = True
+                if not bridge.configured:
+                    raise RuntimeError("MT5 Session-2 bridge token is not configured")
+                proxy = MT5BridgeProxy(bridge)
+                health = bridge.call("health")
+                if not health or not health.get("connected"):
+                    raise RuntimeError("MT5 Session-2 bridge health check failed")
+                mt5 = proxy
+                self._bridge_active = True
+                self._initialized = True
+            except Exception:
+                # Fail closed in production. Do not fall back to native
+                # Session-0 MT5 IPC because it can report a misleading
+                # initialization result while having no access to Session 2.
+                self._bridge_active = False
+                self._initialized = False
+        elif MT5_AVAILABLE and mt5 is not None:
+            # Native MT5 remains available for tests/development/non-production.
+            try:
+                if mt5.initialize():
+                    self._initialized = True
             except Exception:
                 self._initialized = False
 
@@ -370,6 +378,14 @@ class MT5DataProvider(IDataProvider):
                 server=self._server,
                 ping_ms=0.0,
                 last_error="MetaTrader5 Python package is not available in this environment."
+            )
+
+        if is_production and not self._bridge_active:
+            return MT5ConnectionHealth(
+                connected=False,
+                server=self._server,
+                ping_ms=0.0,
+                last_error="Production MT5 Session-2 bridge is unavailable."
             )
 
         try:
