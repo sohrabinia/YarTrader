@@ -34,7 +34,7 @@ class TestHealthStatus(unittest.TestCase):
             self.assertEqual(health["research_worker"], "Running")
             self.assertEqual(health["intelligence_worker"], "Running")
             self.assertNotIn("shadow_worker", health)
-            self.assertEqual(health["shadow_trading"], "Disabled")
+            self.assertNotIn("shadow_trading", health)
             self.assertIn("timestamp", health)
 
     def test_health_disconnected_status(self):
