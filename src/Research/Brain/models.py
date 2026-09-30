@@ -154,6 +154,8 @@ class PatternMemory:
     symbol: str = ""
     timeframe: str = ""
     timeframe_signature: List[str] = field(default_factory=list)
+    context_id: str = ""
+    context_signature: Dict[str, Any] = field(default_factory=dict)
     version: int = 1
     status: str = "ACTIVE"
     family_id: str = ""
@@ -180,6 +182,8 @@ class PatternMemory:
             symbol=data.get("symbol", ""),
             timeframe=data.get("timeframe", ""),
             timeframe_signature=list(data.get("timeframe_signature", [])),
+            context_id=data.get("context_id", ""),
+            context_signature=data.get("context_signature", {}),
             version=int(data.get("version", 1)),
             status=data.get("status", "ACTIVE"),
             family_id=data.get("family_id", ""),
