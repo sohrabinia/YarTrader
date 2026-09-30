@@ -24,9 +24,13 @@ import DashboardView from './views/DashboardView.jsx';
 import IntelligenceView from './views/IntelligenceView.jsx';
 import DemoView from './views/DemoView.jsx';
 import AdminView from './views/AdminView.jsx';
+import AdminWalletView from './views/AdminWalletView.jsx';
+import AdminFinancialView from './views/AdminFinancialView.jsx';
 import OperatorView from './views/OperatorView.jsx';
 import GuideView from './views/GuideView.jsx';
 import FaqView from './views/FaqView.jsx';
+import WalletView from './views/WalletView.jsx';
+import BillingView from './views/BillingView.jsx';
 
 // Import Global Functional Command Palette Component
 import CommandPalette from './components/common/CommandPalette.jsx';
@@ -361,7 +365,7 @@ function MainApp() {
       navigateTo('/login');
       return;
     }
-    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/Operator' || routePath === '/operator' || routePath === '/learning';
+    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/Operator' || routePath === '/operator' || routePath === '/learning' || routePath === '/wallet' || routePath === '/billing' || routePath === '/admin/wallet' || routePath === '/admin/financial';
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
       showNotification(
@@ -369,7 +373,7 @@ function MainApp() {
         'warning'
       );
     }
-    if ((routePath === '/admin' || routePath === '/Operator' || routePath === '/operator') && token && role !== 'ADMIN') {
+    if ((routePath === '/admin' || routePath === '/admin/wallet' || routePath === '/Operator' || routePath === '/operator') && token && role !== 'ADMIN') {
       showNotification(
         lang === 'fa' ? 'دسترسی فقط برای کاربران با نقش مدیریت (ADMIN) مجاز است.' : 'Admin role is required.',
         'warning'
@@ -2031,6 +2035,12 @@ function MainApp() {
           )}
 
           {/* AUTHENTICATION VIEWS */}
+          {routePath === '/wallet' && <WalletView lang={lang} />}
+          {routePath === '/billing' && <BillingView lang={lang} />}
+
+          {routePath === '/admin/wallet' && <AdminWalletView />}
+          {routePath === '/admin/financial' && <AdminFinancialView />}
+
           {routePath === '/login' && (
             <div id="shell-login">
               <div className="card" style={{ maxWidth: '450px', margin: '40px auto', borderTop: '5px solid var(--primary)', textAlign: 'center' }}>
