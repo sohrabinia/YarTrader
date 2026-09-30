@@ -79,6 +79,25 @@ class ResearchWorker:
         except Exception:
             return []
 
+    @staticmethod
+    def _is_market_data_unavailable_error(error: Exception) -> bool:
+        """
+        Classify an authoritative production market-data availability failure.
+
+        A missing/unselected broker symbol is a per-symbol data condition, not a
+        ResearchWorker lifecycle failure. It must be skipped without enabling
+        synthetic data or weakening the production MT5 safety gate.
+        """
+        message = str(error).lower()
+        return (
+            "not selected or available in real mt5 terminal in production mode" in message
+            or (
+                "failed to fetch market data for primitive research" in message
+                and "symbol" in message
+                and "production mode" in message
+            )
+        )
+
     def start(self) -> None:
         """Starts the background worker thread."""
         if self.is_running:
@@ -460,6 +479,18 @@ class ResearchWorker:
                             "last_cycle_time": self.last_analysis_time.isoformat()
                         })
                     except Exception as e:
+                        if self._is_market_data_unavailable_error(e):
+                            # A broker symbol can be unavailable while the MT5 bridge and the
+                            # rest of the research universe remain healthy. Do not poison the
+                            # worker lifecycle state or enable synthetic/fallback market data.
+                            self.status = "RUNNING"
+                            central_runtime_state.update_state("research_status", "Running")
+                            print(
+                                f"[ResearchWorker] DATA_UNAVAILABLE/SKIPPED for {symbol} {tf}: "
+                                f"{type(e).__name__}: {e}"
+                            )
+                            continue
+
                         self.error_count += 1
                         self.status = "RECOVERING"
                         central_runtime_state.update_state("research_status", "Recovering")
