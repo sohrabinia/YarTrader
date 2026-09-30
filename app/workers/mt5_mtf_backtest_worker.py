@@ -58,12 +58,19 @@ def release_lock():
         LOCK.unlink()
     except FileNotFoundError:
         pass
+TIMEFRAME_DURATION = {
+    "M1": timedelta(minutes=1), "M5": timedelta(minutes=5),
+    "M15": timedelta(minutes=15), "M30": timedelta(minutes=30),
+    "H1": timedelta(hours=1), "H4": timedelta(hours=4), "D1": timedelta(days=1),
+}
+
 def closed_context_provider(series, timestamp):
-    """Return only bars available at the decision time; never expose future bars."""
+    """Return only fully closed MT5 candles available at the decision time."""
     decision = parse_time(timestamp)
     result = {}
     for tf, candles in series.items():
-        times = [parse_time(c["timestamp"]) for c in candles]
+        duration = TIMEFRAME_DURATION[tf]
+        times = [parse_time(c["timestamp"]) + duration for c in candles]
         idx = bisect.bisect_right(times, decision) - 1
         if idx >= 0:
             start = max(0, idx + 1 - CONTEXT_BARS)

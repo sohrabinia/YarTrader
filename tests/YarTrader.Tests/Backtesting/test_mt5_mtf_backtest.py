@@ -11,6 +11,8 @@ class TestMt5MtfBacktest(unittest.TestCase):
             {"timestamp": "2026-01-01T01:00:00+00:00", "close": 200},
         ]}
         ctx = closed_context_provider(series, "2026-01-01T00:30:00+00:00")
+        self.assertEqual(len(ctx["H1"]), 0)
+        ctx = closed_context_provider(series, "2026-01-01T01:00:00+00:00")
         self.assertEqual(len(ctx["H1"]), 1)
         self.assertEqual(ctx["H1"][-1]["close"], 100)
     def test_boundary_uses_current_closed_bar(self):
@@ -18,7 +20,7 @@ class TestMt5MtfBacktest(unittest.TestCase):
             {"timestamp": "2026-01-01T00:00:00+00:00", "close": 100},
             {"timestamp": "2026-01-01T01:00:00+00:00", "close": 200},
         ]}
-        ctx = closed_context_provider(series, "2026-01-01T01:00:00+00:00")
+        ctx = closed_context_provider(series, "2026-01-01T02:00:00+00:00")
         self.assertEqual(ctx["H1"][-1]["close"], 200)
 
     def test_context_is_bounded(self):
