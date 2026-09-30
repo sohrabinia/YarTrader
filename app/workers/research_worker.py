@@ -463,6 +463,29 @@ class ResearchWorker:
                         self.error_count += 1
                         self.status = "RECOVERING"
                         central_runtime_state.update_state("research_status", "Recovering")
+                        # Never swallow research-cycle failures: production diagnosis must retain
+                        # the exact symbol/timeframe, exception type, and traceback.
+                        import traceback
+                        error_context = (
+                            f"Research cycle error for {symbol} {tf}: "
+                            f"{type(e).__name__}: {e}"
+                        )
+                        print(f"[ResearchWorker] {error_context}")
+                        print(traceback.format_exc())
+                        try:
+                            from app.core.logging import log_event
+                            log_event(
+                                "ERROR",
+                                error_context,
+                                source="research_worker",
+                            )
+                            log_event(
+                                "ERROR",
+                                traceback.format_exc().rstrip(),
+                                source="research_worker",
+                            )
+                        except Exception:
+                            pass
                         # Graceful quick delay before next asset if error happens
                         time.sleep(0.5)
 
