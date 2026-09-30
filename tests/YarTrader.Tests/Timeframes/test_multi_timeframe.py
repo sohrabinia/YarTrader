@@ -40,7 +40,7 @@ class TestMultiTimeframeSupport(unittest.TestCase):
         subsystems = data["subsystems"]
         self.assertEqual(subsystems["research_worker"], "Running")
         self.assertEqual(subsystems["intelligence_worker"], "Running")
-        self.assertEqual(subsystems["shadow_worker"], "Running")
+        self.assertNotIn("shadow_worker", subsystems)
 
     def test_alignment_sorting_weights(self) -> None:
         engine = MultiTimeframeAlignmentEngine()
