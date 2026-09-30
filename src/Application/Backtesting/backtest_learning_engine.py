@@ -105,7 +105,8 @@ class BacktestAndLearningEngine:
         timeframe: str,
         candles: List[Dict[str, Any]],
         initial_balance: float = 10000.0,
-        start_index: int = 50
+        start_index: int = 50,
+        context_window: int = 500,
     ) -> Dict[str, Any]:
         """
         Executes a chronological, walk-forward backtest simulation across historical candles.
@@ -132,7 +133,10 @@ class BacktestAndLearningEngine:
         # Walk-forward bar by bar chronologically
         for i in range(start_index, len(candles)):
             current_bar = candles[i]
-            history_candles = candles[:i+1]
+            # Keep chronological processing over the full history while bounding
+            # per-bar context so a 10-year run does not become O(n²) in memory/copy cost.
+            window_start = max(0, i + 1 - context_window)
+            history_candles = candles[window_start:i+1]
             current_price = float(current_bar["close"])
             bar_time = current_bar.get("timestamp", f"bar-{i}")
 
