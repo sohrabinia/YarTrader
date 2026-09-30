@@ -170,17 +170,14 @@ class SymbolRegistry:
             return self.registry.copy()
 
     def get_timeframe_policy(self, asset_class: str) -> List[str]:
-        """Resolves timeframe policies per asset class. Returns all 9 timeframes."""
-        from src.Infrastructure.Configuration.config import ConfigurationManager
-        config = ConfigurationManager.get_config()
-        if not config.tick_chart_analysis_enabled:
-            return ["M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
-        return ["Tick", "M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
+        """Returns the production research timeframe policy without loading heavy production configuration."""
+        # Tick-level/chart analysis is intentionally excluded from the production research path.
+        # This keeps the worker at candle cadence (M1+) and avoids coupling universe discovery
+        # to unrelated production security configuration.
+        return ["M1", "M5", "M15", "H1", "H4", "D1", "W1", "MN1"]
 
     def get_active_matrix(self) -> List[Tuple[str, str, str, str]]:
-        """Resolves execution matrix tuples of (symbol, timeframe, asset_class, provider)"""
-        from src.Infrastructure.Configuration.config import ConfigurationManager
-        config = ConfigurationManager.get_config()
+        """Resolves production research matrix without loading unrelated execution configuration."""
         with self.lock:
             matrix = []
             active_count = 0
@@ -193,7 +190,8 @@ class SymbolRegistry:
                     provider = info.get("provider", "MT5")
                     tfs = info.get("timeframes") or self.get_timeframe_policy(asset_class)
                     for tf in tfs:
-                        if tf == "Tick" and not config.tick_chart_analysis_enabled:
+                        # Never schedule tick-level analysis in production research.
+                        if tf == "Tick":
                             continue
                         matrix.append((symbol, tf, asset_class, provider))
             return matrix
