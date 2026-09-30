@@ -108,6 +108,8 @@ class BacktestAndLearningEngine:
         start_index: int = 50,
         context_window: int = 500,
         state: Optional[Dict[str, Any]] = None,
+        all_timeframe_candles_provider=None,
+        decision_interval_minutes: int = 1,
     ) -> Dict[str, Any]:
         """
         Executes a chronological, walk-forward backtest simulation across historical candles.
@@ -237,12 +239,21 @@ class BacktestAndLearningEngine:
                     closed_trades.append(open_position)
                     open_position = None
 
-            # 2. Evaluate new trade entry if no position open
-            if not open_position:
+            # 2. Evaluate new entries on a bounded decision cadence.
+            decision_due = True
+            if decision_interval_minutes > 1:
+                try:
+                    decision_dt = datetime.fromisoformat(str(bar_time).replace("Z", "+00:00"))
+                    decision_due = decision_dt.minute % decision_interval_minutes == 0
+                except (TypeError, ValueError):
+                    decision_due = True
+            if not open_position and decision_due:
+                mtf_context = all_timeframe_candles_provider(bar_time) if all_timeframe_candles_provider else None
                 eval_res = self.intel_core.evaluate_context(
                     symbol=symbol,
                     timeframe=timeframe,
                     candles=history_candles,
+                    all_timeframe_candles=mtf_context,
                     virtual_balance=balance
                 )
 

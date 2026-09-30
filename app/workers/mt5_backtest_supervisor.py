@@ -11,6 +11,7 @@ os.chdir(ROOT)
 JOB = ROOT / "runtime_logs" / "backtest_learning" / "active_job.json"
 LOG = ROOT / "runtime_logs" / "backtest_learning" / "supervisor.log"
 WORKER = ROOT / "app" / "workers" / "mt5_backtest_worker.py"
+MTF_WORKER = ROOT / "app" / "workers" / "mt5_mtf_backtest_worker.py"
 
 def log(message):
     LOG.parent.mkdir(parents=True, exist_ok=True)
@@ -27,7 +28,10 @@ def load_job():
         return None
 
 def checkpoint(job):
-    path = ROOT / "runtime_logs" / "backtest_learning" / "mt5_incremental" / f"{job['symbol'].upper()}_{job['timeframe'].upper()}" / "checkpoint.json"
+    if str(job.get("timeframe", "")).upper() == "MTF":
+        path = ROOT / "runtime_logs" / "backtest_learning" / "mtf_incremental" / job["symbol"].upper() / "checkpoint.json"
+    else:
+        path = ROOT / "runtime_logs" / "backtest_learning" / "mt5_incremental" / f"{job['symbol'].upper()}_{job['timeframe'].upper()}" / "checkpoint.json"
     if not path.exists():
         return None
     try:
@@ -44,7 +48,7 @@ def run_forever():
             continue
 
         symbol = str(job.get("symbol", "XAUUSD")).upper()
-        timeframe = str(job.get("timeframe", "D1")).upper()
+        timeframe = str(job.get("timeframe", "MTF")).upper()
         years = int(job.get("years", 10))
         balance = float(job.get("initial_balance", 10000.0))
         sleep_sec = float(job.get("sleep", 1.0))
@@ -56,11 +60,20 @@ def run_forever():
             JOB.write_text(json.dumps(job, indent=2), encoding="utf-8")
             continue
 
-        cmd = [
-            sys.executable, str(WORKER),
-            "--symbol", symbol,
-            "--timeframe", timeframe,
-            "--years", str(years),
+        if timeframe == "MTF":
+            cmd = [
+                sys.executable, str(MTF_WORKER),
+                "--symbol", symbol,
+                "--years", str(years),
+            ]
+        else:
+            cmd = [
+                sys.executable, str(WORKER),
+                "--symbol", symbol,
+                "--timeframe", timeframe,
+                "--years", str(years),
+            ]
+        cmd += [
             "--initial-balance", str(balance),
             "--sleep", str(sleep_sec),
             "--max-chunks", "1",
