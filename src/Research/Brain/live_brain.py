@@ -38,7 +38,12 @@ class LiveAnalysisBrain:
         self._processed_candle_timestamps = set()
         self._last_report: Optional[AnalysisReport] = None
 
-    def process_live_candle(self, raw_candle: Dict[str, Any], simulate_virtual_trade: bool = True) -> AnalysisReport:
+    def process_live_candle(
+        self,
+        raw_candle: Dict[str, Any],
+        simulate_virtual_trade: bool = True,
+        timeframe_signature: Optional[List[str]] = None,
+    ) -> AnalysisReport:
         """
         Processes a new live candle, updates sequence perception, discovers matching
         patterns, creates simulated decisions, and evaluates reasoning quality.
@@ -85,18 +90,25 @@ class LiveAnalysisBrain:
                     "judge_reasoning_score": judge_res["reasoning_quality_score"],
                     "judge_accuracy": judge_res["pattern_accuracy"],
                     "is_lucky_win": judge_res["was_influenced_by_luck"],
-                    "trade_id": closed_trade.trade_id
+                    "trade_id": closed_trade.trade_id,
+                    "pattern_symbol": self.symbol.upper(),
+                    "pattern_timeframe": self.timeframe.upper(),
+                    "timeframe_signature": sorted({str(tf).upper() for tf in (timeframe_signature or [self.timeframe])}),
+                    "favorable_excursion": float(closed_trade.max_favorable_movement),
+                    "adverse_excursion": abs(float(closed_trade.max_adverse_movement)),
                 }
             )
             self.memory_system.add_experience(experience)
 
         # 3. Process Observations in Observation Brain
         sequence = self.observation_brain.process_observations(observations)
+        for event in sequence.events:
+            self.memory_system.add_event(event)
 
         # 4. Extract the raw signature and formulate the canonical Brain hypothesis.
         sig = self.discovery_engine.extract_signature(sequence.observations)
         matched = self.discovery_engine.find_matches(sig, self.memory_system.get_patterns())
-        outcome_agg = self.discovery_engine.aggregate_outcomes(matched)
+        outcome_agg = self.discovery_engine.aggregate_outcomes(matched, sig)
         hypothesis = self.hypothesis_engine.formulate_hypothesis(
             current_signature=sig,
             historical_patterns=self.memory_system.get_patterns()
@@ -140,6 +152,10 @@ class LiveAnalysisBrain:
             historical_sample_size=len(self.memory_system.get_events())
         )
 
+        trade_parameters = self._derive_learned_trade_parameters(
+            hypothesis, matched, latest_obs.close_price
+        )
+
         report = AnalysisReport(
             report_id=f"rpt-brain-{uuid.uuid4().hex[:8]}",
             symbol=self.symbol,
@@ -154,11 +170,16 @@ class LiveAnalysisBrain:
             ],
             active_hypotheses=[
                 {
+                    "hypothesis_id": hypothesis.hypothesis_id,
                     "matched_patterns": len(matched),
+                    "matched_pattern_ids": [p.pattern_id for p, _ in matched],
+                    "sequence_signature": list(hypothesis.sequence_signature),
                     "continuation_likelihood": outcome_agg["continuation_pct"],
                     "reversal_likelihood": outcome_agg["reversal_pct"],
                     "suggested_virtual_action": decision,
-                    "hypothesis_confidence": float(hypothesis.confidence)
+                    "hypothesis_confidence": float(hypothesis.confidence),
+                    "trade_parameters": trade_parameters,
+                    "timeframe_signature": sorted({str(tf).upper() for tf in (timeframe_signature or [self.timeframe])}),
                 }
             ],
             simulated_trades=[
@@ -177,3 +198,41 @@ class LiveAnalysisBrain:
 
         self._last_report = report
         return report
+
+    def _derive_learned_trade_parameters(self, hypothesis, matches, current_price: float) -> Dict[str, Any]:
+        if hypothesis.expected_direction not in ("BUY", "SELL") or hypothesis.confidence < 50.0:
+            return {}
+        samples = []
+        for pattern, similarity in matches:
+            for outcome in pattern.outcomes:
+                fav = float(outcome.get("favorable_excursion", 0.0) or 0.0)
+                adv = float(outcome.get("adverse_excursion", 0.0) or 0.0)
+                if fav > 0.0 and adv > 0.0:
+                    quality = max(0.0, min(1.0, float(outcome.get("judge_vetted_accuracy", 1.0))))
+                    samples.append((fav, adv, max(0.0, similarity) * quality))
+        if len(samples) < 3:
+            return {}
+        weight_sum = sum(w for _, _, w in samples)
+        if weight_sum <= 0:
+            return {}
+        favorable = sum(fav * w for fav, _, w in samples) / weight_sum
+        adverse = sum(adv * w for _, adv, w in samples) / weight_sum
+        if favorable <= 0.0 or adverse <= 0.0:
+            return {}
+        rr = favorable / adverse
+        if rr < 1.5:
+            return {}
+        if hypothesis.expected_direction == "BUY":
+            stop_loss = current_price - adverse
+            take_profit = current_price + favorable
+        else:
+            stop_loss = current_price + adverse
+            take_profit = current_price - favorable
+        return {
+            "entry": float(current_price),
+            "stop_loss": float(stop_loss),
+            "take_profit": float(take_profit),
+            "risk_reward": round(rr, 2),
+            "sample_size": len(samples),
+            "source": "LEARNED_PATTERN_EXCURSIONS",
+        }

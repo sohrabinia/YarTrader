@@ -151,10 +151,20 @@ class PatternMemory:
     reversal_count: int
     outcomes: List[Dict[str, Any]] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
+    symbol: str = ""
+    timeframe: str = ""
+    timeframe_signature: List[str] = field(default_factory=list)
+    version: int = 1
+    status: str = "ACTIVE"
+    family_id: str = ""
+    parent_pattern_id: Optional[str] = None
+    last_validated_at: Optional[datetime] = None
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d["created_at"] = self.created_at.isoformat()
+        if self.last_validated_at:
+            d["last_validated_at"] = self.last_validated_at.isoformat()
         return d
 
     @classmethod
@@ -166,7 +176,15 @@ class PatternMemory:
             continuation_count=int(data["continuation_count"]),
             reversal_count=int(data["reversal_count"]),
             outcomes=data.get("outcomes", []),
-            created_at=datetime.fromisoformat(data["created_at"])
+            created_at=datetime.fromisoformat(data["created_at"]),
+            symbol=data.get("symbol", ""),
+            timeframe=data.get("timeframe", ""),
+            timeframe_signature=list(data.get("timeframe_signature", [])),
+            version=int(data.get("version", 1)),
+            status=data.get("status", "ACTIVE"),
+            family_id=data.get("family_id", ""),
+            parent_pattern_id=data.get("parent_pattern_id"),
+            last_validated_at=(datetime.fromisoformat(data["last_validated_at"]) if data.get("last_validated_at") else None)
         )
 
 

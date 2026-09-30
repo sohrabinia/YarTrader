@@ -72,7 +72,14 @@ class ExecutionIntelligencePlanner:
         entry = 0.0
         stop_loss = 0.0
         take_profit = 0.0
-        confidence = float(alignment.get("confidence", 50))
+        brain_confidence = 0.0
+        brain_trade_parameters = {}
+        if newborn_brain_report and isinstance(newborn_brain_report, dict):
+            hypotheses = newborn_brain_report.get("active_hypotheses", [])
+            if hypotheses:
+                brain_confidence = float(hypotheses[0].get("hypothesis_confidence", 0.0))
+                brain_trade_parameters = hypotheses[0].get("trade_parameters", {}) or {}
+        confidence = brain_confidence
 
         trend = narrative.get("trend", "NEUTRAL")
         latest_sweep = liquidity.get("latest_sweep")
@@ -87,31 +94,15 @@ class ExecutionIntelligencePlanner:
             # Brain explicitly proposed BUY or SELL: Planner formats trade parameters directly without overriding Brain
             if brain_suggested_action == "BUY":
                 action = "BUY"
-                entry = current_price
-                stop_loss = current_price - (current_price * 0.01) # fallback 1%
-                if obs:
-                    bullish_obs = [ob for ob in obs if ob.get("type") == "BULLISH_OB"]
-                    if bullish_obs:
-                        stop_loss = max(stop_loss, bullish_obs[0]["bottom"])
-
-                take_profit = current_price + (current_price * 0.02) # fallback 2%
-                resting_bsl = liquidity.get("resting_bsl", [])
-                if resting_bsl:
-                    take_profit = resting_bsl[0]["level"]
+                entry = float(brain_trade_parameters.get("entry", 0.0))
+                stop_loss = float(brain_trade_parameters.get("stop_loss", 0.0))
+                take_profit = float(brain_trade_parameters.get("take_profit", 0.0))
 
             elif brain_suggested_action == "SELL":
                 action = "SELL"
-                entry = current_price
-                stop_loss = current_price + (current_price * 0.01)
-                if obs:
-                    bearish_obs = [ob for ob in obs if ob.get("type") == "BEARISH_OB"]
-                    if bearish_obs:
-                        stop_loss = min(stop_loss, bearish_obs[0]["top"])
-
-                take_profit = current_price - (current_price * 0.02)
-                resting_ssl = liquidity.get("resting_ssl", [])
-                if resting_ssl:
-                    take_profit = resting_ssl[0]["level"]
+                entry = float(brain_trade_parameters.get("entry", 0.0))
+                stop_loss = float(brain_trade_parameters.get("stop_loss", 0.0))
+                take_profit = float(brain_trade_parameters.get("take_profit", 0.0))
             else:
                 action = "WAIT"
 
@@ -122,6 +113,12 @@ class ExecutionIntelligencePlanner:
         risk_dist = abs(entry - stop_loss)
         reward_dist = abs(take_profit - entry)
         rr = round(reward_dist / risk_dist, 2) if risk_dist > 0 else 0.0
+        if action in ["BUY", "SELL"] and (
+            entry <= 0.0 or stop_loss <= 0.0 or take_profit <= 0.0 or rr < 1.5 or confidence < 50.0
+        ):
+            action = "WAIT"
+            entry = stop_loss = take_profit = 0.0
+            rr = 0.0
 
         # Build reasoning array
         sweep_type = latest_sweep["type"] if latest_sweep else None
@@ -170,7 +167,7 @@ class ExecutionIntelligencePlanner:
                 "candle_count": candle_count,
                 "latest_candle_timestamp": latest_candle_timestamp,
                 "context_identity": context_identity,
-                "risk_budget_percent": 1.0,
+                "risk_budget_percent": 0.5,
                 "decision_cycle_id": decision_cycle_id
             }
         }

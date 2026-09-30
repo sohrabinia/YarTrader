@@ -139,6 +139,7 @@ class BacktestAndLearningEngine:
         open_position: Optional[Dict[str, Any]] = state.get("open_position")
         closed_trades: List[Dict[str, Any]] = []
         learning_updates_count = 0
+        latest_brain_report = None
 
         memory = self.get_market_memory(symbol)
         canonical_brain = self.get_live_brain(symbol, timeframe)
@@ -256,14 +257,16 @@ class BacktestAndLearningEngine:
                     decision_due = decision_dt.minute % decision_interval_minutes == 0
                 except (TypeError, ValueError):
                     decision_due = True
+            mtf_context = all_timeframe_candles_provider(bar_time) if all_timeframe_candles_provider else None
+            brain_scope = sorted(mtf_context.keys()) if mtf_context else [timeframe]
+            brain_report = canonical_brain.process_live_candle({
+                "timestamp": str(bar_time), "open": float(current_bar["open"]),
+                "high": float(current_bar["high"]), "low": float(current_bar["low"]),
+                "close": float(current_bar["close"]), "volume": float(current_bar.get("volume", 0.0))
+            }, simulate_virtual_trade=False, timeframe_signature=brain_scope)
+            latest_brain_report = brain_report.to_dict()
             if not open_position and decision_due:
-                brain_report = canonical_brain.process_live_candle({
-                    "timestamp": str(bar_time), "open": float(current_bar["open"]),
-                    "high": float(current_bar["high"]), "low": float(current_bar["low"]),
-                    "close": float(current_bar["close"]), "volume": float(current_bar.get("volume", 0.0))
-                }, simulate_virtual_trade=False)
-                brain_report_dict = brain_report.to_dict()
-                mtf_context = all_timeframe_candles_provider(bar_time) if all_timeframe_candles_provider else None
+                brain_report_dict = latest_brain_report
                 eval_res = self.intel_core.evaluate_context(
                     symbol=symbol, timeframe=timeframe, candles=history_candles,
                     all_timeframe_candles=mtf_context, virtual_balance=balance,
@@ -278,13 +281,13 @@ class BacktestAndLearningEngine:
                         "trade_id": f"BT-{symbol.upper()}-{timeframe.upper()}-{str(bar_time).replace(":", "").replace("+", "p").replace("-", "")}-{action}",
                         "symbol": symbol.upper(),
                         "timeframe": timeframe,
-                        "strategy": plan.get("strategy", "FAST_SCALP"),
+                        "strategy": plan.get("strategy", "BRAIN_LEARNED"),
                         "direction": action,
                         "entry": float(plan.get("entry", current_price)),
                         "stop_loss": float(plan.get("stop_loss", 0.0)),
                         "take_profit": float(plan.get("take_profit", 0.0)),
                         "risk_reward": float(plan.get("risk_reward", 0.0)),
-                        "confidence": float(plan.get("confidence", 70.0)),
+                        "confidence": float(plan.get("confidence", 0.0)),
                         "volume": 0.01,
                         "entry_time": bar_time,
                         "market_context": eval_res.get("narrative", {}),
@@ -292,6 +295,16 @@ class BacktestAndLearningEngine:
                         "mfe": 0.0,
                         "mae": 0.0
                     }
+                    hypothesis = (brain_report_dict.get("active_hypotheses") or [{}])[0]
+                    open_position["brain_hypothesis_id"] = hypothesis.get("hypothesis_id")
+                    open_position["brain_signature"] = list(hypothesis.get("sequence_signature", []))
+                    open_position["brain_pattern_ids"] = list(hypothesis.get("matched_pattern_ids", []))
+                    risk_budget_pct = min(2.0, max(0.0, float(plan.get("risk_budget_percent", 0.5)))) / 100.0
+                    risk_dollars = max(0.0, balance * risk_budget_pct)
+                    risk_distance = abs(open_position["entry"] - open_position["stop_loss"])
+                    pnl_multiplier = 100.0 if "XAU" in symbol.upper() else 10000.0
+                    if risk_distance > 0.0 and risk_dollars > 0.0:
+                        open_position["volume"] = round(risk_dollars / (risk_distance * pnl_multiplier), 6)
 
         # Calculate backtest report metrics
         wins = sum(1 for t in closed_trades if t["outcome"] == "WIN")
@@ -354,7 +367,7 @@ class BacktestAndLearningEngine:
             decision_action=closed_trade["direction"],
             confidence=confidence / 100.0,
             reason="Backtest trade execution evaluation",
-            context={"timeframe": closed_trade["timeframe"], "strategy": strategy}
+            context={"timeframe": closed_trade["timeframe"], "strategy": strategy, "pattern_ids": closed_trade.get("brain_pattern_ids", [])}
         )
 
         outcome_payload = {
@@ -410,7 +423,7 @@ class BacktestAndLearningEngine:
             symbol=closed_trade["symbol"],
             timeframe=closed_trade["timeframe"],
             timestamp=datetime.now(),
-            situation_signature=[closed_trade["entry"], closed_trade["stop_loss"], closed_trade["take_profit"]],
+            situation_signature=list(closed_trade.get("brain_signature") or []),
             decision_action=closed_trade["direction"],
             outcome_result=outcome_payload["final_result"],
             lesson_feedback=(
@@ -426,11 +439,19 @@ class BacktestAndLearningEngine:
                 "judge_eval": judge_eval,
                 "post_trade_review": post_trade_review,
                 "is_lucky_win": bool(judge_eval.get("is_lucky_win", False)),
-                "learning_update_id": f"learn-{closed_trade['trade_id']}"
+                "learning_update_id": f"learn-{closed_trade['trade_id']}",
+                "pattern_symbol": closed_trade["symbol"].upper(),
+                "pattern_timeframe": closed_trade["timeframe"].upper(),
+                "timeframe_signature": [closed_trade["timeframe"].upper()],
+                "hypothesis_id": closed_trade.get("brain_hypothesis_id"),
+                "pattern_ids": closed_trade.get("brain_pattern_ids", []),
+                "favorable_excursion": mfe,
+                "adverse_excursion": mae,
             }
         )
 
-        memory.add_experience(exp)
+        if exp.situation_signature:
+            memory.add_experience(exp)
         memory.promote_experiences_to_patterns()
 
         return judge_eval

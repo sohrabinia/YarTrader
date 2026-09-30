@@ -2,6 +2,7 @@ import os
 import json
 import threading
 import uuid
+import hashlib
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from src.Research.Brain.models import MarketEvent, PatternMemory, ExperienceMemory, ConceptMemory
@@ -67,7 +68,8 @@ class MarketMemorySystem:
         with self._lock:
             # Check for duplication using timestamp bounds
             exists = any(
-                e.start_time == event.start_time and e.end_time == event.end_time and e.timeframe == event.timeframe
+                e.symbol == event.symbol and e.start_time == event.start_time
+                and e.end_time == event.end_time and e.timeframe == event.timeframe
                 for e in self.events
             )
             if not exists:
@@ -77,6 +79,8 @@ class MarketMemorySystem:
     def add_experience(self, exp: ExperienceMemory) -> None:
         """Stores an experience record in Experience Memory."""
         with self._lock:
+            if exp.experience_id in self.experiences:
+                return
             self.experiences[exp.experience_id] = exp
             self.last_learning_update = datetime.now().isoformat()
             self._save_layer("experiences")
@@ -124,8 +128,23 @@ class MarketMemorySystem:
             ]
 
         for evt in unpromoted_events:
-            # Formulate a situation signature based on price change and duration
-            signature = [evt.price_change, float(evt.duration_candles), evt.reaction_magnitude]
+            reaction_end_raw = evt.meta.get("reaction_end_time")
+            if reaction_end_raw:
+                try:
+                    reaction_end = datetime.fromisoformat(reaction_end_raw)
+                    now = datetime.now(reaction_end.tzinfo) if reaction_end.tzinfo else datetime.now()
+                    if reaction_end > now:
+                        continue
+                except (TypeError, ValueError):
+                    continue
+            signature = list(evt.meta.get("sequence_signature") or [])
+            if not signature:
+                signature = [evt.price_change, float(evt.duration_candles), evt.reaction_magnitude]
+            base_action = "BUY" if evt.meta.get("direction") == "upward" else "SELL"
+            is_continuation = evt.reaction_type == "extension"
+            predicted_action = base_action if is_continuation else ("SELL" if base_action == "BUY" else "BUY")
+            favorable_excursion = abs(evt.price_change) if is_continuation else abs(evt.reaction_magnitude)
+            adverse_excursion = abs(evt.reaction_magnitude) if is_continuation else abs(evt.price_change)
             exp_id = f"exp-{uuid.uuid4().hex[:8]}"
 
             exp = ExperienceMemory(
@@ -139,7 +158,15 @@ class MarketMemorySystem:
                 lesson_feedback=f"Promoted from raw event with reaction: {evt.reaction_type}",
                 max_favorable_excursion=abs(evt.price_change),
                 max_adverse_excursion=-abs(evt.reaction_magnitude),
-                meta={"raw_event_start": evt.start_time.isoformat()}
+                meta={
+                    "raw_event_start": evt.start_time.isoformat(),
+                    "pattern_symbol": evt.symbol.upper(),
+                    "pattern_timeframe": evt.timeframe.upper(),
+                    "timeframe_signature": [evt.timeframe.upper()],
+                    "predicted_action": predicted_action,
+                    "favorable_excursion": favorable_excursion,
+                    "adverse_excursion": adverse_excursion,
+                }
             )
 
             # Link/mark the raw event as promoted
@@ -170,7 +197,12 @@ class MarketMemorySystem:
             exp = self.experiences[exp_id]
 
         # 1. Age Factor (decays over time)
-        diff_seconds = max(0.0, (current_time - exp.timestamp).total_seconds())
+        exp_time = exp.timestamp
+        if exp_time.tzinfo is not None and current_time.tzinfo is None:
+            current_time = current_time.replace(tzinfo=exp_time.tzinfo)
+        elif exp_time.tzinfo is None and current_time.tzinfo is not None:
+            current_time = current_time.replace(tzinfo=None)
+        diff_seconds = max(0.0, (current_time - exp_time).total_seconds())
         # Decay half-life of 7 days (604800 seconds)
         age_factor = 1.0 / (1.0 + (diff_seconds / 604800.0))
 
@@ -218,13 +250,22 @@ class MarketMemorySystem:
             sig = exp.situation_signature
             if not sig:
                 continue
+            scope_symbol = str(exp.meta.get("pattern_symbol", exp.symbol)).upper()
+            scope_timeframe = str(exp.meta.get("pattern_timeframe", exp.timeframe)).upper()
+            scope_tfs = sorted({str(tf).upper() for tf in exp.meta.get("timeframe_signature", [scope_timeframe]) if tf})
 
-            # Look for matching pattern in current patterns
+            # Look for matching pattern in the exact market/timeframe scope.
             matched_pattern = None
             best_similarity = 0.0
 
             with self._lock:
-                patterns_list = list(self.patterns.values())
+                patterns_list = [
+                    p for p in self.patterns.values()
+                    if p.symbol.upper() == scope_symbol
+                    and p.timeframe.upper() == scope_timeframe
+                    and sorted(p.timeframe_signature or [p.timeframe.upper()]) == scope_tfs
+                    and p.status != "RETIRED"
+                ]
 
             for pat in patterns_list:
                 pat_sig = pat.sequence_signature
@@ -247,6 +288,9 @@ class MarketMemorySystem:
             if matched_pattern and best_similarity >= 0.85:
                 # Update pattern
                 with self._lock:
+                    if any(out.get("experience_id") == exp.experience_id for out in matched_pattern.outcomes):
+                        exp.meta["is_promoted_to_pattern"] = True
+                        continue
                     matched_pattern.occurrences_count += 1
                     if is_success:
                         matched_pattern.continuation_count += 1
@@ -258,13 +302,24 @@ class MarketMemorySystem:
                         "timestamp": exp.timestamp.isoformat(),
                         "outcome": exp.outcome_result,
                         "adjusted_confidence": round(adjusted_confidence, 4),
-                        "judge_vetted_accuracy": exp.meta.get("judge_accuracy", 1.0)
+                        "judge_vetted_accuracy": exp.meta.get("judge_accuracy", 1.0),
+                        "favorable_excursion": float(exp.meta.get("favorable_excursion", exp.max_favorable_excursion)),
+                        "adverse_excursion": float(exp.meta.get("adverse_excursion", abs(exp.max_adverse_excursion))),
+                        "predicted_action": str(exp.meta.get("predicted_action", exp.decision_action)).upper(),
                     })
+                    matched_pattern.last_validated_at = datetime.now()
+                    self._refresh_pattern_lifecycle(matched_pattern)
                     self._save_layer("patterns")
                     promoted_patterns.append(matched_pattern)
             else:
                 # Create a new pattern with occurrences count and linked metrics
-                pid = f"pat-{uuid.uuid4().hex[:8]}"
+                identity = json.dumps({
+                    "symbol": scope_symbol,
+                    "timeframe": scope_timeframe,
+                    "timeframe_signature": scope_tfs,
+                    "signature": [round(float(v), 8) for v in sig],
+                }, sort_keys=True, separators=(",", ":"))
+                pid = f"pat-{hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]}"
                 new_pat = PatternMemory(
                     pattern_id=pid,
                     sequence_signature=sig,
@@ -276,9 +331,19 @@ class MarketMemorySystem:
                         "timestamp": exp.timestamp.isoformat(),
                         "outcome": exp.outcome_result,
                         "adjusted_confidence": round(adjusted_confidence, 4),
-                        "judge_vetted_accuracy": exp.meta.get("judge_accuracy", 1.0)
+                        "judge_vetted_accuracy": exp.meta.get("judge_accuracy", 1.0),
+                        "favorable_excursion": float(exp.meta.get("favorable_excursion", exp.max_favorable_excursion)),
+                        "adverse_excursion": float(exp.meta.get("adverse_excursion", abs(exp.max_adverse_excursion))),
+                        "predicted_action": str(exp.meta.get("predicted_action", exp.decision_action)).upper(),
                     }],
-                    created_at=datetime.now()
+                    created_at=datetime.now(),
+                    symbol=scope_symbol,
+                    timeframe=scope_timeframe,
+                    timeframe_signature=scope_tfs,
+                    version=1,
+                    status="ACTIVE",
+                    family_id=pid,
+                    last_validated_at=datetime.now()
                 )
                 with self._lock:
                     self.patterns[pid] = new_pat
@@ -293,6 +358,22 @@ class MarketMemorySystem:
                 self._save_layer("experiences")
 
         return promoted_patterns
+
+    def _refresh_pattern_lifecycle(self, pattern: PatternMemory) -> None:
+        if pattern.occurrences_count < 5:
+            pattern.status = "ACTIVE"
+            return
+        recent = pattern.outcomes[-20:]
+        if not recent:
+            return
+        successes = sum(1 for out in recent if out.get("outcome") == "SUCCESS")
+        rate = successes / len(recent)
+        if rate < 0.30 and len(recent) >= 10:
+            pattern.status = "RETIRED"
+        elif rate < 0.45 and len(recent) >= 5:
+            pattern.status = "DEGRADED"
+        else:
+            pattern.status = "ACTIVE"
 
     def consolidate_patterns_to_concepts(
         self,

@@ -101,9 +101,17 @@ class ObservationBrain:
                 meta={
                     "direction": "upward" if price_change >= 0 else "downward",
                     "consecutive_bullish_candles": seq_len if is_bullish else 0,
-                    "consecutive_bearish_candles": seq_len if not is_bullish else 0
+                    "consecutive_bearish_candles": seq_len if not is_bullish else 0,
+                    "reaction_end_time": (obs_list[react_end_idx].timestamp.isoformat() if j < n else None),
                 }
             )
+            if end_idx >= 4:
+                sig_closes = [o.close_price for o in obs_list[end_idx - 4:end_idx + 1]]
+                sig_changes = [sig_closes[k] - sig_closes[k - 1] for k in range(1, len(sig_closes))]
+                max_abs = max((abs(c) for c in sig_changes), default=0.0)
+                event_obj.meta["sequence_signature"] = (
+                    [c / max_abs for c in sig_changes] if max_abs else [0.0] * len(sig_changes)
+                )
             events.append(event_obj)
 
             # Move index forward

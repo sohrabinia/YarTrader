@@ -14,14 +14,20 @@ class HypothesisEngine:
     def formulate_hypothesis(
         self,
         current_signature: List[float],
-        historical_patterns: List[PatternMemory]
+        historical_patterns: List[PatternMemory],
+        symbol: str = "",
+        timeframe: str = "",
+        timeframe_signature: List[str] = None,
     ) -> Hypothesis:
         """
         Formulates a hypothesis by finding matches in historical patterns.
         Groups them into supporting (aligned with expected outcome) and
         contradicting samples, and calculates a confidence percentage.
         """
-        matches = self.discovery_engine.find_matches(current_signature, historical_patterns)
+        matches = self.discovery_engine.find_matches(
+            current_signature, historical_patterns,
+            symbol=symbol, timeframe=timeframe, timeframe_signature=timeframe_signature
+        )
 
         if not matches:
             return Hypothesis(
@@ -36,15 +42,16 @@ class HypothesisEngine:
             )
 
         # Decide expected direction from outcomes
-        outcome_agg = self.discovery_engine.aggregate_outcomes(matches)
+        outcome_agg = self.discovery_engine.aggregate_outcomes(matches, current_signature)
         continuation_pct = outcome_agg["continuation_pct"]
         reversal_pct = outcome_agg["reversal_pct"]
+        current_action = outcome_agg.get("current_structure_action", "BUY")
 
         if continuation_pct > 55.0:
-            expected_direction = "BUY"
+            expected_direction = current_action
             confidence = continuation_pct
         elif reversal_pct > 55.0:
-            expected_direction = "SELL"
+            expected_direction = "SELL" if current_action == "BUY" else "BUY"
             confidence = reversal_pct
         else:
             expected_direction = "WAIT"
