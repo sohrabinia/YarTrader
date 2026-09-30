@@ -218,3 +218,39 @@ def build_brain_context(
     canonical = json.dumps(context, sort_keys=True, separators=(",", ":"), default=str)
     context["context_id"] = "ctx-" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:20]
     return context
+
+
+class PointInTimeContextCache:
+    """Bounded shared cache used to assemble MTF/cross-symbol context without strategy rules."""
+
+    def __init__(self, max_per_scope: int = 500) -> None:
+        self.max_per_scope = max_per_scope
+        self._data: Dict[tuple, List[MarketObservation]] = {}
+
+    def add(self, observation: MarketObservation) -> None:
+        key = (observation.symbol.upper(), observation.timeframe.upper())
+        bucket = self._data.setdefault(key, [])
+        bucket.append(observation)
+        bucket.sort(key=lambda o: o.timestamp)
+        # Deduplicate by timestamp and keep only the recent bounded window.
+        unique: Dict[datetime, MarketObservation] = {o.timestamp: o for o in bucket}
+        self._data[key] = list(sorted(unique.values(), key=lambda o: o.timestamp)[-self.max_per_scope:])
+
+    def snapshot_symbol(self, symbol: str, decision_time: datetime) -> Dict[str, List[MarketObservation]]:
+        symbol = symbol.upper()
+        return {
+            tf: [o for o in observations if o.timestamp <= decision_time]
+            for (sym, tf), observations in self._data.items()
+            if sym == symbol and any(o.timestamp <= decision_time for o in observations)
+        }
+
+    def snapshot_symbols(self, timeframe: str, decision_time: datetime) -> Dict[str, List[MarketObservation]]:
+        timeframe = timeframe.upper()
+        return {
+            sym: [o for o in observations if o.timestamp <= decision_time]
+            for (sym, tf), observations in self._data.items()
+            if tf == timeframe and any(o.timestamp <= decision_time for o in observations)
+        }
+
+
+GLOBAL_CONTEXT_CACHE = PointInTimeContextCache()
