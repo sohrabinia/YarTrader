@@ -1,4 +1,4 @@
-﻿import math
+import math
 import uuid
 import hashlib
 import json
@@ -6,51 +6,40 @@ from datetime import datetime
 from typing import List, Dict, Any, Tuple
 from src.Research.Brain.models import MarketObservation, PatternMemory
 
+
 class PatternDiscoveryEngine:
     """
     Implements mathematical similarity discovery.
-    Identifies if a current raw close price action signature resembles historical patterns,
-    answering: 'Have I seen something similar before?' without subjective concepts.
+    Identifies whether current raw close-price action resembles historical patterns.
     """
     def __init__(self, similarity_threshold: float = 0.80) -> None:
         self.similarity_threshold = similarity_threshold
 
-    def extract_signature(self, observations: List[MarketObservation], window_size: int = 5) -> List[float]:
-        """
-        Extracts a normalized percentage change price action signature from a window of observations.
-        Normalizes by peak absolute change to create a scale-invariant footprint.
-        """
+    def extract_signature(
+        self, observations: List[MarketObservation], window_size: int = 5
+    ) -> List[float]:
+        """Extract a normalized, scale-invariant price-action signature."""
         if len(observations) < window_size:
             return []
-
         recent = observations[-window_size:]
         closes = [o.close_price for o in recent]
-
-        # Calculate sequential price changes
-        changes: List[float] = []
-        for i in range(1, len(closes)):
-            diff = closes[i] - closes[i-1]
-            changes.append(diff)
-
-        # Normalize changes by max absolute change to be scale invariant
+        changes = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
         max_abs = max(abs(c) for c in changes) if changes else 0.0
         if max_abs == 0.0:
             return [0.0] * len(changes)
-
         return [c / max_abs for c in changes]
 
-    def calculate_similarity(self, sig1: List[float], sig2: List[float]) -> float:
-        """Calculates cosine similarity between two sequence signatures."""
+    def calculate_similarity(
+        self, sig1: List[float], sig2: List[float]
+    ) -> float:
+        """Calculate cosine similarity between two sequence signatures."""
         if not sig1 or not sig2 or len(sig1) != len(sig2):
             return 0.0
-
         dot_product = sum(a * b for a, b in zip(sig1, sig2))
         norm_a = math.sqrt(sum(a * a for a in sig1))
         norm_b = math.sqrt(sum(b * b for b in sig2))
-
         if norm_a == 0.0 or norm_b == 0.0:
             return 0.0
-
         return dot_product / (norm_a * norm_b)
 
     def find_matches(
@@ -63,49 +52,64 @@ class PatternDiscoveryEngine:
         context_id: str = "",
     ) -> List[Tuple[PatternMemory, float]]:
         """
-        Scans historical pattern memory and returns list of matching patterns and their
-        respective similarity scores exceeding the threshold.
+        Return reusable historical patterns matching the current signature.
+
+        Symbol and timeframe applicability are hard filters. context_id is retained
+        as evidence lineage, but is not an exact timestamp-level matching gate.
         """
         if not current_sig:
             return []
 
         matches: List[Tuple[PatternMemory, float]] = []
-        wanted_tfs = sorted({str(tf).upper() for tf in (timeframe_signature or ([timeframe] if timeframe else []))})
+        wanted_tfs = sorted(
+            {
+                str(tf).upper()
+                for tf in (timeframe_signature or ([timeframe] if timeframe else []))
+            }
+        )
         for pat in historical_patterns:
             if symbol and pat.symbol.upper() != symbol.upper():
                 continue
             if timeframe and pat.timeframe.upper() != timeframe.upper():
                 continue
-            if wanted_tfs and pat.timeframe_signature and sorted(pat.timeframe_signature) != wanted_tfs:
+            if (
+                wanted_tfs
+                and pat.timeframe_signature
+                and sorted(pat.timeframe_signature) != wanted_tfs
+            ):
                 continue
-            # A learned pattern is only comparable inside the exact point-in-time context
-            # it was learned from. Empty legacy IDs remain backward-compatible.
-            if context_id and pat.context_id and pat.context_id != context_id:
-                continue
+            # context_id identifies the historical evidence lineage. It must not
+            # prevent reuse across later timestamps with the same symbol/timeframe.
             if pat.status == "RETIRED":
                 continue
             score = self.calculate_similarity(current_sig, pat.sequence_signature)
             if score >= self.similarity_threshold:
                 matches.append((pat, score))
 
-        # Sort by similarity descending
         matches.sort(key=lambda x: x[1], reverse=True)
         return matches
-
-    def aggregate_outcomes(self, matches: List[Tuple[PatternMemory, float]], current_signature: List[float] = None) -> Dict[str, Any]:
-        """Aggregates previous outcomes (continuation vs reversal) across all similar matches."""
+    def aggregate_outcomes(
+        self,
+        matches: List[Tuple[PatternMemory, float]],
+        current_signature: List[float] = None,
+    ) -> Dict[str, Any]:
+        """Aggregate previous continuation/reversal outcomes."""
         if not matches:
             return {
                 "similar_situations_found": 0,
                 "continuation_pct": 0.0,
                 "reversal_pct": 0.0,
-                "outcome_summary": "No historical matches found."
+                "outcome_summary": "No historical matches found.",
             }
 
         total_occurrences = 0
         total_continuation = 0.0
         total_reversal = 0.0
-        current_action = "BUY" if (current_signature and current_signature[-1] >= 0) else "SELL"
+        current_action = (
+            "BUY"
+            if (current_signature and current_signature[-1] >= 0)
+            else "SELL"
+        )
 
         for pat, score in matches:
             weight = max(0.0, score)
@@ -122,9 +126,16 @@ class PatternDiscoveryEngine:
                 total_reversal += pat.reversal_count * weight
 
         sum_outcomes = total_continuation + total_reversal
-        continuation_pct = (total_continuation / sum_outcomes * 100.0) if sum_outcomes > 0 else 50.0
-        reversal_pct = (total_reversal / sum_outcomes * 100.0) if sum_outcomes > 0 else 50.0
-
+        continuation_pct = (
+            total_continuation / sum_outcomes * 100.0
+            if sum_outcomes > 0
+            else 50.0
+        )
+        reversal_pct = (
+            total_reversal / sum_outcomes * 100.0
+            if sum_outcomes > 0
+            else 50.0
+        )
         return {
             "similar_situations_found": len(matches),
             "total_occurrences_cataloged": total_occurrences,
@@ -133,8 +144,9 @@ class PatternDiscoveryEngine:
             "reversal_pct": round(reversal_pct, 2),
             "outcome_summary": (
                 f"Found {len(matches)} similar patterns with "
-                f"{continuation_pct:.1f}% continuation vs {reversal_pct:.1f}% reversal likelihood."
-            )
+                f"{continuation_pct:.1f}% continuation vs "
+                f"{reversal_pct:.1f}% reversal likelihood."
+            ),
         }
 
     def create_new_pattern(
@@ -147,23 +159,39 @@ class PatternDiscoveryEngine:
         context_id: str = "",
         context_signature: Dict[str, Any] = None,
     ) -> PatternMemory:
-        """Constructs a deterministic pattern identity for a scoped sequence fingerprint."""
-        scope_tfs = sorted({str(tf).upper() for tf in (timeframe_signature or ([timeframe] if timeframe else []))})
-        identity = json.dumps({
-            "symbol": symbol.upper(),
-            "timeframe": timeframe.upper(),
-            "timeframe_signature": scope_tfs,
-            "signature": [round(float(v), 8) for v in sig],
-            "context_id": context_id,
-        }, sort_keys=True, separators=(",", ":"))
-        pattern_id = f"pat-{hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]}"
+        """Construct a deterministic pattern identity for a scoped sequence."""
+        scope_tfs = sorted(
+            {
+                str(tf).upper()
+                for tf in (timeframe_signature or ([timeframe] if timeframe else []))
+            }
+        )
+        identity = json.dumps(
+            {
+                "symbol": symbol.upper(),
+                "timeframe": timeframe.upper(),
+                "timeframe_signature": scope_tfs,
+                "signature": [round(float(v), 8) for v in sig],
+                "context_id": context_id,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        pattern_id = (
+            f"pat-{hashlib.sha256(identity.encode('utf-8')).hexdigest()[:16]}"
+        )
         return PatternMemory(
             pattern_id=pattern_id,
             sequence_signature=sig,
             occurrences_count=1,
             continuation_count=1 if is_continuation else 0,
             reversal_count=0 if is_continuation else 1,
-            outcomes=[{"timestamp": datetime.now().isoformat(), "is_continuation": is_continuation}],
+            outcomes=[
+                {
+                    "timestamp": datetime.now().isoformat(),
+                    "is_continuation": is_continuation,
+                }
+            ],
             created_at=datetime.now(),
             symbol=symbol.upper(),
             timeframe=timeframe.upper(),

@@ -163,7 +163,10 @@ def run(symbol, years, initial_balance, sleep_sec, max_chunks=0):
                 time.sleep(max(0.2, sleep_sec))
             completed = next_start >= now
             final = {"status": "COMPLETED" if completed else "RUNNING", "symbol": symbol, "timeframe": primary_tf, "max_history_years": MAX_HISTORY_YEARS, "actual_history_start": history_start, "actual_history_end": now.isoformat(), "actual_history_days": (now-parse_time(history_start)).days, "processed_bars": processed_bars, "state": state}
-            atomic_json(checkpoint_path, final)
+            # Preserve resumable checkpoint state while a chunked run is still active.
+            # Only replace the checkpoint with terminal final-state shape after completion.
+            if completed:
+                atomic_json(checkpoint_path, final)
             atomic_json(base / primary_tf / "final_result.json", final)
             summaries[primary_tf] = final
             if max_chunks:
