@@ -15,7 +15,9 @@ from src.Application.Backtesting.backtest_learning_engine import BacktestAndLear
 
 SCHEMA = 1
 PRIMARY_TIMEFRAME = "M5"
-MTF_TIMEFRAMES = ("M1", "M5", "M15", "M30", "H1", "H4", "D1")
+TARGET_YEARS = {"MN1": 10, "W1": 10, "D1": 10, "H4": 10, "H1": 8, "M30": 6, "M15": 5, "M5": 3, "M1": 1}
+ANALYSIS_TIMEFRAMES = ("MN1", "W1", "D1", "H4", "H1", "M30", "M15", "M5", "M1")
+MTF_TIMEFRAMES = ("M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1")
 PRIMARY_CHUNK_DAYS = 7
 CONTEXT_BARS = 500
 DECISION_INTERVAL_MINUTES = 15
@@ -34,7 +36,7 @@ def tf_map(mt5):
     return {"M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5,
             "M15": mt5.TIMEFRAME_M15, "M30": mt5.TIMEFRAME_M30,
             "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
-            "D1": mt5.TIMEFRAME_D1}
+            "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1, "MN1": mt5.TIMEFRAME_MN1}
 
 def candles_from_rates(rates):
     return [{
@@ -62,6 +64,7 @@ TIMEFRAME_DURATION = {
     "M1": timedelta(minutes=1), "M5": timedelta(minutes=5),
     "M15": timedelta(minutes=15), "M30": timedelta(minutes=30),
     "H1": timedelta(hours=1), "H4": timedelta(hours=4), "D1": timedelta(days=1),
+    "W1": timedelta(days=7), "MN1": timedelta(days=31),
 }
 
 def closed_context_provider(series, timestamp):
@@ -77,26 +80,20 @@ def closed_context_provider(series, timestamp):
             result[tf] = candles[start:idx + 1]
     return result
 
+def _probe_history(mt5, symbol, mapping, tf, requested_years, now):
+    target_start = now - timedelta(days=365 * requested_years + 30)
+    rates = mt5.copy_rates_range(symbol, mapping[tf], target_start, now)
+    if rates is None or not len(rates):
+        return None
+    first = datetime.fromtimestamp(int(rates[0]["time"]), timezone.utc)
+    return {"requested_years": requested_years, "target_start": target_start, "first": first, "rates": rates}
+
 def run(symbol, years, initial_balance, sleep_sec, max_chunks=0):
-    if years < 10:
-        raise ValueError("MT5 multi-timeframe backtest requires at least 10 years.")
     import MetaTrader5 as mt5
-    base = ROOT / symbol.upper()
-    checkpoint_path = base / "checkpoint.json"
-    chunks_dir = base / "chunks"
+    symbol = symbol.upper()
+    base = ROOT / symbol
     base.mkdir(parents=True, exist_ok=True)
-    chunks_dir.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc)
-    requested_start = now - timedelta(days=365 * years + 30)
-    minimum_start = now - timedelta(days=365 * years)
-    checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8")) if checkpoint_path.exists() else None
-    if checkpoint and (checkpoint.get("schema") != SCHEMA or checkpoint.get("symbol") != symbol.upper()):
-        raise RuntimeError("MTF checkpoint does not match requested job.")
-    state = checkpoint.get("state") if checkpoint else None
-    next_start = parse_time(checkpoint["next_start"]) if checkpoint else requested_start
-    processed_chunks = int(checkpoint.get("processed_chunks", 0)) if checkpoint else 0
-    processed_bars = int(checkpoint.get("processed_bars", 0)) if checkpoint else 0
-    history_start = checkpoint.get("history_start") if checkpoint else None
     if not mt5.initialize(timeout=15000):
         raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
     try:
@@ -104,83 +101,76 @@ def run(symbol, years, initial_balance, sleep_sec, max_chunks=0):
         if not info or not getattr(info, "connected", False):
             raise RuntimeError(f"MT5 terminal is not connected: {mt5.last_error()}")
         mapping = tf_map(mt5)
-        if checkpoint is None:
-            probe = mt5.copy_rates_range(symbol, mapping[PRIMARY_TIMEFRAME], requested_start, now)
-            if probe is None or not len(probe):
-                raise RuntimeError(f"No MT5 {PRIMARY_TIMEFRAME} history for {symbol}: {mt5.last_error()}")
-            first = datetime.fromtimestamp(int(probe[0]["time"]), timezone.utc)
-            if first > minimum_start:
-                raise RuntimeError(f"MT5 M1 history is shorter than requested: {(now-first).days} days.")
-            next_start = first
-            history_start = first.isoformat()
+        availability = {}
+        for tf in ANALYSIS_TIMEFRAMES:
+            probe = _probe_history(mt5, symbol, mapping, tf, TARGET_YEARS[tf], now)
+            if probe:
+                availability[tf] = probe
+        if not availability:
+            raise RuntimeError(f"No MT5 history available for {symbol}: {mt5.last_error()}")
         engine = BacktestAndLearningEngine(storage_dir=str(base / "brain_memory"))
-        while next_start < now:
-            chunk_end = min(next_start + timedelta(days=PRIMARY_CHUNK_DAYS), now)
-            series, cursor_map = {}, {}
-            context_days = {"M1": 1, "M5": 2, "M15": 6, "M30": 12, "H1": 22, "H4": 85, "D1": 505}
-            for tf in MTF_TIMEFRAMES:
-                fetch_start = max(requested_start, next_start - timedelta(days=context_days[tf]))
-                rates = None
-                for attempt in range(4):
+        summaries = {}
+        for primary_tf in ANALYSIS_TIMEFRAMES:
+            probe = availability.get(primary_tf)
+            if not probe:
+                continue
+            tf_start = probe["first"]
+            target_start = probe["target_start"]
+            checkpoint_path = base / primary_tf / "checkpoint.json"
+            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8-sig")) if checkpoint_path.exists() else None
+            if checkpoint and (checkpoint.get("schema") != SCHEMA or checkpoint.get("symbol") != symbol or checkpoint.get("timeframe") != primary_tf):
+                raise RuntimeError(f"Checkpoint mismatch for {symbol}/{primary_tf}")
+            next_start = parse_time(checkpoint["next_start"]) if checkpoint else tf_start
+            state = checkpoint.get("state") if checkpoint else None
+            processed_chunks = int(checkpoint.get("processed_chunks", 0)) if checkpoint else 0
+            processed_bars = int(checkpoint.get("processed_bars", 0)) if checkpoint else 0
+            history_start = checkpoint.get("history_start") if checkpoint else tf_start.isoformat()
+            chunk_days = max(1, int((TIMEFRAME_DURATION[primary_tf].total_seconds() and 30)))
+            primary_chunk_days = {"M1": 3, "M5": 7, "M15": 14, "M30": 21, "H1": 30, "H4": 60, "D1": 180, "W1": 365, "MN1": 730}[primary_tf]
+            while next_start < now:
+                chunk_end = min(next_start + timedelta(days=primary_chunk_days), now)
+                series = {}
+                cursor_map = {}
+                for tf in MTF_TIMEFRAMES:
+                    context = max(TIMEFRAME_DURATION[tf] * CONTEXT_BARS, timedelta(days=2))
+                    tf_first = availability[tf]["first"] if tf in availability else target_start
+                    fetch_start = max(tf_first, next_start - context)
                     rates = mt5.copy_rates_range(symbol, mapping[tf], fetch_start, chunk_end)
-                    if rates is not None and len(rates):
-                        break
-                    if not getattr(mt5.terminal_info(), "connected", False):
-                        raise RuntimeError(f"MT5 disconnected while fetching {tf}: {mt5.last_error()}")
-                    time.sleep(2 ** attempt)
-                if rates is None or not len(rates):
-                    if tf == PRIMARY_TIMEFRAME:
-                        raise RuntimeError(f"MT5 history gap/error {symbol}/{tf}: {mt5.last_error()}")
-                    series[tf] = []
-                    cursor_map[tf] = None
+                    if rates is None or not len(rates):
+                        series[tf] = []
+                        cursor_map[tf] = None
+                        continue
+                    series[tf] = candles_from_rates(rates)
+                    cursor_map[tf] = series[tf][-1]["timestamp"]
+                primary = series[primary_tf]
+                process_index = 0
+                while process_index < len(primary) and parse_time(primary[process_index]["timestamp"]) < next_start:
+                    process_index += 1
+                if process_index >= len(primary):
+                    next_start = chunk_end
                     continue
-                series[tf] = candles_from_rates(rates)
-                cursor_map[tf] = series[tf][-1]["timestamp"]
-            primary = series[PRIMARY_TIMEFRAME]
-            process_index = 0
-            while process_index < len(primary) and parse_time(primary[process_index]["timestamp"]) < next_start:
-                process_index += 1
-            if process_index >= len(primary):
-                raise RuntimeError(f"MT5 returned no new M1 bars for {chunk_end.isoformat()}")
-            provider = lambda ts, _series=series: closed_context_provider(_series, ts)
-            result = engine.run_backtest(
-                symbol, PRIMARY_TIMEFRAME, primary,
-                initial_balance=initial_balance, start_index=process_index,
-                context_window=CONTEXT_BARS, state=state,
-                all_timeframe_candles_provider=provider,
-                decision_interval_minutes=DECISION_INTERVAL_MINUTES,
-            )
-            state = result["state"]
-            new_bars = len(primary) - process_index
-            processed_bars += new_bars
-            processed_chunks += 1
-            next_start = parse_time(primary[-1]["timestamp"]) + timedelta(minutes=1)
-            payload = {
-                "schema": SCHEMA, "status": "RUNNING", "symbol": symbol.upper(),
-                "primary_timeframe": PRIMARY_TIMEFRAME, "timeframes": list(MTF_TIMEFRAMES),
-                "years_requested": years, "history_start": history_start,
-                "history_end": now.isoformat(), "next_start": next_start.isoformat(),
-                "processed_chunks": processed_chunks, "processed_bars": processed_bars,
-                "decision_interval_minutes": DECISION_INTERVAL_MINUTES,
-                "timeframe_cursors": cursor_map, "state": state,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }
-            atomic_json(chunks_dir / f"{processed_chunks:05d}_{next_start.date()}.json", {
-                "start": next_start.isoformat(), "end": chunk_end.isoformat(),
-                "bars": new_bars, "timeframes": list(MTF_TIMEFRAMES),
-                "timeframe_cursors": cursor_map, "result": result,
-            })
-            atomic_json(checkpoint_path, payload)
-            print(f"MTF_BACKTEST_PROGRESS symbol={symbol} chunks={processed_chunks} bars={processed_bars} next={next_start.isoformat()}", flush=True)
-            if max_chunks and processed_chunks >= max_chunks:
-                return payload
-            time.sleep(max(0.2, sleep_sec))
-        final = dict(payload if 'payload' in locals() else {})
-        final.update({"status": "COMPLETED", "completed_at": datetime.now(timezone.utc).isoformat()})
-        atomic_json(checkpoint_path, final)
-        atomic_json(base / "final_result.json", final)
-        print("MTF_BACKTEST_COMPLETED " + json.dumps(final), flush=True)
-        return final
+                provider = lambda ts, _series=series: closed_context_provider(_series, ts)
+                result = engine.run_backtest(symbol, primary_tf, primary, initial_balance=initial_balance, start_index=process_index, context_window=CONTEXT_BARS, state=state, all_timeframe_candles_provider=provider, decision_interval_minutes=15)
+                state = result["state"]
+                new_bars = len(primary) - process_index
+                processed_bars += new_bars
+                processed_chunks += 1
+                next_start = parse_time(primary[-1]["timestamp"]) + TIMEFRAME_DURATION[primary_tf]
+                atomic_json(checkpoint_path, {"schema": SCHEMA, "status": "RUNNING", "symbol": symbol, "timeframe": primary_tf, "requested_years": TARGET_YEARS[primary_tf], "history_start": history_start, "history_end": now.isoformat(), "next_start": next_start.isoformat(), "processed_chunks": processed_chunks, "processed_bars": processed_bars, "state": state, "timeframe_cursors": cursor_map, "updated_at": datetime.now(timezone.utc).isoformat()})
+                print(f"MTF_PROGRESS {symbol}/{primary_tf} years={TARGET_YEARS[primary_tf]} actual_days={(now-tf_start).days} chunks={processed_chunks} bars={processed_bars}", flush=True)
+                if max_chunks and processed_chunks >= max_chunks:
+                    break
+                time.sleep(max(0.2, sleep_sec))
+            completed = next_start >= now
+            final = {"status": "COMPLETED" if completed else "RUNNING", "symbol": symbol, "timeframe": primary_tf, "requested_years": TARGET_YEARS[primary_tf], "actual_history_start": history_start, "actual_history_end": now.isoformat(), "actual_history_days": (now-parse_time(history_start)).days, "processed_bars": processed_bars, "state": state}
+            atomic_json(checkpoint_path, final)
+            atomic_json(base / primary_tf / "final_result.json", final)
+            summaries[primary_tf] = final
+            if max_chunks:
+                break
+        atomic_json(base / "summary.json", {"schema": SCHEMA, "symbol": symbol, "generated_at": now.isoformat(), "timeframe_windows": summaries})
+        return summaries
     finally:
         mt5.shutdown()
 def main():

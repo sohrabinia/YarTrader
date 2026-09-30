@@ -1,9 +1,19 @@
 import unittest
-from app.workers.mt5_mtf_backtest_worker import closed_context_provider, MTF_TIMEFRAMES
+from app.workers.mt5_mtf_backtest_worker import closed_context_provider, MTF_TIMEFRAMES, TARGET_YEARS
 
 class TestMt5MtfBacktest(unittest.TestCase):
     def test_canonical_timeframes(self):
-        self.assertEqual(MTF_TIMEFRAMES, ("M1", "M5", "M15", "M30", "H1", "H4", "D1"))
+        self.assertEqual(MTF_TIMEFRAMES, ("M1", "M5", "M15", "M30", "H1", "H4", "D1", "W1", "MN1"))
+
+    def test_time_windows_are_time_based_not_candle_count_based(self):
+        self.assertEqual(TARGET_YEARS["MN1"], 10)
+        self.assertEqual(TARGET_YEARS["W1"], 10)
+        self.assertEqual(TARGET_YEARS["D1"], 10)
+        self.assertEqual(TARGET_YEARS["H4"], 10)
+        self.assertEqual(TARGET_YEARS["H1"], 8)
+        self.assertEqual(TARGET_YEARS["M15"], 5)
+        self.assertEqual(TARGET_YEARS["M5"], 3)
+        self.assertEqual(TARGET_YEARS["M1"], 1)
 
     def test_no_future_higher_timeframe_bar(self):
         series = {"H1": [
