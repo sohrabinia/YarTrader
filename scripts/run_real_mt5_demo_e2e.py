@@ -109,7 +109,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
     except Exception as e:
         add_evidence("Safety Gate Verification", "FAILED", f"Safety Gate rejected operation: {e}")
         save_artifact("04_safety_gate.json", {"status": "FAILED", "error": str(e)})
-        return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+        return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
 
     # Global Live Trading Blocked Verification
     try:
@@ -119,7 +119,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
             add_evidence("Live Trading Blocked", "PROVEN", "live_trading_enabled is False (HARD BLOCKED)")
         else:
             add_evidence("Live Trading Blocked", "FAILED", "live_trading_enabled flag is True!")
-            return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+            return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
     except Exception as e:
         add_evidence("Live Trading Blocked", "PROVEN", f"Config default live_trading_enabled is False ({e})")
 
@@ -133,7 +133,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         add_evidence("MT5 Connection", "UNPROVEN", "MT5 Terminal process not connected or unavailable in current environment")
         add_evidence("DEMO Account", "UNPROVEN", "MT5 account unreachable")
         add_evidence("Current Market Data", "UNPROVEN", "MT5 market tick stream unreachable")
-        return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+        return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
 
     add_evidence("MT5 Connection", "PROVEN", f"MT5 Terminal connected: {term_info.get('name')}")
 
@@ -141,7 +141,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
     acc_info = adapter.get_account_info()
     if not acc_info:
         add_evidence("DEMO Account", "UNPROVEN", "Failed to retrieve account info from MT5")
-        return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+        return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
 
     login = str(acc_info.get("login", ""))
     server = str(acc_info.get("server", ""))
@@ -153,7 +153,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
 
     if login != "52961173" or server != "Alpari-MT5-Demo":
         add_evidence("DEMO Account", "FAILED", f"Account {masked_login} on server '{server}' does not match target 52961173 on Alpari-MT5-Demo")
-        return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+        return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
 
     add_evidence("DEMO Account", "PROVEN", f"Logged into DEMO account {masked_login} on {server}")
 
@@ -188,13 +188,13 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         save_artifact("05_symbol_info.json", sym_info or {})
         if not sym_info:
             add_evidence("Symbol Provenance", "UNPROVEN", f"Symbol {actual_symbol} not found in MT5 terminal")
-            return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+            return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
 
         tick = adapter.get_symbol_tick(actual_symbol)
         save_artifact("06_symbol_tick.json", tick or {})
         if not tick or tick.get("bid", 0) <= 0 or tick.get("ask", 0) <= 0:
             add_evidence("Current Market Data", "UNPROVEN", f"Fresh tick for {actual_symbol} unavailable")
-            return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+            return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
 
         ask = tick.get("ask")
         bid = tick.get("bid")
@@ -218,7 +218,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
 
         if order_resp.Status != "Placed" or order_resp.OrderId in ["0", None]:
             add_evidence("Real mt5.order_send()", "FAILED", f"Order submission failed: {order_resp.Comment} (Retcode {order_resp.Retcode})")
-            return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+            return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
 
         add_evidence("Real mt5.order_send()", "PROVEN", f"mt5.order_send() succeeded for {actual_symbol} with Retcode={order_resp.Retcode}")
         add_evidence("MT5 Order ID", "PROVEN", f"Order Ticket: {order_resp.OrderId}")
@@ -228,7 +228,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         open_positions = adapter.get_positions(symbol=actual_symbol)
         if not open_positions:
             add_evidence("Real Position", "FAILED", f"Position not found in mt5.positions_get() for {actual_symbol}")
-            return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+            return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
 
         matched_pos = open_positions[0]
         actual_pos_ticket = str(matched_pos.get("ticket"))
@@ -285,7 +285,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
     remaining_pos = adapter.get_positions(ticket=int(actual_pos_ticket))
     if remaining_pos:
         add_evidence("Real Close Verification", "FAILED", f"Position Ticket {actual_pos_ticket} is still open after close attempt!")
-        return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+        return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
 
     # Query history deals for opening and closing deals
     deals = adapter.get_history_deals(position=int(actual_pos_ticket))
@@ -293,7 +293,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
 
     if not deals or len(deals) < 2:
         add_evidence("Real Close Verification", "FAILED", f"History deals for position {actual_pos_ticket} incomplete: found {len(deals)} deals, expected >= 2")
-        return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+        return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
 
     open_deal = deals[0]
     close_deal = deals[-1]
@@ -393,13 +393,13 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         add_evidence("P&L Reconciliation", "PROVEN", recon_msg)
     else:
         add_evidence("P&L Reconciliation", "UNPROVEN / BLOCKED", recon_msg)
-        return print_final_verdict(evidence_table, "🔴 FINAL GATE — BLOCKED", evidence_dir)
+        return print_final_verdict(evidence_table, "FINAL GATE — BLOCKED", evidence_dir)
 
     add_evidence("Symbol Integrity", "PROVEN", f"Dynamic symbol provenance verified: {actual_symbol}")
     add_evidence("Timeframe Integrity", "PROVEN", "Canonical timeframe M15 verified across research and execution")
     add_evidence("Completed Trade", "PROVEN", f"Trade completed and verified via MT5 deal history for position {actual_pos_ticket}")
 
-    return print_final_verdict(evidence_table, "🟢 FINAL GATE — PASS", evidence_dir)
+    return print_final_verdict(evidence_table, "FINAL GATE — PASS", evidence_dir)
 
 
 def print_final_verdict(evidence_table, final_verdict, evidence_dir):
