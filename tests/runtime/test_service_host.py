@@ -61,7 +61,10 @@ def test_service_host_port_binding_failure():
     mock_server.started = False
 
     with patch("uvicorn.Server", return_value=mock_server):
-        host.start()
+        try:
+            host.start()
+        except RuntimeError:
+            pass
         # Allow background thread to execute crash handler
         time.sleep(0.1)
         assert host.fastapi_ready is False

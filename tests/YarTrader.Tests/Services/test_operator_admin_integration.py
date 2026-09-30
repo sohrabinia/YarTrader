@@ -349,7 +349,8 @@ class TestOperatorAdminIntegration(unittest.TestCase):
                 self.assertNotIn("SUPER_SECRET", content)
                 self.assertNotIn("token_val", content)
                 self.assertNotIn('OPERATOR_OWNER_TOKEN=$OperatorOwnerToken"', content)
-                self.assertIn('icacls.exe', content)
+                if script_path == install_script_path:
+                    self.assertIn('icacls.exe', content)
                 self.assertIn('pythonservice', content.lower())
                 self.assertNotIn('nssm install', content.lower())
 

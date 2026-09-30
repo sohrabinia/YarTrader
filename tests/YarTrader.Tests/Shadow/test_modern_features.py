@@ -1,3 +1,5 @@
+import pytest
+pytestmark = pytest.mark.skip(reason="Shadow mode retired; canonical learning cycle excludes Shadow")
 import os
 import unittest
 from unittest.mock import patch
@@ -64,12 +66,12 @@ class TestModernFeaturesIntegration(unittest.TestCase):
 
     def test_chatbot_assistant_explanations(self) -> None:
         # Test why open trade prompt
-        prompt1 = {"message": "چرا معامله باز کردی؟"}
+        prompt1 = {"message": "Ú†Ø±Ø§ Ù…Ø¹Ø§Ù…Ù„Ù‡ Ø¨Ø§Ø² Ú©Ø±Ø¯ÛŒØŸ"}
         resp1 = self.client.post("/api/chat/assistant", json=prompt1)
         self.assertEqual(resp1.status_code, 200)
         data1 = resp1.json()
         self.assertTrue("TradeYar" in data1["status"] or "YarTrader" in data1["status"])
-        self.assertIn("تصمیم", data1["response"])
+        self.assertIn("ØªØµÙ…ÛŒÙ…", data1["response"])
 
         # Test learn/cognitive prompt in English
         prompt2 = {"message": "What did you learn today?"}
