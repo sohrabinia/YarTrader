@@ -23,6 +23,7 @@ from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
 from src.Execution.Models.models import OrderRequest, OrderResponse
 from src.Execution.Safety.demo_execution_gate import DemoExecutionGate
 from src.Infrastructure.exceptions import ValidationException
+from src.Research.Brain.learning_bridge import BrainLearningBridge
 
 logger = logging.getLogger("DemoExecutionEngine")
 
@@ -52,6 +53,22 @@ class DemoExecutionEngine:
             self.log_dir = log_dir
 
         os.makedirs(self.log_dir, exist_ok=True)
+        self.learning_bridge = BrainLearningBridge()
+        self._decision_map_path = os.path.join(self.log_dir, "decision_position_map.json")
+
+    def _load_decision_map(self) -> Dict[str, str]:
+        try:
+            with open(self._decision_map_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def _save_decision_map(self, data: Dict[str, str]) -> None:
+        tmp = self._decision_map_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, self._decision_map_path)
 
     def execute_demo_decision(
         self,
@@ -141,6 +158,12 @@ class DemoExecutionEngine:
                 evidence["retcode_classification"] = f"RETCODE_{response.Retcode}"
 
             self._log_evidence(evidence)
+            if response.Status != "Failed" and response.DealTicket:
+                mapping = self._load_decision_map()
+                mapping[str(response.DealTicket)] = decision_id
+                if response.OrderId:
+                    mapping[str(response.OrderId)] = decision_id
+                self._save_decision_map(mapping)
             return response
         except ValidationException as ve:
             evidence["status"] = "REJECTED"
@@ -292,6 +315,26 @@ class DemoExecutionEngine:
             )
 
         logger.info(f"[DemoExecutionEngine] Position {position_ticket} close CONFIRMED on broker.")
+        mapping = self._load_decision_map()
+        decision_id = mapping.pop(ticket_str, None)
+        if decision_id:
+            try:
+                pos_type = target_pos.get("type", 0)
+                direction = "BUY" if str(pos_type).upper() in {"0", "BUY"} else "SELL"
+                entry_price = float(target_pos.get("price_open", target_pos.get("price", 0.0)))
+                exit_price = float(response.Price or 0.0)
+                signed_move = (exit_price - entry_price) if direction == "BUY" else (entry_price - exit_price)
+                volume_for_pnl = float(target_pos.get("volume", 0.0))
+                pnl = signed_move * volume_for_pnl * (100.0 if "XAU" in symbol.upper() else 10000.0)
+                learning_result = self.learning_bridge.record_demo_outcome(
+                    decision_id=decision_id, symbol=symbol, timeframe="M15", direction=direction,
+                    entry_price=entry_price, exit_price=exit_price, pnl=pnl,
+                    context={"position_ticket": position_ticket, "broker_retcode": response.Retcode},
+                )
+                logger.info("[DemoExecutionEngine] DEMO outcome promoted into Brain memory: %s", learning_result)
+            except Exception as exc:
+                logger.exception("[DemoExecutionEngine] DEMO learning update failed closed: %s", exc)
+        self._save_decision_map(mapping)
         return response
 
     def _log_evidence(self, evidence: Dict[str, Any]) -> None:

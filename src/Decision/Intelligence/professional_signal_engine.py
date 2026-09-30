@@ -7,6 +7,7 @@ from src.Data.MarketData.Models.models import MarketDataPoint
 from src.Research.Brain.trading_style import TradingStyleSelector
 from src.Research.Brain.multi_timeframe_context import MultiTimeframeContextEngine
 from src.Research.Brain.fractal_memory import FractalPatternMemory
+from src.Research.Brain.learning_bridge import BrainLearningBridge
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
 from src.Decision.Intelligence.timeframe_selector import AutomaticTimeframeSelector, UnifiedSignalContract
 from src.Research.MarketAnalysis.Services.continuous_market_following_engine import ContinuousMarketFollowingEngine
@@ -44,6 +45,7 @@ class ProfessionalSignalEngine:
         self.style_selector = TradingStyleSelector()
         self.mtf_engine = MultiTimeframeContextEngine()
         self.fractal_memory = FractalPatternMemory()
+        self.learning_bridge = BrainLearningBridge()
         self.risk_engine = ProfessionalRiskEngine()
         self.tf_selector = AutomaticTimeframeSelector()
         self.market_following_engine = ContinuousMarketFollowingEngine()
@@ -67,8 +69,21 @@ class ProfessionalSignalEngine:
             account_balance=account_balance
         )
 
+        signal_id = f"SIG-{uuid.uuid4().hex[:8]}"
+        self.learning_bridge.record_signal(
+            signal_id=signal_id,
+            symbol=sig.symbol,
+            timeframe=chosen_tf,
+            direction=sig.direction,
+            entry_price=float(sig.entry_zone.split(" - ")[0].replace("$", "")) if sig.entry_zone != "N/A" else 0.0,
+            stop_loss=sig.stop_loss,
+            take_profit=sig.take_profit,
+            confidence=float(sig.confidence_pct) / 100.0,
+            context={"historical_evidence": sig.historical_evidence, "market_regime": sig.market_regime},
+        )
+
         return UnifiedSignalContract(
-            signal_id=f"SIG-{uuid.uuid4().hex[:8]}",
+            signal_id=signal_id,
             symbol=sig.symbol,
             timeframe=chosen_tf,
             direction=sig.direction,
