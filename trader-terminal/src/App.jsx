@@ -2035,7 +2035,8 @@ function MainApp() {
           )}
 
           {/* AUTHENTICATION VIEWS */}
-          {routePath === '/wallet' && <WalletView lang={lang} />}\n          {routePath === '/billing' && <BillingView lang={lang} />}
+          {routePath === '/wallet' && <WalletView lang={lang} />}
+          {routePath === '/billing' && <BillingView lang={lang} />}
 
           {routePath === '/admin/wallet' && <AdminWalletView />}
           {routePath === '/admin/financial' && <AdminFinancialView />}
