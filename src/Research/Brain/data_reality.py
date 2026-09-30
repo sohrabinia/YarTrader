@@ -1,7 +1,14 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from src.Research.Brain.models import MarketObservation
 from src.Core.timeframes import SUPPORTED_TIMEFRAMES
+
+def _as_utc(ts: datetime) -> datetime:
+    """Normalize all Brain raw observations to timezone-aware UTC."""
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(timezone.utc)
+
 
 class DataRealityLayer:
     """
@@ -40,6 +47,7 @@ class DataRealityLayer:
             timestamp = c["timestamp"]
             if isinstance(timestamp, str):
                 timestamp = datetime.fromisoformat(timestamp)
+            timestamp = _as_utc(timestamp)
 
             obs = MarketObservation(
                 symbol=self.symbol,
@@ -66,7 +74,7 @@ class DataRealityLayer:
         if not observations:
             return []
 
-        sorted_obs = sorted(observations, key=lambda x: x.timestamp)
+        sorted_obs = sorted(observations, key=lambda x: _as_utc(x.timestamp))
         unique_obs: List[MarketObservation] = []
 
         for obs in sorted_obs:

@@ -49,7 +49,7 @@ def test_data_reality_layer_ingestion_and_missing_candles():
 
     missing = layer.detect_missing_candles("H1")
     assert len(missing) == 1
-    assert missing[0] == now + timedelta(hours=5)
+    assert missing[0].replace(tzinfo=None) == now + timedelta(hours=5)
 
 
 def test_observation_brain_event_extraction_without_subjective_naming():

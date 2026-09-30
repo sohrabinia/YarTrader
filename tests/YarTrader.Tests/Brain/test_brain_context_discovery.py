@@ -103,3 +103,13 @@ def test_structure_snapshot_normalizes_mixed_naive_and_aware_timestamps():
     ctx = build_brain_context("XAUUSD", "M1", aware, {"M1": obs})
     assert ctx["history"]["M1"]["available"] is True
     assert ctx["history"]["M1"]["structure"]["latest_swing_high"] is not None
+
+
+def test_data_reality_normalizes_mixed_timestamp_inputs_to_utc():
+    from src.Research.Brain.data_reality import DataRealityLayer
+    layer = DataRealityLayer("XAUUSD")
+    layer.ingest_raw_candles("M1", [{"timestamp": "2026-01-01T00:00:00", "open": 100, "high": 101, "low": 99, "close": 100.5, "volume": 1}])
+    layer.ingest_raw_candles("M1", [{"timestamp": "2026-01-01T00:01:00+00:00", "open": 100.5, "high": 101.5, "low": 99.5, "close": 101, "volume": 1}])
+    state = layer.get_raw_state("M1")
+    assert len(state) == 2
+    assert all(obs.timestamp.tzinfo is not None for obs in state)
