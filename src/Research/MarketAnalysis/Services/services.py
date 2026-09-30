@@ -312,6 +312,9 @@ class FeatureExtractionResearchEngine(IResearchEngine):
         else:
             self._base_engine = base_engine
         self._feature_pipeline = feature_pipeline or FeaturePipeline()
+        # Keep one Brain instance per symbol/timeframe across research cycles.
+        # This preserves pending hypotheses/simulated positions while isolating assets.
+        self._live_brains: Dict[tuple, Any] = {}
 
     @property
     def data_provider(self) -> IMarketDataProvider:
@@ -324,6 +327,16 @@ class FeatureExtractionResearchEngine(IResearchEngine):
     @property
     def feature_pipeline(self) -> FeaturePipeline:
         return self._feature_pipeline
+
+    def _get_live_brain(self, asset: str, timeframe: str):
+        """Return the persistent Brain instance for one isolated symbol/timeframe."""
+        from src.Research.Brain.live_brain import LiveAnalysisBrain
+        brain_key = (asset.upper(), timeframe.upper())
+        newborn_brain = self._live_brains.get(brain_key)
+        if newborn_brain is None:
+            newborn_brain = LiveAnalysisBrain(asset, timeframe)
+            self._live_brains[brain_key] = newborn_brain
+        return newborn_brain
 
     def analyze_market(self, request: ResearchRequest, market_data_response=None) -> ResearchResult:
         """
@@ -435,8 +448,7 @@ class FeatureExtractionResearchEngine(IResearchEngine):
         )
 
         # H. Newborn Market Discovery Brain v1 Integration
-        from src.Research.Brain.live_brain import LiveAnalysisBrain
-        newborn_brain = LiveAnalysisBrain(request.Asset, timeframe)
+        newborn_brain = self._get_live_brain(request.Asset, timeframe)
         newborn_report = None
         for dp in market_data_response.DataPoints:
             raw_candle_dict = {

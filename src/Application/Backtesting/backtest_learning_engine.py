@@ -36,6 +36,69 @@ class BacktestAndLearningEngine:
             self.memory_systems[sym_upper] = MarketMemorySystem(storage_dir=sym_dir)
         return self.memory_systems[sym_upper]
 
+    def run_mt5_backtest(
+        self,
+        symbol: str,
+        timeframe: str,
+        years: int = 10,
+        initial_balance: float = 10000.0,
+    ) -> Dict[str, Any]:
+        """Run a chronological backtest directly from history exposed by the MT5 terminal.
+
+        No external market-data download/provider is used. The terminal's own history is
+        the authoritative source, and the run fails closed if less than the requested
+        historical span is available.
+        """
+        if years < 10:
+            raise ValueError("MT5 backtest requires at least 10 years of history.")
+        import MetaTrader5 as mt5
+
+        tf_map = {
+            "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5,
+            "M15": mt5.TIMEFRAME_M15, "M30": mt5.TIMEFRAME_M30,
+            "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+            "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1,
+            "MN1": mt5.TIMEFRAME_MN1,
+        }
+        tf = timeframe.upper()
+        if tf not in tf_map:
+            raise ValueError(f"Unsupported MT5 timeframe: {timeframe}")
+        if not mt5.initialize():
+            raise RuntimeError(f"MT5 terminal unavailable: {mt5.last_error()}")
+        try:
+            from datetime import timezone
+            end_time = datetime.now(timezone.utc)
+            # Add a calendar buffer so weekends/holidays cannot make an intended
+            # 10-year window fail by one or two daily bars.
+            start_time = end_time - timedelta(days=365 * years + 30)
+            rates = mt5.copy_rates_range(symbol, tf_map[tf], start_time, end_time)
+            if rates is None or len(rates) == 0:
+                raise RuntimeError(f"MT5 returned no history for {symbol}/{tf}: {mt5.last_error()}")
+            first_time = datetime.fromtimestamp(int(rates[0]["time"]), timezone.utc)
+            if (end_time - first_time).days < 365 * years:
+                raise RuntimeError(
+                    f"MT5 history is shorter than requested {years} years: "
+                    f"received {(end_time - first_time).days} days."
+                )
+            candles = [
+                {
+                    "timestamp": datetime.fromtimestamp(int(r["time"]), timezone.utc).isoformat(),
+                    "open": float(r["open"]), "high": float(r["high"]),
+                    "low": float(r["low"]), "close": float(r["close"]),
+                    "volume": float(r.get("tick_volume", 0)) if hasattr(r, "get") else float(r["tick_volume"]),
+                }
+                for r in rates
+            ]
+            result = self.run_backtest(symbol, tf, candles, initial_balance=initial_balance)
+            result["data_source"] = "MT5_TERMINAL_HISTORY"
+            result["history_start"] = first_time.isoformat()
+            result["history_end"] = end_time.isoformat()
+            result["history_years_requested"] = years
+            result["history_bars"] = len(candles)
+            return result
+        finally:
+            mt5.shutdown()
+
     def run_backtest(
         self,
         symbol: str,
