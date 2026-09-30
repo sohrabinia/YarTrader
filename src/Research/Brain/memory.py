@@ -1,13 +1,17 @@
+from __future__ import annotations
+
 import os
+
 import json
 import threading
 import uuid
 import hashlib
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import TYPE_CHECKING, List, Dict, Any, Optional
 from src.Research.Brain.models import MarketEvent, PatternMemory, ExperienceMemory, ConceptMemory
-from src.Application.Deployment.artifact_store import YarTraderArtifactStore
-from src.Application.Deployment.storage import YarTraderStorageManager
+
+if TYPE_CHECKING:
+    from src.Application.Deployment.artifact_store import YarTraderArtifactStore
 
 class MarketMemorySystem:
     """
@@ -23,7 +27,10 @@ class MarketMemorySystem:
     def __init__(self, storage_dir: Optional[str] = None, artifact_store: Optional[YarTraderArtifactStore] = None) -> None:
         self._storage_dir = storage_dir or os.path.join("runtime_logs", "brain_memory")
         os.makedirs(self._storage_dir, exist_ok=True)
-        self._artifact_store = artifact_store or YarTraderStorageManager.get_manager().get_artifact_store()
+        if artifact_store is None:
+            from src.Application.Deployment.storage import YarTraderStorageManager
+            artifact_store = YarTraderStorageManager.get_manager().get_artifact_store()
+        self._artifact_store = artifact_store
         self._artifact_manifest_path = os.path.join(self._storage_dir, "artifact_manifest.json")
         self._lock = threading.Lock()
 
