@@ -11,6 +11,7 @@ from src.Research.Brain.judge import JudgeBrain
 from src.Research.Brain.memory import MarketMemorySystem
 from src.Research.Brain.active_learning import ActiveLearningEngine
 from src.Research.Brain.integrity import LearningIntegrityService
+from src.Research.Brain.brain_context import build_brain_context
 
 class CognitiveReplayLoop:
     """
@@ -69,6 +70,13 @@ class CognitiveReplayLoop:
                 continue
 
             latest_obs = available_data[-1]
+            brain_context = build_brain_context(
+                symbol=self.symbol,
+                primary_timeframe=self.timeframe,
+                decision_time=latest_obs.timestamp,
+                observations_by_tf={self.timeframe: available_data},
+            )
+            context_id = brain_context["context_id"]
 
             # 2. Update existing active virtual trades first
             closed_trades = self.simulation_brain.update_active_trades(latest_obs)
@@ -82,7 +90,11 @@ class CognitiveReplayLoop:
             sig = self.discovery_engine.extract_signature(available_data)
             hypothesis = self.hypothesis_engine.formulate_hypothesis(
                 current_signature=sig,
-                historical_patterns=self.memory_system.get_patterns()
+                historical_patterns=self.memory_system.get_patterns(),
+                symbol=self.symbol,
+                timeframe=self.timeframe,
+                timeframe_signature=[self.timeframe],
+                context_id=context_id,
             )
 
             # 5. Make virtual decision
@@ -112,7 +124,14 @@ class CognitiveReplayLoop:
             # If virtual trade succeeded or failed, update Pattern Memory continuation or reversal
             if virtual_trade and virtual_trade.final_result:
                 # Update corresponding patterns
-                matches = self.discovery_engine.find_matches(sig, self.memory_system.get_patterns())
+                matches = self.discovery_engine.find_matches(
+                    sig,
+                    self.memory_system.get_patterns(),
+                    symbol=self.symbol,
+                    timeframe=self.timeframe,
+                    timeframe_signature=[self.timeframe],
+                    context_id=context_id,
+                )
                 is_cont = virtual_trade.final_result == "SUCCESS"
                 if matches:
                     best_pat, _ = matches[0]
@@ -136,7 +155,9 @@ class CognitiveReplayLoop:
                 market_context={
                     "current_price": latest_obs.close_price,
                     "timeframe": self.timeframe,
-                    "available_history_count": len(available_data)
+                    "available_history_count": len(available_data),
+                    "context_id": context_id,
+                    "context": brain_context,
                 },
                 observed_sequence=[evt.to_dict() for evt in seq.events[-3:]],
                 brain_hypothesis=hypothesis.to_dict(),
