@@ -1,10 +1,11 @@
 #property strict
-#property version "1.0"
+#property version "1.1"
 #property description "YarTrader MT4 SIGNAL/data bridge - read only, fail closed"
 
 #define AUTH_ACCOUNT 143056202
 string AUTH_SERVER = "Alpari-Pro.ECN";
 string REQ_FILE = "yartrader_mt4_request.txt";
+string HEARTBEAT_FILE = "yartrader_mt4_heartbeat.txt";
 
 int OnInit(){
    if(IsDemo() || AccountNumber()!=AUTH_ACCOUNT || AccountServer()!=AUTH_SERVER){
@@ -12,12 +13,26 @@ int OnInit(){
       return(INIT_FAILED);
    }
    EventSetTimer(1);
+   WriteHeartbeat();
    return(INIT_SUCCEEDED);
 }
-void OnDeinit(const int reason){ EventKillTimer(); }
-void OnTick(){ ProcessRequest(); }
-void OnTimer(){ ProcessRequest(); }
+void OnDeinit(const int reason){ EventKillTimer(); FileDelete(HEARTBEAT_FILE,FILE_COMMON); }
+void OnTick(){ WriteHeartbeat(); ProcessRequest(); }
+void OnTimer(){ WriteHeartbeat(); ProcessRequest(); }
 bool Authorized(){ return(!IsDemo() && AccountNumber()==AUTH_ACCOUNT && AccountServer()==AUTH_SERVER); }
+
+void WriteHeartbeat(){
+   if(!Authorized()) return;
+   int h=FileOpen(HEARTBEAT_FILE,FILE_WRITE|FILE_TXT|FILE_ANSI|FILE_COMMON|FILE_SHARE_READ|FILE_SHARE_WRITE);
+   if(h==INVALID_HANDLE) return;
+   string sym=Symbol();
+   double bid=MarketInfo(sym,MODE_BID);
+   double ask=MarketInfo(sym,MODE_ASK);
+   FileWriteString(h,IntegerToString(AccountNumber())+"|"+AccountServer()+"|0|"+sym+"|"+
+      DoubleToString(bid,Digits)+"|"+DoubleToString(ask,Digits)+"|"+IntegerToString((int)TimeCurrent()));
+   FileFlush(h);
+   FileClose(h);
+}
 
 void Respond(string id,string payload){
    int h=FileOpen("yartrader_mt4_response_"+id+".txt",FILE_WRITE|FILE_TXT|FILE_ANSI|FILE_COMMON|FILE_SHARE_READ|FILE_SHARE_WRITE);
@@ -31,6 +46,12 @@ int TfMinutes(string tf){
    if(tf=="D1") return 1440; if(tf=="W1") return 10080; if(tf=="MN1") return 43200;
    return 0;
 }
+int TfCode(string tf){
+   if(tf=="M1") return PERIOD_M1; if(tf=="M5") return PERIOD_M5; if(tf=="M15") return PERIOD_M15;
+   if(tf=="M30") return PERIOD_M30; if(tf=="H1") return PERIOD_H1; if(tf=="H4") return PERIOD_H4;
+   if(tf=="D1") return PERIOD_D1; if(tf=="W1") return PERIOD_W1; if(tf=="MN1") return PERIOD_MN1;
+   return 0;
+}
 void ProcessRequest(){
    if(!Authorized() || !FileIsExist(REQ_FILE,FILE_COMMON)) return;
    int h=FileOpen(REQ_FILE,FILE_READ|FILE_TXT|FILE_ANSI|FILE_COMMON|FILE_SHARE_READ|FILE_SHARE_WRITE);
@@ -42,20 +63,20 @@ void ProcessRequest(){
       string sym=p[2], tf=p[3]; int bars=(int)StrToInteger(p[4]); int minutes=TfMinutes(tf);
       if(minutes<=0 || bars<=0 || StringLen(sym)==0){ Respond(id,"ERROR|BAD_REQUEST"); return; }
       ResetLastError();
-      SymbolSelect(sym,true);
-      int available=iBars(sym, PERIOD_CURRENT);
-      int tfCode=PERIOD_M1;
-      if(tf=="M5") tfCode=PERIOD_M5; else if(tf=="M15") tfCode=PERIOD_M15; else if(tf=="M30") tfCode=PERIOD_M30;
-      else if(tf=="H1") tfCode=PERIOD_H1; else if(tf=="H4") tfCode=PERIOD_H4; else if(tf=="D1") tfCode=PERIOD_D1;
-      else if(tf=="W1") tfCode=PERIOD_W1; else if(tf=="MN1") tfCode=PERIOD_MN1;
-      available=iBars(sym,tfCode);
-      datetime oldest=iTime(sym,tfCode,MathMax(0,MathMin(available-1,bars-1)));
-      if(available<=0 || oldest<=0){ Respond(id,"ERROR|NO_HISTORY"); return; }
-      Respond(id,"OK|"+sym+"|"+tf+"|"+IntegerToString(available)+"|"+IntegerToString((int)oldest)+"|"+IntegerToString(minutes));
+      if(!SymbolSelect(sym,true)){ Respond(id,"ERROR|SYMBOL_SELECT"); return; }
+      int tfCode=TfCode(tf);
+      int available=iBars(sym,tfCode);
+      if(available<=0){ Respond(id,"ERROR|NO_HISTORY"); return; }
+      int targetIndex=MathMin(available-1,MathMax(0,bars-1));
+      datetime oldest=iTime(sym,tfCode,targetIndex);
+      if(oldest<=0){ Respond(id,"ERROR|NO_HISTORY"); return; }
+      Respond(id,"OK|"+sym+"|"+tf+"|"+IntegerToString(available)+"|"+
+         IntegerToString((int)oldest)+"|"+IntegerToString(minutes));
       return;
    }
    if(op=="ACCOUNT"){
-      Respond(id,"OK|"+IntegerToString(AccountNumber())+"|"+AccountServer()+"|0|"+DoubleToString(AccountBalance(),2)); return;
+      Respond(id,"OK|"+IntegerToString(AccountNumber())+"|"+AccountServer()+"|0|"+DoubleToString(AccountBalance(),2));
+      return;
    }
    Respond(id,"ERROR|READ_ONLY_SIGNAL_BRIDGE");
 }
