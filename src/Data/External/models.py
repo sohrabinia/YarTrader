@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 class DataSourceType(str, Enum):
     MT5 = "MT5"
+    MT4 = "MT4"
     EXCHANGE_API = "EXCHANGE_API"
     ECONOMIC_DATA = "ECONOMIC_DATA"
     NEWS_PROVIDER = "NEWS_PROVIDER"

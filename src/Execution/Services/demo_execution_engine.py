@@ -1,5 +1,5 @@
 """
-Dedicated MT5 DEMO Execution Engine
+Dedicated MT4 DEMO Execution Engine
 ===================================
 Processes trade decisions and order requests strictly for DEMO account on MT5.
 
@@ -19,7 +19,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
-from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
+from src.Execution.Adapters.mt4_adapter import RealMT4BrokerAdapter
 from src.Execution.Models.models import OrderRequest, OrderResponse
 from src.Execution.Safety.demo_execution_gate import DemoExecutionGate
 from src.Infrastructure.exceptions import ValidationException
@@ -30,17 +30,17 @@ logger = logging.getLogger("DemoExecutionEngine")
 
 class DemoExecutionEngine:
     """
-    Dedicated MT5 DEMO Execution Engine.
+    Dedicated MT4 DEMO Execution Engine.
     """
 
     def __init__(
         self,
-        adapter: Optional[RealMT5BrokerAdapter] = None,
+        adapter: Optional[RealMT4BrokerAdapter] = None,
         demo_mode: bool = True,
         log_dir: Optional[str] = None
     ) -> None:
         self.demo_mode = demo_mode
-        self.adapter = adapter or RealMT5BrokerAdapter(auto_initialize=True)
+        self.adapter = adapter or RealMT4BrokerAdapter(auto_initialize=True)
 
         from src.Application.Deployment.storage import YarTraderStorageManager
         storage_mgr = YarTraderStorageManager.get_manager()
@@ -83,7 +83,7 @@ class DemoExecutionEngine:
         decision_id: str = "DEC-DEMO-001"
     ) -> OrderResponse:
         """
-        Translates strategy decision into OrderRequest, passes DemoExecutionGate, and executes on MT5 DEMO.
+        Translates strategy decision into OrderRequest, passes DemoExecutionGate, and executes on MT4 DEMO.
         """
         timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -290,7 +290,7 @@ class DemoExecutionEngine:
             Comment=comment
         )
 
-        response = self.adapter.send_order_to_broker(req)
+        response = self.adapter.close_order(position_ticket, close_vol_f) if hasattr(self.adapter, "close_order") else self.adapter.send_order_to_broker(req)
 
         # Confirm closure from broker position list
         remaining = self.get_active_positions(symbol=symbol)
@@ -327,7 +327,7 @@ class DemoExecutionEngine:
                 volume_for_pnl = float(target_pos.get("volume", 0.0))
                 pnl = signed_move * volume_for_pnl * (100.0 if "XAU" in symbol.upper() else 10000.0)
                 learning_result = self.learning_bridge.record_demo_outcome(
-                    decision_id=decision_id, symbol=symbol, timeframe="M15", direction=direction,
+                    decision_id=decision_id, symbol=symbol, timeframe=str(target_pos.get("timeframe", "M15")), direction=direction,
                     entry_price=entry_price, exit_price=exit_price, pnl=pnl,
                     context={"position_ticket": position_ticket, "broker_retcode": response.Retcode},
                 )
