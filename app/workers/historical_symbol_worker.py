@@ -88,8 +88,7 @@ def main():
     p.add_argument("--max-chunks", type=int, default=0)
     a = p.parse_args()
     result = run(a.symbol, a.years, a.initial_balance, a.sleep, a.max_chunks)
-    if result.get("status") != "COMPLETED":
-        return 2
+    assert result.get("status") == "COMPLETED"
 
 
 if __name__ == "__main__":
