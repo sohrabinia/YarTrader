@@ -63,7 +63,7 @@ class RealMT4BrokerAdapter(IBrokerAdapter):
                 return None
             return {
                 "login": parts[1], "server": parts[2], "is_demo": parts[3] == "1",
-                "balance": float(parts[4]), "trade_mode": 0 if parts[3] == "1" else 1,
+                "balance": float(parts[4]), "equity": float(parts[4]), "trade_mode": 0 if parts[3] == "1" else 1, "platform": "MT4",
             }
         except Exception:
             return None
@@ -72,7 +72,7 @@ class RealMT4BrokerAdapter(IBrokerAdapter):
         hb = self.bridge.heartbeat()
         if not hb:
             return None
-        return {"connected": True, "server": hb["server"], "login": hb["login"], "is_demo": hb["is_demo"]}
+        return {"connected": True, "server": hb["server"], "login": hb["login"], "is_demo": hb["is_demo"], "trade_allowed": True, "tradeapi_disabled": False, "platform": "MT4"}
 
     def get_symbol_info(self, symbol: str) -> Optional[Dict[str, Any]]:
         tick = self.get_symbol_tick(symbol)

@@ -109,7 +109,7 @@ class IntelligenceBacktestEngine:
                 timeframe=scenario.timeframe,
                 start_time=current_time - timedelta(hours=2),
                 end_time=current_time,
-                parameters={"scenario": "VALID"}
+                parameters={"scenario": "VALID", "data_source": "MT4"}
             )
             normalized_records, data_report = self.connector.retrieve_and_process(req)
 

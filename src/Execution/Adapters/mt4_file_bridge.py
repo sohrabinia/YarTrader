@@ -38,15 +38,8 @@ class MT4FileBridge:
             parts = p.read_text(encoding="utf-8").strip().split("|")
             if len(parts) < 7:
                 return None
-            return {
-                "login": parts[0],
-                "server": parts[1],
-                "is_demo": parts[2] == "1",
-                "symbol": parts[3],
-                "bid": float(parts[4]),
-                "ask": float(parts[5]),
-                "time": int(parts[6]),
-            }
+            return {"login": parts[0], "server": parts[1], "is_demo": parts[2] == "1",
+                    "symbol": parts[3], "bid": float(parts[4]), "ask": float(parts[5]), "time": int(parts[6])}
         except (OSError, ValueError):
             return None
 
@@ -61,12 +54,10 @@ class MT4FileBridge:
             if age < self.timeout:
                 raise RuntimeError("MT4 bridge is busy with another request.")
             request.unlink(missing_ok=True)
-
         payload = "|".join([request_id, operation, *[str(x) for x in args]])
         tmp = self._path(self.REQUEST + ".tmp")
         tmp.write_text(payload, encoding="utf-8")
         os.replace(tmp, request)
-
         deadline = time.monotonic() + self.timeout
         while time.monotonic() < deadline:
             if response.exists():

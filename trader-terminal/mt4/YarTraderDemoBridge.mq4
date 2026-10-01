@@ -70,14 +70,12 @@ void ProcessRequest()
 {
    if(!Authorized()) return;
    if(!FileIsExist(REQ_FILE,FILE_COMMON)) return;
-
    int h=FileOpen(REQ_FILE,FILE_READ|FILE_TXT|FILE_COMMON|FILE_SHARE_READ|FILE_SHARE_WRITE);
    if(h==INVALID_HANDLE) return;
    string line=FileReadString(h);
    FileClose(h);
    if(StringLen(line)<3) return;
    FileDelete(REQ_FILE,FILE_COMMON);
-
    string p[];
    int n=StringSplit(line,StringGetCharacter("|",0),p);
    if(n<2) return;
@@ -156,6 +154,5 @@ void ProcessRequest()
       Respond(id,"OK|"+IntegerToString(ticket)+"|"+DoubleToString(price,Digits)+"|"+DoubleToString(lots,2));
       return;
    }
-
    Respond(id,"ERROR|UNKNOWN_OPERATION");
 }

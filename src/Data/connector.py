@@ -8,6 +8,7 @@ from src.Data.Normalization.normalizer import DataNormalizer, NormalizedMarketRe
 from src.Data.Reliability.reliability import DataSourceReliabilityTracker
 from src.Data.Market.models import MarketInstrument, CandleRecord, MarketDataMetadata, MarketDataRequest, MarketDataResponse
 from src.Data.Providers.MT5.mt5 import MT5DataProvider
+from src.Data.Providers.MT4.historical import MT4HistoricalDataProvider
 from src.Data.Providers.Economic.economic import EconomicDataProvider, EconomicEvent
 from src.Data.Providers.News.news import NewsDataProvider, NewsRecord
 from src.Infrastructure.exceptions import ValidationException
@@ -27,10 +28,12 @@ class ExternalDataPipelineConnector:
 
         # Register standard providers
         self.mt5_provider = MT5DataProvider()
+        self.mt4_provider = MT4HistoricalDataProvider()
         self.economic_provider = EconomicDataProvider()
         self.news_provider = NewsDataProvider()
 
         self.gateway.registry.register_provider(self.mt5_provider)
+        self.gateway.registry.register_provider(self.mt4_provider)
         self.gateway.registry.register_provider(self.economic_provider)
         self.gateway.registry.register_provider(self.news_provider)
 
@@ -48,9 +51,12 @@ class ExternalDataPipelineConnector:
             provider_id = resolved_p.metadata.provider_id
 
         start_time = time.time()
-        # 1. Fetch raw response via Gateway
+        # 1. Fetch raw response. Backtests may explicitly bind to MT4 history.
         try:
-            resp = self.gateway.fetch(request)
+            if str(request.parameters.get("data_source", "")).upper() == "MT4":
+                resp = self.mt4_provider.fetch_data(request)
+            else:
+                resp = self.gateway.fetch(request)
         except Exception as e:
             self.reliability_tracker.record_metrics(
                 provider_id=provider_id,

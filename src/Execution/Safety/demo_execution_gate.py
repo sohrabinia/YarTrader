@@ -43,10 +43,10 @@ class DemoExecutionGate:
 
         # Check 2: Live trading explicitly disabled & MetaTraderSafetyGate
         MetaTraderSafetyGate.verify_operation(
-            terminal_type="MT5",
+            terminal_type=getattr(adapter_or_mt5, "PLATFORM_NAME", "MT5"),
             operation_type="DEMO",
-            account_id=cls.AUTHORIZED_DEMO_ACCOUNT,
-            server_name=cls.AUTHORIZED_DEMO_SERVER
+            account_id=(getattr(adapter_or_mt5, "TARGET_ACCOUNT", cls.AUTHORIZED_DEMO_ACCOUNT)),
+            server_name=(getattr(adapter_or_mt5, "TARGET_SERVER", cls.AUTHORIZED_DEMO_SERVER))
         )
 
         # Retrieve adapter methods or dictionary
@@ -75,10 +75,12 @@ class DemoExecutionGate:
             raise ValidationException("SECURITY VIOLATION: Connected account is REAL or non-DEMO. Real account execution is strictly rejected repository-wide.")
 
         if platform == "MT4":
-            if login and login != "4109825":
-                raise ValidationException(f"DemoExecutionGate Violation: Connected MT4 account '{login}' is not authorized DEMO account '4109825'.")
-            if server and server != "Alpari-MT4-Demo":
-                raise ValidationException(f"DemoExecutionGate Violation: Connected MT4 server '{server}' is not authorized DEMO server 'Alpari-MT4-Demo'.")
+            mt4_account = getattr(adapter_or_mt5, "TARGET_ACCOUNT", "")
+            mt4_server = getattr(adapter_or_mt5, "TARGET_SERVER", "")
+            if login and login != str(mt4_account):
+                raise ValidationException(f"DemoExecutionGate Violation: Connected MT4 account '{login}' is not authorized DEMO account '{mt4_account}'.")
+            if server and server != str(mt4_server):
+                raise ValidationException(f"DemoExecutionGate Violation: Connected MT4 server '{server}' is not authorized DEMO server '{mt4_server}'.")
         else:
             if login and login != cls.AUTHORIZED_DEMO_ACCOUNT:
                 raise ValidationException(

@@ -473,30 +473,24 @@ def run_acceptance_runner_thread():
 from src.Intelligence.Execution.core import ExecutionIntelligenceCore
 
 def fetch_production_market_candles(symbol: str, timeframe: str) -> List[Dict[str, Any]]:
-    """
-    Fetches real M1 market candles via global_m1_research_runtime / MT5DataProvider
-    (source is M1) and aggregates them into target timeframe bars via TimeframeAggregator.
-    Fails closed with empty list if real data is unavailable (NEVER falls back to synthetic data in production).
+    """Fetches real market candles from the MT4 historical store for Signal/Execution Intel.
+    No MT5 call and no synthetic production fallback are permitted.
     """
     try:
-        from src.Data.Aggregation.timeframe_aggregator import TimeframeAggregator
-        sym_clean = (symbol or "XAUUSD").upper()
-        tf_clean = (timeframe or "H1").upper()
-
-        # Query real M1 market data from global M1 research runtime
-        res = global_m1_research_runtime.run_once()
-        raw_candles = res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", [])
-
-        if not raw_candles:
+        from datetime import timedelta
+        from src.Data.External.models import ExternalDataRequest
+        from src.Data.Providers.MT4.historical import MT4HistoricalDataProvider
+        provider = MT4HistoricalDataProvider()
+        tf = (timeframe or "H1").upper()
+        minutes = provider.TIMEFRAME_MINUTES.get(tf)
+        if not minutes:
             return []
-
-        if tf_clean == "M1":
-            return raw_candles
-
-        # Aggregate real M1 candles into target timeframe
-        return TimeframeAggregator.aggregate_m1_candles(raw_candles, target_timeframe=tf_clean)
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(minutes=minutes * 1000)
+        resp = provider.fetch_data(ExternalDataRequest(symbol=(symbol or "XAUUSD").upper(), timeframe=tf, start_time=start, end_time=end))
+        return resp.raw_data if resp.is_success else []
     except Exception as e:
-        log_event("ERROR", f"fetch_production_market_candles failed for {symbol} {timeframe}: {str(e)}")
+        log_event("ERROR", f"fetch_production_market_candles MT4 failed for {symbol} {timeframe}: {str(e)}")
         return []
 
 
