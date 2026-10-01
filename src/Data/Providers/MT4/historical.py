@@ -88,8 +88,8 @@ class MT4HistoricalDataProvider(IDataProvider):
                 tick_volume, spread, real_volume = volume, 0, volume
             if t > 0 and h >= max(o, c, l) and l <= min(o, c, h):
                 rows.append({
-                    "time": int(t), "open": float(o), "high": float(h), "low": float(l),
-                    "close": float(c), "tick_volume": float(tick_volume),
+                    "timestamp": int(t), "time": int(t), "open": float(o), "high": float(h), "low": float(l),
+                    "close": float(c), "volume": float(tick_volume), "tick_volume": float(tick_volume),
                     "spread": int(spread), "real_volume": float(real_volume),
                 })
             offset += record_size
