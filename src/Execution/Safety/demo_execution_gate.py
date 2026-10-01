@@ -9,12 +9,12 @@ logger = logging.getLogger("DemoExecutionGate")
 class DemoExecutionGate:
     """
     Dedicated SRE Demo Execution Gate.
-    Enforces strict DEMO-only safety boundaries before any order submission to MT5 terminal.
+    Enforces strict DEMO-only safety boundaries before any order submission to the authorized MT4 DEMO bridge.
 
     Guarantees:
     1. Demo mode is explicitly enabled.
     2. Live trading is explicitly disabled (LIVE_TRADING_ENABLED=False).
-    3. Connected MT5 account is verified as DEMO (trade_mode == 0, login==52961173, server==Alpari-MT5-Demo).
+    3. Connected DEMO account is verified against the adapter's authorized account/server and IsDemo-equivalent state.
     4. Terminal trading permissions are enabled.
     5. Symbol is tradeable.
     6. Order validation (order_check) succeeds.
@@ -59,10 +59,10 @@ class DemoExecutionGate:
             term_info = getattr(adapter_or_mt5, "terminal_info", lambda: None)()
             sym_info = getattr(adapter_or_mt5, "symbol_info", lambda s: None)(getattr(request, "Symbol", "XAUUSD"))
 
-        # Fail Closed: In non-Windows/sandbox environment where MT5 is disconnected:
+        # Fail Closed: broker bridge is disconnected:
         if acc_info is None:
-            logger.warning("[DemoExecutionGate] MT5 process disconnected. Failing closed.")
-            raise ValidationException("DemoExecutionGate Violation: MT5 Terminal is disconnected or account info is unavailable.")
+            logger.warning("[DemoExecutionGate] broker process disconnected. Failing closed.")
+            raise ValidationException("DemoExecutionGate Violation: broker terminal is disconnected or account info is unavailable.")
 
         # Check 3: Platform & DEMO Verification (Rejects REAL accounts explicitly)
         login = str(acc_info.get("login", ""))
@@ -96,7 +96,7 @@ class DemoExecutionGate:
             trade_allowed = term_info.get("trade_allowed", True)
             tradeapi_disabled = term_info.get("tradeapi_disabled", False)
             if not trade_allowed or tradeapi_disabled:
-                raise ValidationException("DemoExecutionGate Violation: MT5 terminal trading permissions disabled.")
+                raise ValidationException("DemoExecutionGate Violation: terminal trading permissions disabled.")
 
         # Check 5: Symbol tradeable
         if sym_info is not None:
