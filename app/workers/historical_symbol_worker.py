@@ -65,11 +65,15 @@ def run(symbol: str, years: int, initial_balance: float, sleep_sec: float,
     for tf in TIMEFRAMES:
         result = run_staged_backtest(
             symbol.upper(), tf, years, initial_balance, root,
-            max_chunks=max_chunks, sleep_sec=sleep_sec
+            max_chunks=max_chunks, sleep_sec=sleep_sec, cleanup_on_success=False
         )
         results[tf] = result
-        if max_chunks and result.get("status") != "COMPLETED":
-            break
+        if result.get("status") != "COMPLETED":
+            return {"symbol": symbol.upper(), "status": "INCOMPLETE",
+                    "timeframes": results, "source_account": SIGNAL_LOGIN,
+                    "source_server": SIGNAL_SERVER}
+    from src.Application.Backtesting.historical_dataset import cleanup_staged_dataset
+    cleanup_staged_dataset(symbol_dir / "dataset.sqlite")
     return {"symbol": symbol.upper(), "status": "COMPLETED",
             "timeframes": results, "source_account": SIGNAL_LOGIN,
             "source_server": SIGNAL_SERVER}
