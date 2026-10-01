@@ -21,6 +21,7 @@ import time
 import socket
 import signal
 import threading
+import subprocess
 import uvicorn
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -62,6 +63,7 @@ def log_service_message(message: str) -> None:
 from app.core.config import ProductionConfig
 from app.workers.research_worker import ResearchWorker
 from app.workers.intelligence_worker import IntelligenceWorker
+from pathlib import Path
 from src.Application.Runtime.runtime_state import central_runtime_state
 
 # Import existing FastAPI app
@@ -86,6 +88,8 @@ class YarTraderServiceHost:
         self.last_error: Optional[str] = None
         self.uvicorn_server: Optional[uvicorn.Server] = None
         self.uvicorn_thread: Optional[threading.Thread] = None
+        self.historical_learning_thread: Optional[threading.Thread] = None
+        self.historical_learning_stop = threading.Event()
 
         # Instantiate active workers
         self.research_worker = ResearchWorker(
@@ -120,7 +124,30 @@ class YarTraderServiceHost:
             self.last_error = f"Worker startup exception: {str(e)}"
             log_service_message(f"Exception during worker startup: {str(e)}")
 
-        # 2. Start Uvicorn FastAPI Server on background thread
+        # 2. Start autonomous historical-learning queue. It waits fail-closed
+        # for the authorized read-only MT4 Signal heartbeat before doing work.
+        try:
+            self.historical_learning_stop.clear()
+            queue_script = Path(project_root) / "app" / "workers" / "historical_learning_queue.py"
+
+            def _run_historical_learning():
+                try:
+                    log_service_message("Historical Learning Queue Started — waiting for MT4 Signal bridge")
+                    subprocess.run([sys.executable, str(queue_script), "--years", "10"],
+                                   cwd=project_root, check=False)
+                except Exception as e:
+                    log_service_message(f"Historical Learning Queue Exception: {e}")
+
+            self.historical_learning_thread = threading.Thread(
+                target=_run_historical_learning,
+                daemon=True,
+                name="HistoricalLearningQueue"
+            )
+            self.historical_learning_thread.start()
+        except Exception as e:
+            log_service_message(f"Historical Learning Queue startup exception: {e}")
+
+        # 3. Start Uvicorn FastAPI Server on background thread
         try:
             uvicorn_config = uvicorn.Config(
                 app=fastapi_app,
@@ -218,6 +245,7 @@ class YarTraderServiceHost:
         central_runtime_state.update_state("worker_status", "Stopped")
 
         # 1. Stop workers
+        self.historical_learning_stop.set()
         try:
             self.research_worker.stop()
             central_runtime_state.update_state("shadow_status", "Stopped")
