@@ -1,170 +1,156 @@
-"""
-YarTrader Real MT4 Broker Adapter & Live Data Ingestion Layer
-==============================================================
+"""MT4 DEMO broker adapter backed by the YarTrader MQL4 bridge EA.
 
-Provides explicit platform-separated access to MT4 live market data.
-MT4 ORDER EXECUTION AUTHORITY IS STRICTLY ZERO REPOSITORY-WIDE.
-Orders sent to MT4 unconditionally raise ValidationException.
+The EA owns broker calls and verifies IsDemo(), the exact account/server,
+and XAUUSD-only execution. Python fails closed when the bridge is absent.
 """
-
-import os
-import sys
 import logging
-import time
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from src.Execution.Interfaces.interfaces import IBrokerAdapter
 from src.Execution.Models.models import OrderRequest, OrderResponse
 from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
+from src.Execution.Adapters.mt4_file_bridge import MT4FileBridge
 from src.Infrastructure.exceptions import ValidationException
 
 logger = logging.getLogger("RealMT4BrokerAdapter")
 
 
 class RealMT4BrokerAdapter(IBrokerAdapter):
-    """
-    Dedicated MT4 Platform Broker Adapter.
-    MT4 order execution authority is ZERO. Order requests raise ValidationException unconditionally.
-    When native MT4 IPC is disconnected, returns None (UNKNOWN) without fake financial fabrications.
-    """
-
-    TARGET_ACCOUNT = "4109825"
-    TARGET_SERVER = "Alpari-MT4-Demo"
+    TARGET_ACCOUNT = MetaTraderSafetyGate.MT4_DEMO_ACCOUNT
+    TARGET_SERVER = MetaTraderSafetyGate.MT4_DEMO_SERVER
     PLATFORM_NAME = "MT4"
 
-    def __init__(self, auto_initialize: bool = True) -> None:
+    def __init__(self, auto_initialize: bool = True, bridge: Optional[MT4FileBridge] = None) -> None:
+        self.bridge = bridge or MT4FileBridge()
         self._initialized = False
-        self._mt4 = None
         if auto_initialize:
             self._try_init()
 
     def _try_init(self) -> bool:
-        """Attempts to initialize MT4 IPC connection."""
         try:
-            import MetaTrader4 as mt4
-            self._mt4 = mt4
-            if self._mt4.initialize():
-                self._initialized = True
-                logger.info("[RealMT4BrokerAdapter] MT4 initialized successfully.")
-                return True
-        except ImportError:
-            logger.info("[RealMT4BrokerAdapter] Native MetaTrader4 package not present.")
-        except Exception as ex:
-            logger.warning(f"[RealMT4BrokerAdapter] MT4 initialize exception: {ex}")
-
-        self._initialized = False
-        self._mt4 = None
-        return False
+            info = self.get_account_info()
+            self._initialized = bool(info and info.get("is_demo"))
+        except Exception as exc:
+            logger.warning("[RealMT4BrokerAdapter] bridge unavailable: %s", exc)
+            self._initialized = False
+        return self._initialized
 
     def verify_safety_and_account(self, operation_type: str = "DEMO") -> bool:
-        """
-        Enforces MetaTraderSafetyGate and verifies MT4 DEMO identity.
-        """
         MetaTraderSafetyGate.verify_operation(
-            terminal_type="MT4",
-            operation_type=operation_type,
-            account_id=self.TARGET_ACCOUNT,
-            server_name=self.TARGET_SERVER
+            terminal_type="MT4", operation_type=operation_type,
+            account_id=self.TARGET_ACCOUNT, server_name=self.TARGET_SERVER,
         )
-
-        acc_info = self.get_account_info()
-        if acc_info is None:
-            raise ValidationException("MT4 Terminal is disconnected or account info is unavailable (Fail-Closed).")
-
-        login = str(acc_info.get("login", ""))
-        server = str(acc_info.get("server", ""))
-        trade_mode = acc_info.get("trade_mode", 0)
-
-        if trade_mode != 0 or acc_info.get("is_real", False):
-            raise ValidationException("SECURITY VIOLATION: MT4 Connected account is REAL! Real account execution is strictly rejected.")
-
-        if login and login != self.TARGET_ACCOUNT:
+        info = self.get_account_info()
+        if not info:
+            raise ValidationException("MT4 DEMO bridge is disconnected (fail-closed).")
+        if not bool(info.get("is_demo")):
+            raise ValidationException("SECURITY VIOLATION: connected MT4 account is not DEMO.")
+        if str(info.get("login")) != self.TARGET_ACCOUNT:
             raise ValidationException(
-                f"SRE Security Gate Violation: Connected MT4 account '{login}' does not match authorized DEMO account '{self.TARGET_ACCOUNT}'."
+                f"Unauthorized MT4 account '{info.get('login')}'; expected '{self.TARGET_ACCOUNT}'."
             )
-
-        if server and server != self.TARGET_SERVER:
+        if str(info.get("server")) != self.TARGET_SERVER:
             raise ValidationException(
-                f"SRE Security Gate Violation: Connected MT4 server '{server}' does not match authorized DEMO server '{self.TARGET_SERVER}'."
+                f"Unauthorized MT4 server '{info.get('server')}'; expected '{self.TARGET_SERVER}'."
             )
-
         return True
 
     def get_account_info(self) -> Optional[Dict[str, Any]]:
-        """Returns MT4 account info from native API. Returns None (UNKNOWN) if MT4 is unavailable."""
-        if not self._mt4 or not self._initialized:
-            return None
         try:
-            acc = self._mt4.account_info()
-            if acc is None:
+            parts = self.bridge.request("ACCOUNT")
+            if not parts or parts[0] != "OK" or len(parts) < 5:
                 return None
-            return dict(acc) if hasattr(acc, "_asdict") else dict(acc)
-        except Exception as e:
-            logger.error(f"[RealMT4BrokerAdapter] get_account_info exception: {e}")
+            return {
+                "login": parts[1], "server": parts[2], "is_demo": parts[3] == "1",
+                "balance": float(parts[4]), "trade_mode": 0 if parts[3] == "1" else 1,
+            }
+        except Exception:
             return None
 
     def get_terminal_info(self) -> Optional[Dict[str, Any]]:
-        """Returns active MT4 terminal info. Returns None (UNKNOWN) if MT4 is unavailable."""
-        if not self._mt4 or not self._initialized:
+        hb = self.bridge.heartbeat()
+        if not hb:
             return None
-        try:
-            term = self._mt4.terminal_info()
-            if term is None:
-                return None
-            return dict(term) if hasattr(term, "_asdict") else dict(term)
-        except Exception as e:
-            logger.error(f"[RealMT4BrokerAdapter] get_terminal_info exception: {e}")
-            return None
+        return {"connected": True, "server": hb["server"], "login": hb["login"], "is_demo": hb["is_demo"]}
 
     def get_symbol_info(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Fetches symbol information from MT4. Returns None (UNKNOWN) if MT4 is unavailable."""
-        if not self._mt4 or not self._initialized:
-            return None
-        try:
-            sym = self._mt4.symbol_info(symbol)
-            if sym is None:
-                return None
-            return dict(sym) if hasattr(sym, "_asdict") else dict(sym)
-        except Exception as e:
-            logger.error(f"[RealMT4BrokerAdapter] get_symbol_info exception: {e}")
-            return None
+        tick = self.get_symbol_tick(symbol)
+        return {"name": symbol.upper(), **tick} if tick else None
 
     def get_symbol_tick(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Fetches symbol tick from MT4. Returns None (UNKNOWN) if MT4 is unavailable."""
-        if not self._mt4 or not self._initialized:
-            return None
         try:
-            tick = self._mt4.symbol_info_tick(symbol)
-            if tick is None:
+            parts = self.bridge.request("TICK", symbol.upper())
+            if not parts or parts[0] != "OK" or len(parts) < 5:
                 return None
-            return dict(tick) if hasattr(tick, "_asdict") else dict(tick)
-        except Exception as e:
-            logger.error(f"[RealMT4BrokerAdapter] get_symbol_tick exception: {e}")
+            return {"symbol": parts[1], "bid": float(parts[2]), "ask": float(parts[3]), "time": int(parts[4])}
+        except Exception:
+            return None
+
+    def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
+        try:
+            parts = self.bridge.request("POSITIONS", symbol.upper() if symbol else "")
+            if not parts or parts[0] != "OK":
+                return None
+            raw = parts[1] if len(parts) > 1 else ""
+            positions = []
+            for item in filter(None, raw.split(";")):
+                fields = item.split(",")
+                if len(fields) < 5:
+                    continue
+                pos = {
+                    "ticket": int(fields[0]), "type": int(fields[1]), "volume": float(fields[2]),
+                    "price_open": float(fields[3]), "time": int(fields[4]),
+                }
+                if ticket is None or pos["ticket"] == int(ticket):
+                    positions.append(pos)
+            return positions
+        except Exception:
             return None
 
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
-        """
-        MT4 HAS ZERO PRODUCTION ORDER EXECUTION AUTHORITY.
-        Order execution requests via MT4 are unconditionally rejected.
-        """
-        logger.error("[RealMT4BrokerAdapter] SECURITY REJECTION: MT4 order execution requested. MT4 execution authority is ZERO.")
-        raise ValidationException("SECURITY VIOLATION: MT4 adapter has ZERO production order execution authority. Production execution is strictly reserved for MT5 DEMO.")
+        self.verify_safety_and_account("DEMO")
+        if request.Symbol.upper() != "XAUUSD":
+            raise ValidationException("MT4 DEMO execution is restricted to XAUUSD.")
+        direction = request.OrderType.upper()
+        if direction not in {"BUY", "SELL"}:
+            raise ValidationException(f"Unsupported MT4 DEMO order type '{direction}'.")
+        parts = self.bridge.request(
+            "ORDER", request.Symbol.upper(), direction, request.Volume,
+            request.Price or 0.0, request.StopLoss or 0.0,
+            request.TakeProfit or 0.0, request.Magic or 0,
+        )
+        now = datetime.now(timezone.utc)
+        if not parts or parts[0] != "OK":
+            err = parts[1] if len(parts) > 1 else "UNKNOWN"
+            return OrderResponse(
+                OrderId="0", Symbol=request.Symbol.upper(), Status="Failed", SubmittedAt=now,
+                Retcode=10021, Comment=f"MT4 bridge error {err}",
+                RawResponse={"platform": "MT4", "error": err},
+            )
+        return OrderResponse(
+            OrderId=parts[1], Symbol=request.Symbol.upper(), Status="Filled", SubmittedAt=now,
+            Retcode=10009, Comment="MT4 DEMO order accepted", DealTicket=parts[1],
+            Price=float(parts[2]), Volume=float(parts[3]),
+            RawResponse={"platform": "MT4", "account": self.TARGET_ACCOUNT},
+        )
 
-    def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:
-        """Queries active MT4 positions. Returns None (UNKNOWN) if MT4 is unavailable or query fails."""
-        if not self._mt4 or not self._initialized:
-            return None
-        try:
-            kwargs = {}
-            if symbol:
-                kwargs["symbol"] = symbol
-            if ticket:
-                kwargs["ticket"] = int(ticket)
-            positions = self._mt4.positions_get(**kwargs)
-            if positions is None:
-                return None
-            return [dict(p) if hasattr(p, "_asdict") else dict(p) for p in positions]
-        except Exception as e:
-            logger.error(f"[RealMT4BrokerAdapter] get_positions exception: {e}")
-            return None
+    def close_order(self, ticket: int, volume: float) -> OrderResponse:
+        self.verify_safety_and_account("DEMO")
+        parts = self.bridge.request("CLOSE", int(ticket), float(volume))
+        now = datetime.now(timezone.utc)
+        if not parts or parts[0] != "OK":
+            err = parts[1] if len(parts) > 1 else "UNKNOWN"
+            return OrderResponse(
+                OrderId=str(ticket), Symbol="XAUUSD", Status="Failed", SubmittedAt=now,
+                Retcode=10021, Comment=f"MT4 bridge error {err}",
+                RawResponse={"platform": "MT4", "error": err},
+            )
+        return OrderResponse(
+            OrderId=str(ticket), Symbol="XAUUSD", Status="Filled", SubmittedAt=now,
+            Retcode=10009, Comment="MT4 DEMO position closed", DealTicket=str(ticket),
+            Price=float(parts[2]), Volume=float(parts[3]), RawResponse={"platform": "MT4"},
+        )
+
+    def send_order(self, request: OrderRequest) -> OrderResponse:
+        return self.send_order_to_broker(request)
