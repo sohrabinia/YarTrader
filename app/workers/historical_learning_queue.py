@@ -1,6 +1,6 @@
 ﻿"""Autonomous historical-learning queue; intentionally independent of the 30-symbol production limit."""
 from __future__ import annotations
-import argparse, json, subprocess, sys, time
+import argparse, glob, json, subprocess, sys, time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,11 +26,14 @@ def save_state(state):
     tmp=p.with_suffix(".tmp"); tmp.write_text(json.dumps(state,indent=2),encoding="utf-8"); tmp.replace(p)
 
 def _wait_for_signal_bridge(poll_sec=5.0):
-    bridge = MT4FileBridge()
+    # Multiple MT4 terminals may share FILE_COMMON. Probe every candidate
+    # common directory and select only the authorized Signal heartbeat.
     while True:
-        hb = bridge.heartbeat()
-        if hb and hb.get("login") == "143056202" and hb.get("server") == "Alpari-Pro.ECN" and not hb.get("is_demo"):
-            return
+        for common_dir in glob.glob(r"C:\Users\*\AppData\Roaming\MetaQuotes\Terminal\Common\Files"):
+            bridge = MT4FileBridge(common_dir=common_dir)
+            hb = bridge.heartbeat()
+            if hb and hb.get("login") == "143056202" and hb.get("server") == "Alpari-Pro.ECN" and not hb.get("is_demo"):
+                return bridge
         time.sleep(poll_sec)
 
 def run_queue(years=10, initial_balance=10000.0, sleep_sec=0.5, max_symbols=0):
@@ -46,7 +49,7 @@ def run_queue(years=10, initial_balance=10000.0, sleep_sec=0.5, max_symbols=0):
     state={"schema":1,"status":"WAITING_FOR_SIGNAL","years":years,"symbols":symbols,
            "completed_symbols":completed,"current_symbol":None}
     save_state(state)
-    _wait_for_signal_bridge()
+    bridge = _wait_for_signal_bridge()
     state["status"]="RUNNING"; save_state(state)
     worker=ROOT/"app"/"workers"/"historical_symbol_worker.py"
     for index,symbol in enumerate(symbols):
