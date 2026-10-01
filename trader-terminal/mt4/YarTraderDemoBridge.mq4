@@ -29,7 +29,7 @@ void WriteHeartbeat()
    if(!Authorized()) return;
    string sym="XAUUSD";
    double bid=MarketInfo(sym,MODE_BID), ask=MarketInfo(sym,MODE_ASK);
-   int h=FileOpen(HEARTBEAT_FILE,FILE_WRITE|FILE_TXT|FILE_COMMON|FILE_SHARE_READ|FILE_SHARE_WRITE);
+   int h=FileOpen(HEARTBEAT_FILE,FILE_WRITE|FILE_TXT|FILE_ANSI|FILE_COMMON|FILE_SHARE_READ|FILE_SHARE_WRITE);
    if(h==INVALID_HANDLE) return;
    FileWriteString(h,IntegerToString(AccountNumber())+"|"+AccountServer()+"|1|"+sym+"|"+
                    DoubleToString(bid,Digits)+"|"+DoubleToString(ask,Digits)+"|"+
@@ -38,14 +38,14 @@ void WriteHeartbeat()
 }
 void Respond(string id,string payload)
 {
-   int h=FileOpen("yartrader_mt4_response_"+id+".txt",FILE_WRITE|FILE_TXT|FILE_COMMON|FILE_SHARE_READ|FILE_SHARE_WRITE);
+   int h=FileOpen("yartrader_mt4_response_"+id+".txt",FILE_WRITE|FILE_TXT|FILE_ANSI|FILE_COMMON|FILE_SHARE_READ|FILE_SHARE_WRITE);
    if(h==INVALID_HANDLE) return;
    FileWriteString(h,id+"|"+payload); FileFlush(h); FileClose(h);
 }
 void ProcessRequest()
 {
    if(!Authorized() || !FileIsExist(REQ_FILE,FILE_COMMON)) return;
-   int h=FileOpen(REQ_FILE,FILE_READ|FILE_TXT|FILE_COMMON|FILE_SHARE_READ|FILE_SHARE_WRITE);
+   int h=FileOpen(REQ_FILE,FILE_READ|FILE_TXT|FILE_ANSI|FILE_COMMON|FILE_SHARE_READ|FILE_SHARE_WRITE);
    if(h==INVALID_HANDLE) return;
    string line=FileReadString(h); FileClose(h);
    if(StringLen(line)<3) return;
