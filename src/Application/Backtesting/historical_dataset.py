@@ -115,7 +115,8 @@ def dataset_sha256(path: Path) -> str:
     return h.hexdigest()
 
 def run_staged_backtest(symbol: str, timeframe: str, years: int, initial_balance: float,
-                        root: Path, max_chunks: int = 0, sleep_sec: float = 0.5) -> dict:
+                        root: Path, max_chunks: int = 0, sleep_sec: float = 0.5,
+                        cleanup_on_success: bool = True) -> dict:
     """Stage one symbol once, resume Brain processing from disk, then clean raw staging."""
     from src.Data.Providers.MT4.historical import MT4HistoricalDataProvider
     from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
@@ -189,7 +190,7 @@ def run_staged_backtest(symbol: str, timeframe: str, years: int, initial_balance
         if checkpoint_path.exists():
             try:
                 terminal = json.loads(checkpoint_path.read_text(encoding="utf-8-sig"))
-                if terminal.get("status") == "COMPLETED" and stage_path.exists():
+                if cleanup_on_success and terminal.get("status") == "COMPLETED" and stage_path.exists():
                     cleanup_staged_dataset(stage_path)
             except Exception:
                 pass
