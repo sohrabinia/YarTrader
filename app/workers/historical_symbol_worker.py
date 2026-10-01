@@ -1,6 +1,6 @@
 ﻿"""One-symbol autonomous historical acquisition + Brain/backtest runner."""
 from __future__ import annotations
-import argparse, sys
+import argparse, glob, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,8 +26,14 @@ def required_bars(tf: str, years: int) -> int:
 
 
 def acquire_all(symbol: str, years: int) -> list[dict]:
-    bridge = MT4FileBridge()
-    hb = bridge.heartbeat()
+    bridge = None
+    for common_dir in glob.glob(r"C:\Users\*\AppData\Roaming\MetaQuotes\Terminal\Common\Files"):
+        candidate = MT4FileBridge(common_dir=common_dir)
+        hb = candidate.heartbeat()
+        if hb and hb.get("login") == SIGNAL_LOGIN and hb.get("server") == SIGNAL_SERVER and not hb.get("is_demo"):
+            bridge = candidate
+            break
+    hb = bridge.heartbeat() if bridge else None
     if not hb or hb.get("login") != SIGNAL_LOGIN or hb.get("server") != SIGNAL_SERVER:
         raise RuntimeError(
             "Historical acquisition requires the read-only MT4 Signal terminal "
