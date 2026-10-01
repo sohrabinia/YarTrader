@@ -1,7 +1,7 @@
 import os
 import time
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
 
@@ -160,6 +160,27 @@ class ResearchRuntime:
                     DataPoints=data_points,
                     RetrievedAt=datetime.now()
                 )
+            elif self._provider_name == "MT4":
+                from src.Data.External.models import ExternalDataRequest
+                from src.Data.MarketData.Models.models import MarketDataPoint, MarketDataResponse
+                ext_req = ExternalDataRequest(
+                    symbol=self._symbol, timeframe=self._timeframe,
+                    start_time=start_time, end_time=end_time,
+                    parameters={"data_source": "MT4"}
+                )
+                ext_resp = self._provider.fetch_data(ext_req)
+                if not ext_resp.is_success:
+                    raise ValidationException(ext_resp.error_message or f"MT4 history unavailable for {self._symbol} {self._timeframe}.")
+                data_points = [
+                    MarketDataPoint(
+                        AssetId=self._symbol,
+                        Timestamp=datetime.fromtimestamp(row["timestamp"], tz=timezone.utc),
+                        Open=row["open"], High=row["high"], Low=row["low"],
+                        Close=row["close"], Volume=row.get("volume", 0.0)
+                    ) for row in ext_resp.raw_data
+                ]
+                data_response = MarketDataResponse(Request=target_req, DataPoints=data_points, RetrievedAt=datetime.now())
+                self._log_evidence("MT4 history connected")
             else:
                 data_response = self._provider.retrieve_market_data(target_req)
                 if getattr(self, "_provider_name", "MT5") == "ControlledOfflineFixture":

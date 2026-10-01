@@ -192,13 +192,24 @@ def run_research_background_loop():
             def _get_or_create_runtime(symbol: str, tf: str, asset_class: str, provider: str) -> ResearchRuntime:
                 key = (symbol.upper(), tf.upper())
                 if key not in runtimes:
-                    runtimes[key] = ResearchRuntime(
-                        symbol=symbol.upper(),
-                        timeframe=tf.upper(),
-                        evidence_dir="runtime_logs",
-                        provider_name=provider,
-                        asset_class=asset_class
-                    )
+                    if provider == "Crypto":
+                        runtimes[key] = ResearchRuntime(
+                            symbol=symbol.upper(),
+                            timeframe=tf.upper(),
+                            evidence_dir="runtime_logs",
+                            provider_name="Crypto",
+                            asset_class=asset_class
+                        )
+                    else:
+                        from src.Data.Providers.MT4.historical import MT4HistoricalDataProvider
+                        runtimes[key] = ResearchRuntime(
+                            provider=MT4HistoricalDataProvider(),
+                            symbol=symbol.upper(),
+                            timeframe=tf.upper(),
+                            evidence_dir="runtime_logs",
+                            provider_name="MT4",
+                            asset_class=asset_class
+                        )
                 return runtimes[key]
 
             # Startup Diagnostics
@@ -213,7 +224,7 @@ def run_research_background_loop():
             print(f"Registered Symbols: {len(registry.get_all_registered())}")
             print(f"Active Symbols: {len(unique_symbols)}")
             print("Providers:")
-            print("  MT5: CONNECTED")
+            print("  MT4: PRIMARY market-data source for Signal/Research")
             print("  Crypto Provider: CONNECTED")
             print(f"Timeframes: {', '.join(configured_tfs)}")
             print("Workers: RUNNING")
@@ -227,14 +238,12 @@ def run_research_background_loop():
                     print(f"Research Started\nSymbol: {symbol}\nTimeframe: {tf}")
                     print(f"Provider: {provider}")
 
-                    # Active connection check based on provider
+                    # MT4 history is local and validated by runtime.run_once(); no MT5 API probe.
                     if provider == "Crypto":
                         print("Crypto Provider: CONNECTED")
                         research_tracker["mt5_status"] = "CONNECTED"
                     else:
-                        conn_health = runtime.provider.delegate.get_connection_health()
-                        research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-                        print("MT5: Connected")
+                        print("MT4: History provider configured")
 
                     res = runtime.run_once()
                     research_tracker["last_analysis_time"] = datetime.now().isoformat()
@@ -268,9 +277,7 @@ def run_research_background_loop():
                                 print("Crypto Provider: CONNECTED")
                                 research_tracker["mt5_status"] = "CONNECTED"
                             else:
-                                conn_health = runtime.provider.delegate.get_connection_health()
-                                research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
-                                print("MT5: Connected")
+                                print("MT4: History provider configured")
 
                             res = runtime.run_once()
                             research_tracker["last_analysis_time"] = datetime.now().isoformat()
@@ -3772,16 +3779,16 @@ def get_production_health():
     if research_status == "Running" or intelligence_status == "Running" or research_tracker.get("worker_status") == "RUNNING":
         worker_status = "Running"
 
-    # Determine MT5 connectivity status dynamically from the authoritative provider.
-    # Production ResearchWorker reports lifecycle state through central_runtime_state;
-    # research_tracker belongs to the legacy web-dashboard worker and must not
-    # override a healthy provider result.
+    # Signal/Research market data is now served from MT4 local history.
+    # MT5 remains available for Brain/research internals but is not required by this path.
     try:
-        conn_health = global_research_runtime.provider.delegate.get_connection_health()
-        mt5_connected = bool(conn_health.connected)
+        from src.Data.Providers.MT4.historical import MT4HistoricalDataProvider
+        mt4_provider = MT4HistoricalDataProvider()
+        mt4_connected = mt4_provider.check_health().value == "HEALTHY"
     except Exception:
-        mt5_connected = False
-    mt5_status = "Connected" if mt5_connected else "Disconnected"
+        mt4_connected = False
+    mt5_connected = False
+    mt5_status = "Standby"
 
     # Shadow Trading is DEPRECATED & REMOVED repository-wide (SHADOW = ZERO)
     shadow_status_active = "Disabled"
@@ -3806,10 +3813,10 @@ def get_production_health():
 
     # MT4 operational health summary (no accounts, servers, or internal topology)
     mt4_report = {
-        "terminal_running": False,
-        "connected": False,
-        "role": "DISABLED",
-        "simulation_enabled": False,
+        "terminal_running": mt4_connected,
+        "connected": mt4_connected,
+        "role": "SIGNAL_BACKTEST_DEMO_DATA",
+        "simulation_enabled": True,
         "live_trading_enabled": False
     }
 
