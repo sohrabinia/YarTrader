@@ -54,7 +54,7 @@ class MT4FileBridge:
             if age < self.timeout:
                 raise RuntimeError("MT4 bridge is busy with another request.")
             request.unlink(missing_ok=True)
-        payload = "|".join([request_id, operation, *[str(x) for x in args]])
+        payload = "|".join([request_id, operation, *[str(x) for x in args]]) + "\n"
         tmp = self._path(self.REQUEST + ".tmp")
         tmp.write_text(payload, encoding="utf-8")
         os.replace(tmp, request)

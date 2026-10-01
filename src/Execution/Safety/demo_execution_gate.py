@@ -71,7 +71,12 @@ class DemoExecutionGate:
         is_real = acc_info.get("is_real", False)
         platform = str(acc_info.get("platform", "MT5")).upper()
 
-        if is_real or (trade_mode is not None and trade_mode != 0):
+        # MT4 bridge exposes is_demo as the authoritative account-mode fact.
+        # Its normalized trade_mode value must not be interpreted using MT5-only semantics.
+        if platform == "MT4":
+            if is_real or acc_info.get("is_demo") is not True:
+                raise ValidationException("SECURITY VIOLATION: Connected MT4 account is not DEMO. Real account execution is strictly rejected repository-wide.")
+        elif is_real or (trade_mode is not None and trade_mode != 0):
             raise ValidationException("SECURITY VIOLATION: Connected account is REAL or non-DEMO. Real account execution is strictly rejected repository-wide.")
 
         if platform == "MT4":
