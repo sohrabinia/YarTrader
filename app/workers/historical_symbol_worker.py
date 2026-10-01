@@ -87,7 +87,9 @@ def main():
     p.add_argument("--sleep", type=float, default=0.5)
     p.add_argument("--max-chunks", type=int, default=0)
     a = p.parse_args()
-    run(a.symbol, a.years, a.initial_balance, a.sleep, a.max_chunks)
+    result = run(a.symbol, a.years, a.initial_balance, a.sleep, a.max_chunks)
+    if result.get("status") != "COMPLETED":
+        return 2
 
 
 if __name__ == "__main__":
