@@ -67,7 +67,15 @@ class MTDataAcquisitionEngine:
             start_target_utc = now_utc - timedelta(days=int(target_years * 365.25))
 
             completed_windows = set(manifest.get("completed_windows", []))
-            acquired_records = manifest.get("cached_records", [])
+            cache_file = os.path.join(cls.DEFAULT_DATA_DIR, f"{symbol.lower()}_m1_windows.jsonl")
+
+            # Historical rows live in a resumable disk cache, never inside the manifest.
+            if manifest.get("cached_records") and not os.path.exists(cache_file):
+                with open(cache_file, "w", encoding="utf-8") as cache:
+                    for row in manifest["cached_records"]:
+                        cache.write(json.dumps(row, separators=(",", ":")) + "\n")
+                manifest.pop("cached_records", None)
+                cls.save_manifest(manifest)
 
             # Generate monthly windows stepping backward from now_utc to start_target_utc
             curr_end = now_utc
@@ -80,8 +88,6 @@ class MTDataAcquisitionEngine:
                 if win_key not in completed_windows:
                     logger.info(f"Requesting MT5 M1 history for window: {win_key}...")
                     rates = None
-
-                    # Retry loop to allow MT5 terminal to fetch history files from trade server
                     for attempt in range(1, max_retries_per_window + 1):
                         rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_M1, curr_start, curr_end)
                         if rates is not None and len(rates) > 0:
@@ -89,20 +95,22 @@ class MTDataAcquisitionEngine:
                         time.sleep(0.5 * attempt)
 
                     if rates is not None and len(rates) > 0:
-                        for r in rates:
-                            acquired_records.append({
-                                "timestamp": int(r['time']),
-                                "open": float(r['open']),
-                                "high": float(r['high']),
-                                "low": float(r['low']),
-                                "close": float(r['close']),
-                                "volume": int(r['tick_volume']),
-                                "spread": int(r['spread']) if 'spread' in r.dtype.names else 0
-                            })
+                        with open(cache_file, "a", encoding="utf-8") as cache:
+                            for r in rates:
+                                row = {
+                                    "timestamp": int(r['time']),
+                                    "open": float(r['open']),
+                                    "high": float(r['high']),
+                                    "low": float(r['low']),
+                                    "close": float(r['close']),
+                                    "volume": int(r['tick_volume']),
+                                    "spread": int(r['spread']) if 'spread' in r.dtype.names else 0
+                                }
+                                cache.write(json.dumps(row, separators=(",", ":")) + "\n")
                         completed_windows.add(win_key)
-                        manifest["completed_windows"] = list(completed_windows)
-                        manifest["last_acquired_pos"] = len(acquired_records)
-                        manifest["cached_records"] = acquired_records
+                        manifest["completed_windows"] = sorted(completed_windows)
+                        manifest["last_acquired_pos"] = len(completed_windows)
+                        manifest["cache_file"] = cache_file
                         cls.save_manifest(manifest)
                     else:
                         logger.warning(f"MT5 returned 0 rates for window {win_key} after {max_retries_per_window} attempts.")
@@ -110,6 +118,14 @@ class MTDataAcquisitionEngine:
                 curr_end = curr_start
 
             mt5.shutdown()
+
+            acquired_records = []
+            if os.path.exists(cache_file):
+                with open(cache_file, "r", encoding="utf-8") as cache:
+                    for line in cache:
+                        line = line.strip()
+                        if line:
+                            acquired_records.append(json.loads(line))
 
             if not acquired_records:
                 return {
