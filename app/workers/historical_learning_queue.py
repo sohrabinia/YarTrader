@@ -6,6 +6,8 @@ from pathlib import Path
 from src.Execution.Adapters.mt4_file_bridge import MT4FileBridge
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "config" / "historical_learning_symbols.json"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 DEFAULT_TIMEFRAMES = ("M1","M5","M15","M30","H1","H4","D1","W1","MN1")
 
 def load_symbols():
