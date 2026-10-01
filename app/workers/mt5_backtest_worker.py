@@ -12,6 +12,7 @@ os.chdir(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
+from src.Application.Backtesting.historical_dataset import run_staged_backtest
 
 SCHEMA = 1
 CONTEXT_BARS = 500
@@ -93,6 +94,12 @@ def new_state(initial_balance):
     }
 
 def run(symbol, timeframe, years, initial_balance, sleep_sec, max_chunks=0):
+    # Historical research is staged once from MT4 HST and then consumed from local disk.
+    # MT5 is intentionally not touched by this backtest worker.
+    return run_staged_backtest(symbol, timeframe, years, initial_balance, ROOT, max_chunks, sleep_sec)
+
+
+def run_legacy_mt5(symbol, timeframe, years, initial_balance, sleep_sec, max_chunks=0):
     if years < 10:
         raise ValueError("MT5 historical backtest requires at least 10 years.")
     import MetaTrader5 as mt5

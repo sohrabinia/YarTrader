@@ -51,7 +51,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
                 terminal_type="MT5",
                 operation_type="REAL_LIVE"
             )
-        self.assertIn("Real Live Trading is hard-disabled", str(ctx.exception))
+        self.assertIn("MT4 Live Trading is hard-disabled", str(ctx.exception))
 
     def test_safety_gate_rejects_live_trading_enabled_config_manipulation(self) -> None:
         """Verifies that even if config flag is enabled, SRE Safety Gate blocks real live operations."""
@@ -65,24 +65,24 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
                     terminal_type="MT4",
                     operation_type="REAL_LIVE"
                 )
-            self.assertIn("Real Live Trading is hard-disabled", str(ctx.exception))
+            self.assertIn("MT4 Live Trading is hard-disabled", str(ctx.exception))
 
-    def test_safety_gate_allows_mt4_live_simulation(self) -> None:
-        """Verifies that MT4 can perform simulated live operations under the official account."""
+    def test_safety_gate_allows_mt4_signal(self) -> None:
+        """Verifies that MT4 can perform read-only Signal operations under the official account."""
         res = MetaTraderSafetyGate.verify_operation(
             terminal_type="MT4",
-            operation_type="LIVE_SIMULATION",
+            operation_type="SIGNAL",
             account_id="143056202",
             server_name="Alpari-Pro.ECN"
         )
         self.assertTrue(res)
 
     def test_safety_gate_rejects_mt4_unauthorized_server(self) -> None:
-        """Verifies that MT4 live simulation fails if connected to unauthorized broker servers."""
+        """Verifies that MT4 Signal role fails if connected to unauthorized broker servers."""
         with self.assertRaises(ValidationException) as ctx:
             MetaTraderSafetyGate.verify_operation(
                 terminal_type="MT4",
-                operation_type="LIVE_SIMULATION",
+                operation_type="SIGNAL",
                 account_id="143056202",
                 server_name="Real-Live-Server"
             )
@@ -116,3 +116,18 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         self.assertNotIn("password", str(data))
         self.assertNotIn("token", str(data))
         self.assertNotIn("secret", str(data))
+
+
+    def test_safety_gate_rejects_mt5_live_role(self) -> None:
+        with self.assertRaises(ValidationException) as ctx:
+            MetaTraderSafetyGate.verify_operation("MT5", "LIVE_MT5")
+        self.assertIn("MT5 Live Trading is not a supported execution role", str(ctx.exception))
+
+    def test_safety_gate_rejects_mt4_live_role(self) -> None:
+        with self.assertRaises(ValidationException) as ctx:
+            MetaTraderSafetyGate.verify_operation(
+                "MT4", "LIVE_MT4",
+                MetaTraderSafetyGate.MT4_LIVE_ACCOUNT,
+                MetaTraderSafetyGate.MT4_LIVE_SERVER,
+            )
+        self.assertIn("MT4 Live Trading is hard-disabled", str(ctx.exception))
