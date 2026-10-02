@@ -145,10 +145,11 @@ class MarketSequence:
 class PatternMemory:
     """Stores repeating market structure structures and similar historical sequences with their outcomes."""
     pattern_id: str
-    sequence_signature: List[float]  # Normalized price change sequence signature
+    sequence_signature: List[float]  # Versioned causal market-structure signature
     occurrences_count: int
     continuation_count: int
     reversal_count: int
+    signature_version: int = 2
     outcomes: List[Dict[str, Any]] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
     symbol: str = ""
@@ -174,6 +175,7 @@ class PatternMemory:
         return cls(
             pattern_id=data["pattern_id"],
             sequence_signature=data["sequence_signature"],
+            signature_version=int(data.get("signature_version", 1)),
             occurrences_count=int(data["occurrences_count"]),
             continuation_count=int(data["continuation_count"]),
             reversal_count=int(data["reversal_count"]),
