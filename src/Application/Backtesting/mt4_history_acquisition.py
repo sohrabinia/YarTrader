@@ -15,7 +15,7 @@ class MT4HistoryAcquisition:
         self.bridge = bridge
         self.provider = provider or MT4HistoricalDataProvider()
 
-    def acquire(self, symbol: str, timeframe: str, bars: int) -> dict:
+    def acquire(self, symbol: str, timeframe: str, bars: int, allow_partial: bool = False) -> dict:
         symbol, timeframe = symbol.upper(), timeframe.upper()
         before = self.provider._history_file(symbol, timeframe)
         result = self.bridge.request("HISTORY", symbol, timeframe, int(bars))
