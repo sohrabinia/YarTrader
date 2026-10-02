@@ -142,6 +142,7 @@ class BacktestAndLearningEngine:
 
         memory = self.get_market_memory(symbol)
         canonical_brain = self.get_live_brain(symbol, timeframe)
+        canonical_brain.observation_brain.configure_historical_performance(1000, 100)
 
         # Walk-forward bar by bar chronologically
         for i in range(start_index, len(candles)):
