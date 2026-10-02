@@ -19,11 +19,13 @@ class BacktestAndLearningEngine:
     - Walk-forward out-of-sample validation support.
     """
 
-    def __init__(self, storage_dir: Optional[str] = None) -> None:
+    def __init__(self, storage_dir: Optional[str] = None, memory_autosave_every: int = 1, learning_interval_bars: int = 1) -> None:
         self.storage_dir = storage_dir or os.path.join("runtime_logs", "backtest_learning")
         os.makedirs(self.storage_dir, exist_ok=True)
 
         self.memory_systems: Dict[str, MarketMemorySystem] = {}
+        self.memory_autosave_every = max(1, int(memory_autosave_every))
+        self.learning_interval_bars = max(1, int(learning_interval_bars))
         self.live_brains: Dict[tuple, Any] = {}
         self.judge = JudgeBrain()
 
@@ -33,6 +35,7 @@ class BacktestAndLearningEngine:
         if sym_upper not in self.memory_systems:
             sym_dir = os.path.join(self.storage_dir, f"memory_{sym_upper}")
             self.memory_systems[sym_upper] = MarketMemorySystem(storage_dir=sym_dir)
+            self.memory_systems[sym_upper].configure_event_persistence(self.memory_autosave_every)
         return self.memory_systems[sym_upper]
 
     def get_live_brain(self, symbol: str, timeframe: str):
@@ -139,6 +142,7 @@ class BacktestAndLearningEngine:
 
         memory = self.get_market_memory(symbol)
         canonical_brain = self.get_live_brain(symbol, timeframe)
+        canonical_brain.observation_brain.configure_historical_performance(1000, 100)
 
         # Walk-forward bar by bar chronologically
         for i in range(start_index, len(candles)):
@@ -276,7 +280,8 @@ class BacktestAndLearningEngine:
                 "high": float(current_bar["high"]), "low": float(current_bar["low"]),
                 "close": float(current_bar["close"]), "volume": float(current_bar.get("volume", 0.0))
             }, simulate_virtual_trade=False, timeframe_signature=brain_scope,
-               context_observations_by_tf=context_observations)
+               context_observations_by_tf=context_observations,
+               learning_cycle_due=(i - start_index + 1) % self.learning_interval_bars == 0)
             latest_brain_report = brain_report.to_dict()
             if not open_position and decision_due:
                 brain_report_dict = latest_brain_report

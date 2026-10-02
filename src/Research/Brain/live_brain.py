@@ -46,6 +46,7 @@ class LiveAnalysisBrain:
         timeframe_signature: Optional[List[str]] = None,
         context_observations_by_tf: Optional[Dict[str, List[MarketObservation]]] = None,
         context_observations_by_symbol: Optional[Dict[str, List[MarketObservation]]] = None,
+        learning_cycle_due: bool = True,
     ) -> AnalysisReport:
         """
         Processes a new live candle, updates sequence perception, discovers matching
@@ -164,14 +165,16 @@ class LiveAnalysisBrain:
                 self._pending_hypotheses[virtual_trade.trade_id] = hypothesis
 
         # 5b. Consolidate learning layers after observed outcomes and refresh active-learning priorities.
-        promoted_experiences = self.memory_system.promote_raw_events_to_experiences(self.symbol, self.timeframe)
+        promoted_experiences = []
         promoted_patterns = []
         priorities = []
         consolidated = []
-        if promoted_experiences or closed_trades:
-            promoted_patterns = self.memory_system.promote_experiences_to_patterns()
-            priorities = self.active_learning.analyze_weaknesses_and_set_priorities(self.memory_system.get_patterns())
-            consolidated = self.memory_system.consolidate_patterns_to_concepts(min_samples=4, min_validation_score=0.70)
+        if learning_cycle_due or closed_trades:
+            promoted_experiences = self.memory_system.promote_raw_events_to_experiences(self.symbol, self.timeframe)
+            if promoted_experiences or closed_trades:
+                promoted_patterns = self.memory_system.promote_experiences_to_patterns()
+                priorities = self.active_learning.analyze_weaknesses_and_set_priorities(self.memory_system.get_patterns())
+                consolidated = self.memory_system.consolidate_patterns_to_concepts(min_samples=4, min_validation_score=0.70)
         self._last_learning_summary = {
             "promoted_experiences": len(promoted_experiences),
             "promoted_patterns": len(promoted_patterns),
