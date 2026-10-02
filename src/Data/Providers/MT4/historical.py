@@ -25,6 +25,10 @@ class MT4HistoricalDataProvider(IDataProvider):
         root = data_root or __import__("os").getenv("YARTRADER_MT4_DATA_ROOT", "")
         if root:
             self.data_root = Path(root)
+        elif Path(r"C:\MT4Signal\history").exists():
+            # The authorized Signal terminal is portable and keeps its broker
+            # HST files under this deterministic installation root.
+            self.data_root = Path(r"C:\MT4Signal")
         else:
             candidates = list(Path(r"C:\Users").glob(r"*\AppData\Roaming\MetaQuotes\Terminal\*"))
             self.data_root = next(
