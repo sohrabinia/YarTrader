@@ -26,7 +26,7 @@ class MT4HistoricalDataProvider(IDataProvider):
         if root:
             self.data_root = Path(root)
         else:
-            candidates = list(Path(r"C:\\Users").glob(r"*\\AppData\\Roaming\\MetaQuotes\\Terminal\\*"))
+            candidates = list(Path(r"C:\Users").glob(r"*\AppData\Roaming\MetaQuotes\Terminal\*"))
             self.data_root = next(
                 (p for p in candidates if (p / "history").exists() and (p / "MQL4").exists()),
                 Path(),
