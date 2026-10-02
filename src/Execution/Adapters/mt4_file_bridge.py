@@ -64,7 +64,13 @@ class MT4FileBridge:
                 try:
                     parts = response.read_text(encoding="utf-8").strip().split("|")
                 finally:
-                    response.unlink(missing_ok=True)
+                    try:
+                        response.unlink(missing_ok=True)
+                    except PermissionError:
+                        # MT4 may still hold the response handle briefly.
+                        # The response has already been consumed; leave cleanup
+                        # to the next pass instead of failing the learning run.
+                        pass
                 if not parts or parts[0] != request_id:
                     raise RuntimeError("MT4 bridge returned an invalid response id.")
                 return parts[1:]
