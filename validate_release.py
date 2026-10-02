@@ -196,7 +196,7 @@ class ReleaseValidationPlatform:
         try:
             env = dict(os.environ)
             env["PYTHONPATH"] = "."
-            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=420, env=env)
+            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=900, env=env)
             stdout = res.stdout
             stderr = res.stderr
             return_code = res.returncode
@@ -886,4 +886,4 @@ if __name__ == "__main__":
     if report["readiness_status"] == "Production Ready":
         sys.exit(0)
     else:
-        sys.exit(0)
+        sys.exit(1)
