@@ -33,6 +33,9 @@ class MarketMemorySystem:
         self._artifact_store = artifact_store
         self._artifact_manifest_path = os.path.join(self._storage_dir, "artifact_manifest.json")
         self._lock = threading.Lock()
+        self._event_keys = set()
+        self._event_pending = 0
+        self._event_save_every = 1
 
         # In-memory storage buffers
         self.events: List[MarketEvent] = []
@@ -77,15 +80,25 @@ class MarketMemorySystem:
     def add_event(self, event: MarketEvent) -> None:
         """Stores an observed raw market event in Event Memory."""
         with self._lock:
-            # Check for duplication using timestamp bounds
-            exists = any(
-                e.symbol == event.symbol and e.start_time == event.start_time
-                and e.end_time == event.end_time and e.timeframe == event.timeframe
-                for e in self.events
-            )
-            if not exists:
+            # O(1) duplicate detection; historical runs can contain millions of events.
+            key = (event.symbol, event.start_time, event.end_time, event.timeframe)
+            if key not in self._event_keys:
                 self.events.append(event)
+                self._event_keys.add(key)
+                self._event_pending += 1
+                if self._event_pending >= self._event_save_every:
+                    self._save_layer("events")
+                    self._event_pending = 0
+
+    def configure_event_persistence(self, save_every: int = 1) -> None:
+        """Configure buffered raw-event persistence for historical workloads."""
+        self._event_save_every = max(1, int(save_every))
+
+    def flush_event_persistence(self) -> None:
+        with self._lock:
+            if self._event_pending:
                 self._save_layer("events")
+                self._event_pending = 0
 
     def add_experience(self, exp: ExperienceMemory) -> None:
         """Stores an experience record in Experience Memory."""
@@ -662,6 +675,7 @@ class MarketMemorySystem:
                     with open(events_path, "r", encoding="utf-8") as f:
                         raw = json.load(f)
                         self.events = [MarketEvent.from_dict(d) for d in raw]
+                        self._event_keys = {(e.symbol, e.start_time, e.end_time, e.timeframe) for e in self.events}
                 except Exception as e:
                     logger.error(f"Corruption detected in events_memory.json: {e}")
                     self._attempt_emergency_recovery("events", e)
