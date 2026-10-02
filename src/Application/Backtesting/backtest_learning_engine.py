@@ -280,7 +280,7 @@ class BacktestAndLearningEngine:
                 "close": float(current_bar["close"]), "volume": float(current_bar.get("volume", 0.0))
             }, simulate_virtual_trade=False, timeframe_signature=brain_scope,
                context_observations_by_tf=context_observations,
-               learning_cycle_due=(i - start_index) % self.learning_interval_bars == 0)
+               learning_cycle_due=(i - start_index + 1) % self.learning_interval_bars == 0)
             latest_brain_report = brain_report.to_dict()
             if not open_position and decision_due:
                 brain_report_dict = latest_brain_report
