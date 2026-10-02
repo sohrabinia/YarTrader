@@ -65,13 +65,43 @@ void ProcessRequest(){
       ResetLastError();
       if(!SymbolSelect(sym,true)){ Respond(id,"ERROR|SYMBOL_SELECT"); return; }
       int tfCode=TfCode(tf);
+      int maxBars=(int)TerminalInfoInteger(TERMINAL_MAXBARS);
+      long serverFirst=0;
+      SeriesInfoInteger(sym,PERIOD_M1,SERIES_SERVER_FIRSTDATE,serverFirst);
+
+      // iBars() only reports history already materialized locally. Force the
+      // terminal to request the requested depth from the broker before we
+      // accept the acquisition. CopyTime() is asynchronous in an EA/script:
+      // repeated calls allow the terminal to continue downloading/building.
+      datetime requestedFirst=(datetime)(TimeCurrent()-(long)bars*minutes*60);
+      datetime probe[1];
+      int copied=0;
+      int lastErr=0;
+      for(int attempt=0; attempt<180; attempt++){
+         ResetLastError();
+         copied=CopyTime(sym,tfCode,requestedFirst,1,probe);
+         lastErr=GetLastError();
+         int available=iBars(sym,tfCode);
+         if(copied>0 && available>0){
+            datetime oldest=iTime(sym,tfCode,available-1);
+            if(oldest>0 && oldest<=requestedFirst){
+               Respond(id,"OK|"+sym+"|"+tf+"|"+IntegerToString(available)+"|"+
+                  IntegerToString((int)oldest)+"|"+IntegerToString(minutes)+"|"+
+                  IntegerToString(maxBars)+"|"+IntegerToString((int)serverFirst));
+               return;
+            }
+         }
+         // 4066/4073 mean history is still being requested/built.
+         // Keep polling instead of falsely declaring the currently cached
+         // few weeks as the requested historical dataset.
+         Sleep(1000);
+      }
       int available=iBars(sym,tfCode);
-      if(available<=0){ Respond(id,"ERROR|NO_HISTORY"); return; }
-      int targetIndex=MathMin(available-1,MathMax(0,bars-1));
-      datetime oldest=iTime(sym,tfCode,targetIndex);
-      if(oldest<=0){ Respond(id,"ERROR|NO_HISTORY"); return; }
-      Respond(id,"OK|"+sym+"|"+tf+"|"+IntegerToString(available)+"|"+
-         IntegerToString((int)oldest)+"|"+IntegerToString(minutes));
+      datetime oldest=(available>0)?iTime(sym,tfCode,available-1):0;
+      Respond(id,"ERROR|HISTORY_INCOMPLETE|"+sym+"|"+tf+"|"+
+         IntegerToString(available)+"|"+IntegerToString((int)oldest)+"|"+
+         IntegerToString(maxBars)+"|"+IntegerToString((int)serverFirst)+"|"+
+         IntegerToString(lastErr));
       return;
    }
    if(op=="ACCOUNT"){
