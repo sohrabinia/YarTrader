@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import time
 import sqlite3
 from datetime import datetime, timezone
@@ -16,7 +15,7 @@ from pathlib import Path
 from typing import Iterable, Iterator
 
 TIMEFRAMES = ("M1","M5","M15","M30","H1","H4","D1","W1","MN1")
-SCHEMA = 1
+SCHEMA = 2
 
 class HistoricalDataset:
     def __init__(self, path: Path):
@@ -60,6 +59,7 @@ class HistoricalDataset:
 
     def close(self):
         self.conn.close()
+
     def manifest(self) -> dict:
         frames = {}
         for tf in TIMEFRAMES:
@@ -108,6 +108,8 @@ def cleanup_staged_dataset(path: Path) -> None:
     for suffix in ("", "-wal", "-shm"):
         try: path.with_name(path.name + suffix).unlink()
         except FileNotFoundError: pass
+
+
 def dataset_sha256(path: Path) -> str:
     h = hashlib.sha256()
     with Path(path).open("rb") as handle:
@@ -115,14 +117,15 @@ def dataset_sha256(path: Path) -> str:
             h.update(block)
     return h.hexdigest()
 
-def run_staged_backtest(symbol: str, timeframe: str, years: int, initial_balance: float,
+
+def run_staged_backtest(symbol: str, timeframe: str, years: float, initial_balance: float,
                         root: Path, max_chunks: int = 0, sleep_sec: float = 0.5,
                         cleanup_on_success: bool = True) -> dict:
     """Stage one symbol once, resume Brain processing from disk, then clean raw staging."""
     from src.Data.Providers.MT4.historical import MT4HistoricalDataProvider
     from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
-    if years < 10:
-        raise ValueError("Historical backtest requires at least 10 years.")
+    if years <= 0:
+        raise ValueError("Historical backtest requires a positive learning window.")
     provider = MT4HistoricalDataProvider()
     stage_dir = Path(root) / "historical_staging" / symbol.upper()
     stage_path = stage_dir / "dataset.sqlite"
@@ -137,17 +140,18 @@ def run_staged_backtest(symbol: str, timeframe: str, years: int, initial_balance
             dataset = stage_symbol_from_mt4(symbol, stage_path, provider)
             manifest = dataset.manifest()
             manifest_path.write_text(json.dumps({**manifest, "symbol": symbol.upper(),
-                "requested_years": years, "timeframe": timeframe.upper()}, indent=2), encoding="utf-8")
+                "requested_max_years": years, "timeframe": timeframe.upper()}, indent=2), encoding="utf-8")
         first,last,bars = dataset.first_last(timeframe)
         if not bars:
             raise RuntimeError(f"MT4 history unavailable for {symbol}/{timeframe}.")
         requested_first = int(last - years * 365 * 86400)
-        if first > requested_first:
-            raise RuntimeError(f"MT4 history shorter than requested 10 years for {symbol}/{timeframe}.")
-        cp = json.loads(checkpoint_path.read_text(encoding="utf-8-sig")) if checkpoint_path.exists() else None
+        actual_first = max(first, requested_first)
+        if actual_first > last:
+            raise RuntimeError(f"Invalid historical learning range for {symbol}/{timeframe}.")
+        cp = json.loads(checkpoint_path.read_text(encoding="utf-8")) if checkpoint_path.exists() else None
         if cp and (cp.get("symbol") != symbol.upper() or cp.get("timeframe") != timeframe.upper()):
             raise RuntimeError("Historical checkpoint does not match requested job.")
-        cursor = int(cp.get("next_ts", requested_first)) if cp else requested_first
+        cursor = int(cp.get("next_ts", actual_first)) if cp else actual_first
         state = cp.get("state") if cp else None
         engine = BacktestAndLearningEngine(storage_dir=str(stage_dir / "brain_memory"))
         duration_sec = {"M1":60,"M5":300,"M15":900,"M30":1800,"H1":3600,"H4":14400,
@@ -190,7 +194,7 @@ def run_staged_backtest(symbol: str, timeframe: str, years: int, initial_balance
             dataset.close()
         if checkpoint_path.exists():
             try:
-                terminal = json.loads(checkpoint_path.read_text(encoding="utf-8-sig"))
+                terminal = json.loads(checkpoint_path.read_text(encoding="utf-8"))
                 if cleanup_on_success and terminal.get("status") == "COMPLETED" and stage_path.exists():
                     cleanup_staged_dataset(stage_path)
             except Exception:
