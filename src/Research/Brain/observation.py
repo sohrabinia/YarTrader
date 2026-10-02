@@ -11,20 +11,29 @@ class ObservationBrain:
         self.timeframe = timeframe
         self.sequence = MarketSequence(symbol=symbol, timeframe=timeframe)
 
+    def configure_historical_performance(self, max_sequence_observations: int = 1000, event_detection_interval: int = 100) -> None:
+        self.max_sequence_observations = max(50, int(max_sequence_observations))
+        self.event_detection_interval = max(1, int(event_detection_interval))
+
     def process_observations(self, observations: List[MarketObservation]) -> MarketSequence:
         """Processes observations, appends new ones to the sequence, and detects raw price action events."""
-        # Ensure unique observations in the internal sequence
-        existing_ts = {obs.timestamp for obs in self.sequence.observations}
+        # Live streams are chronological; avoid rebuilding a global timestamp set/sort
+        # for every candle. Duplicate timestamps are already rejected by LiveAnalysisBrain.
         for obs in observations:
-            if obs.timestamp not in existing_ts:
+            if not self.sequence.observations or obs.timestamp != self.sequence.observations[-1].timestamp:
                 self.sequence.observations.append(obs)
-                existing_ts.add(obs.timestamp)
+                self._processed_observations += 1
 
-        # Sort chronologically
-        self.sequence.observations.sort(key=lambda x: x.timestamp)
+        # Keep the working sequence bounded. Long-term memory persists raw events separately.
+        if len(self.sequence.observations) > self.max_sequence_observations:
+            self.sequence.observations = self.sequence.observations[-self.max_sequence_observations:]
 
-        # Detect raw events
-        self.sequence.events = self._detect_raw_events()
+        # Raw event detection is scheduled for historical workloads; live defaults to every candle.
+        if self._processed_observations and (
+            self._processed_observations % self.event_detection_interval == 0
+            or not self.sequence.events
+        ):
+            self.sequence.events = self._detect_raw_events()
         return self.sequence
 
     def _detect_raw_events(self) -> List[MarketEvent]:
