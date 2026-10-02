@@ -339,7 +339,7 @@ class BacktestAndLearningEngine:
         cumulative_bes = previous_bes + bes
         cumulative_win_rate = (cumulative_wins / cumulative_total * 100.0) if cumulative_total else 0.0
         cumulative_learning = int(state.get("learning_updates_count", 0)) + learning_updates_count
-        return {
+        cycle_result = {
             "symbol": symbol.upper(),
             "timeframe": timeframe,
             "initial_balance": initial_balance,
@@ -363,6 +363,70 @@ class BacktestAndLearningEngine:
                 "learning_updates_count": cumulative_learning,
             },
         }
+        self._record_learning_cycle(symbol, timeframe, cycle_result)
+        return cycle_result
+
+    def _record_learning_cycle(self, symbol, timeframe, result):
+        """Persist cycle metrics and compare this cycle with the immediately previous cycle."""
+        path = os.path.join(self.storage_dir, "learning_cycles.jsonl")
+        trades = list(result.get("closed_trades") or [])
+        wins = sum(1 for t in trades if t.get("outcome") == "WIN")
+        losses = sum(1 for t in trades if t.get("outcome") == "LOSS")
+        total = len(trades)
+        win_rate = (wins / total * 100.0) if total else None
+        gross_profit = sum(max(float(t.get("pnl", 0.0)), 0.0) for t in trades)
+        gross_loss = abs(sum(min(float(t.get("pnl", 0.0)), 0.0) for t in trades))
+        profit_factor = (gross_profit / gross_loss) if gross_loss else None
+        r_values = [float(t.get("r_multiple", 0.0)) for t in trades]
+        expectancy_r = (sum(r_values) / len(r_values)) if r_values else None
+        equity = 0.0
+        peak = 0.0
+        max_dd = 0.0
+        for t in trades:
+            equity += float(t.get("pnl", 0.0))
+            peak = max(peak, equity)
+            max_dd = min(max_dd, equity - peak)
+        record = {
+            "cycle_id": f"learn-{symbol.upper()}-{timeframe.upper()}-{uuid.uuid4().hex[:12]}",
+            "timestamp": datetime.now().isoformat(),
+            "symbol": symbol.upper(),
+            "timeframe": timeframe.upper(),
+            "evaluation_scope": "chronological_cycle",
+            "total_trades": total,
+            "win_rate_pct": round(win_rate, 4) if win_rate is not None else None,
+            "profit_factor": round(profit_factor, 4) if profit_factor is not None else None,
+            "expectancy_r": round(expectancy_r, 4) if expectancy_r is not None else None,
+            "net_pnl": round(sum(float(t.get("pnl", 0.0)) for t in trades), 4),
+            "max_drawdown": round(abs(max_dd), 4),
+            "learning_updates_count": int(result.get("learning_updates_count", 0)),
+        }
+        previous = None
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    if line.strip():
+                        item = json.loads(line)
+                        if item.get("symbol") == record["symbol"] and item.get("timeframe") == record["timeframe"]:
+                            previous = item
+        except (OSError, ValueError, TypeError):
+            previous = None
+        if previous:
+            record["previous_cycle_id"] = previous.get("cycle_id")
+            record["quality_delta"] = {
+                "win_rate_pct": round((record["win_rate_pct"] - previous["win_rate_pct"]), 4) if record["win_rate_pct"] is not None and previous.get("win_rate_pct") is not None else None,
+                "profit_factor": round((record["profit_factor"] - previous["profit_factor"]), 4) if record["profit_factor"] is not None and previous.get("profit_factor") is not None else None,
+                "expectancy_r": round((record["expectancy_r"] - previous["expectancy_r"]), 4) if record["expectancy_r"] is not None and previous.get("expectancy_r") is not None else None,
+                "net_pnl": round((record["net_pnl"] - float(previous.get("net_pnl", 0.0))), 4),
+                "max_drawdown": round((record["max_drawdown"] - float(previous.get("max_drawdown", 0.0))), 4),
+            }
+        else:
+            record["previous_cycle_id"] = None
+            record["quality_delta"] = None
+        os.makedirs(self.storage_dir, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        result["learning_cycle"] = record
+        return record
 
     def _process_post_trade_learning(self, memory: MarketMemorySystem, closed_trade: Dict[str, Any]) -> Dict[str, Any]:
         """

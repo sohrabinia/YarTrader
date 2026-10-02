@@ -15,18 +15,17 @@ class SocialLoginPayload(BaseModel):
 def get_public_metrics():
     """Returns compliant SaaS platform metrics and performance stats."""
     return {
-        "symbols_active": 50,
-        "timeframes_active": 4,
-        "research_contexts": 200,
+        "symbols_active": 30,
+        "timeframes_active": None,
+        "research_contexts": None,
         "providers": {
-            "mt5": "CONNECTED",
-            "crypto_provider": "CONNECTED"
+            "mt5": "STATUS_ENDPOINT_REQUIRED",
+            "crypto_provider": "STATUS_ENDPOINT_REQUIRED"
         },
-        "runtime_mode": "PRODUCTION",
+        "runtime_mode": "DEMO_RESEARCH",
         "active_markets_count": 30,
-        "historical_simulated_trades": 125420,
-        "platform_uptime_pct": 99.9,
-        "apes_fin_compliant": True,
+        "historical_simulated_trades": None,
+        "platform_uptime_pct": None,
         "compliance_disclaimer": "Simulated performance results have certain inherent limitations. Unlike an actual performance record, simulated results do not represent actual trading."
     }
 

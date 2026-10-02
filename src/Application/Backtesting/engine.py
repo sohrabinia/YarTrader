@@ -114,7 +114,7 @@ class IntelligenceBacktestEngine:
             normalized_records, data_report = self.connector.retrieve_and_process(req)
 
             if normalized_records:
-                latest_close = normalized_records[-1].close
+                latest_close = normalized_records[-1].close_price
 
             # Introduce a realistic SRE chronological price fluctuation to simulate real market motion
             import math
@@ -206,7 +206,7 @@ class IntelligenceBacktestEngine:
                 # Check actual pricing direction to generate momentum or mean reversion
                 price_trend_bullish = True
                 if len(normalized_records) >= 3:
-                    price_trend_bullish = latest_close > normalized_records[-3].close
+                    price_trend_bullish = latest_close > normalized_records[-3].close_price
 
                 if strategy_type == "Momentum":
                     direction = "BUY" if price_trend_bullish else "SELL"

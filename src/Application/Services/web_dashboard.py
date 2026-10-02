@@ -2346,8 +2346,8 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
                 const r = await fetch('/api/public/metrics');
                 const data = await r.json();
                 document.getElementById('pub-markets').innerText = data.active_markets_count;
-                document.getElementById('pub-trades').innerText = (data.historical_simulated_trades / 1000).toFixed(1) + "k+";
-                document.getElementById('pub-uptime').innerText = data.platform_uptime_pct + "%";
+                document.getElementById('pub-trades').innerText = data.historical_simulated_trades == null ? "—" : Number(data.historical_simulated_trades).toLocaleString();
+                document.getElementById('pub-uptime').innerText = data.platform_uptime_pct == null ? "—" : data.platform_uptime_pct + "%";
             } catch(e) {}
         }
 
@@ -3464,6 +3464,27 @@ def get_learning_matrix():
         })
     return {"patterns": rows, "count": len(rows), "data_state": "REAL_LEARNING_MEMORY"}
 
+
+@app.get("/api/intelligence/learning-cycles")
+def get_learning_cycles():
+    """Returns persisted chronological learning-cycle evaluations and cycle-over-cycle deltas."""
+    candidates = [
+        os.path.join("runtime_logs", "backtest_learning", "learning_cycles.jsonl"),
+        os.path.join("storage", "Runtime", "backtest_learning", "learning_cycles.jsonl"),
+    ]
+    records = []
+    for path in candidates:
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    if line.strip():
+                        records.append(json.loads(line))
+        except (OSError, ValueError, TypeError):
+            continue
+    records.sort(key=lambda item: str(item.get("timestamp", "")), reverse=True)
+    return {"cycles": records[:100], "count": len(records), "data_state": "REAL_LEARNING_CYCLES"}
 
 @app.get("/api/intelligence/learning-report")
 def get_intelligence_learning_report():
