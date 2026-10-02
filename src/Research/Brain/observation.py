@@ -6,10 +6,13 @@ class ObservationBrain:
     Analyzes raw chronological MarketObservation data to detect raw mathematical price action
     sequences and events without subjective vocabulary (e.g., trend, breakout).
     """
-    def __init__(self, symbol: str, timeframe: str) -> None:
+    def __init__(self, symbol: str, timeframe: str, max_sequence_observations: int = 1000, event_detection_interval: int = 1) -> None:
         self.symbol = symbol
         self.timeframe = timeframe
         self.sequence = MarketSequence(symbol=symbol, timeframe=timeframe)
+        self.max_sequence_observations = max(50, int(max_sequence_observations))
+        self.event_detection_interval = max(1, int(event_detection_interval))
+        self._processed_observations = 0
 
     def configure_historical_performance(self, max_sequence_observations: int = 1000, event_detection_interval: int = 100) -> None:
         self.max_sequence_observations = max(50, int(max_sequence_observations))
