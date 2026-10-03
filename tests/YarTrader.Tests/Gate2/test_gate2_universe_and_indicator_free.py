@@ -59,7 +59,7 @@ class ControlledDataProvider:
 class TestGate2UniverseAndIndicatorFree(unittest.TestCase):
     """
     Exhaustive Test Suite for Gate 2:
-    Cases A through S verifying canonical exact four-symbol universe, duplicate key rejection,
+    Cases A through S verifying canonical exact 30-symbol universe, duplicate key rejection,
     fail-closed configuration, multi-symbol research execution, XAUUSD-only DEMO execution boundary,
     zero forbidden indicator executions, Brain causality, StrategyOrchestrator isolation,
     and single-invocation intelligence per cycle starting at ResearchWorker._run_loop().
@@ -79,9 +79,9 @@ class TestGate2UniverseAndIndicatorFree(unittest.TestCase):
         SymbolRegistry.get_instance()
 
     # Case A: Canonical exact four-symbol set equality
-    def test_case_a_canonical_exact_four_universe(self):
+    def test_case_a_canonical_exact_30_universe(self):
         registered = set(self.registry.get_all_registered().keys())
-        self.assertEqual(len(registered), 4)
+        self.assertEqual(len(registered), 30)
         self.assertEqual(registered, CANONICAL_30_SYMBOLS)
 
     # Case B: Duplicate symbol key rejection in parse_market_universe_yaml
