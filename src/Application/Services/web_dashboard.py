@@ -4499,16 +4499,11 @@ def get_scorecard():
     state = central_runtime_state.get_state()
     research_status = state.get("research_status", "Stopped")
     intelligence_status = state.get("intelligence_status", "Stopped")
-    shadow_status = state.get("shadow_status", "Stopped")
-
     degraded_or_stopped = ["Stopped", "Failed", "Degraded", "Recovering"]
     if research_status in degraded_or_stopped:
         blocking_reasons.append(f"Required research_worker status is {research_status}")
     if intelligence_status in degraded_or_stopped:
         blocking_reasons.append(f"Required intelligence_worker status is {intelligence_status}")
-    if shadow_status in degraded_or_stopped:
-        blocking_reasons.append(f"Required shadow_worker status is {shadow_status}")
-
     # 4. Shadow mode is retired and therefore not a production readiness dependency.
     # 5. Acceptance validation state check
     global val_state
@@ -4525,7 +4520,7 @@ def get_scorecard():
         blocking_reasons.append("LIVE_TRADING_ENABLED safety isolation lock is active (False)")
 
     # Derived score & status
-    total_checks = 6.0
+    total_checks = 5.0
     failed_checks = len(blocking_reasons)
     passed_checks = max(0.0, total_checks - failed_checks)
     score = round((passed_checks / total_checks) * 100.0, 1)
