@@ -95,7 +95,7 @@ void ProcessRequest()
    {
       string sym=p[2]; double bid=MarketInfo(sym,MODE_BID), ask=MarketInfo(sym,MODE_ASK);
       if(bid<=0 || ask<=0){ Respond(id,"ERROR|NO_TICK"); return; }
-      Respond(id,"OK|"+sym+"|"+DoubleToString(bid,Digits)+"|"+DoubleToString(ask,Digits)+"|"+IntegerToString((int)TimeCurrent())); return;
+      Respond(id,"OK|"+sym+"|"+DoubleToString(bid,Digits)+"|"+DoubleToString(ask,Digits)+"|"+IntegerToString((int)TimeCurrent())+"|"+TerminalInfoString(TERMINAL_PATH)); return;
    }
    if(op=="POSITIONS")
    {
