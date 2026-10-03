@@ -366,7 +366,7 @@ class ProfessionalRiskEngine:
     ) -> RiskEvaluationResult:
         numeric_inputs = [entry_price, stop_loss, take_profit, account_balance, risk_percentage, spread_pip, commission_per_lot, estimated_slippage_pip, win_probability]
         if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(float(v)) for v in numeric_inputs):
-            return RiskEvaluationResult(False, "WAIT", entry_price if isinstance(entry_price,(int,float)) else 0.0, stop_loss if isinstance(stop_loss,(int,float)) else 0.0, take_profit if isinstance(take_profit,(int,float)) else 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "SECURITY VIOLATION: non-finite or invalid numeric risk input.")
+            return RiskEvaluationResult(False, "WAIT", entry_price if isinstance(entry_price,(int,float)) else 0.0, stop_loss if isinstance(stop_loss,(int,float)) else 0.0, take_profit if isinstance(take_profit,(int,float)) else 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "SECURITY VIOLATION: non-finite or invalid numeric risk input.")
 
         if direction not in ["BUY", "SELL"]:
             return RiskEvaluationResult(
