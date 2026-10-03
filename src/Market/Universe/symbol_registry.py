@@ -5,7 +5,15 @@ from typing import Dict, List, Any, Tuple
 
 REGISTRY_FILE = "runtime_logs/symbols_registry.json"
 
-CANONICAL_SYMBOLS = {"XAUUSD", "EURUSD", "BTCUSD", "ETHUSD"}
+CANONICAL_SYMBOLS = {
+    "XAUUSD", "XAGUSD",
+    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD",
+    "EURGBP", "EURJPY", "GBPJPY", "EURCHF", "EURAUD", "EURNZD",
+    "GBPAUD", "GBPCAD", "GBPCHF", "AUDJPY", "AUDCAD", "AUDNZD",
+    "CADJPY", "CHFJPY", "NZDJPY", "NZDCAD",
+    "US30", "NAS100", "GER40", "UK100",
+    "BTCUSD",
+}
 
 def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
     """Pure-Python YAML parser for market_universe.yaml mapping. Enforces duplicate symbol key rejection."""
@@ -62,7 +70,7 @@ def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
 class SymbolRegistry:
     """
     Manages active symbols, their asset class classification, and assigned timeframes dynamically.
-    Enforces the exact four-symbol market universe. Fails closed if market universe configuration
+    Enforces the exact 30-symbol market universe. Fails closed if market universe configuration
     is missing, malformed, or violates the configured four-symbol set equality.
     """
     _instance = None
@@ -103,8 +111,8 @@ class SymbolRegistry:
             missing = CANONICAL_SYMBOLS - loaded_symbols
             extra = loaded_symbols - CANONICAL_SYMBOLS
             raise ValueError(
-                f"Market universe canonical four-symbol invariant violated! "
-                f"Count: {len(loaded_symbols)}/4. Missing: {missing}. Extra: {extra}."
+                f"Market universe canonical 30-symbol invariant violated! "
+                f"Count: {len(loaded_symbols)}/30. Missing: {missing}. Extra: {extra}."
             )
 
     def load_registry(self) -> None:
@@ -198,7 +206,7 @@ class SymbolRegistry:
         with self.lock:
             symbol_upper = symbol.upper()
             if symbol_upper not in CANONICAL_SYMBOLS:
-                raise ValueError(f"Symbol '{symbol_upper}' is not part of the canonical four-symbol universe.")
+                raise ValueError(f"Symbol '{symbol_upper}' is not part of the canonical 30-symbol universe.")
 
             self.registry[symbol_upper] = {
                 "active": True,
