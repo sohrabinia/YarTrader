@@ -43,7 +43,8 @@ class MT4FileBridge:
             if not login or not server or demo_raw not in {"0", "1"} or not symbol:
                 return None
             bid, ask, timestamp = float(parts[4]), float(parts[5]), int(parts[6])
-            if bid <= 0 or ask <= 0 or timestamp <= 0:
+            terminal_path = parts[7].strip() if len(parts) >= 8 else ""
+            if bid <= 0 or ask <= 0 or timestamp <= 0 or not terminal_path:
                 return None
             now = int(time.time())
             if timestamp > now + 5 or now - timestamp > max_age_seconds:
@@ -57,6 +58,7 @@ class MT4FileBridge:
                 "ask": ask,
                 "time": timestamp,
                 "fresh": True,
+                "terminal_path": terminal_path,
             }
         except (OSError, ValueError, TypeError):
             return None
