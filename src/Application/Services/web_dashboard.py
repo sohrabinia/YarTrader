@@ -98,6 +98,7 @@ global_decision_explainer = DecisionExplainer(memory_system=global_memory_system
 # Initialize secure social authentication and role-based session services from shared singleton
 from src.Application.Dashboard.auth_service import global_auth_service
 from src.Application.Dashboard.auth_repo import AuthRepository
+from src.Application.Services.user_api_router import get_user_session_and_enforce_tier
 
 MOCK_BLOG_ARTICLES = [
     {
