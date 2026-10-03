@@ -215,7 +215,7 @@ class ReleaseValidationPlatform:
         elapsed = time.perf_counter() - start_time
         self.log(f"Test execution completed in {round(elapsed, 2)} seconds.")
         # Persist the exact pytest streams from this acceptance run.
-        evidence_dir = os.path.abspath("validation")
+        evidence_dir = VALIDATION_DIR
         os.makedirs(evidence_dir, exist_ok=True)
         with open(os.path.join(evidence_dir, "pytest_stdout.txt"), "w", encoding="utf-8") as f:
             f.write(stdout)
