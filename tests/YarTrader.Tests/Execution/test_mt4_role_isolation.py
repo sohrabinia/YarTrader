@@ -43,6 +43,7 @@ class TestMT4RoleIsolation(TestCase):
             self.write_hb(Path(td), "143056202", "Alpari-Pro.ECN", "0")
             hb = MT4FileBridge(td).heartbeat()
             self.assertIsNotNone(hb)
+            self.assertEqual(hb["terminal_path"], r"C:\\MT4Demo")
             self.assertFalse(hb["is_demo"])
             self.assertNotEqual(hb["login"], MetaTraderSafetyGate.MT4_DEMO_ACCOUNT)
 
