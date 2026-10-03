@@ -190,7 +190,7 @@ class ReleaseValidationPlatform:
         except Exception:
             pytest_cmd = ["pytest"]
 
-        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings", "-ra", "--durations=25", "-o", "faulthandler_timeout=300", "-o", "faulthandler_exit_on_timeout=true"]
+        cmd_args = pytest_cmd + ["--tb=short", "-vv", "-p", "no:warnings", "-ra", "--durations=25", "-o", "faulthandler_timeout=300", "-o", "faulthandler_exit_on_timeout=true"]
         self.log(f"Running automated tests command: {' '.join(cmd_args)}")
 
         try:
@@ -273,6 +273,13 @@ class ReleaseValidationPlatform:
 
             if current_fail_test:
                 failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
+
+        if return_code != 0:
+            diagnostic_lines = (stdout or "").splitlines()[-120:] + (stderr or "").splitlines()[-120:]
+            if diagnostic_lines:
+                self.log("Pytest diagnostic tail follows:", "ERROR")
+                for diagnostic_line in diagnostic_lines:
+                    self.log(diagnostic_line[:2000], "ERROR")
 
         self.passed_count = passed
         self.failed_count = failed
