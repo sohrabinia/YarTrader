@@ -32,7 +32,7 @@ void WriteHeartbeat()
    if(h==INVALID_HANDLE) return;
    FileWriteString(h,IntegerToString(AccountNumber())+"|"+AccountServer()+"|1|"+sym+"|"+
                    DoubleToString(bid,Digits)+"|"+DoubleToString(ask,Digits)+"|"+
-                   IntegerToString((int)TimeCurrent()));
+                   IntegerToString((int)TimeCurrent())+"|"+TerminalInfoString(TERMINAL_PATH));
    FileFlush(h); FileClose(h);
 }
 void Respond(string id,string payload)
