@@ -190,7 +190,7 @@ class ReleaseValidationPlatform:
         except Exception:
             pytest_cmd = ["pytest"]
 
-        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"]
+        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings", "-o", "faulthandler_timeout=120", "-o", "faulthandler_exit_on_timeout=true"]
         self.log(f"Running automated tests command: {' '.join(cmd_args)}")
 
         try:
