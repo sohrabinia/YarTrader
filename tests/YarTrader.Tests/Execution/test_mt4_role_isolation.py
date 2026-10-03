@@ -12,13 +12,19 @@ class TestMT4RoleIsolation(TestCase):
     def write_hb(self, directory: Path, login: str, server: str, demo: str, timestamp=None):
         ts = int(time.time() if timestamp is None else timestamp)
         (directory / MT4FileBridge.HEARTBEAT).write_text(
-            f"{login}|{server}|{demo}|XAUUSD|2000.0|2000.2|{ts}", encoding="utf-8"
+            f"{login}|{server}|{demo}|XAUUSD|2000.0|2000.2|{ts}|C:\\\\MT4Demo", encoding="utf-8"
         )
 
     def test_malformed_heartbeat_fails_closed(self):
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / MT4FileBridge.HEARTBEAT
             p.write_text("252031952|Alpari-Pro.ECN-Demo|1|XAUUSD|2000.0", encoding="utf-8")
+            self.assertIsNone(MT4FileBridge(td).heartbeat())
+
+    def test_missing_terminal_identity_fails_closed(self):
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / MT4FileBridge.HEARTBEAT
+            p.write_text(f"252031952|Alpari-Pro.ECN-Demo|1|XAUUSD|2000|2000.2|{int(time.time())}", encoding="utf-8")
             self.assertIsNone(MT4FileBridge(td).heartbeat())
 
     def test_invalid_demo_flag_never_becomes_demo(self):
