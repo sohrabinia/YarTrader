@@ -18,7 +18,7 @@ class MT4HistoryAcquisition:
     def acquire(self, symbol: str, timeframe: str, bars: int, allow_partial: bool = False) -> dict:
         symbol, timeframe = symbol.upper(), timeframe.upper()
         before = self.provider._history_file(symbol, timeframe)
-        result = self.bridge.request("HISTORY", symbol, timeframe, int(bars))
+        result = self.bridge.request("HISTORY", symbol, timeframe, int(bars), "1" if allow_partial else "0")
         if not result or result[0] != "OK":
             raise RuntimeError(f"MT4 history acquisition failed for {symbol}/{timeframe}: {result}")
         path = self.provider._history_file(symbol, timeframe)
