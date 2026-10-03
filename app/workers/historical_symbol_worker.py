@@ -30,7 +30,10 @@ def acquire_all(symbol: str, max_years: float) -> tuple[list[dict], float]:
     hb = bridge.heartbeat() if bridge else None
     if not hb or hb.get("login") != DEMO_LOGIN or hb.get("server") != DEMO_SERVER or hb.get("is_demo") is not True:
         raise RuntimeError("Historical acquisition requires the authorized MT4 DEMO terminal " f"{DEMO_LOGIN}/{DEMO_SERVER}.")
-    provider = MT4HistoricalDataProvider()
+    terminal_path = hb.get("terminal_path") if hb else None
+    if not terminal_path:
+        raise RuntimeError("Authorized MT4 DEMO heartbeat has no terminal identity.")
+    provider = MT4HistoricalDataProvider(data_root=terminal_path)
     acquisition = MT4HistoryAcquisition(bridge, provider)
     manifests = []
     for tf in TIMEFRAMES:
