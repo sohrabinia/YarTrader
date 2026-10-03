@@ -57,7 +57,7 @@ void ProcessRequest()
 
    if(op=="HISTORY" && n>=5)
    {
-      string sym=p[2], tf=p[3]; int bars=(int)StrToInteger(p[4]);
+      string sym=p[2], tf=p[3]; int bars=(int)StrToInteger(p[4]); bool allowPartial=(n>=6 && p[5]=="1");
       int code=TfCode(tf); int mins=TfMinutes(tf);
       if(code==0 || mins<=0 || bars<=0 || StringLen(sym)==0){ Respond(id,"ERROR|BAD_REQUEST"); return; }
       if(!SymbolSelect(sym,true)){ Respond(id,"ERROR|SYMBOL_SELECT"); return; }
@@ -78,7 +78,7 @@ void ProcessRequest()
       }
       available=iBars(sym,code);
       if(available<=0 || oldest<=0){ Respond(id,"ERROR|NO_HISTORY|"+IntegerToString(lastErr)); return; }
-      if(oldest>requestedFirst)
+      if(oldest>requestedFirst && !allowPartial)
       {
          Respond(id,"ERROR|HISTORY_INCOMPLETE|"+IntegerToString(available)+"|"+
                      IntegerToString((int)oldest)+"|"+IntegerToString(mins)+"|"+
