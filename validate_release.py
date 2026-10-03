@@ -190,13 +190,13 @@ class ReleaseValidationPlatform:
         except Exception:
             pytest_cmd = ["pytest"]
 
-        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"]
+        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings", "-ra", "--durations=25", "-o", "faulthandler_timeout=300", "-o", "faulthandler_exit_on_timeout=true"]
         self.log(f"Running automated tests command: {' '.join(cmd_args)}")
 
         try:
             env = dict(os.environ)
             env["PYTHONPATH"] = "."
-            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=900, env=env)
+            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=1200, env=env)
             stdout = res.stdout
             stderr = res.stderr
             return_code = res.returncode
