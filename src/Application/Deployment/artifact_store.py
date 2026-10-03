@@ -14,6 +14,8 @@ import hashlib
 import json
 import os
 import struct
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Optional
 
@@ -24,6 +26,40 @@ _HEADER = struct.Struct(">4sBBQQ32s")
 _CODEC_RAW = 0
 _CODEC_ZSTD = 1
 _CODEC_GZIP = 2
+
+
+_INDEX_LOCK_GUARD = threading.RLock()
+_INDEX_LOCKS: dict[str, threading.RLock] = {}
+
+
+@contextmanager
+def _index_file_lock(index: Path):
+    key = str(index.resolve())
+    with _INDEX_LOCK_GUARD:
+        thread_lock = _INDEX_LOCKS.setdefault(key, threading.RLock())
+    with thread_lock:
+        lock_path = index.with_suffix(index.suffix + ".lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "a+b") as lock_handle:
+            if os.name == "nt":
+                import msvcrt
+                lock_handle.seek(0)
+                lock_handle.write(b"\\0")
+                lock_handle.flush()
+                msvcrt.locking(lock_handle.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                if os.name == "nt":
+                    import msvcrt
+                    lock_handle.seek(0)
+                    msvcrt.locking(lock_handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
 
 
 def _zstd_module():
@@ -140,13 +176,19 @@ class YarTraderArtifactStore:
         return result
 
     def _write_index_entry(self, record: dict[str, Any]) -> None:
-        entries: dict[str, Any] = {}
-        if self.index.exists():
-            try:
-                entries = json.loads(self.index.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                entries = {}
-        entries[record["id"]] = record
-        tmp = self.index.with_suffix(".tmp")
-        tmp.write_text(json.dumps(entries, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-        os.replace(tmp, self.index)
+        with _index_file_lock(self.index):
+            entries: dict[str, Any] = {}
+            if self.index.exists():
+                try:
+                    entries = json.loads(self.index.read_text(encoding="utf-8"))
+                except OSError as exc:
+                    raise RuntimeError("Artifact index could not be read safely") from exc
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError("Artifact index is corrupted; refusing to overwrite it") from exc
+            entries[record["id"]] = record
+            tmp = self.index.with_suffix(self.index.suffix + ".tmp")
+            tmp.write_text(
+                json.dumps(entries, ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            os.replace(tmp, self.index)
