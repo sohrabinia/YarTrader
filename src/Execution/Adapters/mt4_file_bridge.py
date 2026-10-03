@@ -1,15 +1,15 @@
-"""Fail-closed file IPC bridge for a locally attached MT4 DEMO EA.
+"""Fail-closed file IPC bridge for authorized local MT4 EAs.
 
-The EA owns all broker calls. Python never imports a fictitious MetaTrader4
-package and never talks to a live account. The shared FILE_COMMON directory
-is the only transport.
+The EA owns all broker calls. Python never talks to a broker account directly.
+Every heartbeat is parsed strictly and is considered usable only when its
+account/server/demo-role fields are explicit and its timestamp is fresh.
 """
 import glob
 import os
 import time
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class MT4FileBridge:
@@ -30,7 +30,8 @@ class MT4FileBridge:
     def _path(self, name: str) -> Path:
         return self.common_dir / name
 
-    def heartbeat(self) -> Optional[Dict[str, str]]:
+    def heartbeat(self, max_age_seconds: float = 10.0) -> Optional[Dict[str, Any]]:
+        """Return only a complete, fresh heartbeat; malformed/stale data fails closed."""
         p = self._path(self.HEARTBEAT)
         if not p.exists():
             return None
@@ -38,9 +39,26 @@ class MT4FileBridge:
             parts = p.read_text(encoding="utf-8").strip().split("|")
             if len(parts) < 7:
                 return None
-            return {"login": parts[0], "server": parts[1], "is_demo": parts[2] == "1",
-                    "symbol": parts[3], "bid": float(parts[4]), "ask": float(parts[5]), "time": int(parts[6])}
-        except (OSError, ValueError):
+            login, server, demo_raw, symbol = (x.strip() for x in parts[:4])
+            if not login or not server or demo_raw not in {"0", "1"} or not symbol:
+                return None
+            bid, ask, timestamp = float(parts[4]), float(parts[5]), int(parts[6])
+            if bid <= 0 or ask <= 0 or timestamp <= 0:
+                return None
+            now = int(time.time())
+            if timestamp > now + 5 or now - timestamp > max_age_seconds:
+                return None
+            return {
+                "login": login,
+                "server": server,
+                "is_demo": demo_raw == "1",
+                "symbol": symbol.upper(),
+                "bid": bid,
+                "ask": ask,
+                "time": timestamp,
+                "fresh": True,
+            }
+        except (OSError, ValueError, TypeError):
             return None
 
     def request(self, operation: str, *args: object) -> List[str]:
@@ -67,9 +85,6 @@ class MT4FileBridge:
                     try:
                         response.unlink(missing_ok=True)
                     except PermissionError:
-                        # MT4 may still hold the response handle briefly.
-                        # The response has already been consumed; leave cleanup
-                        # to the next pass instead of failing the learning run.
                         pass
                 if not parts or parts[0] != request_id:
                     raise RuntimeError("MT4 bridge returned an invalid response id.")
