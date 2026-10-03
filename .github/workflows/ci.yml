@@ -34,6 +34,8 @@ jobs:
           pip install -r requirements.txt
 
       - name: Execute Autonomous Validation Runner
+        env:
+          YarTraderStorageRoot: ${{ runner.temp }}/YarTraderAI
         run: |
           python validate_release.py
 
@@ -43,5 +45,5 @@ jobs:
         with:
           name: tradeyar-validation-reports
           path: |
-            validation/
-            logs/validation.log
+            ${{ runner.temp }}/YarTraderAI/Reports/validation/
+            ${{ runner.temp }}/YarTraderAI/Logs/validation/validation.log

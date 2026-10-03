@@ -8,7 +8,7 @@ from src.Data.MarketData.Models.models import MarketDataPoint
 from src.Decision.Intelligence.professional_signal_engine import ProfessionalSignalEngine
 from src.Research.Brain.fractal_memory import FractalPatternMemory
 
-SYMBOLS = ["XAUUSD", "EURUSD", "GBPUSD", "BTCUSD", "ETHUSD", "NAS100", "US30"]
+SYMBOLS = ["XAUUSD", "EURUSD", "BTCUSD", "ETHUSD"]
 STYLES = ["FAST_SCALPING", "SCALPING", "INTRADAY", "SWING"]
 TIMEFRAMES = ["M1", "M5", "M15", "H1", "H4", "D1", "W1"]
 

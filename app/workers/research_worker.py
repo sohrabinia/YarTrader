@@ -297,13 +297,29 @@ class ResearchWorker:
 
                         runtime = self._get_or_create_runtime(symbol, tf, asset_class, provider)
 
-                        # Active read-only connection check
+                        # Active read-only connection check. Never infer connectivity
+                        # from provider construction or a successful method call.
                         conn_health = runtime.provider.delegate.get_connection_health()
                         p_name = getattr(runtime, "_provider_name", "MT5")
+                        if isinstance(conn_health, dict):
+                            connected = bool(conn_health.get("connected", False))
+                            health_detail = conn_health.get("last_error") or conn_health.get("error") or ""
+                        else:
+                            connected = bool(getattr(conn_health, "connected", False))
+                            health_detail = getattr(conn_health, "last_error", "") or ""
+                        if not connected:
+                            print(f"[ResearchWorker] {p_name} connection health is NOT healthy; research cycle skipped. {health_detail}")
+                            self.status = "WAITING_FOR_DATA"
+                            self.error_count += 1
+                            central_runtime_state.update_multiple({
+                                "research_status": "WaitingForData",
+                                "research_last_error": health_detail or "Authoritative connection health reported disconnected",
+                            })
+                            continue
                         if p_name == "ControlledOfflineFixture":
                             print("ControlledOfflineFixture: Connected (100% Offline)")
                         else:
-                            print("MT5: Connected")
+                            print(f"{p_name}: Connected (health verified)")
 
                         # Strict single-flight: never run two Brain/research cycles at once.
                         acquired = self._analysis_lock.acquire(blocking=False)

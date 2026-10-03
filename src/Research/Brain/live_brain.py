@@ -119,6 +119,7 @@ class LiveAnalysisBrain:
                     "timeframe_signature": sorted({str(tf).upper() for tf in (effective_timeframes)}),
                     "context_id": context_id,
                     "context_signature": brain_context,
+                    "signature_version": 2,
                     "favorable_excursion": float(closed_trade.max_favorable_movement),
                     "adverse_excursion": abs(float(closed_trade.max_adverse_movement)),
                 }
@@ -131,13 +132,20 @@ class LiveAnalysisBrain:
             self.memory_system.add_event(event)
 
         # 4. Extract the raw signature and formulate the canonical Brain hypothesis.
-        sig = self.discovery_engine.extract_signature(sequence.observations)
+        # The canonical decision signature uses the same causal MTF context that was
+        # presented to the Brain, including OHLC, recent ranges and confirmed swings.
+        sig = self.discovery_engine.extract_multitimeframe_signature(
+            tf_history,
+            primary_timeframe=self.timeframe,
+            window_size=20,
+        )
         matched = self.discovery_engine.find_matches(
             sig, self.memory_system.get_patterns(),
             symbol=self.symbol,
             timeframe=self.timeframe,
             timeframe_signature=effective_timeframes,
             context_id=context_id,
+            signature_version=2,
         )
         outcome_agg = self.discovery_engine.aggregate_outcomes(matched, sig)
         hypothesis = self.hypothesis_engine.formulate_hypothesis(

@@ -27,7 +27,7 @@ import subprocess
 import traceback
 import math
 import ast
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Set
 
 from src.Application.Deployment.storage import YarTraderStorageManager
@@ -54,7 +54,13 @@ def print_subheader(title: str):
 
 class ReleaseValidationPlatform:
     def __init__(self) -> None:
-        self.timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        self.commit_sha = os.getenv("GITHUB_SHA")
+        if not self.commit_sha:
+            try:
+                self.commit_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
+            except Exception:
+                self.commit_sha = "UNKNOWN"
         self.timestamp_file = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.history_run_file = os.path.join(HISTORY_DIR, f"run_{self.timestamp_file}.json")
         self.current_phase = "Initialization"
@@ -190,7 +196,7 @@ class ReleaseValidationPlatform:
         except Exception:
             pytest_cmd = ["pytest"]
 
-        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"]
+        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings", "-o", "faulthandler_timeout=120", "-o", "faulthandler_exit_on_timeout=true"]
         self.log(f"Running automated tests command: {' '.join(cmd_args)}")
 
         try:
@@ -208,6 +214,13 @@ class ReleaseValidationPlatform:
 
         elapsed = time.perf_counter() - start_time
         self.log(f"Test execution completed in {round(elapsed, 2)} seconds.")
+        # Persist the exact pytest streams from this acceptance run.
+        evidence_dir = VALIDATION_DIR
+        os.makedirs(evidence_dir, exist_ok=True)
+        with open(os.path.join(evidence_dir, "pytest_stdout.txt"), "w", encoding="utf-8") as f:
+            f.write(stdout)
+        with open(os.path.join(evidence_dir, "pytest_stderr.txt"), "w", encoding="utf-8") as f:
+            f.write(stderr)
 
         total_tests = 0
         passed = 0
@@ -219,57 +232,37 @@ class ReleaseValidationPlatform:
 
         lines = stdout.splitlines()
         summary_line = ""
-        for line in lines:
-            if "passed in" in line or "failed" in line or "skipped" in line:
-                if line.startswith("===") or line.startswith("!!!"):
-                    summary_line = line
-                    break
+        # Pytest's final summary is a plain line. The old parser incorrectly
+        # required a leading '='/'!', turning real failures into "1 test".
+        import re
+        summary_re = re.compile(
+            r"(?:(?P<failed>\\d+) failed)?(?:,\\s*)?"
+            r"(?:(?P<passed>\\d+) passed)?(?:,\\s*)?"
+            r"(?:(?P<skipped>\\d+) skipped)?.* in [0-9.]+s"
+        )
+        for line in reversed(lines):
+            match = summary_re.search(line)
+            if match:
+                summary_line = line
+                failed = int(match.group("failed") or 0)
+                passed = int(match.group("passed") or 0)
+                skipped = int(match.group("skipped") or 0)
+                break
 
         if summary_line:
-            tokens = summary_line.replace("=", "").replace("!", "").strip().split(",")
-            for token in tokens:
-                token = token.strip()
-                if "passed" in token:
-                    passed = int(token.split()[0])
-                elif "failed" in token:
-                    failed = int(token.split()[0])
-                elif "skipped" in token:
-                    skipped = int(token.split()[0])
-                elif "warnings" in token:
-                    warnings = int(token.split()[0])
-
             total_tests = passed + failed + skipped
+        elif return_code == 0:
+            self.log("Pytest returned success but no parseable terminal summary was found.", "ERROR")
+            return_code = 1
+            failed = 1
+            total_tests = 1
         else:
-            if return_code == 0:
-                passed = 1280
-                total_tests = 1280
-            else:
-                failed = 1
-                total_tests = 1
+            self.log("Pytest failed without a parseable terminal summary; see pytest_stdout.txt.", "ERROR")
+            failed = 1
+            total_tests = 1
 
-        if failed > 0:
-            self.log(f"Detected {failed} test failures! Initiating automatic root cause investigation...", "WARNING")
-            in_failure_block = False
-            current_fail_test = ""
-            current_traceback = []
-
-            for line in lines:
-                if line.startswith("____") and line.endswith("____"):
-                    if current_fail_test:
-                        failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
-                    current_fail_test = line.replace("_", "").strip()
-                    current_traceback = []
-                    in_failure_block = True
-                elif line.startswith("====") and in_failure_block:
-                    if current_fail_test:
-                        failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
-                    in_failure_block = False
-                    current_fail_test = ""
-                elif in_failure_block:
-                    current_traceback.append(line)
-
-            if current_fail_test:
-                failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
+        if return_code != 0:
+            self.log("Pytest failure evidence (last 80 lines):\\n" + "\\n".join(lines[-80:]), "ERROR")
 
         self.passed_count = passed
         self.failed_count = failed
@@ -594,6 +587,7 @@ class ReleaseValidationPlatform:
 
 ## Overall Status: {data['readiness_status']} {status_emoji}
 - **Timestamp:** {data['timestamp']}
+- **Commit SHA:** {data.get('commit_sha', 'UNKNOWN')}
 - **Ready Score:** {data['readiness_score']}%
 - **Rationals:** {data['readiness_explanation']}
 
@@ -852,6 +846,7 @@ class ReleaseValidationPlatform:
         # Build master report payload
         master_report = {
             "timestamp": self.timestamp,
+            "commit_sha": self.commit_sha,
             "status": "PASSED" if status == "Production Ready" else "FAILED",
             "readiness_status": status,
             "readiness_score": score,

@@ -78,7 +78,7 @@ class SymbolRegistration(BaseModel):
 @router.post("/symbols")
 def register_new_active_symbol_context(payload: SymbolRegistration, request: Request, token: Optional[str] = None):
     """Admin action for the canonical market universe; no Shadow/runtime context is created."""
-    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    session = enforce_admin_token(request)
     admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Market.Universe.symbol_registry import SymbolRegistry
     registry_inst = SymbolRegistry.get_instance()
@@ -109,7 +109,7 @@ def register_new_active_symbol_context(payload: SymbolRegistration, request: Req
 @router.get("/reports")
 def get_admin_reports(request: Request, symbol: Optional[str] = None, timeframe: Optional[Any] = None, token: Optional[str] = None):
     """Reports canonical market-universe state without consulting retired Shadow runtime state."""
-    enforce_admin_token(request if request.headers.get("authorization") else token)
+    enforce_admin_token(request)
     from src.Market.Universe.symbol_registry import SymbolRegistry
     registry = SymbolRegistry.get_instance().get_all_registered()
     target = symbol.upper() if symbol else None
@@ -134,7 +134,7 @@ def get_admin_reports(request: Request, symbol: Optional[str] = None, timeframe:
 @router.post("/backup")
 def trigger_backup_snapshot(request: Request, token: Optional[str] = None):
     """SRE administrative action to trigger an atomic snapshot backup of persistent state."""
-    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    session = enforce_admin_token(request)
     admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Application.Runtime.backup_manager import BackupManager
     manager = BackupManager()
@@ -155,7 +155,7 @@ class RestorePayload(BaseModel):
 @router.post("/restore")
 def trigger_restore(payload: RestorePayload, request: Request, token: Optional[str] = None):
     """SRE administrative action to safely restore persistent state from a backup archive."""
-    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    session = enforce_admin_token(request)
     admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Application.Runtime.backup_manager import BackupManager
     manager = BackupManager()
@@ -190,7 +190,7 @@ class LedgerReversalPayload(BaseModel):
 @router.post("/ledger/transaction")
 def admin_post_transaction(payload: LedgerTransactionPayload, request: Request, token: Optional[str] = None):
     """Posts a balanced double-entry transaction atomically."""
-    enforce_admin_token(request if request.headers.get("authorization") else token)
+    enforce_admin_token(request)
     from src.Application.Dashboard.ledger_manager import LedgerManager
     manager = LedgerManager()
     entries_dict = [entry.dict() for entry in payload.entries]
@@ -207,7 +207,7 @@ def admin_post_transaction(payload: LedgerTransactionPayload, request: Request, 
 @router.post("/ledger/reverse")
 def admin_reverse_transaction(payload: LedgerReversalPayload, request: Request, token: Optional[str] = None):
     """Performs a reversal compensating transaction to correct a posted ledger transaction."""
-    enforce_admin_token(request if request.headers.get("authorization") else token)
+    enforce_admin_token(request)
     from src.Application.Dashboard.ledger_manager import LedgerManager
     manager = LedgerManager()
     try:
@@ -257,7 +257,7 @@ async def payment_gateway_webhook(request: Request):
 @router.get("/financial/overview")
 def admin_financial_overview(request: Request, token: Optional[str] = None):
     """Authoritative financial dashboard data: ledger, deposits, invoices and subscriptions."""
-    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    session = enforce_admin_token(request)
     from src.Application.Dashboard.ledger_manager import LedgerManager
     from src.Application.Dashboard.deposit_manager import DepositManager
     from src.Application.Dashboard.billing_manager import BillingManager
@@ -277,7 +277,7 @@ def admin_financial_overview(request: Request, token: Optional[str] = None):
 
 @router.get("/financial/ledger")
 def admin_financial_ledger(request: Request, token: Optional[str] = None):
-    enforce_admin_token(request if request.headers.get("authorization") else token)
+    enforce_admin_token(request)
     from src.Application.Dashboard.ledger_manager import LedgerManager
     return LedgerManager()._load()
 
@@ -286,13 +286,13 @@ def admin_financial_ledger(request: Request, token: Optional[str] = None):
 # ==============================================================================
 @router.get("/wallet/deposits")
 def admin_list_deposits(request: Request, status: Optional[str] = None, token: Optional[str] = None):
-    enforce_admin_token(request if request.headers.get("authorization") else token)
+    enforce_admin_token(request)
     from src.Application.Dashboard.deposit_manager import DepositManager
     return {"deposits": DepositManager().list_all(status)}
 
 @router.post("/wallet/deposits/{deposit_id}/verify")
 def admin_verify_deposit(deposit_id: str, request: Request, token: Optional[str] = None):
-    session=enforce_admin_token(request if request.headers.get("authorization") else token)
+    session=enforce_admin_token(request)
     from src.Application.Dashboard.deposit_manager import DepositManager
     try:
         rec=DepositManager().set_status(deposit_id,"VERIFIED",session.get("email",""))
@@ -303,7 +303,7 @@ def admin_verify_deposit(deposit_id: str, request: Request, token: Optional[str]
 
 @router.post("/wallet/deposits/{deposit_id}/reject")
 def admin_reject_deposit(deposit_id: str, request: Request, token: Optional[str] = None):
-    session=enforce_admin_token(request if request.headers.get("authorization") else token)
+    session=enforce_admin_token(request)
     from src.Application.Dashboard.deposit_manager import DepositManager
     try:
         rec=DepositManager().set_status(deposit_id,"REJECTED",session.get("email",""))
@@ -323,13 +323,13 @@ class ReceiveWalletPayload(BaseModel):
 
 @router.get("/wallet/receive")
 def admin_get_receive_wallet(request: Request, token: Optional[str] = None):
-    enforce_admin_token(request if request.headers.get("authorization") else token)
+    enforce_admin_token(request)
     from src.Application.Dashboard.receive_wallet_manager import ReceiveWalletManager
     return ReceiveWalletManager().public_config()
 
 @router.post("/wallet/receive")
 def admin_set_receive_wallet(payload: ReceiveWalletPayload, request: Request, token: Optional[str] = None):
-    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    session = enforce_admin_token(request)
     from src.Application.Dashboard.receive_wallet_manager import ReceiveWalletManager
     try:
         result = ReceiveWalletManager().set_network(payload.network, payload.address, payload.label)
@@ -341,7 +341,7 @@ def admin_set_receive_wallet(payload: ReceiveWalletPayload, request: Request, to
 
 @router.delete("/wallet/receive/{network}")
 def admin_remove_receive_wallet(network: str, request: Request, token: Optional[str] = None):
-    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    session = enforce_admin_token(request)
     from src.Application.Dashboard.receive_wallet_manager import ReceiveWalletManager
     result = ReceiveWalletManager().remove_network(network)
     from app.core.logging import log_audit
@@ -361,7 +361,7 @@ class TicketStatusPayload(BaseModel):
 @router.get("/tickets")
 def admin_list_tickets(request: Request, page: int = Query(1, ge=1), limit: int = Query(20, le=50), token: Optional[str] = None):
     """Lists all support tickets globally for administrative action."""
-    enforce_admin_token(request if request.headers.get("authorization") else token)
+    enforce_admin_token(request)
     from src.Application.Dashboard.ticket_manager import TicketManager
     manager = TicketManager()
     return manager.list_all_tickets_admin(page=page, limit=limit)
@@ -369,7 +369,7 @@ def admin_list_tickets(request: Request, page: int = Query(1, ge=1), limit: int 
 @router.post("/tickets/{ticket_id}/reply")
 def admin_reply_to_ticket(ticket_id: str, payload: AdminReplyPayload, request: Request, token: Optional[str] = None):
     """Appends an administrative SRE response reply message to the support ticket."""
-    enforce_admin_token(request if request.headers.get("authorization") else token)
+    enforce_admin_token(request)
     from src.Application.Dashboard.ticket_manager import TicketManager
     manager = TicketManager()
     try:
@@ -385,7 +385,7 @@ def admin_reply_to_ticket(ticket_id: str, payload: AdminReplyPayload, request: R
 @router.post("/tickets/{ticket_id}/status")
 def admin_update_ticket_status(ticket_id: str, payload: TicketStatusPayload, request: Request, token: Optional[str] = None):
     """Updates status or priority of a support ticket administratively."""
-    enforce_admin_token(request if request.headers.get("authorization") else token)
+    enforce_admin_token(request)
     from src.Application.Dashboard.ticket_manager import TicketManager
     manager = TicketManager()
     try:
@@ -407,7 +407,7 @@ def get_revenue_business_analytics(request: Request = None, token: Optional[str]
     Computes real, non-synthetic revenue and SaaS business analytics metrics
     derived dynamically from actual, persisted billing data.
     """
-    enforce_admin_token(request if (request and request.headers.get("authorization")) else token)
+    enforce_admin_token(request)
     from src.Application.Dashboard.billing_manager import BillingManager
     manager = BillingManager()
 
@@ -494,7 +494,7 @@ class AdminProductPayload(BaseModel):
 @router.get("/business/catalog")
 def admin_get_business_catalog(request: Request, token: Optional[str] = None):
     """Retrieves all products from the Business Catalog, including invisible/draft ones."""
-    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    session = enforce_admin_token(request)
     from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
     manager = BusinessCatalogManager()
     return manager.list_products(include_invisible=True)
@@ -502,7 +502,7 @@ def admin_get_business_catalog(request: Request, token: Optional[str] = None):
 @router.post("/business/catalog")
 def admin_save_product(payload: AdminProductPayload, request: Request, token: Optional[str] = None):
     """Creates or updates a product in the authoritative Business Catalog."""
-    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    session = enforce_admin_token(request)
     admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
     manager = BusinessCatalogManager()
@@ -519,7 +519,7 @@ def admin_save_product(payload: AdminProductPayload, request: Request, token: Op
 @router.delete("/business/catalog/{product_id}")
 def admin_delete_product(product_id: str, request: Request, token: Optional[str] = None):
     """Deletes/archives a product from the Business Catalog."""
-    session = enforce_admin_token(request if request.headers.get("authorization") else token)
+    session = enforce_admin_token(request)
     admin_email = session.get("email", "sre-admin@yartrader.app")
     from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
     manager = BusinessCatalogManager()
@@ -538,7 +538,7 @@ def admin_delete_product(product_id: str, request: Request, token: Optional[str]
 @router.get("/users")
 def admin_list_users(request: Request, token: Optional[str] = None):
     """Lists registered user accounts for administrative access control and management."""
-    enforce_admin_token(request if request.headers.get("authorization") else token)
+    enforce_admin_token(request)
     users_raw = getattr(global_auth_service.repo, "users", {})
     user_list = []
     for email, user in users_raw.items():

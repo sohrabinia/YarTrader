@@ -2346,8 +2346,8 @@ def get_dashboard_spa(request: Request, path: Optional[str] = None):
                 const r = await fetch('/api/public/metrics');
                 const data = await r.json();
                 document.getElementById('pub-markets').innerText = data.active_markets_count;
-                document.getElementById('pub-trades').innerText = (data.historical_simulated_trades / 1000).toFixed(1) + "k+";
-                document.getElementById('pub-uptime').innerText = data.platform_uptime_pct + "%";
+                document.getElementById('pub-trades').innerText = data.historical_simulated_trades == null ? "—" : Number(data.historical_simulated_trades).toLocaleString();
+                document.getElementById('pub-uptime').innerText = data.platform_uptime_pct == null ? "—" : data.platform_uptime_pct + "%";
             } catch(e) {}
         }
 
@@ -3465,6 +3465,27 @@ def get_learning_matrix():
     return {"patterns": rows, "count": len(rows), "data_state": "REAL_LEARNING_MEMORY"}
 
 
+@app.get("/api/intelligence/learning-cycles")
+def get_learning_cycles():
+    """Returns persisted chronological learning-cycle evaluations and cycle-over-cycle deltas."""
+    candidates = [
+        os.path.join("runtime_logs", "backtest_learning", "learning_cycles.jsonl"),
+        os.path.join("storage", "Runtime", "backtest_learning", "learning_cycles.jsonl"),
+    ]
+    records = []
+    for path in candidates:
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    if line.strip():
+                        records.append(json.loads(line))
+        except (OSError, ValueError, TypeError):
+            continue
+    records.sort(key=lambda item: str(item.get("timestamp", "")), reverse=True)
+    return {"cycles": records[:100], "count": len(records), "data_state": "REAL_LEARNING_CYCLES"}
+
 @app.get("/api/intelligence/learning-report")
 def get_intelligence_learning_report():
     """Compiles learning report from persisted MarketMemorySystem only."""
@@ -4478,16 +4499,11 @@ def get_scorecard():
     state = central_runtime_state.get_state()
     research_status = state.get("research_status", "Stopped")
     intelligence_status = state.get("intelligence_status", "Stopped")
-    shadow_status = state.get("shadow_status", "Stopped")
-
     degraded_or_stopped = ["Stopped", "Failed", "Degraded", "Recovering"]
     if research_status in degraded_or_stopped:
         blocking_reasons.append(f"Required research_worker status is {research_status}")
     if intelligence_status in degraded_or_stopped:
         blocking_reasons.append(f"Required intelligence_worker status is {intelligence_status}")
-    if shadow_status in degraded_or_stopped:
-        blocking_reasons.append(f"Required shadow_worker status is {shadow_status}")
-
     # 4. Shadow mode is retired and therefore not a production readiness dependency.
     # 5. Acceptance validation state check
     global val_state
@@ -4504,7 +4520,7 @@ def get_scorecard():
         blocking_reasons.append("LIVE_TRADING_ENABLED safety isolation lock is active (False)")
 
     # Derived score & status
-    total_checks = 6.0
+    total_checks = 5.0
     failed_checks = len(blocking_reasons)
     passed_checks = max(0.0, total_checks - failed_checks)
     score = round((passed_checks / total_checks) * 100.0, 1)
@@ -4597,36 +4613,7 @@ def list_operator_tasks(request: Request):
     return global_operator_adapter.get_all_tasks(admin_identity=session)
 
 
-# ==============================================================================
-# AUTONOMOUS SHADOW TRADING INTELLIGENCE SEPARATED API LAYER
-# ==============================================================================
-@app.get("/api/admin/symbols")
-def get_admin_symbols(request: Request):
-    """Lists current active symbols and allows registering a new symbol dynamically."""
-    check_admin_guard(request)
-    from src.Market.Universe.symbol_registry import SymbolRegistry
-    registry_inst = SymbolRegistry.get_instance()
-    registry = registry_inst.get_all_registered()
-    active_symbols = sorted([sym for sym, info in registry.items() if info.get("active", True)])
-
-    return {
-        "active_symbols": active_symbols,
-        "count": len(active_symbols),
-        "max_limit": registry_inst.max_symbols,
-        "max_active_symbols_limit": registry_inst.max_symbols,
-        "system_ceiling_enforced": True,
-        "registered_symbols": [
-            {
-                "symbol": symbol,
-                "active": info.get("active", True),
-                "timeframes": info.get("timeframes", ["H1"]),
-                "configuration_state": "ACTIVE" if info.get("active", True) else "DISABLED"
-            }
-            for symbol, info in sorted(registry.items())
-        ]
-    }
-
-@app.get("/api/admin/timeframes")
+# ==============================================================================\n# Canonical admin symbol/report routes are owned by admin_api_router.\n# ==============================================================================\n\n@app.get("/api/admin/timeframes")
 def get_admin_timeframes(request: Request):
     check_admin_guard(request)
     from src.Market.Universe.symbol_registry import SymbolRegistry

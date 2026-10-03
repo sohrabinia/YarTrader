@@ -292,6 +292,7 @@ class MarketMemorySystem:
                     and sorted(p.timeframe_signature or [p.timeframe.upper()]) == scope_tfs
                     and (not scope_context_id or not p.context_id or p.context_id == scope_context_id)
                     and p.status != "RETIRED"
+                    and getattr(p, "signature_version", 1) == int(exp.meta.get("signature_version", 2))
                 ]
 
             for pat in patterns_list:
@@ -345,12 +346,14 @@ class MarketMemorySystem:
                     "timeframe": scope_timeframe,
                     "timeframe_signature": scope_tfs,
                     "context_id": scope_context_id,
+                    "signature_version": 2,
                     "signature": [round(float(v), 8) for v in sig],
                 }, sort_keys=True, separators=(",", ":"))
                 pid = f"pat-{hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]}"
                 new_pat = PatternMemory(
                     pattern_id=pid,
                     sequence_signature=sig,
+                    signature_version=2,
                     occurrences_count=1,
                     continuation_count=1 if is_success else 0,
                     reversal_count=0 if is_success else 1,

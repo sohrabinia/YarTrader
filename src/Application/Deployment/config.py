@@ -13,12 +13,11 @@ class ProductionConfig:
         self._validate_and_initialize()
 
     def _validate_and_initialize(self) -> None:
-        # Load environment-based parameters with safe defaults
-        self.environment = os.getenv("RG_ENV", self._settings.get("ENVIRONMENT", "production")).lower()
-        if self.environment not in ("production", "staging", "development"):
+        env = os.getenv("YARTRADER_ENV") or os.getenv("TRADEYAR_ENV") or os.getenv("RG_ENV")
+        self.environment = (env or self._settings.get("ENVIRONMENT", "production")).lower()
+        if self.environment not in ("production", "staging", "development", "simulation", "test"):
             raise ValidationException(f"Configuration Error: Invalid environment '{self.environment}'.")
 
-        # Load technical params with safe defaults and validation checks
         try:
             self.lookback_days = int(os.getenv("RG_LOOKBACK_DAYS", self._settings.get("LOOKBACK_DAYS", 15)))
             self.api_timeout_sec = float(os.getenv("RG_API_TIMEOUT", self._settings.get("API_TIMEOUT", 5.0)))
@@ -26,7 +25,6 @@ class ProductionConfig:
         except ValueError as e:
             raise ValidationException(f"Configuration Error: Numerical parameters must be numeric: {str(e)}")
 
-        # Strict checks on bounds
         if self.lookback_days <= 0 or self.lookback_days > 365:
             raise ValidationException("Configuration Error: Lookback days must be within [1, 365].")
         if self.api_timeout_sec <= 0.0 or self.api_timeout_sec > 60.0:
@@ -34,23 +32,25 @@ class ProductionConfig:
         if self.max_retries < 0 or self.max_retries > 10:
             raise ValidationException("Configuration Error: Max connection retries must be within [0, 10].")
 
-        # Log level verification
         self.log_level = os.getenv("RG_LOG_LEVEL", self._settings.get("LOG_LEVEL", "INFO")).upper()
         if self.log_level not in ("DEBUG", "INFO", "WARNING", "ERROR"):
             raise ValidationException(f"Configuration Error: Invalid log level '{self.log_level}'.")
 
-        # Set up a secure default database key in vault
         default_db_key = os.getenv("RG_DB_SECURE_TOKEN", self._settings.get("DB_SECURE_TOKEN", "secure-token-12345"))
         self.vault.store_secret("db_token", default_db_key)
 
-        # YarTrader Storage Isolation Configuration
         default_root = "C:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
-        self.storage_root = os.getenv("YarTraderStorageRoot", os.getenv("TradeYarStorageRoot", self._settings.get("YarTraderStorageRoot", self._settings.get("TradeYarStorageRoot", default_root))))
+        self.storage_root = os.getenv(
+            "YarTraderStorageRoot",
+            os.getenv(
+                "TradeYarStorageRoot",
+                self._settings.get("YarTraderStorageRoot", self._settings.get("TradeYarStorageRoot", default_root)),
+            ),
+        )
         if not self.storage_root:
             self.storage_root = default_root
 
     def runtime_check(self) -> bool:
-        """Executes a self-diagnostic check on system configuration parameters."""
         if not self.environment:
             return False
         if self.lookback_days <= 0:
@@ -66,12 +66,10 @@ class ConfigManager:
 
     @classmethod
     def get_config(cls, overrides: Optional[Dict[str, Any]] = None) -> ProductionConfig:
-        """Returns or instantiates the singleton ProductionConfig."""
         if cls._instance is None or overrides:
             cls._instance = ProductionConfig(overrides)
         return cls._instance
 
     @classmethod
     def reset(cls) -> None:
-        """Resets the config instance."""
         cls._instance = None

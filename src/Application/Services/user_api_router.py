@@ -62,7 +62,7 @@ def _snapshot_signals(market: Optional[str] = None, horizon: Optional[str] = Non
     """Build customer-facing signals from persisted ResearchRuntime snapshots only."""
     snapshot_dir = "runtime_logs/research_snapshots"
     if not os.path.exists(snapshot_dir): return []
-    market_symbols = {"gold":{"XAUUSD"},"bitcoin":{"BTCUSD"},"euro":{"EURUSD"},"pound":{"GBPUSD"}}
+    market_symbols = {"gold":{"XAUUSD"},"bitcoin":{"BTCUSD"},"ethereum":{"ETHUSD"},"euro":{"EURUSD"}}
     horizon_map = {"micro":{"M1"},"short":{"M5","M15","H1"},"medium":{"H4","D1"},"macro":{"W1","MN1"}}
     allowed_symbols = market_symbols.get((market or "").lower()) if market else None
     allowed_tfs = horizon_map.get((horizon or "").lower()) if horizon else None

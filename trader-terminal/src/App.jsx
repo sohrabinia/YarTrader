@@ -26,7 +26,6 @@ import DemoView from './views/DemoView.jsx';
 import AdminView from './views/AdminView.jsx';
 import AdminWalletView from './views/AdminWalletView.jsx';
 import AdminFinancialView from './views/AdminFinancialView.jsx';
-import OperatorView from './views/OperatorView.jsx';
 import GuideView from './views/GuideView.jsx';
 import FaqView from './views/FaqView.jsx';
 import WalletView from './views/WalletView.jsx';
@@ -215,8 +214,8 @@ function MainApp() {
 
   const [blogArticles, setBlogArticles] = useState([]);
   const [publicMetrics, setPublicMetrics] = useState({
-    activeMarketsCount: '30',
-    historicalSimulatedTrades: '125.4k+',
+    activeMarketsCount: null,
+    historicalSimulatedTrades: null,
     platformUptimePct: null
   });
   const [activeHorizon, setActiveHorizon] = useState('medium');
@@ -235,18 +234,19 @@ function MainApp() {
   const [portfolioRisk, setPortfolioRisk] = useState({});
   const [portfolioExposure, setPortfolioExposure] = useState([]);
   const [learningMatrix, setLearningMatrix] = useState([]);
+  const [learningCycles, setLearningCycles] = useState([]);
 
   // Trading Mode specific states
   const [backtestRuns, setBacktestRuns] = useState([]);
   const [backtestRunning, setBacktestRunning] = useState(false);
-  const [backtestForm, setBacktestForm] = useState({ symbol: 'XAUUSD', timeframe: '64', bars: '1000' });
+  const [backtestForm, setBacktestForm] = useState({ symbol: 'XAUUSD', timeframe: 'H1', bars: '1000' });
   const [demoTrades, setDemoTrades] = useState([]);
   const [demoReport, setDemoReport] = useState({});
 
   // Pattern detail and Pricing detail modal state
   const [selectedPattern, setSelectedPattern] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [signalTab, setSignalTab] = useState('live'); // 'live', 'shadow', 'backtest', 'historical'
+  const [signalTab, setSignalTab] = useState('live'); // 'live', 'backtest', 'historical'
 
   // SRE Admin Control Center states & Tab selection
   const [adminTab, setAdminTab] = useState('overview'); // 'overview', 'system', 'data', 'trading', 'intelligence', 'users', 'errors', 'audit'
@@ -316,8 +316,6 @@ function MainApp() {
       '/blog': `${t('nav_blog') || 'Research Blog'} | YarTrader`,
       '/guide': `${t('guide_title') || 'User Guide'} | YarTrader`,
       '/faq': `${t('faq_title') || 'FAQ'} | YarTrader`,
-      '/Operator': `Operator | YarTrader`,
-      '/operator': `Operator | YarTrader`
     };
     const activeTitle = titles[routePath] || titles['/'];
     document.title = activeTitle;
@@ -375,11 +373,15 @@ function MainApp() {
 
   // Auth & Routing Guard
   useEffect(() => {
+    if (routePath === '/live') {
+      navigateTo('/signals');
+      return;
+    }
     if ((routePath === '/register' || routePath === '/forgot-password')) {
       navigateTo('/login');
       return;
     }
-    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/Operator' || routePath === '/operator' || routePath === '/learning' || routePath === '/wallet' || routePath === '/billing' || routePath === '/admin/wallet' || routePath === '/admin/financial';
+    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/learning' || routePath === '/wallet' || routePath === '/billing' || routePath === '/admin/wallet' || routePath === '/admin/financial';
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
       showNotification(
@@ -387,7 +389,7 @@ function MainApp() {
         'warning'
       );
     }
-    if ((routePath === '/admin' || routePath === '/admin/wallet' || routePath === '/Operator' || routePath === '/operator') && token && role !== 'ADMIN') {
+    if ((routePath === '/admin' || routePath === '/admin/wallet') && token && role !== 'ADMIN') {
       showNotification(
         lang === 'fa' ? 'دسترسی فقط برای کاربران با نقش مدیریت (ADMIN) مجاز است.' : 'Admin role is required.',
         'warning'
@@ -422,7 +424,7 @@ function MainApp() {
     try {
       const res = await apiService.post('/api/backtest/run', {
         symbol: backtestForm.symbol,
-        timeframe: parseInt(backtestForm.timeframe),
+        timeframe: backtestForm.timeframe,
         bars: parseInt(backtestForm.bars)
       });
       showNotification(res.message || 'Backtest simulation completed.', 'success');
@@ -690,7 +692,9 @@ function MainApp() {
   const fetchLearningMatrix = async () => {
     try {
       const res = await apiService.get('/api/intelligence/learning-matrix');
-      setLearningMatrix(Array.isArray(res) ? res : []);
+      setLearningMatrix(Array.isArray(res) ? res : (Array.isArray(res.patterns) ? res.patterns : []));
+      const cycles = await apiService.get('/api/intelligence/learning-cycles');
+      setLearningCycles(Array.isArray(cycles) ? cycles : (Array.isArray(cycles.cycles) ? cycles.cycles : []));
     } catch (err) {
       console.error(err);
       setLearningMatrix([]);
@@ -979,7 +983,6 @@ function MainApp() {
               </div>
               <a href={`/${lang}/backtest`} className={`sidebar-link ${routePath.startsWith('/backtest') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/backtest'); }}>{t('nav_backtest')}</a>
               <a href={`/${lang}/demo`} className={`sidebar-link ${routePath === '/demo' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/demo'); }}>{t('nav_demo')}</a>
-              <a href={`/${lang}/live`} className={`sidebar-link ${routePath === '/live' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/live'); }} style={{ color: 'var(--danger)' }}>{t('nav_live')}</a>
             </div>
           )}
 
@@ -987,7 +990,6 @@ function MainApp() {
           {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
           {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
           {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
-          {token && role === 'ADMIN' && <a href={`/${lang}/Operator`} className={`sidebar-link ${routePath === '/Operator' || routePath === '/operator' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/Operator'); }}>{t("nav_operator")}</a>}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {token && (
@@ -1028,12 +1030,12 @@ function MainApp() {
                   />
                   <MetricCard
                     title={t('pub_uptime_title')}
-                    value={publicMetrics.platformUptimePct ? `${publicMetrics.platformUptimePct}%` : '99.9%'}
+                    value={publicMetrics.platformUptimePct != null ? `${publicMetrics.platformUptimePct}%` : '—'}
                     status="passed"
                   />
                   <MetricCard
                     title={t('pub_standards_title')}
-                    value={t('pes_compliant')}
+                    value="DATA UNAVAILABLE"
                     status="warn"
                   />
                 </div>
@@ -1295,12 +1297,12 @@ function MainApp() {
                   <div className="form-group" style={{ margin: 0 }}>
                     <label className="form-label">{lang === 'fa' ? 'تایم‌فریم' : 'Timeframe'}</label>
                     <select className="select-field" style={{ width: '100%' }} value={backtestForm.timeframe} onChange={(e) => setBacktestForm({ ...backtestForm, timeframe: e.target.value })}>
-                      <option value="1">1 Tick Frame (Micro)</option>
-                      <option value="4">4 Tick Frame (M5)</option>
-                      <option value="16">16 Tick Frame (M15)</option>
-                      <option value="64">64 Tick Frame (H1)</option>
-                      <option value="256">256 Tick Frame (H4)</option>
-                      <option value="1024">1024 Tick Frame (D1)</option>
+                      <option value="M1">M1 (1 minute)</option>
+                      <option value="M5">M5 (5 minutes)</option>
+                      <option value="M15">M15 (15 minutes)</option>
+                      <option value="H1">H1 (1 hour)</option>
+                      <option value="H4">H4 (4 hours)</option>
+                      <option value="D1">D1 (daily)</option>
                     </select>
                   </div>
                   <div className="form-group" style={{ margin: 0 }}>
@@ -1358,37 +1360,56 @@ function MainApp() {
           )}
 
 
-          {/* DEDICATED TRADING MODE 4: LIVE TRADING PAGE (HARD BLOCKED) */}
-          {routePath === '/live' && (
-            <div id="shell-live">
-              <div className="card" style={{ borderTop: '6px solid var(--danger)', backgroundColor: 'rgba(194, 74, 62, 0.05)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
-                  <div style={{ fontSize: '2.5em' }}>🛑</div>
-                  <div>
-                    <h2 style={{ margin: 0, color: 'var(--danger)' }}>{t('live_title')}</h2>
-                    <div style={{ fontSize: '0.9em', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      SRE Production Safety Gate Isolation
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ background: 'rgba(194, 74, 62, 0.15)', border: '1px solid var(--danger)', borderRadius: '8px', padding: '20px', margin: '20px 0' }}>
-                  <h3 style={{ color: 'var(--danger)', marginTop: 0 }}>⚠️ HARD BLOCKED: Live Real-Money Execution Disabled</h3>
-                  <p style={{ lineHeight: '1.7', fontSize: '0.95em' }}>
-                    {t('live_desc')}
-                  </p>
-                  <ul style={{ lineHeight: '1.8', fontSize: '0.9em', color: 'var(--text-dark)' }}>
-                    <li><strong>Safety Gate Enforcement:</strong> Live broker execution paths (`MetaTraderSafetyGate`) are fail-closed.</li>
-                    <li><strong>Account Isolation:</strong> Real account `143056202` on `Alpari-Pro.ECN` is permanently blocked from order entry.</li>
-                    <li><strong>Protected Asset Safeguard:</strong> Users cannot place live trades, enable live mode, or bypass risk controls.</li>
-                  </ul>
-                </div>
-
+          {routePath.startsWith('/learning') && (
+            <div id="shell-learning">
+              <div className="card" style={{ borderTop: '4px solid var(--primary)' }}>
+                <h2 style={{ marginTop: 0, color: 'var(--primary)' }}>
+                  {lang === 'fa' ? 'چرخه‌های یادگیری و ارزیابی' : 'Learning Cycles & Evaluation'}
+                </h2>
+                <p style={{ color: 'var(--text-muted)' }}>
+                  {lang === 'fa'
+                    ? 'هر چرخه با چرخه قبلی مقایسه می‌شود. فقط داده‌های واقعی ذخیره‌شده نمایش داده می‌شوند.'
+                    : 'Each completed learning cycle is compared with the previous cycle. Only persisted real results are shown.'}
+                </p>
                 <div className="status-board">
-                  <MetricCard title="Execution Gate" value="HARD BLOCKED" status="failed" />
-                  <MetricCard title="Real Money Risk" value="ZERO RISK ($0.00)" status="passed" />
-                  <MetricCard title="Compliance Standard" value="PES ENFORCED" status="passed" />
+                  <MetricCard title={lang === 'fa' ? 'تعداد چرخه‌ها' : 'Cycles'} value={learningCycles.length} status="primary" />
+                  <MetricCard title={lang === 'fa' ? 'الگوهای ارزیابی‌شده' : 'Patterns'} value={learningMatrix.length} status="primary" />
+                  <MetricCard title={lang === 'fa' ? 'وضعیت داده' : 'Data State'} value={learningCycles.length ? 'REAL' : 'NO DATA'} status={learningCycles.length ? 'passed' : 'warn'} />
                 </div>
+                <h3 style={{ color: 'var(--primary)' }}>{lang === 'fa' ? 'مقایسه چرخه‌به‌چرخه' : 'Cycle-over-Cycle Comparison'}</h3>
+                <DataTable
+                  headers={['Cycle', 'Symbol', 'TF', 'Trades', 'Win Rate', 'Profit Factor', 'Expectancy R', 'Quality Delta']}
+                  rows={learningCycles.map((cycle) => {
+                    const d = cycle.quality_delta;
+                    const delta = d ? [
+                      d.win_rate_pct != null ? ('WR ' + (d.win_rate_pct >= 0 ? '+' : '') + d.win_rate_pct.toFixed(2) + 'pp') : null,
+                      d.profit_factor != null ? ('PF ' + (d.profit_factor >= 0 ? '+' : '') + d.profit_factor.toFixed(2)) : null,
+                      d.expectancy_r != null ? ('R ' + (d.expectancy_r >= 0 ? '+' : '') + d.expectancy_r.toFixed(2)) : null
+                    ].filter(Boolean).join(' | ') : 'BASELINE';
+                    return [
+                      cycle.cycle_id,
+                      cycle.symbol,
+                      cycle.timeframe,
+                      cycle.total_trades ?? '—',
+                      cycle.win_rate_pct != null ? cycle.win_rate_pct + '%' : '—',
+                      cycle.profit_factor != null ? cycle.profit_factor : '—',
+                      cycle.expectancy_r != null ? cycle.expectancy_r + ' R' : '—',
+                      delta
+                    ];
+                  })}
+                  emptyMessage={lang === 'fa' ? 'هنوز چرخه یادگیری با نتیجه معاملاتی قابل ارزیابی ثبت نشده است.' : 'No learning cycle with evaluable trade outcomes has been persisted yet.'}
+                />
+                <h3 style={{ color: 'var(--primary)', marginTop: '25px' }}>{lang === 'fa' ? 'حافظه الگوها' : 'Pattern Memory'}</h3>
+                <DataTable
+                  headers={['Pattern', 'Samples', 'Win Rate', 'Data State']}
+                  rows={learningMatrix.map((row) => [
+                    row.pattern || row.pattern_key,
+                    row.sample_count ?? '—',
+                    row.win_rate != null ? row.win_rate + '%' : '—',
+                    row.data_state || 'REAL'
+                  ])}
+                  emptyMessage={lang === 'fa' ? 'هنوز الگوی واقعی ذخیره نشده است.' : 'No persisted learning patterns yet.'}
+                />
               </div>
             </div>
           )}
@@ -1651,13 +1672,6 @@ function MainApp() {
                   </p>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* YAROPERATOR AUTONOMOUS INTERFACE VIEW */}
-          {(routePath === '/Operator' || routePath === '/operator') && role === 'ADMIN' && (
-            <div id="shell-operator">
-              <OperatorView t={t} lang={lang} />
             </div>
           )}
 

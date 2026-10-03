@@ -29,6 +29,52 @@ class PatternDiscoveryEngine:
             return [0.0] * len(changes)
         return [c / max_abs for c in changes]
 
+    def extract_multitimeframe_signature(
+        self,
+        observations_by_tf: Dict[str, List[MarketObservation]],
+        primary_timeframe: str,
+        window_size: int = 20,
+    ) -> List[float]:
+        """Build a causal, normalized signature from raw OHLC and structure across timeframes.
+
+        The signature deliberately contains no future data.  Each timeframe contributes
+        recent price-action geometry plus swing/structure state so historical matching
+        can use the same evidence that the Brain sees at decision time.
+        """
+        vectors: List[float] = []
+        for tf in sorted(observations_by_tf):
+            obs = sorted(observations_by_tf.get(tf) or [], key=lambda o: o.timestamp)
+            if not obs:
+                continue
+            recent = obs[-max(5, window_size):]
+            anchor = recent[-1].close_price
+            scale = max(max(o.high for o in recent) - min(o.low for o in recent), 1e-9)
+            # Last five closed candles: body, range and close displacement, all scale-normalized.
+            for o in recent[-5:]:
+                vectors.extend([
+                    (o.close_price - o.open_price) / scale,
+                    (o.high - o.low) / scale,
+                    (o.close_price - anchor) / scale,
+                ])
+            # Structure is computed from the same point-in-time bars.
+            from src.Research.Brain.brain_context import _structure_snapshot
+            structure = _structure_snapshot(recent)
+            high = structure.get("latest_swing_high") or {}
+            low = structure.get("latest_swing_low") or {}
+            vectors.extend([
+                (anchor - float(high.get("price", anchor))) / scale,
+                (anchor - float(low.get("price", anchor))) / scale,
+                1.0 if any(b.get("type") == "BREAK_ABOVE_LAST_SWING_HIGH" for b in structure.get("breaks", [])) else 0.0,
+                -1.0 if any(b.get("type") == "BREAK_BELOW_LAST_SWING_LOW" for b in structure.get("breaks", [])) else 0.0,
+                sum(1.0 for x in structure.get("labels", [])[-12:] if x.get("label") == "HH"),
+                sum(1.0 for x in structure.get("labels", [])[-12:] if x.get("label") == "HL"),
+                sum(1.0 for x in structure.get("labels", [])[-12:] if x.get("label") == "LH"),
+                sum(1.0 for x in structure.get("labels", [])[-12:] if x.get("label") == "LL"),
+            ])
+            # Explicit timeframe identity keeps M5 structure distinct from H4/D1 structure.
+            vectors.append(float({"M1":1,"M5":2,"M15":3,"M30":4,"H1":5,"H4":6,"D1":7,"W1":8,"MN1":9}.get(str(tf).upper(), 0)))
+        return [round(float(v), 8) for v in vectors]
+
     def calculate_similarity(
         self, sig1: List[float], sig2: List[float]
     ) -> float:
@@ -50,6 +96,7 @@ class PatternDiscoveryEngine:
         timeframe: str = "",
         timeframe_signature: List[str] = None,
         context_id: str = "",
+        signature_version: int = 2,
     ) -> List[Tuple[PatternMemory, float]]:
         """
         Return reusable historical patterns matching the current signature.
@@ -80,7 +127,7 @@ class PatternDiscoveryEngine:
                 continue
             # context_id identifies the historical evidence lineage. It must not
             # prevent reuse across later timestamps with the same symbol/timeframe.
-            if pat.status == "RETIRED":
+            if pat.status == "RETIRED" or getattr(pat, "signature_version", 1) != signature_version:
                 continue
             score = self.calculate_similarity(current_sig, pat.sequence_signature)
             if score >= self.similarity_threshold:

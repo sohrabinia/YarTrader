@@ -124,26 +124,32 @@ class YarTraderServiceHost:
             self.last_error = f"Worker startup exception: {str(e)}"
             log_service_message(f"Exception during worker startup: {str(e)}")
 
-        # 2. Start autonomous historical-learning queue. It waits fail-closed
-        # for the authorized read-only MT4 Signal heartbeat before doing work.
+        # 2. Historical-learning downloader is explicitly disabled by default.
+        # It must never start unless production configuration enables it.
         try:
-            self.historical_learning_stop.clear()
-            queue_script = Path(project_root) / "app" / "workers" / "historical_learning_queue.py"
+            if not self.config.historical_learning_enabled:
+                log_service_message("Historical Learning Queue Disabled by configuration")
+            else:
+                self.historical_learning_stop.clear()
+                queue_script = Path(project_root) / "app" / "workers" / "historical_learning_queue.py"
 
-            def _run_historical_learning():
-                try:
-                    log_service_message("Historical Learning Queue Started — waiting for MT4 Signal bridge")
-                    subprocess.run([sys.executable, str(queue_script), "--years", "10"],
-                                   cwd=project_root, check=False)
-                except Exception as e:
-                    log_service_message(f"Historical Learning Queue Exception: {e}")
+                def _run_historical_learning():
+                    try:
+                        log_service_message("Historical Learning Queue Started — waiting for MT4 Signal bridge")
+                        subprocess.run(
+                            [sys.executable, str(queue_script), "--years", "10"],
+                            cwd=project_root,
+                            check=False
+                        )
+                    except Exception as e:
+                        log_service_message(f"Historical Learning Queue Exception: {e}")
 
-            self.historical_learning_thread = threading.Thread(
-                target=_run_historical_learning,
-                daemon=True,
-                name="HistoricalLearningQueue"
-            )
-            self.historical_learning_thread.start()
+                self.historical_learning_thread = threading.Thread(
+                    target=_run_historical_learning,
+                    daemon=True,
+                    name="HistoricalLearningQueue"
+                )
+                self.historical_learning_thread.start()
         except Exception as e:
             log_service_message(f"Historical Learning Queue startup exception: {e}")
 

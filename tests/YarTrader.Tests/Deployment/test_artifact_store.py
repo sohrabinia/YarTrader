@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,18 @@ def test_binary_round_trip_without_loss(
     record = store.put(payload, media_type=media_type)
     assert store.get(record["id"]) == payload
     assert record["original_size"] == len(payload)
+
+
+def test_concurrent_index_updates_are_lossless(tmp_path: Path):
+    store = YarTraderArtifactStore(tmp_path)
+    payloads = [f"brain-event-{idx}".encode("utf-8") for idx in range(12)]
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        records = list(pool.map(store.put, payloads))
+
+    index = __import__("json").loads(store.index.read_text(encoding="utf-8"))
+    assert {record["id"] for record in records} <= set(index)
+    assert len(index) == len(records)
 
 
 def test_corruption_is_detected(tmp_path: Path):

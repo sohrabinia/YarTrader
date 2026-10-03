@@ -78,7 +78,7 @@ class TestGate2UniverseAndIndicatorFree(unittest.TestCase):
                 pass
         SymbolRegistry.get_instance()
 
-    # Case A: Canonical exact 30-symbol set equality
+    # Case A: Canonical exact four-symbol set equality
     def test_case_a_canonical_exact_30_universe(self):
         registered = set(self.registry.get_all_registered().keys())
         self.assertEqual(len(registered), 30)

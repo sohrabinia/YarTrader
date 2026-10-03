@@ -139,6 +139,10 @@ class BacktestAndLearningEngine:
         closed_trades: List[Dict[str, Any]] = []
         learning_updates_count = 0
         latest_brain_report = None
+        rejection_counts: Dict[str, int] = {}
+
+        def reject(reason: str) -> None:
+            rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
 
         memory = self.get_market_memory(symbol)
         canonical_brain = self.get_live_brain(symbol, timeframe)
@@ -290,35 +294,98 @@ class BacktestAndLearningEngine:
                 params = hypothesis.get("trade_parameters") or {}
                 confidence = float(hypothesis.get("hypothesis_confidence", 0.0))
 
-                if action in ["BUY", "SELL"] and confidence >= 50.0 and params.get("stop_loss") and params.get("take_profit") and float(params.get("risk_reward", 0.0)) >= 1.5:
-                    open_position = {
-                        "trade_id": f"BT-{symbol.upper()}-{timeframe.upper()}-{str(bar_time).replace(":", "").replace("+", "p").replace("-", "")}-{action}",
-                        "symbol": symbol.upper(),
-                        "timeframe": timeframe,
-                        "strategy": "BRAIN_LEARNED",
-                        "direction": action,
-                        "entry": float(params.get("entry", current_price)),
-                        "stop_loss": float(params.get("stop_loss", 0.0)),
-                        "take_profit": float(params.get("take_profit", 0.0)),
-                        "risk_reward": float(params.get("risk_reward", 0.0)),
-                        "confidence": confidence,
-                        "volume": 0.01,
-                        "entry_time": bar_time,
-                        "market_context": hypothesis.get("context", {}),
-                        "reasoning": ["Brain hypothesis", *hypothesis.get("matched_pattern_ids", [])],
-                        "mfe": 0.0,
-                        "mae": 0.0
-                    }
-                    hypothesis = (brain_report_dict.get("active_hypotheses") or [{}])[0]
-                    open_position["brain_hypothesis_id"] = hypothesis.get("hypothesis_id")
-                    open_position["brain_signature"] = list(hypothesis.get("sequence_signature", []))
-                    open_position["brain_pattern_ids"] = list(hypothesis.get("matched_pattern_ids", []))
-                    risk_budget_pct = 0.5 / 100.0
-                    risk_dollars = max(0.0, balance * risk_budget_pct)
-                    risk_distance = abs(open_position["entry"] - open_position["stop_loss"])
-                    pnl_multiplier = 100.0 if "XAU" in symbol.upper() else 10000.0
-                    if risk_distance > 0.0 and risk_dollars > 0.0:
-                        open_position["volume"] = round(risk_dollars / (risk_distance * pnl_multiplier), 6)
+                if action not in ["BUY", "SELL"]:
+                    reject("NO_ACTION")
+                    continue
+                if confidence < 50.0:
+                    reject("CONFIDENCE_BELOW_50")
+                    continue
+
+                # Learned excursions are preferred once enough real outcomes exist.
+                # During cold-start, delegate only the simulation mechanics (not the
+                # decision) to the existing SimulationBrain. This removes the deadlock
+                # where three prior learned outcomes were required before the first
+                # simulated trade could ever occur.
+                parameter_source = "LEARNED_PATTERN_EXCURSIONS"
+                entry_price = current_price
+                stop_loss = float(params.get("stop_loss", 0.0) or 0.0)
+                take_profit = float(params.get("take_profit", 0.0) or 0.0)
+                risk_reward = float(params.get("risk_reward", 0.0) or 0.0)
+
+                learned_params_valid = (
+                    stop_loss > 0.0 and take_profit > 0.0 and risk_reward >= 1.5
+                    and abs(entry_price - stop_loss) > 0.0
+                    and abs(take_profit - entry_price) > 0.0
+                )
+                if not learned_params_valid:
+                    sim = getattr(canonical_brain, "simulation_brain", None)
+                    if sim is None:
+                        reject("SIMULATION_BRAIN_UNAVAILABLE")
+                        continue
+                    virtual = sim.make_virtual_decision(
+                        action=action,
+                        entry_price=current_price,
+                        timestamp=datetime.fromisoformat(str(bar_time).replace("Z", "+00:00"))
+                        if isinstance(bar_time, str) else bar_time,
+                        expected_scenario=("Continuation" if action == "BUY" else "Reversal"),
+                    )
+                    if virtual is None:
+                        reject("SIMULATION_CANDIDATE_REJECTED")
+                        continue
+                    # Reuse SimulationBrain's execution-neutral offsets, but keep the
+                    # backtest's own friction model as the single P&L accounting layer.
+                    stop_distance = abs(float(virtual.entry_price) - float(virtual.virtual_stop))
+                    target_distance = abs(float(virtual.virtual_target) - float(virtual.entry_price))
+                    # This call is used only to obtain simulation mechanics; the
+                    # backtest owns the actual position lifecycle and learning record.
+                    sim.active_trades = [t for t in sim.active_trades if t.trade_id != virtual.trade_id]
+                    if stop_distance <= 0.0 or target_distance <= 0.0:
+                        reject("INVALID_SIMULATION_BOUNDS")
+                        continue
+                    risk_reward = target_distance / stop_distance
+                    if risk_reward < 1.5:
+                        reject("RR_BELOW_1_5")
+                        continue
+                    if action == "BUY":
+                        stop_loss = entry_price - stop_distance
+                        take_profit = entry_price + target_distance
+                    else:
+                        stop_loss = entry_price + stop_distance
+                        take_profit = entry_price - target_distance
+                    parameter_source = "SIMULATION_BRAIN_BOOTSTRAP"
+
+                open_position = {
+                    "trade_id": f"BT-{symbol.upper()}-{timeframe.upper()}-{str(bar_time).replace(":", "").replace("+", "p").replace("-", "")}-{action}",
+                    "symbol": symbol.upper(),
+                    "timeframe": timeframe,
+                    "strategy": "BRAIN_LEARNED",
+                    "direction": action,
+                    "entry": entry_price,
+                    "stop_loss": stop_loss,
+                    "take_profit": take_profit,
+                    "risk_reward": risk_reward,
+                    "confidence": confidence,
+                    "parameter_source": parameter_source,
+                    "volume": 0.01,
+                    "entry_time": bar_time,
+                    "market_context": hypothesis.get("context", {}),
+                    "reasoning": ["Brain hypothesis", *hypothesis.get("matched_pattern_ids", [])],
+                    "mfe": 0.0,
+                    "mae": 0.0
+                }
+                hypothesis = (brain_report_dict.get("active_hypotheses") or [{}])[0]
+                open_position["brain_hypothesis_id"] = hypothesis.get("hypothesis_id")
+                open_position["brain_signature"] = list(hypothesis.get("sequence_signature", []))
+                open_position["brain_pattern_ids"] = list(hypothesis.get("matched_pattern_ids", []))
+                risk_budget_pct = 0.5 / 100.0
+                risk_dollars = max(0.0, balance * risk_budget_pct)
+                risk_distance = abs(open_position["entry"] - open_position["stop_loss"])
+                pnl_multiplier = 100.0 if "XAU" in symbol.upper() else 10000.0
+                if risk_distance > 0.0 and risk_dollars > 0.0:
+                    open_position["volume"] = round(risk_dollars / (risk_distance * pnl_multiplier), 6)
+                else:
+                    reject("INVALID_RISK_DISTANCE")
+                    open_position = None
 
         # Calculate backtest report metrics
         wins = sum(1 for t in closed_trades if t["outcome"] == "WIN")
@@ -339,7 +406,7 @@ class BacktestAndLearningEngine:
         cumulative_bes = previous_bes + bes
         cumulative_win_rate = (cumulative_wins / cumulative_total * 100.0) if cumulative_total else 0.0
         cumulative_learning = int(state.get("learning_updates_count", 0)) + learning_updates_count
-        return {
+        cycle_result = {
             "symbol": symbol.upper(),
             "timeframe": timeframe,
             "initial_balance": initial_balance,
@@ -351,6 +418,7 @@ class BacktestAndLearningEngine:
             "breakevens": cumulative_bes,
             "win_rate_pct": round(cumulative_win_rate, 2),
             "learning_updates_count": cumulative_learning,
+            "rejection_counts": rejection_counts,
             "closed_trades": closed_trades,
             "state": {
                 "balance": balance,
@@ -361,8 +429,73 @@ class BacktestAndLearningEngine:
                 "losses": cumulative_losses,
                 "breakevens": cumulative_bes,
                 "learning_updates_count": cumulative_learning,
+                "rejection_counts": rejection_counts,
             },
         }
+        self._record_learning_cycle(symbol, timeframe, cycle_result)
+        return cycle_result
+
+    def _record_learning_cycle(self, symbol, timeframe, result):
+        """Persist cycle metrics and compare this cycle with the immediately previous cycle."""
+        path = os.path.join(self.storage_dir, "learning_cycles.jsonl")
+        trades = list(result.get("closed_trades") or [])
+        wins = sum(1 for t in trades if t.get("outcome") == "WIN")
+        losses = sum(1 for t in trades if t.get("outcome") == "LOSS")
+        total = len(trades)
+        win_rate = (wins / total * 100.0) if total else None
+        gross_profit = sum(max(float(t.get("pnl", 0.0)), 0.0) for t in trades)
+        gross_loss = abs(sum(min(float(t.get("pnl", 0.0)), 0.0) for t in trades))
+        profit_factor = (gross_profit / gross_loss) if gross_loss else None
+        r_values = [float(t.get("r_multiple", 0.0)) for t in trades]
+        expectancy_r = (sum(r_values) / len(r_values)) if r_values else None
+        equity = 0.0
+        peak = 0.0
+        max_dd = 0.0
+        for t in trades:
+            equity += float(t.get("pnl", 0.0))
+            peak = max(peak, equity)
+            max_dd = min(max_dd, equity - peak)
+        record = {
+            "cycle_id": f"learn-{symbol.upper()}-{timeframe.upper()}-{uuid.uuid4().hex[:12]}",
+            "timestamp": datetime.now().isoformat(),
+            "symbol": symbol.upper(),
+            "timeframe": timeframe.upper(),
+            "evaluation_scope": "chronological_cycle",
+            "total_trades": total,
+            "win_rate_pct": round(win_rate, 4) if win_rate is not None else None,
+            "profit_factor": round(profit_factor, 4) if profit_factor is not None else None,
+            "expectancy_r": round(expectancy_r, 4) if expectancy_r is not None else None,
+            "net_pnl": round(sum(float(t.get("pnl", 0.0)) for t in trades), 4),
+            "max_drawdown": round(abs(max_dd), 4),
+            "learning_updates_count": int(result.get("learning_updates_count", 0)),
+        }
+        previous = None
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    if line.strip():
+                        item = json.loads(line)
+                        if item.get("symbol") == record["symbol"] and item.get("timeframe") == record["timeframe"]:
+                            previous = item
+        except (OSError, ValueError, TypeError):
+            previous = None
+        if previous:
+            record["previous_cycle_id"] = previous.get("cycle_id")
+            record["quality_delta"] = {
+                "win_rate_pct": round((record["win_rate_pct"] - previous["win_rate_pct"]), 4) if record["win_rate_pct"] is not None and previous.get("win_rate_pct") is not None else None,
+                "profit_factor": round((record["profit_factor"] - previous["profit_factor"]), 4) if record["profit_factor"] is not None and previous.get("profit_factor") is not None else None,
+                "expectancy_r": round((record["expectancy_r"] - previous["expectancy_r"]), 4) if record["expectancy_r"] is not None and previous.get("expectancy_r") is not None else None,
+                "net_pnl": round((record["net_pnl"] - float(previous.get("net_pnl", 0.0))), 4),
+                "max_drawdown": round((record["max_drawdown"] - float(previous.get("max_drawdown", 0.0))), 4),
+            }
+        else:
+            record["previous_cycle_id"] = None
+            record["quality_delta"] = None
+        os.makedirs(self.storage_dir, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        result["learning_cycle"] = record
+        return record
 
     def _process_post_trade_learning(self, memory: MarketMemorySystem, closed_trade: Dict[str, Any]) -> Dict[str, Any]:
         """
