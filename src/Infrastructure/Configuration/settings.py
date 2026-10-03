@@ -14,6 +14,7 @@ class BaseSettings:
         self.storage_root: str = "C:\\YarTraderAI\\" if os.name == "nt" else "/tmp/YarTraderAI/"
         self.db_token: str = "dev-token-12345"
         self.tick_chart_analysis_enabled: bool = False
+        self.historical_learning_enabled: bool = False
 
         # MetaTrader Separation & Isolation Settings
         self.mt5_account: str = "52961173"
@@ -91,6 +92,10 @@ class BaseSettings:
             "tick_chart_analysis_enabled",
             os.environ.get("TICK_CHART_ANALYSIS_ENABLED", "False") == "True"
         )
+        self.historical_learning_enabled = self._overrides.get(
+            "historical_learning_enabled",
+            os.environ.get("YARTRADER_HISTORICAL_LEARNING_ENABLED", os.environ.get("TRADEYAR_HISTORICAL_LEARNING_ENABLED", "False")).lower() == "true"
+        )
 
         # Scan for forbidden live trading indicators
         forbidden_keywords = ["buy_signal", "sell_signal", "place_order", "execute_trade", "open_position", "send_transaction"]
@@ -111,6 +116,7 @@ class BaseSettings:
             "storage_root": self.storage_root,
             "db_token": self.db_token,
             "tick_chart_analysis_enabled": self.tick_chart_analysis_enabled,
+            "historical_learning_enabled": self.historical_learning_enabled,
             "mt5_account": self.mt5_account,
             "mt5_server": self.mt5_server,
             "mt5_terminal_path": self.mt5_terminal_path,
