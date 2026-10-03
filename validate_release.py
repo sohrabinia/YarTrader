@@ -190,13 +190,13 @@ class ReleaseValidationPlatform:
         except Exception:
             pytest_cmd = ["pytest"]
 
-        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"]
+        cmd_args = pytest_cmd + ["--tb=short", "-vv", "-p", "no:warnings", "-ra", "--durations=25", "-o", "faulthandler_timeout=120", "-o", "faulthandler_exit_on_timeout=true"]
         self.log(f"Running automated tests command: {' '.join(cmd_args)}")
 
         try:
             env = dict(os.environ)
             env["PYTHONPATH"] = "."
-            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=900, env=env)
+            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=1200, env=env)
             stdout = res.stdout
             stderr = res.stderr
             return_code = res.returncode
@@ -240,12 +240,15 @@ class ReleaseValidationPlatform:
 
             total_tests = passed + failed + skipped
         else:
+            # Never fabricate a passing test count when pytest output cannot be parsed.
+            # A zero exit code without a parseable summary is still an indeterminate validation result.
             if return_code == 0:
-                passed = 1280
-                total_tests = 1280
+                failed = 1
+                total_tests = 0
+                self.log("Pytest exited successfully but no parseable test summary was found.", "ERROR")
             else:
                 failed = 1
-                total_tests = 1
+                total_tests = 0
 
         if failed > 0:
             self.log(f"Detected {failed} test failures! Initiating automatic root cause investigation...", "WARNING")
@@ -270,6 +273,13 @@ class ReleaseValidationPlatform:
 
             if current_fail_test:
                 failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
+
+        if return_code != 0:
+            diagnostic_lines = (stdout or "").splitlines()[-120:] + (stderr or "").splitlines()[-120:]
+            if diagnostic_lines:
+                self.log("Pytest diagnostic tail follows:", "ERROR")
+                for diagnostic_line in diagnostic_lines:
+                    self.log(diagnostic_line[:2000], "ERROR")
 
         self.passed_count = passed
         self.failed_count = failed

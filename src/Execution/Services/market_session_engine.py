@@ -256,7 +256,8 @@ class MarketSessionEngine:
         distance_to_tp: Optional[float] = None,
         current_volatility_atr: Optional[float] = None,
         historical_mfe_speed: float = 1.0,
-        current_time: Optional[datetime] = None
+        current_time: Optional[datetime] = None,
+        current_equity: Optional[float] = None
     ) -> MarketSessionValidationResult:
         """
         Performs the complete unified Pre-Entry Session & Calendar Feasibility Gate.
@@ -322,8 +323,16 @@ class MarketSessionEngine:
         try:
             from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
             kill_switch = DailyLossKillSwitch.get_instance()
-            # Default to account equity baseline if current equity not explicitly passed
-            current_equity = kwargs.get("current_equity", 10000.0) if "kwargs" in locals() else 10000.0
+            if current_equity is None or isinstance(current_equity, bool):
+                return MarketSessionValidationResult(
+                    allowed=False,
+                    rejection_reason="DAILY_LOSS_EQUITY_UNAVAILABLE",
+                    market_state=state,
+                    active_interval=active_interval,
+                    remaining_session_seconds=rem_seconds,
+                    source_authority=source_auth,
+                    message="Trade rejected: authoritative account equity is required for the daily-loss safety gate.",
+                )
             ks_eval = kill_switch.evaluate_entry_allowed(current_equity=current_equity, dt=now)
 
             if not ks_eval["allowed"]:

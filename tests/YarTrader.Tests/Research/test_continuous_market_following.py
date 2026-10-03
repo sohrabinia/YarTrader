@@ -84,6 +84,13 @@ def test_dynamic_risk_and_execution_gate_verification():
     )
     assert res_valid.is_valid is True
 
+    # The production gate requires an explicit persisted session baseline.
+    from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+    from datetime import datetime, timezone
+    switch = DailyLossKillSwitch.get_instance()
+    session_key, _, _ = switch.get_session_key_and_window(datetime.now(timezone.utc))
+    switch.set_session_baseline(10000.0, session_key)
+
     # Valid request evaluated through execution gate
     req_valid = DummyRequest(symbol="XAUUSD", sl=2497.0, tp=2508.0, strategy="DYNAMIC_FOLLOW")
     assert DemoExecutionGate.verify_demo_execution_eligibility(adapter, req_valid, demo_mode_flag=True) is True

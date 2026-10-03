@@ -98,6 +98,7 @@ global_decision_explainer = DecisionExplainer(memory_system=global_memory_system
 # Initialize secure social authentication and role-based session services from shared singleton
 from src.Application.Dashboard.auth_service import global_auth_service
 from src.Application.Dashboard.auth_repo import AuthRepository
+from src.Application.Services.user_api_router import get_user_session_and_enforce_tier
 
 MOCK_BLOG_ARTICLES = [
     {
@@ -4858,7 +4859,8 @@ class AdminContentPayload(BaseModel):
 
 
 @app.post("/api/admin/content")
-def admin_manage_content(payload: AdminContentPayload):
+def admin_manage_content(payload: AdminContentPayload, request: Request):
+    check_admin_guard(request)
     """SRE Admin content publishing endpoint."""
     if payload.domain not in ("blog", "news", "faq", "guide"):
         raise HTTPException(status_code=400, detail="Invalid content domain.")
@@ -4878,13 +4880,17 @@ class ReplyTicketPayload(BaseModel):
 
 
 @app.get("/api/user/tickets")
-def list_user_tickets(email: str = "trader@yartrader.app", page: int = 1, limit: int = 10):
+def list_user_tickets(request: Request, page: int = 1, limit: int = 10):
+    session = get_user_session_and_enforce_tier(authorization=request.headers.get("authorization"))
+    email = session["email"]
     """Retrieves user support tickets."""
     return global_ticket_manager.list_user_tickets(email=email, page=page, limit=limit)
 
 
 @app.post("/api/user/tickets")
-def create_user_ticket(payload: CreateTicketPayload, email: str = "trader@yartrader.app"):
+def create_user_ticket(payload: CreateTicketPayload, request: Request):
+    session = get_user_session_and_enforce_tier(authorization=request.headers.get("authorization"))
+    email = session["email"]
     """Creates a new support ticket."""
     try:
         ticket = global_ticket_manager.create_ticket(
@@ -4900,7 +4906,10 @@ def create_user_ticket(payload: CreateTicketPayload, email: str = "trader@yartra
 
 
 @app.post("/api/user/tickets/{ticket_id}/reply")
-def reply_user_ticket(ticket_id: str, payload: ReplyTicketPayload, email: str = "trader@yartrader.app", is_admin: bool = False):
+def reply_user_ticket(ticket_id: str, payload: ReplyTicketPayload, request: Request):
+    session = check_admin_guard(request) if request.headers.get("x-admin-action") == "true" else get_user_session_and_enforce_tier(authorization=request.headers.get("authorization"))
+    email = session["email"]
+    is_admin = session.get("role") == "ADMIN"
     """Replies to an existing support ticket."""
     try:
         updated = global_ticket_manager.add_reply(
@@ -4915,7 +4924,8 @@ def reply_user_ticket(ticket_id: str, payload: ReplyTicketPayload, email: str = 
 
 
 @app.get("/api/admin/tickets")
-def admin_list_all_tickets(page: int = 1, limit: int = 20):
+def admin_list_all_tickets(request: Request, page: int = 1, limit: int = 20):
+    check_admin_guard(request)
     """Lists all support tickets for administrative response."""
     return global_ticket_manager.list_all_tickets_admin(page=page, limit=limit)
 
@@ -4926,7 +4936,8 @@ class AdminTicketStatusPayload(BaseModel):
 
 
 @app.post("/api/admin/tickets/{ticket_id}/status")
-def admin_update_ticket_status(ticket_id: str, payload: AdminTicketStatusPayload):
+def admin_update_ticket_status(ticket_id: str, payload: AdminTicketStatusPayload, request: Request):
+    check_admin_guard(request)
     """Updates ticket status/priority for administrative operations."""
     try:
         updated = global_ticket_manager.update_status(ticket_id=ticket_id, status=payload.status, priority=payload.priority)

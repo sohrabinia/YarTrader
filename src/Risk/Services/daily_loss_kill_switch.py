@@ -154,12 +154,23 @@ class DailyLossKillSwitch:
                 except (ValueError, TypeError):
                     pass
             if not valid_supplied_base:
-                self.baseline_equity = eq_val
+                # Do not silently reset protection to current equity. A missing baseline
+                # must fail closed until an authoritative session baseline is supplied.
+                self.baseline_equity = None
 
             self.kill_switch_active = False
             self._save_persistence()
 
-        baseline = self.baseline_equity if (self.baseline_equity is not None and math.isfinite(self.baseline_equity) and self.baseline_equity > 0) else eq_val
+        if self.baseline_equity is None or not math.isfinite(self.baseline_equity) or self.baseline_equity <= 0:
+            return False, "KILL_SWITCH_BASELINE_UNAVAILABLE", {
+                "session_date": self.current_session_key,
+                "baseline_equity": None,
+                "current_equity": eq_val,
+                "loss_pct": None,
+                "kill_switch_active": True,
+            }
+
+        baseline = self.baseline_equity
         loss_amount_usd = max(0.0, baseline - eq_val)
         loss_pct = (loss_amount_usd / baseline) * 100.0
 

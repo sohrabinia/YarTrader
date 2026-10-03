@@ -36,6 +36,10 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def _create_iran_dt(self, year=2026, month=3, day=1, hour=1, minute=35, second=0):
         return datetime(year, month, day, hour, minute, second, tzinfo=IRAN_TZ)
 
+    def _start_session(self, equity, dt):
+        key, _, _ = self.kill_switch.get_session_key_and_window(dt)
+        self.assertTrue(self.kill_switch.set_session_baseline(equity=equity, session_date=key))
+
     def test_01_session_starts_at_0135_iran_time(self):
         """1. Session starts at 01:35 Iran time & captures baseline equity."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
