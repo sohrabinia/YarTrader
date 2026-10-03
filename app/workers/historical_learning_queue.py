@@ -50,8 +50,8 @@ def _wait_for_demo_bridge(poll_sec=5.0):
         time.sleep(poll_sec)
 
 def run_queue(years=10, initial_balance=10000.0, sleep_sec=0.5, max_symbols=0):
-    from src.Infrastructure.Configuration.config import ProductionConfig
-    config = ProductionConfig()
+    from src.Infrastructure.Configuration.config import ConfigurationManager
+    config = ConfigurationManager.get_config()
     if not config.historical_learning_enabled:
         state = {"schema": 3, "status": "DISABLED", "years": years, "symbols": load_symbols(), "queues": {}}
         save_state(state)
