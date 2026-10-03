@@ -4618,36 +4618,7 @@ def list_operator_tasks(request: Request):
     return global_operator_adapter.get_all_tasks(admin_identity=session)
 
 
-# ==============================================================================
-# AUTONOMOUS SHADOW TRADING INTELLIGENCE SEPARATED API LAYER
-# ==============================================================================
-@app.get("/api/admin/symbols")
-def get_admin_symbols(request: Request):
-    """Lists current active symbols and allows registering a new symbol dynamically."""
-    check_admin_guard(request)
-    from src.Market.Universe.symbol_registry import SymbolRegistry
-    registry_inst = SymbolRegistry.get_instance()
-    registry = registry_inst.get_all_registered()
-    active_symbols = sorted([sym for sym, info in registry.items() if info.get("active", True)])
-
-    return {
-        "active_symbols": active_symbols,
-        "count": len(active_symbols),
-        "max_limit": registry_inst.max_symbols,
-        "max_active_symbols_limit": registry_inst.max_symbols,
-        "system_ceiling_enforced": True,
-        "registered_symbols": [
-            {
-                "symbol": symbol,
-                "active": info.get("active", True),
-                "timeframes": info.get("timeframes", ["H1"]),
-                "configuration_state": "ACTIVE" if info.get("active", True) else "DISABLED"
-            }
-            for symbol, info in sorted(registry.items())
-        ]
-    }
-
-@app.get("/api/admin/timeframes")
+# ==============================================================================\n# Canonical admin symbol/report routes are owned by admin_api_router.\n# ==============================================================================\n\n@app.get("/api/admin/timeframes")
 def get_admin_timeframes(request: Request):
     check_admin_guard(request)
     from src.Market.Universe.symbol_registry import SymbolRegistry
