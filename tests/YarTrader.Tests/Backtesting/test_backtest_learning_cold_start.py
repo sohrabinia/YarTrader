@@ -49,10 +49,13 @@ class TestBacktestLearningColdStart(unittest.TestCase):
             base = datetime(2026, 1, 1)
             for i in range(6):
                 price = 2000.0 + (20.0 if i >= 3 else 0.0)
+                # Entry is made after the decision bar closes, so the outcome must
+                # come from a subsequent bar rather than the entry bar's own high.
+                post_entry_high = 45.0 if i == 3 else 1.0
                 candles.append({
                     "timestamp": (base + timedelta(minutes=15 * i)).isoformat(),
                     "open": price,
-                    "high": price + (50.0 if i == 2 else 1.0),
+                    "high": price + post_entry_high,
                     "low": price - 1.0,
                     "close": price,
                     "volume": 100.0,
