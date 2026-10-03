@@ -1,4 +1,4 @@
-﻿"""Autonomous historical-learning queue; intentionally independent of the 30-symbol production limit."""
+"""Autonomous historical-learning queue for the configured four-symbol market universe."""
 from __future__ import annotations
 import argparse, glob, json, subprocess, sys, time
 from pathlib import Path
@@ -15,11 +15,8 @@ DEFAULT_TIMEFRAMES = ("M1","M5","M15","M30","H1","H4","D1","W1","MN1")
 # crypto acquisition, while metals/indices remain explicitly isolated rather
 # than being incorrectly labelled as Forex or Crypto.
 MARKET_GROUPS = {
-    "forex": {"EURUSD","GBPUSD","USDJPY","USDCHF","USDCAD","AUDUSD","NZDUSD",
-              "EURGBP","EURJPY","GBPJPY","EURCHF","EURAUD","EURNZD","GBPAUD",
-              "GBPCAD","GBPCHF","AUDJPY","AUDCAD","AUDNZD","CADJPY","CHFJPY",
-              "NZDJPY","NZDCAD"},
-    "crypto": {"BTCUSD"},
+    "forex": {"EURUSD"},
+    "crypto": {"BTCUSD","ETHUSD"},
 }
 
 def load_symbols():
@@ -49,6 +46,17 @@ def _wait_for_signal_bridge(poll_sec=5.0):
         time.sleep(poll_sec)
 
 def run_queue(years=10, initial_balance=10000.0, sleep_sec=0.5, max_symbols=0):
+    config = ProductionConfig()
+    if not config.historical_learning_enabled:
+        state = {
+            "schema": 2,
+            "status": "DISABLED",
+            "years": years,
+            "symbols": load_symbols(),
+            "queues": {},
+        }
+        save_state(state)
+        return state
     symbols = load_symbols()[:max_symbols or None]
     grouped = {
         name: [s for s in symbols if s in members]

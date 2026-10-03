@@ -192,7 +192,7 @@ class DashboardAggregatorService:
             "average_processing_time_ms": 85.4,
             "sliding_decision_consistency": 0.975,
             "average_intelligence_quality": 0.942,
-            "active_instruments": ["EURUSD", "GBPUSD"],
+            "active_instruments": ["XAUUSD", "EURUSD", "BTCUSD", "ETHUSD"],
             "timestamp": datetime.now().isoformat()
         }
 
@@ -208,7 +208,7 @@ class DashboardAggregatorService:
                 "Last Updated": datetime.now().isoformat()
             },
             "Brain Weakness": {
-                "Highest Failure Areas": ["XAUUSD reaction during US high volatility sessions", "GBPUSD ranging lateral noise"],
+                "Highest Failure Areas": ["XAUUSD reaction during US high volatility sessions", "EURUSD ranging lateral noise"],
                 "Unknown Behaviors": ["Low liquidity holiday trading blocks", "Extreme macroeconomic news impact spikes"],
                 "Research Priorities": [
                     {

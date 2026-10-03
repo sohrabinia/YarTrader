@@ -64,6 +64,7 @@ class ProductionConfig:
         self.workers_research: bool = True
         self.workers_intelligence: bool = True
         self.ai_confidence_threshold: int = 70
+        self.historical_learning_enabled: bool = False
 
         # Secrets - strictly NOT stored in repository / yaml
         self.mt5_password: Optional[str] = None
@@ -108,6 +109,8 @@ class ProductionConfig:
                     self.workers_intelligence = data["workers"].get("intelligence", self.workers_intelligence)
                 if "ai" in data:
                     self.ai_confidence_threshold = data["ai"].get("confidence_threshold", self.ai_confidence_threshold) or self.ai_confidence_threshold
+                if "historical_learning" in data:
+                    self.historical_learning_enabled = bool(data["historical_learning"].get("enabled", self.historical_learning_enabled))
             except Exception as e:
                 print(f"Warning: Failed to load config from {config_path}: {e}")
 
@@ -135,6 +138,10 @@ class ProductionConfig:
         env_conf = get_env_compat("YARTRADER_AI_CONFIDENCE_THRESHOLD", "TRADEYAR_AI_CONFIDENCE_THRESHOLD")
         if env_conf:
             self.ai_confidence_threshold = int(env_conf)
+
+        env_hist = get_env_compat("YARTRADER_HISTORICAL_LEARNING_ENABLED", "TRADEYAR_HISTORICAL_LEARNING_ENABLED")
+        if env_hist:
+            self.historical_learning_enabled = env_hist.lower() == "true"
 
         self.mt5_password = get_env_compat("YARTRADER_MT5_PASSWORD", "TRADEYAR_MT5_PASSWORD")
         self.api_key = get_env_compat("YARTRADER_API_KEY", "TRADEYAR_API_KEY")
@@ -167,5 +174,8 @@ class ProductionConfig:
             },
             "ai": {
                 "confidence_threshold": self.ai_confidence_threshold
+            },
+            "historical_learning": {
+                "enabled": self.historical_learning_enabled
             }
         }

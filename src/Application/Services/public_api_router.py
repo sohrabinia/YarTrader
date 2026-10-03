@@ -15,7 +15,7 @@ class SocialLoginPayload(BaseModel):
 def get_public_metrics():
     """Returns compliant SaaS platform metrics and performance stats."""
     return {
-        "symbols_active": 30,
+        "symbols_active": 4,
         "timeframes_active": None,
         "research_contexts": None,
         "providers": {
@@ -23,7 +23,7 @@ def get_public_metrics():
             "crypto_provider": "STATUS_ENDPOINT_REQUIRED"
         },
         "runtime_mode": "DEMO_RESEARCH",
-        "active_markets_count": 30,
+        "active_markets_count": 4,
         "historical_simulated_trades": None,
         "platform_uptime_pct": None,
         "compliance_disclaimer": "Simulated performance results have certain inherent limitations. Unlike an actual performance record, simulated results do not represent actual trading."
@@ -108,7 +108,7 @@ def initiate_purchase(payload: PurchasePayload):
 def get_supported_markets():
     """Returns list of SaaS supported market assets."""
     return [
-        {"category": "Forex", "symbols": ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"]},
-        {"category": "Commodities", "symbols": ["XAUUSD", "XAGUSD", "USOIL"]},
-        {"category": "Crypto", "symbols": ["BTCUSD", "ETHUSD", "SOLUSD"]}
+        {"category": "Forex", "symbols": ["EURUSD"]},
+        {"category": "Commodities", "symbols": ["XAUUSD"]},
+        {"category": "Crypto", "symbols": ["BTCUSD", "ETHUSD"]}
     ]

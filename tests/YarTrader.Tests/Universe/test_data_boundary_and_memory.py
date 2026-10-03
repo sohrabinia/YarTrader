@@ -11,7 +11,7 @@ class TestDataBoundaryAndMemorySafety(unittest.TestCase):
     Tests enforcing Non-Negotiable Data Architecture & Memory Safety:
     - Bounded requests (~300-600 candles max lookback)
     - Zero technical indicators in CompactMarketState (NO volatility_atr, NO momentum_rsi)
-    - 30-instrument path bypasses legacy FeatureExtractionResearchEngine and technical analysis pipeline
+    - 4-instrument path bypasses legacy FeatureExtractionResearchEngine and technical analysis pipeline
     - Strictly primitive market facts (current_price, high, low, volume, spread, timestamp, freshness, validity)
     - Zero bulk historical download pipeline / warehouse creation
     - Bounded memory footprint
@@ -27,19 +27,17 @@ class TestDataBoundaryAndMemorySafety(unittest.TestCase):
 
         # Assert exact set equality
         registered_symbols = set(registered.keys())
-        self.assertEqual(len(registered_symbols), 30)
+        self.assertEqual(len(registered_symbols), 4)
         self.assertEqual(registered_symbols, CANONICAL_30_SYMBOLS)
 
         # Assert specific required symbols exist and extraneous symbols do not exist
         self.assertIn("XAUUSD", registered_symbols)
-        self.assertIn("EURGBP", registered_symbols)
-        self.assertIn("EURCHF", registered_symbols)
-        self.assertIn("CADJPY", registered_symbols)
-        self.assertIn("NAS100", registered_symbols)
-        self.assertIn("US30", registered_symbols)
+        self.assertIn("EURUSD", registered_symbols)
+        self.assertIn("XAUUSD", registered_symbols)
         self.assertIn("BTCUSD", registered_symbols)
-        self.assertNotIn("USOIL", registered_symbols)
-        self.assertNotIn("ETHUSD", registered_symbols)
+        self.assertIn("ETHUSD", registered_symbols)
+        self.assertNotIn("GBPUSD", registered_symbols)
+        self.assertNotIn("US30", registered_symbols)
 
     def test_30_instrument_path_bypasses_legacy_technical_analysis_pipeline(self):
         from unittest.mock import patch

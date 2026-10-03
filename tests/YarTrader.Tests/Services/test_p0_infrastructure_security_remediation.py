@@ -15,7 +15,7 @@ from app.core.logging import _safe_extra, log_security, log_audit
 class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
     """
     Forensic SRE integration and regression test suite verifying Phase 0:
-    1. Unified Authoritative Symbol Limit of 30.
+    1. Unified Authoritative Symbol Limit of 4.
     2. Dynamic limits loading and persistence.
     3. Proper role-based security boundaries.
     4. Advanced recursive sensitive field redaction and security audit trail coverage.
@@ -51,12 +51,12 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
     # OBJECTIVE A: UNIFY SYMBOL LIMIT
     # =========================================================================
 
-    def test_authoritative_symbol_limit_is_exactly_30(self) -> None:
-        """Verifies that the unified active symbol limit is exactly 30."""
-        self.assertEqual(self.registry.max_symbols, 30)
+    def test_authoritative_symbol_limit_is_exactly_4(self) -> None:
+        """Verifies that the unified active symbol limit is exactly 4."""
+        self.assertEqual(self.registry.max_symbols, 4)
 
     def test_register_symbols_below_and_at_ceiling(self) -> None:
-        """Verifies that registering up to canonical 30 active symbols succeeds."""
+        """Verifies that registering all canonical active symbols succeeds."""
         from src.ShadowTrading.Engine.SymbolRegistry import CANONICAL_30_SYMBOLS
         canonical_symbols = list(CANONICAL_30_SYMBOLS)
         for sym in canonical_symbols:
@@ -72,7 +72,7 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
 
         with self.assertRaises(ValueError) as ctx:
             self.registry.register_symbol("NON_CANONICAL_SYM", ["H1"])
-        self.assertIn("canonical 30 symbol universe", str(ctx.exception))
+        self.assertIn("canonical four-symbol universe", str(ctx.exception))
 
     def test_persistence_preserves_same_symbol_limit(self) -> None:
         """Verifies that symbol registry state persists cleanly and remains consistent on reload."""
@@ -82,7 +82,7 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
         # Re-load registry from file
         SymbolRegistry._instance = None
         new_registry = SymbolRegistry.get_instance()
-        self.assertEqual(new_registry.max_symbols, 30)
+        self.assertEqual(new_registry.max_symbols, 4)
         self.assertIn("EURUSD", new_registry.get_all_registered())
 
     # =========================================================================
@@ -171,6 +171,6 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
             # 1. Admin user token -> 200 OK
             response = self.client.get("/api/admin/symbols", headers={"Authorization": f"Bearer {token}"})
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["max_limit"], 30)
+            self.assertEqual(response.json()["max_limit"], 4)
         finally:
             global_auth_service.logout(token)

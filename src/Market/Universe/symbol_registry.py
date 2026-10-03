@@ -5,13 +5,7 @@ from typing import Dict, List, Any, Tuple
 
 REGISTRY_FILE = "runtime_logs/symbols_registry.json"
 
-CANONICAL_30_SYMBOLS = {
-    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD",
-    "EURGBP", "EURJPY", "GBPJPY", "EURCHF", "EURAUD", "EURNZD", "GBPAUD",
-    "GBPCAD", "GBPCHF", "AUDJPY", "AUDCAD", "AUDNZD", "CADJPY", "CHFJPY",
-    "NZDJPY", "NZDCAD", "XAUUSD", "XAGUSD", "US30", "NAS100", "GER40",
-    "UK100", "BTCUSD"
-}
+CANONICAL_SYMBOLS = {"XAUUSD", "EURUSD", "BTCUSD", "ETHUSD"}
 
 def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
     """Pure-Python YAML parser for market_universe.yaml mapping. Enforces duplicate symbol key rejection."""
@@ -68,8 +62,8 @@ def parse_market_universe_yaml(content: str) -> Dict[str, Any]:
 class SymbolRegistry:
     """
     Manages active symbols, their asset class classification, and assigned timeframes dynamically.
-    Enforces canonical exact 30-symbol set invariant. Fails closed if market universe configuration
-    is missing, malformed, or violates exact 30-symbol set equality.
+    Enforces the exact four-symbol market universe. Fails closed if market universe configuration
+    is missing, malformed, or violates the configured four-symbol set equality.
     """
     _instance = None
     _singleton_lock = threading.Lock()
@@ -93,7 +87,7 @@ class SymbolRegistry:
                             return int(val_str)
             except Exception:
                 pass
-        return 30
+        return 4
 
     def __init__(self) -> None:
         self.max_symbols = self._load_max_symbols()
@@ -102,15 +96,15 @@ class SymbolRegistry:
         os.makedirs("runtime_logs", exist_ok=True)
         self.load_registry()
 
-    def _validate_canonical_30_invariant(self, symbols_dict: Dict[str, Any]) -> None:
-        """Enforces exact set equality with CANONICAL_30_SYMBOLS."""
+    def _validate_canonical_invariant(self, symbols_dict: Dict[str, Any]) -> None:
+        """Enforces exact set equality with CANONICAL_SYMBOLS."""
         loaded_symbols = set(sym.upper() for sym in symbols_dict.keys())
-        if loaded_symbols != CANONICAL_30_SYMBOLS:
-            missing = CANONICAL_30_SYMBOLS - loaded_symbols
-            extra = loaded_symbols - CANONICAL_30_SYMBOLS
+        if loaded_symbols != CANONICAL_SYMBOLS:
+            missing = CANONICAL_SYMBOLS - loaded_symbols
+            extra = loaded_symbols - CANONICAL_SYMBOLS
             raise ValueError(
-                f"Market universe canonical exact-30 invariant violated! "
-                f"Count: {len(loaded_symbols)}/30. Missing: {missing}. Extra: {extra}."
+                f"Market universe canonical four-symbol invariant violated! "
+                f"Count: {len(loaded_symbols)}/4. Missing: {missing}. Extra: {extra}."
             )
 
     def load_registry(self) -> None:
@@ -135,25 +129,25 @@ class SymbolRegistry:
                             "timeframes": info.get("timeframes", ["M15", "H1", "H4", "D1"])
                         }
 
-                # Validate canonical 30 invariant on loaded YAML configuration
-                self._validate_canonical_30_invariant(yaml_registry)
+                # Validate canonical four-symbol invariant on loaded YAML configuration
+                self._validate_canonical_invariant(yaml_registry)
             except Exception as e:
                 raise RuntimeError(f"Fail Closed: Failed to load/validate '{yaml_path}': {e}") from e
 
-            # Check if saved registry state exists, but ensure canonical 30 set is preserved
+            # Check if saved registry state exists, but ensure the canonical four-symbol set is preserved
             if os.path.exists(REGISTRY_FILE):
                 try:
                     with open(REGISTRY_FILE, "r", encoding="utf-8") as f:
                         persisted_data = json.load(f)
 
-                    # Persisted data must match exact 30 canonical symbols
+                    # Persisted data must match the exact four canonical symbols
                     persisted_set = set(k.upper() for k in persisted_data.keys())
-                    if persisted_set == CANONICAL_30_SYMBOLS:
+                    if persisted_set == CANONICAL_SYMBOLS:
                         self.registry = persisted_data
                         self.save_registry()
                         return
                     else:
-                        print("Warning: Stale persisted registry mismatched canonical 30 symbols. Overwriting with YAML baseline.")
+                        print("Warning: Stale persisted registry mismatched the canonical four-symbol set. Overwriting with YAML baseline.")
                 except Exception:
                     pass
 
@@ -183,7 +177,7 @@ class SymbolRegistry:
             active_count = 0
             # XAUUSD is the sole DEMO execution symbol. Keep it first so the
             # execution-capable Brain decision is evaluated at the start of each
-            # research cycle instead of waiting behind the entire 30-symbol matrix.
+            # research cycle instead of waiting behind the full market universe matrix.
             ordered_symbols = sorted(self.registry.items(), key=lambda item: (item[0].upper() != "XAUUSD", item[0]))
             for symbol, info in ordered_symbols:
                 if info.get("active", True):
@@ -203,8 +197,8 @@ class SymbolRegistry:
     def register_symbol(self, symbol: str, timeframes: List[str], asset_class: str = "Forex", provider: str = "MT5") -> None:
         with self.lock:
             symbol_upper = symbol.upper()
-            if symbol_upper not in CANONICAL_30_SYMBOLS:
-                raise ValueError(f"Symbol '{symbol_upper}' is not part of canonical 30 symbol universe.")
+            if symbol_upper not in CANONICAL_SYMBOLS:
+                raise ValueError(f"Symbol '{symbol_upper}' is not part of the canonical four-symbol universe.")
 
             self.registry[symbol_upper] = {
                 "active": True,

@@ -70,16 +70,16 @@ class TestProductionPlatformSaaS(unittest.TestCase):
         # Admin SRE token
         admin_token = global_auth_service.create_session({"email": "admin@tradeyar.ai", "role": "ADMIN"})
 
-        # Create contexts for 30 symbols
-        for i in range(1, 31):
+        # Create contexts for the four configured symbols
+        for i in range(1, 5):
             symbol = f"SYM{i}"
             self.engine.create_predictive_order(symbol, "LONG", 10.0, 9.0, 11.0, 80.0, custom_time_structure=64)
 
         # Attempting non-canonical symbol context registration MUST trigger ValueError via REST POST endpoint
-        payload = {"symbol": "SYM31", "timeframe": 64}
+        payload = {"symbol": "SYM5", "timeframe": 64}
         resp = self.client.post("/api/admin/symbols", json=payload, headers={"Authorization": f"Bearer {admin_token}"})
         self.assertEqual(resp.status_code, 400)
-        self.assertIn("canonical 30 symbol universe", resp.json()["detail"])
+        self.assertIn("canonical four-symbol universe", resp.json()["detail"])
 
     def test_strict_role_based_security_guards(self) -> None:
         # Register a standard User session token

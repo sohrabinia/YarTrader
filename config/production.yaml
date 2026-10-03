@@ -16,3 +16,6 @@ workers:
 
 ai:
   confidence_threshold: 70
+
+historical_learning:
+  enabled: false

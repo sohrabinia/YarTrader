@@ -1,5 +1,5 @@
 # YarTrader SRE Resource Configuration Limits
 system_limits:
-  max_active_symbols: 30
+  max_active_symbols: 4
   default_timeframes: [1, 4, 16, 64, 256, 1024]
-  allowed_assets: ["XAUUSD", "BTCUSD", "EURUSD", "GBPUSD", "ETHUSD"]
+  allowed_assets: ["XAUUSD", "EURUSD", "BTCUSD", "ETHUSD"]
