@@ -14,6 +14,8 @@ import hashlib
 import json
 import os
 import struct
+import threading
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -24,6 +26,8 @@ _HEADER = struct.Struct(">4sBBQQ32s")
 _CODEC_RAW = 0
 _CODEC_ZSTD = 1
 _CODEC_GZIP = 2
+_INDEX_LOCK_TIMEOUT_SECONDS = 15.0
+_INDEX_LOCK_STALE_SECONDS = 60.0
 
 
 def _zstd_module():
@@ -98,16 +102,24 @@ class YarTraderArtifactStore:
 
         codec, payload = _compress(data)
         if not target.exists():
-            tmp = target.with_suffix(".tmp")
+            tmp = target.with_name(
+                f"{target.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+            )
             header = _HEADER.pack(
                 MAGIC, VERSION, codec, len(data), len(payload), bytes.fromhex(digest)
             )
-            with open(tmp, "wb") as handle:
-                handle.write(header)
-                handle.write(payload)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(tmp, target)
+            try:
+                with open(tmp, "wb") as handle:
+                    handle.write(header)
+                    handle.write(payload)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(tmp, target)
+            finally:
+                try:
+                    tmp.unlink()
+                except FileNotFoundError:
+                    pass
 
         record = {
             "id": digest,
@@ -140,13 +152,49 @@ class YarTraderArtifactStore:
         return result
 
     def _write_index_entry(self, record: dict[str, Any]) -> None:
-        entries: dict[str, Any] = {}
-        if self.index.exists():
+        lock = self.index.with_suffix(".lock")
+        deadline = time.monotonic() + _INDEX_LOCK_TIMEOUT_SECONDS
+
+        while True:
             try:
-                entries = json.loads(self.index.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                entries = {}
-        entries[record["id"]] = record
-        tmp = self.index.with_suffix(".tmp")
-        tmp.write_text(json.dumps(entries, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-        os.replace(tmp, self.index)
+                fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.close(fd)
+                break
+            except FileExistsError:
+                try:
+                    if time.time() - lock.stat().st_mtime > _INDEX_LOCK_STALE_SECONDS:
+                        lock.unlink()
+                        continue
+                except FileNotFoundError:
+                    continue
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        f"Timed out acquiring artifact index lock: {lock}"
+                    )
+                time.sleep(0.01)
+
+        tmp = self.index.with_name(
+            f"{self.index.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
+        try:
+            entries: dict[str, Any] = {}
+            if self.index.exists():
+                try:
+                    entries = json.loads(self.index.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    entries = {}
+            entries[record["id"]] = record
+            tmp.write_text(
+                json.dumps(entries, ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            os.replace(tmp, self.index)
+        finally:
+            try:
+                tmp.unlink()
+            except FileNotFoundError:
+                pass
+            try:
+                lock.unlink()
+            except FileNotFoundError:
+                pass
