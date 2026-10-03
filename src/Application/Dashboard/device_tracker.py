@@ -142,7 +142,6 @@ class DeviceTracker:
                     "last_seen": s["last_seen"],
                     "expires_at": s.get("expires_at")
                 }
-                }
                 for k, s in data["sessions"].items()
                 if s["email"] == email_clean and s["state"] == "ACTIVE"
             ]
