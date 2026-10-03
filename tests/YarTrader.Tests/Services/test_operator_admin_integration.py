@@ -11,7 +11,7 @@ class TestOperatorAdminIntegration(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
 
-    def test_operator_default_port_is_3000(self):
+    def test_operator_default_port_is_8080(self):
         """Verify default host is 127.0.0.1 and port is 3000 matching YarOperator M12 contract."""
         with patch.dict(os.environ, {}, clear=True):
             adapter = YarTraderOperatorAdapter()
