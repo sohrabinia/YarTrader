@@ -16,8 +16,8 @@ class TestOperatorAdminIntegration(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             adapter = YarTraderOperatorAdapter()
             self.assertEqual(adapter.host, "127.0.0.1")
-            self.assertEqual(adapter.port, 3000)
-            self.assertEqual(adapter.base_url, "http://127.0.0.1:3000")
+            self.assertEqual(adapter.port, 8080)
+            self.assertEqual(adapter.base_url, "http://127.0.0.1:8080")
 
     def test_operator_runtime_url_env_override(self):
         """Verify YAROPERATOR_RUNTIME_URL environment variable is respected when loopback."""
