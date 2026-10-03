@@ -11,7 +11,7 @@ from src.Market.Universe.symbol_registry import (  # noqa: F401
     parse_market_universe_yaml,
 )
 
-# Backward-compatible import name for retired callers; the value is now the four-symbol canonical set.
+# Backward-compatible import name for retired callers; the value is now the canonical 30-symbol set.
 CANONICAL_30_SYMBOLS = CANONICAL_SYMBOLS
 
 __all__ = [
