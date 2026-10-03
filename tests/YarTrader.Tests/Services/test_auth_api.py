@@ -230,5 +230,13 @@ class TestSaaSAuthAPI(unittest.TestCase):
         self.assertEqual(sess2["email"], "restart-user@yartrader.app")
         self.assertEqual(sess2["role"], "USER")
 
+    def test_legacy_ticket_and_content_endpoints_require_authentication(self) -> None:
+        """Legacy direct routes must not bypass the canonical auth boundary."""
+        self.assertIn(self.client.post("/api/admin/content", json={"domain":"blog","item":{"title":"x"}}).status_code, (401, 403))
+        self.assertEqual(self.client.get("/api/admin/tickets").status_code, 401)
+        self.assertEqual(self.client.get("/api/user/tickets").status_code, 401)
+        self.assertEqual(self.client.post("/api/user/tickets", json={"subject":"x","category":"x","message":"x"}).status_code, 401)
+
+
 if __name__ == "__main__":
     unittest.main()
