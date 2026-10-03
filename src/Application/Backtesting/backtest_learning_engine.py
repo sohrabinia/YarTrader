@@ -336,6 +336,9 @@ class BacktestAndLearningEngine:
                     # backtest's own friction model as the single P&L accounting layer.
                     stop_distance = abs(float(virtual.entry_price) - float(virtual.virtual_stop))
                     target_distance = abs(float(virtual.virtual_target) - float(virtual.entry_price))
+                    # This call is used only to obtain simulation mechanics; the
+                    # backtest owns the actual position lifecycle and learning record.
+                    sim.active_trades = [t for t in sim.active_trades if t.trade_id != virtual.trade_id]
                     if stop_distance <= 0.0 or target_distance <= 0.0:
                         reject("INVALID_SIMULATION_BOUNDS")
                         continue
