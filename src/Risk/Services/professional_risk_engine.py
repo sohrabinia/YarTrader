@@ -127,6 +127,16 @@ class ProfessionalRiskEngine:
         Risk Budget (default 0.5%) -> Stop Distance -> Position Size -> Broker Constraint Check -> Free Margin Check -> Execution.
         Calculates position size strictly against Account Equity (0.5% target per trade, 2.0% ceiling).
         """
+        numeric_inputs = {
+            "entry_price": entry_price, "stop_loss": stop_loss, "account_equity": account_equity,
+            "free_margin": free_margin, "leverage": leverage, "spread_pip": spread_pip,
+            "commission_per_lot": commission_per_lot, "estimated_slippage_pip": estimated_slippage_pip,
+            "contract_size": contract_size, "volume_min": volume_min, "volume_max": volume_max,
+            "volume_step": volume_step,
+        }
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(float(v)) for v in numeric_inputs.values()):
+            return PositionSizingResult(False, 0.0, 0.0, 0.0, 0.0, free_margin if isinstance(free_margin,(int,float)) else 0.0, entry_price if isinstance(entry_price,(int,float)) else 0.0, "SECURITY VIOLATION: non-finite or invalid numeric risk input.")
+
         try:
             risk_pct_f = float(risk_pct) if not isinstance(risk_pct, bool) else -1.0
             if not math.isfinite(risk_pct_f) or risk_pct_f < 0.0 or risk_pct_f > 2.0:
@@ -354,6 +364,10 @@ class ProfessionalRiskEngine:
         estimated_slippage_pip: float = 0.5,
         win_probability: float = 0.55
     ) -> RiskEvaluationResult:
+        numeric_inputs = [entry_price, stop_loss, take_profit, account_balance, risk_percentage, spread_pip, commission_per_lot, estimated_slippage_pip, win_probability]
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(float(v)) for v in numeric_inputs):
+            return RiskEvaluationResult(False, "WAIT", entry_price if isinstance(entry_price,(int,float)) else 0.0, stop_loss if isinstance(stop_loss,(int,float)) else 0.0, take_profit if isinstance(take_profit,(int,float)) else 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, "SECURITY VIOLATION: non-finite or invalid numeric risk input.")
+
         if direction not in ["BUY", "SELL"]:
             return RiskEvaluationResult(
                 is_valid=False,
