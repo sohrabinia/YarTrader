@@ -240,12 +240,15 @@ class ReleaseValidationPlatform:
 
             total_tests = passed + failed + skipped
         else:
+            # Never fabricate a passing test count when pytest output cannot be parsed.
+            # A zero exit code without a parseable summary is still an indeterminate validation result.
             if return_code == 0:
-                passed = 1280
-                total_tests = 1280
+                failed = 1
+                total_tests = 0
+                self.log("Pytest exited successfully but no parseable test summary was found.", "ERROR")
             else:
                 failed = 1
-                total_tests = 1
+                total_tests = 0
 
         if failed > 0:
             self.log(f"Detected {failed} test failures! Initiating automatic root cause investigation...", "WARNING")
