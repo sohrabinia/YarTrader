@@ -43,6 +43,7 @@ class DailyLossKillSwitch:
         self.baseline_equity: Optional[float] = None
         self.kill_switch_active: bool = False
         self.realized_daily_loss_usd: float = 0.0
+        self._persistence_status: str = "UNAVAILABLE"
 
         self._load_persistence()
 
@@ -141,7 +142,10 @@ class DailyLossKillSwitch:
 
         session_key, is_open, is_trans = self.get_session_key_and_window(now_utc)
 
-        # New session date transition: reset kill-switch and set fresh session baseline
+        if self._persistence_status != "VALID" and self.baseline_equity is None:
+            return False, "PERSISTENCE_UNAVAILABLE", {"session_date": session_key, "current_equity": eq_val, "persistence_status": self._persistence_status, "kill_switch_active": True}
+
+        # New session date transition: only an explicit valid supplied baseline may initialize a new session.
         if self.current_session_key != session_key:
             self.current_session_key = session_key
             valid_supplied_base = False
@@ -154,12 +158,14 @@ class DailyLossKillSwitch:
                 except (ValueError, TypeError):
                     pass
             if not valid_supplied_base:
-                self.baseline_equity = eq_val
+                return False, "PERSISTENCE_UNAVAILABLE", {"session_date": session_key, "current_equity": eq_val, "persistence_status": self._persistence_status, "kill_switch_active": True}
 
             self.kill_switch_active = False
             self._save_persistence()
 
-        baseline = self.baseline_equity if (self.baseline_equity is not None and math.isfinite(self.baseline_equity) and self.baseline_equity > 0) else eq_val
+        baseline = self.baseline_equity if (self.baseline_equity is not None and math.isfinite(self.baseline_equity) and self.baseline_equity > 0) else None
+        if baseline is None:
+            return False, "PERSISTENCE_UNAVAILABLE", {"session_date": self.current_session_key, "current_equity": eq_val, "persistence_status": self._persistence_status, "kill_switch_active": True}
         loss_amount_usd = max(0.0, baseline - eq_val)
         loss_pct = (loss_amount_usd / baseline) * 100.0
 
@@ -229,14 +235,37 @@ class DailyLossKillSwitch:
             logger.error(f"[DailyLossKillSwitch] Failed to save persistence: {e}")
 
     def _load_persistence(self) -> None:
-        """Loads state from disk if exists."""
-        if os.path.exists(self.persistence_path):
-            try:
-                with open(self.persistence_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                self.current_session_key = data.get("current_session_key")
-                self.baseline_equity = data.get("baseline_equity")
-                self.kill_switch_active = data.get("kill_switch_active", False)
-                self.realized_daily_loss_usd = data.get("realized_daily_loss_usd", 0.0)
-            except Exception as e:
-                logger.error(f"[DailyLossKillSwitch] Failed to load persistence: {e}")
+        """Load and validate persisted safety state; invalid state is fail-closed."""
+        if not os.path.exists(self.persistence_path):
+            self._persistence_status = "UNAVAILABLE"
+            self.kill_switch_active = True
+            logger.error("[DailyLossKillSwitch] Persistence file missing; safety state unavailable.")
+            return
+        try:
+            with open(self.persistence_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError("persistence root must be an object")
+            session_key = data.get("current_session_key")
+            baseline = data.get("baseline_equity")
+            if not isinstance(session_key, str) or not session_key:
+                raise ValueError("current_session_key is missing or malformed")
+            if isinstance(baseline, bool) or not isinstance(baseline, (int, float)):
+                raise ValueError("baseline_equity is missing or malformed")
+            baseline = float(baseline)
+            if not math.isfinite(baseline) or baseline <= 0:
+                raise ValueError("baseline_equity must be finite and positive")
+            realized = data.get("realized_daily_loss_usd", 0.0)
+            if isinstance(realized, bool) or not isinstance(realized, (int, float)) or not math.isfinite(float(realized)):
+                raise ValueError("realized_daily_loss_usd is malformed")
+            self.current_session_key = session_key
+            self.baseline_equity = baseline
+            self.kill_switch_active = data.get("kill_switch_active", False) is True
+            self.realized_daily_loss_usd = float(realized)
+            self._persistence_status = "VALID"
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as e:
+            self._persistence_status = "ERROR"
+            self.current_session_key = None
+            self.baseline_equity = None
+            self.kill_switch_active = True
+            logger.error(f"[DailyLossKillSwitch] Invalid/unavailable persistence; safety gate remains blocked: {e}")
