@@ -182,6 +182,10 @@ def run_research_background_loop():
 
     # Top-level crash isolation loop: background thread failures can NEVER kill FastAPI API process
     while True:
+        if central_runtime_state.get_key("system_halted", False):
+            research_tracker["worker_status"] = "STOPPED"
+            central_runtime_state.update_multiple({"worker_status": "Stopped", "research_status": "Stopped"})
+            return
         try:
             from src.Market.Universe.symbol_registry import SymbolRegistry
             registry = SymbolRegistry.get_instance()
