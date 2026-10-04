@@ -1,6 +1,7 @@
 import unittest
 import os
 import shutil
+import pytest
 from datetime import datetime, timezone, timedelta
 from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch, IRAN_TZ
 
@@ -214,6 +215,52 @@ class TestDailyLossKillSwitch(unittest.TestCase):
             # Test evaluate_daily_loss fails closed
             allowed, reason, meta = switch.evaluate_daily_loss(inv_eq, now_utc=dt)
             self.assertFalse(allowed)
+
+    @pytest.mark.forensic_guard
+    def test_14_daily_loss_persistence_failure_scenario(self):
+        """
+        Forensic Scenario 1B Executed Proof:
+        Control case: baseline=10000, equity=8500 (15% loss), persistence intact -> BLOCK.
+        Failure case: persistence missing/corrupted/unreadable -> re-evaluate equity=8500.
+        Detects if current equity (8500) becomes a new baseline, turning 15% loss into 0% loss.
+        """
+        dt_start = self._create_iran_dt(hour=1, minute=35)
+        # 1. Control Case: session baseline = 10000, equity = 8500 (15% loss) with persistence intact
+        res_control = self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
+        self.assertTrue(res_control["allowed"])
+
+        res_loss = self.kill_switch.evaluate_entry_allowed(current_equity=8500.0, dt=dt_start)
+        self.assertFalse(res_loss["allowed"])
+        self.assertEqual(res_loss["reason"], "DAILY_LOSS_LIMIT_REACHED")
+        self.assertTrue(res_loss["kill_switch_active"])
+
+        # 2. Simulate persistence failure / corruption / missing
+        if os.path.exists(self.persistence_path):
+            with open(self.persistence_path, "w", encoding="utf-8") as f:
+                f.write("{corrupted_json_syntax: true,")
+
+        # 3. Process restart / new DailyLossKillSwitch instance with broken persistence
+        restarted_ks = DailyLossKillSwitch(persistence_path=self.persistence_path)
+
+        # Re-evaluate daily loss at equity 8500
+        allowed, reason, meta = restarted_ks.evaluate_daily_loss(current_equity=8500.0, now_utc=dt_start)
+
+        print("\n--- FORENSIC 1.B RAW PYTEST EVIDENCE ---")
+        print(f"Control Case (baseline=10000, equity=8500, persistence intact): allowed={res_loss['allowed']}, reason={res_loss['reason']}")
+        print(f"Persistence Failure Case (corrupted file, equity=8500 re-evaluation): allowed={allowed}, reason={reason}, meta={meta}")
+
+        # Assert whether result is BLOCK or ALLOW under current production implementation
+        # Under current implementation, if persistence is corrupt, current_session_key is None.
+        # Upon evaluate_daily_loss(8500), new session date is seen, so baseline_equity is set to 8500.
+        # Loss from 8500 to 8500 is 0%, so allowed=True!
+        # This proves the exact dangerous behavior where persistence failure turns 15% loss into 0% loss.
+        if allowed:
+            print("DANGEROUS BEHAVIOR DETECTED: Persistence failure caused current equity ($8500) to become new baseline, turning 15% loss into 0% loss (ALLOW).")
+        else:
+            print("SAFE BEHAVIOR OBSERVED: System maintained BLOCK despite persistence failure.")
+
+        # For forensic guard capturing the vulnerability:
+        self.assertFalse(allowed, f"SECURITY_VIOLATION: Persistence failure allowed equity 8500 to reset baseline to 8500, bypassing 15% daily loss block! (Result: {allowed}, reason: {reason})")
 
 if __name__ == "__main__":
     unittest.main()

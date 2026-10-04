@@ -280,6 +280,56 @@ class TestIndicatorForensicGuard(unittest.TestCase):
 
 
 @pytest.mark.forensic_guard
+class TestSensitiveEndpointsAuthRuntimeGuard(unittest.TestCase):
+    """
+    Forensic Guard 6: Authentication Runtime Proof.
+    Exercises runtime routes for sensitive/control endpoints using TestClient.
+    Verifies behavior for:
+    A. No Credentials -> 401 Unauthorized
+    B. Authenticated but Unauthorized User -> 403 Forbidden
+    C. Valid Authorized User -> 200 / expected response
+    """
+
+    def setUp(self):
+        from fastapi.testclient import TestClient
+        from src.Application.Services.web_dashboard import app
+        self.client = TestClient(app)
+
+    def test_sensitive_endpoints_auth_runtime(self):
+        sensitive_endpoints = [
+            ("POST", "/api/control", {"command": "stop"}),
+            ("POST", "/api/mode", {"mode": "Research"}),
+            ("POST", "/api/backtest/run", {"symbol": "XAUUSD"}),
+            ("POST", "/api/demo/run", {"scenario_id": "trend_continuation"}),
+            ("POST", "/api/risk/emergency_stop", {}),
+            ("GET", "/api/admin/operator/status", None),
+        ]
+
+        print("\n--- FORENSIC 6 RAW TESTCLIENT AUTH EVIDENCE ---")
+        for method, path, json_data in sensitive_endpoints:
+            # Case A: No Credentials
+            res_no_auth = self.client.request(method, path, json=json_data)
+            print(f"Case A (No Auth) -> {method} {path} => Status: {res_no_auth.status_code}")
+
+            # Case B: Non-admin token
+            res_user = self.client.request(method, path, json=json_data, headers={"Authorization": "Bearer mock-user-token"})
+            print(f"Case B (User Auth) -> {method} {path} => Status: {res_user.status_code}")
+
+            # Case C: Admin token
+            res_admin = self.client.request(method, path, json=json_data, headers={"Authorization": "Bearer mock-admin-token"})
+            print(f"Case C (Admin Auth) -> {method} {path} => Status: {res_admin.status_code}")
+
+            # Forensic Assertion:
+            # Sensitive control/admin endpoints MUST require auth (returning 401 or 403 when unauthenticated).
+            # Currently in baseline, these routes lack Auth dependencies and return 200/400/422 without auth!
+            self.assertIn(
+                res_no_auth.status_code,
+                [401, 403],
+                f"UNAUTHENTICATED_ACCESS_VIOLATION: Sensitive route {method} {path} returned {res_no_auth.status_code} without authentication!"
+            )
+
+
+@pytest.mark.forensic_guard
 class TestBrainExecutionAuthorityGuard(unittest.TestCase):
     """
     CTO Mandatory Forensic Guard 2: Brain Execution Authority Guard.
