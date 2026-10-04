@@ -177,7 +177,7 @@ def run_research_background_loop():
     central_runtime_state.update_multiple({
         "worker_status": "Running",
         "research_status": "Running",
-        "shadow_status": "Running"
+        "shadow_status": "Stopped"
     })
 
     # Top-level crash isolation loop: background thread failures can NEVER kill FastAPI API process
@@ -4126,7 +4126,7 @@ def execute_runtime_control(command: Dict[str, Any], request: Request):
 def list_symbol_administration():
     """Retrieves administrative analytical symbol configuration lists."""
     return {
-        "administered_symbols": ["EURUSD", "GBPUSD", "XAUUSD", "BTCUSD"],
+        "administered_symbols": ["EURUSD", "XAUUSD"],
         "operating_parameters": {
             "rate_mode": "Simulated Buffer Sequences",
             "unidirectional_flow_guaranteed": True
