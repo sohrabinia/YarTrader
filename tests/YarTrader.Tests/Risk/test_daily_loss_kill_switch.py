@@ -144,7 +144,6 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         """9. At next 01:35 session start, the daily loss state resets correctly."""
         dt_day1 = self._create_iran_dt(day=1, hour=1, minute=35)
         self.kill_switch.set_session_baseline(10000.0, "2026-03-01")
-        self.kill_switch.set_session_baseline(10000.0, "2026-03-01")
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_day1)
         self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=self._create_iran_dt(day=1, hour=12)) # Triggered
 
