@@ -1,9 +1,11 @@
 import unittest
+import pytest
 import os
 import shutil
 from datetime import datetime, timezone, timedelta
 from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch, IRAN_TZ
 
+@pytest.mark.forensic_guard
 class TestDailyLossKillSwitch(unittest.TestCase):
     """
     Test suite covering all 12 requirements for the YarTrader Daily 8% Loss Kill-Switch:
