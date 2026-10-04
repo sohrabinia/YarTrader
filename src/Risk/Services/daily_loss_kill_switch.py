@@ -117,13 +117,16 @@ class DailyLossKillSwitch:
 
         session_key, is_open, is_trans = self.get_session_key_and_window(dt)
 
+        if self._persistence_state != "VALID":
+            logger.warning("[DailyLossKillSwitch] Session update blocked because persisted baseline is unavailable.")
+            return
+
         if self.current_session_key != session_key:
-            logger.info(f"[DailyLossKillSwitch] New session start: {session_key}. Baseline equity: ${eq_val:.2f}")
-            self.current_session_key = session_key
-            self.baseline_equity = eq_val
-            self.kill_switch_active = False
-            self.realized_daily_loss_usd = 0.0
-            self._save_persistence()
+            logger.warning(
+                f"[DailyLossKillSwitch] Session {session_key} has no explicitly persisted baseline; "
+                "current equity will never be promoted to baseline automatically."
+            )
+            return
 
     def evaluate_daily_loss(
         self,
