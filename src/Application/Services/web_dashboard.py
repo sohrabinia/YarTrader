@@ -3969,8 +3969,9 @@ def update_prop_challenge_config_endpoint(payload: PropConfigPayload):
     }
 
 @app.post("/api/validation/run")
-def trigger_validation_run(background_tasks: BackgroundTasks):
-    """Triggers acceptance validation asynchronously."""
+def trigger_validation_run(background_tasks: BackgroundTasks, request: Request):
+    """Triggers acceptance validation asynchronously after admin authentication."""
+    check_admin_guard(request)
     global val_state
     with state_lock:
         if val_state.is_running:
@@ -4108,12 +4109,18 @@ def get_telemetry_metrics():
 
 
 @app.post("/api/control")
-def execute_runtime_control(command: Dict[str, Any]):
-    """Accepts run control commands (start, stop, pause, resume)."""
+def execute_runtime_control(command: Dict[str, Any], request: Request):
+    """Authenticates and applies runtime control to authoritative state before returning success."""
+    check_admin_guard(request)
     cmd = command.get("command")
     if cmd not in ["start", "stop", "pause", "resume"]:
         raise HTTPException(status_code=400, detail="Invalid operating command.")
-    return {"status": "Success", "message": f"Runtime command '{cmd}' executed."}
+    state_map = {"start": "Running", "stop": "Stopped", "pause": "Paused", "resume": "Running"}
+    central_runtime_state.update_state("worker_status", state_map[cmd])
+    verified = central_runtime_state.get_key("worker_status")
+    if verified != state_map[cmd]:
+        raise HTTPException(status_code=500, detail="Runtime control mutation could not be verified.")
+    return {"status": "Success", "command": cmd, "worker_status": verified}
 
 
 @app.get("/api/symbols")
@@ -4129,12 +4136,17 @@ def list_symbol_administration():
 
 
 @app.post("/api/mode")
-def transition_operating_mode(payload: Dict[str, Any]):
-    """Validates the canonical learning-cycle modes; Shadow is retired and LIVE is never selectable."""
+def transition_operating_mode(payload: Dict[str, Any], request: Request):
+    """Authenticates, validates, mutates authoritative mode state, and re-reads it before success."""
+    check_admin_guard(request)
     target_mode = str(payload.get("mode", "")).strip().title()
     allowed_modes = {"Research", "Backtest", "Demo", "Signal", "Prop"}
     if target_mode not in allowed_modes:
         raise HTTPException(status_code=400, detail="Invalid or retired system transition mode requested.")
+    central_runtime_state.update_state("operating_mode", target_mode)
+    verified_mode = central_runtime_state.get_key("operating_mode")
+    if verified_mode != target_mode:
+        raise HTTPException(status_code=500, detail="Operating mode mutation could not be verified.")
     return {
         "status": "Success",
         "transitioned_to_mode": target_mode,
@@ -4145,8 +4157,9 @@ def transition_operating_mode(payload: Dict[str, Any]):
 
 
 @app.post("/api/backtest/run")
-def trigger_backtesting_job(params: Dict[str, Any]):
-    """Triggers real, non-trading intelligence backtesting job over historical data."""
+def trigger_backtesting_job(params: Dict[str, Any], request: Request):
+    """Triggers backtest only for an authenticated administrator."""
+    check_admin_guard(request)
     symbol = str(params.get("symbol", "XAUUSD")).upper()
     timeframe = str(params.get("timeframe", "H1")).upper()
     strategy_type = str(params.get("strategy_type", "Momentum"))
@@ -4268,8 +4281,9 @@ def get_backtest_history():
 
 
 @app.post("/api/demo/run")
-def run_demo_trading_scenario(payload: Dict[str, Any]):
-    """Triggers an independent Demo Trading scenario run and compiles trade journal records."""
+def run_demo_trading_scenario(payload: Dict[str, Any], request: Request):
+    """Triggers a demo scenario only for an authenticated administrator."""
+    check_admin_guard(request)
     scenario_name = str(payload.get("scenario_id", "trend_continuation")).lower()
     asset = str(payload.get("asset", "EURUSD")).upper()
 
@@ -4440,11 +4454,16 @@ def get_shadow_report():
 
 
 @app.post("/api/risk/emergency_stop")
-def trigger_emergency_stop():
-    """Immediate emergency stop halt operation."""
+def trigger_emergency_stop(request: Request):
+    """Authenticates and enters authoritative HALTED state before reporting success."""
+    check_admin_guard(request)
+    central_runtime_state.update_multiple({"operating_mode": "HALTED", "worker_status": "Stopped", "research_status": "Stopped", "intelligence_status": "Stopped"})
+    state = central_runtime_state.get_state()
+    if state.get("operating_mode") != "HALTED" or any(state.get(k) != "Stopped" for k in ("worker_status", "research_status", "intelligence_status")):
+        raise HTTPException(status_code=500, detail="Emergency stop state could not be verified.")
     return {
         "emergency_stop_triggered": True,
-        "status": "HALTED",
+        "status": state["operating_mode"],
         "message": "Emergency protective stop active. System isolation guaranteed."
     }
 
