@@ -5,6 +5,7 @@ from datetime import datetime, time, date, timedelta, timezone
 import hashlib
 import json
 import logging
+import math
 
 logger = logging.getLogger("MarketSessionEngine")
 
