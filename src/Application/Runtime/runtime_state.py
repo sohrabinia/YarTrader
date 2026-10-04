@@ -31,7 +31,8 @@ class RuntimeStateManager:
             "last_cycle_time": None,
             "research_cycle_count": 0,
             "research_last_successful_cycle": None,
-            "research_last_error": None
+            "research_last_error": None,
+            "operating_mode": "Research"
         }
 
     def _log_state_transition(self, key: str, old_val: Any, new_val: Any) -> None:
