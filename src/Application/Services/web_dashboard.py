@@ -3962,8 +3962,9 @@ def get_prop_challenge_status_endpoint(
 
 
 @app.post("/api/prop/config")
-def update_prop_challenge_config_endpoint(payload: PropConfigPayload):
-    """Updates configurable Prop Firm Challenge rules and activates challenge monitoring."""
+def update_prop_challenge_config_endpoint(payload: PropConfigPayload, request: Request):
+    """Updates configurable Prop Firm Challenge rules for an authenticated admin."""
+    check_admin_guard(request)
     from src.Risk.Services.prop_challenge_engine import prop_challenge_engine
     updated = prop_challenge_engine.save_config(payload.model_dump())
     return {
@@ -3973,7 +3974,8 @@ def update_prop_challenge_config_endpoint(payload: PropConfigPayload):
     }
 
 @app.post("/api/validation/run")
-def trigger_validation_run(background_tasks: BackgroundTasks):
+def trigger_validation_run(background_tasks: BackgroundTasks, request: Request):
+    check_admin_guard(request)
     """Triggers acceptance validation asynchronously."""
     global val_state
     with state_lock:
