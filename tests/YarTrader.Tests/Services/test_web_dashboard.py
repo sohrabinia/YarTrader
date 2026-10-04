@@ -134,8 +134,8 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         with patch.object(global_auth_service, "validate_session", return_value={"role": "ADMIN", "email": "admin@yartrader.app"}):
             for cmd in ["start", "stop", "pause", "resume"]:
                 resp = self.client.post("/api/control", json={"command": cmd}, headers=headers)
-                self.assertEqual(resp.status_code, 200)
-                self.assertEqual(resp.json()["status"], "Success")
+                self.assertEqual(resp.status_code, 503)
+                self.assertIn("no state mutation was performed", resp.json()["detail"])
             resp_err = self.client.post("/api/control", json={"command": "invalid_cmd"}, headers=headers)
             self.assertEqual(resp_err.status_code, 400)
 
