@@ -250,6 +250,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         dt = datetime(2026, 8, 15, 10, 0, 0, tzinfo=timezone.utc)
 
         # Establish valid baseline $10,000.00 first
+        switch.set_session_baseline(10000.0, "2026-08-15")
         res_valid = switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt)
         self.assertTrue(res_valid["allowed"])
         self.assertEqual(switch.baseline_equity, 10000.0)
