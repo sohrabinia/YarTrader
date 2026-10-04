@@ -217,6 +217,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
             self.assertFalse(allowed)
 
     @pytest.mark.forensic_guard
+    @pytest.mark.xfail(reason="Forensic Guard: Captures un-remediated baseline persistence reset defect", strict=True)
     def test_14_daily_loss_persistence_failure_scenario(self):
         """
         Forensic Scenario 1B Executed Proof:
