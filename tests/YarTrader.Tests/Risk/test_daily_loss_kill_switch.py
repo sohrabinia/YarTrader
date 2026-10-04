@@ -28,6 +28,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         if os.path.exists(self.persistence_path):
             os.remove(self.persistence_path)
         self.kill_switch = DailyLossKillSwitch(persistence_path=self.persistence_path)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
 
     def tearDown(self):
         if os.path.exists(self.test_dir):
@@ -144,6 +145,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
 
         # Next session starts at 01:35 on March 2
         dt_day2 = self._create_iran_dt(day=2, hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(9100.0, "2026-03-02"))
         res = self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=dt_day2)
 
         self.assertTrue(res["allowed"])
@@ -196,6 +198,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         """Test 13: Invalid/NaN/Inf current_equity or baseline are fail-closed and cannot replace baseline."""
         switch = DailyLossKillSwitch(persistence_path=self.persistence_path)
         dt = datetime(2026, 8, 15, 10, 0, 0, tzinfo=timezone.utc)
+        self.assertTrue(switch.set_session_baseline(10000.0, "2026-08-15"))
 
         # Establish valid baseline $10,000.00 first
         res_valid = switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt)
@@ -214,6 +217,56 @@ class TestDailyLossKillSwitch(unittest.TestCase):
             # Test evaluate_daily_loss fails closed
             allowed, reason, meta = switch.evaluate_daily_loss(inv_eq, now_utc=dt)
             self.assertFalse(allowed)
+
+    def test_14_missing_persistence_blocks(self):
+        missing = os.path.join(self.test_dir, "missing.json")
+        switch = DailyLossKillSwitch(persistence_path=missing)
+        allowed, reason, _ = switch.evaluate_daily_loss(8500.0, now_utc=self._create_iran_dt(hour=12))
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "KILL_SWITCH_PERSISTENCE_UNAVAILABLE")
+
+    def test_15_corrupt_persistence_blocks(self):
+        with open(self.persistence_path, "w", encoding="utf-8") as f:
+            f.write("{not-json")
+        switch = DailyLossKillSwitch(persistence_path=self.persistence_path)
+        allowed, reason, _ = switch.evaluate_daily_loss(8500.0, now_utc=self._create_iran_dt(hour=12))
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "KILL_SWITCH_PERSISTENCE_UNAVAILABLE")
+
+    def test_16_malformed_persistence_blocks(self):
+        with open(self.persistence_path, "w", encoding="utf-8") as f:
+            f.write("{\"current_session_key\": \"2026-03-01\", \"baseline_equity\": null, \"kill_switch_active\": false}")
+        switch = DailyLossKillSwitch(persistence_path=self.persistence_path)
+        allowed, reason, _ = switch.evaluate_daily_loss(8500.0, now_utc=self._create_iran_dt(hour=12))
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "KILL_SWITCH_PERSISTENCE_UNAVAILABLE")
+
+    def test_17_persistence_read_failure_blocks(self):
+        class ReadFailure:
+            def __enter__(self):
+                raise OSError("simulated persistence read failure")
+            def __exit__(self, exc_type, exc, tb):
+                return False
+        original_open = open
+        import builtins
+        def failing_open(path, mode="r", *args, **kwargs):
+            if path == self.persistence_path and "r" in mode:
+                return ReadFailure()
+            return original_open(path, mode, *args, **kwargs)
+        builtins.open = failing_open
+        try:
+            switch = DailyLossKillSwitch(persistence_path=self.persistence_path)
+            allowed, reason, _ = switch.evaluate_daily_loss(8500.0, now_utc=self._create_iran_dt(hour=12))
+            self.assertFalse(allowed)
+            self.assertEqual(reason, "KILL_SWITCH_PERSISTENCE_UNAVAILABLE")
+        finally:
+            builtins.open = original_open
+
+    def test_18_baseline_10000_equity_8500_blocks(self):
+        allowed, reason, meta = self.kill_switch.evaluate_daily_loss(8500.0, now_utc=self._create_iran_dt(hour=12))
+        self.assertFalse(allowed)
+        self.assertEqual(reason, "DAILY_LOSS_LIMIT_REACHED")
+        self.assertEqual(meta["baseline_equity"], 10000.0)
 
 if __name__ == "__main__":
     unittest.main()
