@@ -154,6 +154,25 @@ def check_admin_guard(req_or_tok: Any = None, session_token: Optional[str] = Non
 
     return session
 
+_SENSITIVE_ADMIN_PREFIXES = (
+    "/api/control",
+    "/api/mode",
+    "/api/risk/",
+    "/api/demo",
+    "/api/backtest",
+    "/api/validation",
+    "/api/devops",
+    "/api/production-readiness",
+    "/api/symbols",
+)
+
+@app.middleware("http")
+async def enforce_sensitive_api_auth(request: Request, call_next):
+    """Runtime authentication boundary for sensitive operational APIs."""
+    if any(request.url.path == prefix or request.url.path.startswith(prefix + "/") for prefix in _SENSITIVE_ADMIN_PREFIXES):
+        check_admin_guard(request)
+    return await call_next(request)
+
 research_tracker = {
     "last_analysis_time": None,
     "last_candle_time": None,
