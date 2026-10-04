@@ -57,19 +57,14 @@ class RuntimeStateManager:
             pass
 
     def apply_control(self, command: str) -> Dict[str, Any]:
-        """Apply a validated control transition to authoritative runtime state."""
+        """Record a validated control request without claiming an unperformed worker mutation."""
         allowed = {"start", "stop", "pause", "resume"}
         if command not in allowed:
             raise ValueError(f"unsupported runtime command: {command}")
         with self.state_lock:
             if command in {"start", "resume"} and self.state.get("system_halted"):
                 raise RuntimeError("runtime is halted; start/resume is blocked")
-            status = {"start": "Running", "resume": "Running", "pause": "Paused", "stop": "Stopped"}[command]
-            old = self.state.get("worker_status")
             self.state["runtime_command"] = command
-            self.state["worker_status"] = status
-            self.state["research_status"] = status
-            self._log_state_transition("worker_status", old, status)
             return self.state.copy()
 
     def set_mode(self, mode: str) -> Dict[str, Any]:
