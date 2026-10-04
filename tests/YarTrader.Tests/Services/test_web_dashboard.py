@@ -2,6 +2,7 @@ import unittest
 import os
 from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app, val_state
+from src.Application.Dashboard.auth_service import global_auth_service
 
 class TestWebDashboardFastAPI(unittest.TestCase):
     """
@@ -12,6 +13,32 @@ class TestWebDashboardFastAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.client = TestClient(app)
+        cls.admin_token = global_auth_service.create_session({"email": "forensic-admin@example.test", "role": "ADMIN", "name": "Forensic Admin"})
+        cls.user_token = global_auth_service.create_session({"email": "forensic-user@example.test", "role": "USER", "name": "Forensic User"})
+        cls.client.headers.update({"Authorization": f"Bearer {cls.admin_token}"})
+
+    def test_sensitive_endpoints_require_authentication(self):
+        raw = TestClient(app)
+        for method, path, kwargs in [
+            ("post", "/api/control", {"json": {"command": "stop"}}),
+            ("post", "/api/mode", {"json": {"mode": "Research"}}),
+            ("post", "/api/risk/emergency_stop", {}),
+            ("post", "/api/backtest/run", {"json": {"symbol": "EURUSD"}}),
+            ("post", "/api/validation/run", {}),
+        ]:
+            resp = getattr(raw, method)(path, **kwargs)
+            self.assertEqual(resp.status_code, 401, path)
+
+    def test_sensitive_endpoints_reject_authenticated_non_admin(self):
+        raw = TestClient(app, headers={"Authorization": f"Bearer {self.user_token}"})
+        for method, path, kwargs in [
+            ("post", "/api/control", {"json": {"command": "stop"}}),
+            ("post", "/api/mode", {"json": {"mode": "Research"}}),
+            ("post", "/api/risk/emergency_stop", {}),
+        ]:
+            resp = getattr(raw, method)(path, **kwargs)
+            self.assertEqual(resp.status_code, 403, path)
+
 
     def test_get_dashboard_spa(self):
         """Verifies SPA root pages render successfully with HTML contents across localized and static paths."""
