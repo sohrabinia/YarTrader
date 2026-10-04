@@ -4108,13 +4108,17 @@ def get_telemetry_metrics():
 
 
 @app.post("/api/control")
-def execute_runtime_control(command: Dict[str, Any]):
-    """Accepts run control commands (start, stop, pause, resume)."""
+def execute_runtime_control(command: Dict[str, Any], request: Request):
+    """Apply a privileged runtime command and return authoritative state."""
+    check_admin_guard(request)
     cmd = command.get("command")
     if cmd not in ["start", "stop", "pause", "resume"]:
         raise HTTPException(status_code=400, detail="Invalid operating command.")
-    return {"status": "Success", "message": f"Runtime command '{cmd}' executed."}
-
+    try:
+        state = central_runtime_state.apply_control(cmd)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return {"status": "Success", "command": cmd, "runtime_state": state}
 
 @app.get("/api/symbols")
 def list_symbol_administration():
@@ -4129,20 +4133,21 @@ def list_symbol_administration():
 
 
 @app.post("/api/mode")
-def transition_operating_mode(payload: Dict[str, Any]):
-    """Validates the canonical learning-cycle modes; Shadow is retired and LIVE is never selectable."""
+def transition_operating_mode(payload: Dict[str, Any], request: Request):
+    """Validate, mutate and re-read the authoritative operating mode."""
+    check_admin_guard(request)
     target_mode = str(payload.get("mode", "")).strip().title()
     allowed_modes = {"Research", "Backtest", "Demo", "Signal", "Prop"}
     if target_mode not in allowed_modes:
         raise HTTPException(status_code=400, detail="Invalid or retired system transition mode requested.")
-    return {
-        "status": "Success",
-        "transitioned_to_mode": target_mode,
-        "learning_cycle": ["Research", "Backtest", "Demo", "Signal", "Prop"],
-        "live_trading": "DISABLED",
-        "shadow": "RETIRED"
-    }
-
+    try:
+        central_runtime_state.set_mode(target_mode)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    verified_mode = central_runtime_state.get_key("operating_mode")
+    if verified_mode != target_mode:
+        raise HTTPException(status_code=500, detail="Operating mode mutation could not be verified.")
+    return {"status": "Success", "transitioned_to_mode": verified_mode, "runtime_state": central_runtime_state.get_state(), "learning_cycle": ["Research", "Backtest", "Demo", "Signal", "Prop"], "live_trading": "DISABLED", "shadow": "RETIRED"}
 
 @app.post("/api/backtest/run")
 def trigger_backtesting_job(params: Dict[str, Any]):
@@ -4440,14 +4445,14 @@ def get_shadow_report():
 
 
 @app.post("/api/risk/emergency_stop")
-def trigger_emergency_stop():
-    """Immediate emergency stop halt operation."""
-    return {
-        "emergency_stop_triggered": True,
-        "status": "HALTED",
-        "message": "Emergency protective stop active. System isolation guaranteed."
-    }
-
+def trigger_emergency_stop(request: Request):
+    """Authenticate and enter the authoritative fail-safe HALTED state."""
+    check_admin_guard(request)
+    central_runtime_state.emergency_halt()
+    verified = central_runtime_state.get_state()
+    if not verified.get("system_halted") or verified.get("system_status") != "HALTED":
+        raise HTTPException(status_code=500, detail="Emergency stop mutation could not be verified.")
+    return {"emergency_stop_triggered": True, "status": verified["system_status"], "runtime_state": verified, "message": "Emergency protective stop active. System is authoritatively halted."}
 
 @app.get("/api/production-readiness")
 def get_scorecard():
