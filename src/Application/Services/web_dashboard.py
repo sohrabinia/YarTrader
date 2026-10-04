@@ -4150,7 +4150,7 @@ def transition_operating_mode(payload: Dict[str, Any], request: Request):
     return {"status": "Success", "transitioned_to_mode": verified_mode, "runtime_state": central_runtime_state.get_state(), "learning_cycle": ["Research", "Backtest", "Demo", "Signal", "Prop"], "live_trading": "DISABLED", "shadow": "RETIRED"}
 
 @app.post("/api/backtest/run")
-def trigger_backtesting_job(params: Dict[str, Any]):
+def trigger_backtesting_job(params: Dict[str, Any])
     """Triggers real, non-trading intelligence backtesting job over historical data."""
     symbol = str(params.get("symbol", "XAUUSD")).upper()
     timeframe = str(params.get("timeframe", "H1")).upper()
@@ -4162,7 +4162,7 @@ def trigger_backtesting_job(params: Dict[str, Any]):
     end_dt = datetime.now()
     start_dt = end_dt - timedelta(days=5)
 
-    if params.get("start_time"):
+    if params.get("start_time", request: Request):
         try:
             start_dt = datetime.fromisoformat(params["start_time"])
         except ValueError:
@@ -4273,7 +4273,7 @@ def get_backtest_history():
 
 
 @app.post("/api/demo/run")
-def run_demo_trading_scenario(payload: Dict[str, Any]):
+def run_demo_trading_scenario(payload: Dict[str, Any])
     """Triggers an independent Demo Trading scenario run and compiles trade journal records."""
     scenario_name = str(payload.get("scenario_id", "trend_continuation")).lower()
     asset = str(payload.get("asset", "EURUSD")).upper()
@@ -4300,7 +4300,7 @@ def run_demo_trading_scenario(payload: Dict[str, Any]):
     # Convert Demo outcome to simulated trade records
     trades_file = "runtime_logs/demo_trades.json"
     demo_trades = []
-    if os.path.exists(trades_file):
+    if os.path.exists(trades_file, request: Request):
         try:
             with open(trades_file, "r", encoding="utf-8") as f:
                 demo_trades = json.load(f)
