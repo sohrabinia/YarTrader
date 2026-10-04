@@ -4113,16 +4113,12 @@ def get_telemetry_metrics():
 
 @app.post("/api/control")
 def execute_runtime_control(command: Dict[str, Any], request: Request):
-    """Apply a privileged runtime command and return authoritative state."""
+    """Privileged runtime control endpoint; never claims a worker mutation that was not performed."""
     check_admin_guard(request)
     cmd = command.get("command")
     if cmd not in ["start", "stop", "pause", "resume"]:
         raise HTTPException(status_code=400, detail="Invalid operating command.")
-    try:
-        state = central_runtime_state.apply_control(cmd)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    return {"status": "Success", "command": cmd, "runtime_state": state}
+    raise HTTPException(status_code=503, detail="Runtime worker controller is unavailable; no state mutation was performed.")
 
 @app.get("/api/symbols")
 def list_symbol_administration():
