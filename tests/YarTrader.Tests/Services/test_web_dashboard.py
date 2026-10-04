@@ -159,7 +159,8 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         for cmd in ["start", "stop", "pause", "resume"]:
             resp = self.client.post("/api/control", json={"command": cmd})
             self.assertEqual(resp.status_code, 200)
-            self.assertEqual(resp.json()["status"], "Berry" if False else "Success")
+            self.assertEqual(resp.json()["status"], "Success")
+            self.assertEqual(resp.json()["worker_status"], {"start":"Running","stop":"Stopped","pause":"Paused","resume":"Running"}[cmd])
 
         # invalid command
         resp_err = self.client.post("/api/control", json={"command": "invalid_cmd"})
@@ -178,6 +179,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
             resp = self.client.post("/api/mode", json={"mode": mode})
             self.assertEqual(resp.status_code, 200)
             self.assertEqual(resp.json()["transitioned_to_mode"], mode)
+            self.assertEqual(resp.json()["live_trading"], "DISABLED")
 
         resp_err = self.client.post("/api/mode", json={"mode": "LiveActiveTrading"})
         self.assertEqual(resp_err.status_code, 400)
@@ -193,6 +195,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         resp = self.client.post("/api/risk/emergency_stop")
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["emergency_stop_triggered"])
+        self.assertEqual(resp.json()["status"], "HALTED")
 
     def test_get_scorecard(self):
         """Verifies production readiness scorecards."""
