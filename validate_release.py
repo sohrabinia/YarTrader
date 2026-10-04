@@ -208,6 +208,10 @@ class ReleaseValidationPlatform:
 
         elapsed = time.perf_counter() - start_time
         self.log(f"Test execution completed in {round(elapsed, 2)} seconds.")
+        if return_code != 0:
+            diagnostic = (stdout + "\n" + stderr).strip()
+            if diagnostic:
+                self.log("Pytest failure diagnostics (tail):\n" + diagnostic[-12000:], "ERROR")
 
         total_tests = 0
         passed = 0
