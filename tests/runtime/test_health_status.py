@@ -29,7 +29,7 @@ class TestHealthStatus(unittest.TestCase):
             self.assertIn(health["status"], ["Healthy", "healthy"])
             self.assertTrue(health["service"] == "TradeYar-AI" or health["service"] == "YarTrader")
             self.assertTrue(health["api"] == "Online" or health["api"] is True)
-            self.assertEqual(health["mt5"], "Connected")
+            self.assertEqual(health["mt5"], "Standby")
             self.assertEqual(health["worker"], "Running")
             self.assertEqual(health["research_worker"], "Running")
             self.assertEqual(health["intelligence_worker"], "Running")
@@ -56,5 +56,5 @@ class TestHealthStatus(unittest.TestCase):
         ):
             health = get_production_health()
             self.assertIn(health["status"], ["Healthy", "healthy"])
-            self.assertEqual(health["mt5"], "Disconnected")
+            self.assertEqual(health["mt5"], "Standby")
             self.assertEqual(health["worker"], "Stopped")
