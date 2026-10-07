@@ -12,51 +12,34 @@ on:
       - master
       - remediation/p0-safety-manager
   schedule:
-    # Nightly run at 2:00 AM UTC
     - cron: '0 2 * * *'
 
 jobs:
-  partitioned-validation-and-test:
-    name: Production Validation Subsystem Suite (${{ matrix.partition_name }})
+  partitioned-validation:
+    name: Production Validation (${{ matrix.partition_name }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         include:
-          - partition_name: "Gate 1 Suite"
-            test_path: "tests/YarTrader.Tests/Gate1/"
-          - partition_name: "Gate 2 Suite"
-            test_path: "tests/YarTrader.Tests/Gate2/"
-          - partition_name: "Forensic Safety Suite"
-            test_path: "tests/YarTrader.Tests/Forensic/"
-          - partition_name: "Risk Subsystem"
-            test_path: "tests/YarTrader.Tests/Risk/"
-          - partition_name: "Brain Subsystem"
-            test_path: "tests/YarTrader.Tests/Brain/"
-          - partition_name: "Dashboard Subsystem"
-            test_path: "tests/YarTrader.Tests/Dashboard/"
-          - partition_name: "Learning Subsystem"
-            test_path: "tests/YarTrader.Tests/Learning/"
-          - partition_name: "Execution Subsystem"
-            test_path: "tests/YarTrader.Tests/Execution/"
-          - partition_name: "Universe Subsystem"
-            test_path: "tests/YarTrader.Tests/Universe/"
-          - partition_name: "Pipeline Subsystem"
-            test_path: "tests/YarTrader.Tests/Pipeline/"
-          - partition_name: "Backtesting Subsystem"
-            test_path: "tests/YarTrader.Tests/Backtesting/"
-          - partition_name: "Agents & Growth"
-            test_path: "tests/YarTrader.Tests/Agents/ tests/YarTrader.Tests/Growth/"
-          - partition_name: "Audit & SDDL & Compliance"
-            test_path: "tests/YarTrader.Tests/Audit/ tests/YarTrader.Tests/SDDL/ tests/YarTrader.Tests/Compliance/"
-          - partition_name: "Integration & Services & Shadow"
-            test_path: "tests/YarTrader.Tests/Integration/ tests/YarTrader.Tests/Services/ tests/YarTrader.Tests/Shadow/"
-          - partition_name: "Data & Timeframes & Providers & Monitoring"
-            test_path: "tests/YarTrader.Tests/Data/ tests/YarTrader.Tests/Timeframes/ tests/YarTrader.Tests/Providers/ tests/YarTrader.Tests/Monitoring/"
-          - partition_name: "Architecture & Intelligence & Knowledge & Research"
-            test_path: "tests/YarTrader.Tests/Architecture/ tests/YarTrader.Tests/Intelligence/ tests/YarTrader.Tests/Knowledge/ tests/YarTrader.Tests/Orchestration/ tests/YarTrader.Tests/Research/"
-          - partition_name: "Remaining General Tests"
-            test_path: "tests/runtime/ tests/test_*.py"
+          - { partition_index: 0, partition_name: "Gate 1 Suite" }
+          - { partition_index: 1, partition_name: "Gate 2 Suite" }
+          - { partition_index: 2, partition_name: "Forensic Safety Suite" }
+          - { partition_index: 3, partition_name: "Risk Subsystem" }
+          - { partition_index: 4, partition_name: "Brain Subsystem" }
+          - { partition_index: 5, partition_name: "Dashboard Subsystem" }
+          - { partition_index: 6, partition_name: "Learning Subsystem" }
+          - { partition_index: 7, partition_name: "Execution Subsystem" }
+          - { partition_index: 8, partition_name: "Universe Subsystem" }
+          - { partition_index: 9, partition_name: "Pipeline Subsystem" }
+          - { partition_index: 10, partition_name: "Backtesting Subsystem" }
+          - { partition_index: 11, partition_name: "Agents & Growth" }
+          - { partition_index: 12, partition_name: "Audit & SDDL & Compliance" }
+          - { partition_index: 13, partition_name: "Integration & Services & Shadow" }
+          - { partition_index: 14, partition_name: "Data & Timeframes & Providers & Monitoring" }
+          - { partition_index: 15, partition_name: "Architecture & Intelligence & Knowledge & Orchestration & Research" }
+          - { partition_index: 16, partition_name: "Remaining General Tests" }
 
     steps:
       - name: Checkout Code Repository
@@ -73,39 +56,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Execute Partitioned Subsystem Suite
-        run: |
-          python -m pytest ${{ matrix.test_path }} --tb=short -p no:warnings
-
-  release-validator-workflow:
-    name: Execute Master Release Validator Platform
-    needs: partitioned-validation-and-test
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Code Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python Environment
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - name: Install Pinned Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Execute Autonomous Release Validator
+      - name: Execute Deterministic Validation Partition
+        env:
+          VALIDATION_PARTITION_INDEX: ${{ matrix.partition_index }}
+          PYTHONPATH: .
         run: |
           python validate_release.py
 
-      - name: Archive Production Validation Artifacts
+      - name: Archive Partition Validation Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tradeyar-validation-reports
+          name: tradeyar-validation-${{ matrix.partition_index }}
           path: |
             validation/
             logs/validation.log
