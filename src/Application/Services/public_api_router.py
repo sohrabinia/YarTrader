@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
@@ -13,19 +14,25 @@ class SocialLoginPayload(BaseModel):
 # 1. Supported Markets & Stats
 @router.get("/metrics")
 def get_public_metrics():
-    """Returns compliant SaaS platform metrics and performance stats."""
+    """Returns runtime-derived platform metrics; unavailable values are not fabricated."""
+    from src.Market.Universe.symbol_registry import SymbolRegistry
+    registry = SymbolRegistry.get_instance()
+    registered = registry.get_all_registered()
+    active = {s: info for s, info in registered.items() if info.get("active", True)}
+    timeframes = {tf for info in active.values() for tf in info.get("timeframes", [])}
+    providers = {str(info.get("provider", "")).lower() for info in active.values()}
     return {
-        "symbols_active": 50,
-        "timeframes_active": 4,
-        "research_contexts": 200,
+        "symbols_active": len(active),
+        "timeframes_active": len(timeframes),
+        "research_contexts": sum(len(info.get("timeframes", [])) for info in active.values()),
         "providers": {
-            "mt5": "CONNECTED",
-            "crypto_provider": "CONNECTED"
+            "mt5": "CONFIGURED" if "mt5" in providers else "NOT_CONFIGURED",
+            "crypto_provider": "CONFIGURED" if "crypto" in providers else "NOT_CONFIGURED"
         },
-        "runtime_mode": "PRODUCTION",
-        "active_markets_count": 30,
-        "historical_simulated_trades": 125420,
-        "platform_uptime_pct": 99.9,
+        "runtime_mode": os.environ.get("YARTRADER_ENV", "unknown").upper(),
+        "active_markets_count": len(active),
+        "historical_simulated_trades": None,
+        "platform_uptime_pct": None,
         "apes_fin_compliant": True,
         "compliance_disclaimer": "Simulated performance results have certain inherent limitations. Unlike an actual performance record, simulated results do not represent actual trading."
     }
@@ -96,8 +103,8 @@ def initiate_purchase(payload: PurchasePayload):
     cents = int(prod["price"] * 100)
 
     return {
-        "status": "Success",
-        "message": f"Checkout path verified successfully for product '{prod['name']}'.",
+        "status": "CHECKOUT_READY",
+        "message": f"Product '{prod['name']}' passed catalog validation; no payment or subscription transaction has been created.",
         "product_id": prod["id"],
         "price_cents": cents,
         "price": prod["price"],

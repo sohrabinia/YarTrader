@@ -70,7 +70,8 @@ class DeviceTracker:
                 "ip_address": ip_address or "Unknown",
                 "first_seen": now,
                 "last_seen": now,
-                "state": "ACTIVE"
+                "state": "ACTIVE",
+                "expires_at": (datetime.now(timezone.utc) + __import__("datetime").timedelta(seconds=max(300, int(os.environ.get("YARTRADER_SESSION_TTL_SECONDS", "86400"))))).isoformat()
             }
             self._save(data)
 
@@ -85,12 +86,25 @@ class DeviceTracker:
             return False
 
     def is_session_revoked(self, token: str) -> bool:
-        """Returns True if the session has been explicitly revoked."""
+        """Returns True if the session has been explicitly revoked or expired."""
         with self.lock:
             data = self._load()
             session = data["sessions"].get(token)
-            if session and session.get("state") == "REVOKED":
+            if not session:
                 return True
+            if session.get("state") == "REVOKED":
+                return True
+            expires_at = session.get("expires_at")
+            if expires_at:
+                try:
+                    if datetime.now(timezone.utc) >= datetime.fromisoformat(expires_at):
+                        session["state"] = "REVOKED"
+                        self._save(data)
+                        return True
+                except (TypeError, ValueError):
+                    session["state"] = "REVOKED"
+                    self._save(data)
+                    return True
             return False
 
     def revoke_session(self, token: str, email: str) -> None:
@@ -126,7 +140,7 @@ class DeviceTracker:
                     "ip_address": s["ip_address"],
                     "first_seen": s["first_seen"],
                     "last_seen": s["last_seen"],
-                    "token": k  # reference
+                    "expires_at": s.get("expires_at")
                 }
                 for k, s in data["sessions"].items()
                 if s["email"] == email_clean and s["state"] == "ACTIVE"

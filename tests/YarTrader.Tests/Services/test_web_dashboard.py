@@ -1,7 +1,8 @@
 import unittest
 import os
 from fastapi.testclient import TestClient
-from src.Application.Services.web_dashboard import app, val_state
+from unittest.mock import patch
+from src.Application.Services.web_dashboard import app, val_state, global_auth_service
 
 class TestWebDashboardFastAPI(unittest.TestCase):
     """
@@ -128,15 +129,15 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertIn("pipeline_latency_ms", data)
 
     def test_execute_runtime_control(self):
-        """Verifies start, stop, pause, resume controllers."""
-        for cmd in ["start", "stop", "pause", "resume"]:
-            resp = self.client.post("/api/control", json={"command": cmd})
-            self.assertEqual(resp.status_code, 200)
-            self.assertEqual(resp.json()["status"], "Berry" if False else "Success")
-
-        # invalid command
-        resp_err = self.client.post("/api/control", json={"command": "invalid_cmd"})
-        self.assertEqual(resp_err.status_code, 400)
+        """Verifies authenticated runtime control mutations."""
+        headers = {"Authorization": "Bearer fixture-admin-token"}
+        with patch.object(global_auth_service, "validate_session", return_value={"role": "ADMIN", "email": "admin@yartrader.app"}):
+            for cmd in ["start", "stop", "pause", "resume"]:
+                resp = self.client.post("/api/control", json={"command": cmd}, headers=headers)
+                self.assertEqual(resp.status_code, 503)
+                self.assertIn("no state mutation was performed", resp.json()["detail"])
+            resp_err = self.client.post("/api/control", json={"command": "invalid_cmd"}, headers=headers)
+            self.assertEqual(resp_err.status_code, 400)
 
     def test_list_symbol_administration(self):
         """Verifies symbol administration lookup lists."""
@@ -146,14 +147,15 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertIn("EURUSD", data["administered_symbols"])
 
     def test_transition_operating_mode(self):
-        """Verifies operating mode transition handlers."""
-        for mode in ["Research", "Backtest", "Demo", "Signal", "Prop"]:
-            resp = self.client.post("/api/mode", json={"mode": mode})
-            self.assertEqual(resp.status_code, 200)
-            self.assertEqual(resp.json()["transitioned_to_mode"], mode)
-
-        resp_err = self.client.post("/api/mode", json={"mode": "LiveActiveTrading"})
-        self.assertEqual(resp_err.status_code, 400)
+        """Verifies authenticated authoritative operating-mode transitions."""
+        headers = {"Authorization": "Bearer fixture-admin-token"}
+        with patch.object(global_auth_service, "validate_session", return_value={"role": "ADMIN", "email": "admin@yartrader.app"}):
+            for mode in ["Research", "Backtest", "Demo", "Signal", "Prop"]:
+                resp = self.client.post("/api/mode", json={"mode": mode}, headers=headers)
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp.json()["transitioned_to_mode"], mode)
+            resp_err = self.client.post("/api/mode", json={"mode": "LiveActiveTrading"}, headers=headers)
+            self.assertEqual(resp_err.status_code, 400)
 
     def test_trigger_backtesting_job(self):
         """Verifies offline backtest execution endpoint."""
@@ -162,10 +164,14 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertIn("job_id", resp.json())
 
     def test_trigger_emergency_stop(self):
-        """Verifies immediate emergency protective stop halts."""
-        resp = self.client.post("/api/risk/emergency_stop")
+        """Verifies authenticated emergency stop reaches authoritative HALTED state."""
+        headers = {"Authorization": "Bearer fixture-admin-token"}
+        with patch.object(global_auth_service, "validate_session", return_value={"role": "ADMIN", "email": "admin@yartrader.app"}):
+            resp = self.client.post("/api/risk/emergency_stop", headers=headers)
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json()["emergency_stop_triggered"])
+        self.assertEqual(resp.json()["status"], "HALTED")
+        self.assertTrue(resp.json()["runtime_state"]["system_halted"])
 
     def test_get_scorecard(self):
         """Verifies production readiness scorecards."""
@@ -239,3 +245,23 @@ class TestWebDashboardFastAPI(unittest.TestCase):
                 for f, content in saved_files.items():
                     with open(os.path.join(snapshot_dir, f), "w", encoding="utf-8") as file:
                         file.write(content)
+    def test_sensitive_endpoints_require_runtime_authentication(self):
+        for path, payload in [
+            ("/api/control", {"command": "stop"}),
+            ("/api/mode", {"mode": "Research"}),
+            ("/api/risk/emergency_stop", None),
+        ]:
+            resp = self.client.post(path, json=payload) if payload is not None else self.client.post(path)
+            self.assertEqual(resp.status_code, 401, path)
+
+    def test_sensitive_endpoints_reject_unauthorized_runtime_identity(self):
+        headers = {"Authorization": "Bearer fixture-user-token"}
+        with patch.object(global_auth_service, "validate_session", return_value={"role": "USER", "email": "user@yartrader.app"}):
+            for path, payload in [
+                ("/api/control", {"command": "stop"}),
+                ("/api/mode", {"mode": "Research"}),
+                ("/api/risk/emergency_stop", None),
+            ]:
+                resp = self.client.post(path, json=payload, headers=headers) if payload is not None else self.client.post(path, headers=headers)
+                self.assertEqual(resp.status_code, 403, path)
+
