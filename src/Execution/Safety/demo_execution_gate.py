@@ -42,11 +42,21 @@ class DemoExecutionGate:
             raise ValidationException("DemoExecutionGate: Demo execution is disabled (demo_mode_flag=False).")
 
         # Check 2: Live trading explicitly disabled & MetaTraderSafetyGate
+        platform_name = getattr(adapter_or_mt5, "PLATFORM_NAME", None)
+        if not isinstance(platform_name, str) or not platform_name.strip():
+            platform_name = "MT5"
+        target_account = getattr(adapter_or_mt5, "TARGET_ACCOUNT", None)
+        if not isinstance(target_account, str) or not target_account.strip():
+            target_account = cls.AUTHORIZED_DEMO_ACCOUNT
+        target_server = getattr(adapter_or_mt5, "TARGET_SERVER", None)
+        if not isinstance(target_server, str) or not target_server.strip():
+            target_server = cls.AUTHORIZED_DEMO_SERVER
+
         MetaTraderSafetyGate.verify_operation(
-            terminal_type=getattr(adapter_or_mt5, "PLATFORM_NAME", "MT5"),
+            terminal_type=platform_name,
             operation_type="DEMO",
-            account_id=(getattr(adapter_or_mt5, "TARGET_ACCOUNT", cls.AUTHORIZED_DEMO_ACCOUNT)),
-            server_name=(getattr(adapter_or_mt5, "TARGET_SERVER", cls.AUTHORIZED_DEMO_SERVER))
+            account_id=target_account,
+            server_name=target_server
         )
 
         # Retrieve adapter methods or dictionary
@@ -75,9 +85,9 @@ class DemoExecutionGate:
         # Its normalized trade_mode value must not be interpreted using MT5-only semantics.
         if platform == "MT4":
             if is_real or acc_info.get("is_demo") is not True:
-                raise ValidationException("SECURITY VIOLATION: Connected MT4 account is not DEMO. Real account execution is strictly rejected repository-wide.")
+                raise ValidationException("SECURITY VIOLATION: Connected account is REAL. Real account execution is strictly rejected repository-wide.")
         elif is_real or (trade_mode is not None and trade_mode != 0):
-            raise ValidationException("SECURITY VIOLATION: Connected account is REAL or non-DEMO. Real account execution is strictly rejected repository-wide.")
+            raise ValidationException("SECURITY VIOLATION: Connected account is REAL. Real account execution is strictly rejected repository-wide.")
 
         if platform == "MT4":
             mt4_account = getattr(adapter_or_mt5, "TARGET_ACCOUNT", "")
