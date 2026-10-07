@@ -85,7 +85,7 @@ def stage_symbol_from_mt4(symbol: str, destination: Path, provider) -> Historica
     try:
         for tf in TIMEFRAMES:
             path = provider._history_file(symbol, tf)
-            if not path.exists():
+            if not path.exists() or not path.is_file():
                 continue
             rows = provider._read_hst(path)
             dataset.put(tf, rows)
