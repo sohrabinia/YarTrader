@@ -5,17 +5,81 @@ on:
     branches:
       - main
       - master
+      - remediation/p0-safety-manager
   pull_request:
     branches:
       - main
       - master
+      - remediation/p0-safety-manager
   schedule:
     # Nightly run at 2:00 AM UTC
     - cron: '0 2 * * *'
 
 jobs:
-  validate-and-test:
-    name: Production Validation Workflow
+  partitioned-validation-and-test:
+    name: Production Validation Subsystem Suite (${{ matrix.partition_name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - partition_name: "Gate 1 Suite"
+            test_path: "tests/YarTrader.Tests/Gate1/"
+          - partition_name: "Gate 2 Suite"
+            test_path: "tests/YarTrader.Tests/Gate2/"
+          - partition_name: "Forensic Safety Suite"
+            test_path: "tests/YarTrader.Tests/Forensic/"
+          - partition_name: "Risk Subsystem"
+            test_path: "tests/YarTrader.Tests/Risk/"
+          - partition_name: "Brain Subsystem"
+            test_path: "tests/YarTrader.Tests/Brain/"
+          - partition_name: "Dashboard Subsystem"
+            test_path: "tests/YarTrader.Tests/Dashboard/"
+          - partition_name: "Learning Subsystem"
+            test_path: "tests/YarTrader.Tests/Learning/"
+          - partition_name: "Execution Subsystem"
+            test_path: "tests/YarTrader.Tests/Execution/"
+          - partition_name: "Universe Subsystem"
+            test_path: "tests/YarTrader.Tests/Universe/"
+          - partition_name: "Pipeline Subsystem"
+            test_path: "tests/YarTrader.Tests/Pipeline/"
+          - partition_name: "Backtesting Subsystem"
+            test_path: "tests/YarTrader.Tests/Backtesting/"
+          - partition_name: "Agents & Growth"
+            test_path: "tests/YarTrader.Tests/Agents/ tests/YarTrader.Tests/Growth/"
+          - partition_name: "Audit & SDDL & Compliance"
+            test_path: "tests/YarTrader.Tests/Audit/ tests/YarTrader.Tests/SDDL/ tests/YarTrader.Tests/Compliance/"
+          - partition_name: "Integration & Services & Shadow"
+            test_path: "tests/YarTrader.Tests/Integration/ tests/YarTrader.Tests/Services/ tests/YarTrader.Tests/Shadow/"
+          - partition_name: "Data & Timeframes & Providers & Monitoring"
+            test_path: "tests/YarTrader.Tests/Data/ tests/YarTrader.Tests/Timeframes/ tests/YarTrader.Tests/Providers/ tests/YarTrader.Tests/Monitoring/"
+          - partition_name: "Architecture & Intelligence & Knowledge & Research"
+            test_path: "tests/YarTrader.Tests/Architecture/ tests/YarTrader.Tests/Intelligence/ tests/YarTrader.Tests/Knowledge/ tests/YarTrader.Tests/Orchestration/ tests/YarTrader.Tests/Research/"
+          - partition_name: "Remaining General Tests"
+            test_path: "tests/runtime/ tests/test_*.py"
+
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Pinned Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Execute Partitioned Subsystem Suite
+        run: |
+          python -m pytest ${{ matrix.test_path }} --tb=short -p no:warnings
+
+  release-validator-workflow:
+    name: Execute Master Release Validator Platform
+    needs: partitioned-validation-and-test
     runs-on: ubuntu-latest
 
     steps:
@@ -33,7 +97,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Execute Autonomous Validation Runner
+      - name: Execute Autonomous Release Validator
         run: |
           python validate_release.py
 
