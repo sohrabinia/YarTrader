@@ -27,6 +27,7 @@ import subprocess
 import traceback
 import math
 import ast
+import glob
 from datetime import datetime
 from typing import Any, Dict, List, Tuple, Set
 
@@ -201,6 +202,21 @@ class ReleaseValidationPlatform:
             ("Remaining General Tests", ["tests/runtime/", "tests/test_*.py"]),
         ]
 
+        selected_index = os.environ.get("VALIDATION_PARTITION_INDEX")
+        if selected_index is not None:
+            try:
+                index = int(selected_index)
+            except ValueError as exc:
+                raise ValueError("VALIDATION_PARTITION_INDEX must be an integer") from exc
+            if index < 0 or index >= len(partitions):
+                raise ValueError(
+                    f"VALIDATION_PARTITION_INDEX {index} is outside 0..{len(partitions) - 1}"
+                )
+            partitions = [partitions[index]]
+            self.log(f"Running deterministic CI partition {index}: {partitions[0][0]}")
+        else:
+            self.log("Running all deterministic test partitions sequentially (local/full mode).")
+
         total_passed = 0
         total_failed = 0
         total_skipped = 0
@@ -213,10 +229,31 @@ class ReleaseValidationPlatform:
 
         for part_name, part_paths in partitions:
             self.log(f"Executing test partition: [{part_name}] ({' '.join(part_paths)})...")
-            part_cmd = [self.python_exec, "-m", "pytest"] + part_paths + ["--tb=short", "-p", "no:warnings"]
+            expanded_paths = []
+            for path in part_paths:
+                if "*" in path or "?" in path or "[" in path:
+                    expanded_paths.extend(sorted(glob.glob(path)))
+                else:
+                    expanded_paths.append(path)
+            if not expanded_paths:
+                self.log(f"Partition [{part_name}] resolved to zero test paths.", "ERROR")
+                total_failed += 1
+                failures_list.append({
+                    "test": part_name,
+                    "subsystem": "Partitioning",
+                    "component": part_name,
+                    "root_cause": "Partition resolved to zero test paths",
+                    "probable_fix": "Update the partition manifest to cover an existing test path.",
+                    "severity": "CRITICAL",
+                    "confidence": "HIGH",
+                    "regression_status": "Partition Error",
+                    "traceback": f"No test paths resolved for partition {part_name}.",
+                })
+                continue
+            part_cmd = [self.python_exec, "-m", "pytest"] + expanded_paths + ["--tb=short", "-p", "no:warnings"]
 
             try:
-                res = subprocess.run(part_cmd, capture_output=True, text=True, timeout=450, env=env)
+                res = subprocess.run(part_cmd, capture_output=True, text=True, timeout=420, env=env)
                 stdout = res.stdout
                 stderr = res.stderr
                 return_code = res.returncode
