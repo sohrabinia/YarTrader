@@ -308,6 +308,17 @@ class ReleaseValidationPlatform:
                 total_failed += 1
 
             if p_failed > 0:
+                failed_tests = [
+                    line.strip()
+                    for line in lines
+                    if line.lstrip().startswith("FAILED ")
+                ]
+                if failed_tests:
+                    self.log(
+                        f"Partition [{part_name}] failed tests: "
+                        + " | ".join(failed_tests[:50]),
+                        "ERROR",
+                    )
                 self.log(f"Partition [{part_name}] had {p_failed} test failures.", "WARNING")
 
         elapsed = time.perf_counter() - start_time
