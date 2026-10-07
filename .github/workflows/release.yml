@@ -7,12 +7,31 @@ on:
       - master
 
 jobs:
-  release-gate-and-health-check:
-    name: Deterministic Fail-Closed Release Gate & Health Check
+  partitioned-backend-validation:
+    name: Release Backend Validation (${{ matrix.partition_name }})
     runs-on: ubuntu-latest
-    concurrency:
-      group: yartrader-production-release
-      cancel-in-progress: false
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { partition_index: 0, partition_name: "Gate 1 Suite" }
+          - { partition_index: 1, partition_name: "Gate 2 Suite" }
+          - { partition_index: 2, partition_name: "Forensic Safety Suite" }
+          - { partition_index: 3, partition_name: "Risk Subsystem" }
+          - { partition_index: 4, partition_name: "Brain Subsystem" }
+          - { partition_index: 5, partition_name: "Dashboard Subsystem" }
+          - { partition_index: 6, partition_name: "Learning Subsystem" }
+          - { partition_index: 7, partition_name: "Execution Subsystem" }
+          - { partition_index: 8, partition_name: "Universe Subsystem" }
+          - { partition_index: 9, partition_name: "Pipeline Subsystem" }
+          - { partition_index: 10, partition_name: "Backtesting Subsystem" }
+          - { partition_index: 11, partition_name: "Agents & Growth" }
+          - { partition_index: 12, partition_name: "Audit & SDDL & Compliance" }
+          - { partition_index: 13, partition_name: "Integration & Services & Shadow" }
+          - { partition_index: 14, partition_name: "Data & Timeframes & Providers & Monitoring" }
+          - { partition_index: 15, partition_name: "Architecture & Intelligence & Knowledge & Orchestration & Research" }
+          - { partition_index: 16, partition_name: "Remaining General Tests" }
 
     steps:
       - name: Checkout Release Candidate Commit
@@ -29,16 +48,32 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Deterministic Backend Validation Partition
+        env:
+          VALIDATION_PARTITION_INDEX: ${{ matrix.partition_index }}
+          PYTHONPATH: .
+        run: |
+          python validate_release.py
+
+  release-gate-and-health-check:
+    name: Release Frontend, Formatting & Health Gate
+    needs: partitioned-backend-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: yartrader-production-release
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout Release Candidate Commit
+        uses: actions/checkout@v4
+
       - name: Setup Node.js Environment
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: 'trader-terminal/package-lock.json'
-
-      - name: Deterministic Gate 1 — Backend Pytest Suite Execution
-        run: |
-          python3 -m pytest -v
 
       - name: Deterministic Gate 2 — Frontend Production Build Compilation
         run: |
@@ -49,10 +84,6 @@ jobs:
       - name: Deterministic Gate 3 — Git Formatting & Whitespace Validation
         run: |
           git diff --check
-
-      - name: Deterministic Gate 4 — Execute Release Gate Assessment
-        run: |
-          python validate_release.py
 
       - name: Execute Fail-Closed Production Health Verification
         run: |
@@ -79,11 +110,11 @@ jobs:
                       res = urllib.request.urlopen(req, timeout=10)
                       code = res.status
                       final_url = res.geturl()
-                      if code >= 200 and code < 400 and '#' not in final_url:
+                      if 200 <= code < 400 and '#' not in final_url:
                           print(f' [HTTP {code} OK] {url}')
                           passed = True
                           break
-                  except Exception as e:
+                  except Exception:
                       time.sleep(2)
               if not passed:
                   print(f' [FAIL / UNVERIFIED] {url}')
