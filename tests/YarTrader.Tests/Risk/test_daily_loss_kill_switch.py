@@ -160,6 +160,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_10_reset_does_not_occur_at_midnight(self):
         """10. Reset does NOT occur at midnight (00:00)."""
         dt_day1 = self._create_iran_dt(day=1, hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_day1)
         self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=self._create_iran_dt(day=1, hour=12)) # Triggered
 
