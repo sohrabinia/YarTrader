@@ -99,6 +99,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_06_loss_8_00_percent_triggers_kill_switch(self):
         """6. 8.00% loss -> entries blocked."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_check = self._create_iran_dt(hour=12, minute=0)
@@ -113,6 +114,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_07_loss_greater_than_8_percent_remains_blocked(self):
         """7. Loss > 8% -> entries remain blocked."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_check = self._create_iran_dt(hour=14, minute=0)
