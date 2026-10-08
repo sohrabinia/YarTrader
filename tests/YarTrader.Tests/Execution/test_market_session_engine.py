@@ -110,6 +110,7 @@ class TestMarketSessionEngine:
     def test_crypto_saturday_multiple_intervals(self):
         # Saturday multiple sessions: 08:00-12:00, 13:00-17:00
         sat_date = "2026-03-28"
+        self._risk_baseline.set_session_baseline(10000.0, sat_date)
         i1 = SessionInterval(
             session_id="BTC_SAT_1",
             broker="DEFAULT",
