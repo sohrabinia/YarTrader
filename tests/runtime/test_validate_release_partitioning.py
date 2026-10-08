@@ -55,4 +55,4 @@ def test_partition_selector_zero_is_deterministic(monkeypatch):
     assert calls[0][-1] == "--version"
     assert calls[1][0:3] == [os.sys.executable, "-m", "pytest"]
     assert calls[1][3] == "tests/YarTrader.Tests/Gate1/"
-    assert any("Validated disjoint pytest partition map: 179 files across 16 partitions." in line for line in validator.logs_collected)
+    assert any("Validated disjoint pytest partition map: 180 files across 16 partitions." in line for line in validator.logs_collected)
