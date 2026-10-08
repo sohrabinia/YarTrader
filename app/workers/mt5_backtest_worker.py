@@ -15,7 +15,7 @@ from src.Application.Backtesting.backtest_learning_engine import BacktestAndLear
 from src.Application.Backtesting.historical_dataset import run_staged_backtest
 
 SCHEMA = 1
-CONTEXT_BARS = 100
+CONTEXT_BARS = 500
 ROOT = Path("runtime_logs") / "backtest_learning"
 LOCK = ROOT / "mt5_backtest.lock"
 
