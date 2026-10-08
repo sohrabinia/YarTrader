@@ -27,7 +27,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         with self.assertRaises(ValidationException) as ctx:
             MetaTraderSafetyGate.verify_operation(
                 terminal_type="MT5",
-                operation_type="DATA",
+                operation_type="DEMO",
                 account_id="99999999",  # Unauthorized account
                 server_name="Alpari-MT5-Demo"
             )
