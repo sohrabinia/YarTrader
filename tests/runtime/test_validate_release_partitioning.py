@@ -5,7 +5,7 @@ import pytest
 from validate_release import ReleaseValidationPlatform
 
 
-@pytest.mark.parametrize("raw_index", ["abc", "1.0", "-1", "19", "999999"])
+@pytest.mark.parametrize("raw_index", ["abc", "1.0", "-1", "22", "999999"])
 def test_invalid_partition_selector_fails_closed(monkeypatch, raw_index):
     monkeypatch.setenv("VALIDATION_PARTITION_INDEX", raw_index)
 
@@ -55,4 +55,4 @@ def test_partition_selector_zero_is_deterministic(monkeypatch):
     assert calls[0][-1] == "--version"
     assert calls[1][0:3] == [os.sys.executable, "-m", "pytest"]
     assert calls[1][3] == "tests/YarTrader.Tests/Gate1/"
-    assert any("Validated disjoint pytest partition map: 181 files across 19 partitions." in line for line in validator.logs_collected)
+    assert any("Validated disjoint pytest partition map: 181 files across 22 partitions." in line for line in validator.logs_collected)
