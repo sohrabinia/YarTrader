@@ -179,110 +179,165 @@ class ReleaseValidationPlatform:
         return results
 
     def run_automated_tests(self) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        """Part 6: Complete Automatic Test Discovery & Part 2/18: Failure investigation & RCA"""
-        self.log("Starting automatic test discovery and execution...")
+        """Part 6: Complete Automatic Test Discovery & Deterministic Partitioned Execution"""
+        self.log("Starting automatic test discovery and deterministic partitioned execution...")
         start_time = time.perf_counter()
 
-        # Run pytest programmatically via subprocess to capture output precisely
+        # Non-overlapping partition mapping covering 100% of the repository test suite
+        PARTITIONS = [
+            ("Gate 1 Suite", ["tests/YarTrader.Tests/Gate1/"]),
+            ("Gate 2 Suite", ["tests/YarTrader.Tests/Gate2/"]),
+            ("Forensic Safety Suite", ["tests/YarTrader.Tests/Forensic/"]),
+            ("Risk Subsystem", ["tests/YarTrader.Tests/Risk/"]),
+            ("Agents & Growth Subsystem", ["tests/YarTrader.Tests/Agents/", "tests/YarTrader.Tests/Growth/"]),
+            ("Dashboard Subsystem", ["tests/YarTrader.Tests/Dashboard/"]),
+            ("Data & Timeframes & Providers & Monitoring", ["tests/YarTrader.Tests/Data/", "tests/YarTrader.Tests/Timeframes/", "tests/YarTrader.Tests/Providers/", "tests/YarTrader.Tests/Monitoring/"]),
+            ("Execution Subsystem", ["tests/YarTrader.Tests/Execution/"]),
+            ("Learning Subsystem", ["tests/YarTrader.Tests/Learning/"]),
+            ("Backtesting Subsystem", ["tests/YarTrader.Tests/Backtesting/"]),
+            ("Audit & SDDL & Compliance", ["tests/YarTrader.Tests/Audit/", "tests/YarTrader.Tests/SDDL/", "tests/YarTrader.Tests/Compliance/"]),
+            ("Pipeline Subsystem", ["tests/YarTrader.Tests/Pipeline/"]),
+            ("Brain Subsystem", ["tests/YarTrader.Tests/Brain/"]),
+            ("Integration & Services & Shadow", ["tests/YarTrader.Tests/Integration/", "tests/YarTrader.Tests/Services/", "tests/YarTrader.Tests/Shadow/"]),
+            ("Architecture & Intelligence & Knowledge & Orchestration & Research", ["tests/YarTrader.Tests/Architecture/", "tests/YarTrader.Tests/Intelligence/", "tests/YarTrader.Tests/Knowledge/", "tests/YarTrader.Tests/Orchestration/", "tests/YarTrader.Tests/Research/"]),
+            ("Remaining General Tests", [
+                "tests/runtime/",
+                "tests/test_core.py", "tests/test_data_intelligence.py", "tests/test_decision.py",
+                "tests/test_decision_intelligence.py", "tests/test_feature_extraction.py",
+                "tests/test_full_intelligence_validation.py", "tests/test_historical_data_adapter.py",
+                "tests/test_integration_and_production.py", "tests/test_learning.py",
+                "tests/test_learning_optimization.py", "tests/test_mt5_production_session2_bridge.py",
+                "tests/test_pipeline_integration.py", "tests/test_platform_integration.py",
+                "tests/test_research_engine.py", "tests/test_research_intelligence.py",
+                "tests/test_research_worker_symbol_availability.py", "tests/test_risk.py",
+                "tests/test_simulation_scenarios.py", "tests/test_strategy_evaluation.py",
+                "tests/test_strategy_intelligence.py"
+            ])
+        ]
+
+        raw_index = os.getenv("VALIDATION_PARTITION_INDEX")
+        if raw_index is not None and raw_index.strip().isdigit():
+            p_idx = int(raw_index.strip())
+            if 0 <= p_idx < len(PARTITIONS):
+                active_partitions = [PARTITIONS[p_idx]]
+                self.log(f"Running deterministic CI partition {p_idx}: {PARTITIONS[p_idx][0]}")
+            else:
+                active_partitions = PARTITIONS
+        else:
+            active_partitions = PARTITIONS
+
         try:
             subprocess.run([self.python_exec, "-m", "pytest", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
             pytest_cmd = [self.python_exec, "-m", "pytest"]
         except Exception:
             pytest_cmd = ["pytest"]
 
-        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"]
-        self.log(f"Running automated tests command: {' '.join(cmd_args)}")
-
-        try:
-            env = dict(os.environ)
-            env["PYTHONPATH"] = "."
-            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=900, env=env)
-            stdout = res.stdout
-            stderr = res.stderr
-            return_code = res.returncode
-        except Exception as e:
-            self.log(f"Test run execution failed: {str(e)}", "ERROR")
-            stdout = ""
-            stderr = str(e)
-            return_code = -1
-
-        elapsed = time.perf_counter() - start_time
-        self.log(f"Test execution completed in {round(elapsed, 2)} seconds.")
-
-        total_tests = 0
-        passed = 0
-        failed = 0
-        skipped = 0
-        warnings = 0
-
+        total_passed = 0
+        total_failed = 0
+        total_skipped = 0
+        total_warnings = 0
         failures_list = []
+        parsed_any = False
 
-        lines = stdout.splitlines()
-        summary_line = ""
-        for line in lines:
-            if "passed in" in line or "failed" in line or "skipped" in line:
-                if line.startswith("===") or line.startswith("!!!"):
-                    summary_line = line
+        for part_name, paths in active_partitions:
+            valid_paths = [p for p in paths if os.path.exists(p) or "test_" in p]
+            if not valid_paths:
+                self.log(f"Partition [{part_name}] has no matching paths. Skipping.")
+                continue
+
+            cmd_args = pytest_cmd + valid_paths + ["--tb=short", "-p", "no:warnings"]
+            self.log(f"Executing test partition: [{part_name}] ({' '.join(valid_paths)})...")
+
+            try:
+                env = dict(os.environ)
+                env["PYTHONPATH"] = "."
+                res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=400, env=env)
+                stdout = res.stdout
+                stderr = res.stderr
+                return_code = res.returncode
+            except Exception as e:
+                self.log(f"Partition [{part_name}] execution failed: {str(e)}", "ERROR")
+                stdout = ""
+                stderr = str(e)
+                return_code = -1
+
+            p_passed = 0
+            p_failed = 0
+            p_skipped = 0
+            p_warnings = 0
+
+            summary_found = False
+            for line in stdout.splitlines():
+                if ("passed in" in line or "failed" in line or "skipped" in line) and (line.startswith("===") or line.startswith("!!!")):
+                    summary_found = True
+                    parsed_any = True
+                    tokens = line.replace("=", "").replace("!", "").strip().split(",")
+                    for token in tokens:
+                        token = token.strip()
+                        if "passed" in token:
+                            p_passed = int(token.split()[0])
+                        elif "failed" in token:
+                            p_failed = int(token.split()[0])
+                        elif "skipped" in token:
+                            p_skipped = int(token.split()[0])
+                        elif "warnings" in token:
+                            p_warnings = int(token.split()[0])
                     break
 
-        if summary_line:
-            tokens = summary_line.replace("=", "").replace("!", "").strip().split(",")
-            for token in tokens:
-                token = token.strip()
-                if "passed" in token:
-                    passed = int(token.split()[0])
-                elif "failed" in token:
-                    failed = int(token.split()[0])
-                elif "skipped" in token:
-                    skipped = int(token.split()[0])
-                elif "warnings" in token:
-                    warnings = int(token.split()[0])
+            total_passed += p_passed
+            total_failed += p_failed
+            total_skipped += p_skipped
+            total_warnings += p_warnings
 
-            total_tests = passed + failed + skipped
-        else:
-            if return_code == 0:
-                passed = 1280
-                total_tests = 1280
-            else:
-                failed = 1
-                total_tests = 1
+            if return_code != 0 and p_failed == 0 and not summary_found:
+                self.log(f"Partition [{part_name}] returned non-zero exit code {return_code}: {stderr[:400]}", "ERROR")
+                total_failed += 1
 
-        if failed > 0:
-            self.log(f"Detected {failed} test failures! Initiating automatic root cause investigation...", "WARNING")
-            in_failure_block = False
-            current_fail_test = ""
-            current_traceback = []
+            if p_failed > 0:
+                self.log(f"Partition [{part_name}] had {p_failed} test failures.", "WARNING")
+                in_failure_block = False
+                current_fail_test = ""
+                current_traceback = []
 
-            for line in lines:
-                if line.startswith("____") and line.endswith("____"):
-                    if current_fail_test:
-                        failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
-                    current_fail_test = line.replace("_", "").strip()
-                    current_traceback = []
-                    in_failure_block = True
-                elif line.startswith("====") and in_failure_block:
-                    if current_fail_test:
-                        failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
-                    in_failure_block = False
-                    current_fail_test = ""
-                elif in_failure_block:
-                    current_traceback.append(line)
+                for line in stdout.splitlines():
+                    if line.startswith("____") and line.endswith("____"):
+                        if current_fail_test:
+                            failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
+                        current_fail_test = line.replace("_", "").strip()
+                        current_traceback = []
+                        in_failure_block = True
+                    elif line.startswith("====") and in_failure_block:
+                        if current_fail_test:
+                            failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
+                        in_failure_block = False
+                        current_fail_test = ""
+                    elif in_failure_block:
+                        current_traceback.append(line)
 
-            if current_fail_test:
-                failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
+                if current_fail_test:
+                    failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
 
-        self.passed_count = passed
-        self.failed_count = failed
-        self.warning_count += warnings
+        elapsed = time.perf_counter() - start_time
+        self.log(f"All test partitions completed in {round(elapsed, 2)} seconds.")
+        total_tests = total_passed + total_failed + total_skipped
+
+        if not parsed_any and total_tests == 0:
+            self.log("ERROR: Could not establish actual test results from any test run! Marking status UNKNOWN/FAILED.", "CRITICAL")
+            total_failed = 1
+            total_tests = 1
+
+        self.passed_count = total_passed
+        self.failed_count = total_failed
+        self.warning_count += total_warnings
 
         test_results = {
             "total": total_tests,
-            "passed": passed,
-            "failed": failed,
-            "skipped": skipped,
-            "warnings": warnings,
+            "passed": total_passed,
+            "failed": total_failed,
+            "skipped": total_skipped,
+            "warnings": total_warnings,
             "duration_sec": round(elapsed, 2),
-            "status": "PASSED" if failed == 0 else "FAILED"
+            "status": "PASSED" if total_failed == 0 and parsed_any else "FAILED"
         }
 
         return test_results, failures_list

@@ -1,5 +1,6 @@
 import os
 import unittest
+import pytest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 from src.Execution.Safety.demo_execution_gate import DemoExecutionGate
@@ -9,6 +10,7 @@ from src.Execution.Models.models import OrderRequest, OrderResponse
 from src.Infrastructure.exceptions import ValidationException
 
 
+@pytest.mark.forensic_guard
 class TestDemoExecutionGateSafety(unittest.TestCase):
     """
     Required SRE Safety Tests for Demo Execution Gate & Demo Execution Engine.
@@ -126,6 +128,20 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         with self.assertRaises(ValidationException) as ctx:
             DemoExecutionGate.verify_demo_execution_eligibility(self.mock_adapter, req, demo_mode_flag=True)
         self.assertIn("MT5 Terminal is disconnected", str(ctx.exception))
+
+    def test_09b_unknown_terminal_metadata_fails_closed(self):
+        self.mock_adapter.get_terminal_info.return_value = None
+        req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01)
+        with self.assertRaises(ValidationException) as ctx:
+            DemoExecutionGate.verify_demo_execution_eligibility(self.mock_adapter, req, demo_mode_flag=True)
+        self.assertIn("terminal metadata is unavailable or UNKNOWN", str(ctx.exception))
+
+    def test_09c_unknown_symbol_metadata_fails_closed(self):
+        self.mock_adapter.get_symbol_info.return_value = None
+        req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01)
+        with self.assertRaises(ValidationException) as ctx:
+            DemoExecutionGate.verify_demo_execution_eligibility(self.mock_adapter, req, demo_mode_flag=True)
+        self.assertIn("symbol metadata", str(ctx.exception))
 
     def test_10_shadow_trading_remains_functional(self):
         """Test 10: Shadow trading engine runs independently without live/broker order send."""

@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - remediation/*
   pull_request:
     branches:
       - main
@@ -15,8 +16,45 @@ on:
 
 jobs:
   validate-and-test:
-    name: Production Validation Workflow
+    name: Production Validation (${{ matrix.name }})
     runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - index: 0
+            name: "Gate 1 Suite"
+          - index: 1
+            name: "Gate 2 Suite"
+          - index: 2
+            name: "Forensic Safety Suite"
+          - index: 3
+            name: "Risk Subsystem"
+          - index: 4
+            name: "Agents & Growth Subsystem"
+          - index: 5
+            name: "Dashboard Subsystem"
+          - index: 6
+            name: "Data & Timeframes & Providers & Monitoring"
+          - index: 7
+            name: "Execution Subsystem"
+          - index: 8
+            name: "Learning Subsystem"
+          - index: 9
+            name: "Backtesting Subsystem"
+          - index: 10
+            name: "Audit & SDDL & Compliance"
+          - index: 11
+            name: "Pipeline Subsystem"
+          - index: 12
+            name: "Brain Subsystem"
+          - index: 13
+            name: "Integration & Services & Shadow"
+          - index: 14
+            name: "Architecture & Intelligence & Knowledge & Research"
+          - index: 15
+            name: "Remaining General Tests"
 
     steps:
       - name: Checkout Code Repository
@@ -34,6 +72,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Execute Autonomous Validation Runner
+        env:
+          VALIDATION_PARTITION_INDEX: ${{ matrix.index }}
+          PYTHONPATH: .
         run: |
           python validate_release.py
 
@@ -41,7 +82,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tradeyar-validation-reports
+          name: tradeyar-validation-${{ matrix.index }}
           path: |
             validation/
             logs/validation.log

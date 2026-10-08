@@ -177,11 +177,15 @@ def run_research_background_loop():
     central_runtime_state.update_multiple({
         "worker_status": "Running",
         "research_status": "Running",
-        "shadow_status": "Running"
+        "shadow_status": "Stopped"
     })
 
     # Top-level crash isolation loop: background thread failures can NEVER kill FastAPI API process
     while True:
+        if central_runtime_state.get_key("system_halted", False):
+            research_tracker["worker_status"] = "STOPPED"
+            central_runtime_state.update_multiple({"worker_status": "Stopped", "research_status": "Stopped"})
+            return
         try:
             from src.Market.Universe.symbol_registry import SymbolRegistry
             registry = SymbolRegistry.get_instance()
@@ -3958,8 +3962,9 @@ def get_prop_challenge_status_endpoint(
 
 
 @app.post("/api/prop/config")
-def update_prop_challenge_config_endpoint(payload: PropConfigPayload):
-    """Updates configurable Prop Firm Challenge rules and activates challenge monitoring."""
+def update_prop_challenge_config_endpoint(payload: PropConfigPayload, request: Request):
+    """Updates configurable Prop Firm Challenge rules for an authenticated admin."""
+    check_admin_guard(request)
     from src.Risk.Services.prop_challenge_engine import prop_challenge_engine
     updated = prop_challenge_engine.save_config(payload.model_dump())
     return {
@@ -3969,7 +3974,8 @@ def update_prop_challenge_config_endpoint(payload: PropConfigPayload):
     }
 
 @app.post("/api/validation/run")
-def trigger_validation_run(background_tasks: BackgroundTasks):
+def trigger_validation_run(background_tasks: BackgroundTasks, request: Request):
+    check_admin_guard(request)
     """Triggers acceptance validation asynchronously."""
     global val_state
     with state_lock:
@@ -4108,19 +4114,19 @@ def get_telemetry_metrics():
 
 
 @app.post("/api/control")
-def execute_runtime_control(command: Dict[str, Any]):
-    """Accepts run control commands (start, stop, pause, resume)."""
+def execute_runtime_control(command: Dict[str, Any], request: Request):
+    """Privileged runtime control endpoint; never claims a worker mutation that was not performed."""
+    check_admin_guard(request)
     cmd = command.get("command")
     if cmd not in ["start", "stop", "pause", "resume"]:
         raise HTTPException(status_code=400, detail="Invalid operating command.")
-    return {"status": "Success", "message": f"Runtime command '{cmd}' executed."}
-
+    raise HTTPException(status_code=503, detail="Runtime worker controller is unavailable; no state mutation was performed.")
 
 @app.get("/api/symbols")
 def list_symbol_administration():
     """Retrieves administrative analytical symbol configuration lists."""
     return {
-        "administered_symbols": ["EURUSD", "GBPUSD", "XAUUSD", "BTCUSD"],
+        "administered_symbols": ["EURUSD", "XAUUSD"],
         "operating_parameters": {
             "rate_mode": "Simulated Buffer Sequences",
             "unidirectional_flow_guaranteed": True
@@ -4129,24 +4135,26 @@ def list_symbol_administration():
 
 
 @app.post("/api/mode")
-def transition_operating_mode(payload: Dict[str, Any]):
-    """Validates the canonical learning-cycle modes; Shadow is retired and LIVE is never selectable."""
+def transition_operating_mode(payload: Dict[str, Any], request: Request):
+    """Validate, mutate and re-read the authoritative operating mode."""
+    check_admin_guard(request)
     target_mode = str(payload.get("mode", "")).strip().title()
     allowed_modes = {"Research", "Backtest", "Demo", "Signal", "Prop"}
     if target_mode not in allowed_modes:
         raise HTTPException(status_code=400, detail="Invalid or retired system transition mode requested.")
-    return {
-        "status": "Success",
-        "transitioned_to_mode": target_mode,
-        "learning_cycle": ["Research", "Backtest", "Demo", "Signal", "Prop"],
-        "live_trading": "DISABLED",
-        "shadow": "RETIRED"
-    }
-
+    try:
+        central_runtime_state.set_mode(target_mode)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    verified_mode = central_runtime_state.get_key("operating_mode")
+    if verified_mode != target_mode:
+        raise HTTPException(status_code=500, detail="Operating mode mutation could not be verified.")
+    return {"status": "Success", "transitioned_to_mode": verified_mode, "runtime_state": central_runtime_state.get_state(), "learning_cycle": ["Research", "Backtest", "Demo", "Signal", "Prop"], "live_trading": "DISABLED", "shadow": "RETIRED"}
 
 @app.post("/api/backtest/run")
-def trigger_backtesting_job(params: Dict[str, Any]):
+def trigger_backtesting_job(params: Dict[str, Any], request: Request):
     """Triggers real, non-trading intelligence backtesting job over historical data."""
+    check_admin_guard(request)
     symbol = str(params.get("symbol", "XAUUSD")).upper()
     timeframe = str(params.get("timeframe", "H1")).upper()
     strategy_type = str(params.get("strategy_type", "Momentum"))
@@ -4268,8 +4276,9 @@ def get_backtest_history():
 
 
 @app.post("/api/demo/run")
-def run_demo_trading_scenario(payload: Dict[str, Any]):
+def run_demo_trading_scenario(payload: Dict[str, Any], request: Request):
     """Triggers an independent Demo Trading scenario run and compiles trade journal records."""
+    check_admin_guard(request)
     scenario_name = str(payload.get("scenario_id", "trend_continuation")).lower()
     asset = str(payload.get("asset", "EURUSD")).upper()
 
@@ -4440,14 +4449,14 @@ def get_shadow_report():
 
 
 @app.post("/api/risk/emergency_stop")
-def trigger_emergency_stop():
-    """Immediate emergency stop halt operation."""
-    return {
-        "emergency_stop_triggered": True,
-        "status": "HALTED",
-        "message": "Emergency protective stop active. System isolation guaranteed."
-    }
-
+def trigger_emergency_stop(request: Request):
+    """Authenticate and enter the authoritative fail-safe HALTED state."""
+    check_admin_guard(request)
+    central_runtime_state.emergency_halt()
+    verified = central_runtime_state.get_state()
+    if not verified.get("system_halted") or verified.get("system_status") != "HALTED":
+        raise HTTPException(status_code=500, detail="Emergency stop mutation could not be verified.")
+    return {"emergency_stop_triggered": True, "status": verified["system_status"], "runtime_state": verified, "message": "Emergency protective stop active. System is authoritatively halted."}
 
 @app.get("/api/production-readiness")
 def get_scorecard():
