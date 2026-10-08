@@ -4,6 +4,7 @@ import socket
 import inspect
 import types
 import unittest
+import tempfile
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
 import pytest
@@ -434,7 +435,13 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
             mt5_calls.clear()
 
-            with patch.object(demo_engine.adapter, "get_account_info", return_value={"equity": 10000.0, "free_margin": 10000.0}), \
+            # P0-1 contract requires a valid persisted baseline before an execution gate can allow a trade.
+            from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                kill_switch = DailyLossKillSwitch(persistence_path=os.path.join(tmp_dir, "daily_loss_kill_switch.json"))
+                self.assertTrue(kill_switch.set_session_baseline(10000.0, "2026-10-08"))
+                with patch.object(DailyLossKillSwitch, "get_instance", return_value=kill_switch), \
+                     patch.object(demo_engine.adapter, "get_account_info", return_value={"equity": 10000.0, "free_margin": 10000.0}), \
                  patch.object(demo_engine.adapter, "get_terminal_info", return_value={"connected": True, "trade_allowed": True}), \
                  patch.object(demo_engine.adapter, "get_symbol_info", return_value=sym_info), \
                  patch.object(demo_engine.adapter, "send_order_to_broker", return_value=mock_response):
