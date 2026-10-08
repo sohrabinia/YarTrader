@@ -32,13 +32,16 @@ def test_partition_selector_zero_is_deterministic(monkeypatch):
 
     class Completed:
         returncode = 0
-        stdout = "============================= 1 passed in 0.01s =============================="
+        stdout = ""
         stderr = ""
 
     calls = []
 
     def fake_run(cmd, **kwargs):
         calls.append(cmd)
+        if cmd[-1] == "--version":
+            return Completed()
+        Completed.stdout = "============================= 1 passed in 0.01s =============================="
         return Completed()
 
     monkeypatch.setattr("validate_release.subprocess.run", fake_run)
@@ -47,6 +50,9 @@ def test_partition_selector_zero_is_deterministic(monkeypatch):
     assert result["status"] == "PASSED"
     assert result["passed"] == 1
     assert not failures
-    assert len(calls) == 1
+    assert len(calls) == 2
     assert calls[0][0:3] == [os.sys.executable, "-m", "pytest"]
-    assert calls[0][3] == "tests/YarTrader.Tests/Gate1/"
+    assert calls[0][-1] == "--version"
+    assert calls[1][0:3] == [os.sys.executable, "-m", "pytest"]
+    assert calls[1][3] == "tests/YarTrader.Tests/Gate1/"
+    assert any("Validated disjoint pytest partition map: 179 files across 16 partitions." in line for line in validator.logs_collected)
