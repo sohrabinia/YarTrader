@@ -94,6 +94,8 @@ def new_state(initial_balance):
     }
 
 def run(symbol, timeframe, years, initial_balance, sleep_sec, max_chunks=0):
+    if years < 10:
+        raise ValueError("MT5 historical backtest requires at least 10 years.")
     # Historical research is staged once from MT4 HST and then consumed from local disk.
     # MT5 is intentionally not touched by this backtest worker.
     return run_staged_backtest(symbol, timeframe, years, initial_balance, ROOT, max_chunks, sleep_sec)
