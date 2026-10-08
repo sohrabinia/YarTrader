@@ -395,6 +395,16 @@ class ReleaseValidationPlatform:
                 if current_fail_test:
                     failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
 
+                # Surface the actual failing test and captured traceback in CI logs.
+                # The pytest subprocess output is captured for parsing, so without
+                # this explicit emission a failed partition only reports a count.
+                for failure in failures_list:
+                    self.log(
+                        f"TEST FAILURE [{part_name}] {failure['test']}: "
+                        f"{failure['root_cause']} | traceback={failure['traceback'][-3000:]}",
+                        "ERROR",
+                    )
+
         elapsed = time.perf_counter() - start_time
         self.log(f"All test partitions completed in {round(elapsed, 2)} seconds.")
         total_tests = total_passed + total_failed + total_skipped
