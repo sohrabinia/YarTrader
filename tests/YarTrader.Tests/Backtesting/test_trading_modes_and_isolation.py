@@ -17,11 +17,13 @@ from src.Application.Agents.concrete_agents import (
 from src.Decision.Intelligence.engine import DecisionEngine
 from src.Data.connector import ExternalDataPipelineConnector
 from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
-from src.Application.Services.web_dashboard import app
+from src.Application.Services.web_dashboard import app, global_auth_service
 
 class TestTradingModesAndIsolation(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
+        self.auth_token = global_auth_service.create_session({"email": "admin@yartrader.app", "role": "ADMIN"})
+        self.auth_headers = {"Authorization": f"Bearer {self.auth_token}"}
 
         self.supervisor = IntelligenceSupervisor()
         self.supervisor.register_agent(ResearchAgent())
@@ -111,13 +113,13 @@ class TestTradingModesAndIsolation(unittest.TestCase):
     def test_demo_execution_persistence_isolation(self) -> None:
         """Verifies Demo Trading runs write to independent demo_trades.json, completely isolated from shadow trades."""
         # Trigger Demo Scenario
-        resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"})
+        resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"}, headers=self.auth_headers)
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["success"])
 
         # Fetch Demo Trades
-        trades_resp = self.client.get("/api/demo/trades")
+        trades_resp = self.client.get("/api/demo/trades", headers=self.auth_headers)
         self.assertEqual(trades_resp.status_code, 200)
         demo_trades = trades_resp.json()
         self.assertGreater(len(demo_trades), 0)
@@ -127,7 +129,7 @@ class TestTradingModesAndIsolation(unittest.TestCase):
             self.assertEqual(t["mode"], "DEMO")
 
         # Fetch independent Demo SRE Report
-        report_resp = self.client.get("/api/demo/report")
+        report_resp = self.client.get("/api/demo/report", headers=self.auth_headers)
         self.assertEqual(report_resp.status_code, 200)
         rep = report_resp.json()
         self.assertEqual(rep["account"], "52961173")
