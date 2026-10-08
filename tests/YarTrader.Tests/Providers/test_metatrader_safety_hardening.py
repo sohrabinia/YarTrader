@@ -86,7 +86,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
                 account_id="143056202",
                 server_name="Real-Live-Server"
             )
-        self.assertIn("unauthorized server", str(ctx.exception))
+        self.assertIn("Unauthorized MT4 server", str(ctx.exception))
 
     def test_health_endpoint_details_isolation(self) -> None:
         """Verifies that the /health API endpoint reports correct segregated MT5/MT4 schemas without credential leakage or account/broker disclosure."""
