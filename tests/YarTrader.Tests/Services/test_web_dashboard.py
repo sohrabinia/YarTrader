@@ -187,7 +187,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
     def test_async_validation_run_lifecycle(self):
         """Verifies trigger, progress retrieval, history and downloading."""
         # 1. Trigger
-        resp_run = self.client.post("/api/validation/run")
+        resp_run = self.client.post("/api/validation/run", headers=self.admin_headers)
         self.assertEqual(resp_run.status_code, 200)
         self.assertIn(resp_run.json()["status"], ["Accepted", "Already Running"])
 
