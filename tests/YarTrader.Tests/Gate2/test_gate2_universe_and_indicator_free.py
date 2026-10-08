@@ -262,7 +262,7 @@ market_universe:
             similarity={},
             portfolio_risk={"approved": True},
             current_price=2000.0,
-            newborn_brain_report={"brain_available": True, "suggested_virtual_action": "BUY"}
+            newborn_brain_report={"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 90.0, "trade_parameters": {"entry": 2000.0, "stop_loss": 1990.0, "take_profit": 2020.0}}]}
         )
 
         plan = res["plan"]
@@ -284,7 +284,7 @@ market_universe:
             similarity={},
             portfolio_risk={"approved": True},
             current_price=2000.0,
-            newborn_brain_report={"brain_available": True, "suggested_virtual_action": "SELL"}
+            newborn_brain_report={"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 90.0, "trade_parameters": {"entry": 2000.0, "stop_loss": 2010.0, "take_profit": 1980.0}}]}
         )
 
         plan = res["plan"]
@@ -323,7 +323,16 @@ market_universe:
             mock_brain_report.to_dict.return_value = {
                 "symbol": "XAUUSD",
                 "brain_available": True,
-                "suggested_virtual_action": target_action
+                "suggested_virtual_action": target_action,
+                "active_hypotheses": ([{
+                    "suggested_virtual_action": target_action,
+                    "hypothesis_confidence": 90.0,
+                    "trade_parameters": {
+                        "entry": 2000.0,
+                        "stop_loss": 1990.0 if target_action == "BUY" else 2010.0,
+                        "take_profit": 2020.0 if target_action == "BUY" else 1980.0,
+                    },
+                }] if target_action in ("BUY", "SELL") else []),
             }
 
             with patch.object(LiveAnalysisBrain, "process_live_candle", return_value=mock_brain_report), \
@@ -370,7 +379,7 @@ market_universe:
         runtime1 = ResearchRuntime(provider=ControlledDataProvider(), symbol="XAUUSD", timeframe="H1", provider_name="ControlledOfflineFixture")
 
         report_sell = MagicMock()
-        report_sell.to_dict.return_value = {"symbol": "XAUUSD", "brain_available": True, "suggested_virtual_action": "SELL"}
+        report_sell.to_dict.return_value = {"symbol": "XAUUSD", "brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 90.0, "trade_parameters": {"entry": 2000.0, "stop_loss": 2010.0, "take_profit": 1980.0}}]}
 
         with patch.object(StrategyOrchestrator, "evaluate_all_strategies", return_value=mock_buy_candidate), \
              patch.object(LiveAnalysisBrain, "process_live_candle", return_value=report_sell), \
@@ -394,7 +403,7 @@ market_universe:
         runtime2 = ResearchRuntime(provider=ControlledDataProvider(), symbol="XAUUSD", timeframe="H1", provider_name="ControlledOfflineFixture")
 
         report_buy = MagicMock()
-        report_buy.to_dict.return_value = {"symbol": "XAUUSD", "brain_available": True, "suggested_virtual_action": "BUY"}
+        report_buy.to_dict.return_value = {"symbol": "XAUUSD", "brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 90.0, "trade_parameters": {"entry": 2000.0, "stop_loss": 1990.0, "take_profit": 2020.0}}]}
 
         with patch.object(StrategyOrchestrator, "evaluate_all_strategies", return_value=mock_sell_candidate), \
              patch.object(LiveAnalysisBrain, "process_live_candle", return_value=report_buy), \

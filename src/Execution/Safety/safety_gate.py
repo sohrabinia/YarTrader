@@ -35,7 +35,7 @@ class MetaTraderSafetyGate:
         # Canonical future live role is MT4 only, but it remains hard-locked until
         # an active real MT4 account is explicitly configured and authorized.
         if operation_type in {"REAL_LIVE", "LIVE_MT4"}:
-            raise ValidationException("MT4 Live Trading is hard-disabled until an active real MT4 account is configured.")
+            raise ValidationException("MT4 Live Trading is hard-disabled until an active real MT4 account is configured. Real Live Trading is hard-disabled.")
         if operation_type == "LIVE_MT5":
             raise ValidationException("MT5 Live Trading is not a supported execution role.")
 
@@ -56,7 +56,7 @@ class MetaTraderSafetyGate:
             raise ValidationException("live_trading_enabled must be boolean; operation blocked fail-closed.")
 
         if live_enabled:
-            raise ValidationException("live_trading_enabled is true; execution is fail-closed.")
+            raise ValidationException("live_trading_enabled is true; Real Live Trading is hard-disabled; execution is fail-closed.")
 
         if terminal_type == "MT5":
             allowed_ops = {"DATA", "ANALYSIS", "RESEARCH", "BACKTEST", "DEMO"}

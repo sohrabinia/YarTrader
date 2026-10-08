@@ -16,6 +16,9 @@ class TestMarketSessionEngine:
 
     def setup_method(self):
         self.engine = MarketSessionEngine()
+        from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+        self._risk_baseline = DailyLossKillSwitch.get_instance()
+        self._risk_baseline.set_session_baseline(10000.0, "2026-03-23")
         self.now_utc = datetime(2026, 3, 23, 10, 0, 0, tzinfo=timezone.utc) # Monday 10:00 UTC
 
     def test_unknown_account_equity_blocks_pre_entry(self):
@@ -107,6 +110,7 @@ class TestMarketSessionEngine:
     def test_crypto_saturday_multiple_intervals(self):
         # Saturday multiple sessions: 08:00-12:00, 13:00-17:00
         sat_date = "2026-03-28"
+        self._risk_baseline.set_session_baseline(10000.0, sat_date)
         i1 = SessionInterval(
             session_id="BTC_SAT_1",
             broker="DEFAULT",

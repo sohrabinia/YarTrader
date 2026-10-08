@@ -8,6 +8,7 @@ from app.workers.research_worker import is_autonomous_demo_enabled
 from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
 from src.Execution.Models.models import OrderRequest, OrderResponse
 from src.Infrastructure.exceptions import ValidationException
+from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
 
 
 @pytest.mark.forensic_guard
@@ -20,7 +21,13 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
     def setUp(self):
         self.original_env = os.environ.get("AUTONOMOUS_DEMO_TRADING_ENABLED")
         os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "true"
+        self._risk_baseline = DailyLossKillSwitch.get_instance()
+        session_key, _, _ = self._risk_baseline.get_session_key_and_window(datetime.now(timezone.utc))
+        self._risk_baseline.set_session_baseline(10000.0, session_key)
         self.mock_adapter = MagicMock()
+        self.mock_adapter.PLATFORM_NAME = "MT5"
+        self.mock_adapter.TARGET_ACCOUNT = "52961173"
+        self.mock_adapter.TARGET_SERVER = "Alpari-MT5-Demo"
         self.mock_adapter.get_account_info.return_value = {
             "login": "52961173",
             "server": "Alpari-MT5-Demo",
@@ -127,7 +134,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01)
         with self.assertRaises(ValidationException) as ctx:
             DemoExecutionGate.verify_demo_execution_eligibility(self.mock_adapter, req, demo_mode_flag=True)
-        self.assertIn("MT5 Terminal is disconnected", str(ctx.exception))
+        self.assertIn("broker terminal is disconnected or account info is unavailable", str(ctx.exception))
 
     def test_09b_unknown_terminal_metadata_fails_closed(self):
         self.mock_adapter.get_terminal_info.return_value = None
@@ -728,13 +735,16 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
         self.kill_switch.evaluate_daily_loss(9000.0) # Active kill switch
 
         mock_adapter = MagicMock()
+        mock_adapter.PLATFORM_NAME = "MT5"
+        mock_adapter.TARGET_ACCOUNT = "52961173"
+        mock_adapter.TARGET_SERVER = "Alpari-MT5-Demo"
         mock_adapter.get_account_info.return_value = {
             "login": "52961173",
             "server": "Alpari-MT5-Demo",
             "trade_mode": 0,
             "equity": 9000.0
         }
-        mock_adapter.get_terminal_info.return_value = {"connected": True, "trade_allowed": True}
+        mock_adapter.get_terminal_info.return_value = {"connected": True, "trade_allowed": True, "tradeapi_disabled": False}
         mock_adapter.get_symbol_info.return_value = {"name": "XAUUSD", "trade_mode": 4, "volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
 
         req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2500.0, StopLoss=2490.0, TakeProfit=2520.0)

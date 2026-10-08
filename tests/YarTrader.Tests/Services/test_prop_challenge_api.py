@@ -7,6 +7,12 @@ class TestPropChallengeAPI(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
         self.engine = PropChallengeEngine(config_filepath="test_runtime_logs/test_prop_config.json")
+        from src.Application.Services.web_dashboard import global_auth_service
+        admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
+        self.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
+        from src.Application.Services.web_dashboard import global_auth_service
+        admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
+        self.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
 
     def test_unconfigured_prop_challenge_status(self):
         """Verifies that unconfigured prop challenge returns NOT_CONFIGURED status."""
@@ -34,7 +40,7 @@ class TestPropChallengeAPI(unittest.TestCase):
             "news_rule": "NO_NEW_ENTRIES_AROUND_HIGH_IMPACT"
         }
 
-        post_res = self.client.post("/api/prop/config", json=config_payload)
+        post_res = self.client.post("/api/prop/config", json=config_payload, headers=self.admin_headers)
         self.assertEqual(post_res.status_code, 200)
         post_data = post_res.json()
         self.assertEqual(post_data["status"], "Success")

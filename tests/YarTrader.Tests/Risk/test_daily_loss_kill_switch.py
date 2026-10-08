@@ -99,6 +99,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_06_loss_8_00_percent_triggers_kill_switch(self):
         """6. 8.00% loss -> entries blocked."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_check = self._create_iran_dt(hour=12, minute=0)
@@ -113,6 +114,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_07_loss_greater_than_8_percent_remains_blocked(self):
         """7. Loss > 8% -> entries remain blocked."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_check = self._create_iran_dt(hour=14, minute=0)
@@ -143,12 +145,13 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_09_resets_at_next_0135_session_start(self):
         """9. At next 01:35 session start, the daily loss state resets correctly."""
         dt_day1 = self._create_iran_dt(day=1, hour=1, minute=35)
-        self.kill_switch.set_session_baseline(10000.0, "2026-03-01")
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_day1)
         self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=self._create_iran_dt(day=1, hour=12)) # Triggered
 
-        # Next session starts at 01:35 on March 2
+        # Next session requires an explicit new baseline under the fail-closed persistence contract.
         dt_day2 = self._create_iran_dt(day=2, hour=1, minute=35)
+        self.kill_switch.update_session_state(current_equity=9100.0, dt=dt_day2)
         res = self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=dt_day2)
 
         self.assertTrue(res["allowed"])
@@ -158,6 +161,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_10_reset_does_not_occur_at_midnight(self):
         """10. Reset does NOT occur at midnight (00:00)."""
         dt_day1 = self._create_iran_dt(day=1, hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_day1)
         self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=self._create_iran_dt(day=1, hour=12)) # Triggered
 
@@ -171,6 +175,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_11_restart_recovery_preserves_kill_switch_and_baseline(self):
         """11. Restart/recovery does not accidentally reset daily baseline or bypass kill-switch."""
         dt_day1 = self._create_iran_dt(day=1, hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_day1)
         self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=self._create_iran_dt(day=1, hour=12)) # Triggered
 

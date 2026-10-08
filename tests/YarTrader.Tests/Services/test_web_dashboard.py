@@ -13,6 +13,16 @@ class TestWebDashboardFastAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.client = TestClient(app)
+        # Deterministic in-memory admin identity exercises the real Bearer/session
+        # validation path without depending on a production-seeded disabled account.
+        admin = {
+            "email": "ci-admin@yartrader.test",
+            "role": "ADMIN",
+            "name": "CI Admin",
+            "tier": "ENTERPRISE",
+            "user_id": "ci-admin",
+        }
+        cls.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
 
     def test_get_dashboard_spa(self):
         """Verifies SPA root pages render successfully with HTML contents across localized and static paths."""
@@ -159,7 +169,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
 
     def test_trigger_backtesting_job(self):
         """Verifies offline backtest execution endpoint."""
-        resp = self.client.post("/api/backtest/run", json={"symbol": "EURUSD"})
+        resp = self.client.post("/api/backtest/run", json={"symbol": "EURUSD"}, headers=self.admin_headers)
         self.assertEqual(resp.status_code, 200)
         self.assertIn("job_id", resp.json())
 
@@ -185,23 +195,23 @@ class TestWebDashboardFastAPI(unittest.TestCase):
     def test_async_validation_run_lifecycle(self):
         """Verifies trigger, progress retrieval, history and downloading."""
         # 1. Trigger
-        resp_run = self.client.post("/api/validation/run")
+        resp_run = self.client.post("/api/validation/run", headers=self.admin_headers)
         self.assertEqual(resp_run.status_code, 200)
         self.assertIn(resp_run.json()["status"], ["Accepted", "Already Running"])
 
         # 2. Get status
-        resp_status = self.client.get("/api/validation/status")
+        resp_status = self.client.get("/api/validation/status", headers=self.admin_headers)
         self.assertEqual(resp_status.status_code, 200)
         status_data = resp_status.json()
         self.assertIn("is_running", status_data)
 
         # 3. Get history
-        resp_hist = self.client.get("/api/validation/history")
+        resp_hist = self.client.get("/api/validation/history", headers=self.admin_headers)
         self.assertEqual(resp_hist.status_code, 200)
         self.assertIsInstance(resp_hist.json(), list)
 
         # 4. Download report
-        resp_dl = self.client.get("/api/validation/reports/download?type=html")
+        resp_dl = self.client.get("/api/validation/reports/download?type=html", headers=self.admin_headers)
         self.assertEqual(resp_dl.status_code, 200)
         self.assertIn("text/html", resp_dl.headers["content-type"])
 

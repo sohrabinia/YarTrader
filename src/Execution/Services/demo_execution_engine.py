@@ -290,7 +290,8 @@ class DemoExecutionEngine:
             Comment=comment
         )
 
-        response = self.adapter.close_order(position_ticket, close_vol_f) if hasattr(self.adapter, "close_order") else self.adapter.send_order_to_broker(req)
+        close_order = getattr(self.adapter, "close_order", None)
+        response = close_order(position_ticket, close_vol_f) if callable(close_order) else self.adapter.send_order_to_broker(req)
 
         # Confirm closure from broker position list
         remaining = self.get_active_positions(symbol=symbol)

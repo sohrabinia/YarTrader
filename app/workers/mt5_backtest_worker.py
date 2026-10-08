@@ -94,6 +94,8 @@ def new_state(initial_balance):
     }
 
 def run(symbol, timeframe, years, initial_balance, sleep_sec, max_chunks=0):
+    if years < 10:
+        raise ValueError("MT5 historical backtest requires at least 10 years.")
     # Historical research is staged once from MT4 HST and then consumed from local disk.
     # MT5 is intentionally not touched by this backtest worker.
     return run_staged_backtest(symbol, timeframe, years, initial_balance, ROOT, max_chunks, sleep_sec)
@@ -261,13 +263,12 @@ def main():
     parser.add_argument("--sleep", type=float, default=0.5)
     parser.add_argument("--max-chunks", type=int, default=0)
     args = parser.parse_args()
+
     if not acquire_lock():
-        raise SystemExit("Another MT5 backtest worker is already active.")
+        raise SystemExit("Another MT5 backtest is already running.")
     try:
-        run(args.symbol, args.timeframe, args.years, args.initial_balance, args.sleep, args.max_chunks)
-    except Exception as exc:
-        print(f"BACKTEST_PAUSED error={type(exc).__name__}: {exc}", flush=True)
-        raise
+        result = run(args.symbol, args.timeframe, args.years, args.initial_balance, args.sleep, args.max_chunks)
+        print(json.dumps(result, default=str), flush=True)
     finally:
         release_lock()
 

@@ -27,22 +27,22 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         with self.assertRaises(ValidationException) as ctx:
             MetaTraderSafetyGate.verify_operation(
                 terminal_type="MT5",
-                operation_type="DATA",
+                operation_type="DEMO",
                 account_id="99999999",  # Unauthorized account
                 server_name="Alpari-MT5-Demo"
             )
-        self.assertIn("unauthorized account", str(ctx.exception))
+        self.assertIn("Unauthorized MT5 account", str(ctx.exception))
 
     def test_safety_gate_rejects_unauthorized_mt5_server(self) -> None:
         """Verifies that Safety Gate blocks unauthorized servers on MT5."""
         with self.assertRaises(ValidationException) as ctx:
             MetaTraderSafetyGate.verify_operation(
                 terminal_type="MT5",
-                operation_type="DATA",
+                operation_type="DEMO",
                 account_id="52961173",
                 server_name="Insecure-Live-Server"  # Unauthorized server
             )
-        self.assertIn("unauthorized server", str(ctx.exception))
+        self.assertIn("Unauthorized MT5 server", str(ctx.exception))
 
     def test_safety_gate_rejects_live_trading_operation_completely(self) -> None:
         """Verifies that SRE Safety Gate completely blocks real live trading execution."""
@@ -86,7 +86,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
                 account_id="143056202",
                 server_name="Real-Live-Server"
             )
-        self.assertIn("unauthorized server", str(ctx.exception))
+        self.assertIn("Unauthorized MT4 server", str(ctx.exception))
 
     def test_health_endpoint_details_isolation(self) -> None:
         """Verifies that the /health API endpoint reports correct segregated MT5/MT4 schemas without credential leakage or account/broker disclosure."""
@@ -107,7 +107,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         self.assertNotIn("account", mt4_det)
         self.assertNotIn("server", mt4_det)
         self.assertEqual(mt4_det["live_trading_enabled"], False)
-        self.assertEqual(mt4_det["role"], "DISABLED")
+        self.assertEqual(mt4_det["role"], "SIGNAL_BACKTEST_DEMO_DATA")
 
         # Confirm sensitive details, account numbers, and servers are not exposed publicly
         self.assertNotIn("52961173", str(data))

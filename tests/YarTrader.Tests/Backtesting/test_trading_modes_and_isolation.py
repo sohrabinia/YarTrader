@@ -22,6 +22,12 @@ from src.Application.Services.web_dashboard import app
 class TestTradingModesAndIsolation(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
+        from src.Application.Services.web_dashboard import global_auth_service
+        admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
+        self.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
+        from src.Application.Services.web_dashboard import global_auth_service
+        admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
+        self.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
 
         self.supervisor = IntelligenceSupervisor()
         self.supervisor.register_agent(ResearchAgent())
@@ -111,13 +117,13 @@ class TestTradingModesAndIsolation(unittest.TestCase):
     def test_demo_execution_persistence_isolation(self) -> None:
         """Verifies Demo Trading runs write to independent demo_trades.json, completely isolated from shadow trades."""
         # Trigger Demo Scenario
-        resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"})
+        resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"}, headers=self.admin_headers)
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["success"])
 
         # Fetch Demo Trades
-        trades_resp = self.client.get("/api/demo/trades")
+        trades_resp = self.client.get("/api/demo/trades", headers=self.admin_headers)
         self.assertEqual(trades_resp.status_code, 200)
         demo_trades = trades_resp.json()
         self.assertGreater(len(demo_trades), 0)
