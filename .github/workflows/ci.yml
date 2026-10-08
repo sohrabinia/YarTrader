@@ -10,8 +10,8 @@ on:
     branches:
       - main
       - master
+      - remediation/*
   schedule:
-    # Nightly run at 2:00 AM UTC
     - cron: '0 2 * * *'
 
 jobs:
