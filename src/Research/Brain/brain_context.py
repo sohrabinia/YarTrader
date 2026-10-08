@@ -238,7 +238,7 @@ def build_brain_context(
 class PointInTimeContextCache:
     """Bounded shared cache used to assemble MTF/cross-symbol context without strategy rules."""
 
-    def __init__(self, max_per_scope: int = 500) -> None:
+    def __init__(self, max_per_scope: int = 250) -> None:
         self.max_per_scope = max_per_scope
         self._data: Dict[tuple, List[MarketObservation]] = {}
 
@@ -268,4 +268,4 @@ class PointInTimeContextCache:
         }
 
 
-GLOBAL_CONTEXT_CACHE = PointInTimeContextCache()
+GLOBAL_CONTEXT_CACHE = PointInTimeContextCache(max_per_scope=250)

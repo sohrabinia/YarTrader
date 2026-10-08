@@ -96,18 +96,28 @@ class DemoExecutionGate:
                     f"DemoExecutionGate Violation: Connected MT5 server '{server}' is not authorized DEMO server '{cls.AUTHORIZED_DEMO_SERVER}'."
                 )
 
-        # Check 4: Terminal trading permissions enabled
-        if term_info is not None:
-            trade_allowed = term_info.get("trade_allowed", True)
-            tradeapi_disabled = term_info.get("tradeapi_disabled", False)
-            if not trade_allowed or tradeapi_disabled:
-                raise ValidationException("DemoExecutionGate Violation: terminal trading permissions disabled.")
+        # Check 4: Terminal metadata is authoritative; UNKNOWN must fail closed.
+        if not isinstance(term_info, dict):
+            raise ValidationException("DemoExecutionGate Violation: terminal metadata is unavailable or UNKNOWN. Execution strictly blocked.")
+        if "trade_allowed" not in term_info or "tradeapi_disabled" not in term_info:
+            raise ValidationException("DemoExecutionGate Violation: terminal trading-permission metadata is incomplete. Execution strictly blocked.")
+        trade_allowed = term_info["trade_allowed"]
+        tradeapi_disabled = term_info["tradeapi_disabled"]
+        if not isinstance(trade_allowed, bool) or not isinstance(tradeapi_disabled, bool):
+            raise ValidationException("DemoExecutionGate Violation: terminal trading-permission metadata is invalid. Execution strictly blocked.")
+        if not trade_allowed or tradeapi_disabled:
+            raise ValidationException("DemoExecutionGate Violation: terminal trading permissions disabled.")
 
-        # Check 5: Symbol tradeable
-        if sym_info is not None:
-            sym_trade_mode = sym_info.get("trade_mode", 4) # 4 is SYMBOL_TRADE_MODE_FULL
-            if sym_trade_mode == 0:
-                raise ValidationException(f"DemoExecutionGate Violation: Symbol '{request.Symbol}' trade mode is DISABLED (0).")
+        # Check 5: Symbol metadata is authoritative; UNKNOWN must fail closed.
+        if not isinstance(sym_info, dict):
+            raise ValidationException(f"DemoExecutionGate Violation: symbol metadata for '{request.Symbol}' is unavailable or UNKNOWN. Execution strictly blocked.")
+        if "trade_mode" not in sym_info:
+            raise ValidationException(f"DemoExecutionGate Violation: symbol trade-mode metadata for '{request.Symbol}' is incomplete. Execution strictly blocked.")
+        sym_trade_mode = sym_info["trade_mode"]
+        if isinstance(sym_trade_mode, bool) or not isinstance(sym_trade_mode, (int, float)):
+            raise ValidationException(f"DemoExecutionGate Violation: symbol trade mode for '{request.Symbol}' is invalid. Execution strictly blocked.")
+        if sym_trade_mode == 0:
+            raise ValidationException(f"DemoExecutionGate Violation: Symbol '{request.Symbol}' trade mode is DISABLED (0).")
 
         # Check 7: Daily Loss Limit Gate (8% Ceiling) - Strictly Fail Closed
         import math

@@ -161,14 +161,14 @@ def run_staged_backtest(symbol: str, timeframe: str, years: float, initial_balan
         chunks = int(cp.get("processed_chunks", 0)) if cp else 0
         while cursor <= last:
             chunk_end = min(last, cursor + chunk_seconds)
-            context_start = max(first, cursor - 500 * duration_sec)
+            context_start = max(first, cursor - 250 * duration_sec)
             candles = list(dataset.range(timeframe, context_start, chunk_end))
             process_index = next((i for i,c in enumerate(candles) if int(c["time"]) >= cursor), len(candles))
             if process_index >= len(candles):
                 cursor = chunk_end + 1
                 continue
             result = engine.run_backtest(symbol, timeframe, candles, initial_balance=initial_balance,
-                                          start_index=process_index, context_window=500, state=state)
+                                          start_index=process_index, context_window=250, state=state)
             state = result["state"]
             processed += len(candles) - process_index
             chunks += 1
