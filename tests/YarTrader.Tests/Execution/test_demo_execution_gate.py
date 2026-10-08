@@ -744,7 +744,7 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
             "trade_mode": 0,
             "equity": 9000.0
         }
-        mock_adapter.get_terminal_info.return_value = {"connected": True, "trade_allowed": True}
+        mock_adapter.get_terminal_info.return_value = {"connected": True, "trade_allowed": True, "tradeapi_disabled": False}
         mock_adapter.get_symbol_info.return_value = {"name": "XAUUSD", "trade_mode": 4, "volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
 
         req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2500.0, StopLoss=2490.0, TakeProfit=2520.0)
