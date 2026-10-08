@@ -8,6 +8,7 @@ from app.workers.research_worker import is_autonomous_demo_enabled
 from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
 from src.Execution.Models.models import OrderRequest, OrderResponse
 from src.Infrastructure.exceptions import ValidationException
+from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
 
 
 @pytest.mark.forensic_guard
@@ -20,6 +21,9 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
     def setUp(self):
         self.original_env = os.environ.get("AUTONOMOUS_DEMO_TRADING_ENABLED")
         os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "true"
+        self._risk_baseline = DailyLossKillSwitch.get_instance()
+        session_key, _, _ = self._risk_baseline.get_session_key_and_window(datetime.now(timezone.utc))
+        self._risk_baseline.set_session_baseline(10000.0, session_key)
         self.mock_adapter = MagicMock()
         self.mock_adapter.PLATFORM_NAME = "MT5"
         self.mock_adapter.TARGET_ACCOUNT = "52961173"
@@ -130,7 +134,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01)
         with self.assertRaises(ValidationException) as ctx:
             DemoExecutionGate.verify_demo_execution_eligibility(self.mock_adapter, req, demo_mode_flag=True)
-        self.assertIn("MT5 Terminal is disconnected", str(ctx.exception))
+        self.assertIn("broker terminal is disconnected or account info is unavailable", str(ctx.exception))
 
     def test_09b_unknown_terminal_metadata_fails_closed(self):
         self.mock_adapter.get_terminal_info.return_value = None
