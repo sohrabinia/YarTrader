@@ -323,7 +323,16 @@ market_universe:
             mock_brain_report.to_dict.return_value = {
                 "symbol": "XAUUSD",
                 "brain_available": True,
-                "suggested_virtual_action": target_action
+                "suggested_virtual_action": target_action,
+                "active_hypotheses": ([{
+                    "suggested_virtual_action": target_action,
+                    "hypothesis_confidence": 90.0,
+                    "trade_parameters": {
+                        "entry": 2000.0,
+                        "stop_loss": 1990.0 if target_action == "BUY" else 2010.0,
+                        "take_profit": 2020.0 if target_action == "BUY" else 1980.0,
+                    },
+                }] if target_action in ("BUY", "SELL") else []),
             }
 
             with patch.object(LiveAnalysisBrain, "process_live_candle", return_value=mock_brain_report), \
