@@ -192,7 +192,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertIn(resp_run.json()["status"], ["Accepted", "Already Running"])
 
         # 2. Get status
-        resp_status = self.client.get("/api/validation/status")
+        resp_status = self.client.get("/api/validation/status", headers=self.admin_headers)
         self.assertEqual(resp_status.status_code, 200)
         status_data = resp_status.json()
         self.assertIn("is_running", status_data)
