@@ -27,6 +27,13 @@ class DummyRequest:
 
 
 class DummyAdapter:
+    def __init__(self):
+        from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+        self._risk = DailyLossKillSwitch.get_instance()
+        self._risk.set_session_baseline(10000.0, datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+
+    platform_name = "MT5"
+
     def get_account_info(self):
         return {"login": 52961173, "server": "Alpari-MT5-Demo", "trade_mode": 0, "equity": 10000.0}
     def get_terminal_info(self):
