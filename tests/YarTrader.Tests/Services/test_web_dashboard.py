@@ -15,6 +15,8 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         cls.client = TestClient(app)
         admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
         cls.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
+        admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
+        cls.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
 
     def test_get_dashboard_spa(self):
         """Verifies SPA root pages render successfully with HTML contents across localized and static paths."""
