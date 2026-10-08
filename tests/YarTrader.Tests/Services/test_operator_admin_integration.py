@@ -11,13 +11,13 @@ class TestOperatorAdminIntegration(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
 
-    def test_operator_default_port_is_8080(self):
-        """Verify the documented production YarOperator runtime default is loopback port 8080."""
+    def test_operator_default_port_is_3000(self):
+        """Verify default host is 127.0.0.1 and port is 3000 matching YarOperator M12 contract."""
         with patch.dict(os.environ, {}, clear=True):
             adapter = YarTraderOperatorAdapter()
             self.assertEqual(adapter.host, "127.0.0.1")
-            self.assertEqual(adapter.port, 8080)
-            self.assertEqual(adapter.base_url, "http://127.0.0.1:8080")
+            self.assertEqual(adapter.port, 3000)
+            self.assertEqual(adapter.base_url, "http://127.0.0.1:3000")
 
     def test_operator_runtime_url_env_override(self):
         """Verify YAROPERATOR_RUNTIME_URL environment variable is respected when loopback."""

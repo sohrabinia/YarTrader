@@ -1,14 +1,12 @@
 import unittest
 from fastapi.testclient import TestClient
-from src.Application.Services.web_dashboard import app, global_auth_service
+from src.Application.Services.web_dashboard import app
 from src.Risk.Services.prop_challenge_engine import PropChallengeEngine, DISCLAIMER_TEXT
 
 class TestPropChallengeAPI(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
         self.engine = PropChallengeEngine(config_filepath="test_runtime_logs/test_prop_config.json")
-        self.auth_token = global_auth_service.create_session({"email": "admin@yartrader.app", "role": "ADMIN"})
-        self.auth_headers = {"Authorization": f"Bearer {self.auth_token}"}
 
     def test_unconfigured_prop_challenge_status(self):
         """Verifies that unconfigured prop challenge returns NOT_CONFIGURED status."""
@@ -36,7 +34,7 @@ class TestPropChallengeAPI(unittest.TestCase):
             "news_rule": "NO_NEW_ENTRIES_AROUND_HIGH_IMPACT"
         }
 
-        post_res = self.client.post("/api/prop/config", json=config_payload, headers=self.auth_headers)
+        post_res = self.client.post("/api/prop/config", json=config_payload)
         self.assertEqual(post_res.status_code, 200)
         post_data = post_res.json()
         self.assertEqual(post_data["status"], "Success")

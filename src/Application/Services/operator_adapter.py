@@ -39,10 +39,10 @@ class YarTraderOperatorAdapter:
             self.base_url = runtime_url.rstrip("/")
             parsed = urlparse(self.base_url)
             self.host = parsed.hostname or "127.0.0.1"
-            self.port = parsed.port or 8080
+            self.port = parsed.port or 3000
         else:
             self.host = host or os.environ.get("YARTRADER_OPERATOR_HOST", "127.0.0.1")
-            self.port = int(port or os.environ.get("YARTRADER_OPERATOR_PORT", "8080"))
+            self.port = int(port or os.environ.get("YARTRADER_OPERATOR_PORT", "3000"))
             self.base_url = f"http://{self.host}:{self.port}"
         self.timeout_sec = float(os.environ.get("YARTRADER_OPERATOR_TIMEOUT", str(timeout_sec)))
 

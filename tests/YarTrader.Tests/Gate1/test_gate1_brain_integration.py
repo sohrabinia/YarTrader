@@ -283,7 +283,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
         self.assertEqual(res_c["plan"]["decision_source"], "BRAIN")
 
         # Case D: Brain BUY + bearish alignment -> BUY (Brain is sole authority)
-        brain_buy = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2290.0, "take_profit": 2320.0}}]}
+        brain_buy = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
         res_d = planner.generate_execution_plan(
             symbol="XAUUSD", timeframe="H1", narrative=narrative_bearish, liquidity={},
             zones={}, alignment=bearish_alignment, similarity={}, portfolio_risk={"approved": True},
@@ -292,7 +292,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
         self.assertEqual(res_d["plan"]["action"], "BUY")
 
         # Case E: Brain SELL + bullish alignment -> SELL (Brain is sole authority)
-        brain_sell = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2310.0, "take_profit": 2280.0}}]}
+        brain_sell = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
         res_e = planner.generate_execution_plan(
             symbol="XAUUSD", timeframe="H1", narrative=narrative_bullish, liquidity={},
             zones={}, alignment=bullish_alignment, similarity={}, portfolio_risk={"approved": True},

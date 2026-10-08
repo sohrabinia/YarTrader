@@ -51,7 +51,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
                 terminal_type="MT5",
                 operation_type="REAL_LIVE"
             )
-        self.assertIn("Real Live Trading is hard-disabled", str(ctx.exception))
+        self.assertIn("MT4 Live Trading is hard-disabled", str(ctx.exception))
 
     def test_safety_gate_rejects_live_trading_enabled_config_manipulation(self) -> None:
         """Verifies that even if config flag is enabled, SRE Safety Gate blocks real live operations."""
@@ -107,7 +107,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         self.assertNotIn("account", mt4_det)
         self.assertNotIn("server", mt4_det)
         self.assertEqual(mt4_det["live_trading_enabled"], False)
-        self.assertEqual(mt4_det["role"], "SIGNAL_BACKTEST_DEMO_DATA")
+        self.assertEqual(mt4_det["role"], "DISABLED")
 
         # Confirm sensitive details, account numbers, and servers are not exposed publicly
         self.assertNotIn("52961173", str(data))

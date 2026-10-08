@@ -19,7 +19,7 @@ class BacktestAndLearningEngine:
     - Walk-forward out-of-sample validation support.
     """
 
-    def __init__(self, storage_dir: Optional[str] = None, memory_autosave_every: int = 1, learning_interval_bars: int = 1) -> None:
+    def __init__(self, storage_dir: Optional[str] = None, memory_autosave_every: int = 250, learning_interval_bars: int = 1) -> None:
         self.storage_dir = storage_dir or os.path.join("runtime_logs", "backtest_learning")
         os.makedirs(self.storage_dir, exist_ok=True)
 
@@ -113,7 +113,7 @@ class BacktestAndLearningEngine:
         candles: List[Dict[str, Any]],
         initial_balance: float = 10000.0,
         start_index: int = 50,
-        context_window: int = 500,
+        context_window: int = 250,
         state: Optional[Dict[str, Any]] = None,
         all_timeframe_candles_provider=None,
         decision_interval_minutes: int = 1,
@@ -319,6 +319,10 @@ class BacktestAndLearningEngine:
                     pnl_multiplier = 100.0 if "XAU" in symbol.upper() else 10000.0
                     if risk_distance > 0.0 and risk_dollars > 0.0:
                         open_position["volume"] = round(risk_dollars / (risk_distance * pnl_multiplier), 6)
+
+        # Flush the complete historical event buffer at the end of every run/chunk.
+        # This preserves all learning memory while avoiding event-by-event full-history serialization.
+        memory.flush_event_persistence()
 
         # Calculate backtest report metrics
         wins = sum(1 for t in closed_trades if t["outcome"] == "WIN")

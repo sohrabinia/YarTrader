@@ -3,7 +3,7 @@
 
 param(
     [string]$OperatorOwnerId = "owner_sohrab",
-    [string]$YarOperatorRuntimeUrl = "http://127.0.0.1:8080"
+    [string]$YarOperatorRuntimeUrl = "http://127.0.0.1:3000"
 )
 
 $ServiceName = "YarTrader"
@@ -39,7 +39,7 @@ if ([string]::IsNullOrWhiteSpace($YarOperatorRuntimeUrl)) {
 }
 
 if (-not ($YarOperatorRuntimeUrl.StartsWith("http://127.0.0.1") -or $YarOperatorRuntimeUrl.StartsWith("http://localhost"))) {
-    Write-Error "Deployment Failed: YAROPERATOR_RUNTIME_URL must point to an internal local endpoint (e.g. http://127.0.0.1:8080) for security isolation!"
+    Write-Error "Deployment Failed: YAROPERATOR_RUNTIME_URL must point to an internal local endpoint (e.g. http://127.0.0.1:3000) for security isolation!"
     Exit 1
 }
 

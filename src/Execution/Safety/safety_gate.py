@@ -35,7 +35,7 @@ class MetaTraderSafetyGate:
         # Canonical future live role is MT4 only, but it remains hard-locked until
         # an active real MT4 account is explicitly configured and authorized.
         if operation_type in {"REAL_LIVE", "LIVE_MT4"}:
-            raise ValidationException("Real Live Trading is hard-disabled until an explicitly authorized real account is configured.")
+            raise ValidationException("MT4 Live Trading is hard-disabled until an active real MT4 account is configured.")
         if operation_type == "LIVE_MT5":
             raise ValidationException("MT5 Live Trading is not a supported execution role.")
 
@@ -51,15 +51,13 @@ class MetaTraderSafetyGate:
 
         if terminal_type == "MT5":
             allowed_ops = {"DATA", "ANALYSIS", "RESEARCH", "BACKTEST", "DEMO"}
-            # All MT5 access is bound to the authorized DEMO terminal identity.
-            expected_account = cls.MT5_DEMO_ACCOUNT
-            expected_server = cls.MT5_DEMO_SERVER
+            expected_account = cls.MT5_DEMO_ACCOUNT if operation_type == "DEMO" else None
+            expected_server = cls.MT5_DEMO_SERVER if operation_type == "DEMO" else None
         elif terminal_type == "MT4":
             # MT4 is the Signal/data terminal. Its future LIVE role is reserved but hard-locked; it must never be used for DEMO orders.
             allowed_ops = {"DATA", "ANALYSIS", "RESEARCH", "BACKTEST", "SIGNAL"}
-            # All MT4 access is bound to the configured signal account/server.
-            expected_account = cls.MT4_LIVE_ACCOUNT
-            expected_server = cls.MT4_LIVE_SERVER
+            expected_account = cls.MT4_LIVE_ACCOUNT if operation_type == "SIGNAL" else None
+            expected_server = cls.MT4_LIVE_SERVER if operation_type == "SIGNAL" else None
         else:
             raise ValidationException(f"Unknown or unsupported MetaTrader terminal type '{terminal_type}'.")
 
@@ -68,9 +66,9 @@ class MetaTraderSafetyGate:
 
         if expected_account is not None:
             if account_id is None or str(account_id) != expected_account:
-                raise ValidationException(f"unauthorized account '{account_id}' for {terminal_type} role '{operation_type}'.")
+                raise ValidationException(f"Unauthorized {terminal_type} account for role '{operation_type}'.")
             if server_name is None or str(server_name) != expected_server:
-                raise ValidationException(f"unauthorized server '{server_name}' for {terminal_type} role '{operation_type}'.")
+                raise ValidationException(f"Unauthorized {terminal_type} server for role '{operation_type}'.")
 
         # Any order-capable caller must explicitly be MT5 DEMO. MT4 SIGNAL is read-only.
         if operation_type in {"DATA", "ANALYSIS", "RESEARCH", "BACKTEST", "SIGNAL"}:

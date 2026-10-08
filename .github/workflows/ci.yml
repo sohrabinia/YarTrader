@@ -5,41 +5,18 @@ on:
     branches:
       - main
       - master
-      - remediation/p0-safety-manager
   pull_request:
     branches:
       - main
       - master
-      - remediation/p0-safety-manager
   schedule:
+    # Nightly run at 2:00 AM UTC
     - cron: '0 2 * * *'
 
 jobs:
-  partitioned-validation:
-    name: Production Validation (${{ matrix.partition_name }})
+  validate-and-test:
+    name: Production Validation Workflow
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { partition_index: 0, partition_name: "Gate 1 Suite" }
-          - { partition_index: 1, partition_name: "Gate 2 Suite" }
-          - { partition_index: 2, partition_name: "Forensic Safety Suite" }
-          - { partition_index: 3, partition_name: "Risk Subsystem" }
-          - { partition_index: 4, partition_name: "Brain Subsystem" }
-          - { partition_index: 5, partition_name: "Dashboard Subsystem" }
-          - { partition_index: 6, partition_name: "Learning Subsystem" }
-          - { partition_index: 7, partition_name: "Execution Subsystem" }
-          - { partition_index: 8, partition_name: "Universe Subsystem" }
-          - { partition_index: 9, partition_name: "Pipeline Subsystem" }
-          - { partition_index: 10, partition_name: "Backtesting Subsystem" }
-          - { partition_index: 11, partition_name: "Agents & Growth" }
-          - { partition_index: 12, partition_name: "Audit & SDDL & Compliance" }
-          - { partition_index: 13, partition_name: "Integration & Services & Shadow" }
-          - { partition_index: 14, partition_name: "Data & Timeframes & Providers & Monitoring" }
-          - { partition_index: 15, partition_name: "Architecture & Intelligence & Knowledge & Orchestration & Research" }
-          - { partition_index: 16, partition_name: "Remaining General Tests" }
 
     steps:
       - name: Checkout Code Repository
@@ -56,18 +33,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Execute Deterministic Validation Partition
-        env:
-          VALIDATION_PARTITION_INDEX: ${{ matrix.partition_index }}
-          PYTHONPATH: .
+      - name: Execute Autonomous Validation Runner
         run: |
           python validate_release.py
 
-      - name: Archive Partition Validation Artifacts
+      - name: Archive Production Validation Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tradeyar-validation-${{ matrix.partition_index }}
+          name: tradeyar-validation-reports
           path: |
             validation/
             logs/validation.log

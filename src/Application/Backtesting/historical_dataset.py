@@ -85,7 +85,7 @@ def stage_symbol_from_mt4(symbol: str, destination: Path, provider) -> Historica
     try:
         for tf in TIMEFRAMES:
             path = provider._history_file(symbol, tf)
-            if not path.exists() or not path.is_file():
+            if not path.exists():
                 continue
             rows = provider._read_hst(path)
             dataset.put(tf, rows)
@@ -126,8 +126,6 @@ def run_staged_backtest(symbol: str, timeframe: str, years: float, initial_balan
     from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
     if years <= 0:
         raise ValueError("Historical backtest requires a positive learning window.")
-    if years < 10:
-        raise ValueError("Historical backtest requires at least 10 years of historical learning data.")
     provider = MT4HistoricalDataProvider()
     stage_dir = Path(root) / "historical_staging" / symbol.upper()
     stage_path = stage_dir / "dataset.sqlite"
@@ -163,14 +161,14 @@ def run_staged_backtest(symbol: str, timeframe: str, years: float, initial_balan
         chunks = int(cp.get("processed_chunks", 0)) if cp else 0
         while cursor <= last:
             chunk_end = min(last, cursor + chunk_seconds)
-            context_start = max(first, cursor - 500 * duration_sec)
+            context_start = max(first, cursor - 250 * duration_sec)
             candles = list(dataset.range(timeframe, context_start, chunk_end))
             process_index = next((i for i,c in enumerate(candles) if int(c["time"]) >= cursor), len(candles))
             if process_index >= len(candles):
                 cursor = chunk_end + 1
                 continue
             result = engine.run_backtest(symbol, timeframe, candles, initial_balance=initial_balance,
-                                          start_index=process_index, context_window=500, state=state)
+                                          start_index=process_index, context_window=250, state=state)
             state = result["state"]
             processed += len(candles) - process_index
             chunks += 1

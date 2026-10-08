@@ -4,7 +4,7 @@
 
 param(
     [string]$OperatorOwnerId = "owner_sohrab",
-    [string]$YarOperatorRuntimeUrl = "http://127.0.0.1:8080"
+    [string]$YarOperatorRuntimeUrl = "http://127.0.0.1:3000"
 )
 
 $InstallScript = Join-Path $PSScriptRoot "install_service.ps1"

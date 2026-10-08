@@ -16,10 +16,6 @@ class TestMarketSessionEngine:
 
     def setup_method(self):
         self.engine = MarketSessionEngine()
-        from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
-        kill_switch = DailyLossKillSwitch.get_instance()
-        today_key, _, _ = kill_switch.get_session_key_and_window()
-        kill_switch.set_session_baseline(equity=10000.0, session_date=today_key)
         self.now_utc = datetime(2026, 3, 23, 10, 0, 0, tzinfo=timezone.utc) # Monday 10:00 UTC
 
     def test_unknown_account_equity_blocks_pre_entry(self):
