@@ -15,7 +15,7 @@ from src.Application.Backtesting.backtest_learning_engine import BacktestAndLear
 from src.Application.Backtesting.historical_dataset import run_staged_backtest
 
 SCHEMA = 1
-CONTEXT_BARS = 500
+CONTEXT_BARS = 100
 ROOT = Path("runtime_logs") / "backtest_learning"
 LOCK = ROOT / "mt5_backtest.lock"
 
@@ -263,13 +263,12 @@ def main():
     parser.add_argument("--sleep", type=float, default=0.5)
     parser.add_argument("--max-chunks", type=int, default=0)
     args = parser.parse_args()
+
     if not acquire_lock():
-        raise SystemExit("Another MT5 backtest worker is already active.")
+        raise SystemExit("Another MT5 backtest is already running.")
     try:
-        run(args.symbol, args.timeframe, args.years, args.initial_balance, args.sleep, args.max_chunks)
-    except Exception as exc:
-        print(f"BACKTEST_PAUSED error={type(exc).__name__}: {exc}", flush=True)
-        raise
+        result = run(args.symbol, args.timeframe, args.years, args.initial_balance, args.sleep, args.max_chunks)
+        print(json.dumps(result, default=str), flush=True)
     finally:
         release_lock()
 
