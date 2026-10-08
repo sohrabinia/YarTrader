@@ -22,6 +22,9 @@ from src.Application.Services.web_dashboard import app
 class TestTradingModesAndIsolation(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
+        from src.Application.Services.web_dashboard import global_auth_service
+        admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
+        self.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
 
         self.supervisor = IntelligenceSupervisor()
         self.supervisor.register_agent(ResearchAgent())
