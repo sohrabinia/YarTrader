@@ -13,9 +13,15 @@ class TestWebDashboardFastAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.client = TestClient(app)
-        admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
-        cls.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
-        admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
+        # Deterministic in-memory admin identity exercises the real Bearer/session
+        # validation path without depending on a production-seeded disabled account.
+        admin = {
+            "email": "ci-admin@yartrader.test",
+            "role": "ADMIN",
+            "name": "CI Admin",
+            "tier": "ENTERPRISE",
+            "user_id": "ci-admin",
+        }
         cls.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
 
     def test_get_dashboard_spa(self):
