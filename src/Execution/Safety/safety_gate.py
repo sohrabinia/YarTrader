@@ -51,13 +51,15 @@ class MetaTraderSafetyGate:
 
         if terminal_type == "MT5":
             allowed_ops = {"DATA", "ANALYSIS", "RESEARCH", "BACKTEST", "DEMO"}
-            expected_account = cls.MT5_DEMO_ACCOUNT if operation_type == "DEMO" else None
-            expected_server = cls.MT5_DEMO_SERVER if operation_type == "DEMO" else None
+            # All MT5 access is bound to the authorized DEMO terminal identity.
+            expected_account = cls.MT5_DEMO_ACCOUNT
+            expected_server = cls.MT5_DEMO_SERVER
         elif terminal_type == "MT4":
             # MT4 is the Signal/data terminal. Its future LIVE role is reserved but hard-locked; it must never be used for DEMO orders.
             allowed_ops = {"DATA", "ANALYSIS", "RESEARCH", "BACKTEST", "SIGNAL"}
-            expected_account = cls.MT4_LIVE_ACCOUNT if operation_type == "SIGNAL" else None
-            expected_server = cls.MT4_LIVE_SERVER if operation_type == "SIGNAL" else None
+            # All MT4 access is bound to the configured signal account/server.
+            expected_account = cls.MT4_LIVE_ACCOUNT
+            expected_server = cls.MT4_LIVE_SERVER
         else:
             raise ValidationException(f"Unknown or unsupported MetaTrader terminal type '{terminal_type}'.")
 
