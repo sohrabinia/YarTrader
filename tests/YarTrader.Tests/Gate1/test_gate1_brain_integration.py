@@ -442,10 +442,10 @@ class TestGate1BrainIntegration(unittest.TestCase):
                 self.assertTrue(kill_switch.set_session_baseline(10000.0, "2026-10-08"))
                 with patch.object(DailyLossKillSwitch, "get_instance", return_value=kill_switch), \
                      patch.object(demo_engine.adapter, "get_account_info", return_value={"equity": 10000.0, "free_margin": 10000.0}), \
-                 patch.object(demo_engine.adapter, "get_terminal_info", return_value={"connected": True, "trade_allowed": True}), \
-                 patch.object(demo_engine.adapter, "get_symbol_info", return_value=sym_info), \
-                 patch.object(demo_engine.adapter, "send_order_to_broker", return_value=mock_response):
-                exec_res = demo_engine.execute_demo_decision(
+                     patch.object(demo_engine.adapter, "get_terminal_info", return_value={"connected": True, "trade_allowed": True}), \
+                     patch.object(demo_engine.adapter, "get_symbol_info", return_value=sym_info), \
+                     patch.object(demo_engine.adapter, "send_order_to_broker", return_value=mock_response):
+                    exec_res = demo_engine.execute_demo_decision(
                     symbol="XAUUSD",
                     direction="BUY",
                     volume=0.01,
@@ -455,7 +455,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
                     comment="Authorized Downstream Execution Verification",
                     magic=143056,
                     decision_id="DEC-GATE1-DOWNSTREAM"
-                )
+                    )
 
             self.assertEqual(exec_res.Status, "Placed")
             self.assertEqual(len(mt5_calls), 0)
