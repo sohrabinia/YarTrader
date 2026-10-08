@@ -174,6 +174,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_11_restart_recovery_preserves_kill_switch_and_baseline(self):
         """11. Restart/recovery does not accidentally reset daily baseline or bypass kill-switch."""
         dt_day1 = self._create_iran_dt(day=1, hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_day1)
         self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=self._create_iran_dt(day=1, hour=12)) # Triggered
 
