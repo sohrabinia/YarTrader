@@ -118,5 +118,5 @@ def test_e_safety_gates_and_real_account_rejection():
     from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
     from src.Infrastructure.exceptions import ValidationException
 
-    with pytest.raises(ValidationException, match="Real Live Trading is hard-disabled"):
+    with pytest.raises(ValidationException, match="MT4 Live Trading is hard-disabled"):
         MetaTraderSafetyGate.verify_operation("MT4", "REAL_LIVE", "12345", "Real-Server")
