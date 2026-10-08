@@ -216,15 +216,23 @@ class ReleaseValidationPlatform:
                 "tests/YarTrader.Tests/Demo/"
             ]),
             ("Architecture & Intelligence & Knowledge & Orchestration & Research", ["tests/YarTrader.Tests/Architecture/", "tests/YarTrader.Tests/Intelligence/", "tests/YarTrader.Tests/Knowledge/", "tests/YarTrader.Tests/Orchestration/", "tests/YarTrader.Tests/Research/"]),
-            ("Remaining General Tests", [
-                "tests/runtime/", "tests/YarTrader.Tests/Deployment/",
-                "tests/YarTrader.Tests/Infrastructure/", "tests/YarTrader.Tests/Memory/",
-                "tests/YarTrader.Tests/Runtime/", "tests/YarTrader.Tests/Validation/",
+            ("General Runtime & Validation Tests", [
+                "tests/runtime/", "tests/YarTrader.Tests/Runtime/",
+                "tests/YarTrader.Tests/Validation/"
+            ]),
+            ("General Deployment & Infrastructure Tests", [
+                "tests/YarTrader.Tests/Deployment/",
+                "tests/YarTrader.Tests/Infrastructure/",
+                "tests/YarTrader.Tests/Memory/"
+            ]),
+            ("General Core & Intelligence Tests A", [
                 "tests/test_core.py", "tests/test_data_intelligence.py", "tests/test_decision.py",
                 "tests/test_decision_intelligence.py", "tests/test_feature_extraction.py",
                 "tests/test_full_intelligence_validation.py", "tests/test_historical_data_adapter.py",
                 "tests/test_integration_and_production.py", "tests/test_learning.py",
-                "tests/test_learning_optimization.py", "tests/test_mt5_production_session2_bridge.py",
+                "tests/test_learning_optimization.py", "tests/test_mt5_production_session2_bridge.py"
+            ]),
+            ("General Core & Intelligence Tests B", [
                 "tests/test_pipeline_integration.py", "tests/test_platform_integration.py",
                 "tests/test_research_engine.py", "tests/test_research_intelligence.py",
                 "tests/test_research_worker_symbol_availability.py", "tests/test_risk.py",

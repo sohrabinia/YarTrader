@@ -54,7 +54,13 @@ jobs:
           - index: 14
             name: "Architecture & Intelligence & Knowledge & Research"
           - index: 15
-            name: "Remaining General Tests"
+            name: "General Runtime & Validation Tests"
+          - index: 16
+            name: "General Deployment & Infrastructure Tests"
+          - index: 17
+            name: "General Core & Intelligence Tests A"
+          - index: 18
+            name: "General Core & Intelligence Tests B"
 
     steps:
       - name: Checkout Code Repository
