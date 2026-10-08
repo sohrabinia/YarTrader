@@ -735,6 +735,9 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
         self.kill_switch.evaluate_daily_loss(9000.0) # Active kill switch
 
         mock_adapter = MagicMock()
+        mock_adapter.PLATFORM_NAME = "MT5"
+        mock_adapter.TARGET_ACCOUNT = "52961173"
+        mock_adapter.TARGET_SERVER = "Alpari-MT5-Demo"
         mock_adapter.get_account_info.return_value = {
             "login": "52961173",
             "server": "Alpari-MT5-Demo",
