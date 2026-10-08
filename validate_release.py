@@ -218,8 +218,8 @@ class ReleaseValidationPlatform:
             ("Architecture & Intelligence & Knowledge & Orchestration & Research", ["tests/YarTrader.Tests/Architecture/", "tests/YarTrader.Tests/Intelligence/", "tests/YarTrader.Tests/Knowledge/", "tests/YarTrader.Tests/Orchestration/", "tests/YarTrader.Tests/Research/"]),
             ("Remaining General Tests", [
                 "tests/runtime/", "tests/YarTrader.Tests/Deployment/",
-                "tests/YarTrader.Tests/Infrastructure/", "tests/YarTrader.Tests/Runtime/",
-                "tests/YarTrader.Tests/Validation/",
+                "tests/YarTrader.Tests/Infrastructure/", "tests/YarTrader.Tests/Memory/",
+                "tests/YarTrader.Tests/Runtime/", "tests/YarTrader.Tests/Validation/",
                 "tests/test_core.py", "tests/test_data_intelligence.py", "tests/test_decision.py",
                 "tests/test_decision_intelligence.py", "tests/test_feature_extraction.py",
                 "tests/test_full_intelligence_validation.py", "tests/test_historical_data_adapter.py",
