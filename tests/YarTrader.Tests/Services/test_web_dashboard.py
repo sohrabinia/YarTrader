@@ -161,7 +161,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
 
     def test_trigger_backtesting_job(self):
         """Verifies offline backtest execution endpoint."""
-        resp = self.client.post("/api/backtest/run", json={"symbol": "EURUSD"})
+        resp = self.client.post("/api/backtest/run", json={"symbol": "EURUSD"}, headers=self.admin_headers)
         self.assertEqual(resp.status_code, 200)
         self.assertIn("job_id", resp.json())
 
