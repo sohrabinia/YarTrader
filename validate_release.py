@@ -27,6 +27,7 @@ import subprocess
 import traceback
 import math
 import ast
+from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Tuple, Set
 
@@ -215,16 +216,76 @@ class ReleaseValidationPlatform:
             ])
         ]
 
+        # Validate the partition map itself before selecting a partition.  This is
+        # deliberately fail-closed: a stale/ambiguous map must never silently
+        # expand a CI job back to the full suite.
+        test_root = Path("tests")
+        discovered = sorted(
+            str(p).replace(os.sep, "/")
+            for p in test_root.rglob("*.py")
+            if p.is_file() and (p.name.startswith("test_") or p.name.endswith("_test.py"))
+        )
+        assignments: Dict[str, str] = {}
+        mapping_errors: List[str] = []
+        for part_name, paths in PARTITIONS:
+            for raw_path in paths:
+                normalized = raw_path.rstrip("/").replace(os.sep, "/")
+                candidates = (
+                    [p for p in discovered if p == normalized]
+                    if normalized.endswith(".py")
+                    else [p for p in discovered if p.startswith(normalized + "/")]
+                )
+                if not candidates:
+                    mapping_errors.append(f"{part_name}: no discovered pytest files under {normalized}")
+                for candidate in candidates:
+                    previous = assignments.get(candidate)
+                    if previous is not None:
+                        mapping_errors.append(
+                            f"{candidate}: assigned to both [{previous}] and [{part_name}]"
+                        )
+                    assignments[candidate] = part_name
+
+        missing = sorted(set(discovered) - set(assignments))
+        if missing:
+            mapping_errors.append(f"unassigned pytest files: {missing}")
+        if len(assignments) != len(discovered):
+            mapping_errors.append(
+                f"partition map cardinality mismatch: discovered={len(discovered)}, assigned={len(assignments)}"
+            )
+        if mapping_errors:
+            self.log(
+                "CRITICAL: deterministic partition map validation failed: "
+                + " | ".join(mapping_errors),
+                "CRITICAL",
+            )
+            raise RuntimeError("Partition map is not a complete disjoint mapping of the pytest surface")
+
+        self.log(
+            f"Validated disjoint pytest partition map: {len(discovered)} files across {len(PARTITIONS)} partitions."
+        )
+
         raw_index = os.getenv("VALIDATION_PARTITION_INDEX")
-        if raw_index is not None and raw_index.strip().isdigit():
-            p_idx = int(raw_index.strip())
-            if 0 <= p_idx < len(PARTITIONS):
-                active_partitions = [PARTITIONS[p_idx]]
-                self.log(f"Running deterministic CI partition {p_idx}: {PARTITIONS[p_idx][0]}")
-            else:
-                active_partitions = PARTITIONS
-        else:
+        if raw_index is None or not raw_index.strip():
             active_partitions = PARTITIONS
+        else:
+            try:
+                p_idx = int(raw_index.strip(), 10)
+            except ValueError as exc:
+                self.log(
+                    f"CRITICAL: VALIDATION_PARTITION_INDEX must be an integer in "
+                    f"[0, {len(PARTITIONS) - 1}], got {raw_index!r}.",
+                    "CRITICAL",
+                )
+                raise RuntimeError("Invalid VALIDATION_PARTITION_INDEX") from exc
+            if p_idx < 0 or p_idx >= len(PARTITIONS):
+                self.log(
+                    f"CRITICAL: VALIDATION_PARTITION_INDEX out of range: {p_idx}; "
+                    f"expected 0..{len(PARTITIONS) - 1}.",
+                    "CRITICAL",
+                )
+                raise RuntimeError("Invalid VALIDATION_PARTITION_INDEX")
+            active_partitions = [PARTITIONS[p_idx]]
+            self.log(f"Running deterministic CI partition {p_idx}: {PARTITIONS[p_idx][0]}")
 
         try:
             subprocess.run([self.python_exec, "-m", "pytest", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
