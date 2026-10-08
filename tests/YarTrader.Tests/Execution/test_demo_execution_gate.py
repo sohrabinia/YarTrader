@@ -22,6 +22,8 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "true"
         self.mock_adapter = MagicMock()
         self.mock_adapter.PLATFORM_NAME = "MT5"
+        self.mock_adapter.TARGET_ACCOUNT = "52961173"
+        self.mock_adapter.TARGET_SERVER = "Alpari-MT5-Demo"
         self.mock_adapter.get_account_info.return_value = {
             "login": "52961173",
             "server": "Alpari-MT5-Demo",
