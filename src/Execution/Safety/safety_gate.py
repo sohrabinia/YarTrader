@@ -42,12 +42,21 @@ class MetaTraderSafetyGate:
         from src.Infrastructure.Configuration.config import ConfigurationManager
         try:
             config = ConfigurationManager.get_config()
-            if getattr(config, "live_trading_enabled", False):
-                raise ValidationException("live_trading_enabled is true; execution is fail-closed.")
-        except ValidationException:
-            raise
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.critical("[SAFETY_GATE] Configuration unavailable; blocking operation.")
+            raise ValidationException("Runtime configuration is unavailable; operation blocked fail-closed.") from exc
+
+        if not hasattr(config, "live_trading_enabled"):
+            logger.critical("[SAFETY_GATE] live_trading_enabled is missing; blocking operation.")
+            raise ValidationException("Runtime configuration is missing live_trading_enabled; operation blocked fail-closed.")
+
+        live_enabled = getattr(config, "live_trading_enabled")
+        if not isinstance(live_enabled, bool):
+            logger.critical("[SAFETY_GATE] live_trading_enabled is malformed; blocking operation.")
+            raise ValidationException("live_trading_enabled must be boolean; operation blocked fail-closed.")
+
+        if live_enabled:
+            raise ValidationException("live_trading_enabled is true; execution is fail-closed.")
 
         if terminal_type == "MT5":
             allowed_ops = {"DATA", "ANALYSIS", "RESEARCH", "BACKTEST", "DEMO"}
