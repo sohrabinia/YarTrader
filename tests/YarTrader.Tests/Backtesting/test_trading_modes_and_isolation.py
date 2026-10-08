@@ -114,7 +114,7 @@ class TestTradingModesAndIsolation(unittest.TestCase):
     def test_demo_execution_persistence_isolation(self) -> None:
         """Verifies Demo Trading runs write to independent demo_trades.json, completely isolated from shadow trades."""
         # Trigger Demo Scenario
-        resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"})
+        resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"}, headers=self.admin_headers)
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["success"])
