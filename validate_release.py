@@ -373,14 +373,6 @@ class ReleaseValidationPlatform:
 
             if p_failed > 0:
                 self.log(f"Partition [{part_name}] had {p_failed} test failures.", "WARNING")
-                # TEMPORARY TASK-1 DIAGNOSTIC: expose captured pytest output so CI failures
-                # can be classified from the actual traceback. Remove after diagnosis.
-                diagnostic = (stdout + "\\n" + stderr).strip()
-                if diagnostic:
-                    self.log("TASK1_DIAGNOSTIC_PYTEST_OUTPUT_START", "WARNING")
-                    for diagnostic_line in diagnostic.splitlines():
-                        self.log(f"TASK1_DIAGNOSTIC {diagnostic_line}", "WARNING")
-                    self.log("TASK1_DIAGNOSTIC_PYTEST_OUTPUT_END", "WARNING")
                 in_failure_block = False
                 current_fail_test = ""
                 current_traceback = []
