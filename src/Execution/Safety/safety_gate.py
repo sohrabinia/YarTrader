@@ -56,7 +56,7 @@ class MetaTraderSafetyGate:
             raise ValidationException("live_trading_enabled must be boolean; operation blocked fail-closed.")
 
         if live_enabled:
-            raise ValidationException("live_trading_enabled is true; execution is fail-closed.")
+            raise ValidationException("live_trading_enabled is true; Real Live Trading is hard-disabled; execution is fail-closed.")
 
         if terminal_type == "MT5":
             allowed_ops = {"DATA", "ANALYSIS", "RESEARCH", "BACKTEST", "DEMO"}
