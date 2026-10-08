@@ -203,7 +203,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertIsInstance(resp_hist.json(), list)
 
         # 4. Download report
-        resp_dl = self.client.get("/api/validation/reports/download?type=html")
+        resp_dl = self.client.get("/api/validation/reports/download?type=html", headers=self.admin_headers)
         self.assertEqual(resp_dl.status_code, 200)
         self.assertIn("text/html", resp_dl.headers["content-type"])
 
