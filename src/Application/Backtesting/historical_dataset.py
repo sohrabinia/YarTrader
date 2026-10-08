@@ -126,6 +126,8 @@ def run_staged_backtest(symbol: str, timeframe: str, years: float, initial_balan
     from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
     if years <= 0:
         raise ValueError("Historical backtest requires a positive learning window.")
+    if years < 10:
+        raise ValueError("Historical backtest requires at least 10 years of historical learning data.")
     provider = MT4HistoricalDataProvider()
     stage_dir = Path(root) / "historical_staging" / symbol.upper()
     stage_path = stage_dir / "dataset.sqlite"
