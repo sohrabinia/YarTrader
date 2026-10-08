@@ -30,7 +30,7 @@ class DummyAdapter:
     def get_account_info(self):
         return {"login": 52961173, "server": "Alpari-MT5-Demo", "trade_mode": 0, "equity": 10000.0}
     def get_terminal_info(self):
-        return {"trade_allowed": True}
+        return {"trade_allowed": True, "tradeapi_disabled": False}
     def get_symbol_info(self, symbol):
         return {"trade_mode": 4, "volume_min": 0.01, "volume_max": 100.0}
     def get_positions(self, symbol=None):
