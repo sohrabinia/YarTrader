@@ -190,19 +190,36 @@ class ReleaseValidationPlatform:
             ("Gate 2 Suite", ["tests/YarTrader.Tests/Gate2/"]),
             ("Forensic Safety Suite", ["tests/YarTrader.Tests/Forensic/"]),
             ("Risk Subsystem", ["tests/YarTrader.Tests/Risk/"]),
-            ("Agents & Growth Subsystem", ["tests/YarTrader.Tests/Agents/", "tests/YarTrader.Tests/Growth/"]),
+            ("Agents & Growth Subsystem", [
+                "tests/YarTrader.Tests/Agents/", "tests/YarTrader.Tests/Growth/",
+                "tests/YarTrader.Tests/Collaboration/", "tests/YarTrader.Tests/Supervisor/"
+            ]),
             ("Dashboard Subsystem", ["tests/YarTrader.Tests/Dashboard/"]),
-            ("Data & Timeframes & Providers & Monitoring", ["tests/YarTrader.Tests/Data/", "tests/YarTrader.Tests/Timeframes/", "tests/YarTrader.Tests/Providers/", "tests/YarTrader.Tests/Monitoring/"]),
+            ("Data & Timeframes & Providers & Monitoring", [
+                "tests/YarTrader.Tests/Data/", "tests/YarTrader.Tests/Timeframes/",
+                "tests/YarTrader.Tests/Providers/", "tests/YarTrader.Tests/Monitoring/",
+                "tests/YarTrader.Tests/Universe/"
+            ]),
             ("Execution Subsystem", ["tests/YarTrader.Tests/Execution/"]),
             ("Learning Subsystem", ["tests/YarTrader.Tests/Learning/"]),
             ("Backtesting Subsystem", ["tests/YarTrader.Tests/Backtesting/"]),
             ("Audit & SDDL & Compliance", ["tests/YarTrader.Tests/Audit/", "tests/YarTrader.Tests/SDDL/", "tests/YarTrader.Tests/Compliance/"]),
             ("Pipeline Subsystem", ["tests/YarTrader.Tests/Pipeline/"]),
-            ("Brain Subsystem", ["tests/YarTrader.Tests/Brain/"]),
-            ("Integration & Services & Shadow", ["tests/YarTrader.Tests/Integration/", "tests/YarTrader.Tests/Services/", "tests/YarTrader.Tests/Shadow/"]),
+            ("Brain Subsystem", [
+                "tests/YarTrader.Tests/Brain/", "tests/YarTrader.Tests/Decision/",
+                "tests/YarTrader.Tests/Explainability/"
+            ]),
+            ("Integration & Services & Shadow", [
+                "tests/YarTrader.Tests/Integration/", "tests/YarTrader.Tests/Services/",
+                "tests/YarTrader.Tests/Shadow/", "tests/YarTrader.Tests/Communication/",
+                "tests/YarTrader.Tests/Context/", "tests/YarTrader.Tests/Conversation/",
+                "tests/YarTrader.Tests/Demo/"
+            ]),
             ("Architecture & Intelligence & Knowledge & Orchestration & Research", ["tests/YarTrader.Tests/Architecture/", "tests/YarTrader.Tests/Intelligence/", "tests/YarTrader.Tests/Knowledge/", "tests/YarTrader.Tests/Orchestration/", "tests/YarTrader.Tests/Research/"]),
             ("Remaining General Tests", [
-                "tests/runtime/",
+                "tests/runtime/", "tests/YarTrader.Tests/Deployment/",
+                "tests/YarTrader.Tests/Infrastructure/", "tests/YarTrader.Tests/Runtime/",
+                "tests/YarTrader.Tests/Validation/",
                 "tests/test_core.py", "tests/test_data_intelligence.py", "tests/test_decision.py",
                 "tests/test_decision_intelligence.py", "tests/test_feature_extraction.py",
                 "tests/test_full_intelligence_validation.py", "tests/test_historical_data_adapter.py",
