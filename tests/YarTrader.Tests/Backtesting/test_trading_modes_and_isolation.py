@@ -25,6 +25,9 @@ class TestTradingModesAndIsolation(unittest.TestCase):
         from src.Application.Services.web_dashboard import global_auth_service
         admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
         self.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
+        from src.Application.Services.web_dashboard import global_auth_service
+        admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
+        self.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
 
         self.supervisor = IntelligenceSupervisor()
         self.supervisor.register_agent(ResearchAgent())
@@ -120,7 +123,7 @@ class TestTradingModesAndIsolation(unittest.TestCase):
         self.assertTrue(data["success"])
 
         # Fetch Demo Trades
-        trades_resp = self.client.get("/api/demo/trades")
+        trades_resp = self.client.get("/api/demo/trades", headers=self.admin_headers)
         self.assertEqual(trades_resp.status_code, 200)
         demo_trades = trades_resp.json()
         self.assertGreater(len(demo_trades), 0)
