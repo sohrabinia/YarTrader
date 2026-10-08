@@ -115,7 +115,7 @@ def test_h_risk_rejection():
 
 def test_i_dynamic_sl_tp_validation():
     mock_adapter = MagicMock()
-    mock_adapter.platform_name = "MT5"
+    mock_adapter.PLATFORM_NAME = "MT5"
     mock_adapter.get_account_info.return_value = {
         "login": "52961173",
         "server": "Alpari-MT5-Demo",
