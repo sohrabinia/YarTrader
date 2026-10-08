@@ -37,7 +37,7 @@ class TestPropChallengeAPI(unittest.TestCase):
             "news_rule": "NO_NEW_ENTRIES_AROUND_HIGH_IMPACT"
         }
 
-        post_res = self.client.post("/api/prop/config", json=config_payload)
+        post_res = self.client.post("/api/prop/config", json=config_payload, headers=self.admin_headers)
         self.assertEqual(post_res.status_code, 200)
         post_data = post_res.json()
         self.assertEqual(post_data["status"], "Success")
