@@ -446,15 +446,15 @@ class TestGate1BrainIntegration(unittest.TestCase):
                      patch.object(demo_engine.adapter, "get_symbol_info", return_value=sym_info), \
                      patch.object(demo_engine.adapter, "send_order_to_broker", return_value=mock_response):
                     exec_res = demo_engine.execute_demo_decision(
-                    symbol="XAUUSD",
-                    direction="BUY",
-                    volume=0.01,
-                    price=2000.0,
-                    sl=1990.0,
-                    tp=2020.0,
-                    comment="Authorized Downstream Execution Verification",
-                    magic=143056,
-                    decision_id="DEC-GATE1-DOWNSTREAM"
+                        symbol="XAUUSD",
+                        direction="BUY",
+                        volume=0.01,
+                        price=2000.0,
+                        sl=1990.0,
+                        tp=2020.0,
+                        comment="Authorized Downstream Execution Verification",
+                        magic=143056,
+                        decision_id="DEC-GATE1-DOWNSTREAM"
                     )
 
             self.assertEqual(exec_res.Status, "Placed")
