@@ -198,7 +198,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertIn("is_running", status_data)
 
         # 3. Get history
-        resp_hist = self.client.get("/api/validation/history")
+        resp_hist = self.client.get("/api/validation/history", headers=self.admin_headers)
         self.assertEqual(resp_hist.status_code, 200)
         self.assertIsInstance(resp_hist.json(), list)
 
