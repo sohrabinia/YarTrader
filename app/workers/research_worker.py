@@ -285,7 +285,7 @@ class ResearchWorker:
             print("Mode:\nProduction")
             print("================================================\n")
 
-            while self.is_running:
+            while self.is_running and not central_runtime_state.get_key("system_halted", False):
                 active_matrix = self._get_active_matrix()
 
                 for symbol, tf, asset_class, provider in active_matrix:

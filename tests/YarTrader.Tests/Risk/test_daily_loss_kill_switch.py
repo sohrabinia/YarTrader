@@ -37,7 +37,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         return datetime(year, month, day, hour, minute, second, tzinfo=IRAN_TZ)
 
     def test_01_session_starts_at_0135_iran_time(self):
-        """1. Session starts at 01:35 Iran time & captures baseline equity."""
+        """1. Session starts at 01:35 Iran time after explicit baseline initialization."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
         key, is_open, is_trans = self.kill_switch.get_session_key_and_window(dt_start)
 
@@ -45,6 +45,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         self.assertTrue(is_open)
         self.assertFalse(is_trans)
 
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         res = self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
         self.assertTrue(res["allowed"])
         self.assertEqual(res["baseline_equity"], 10000.0)
@@ -73,6 +74,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_04_daily_baseline_captured_once_and_immutable(self):
         """4. Daily baseline is captured once per session and does not continuously move."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
+        self.kill_switch.set_session_baseline(10000.0, "2026-03-01")
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_later = self._create_iran_dt(hour=10, minute=0)
@@ -83,6 +85,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_05_loss_7_99_percent_remains_eligible(self):
         """5. 7.99% loss -> entry remains eligible."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
+        self.kill_switch.set_session_baseline(10000.0, "2026-03-01")
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_check = self._create_iran_dt(hour=12, minute=0)
@@ -96,6 +99,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_06_loss_8_00_percent_triggers_kill_switch(self):
         """6. 8.00% loss -> entries blocked."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_check = self._create_iran_dt(hour=12, minute=0)
@@ -110,6 +114,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_07_loss_greater_than_8_percent_remains_blocked(self):
         """7. Loss > 8% -> entries remain blocked."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_check = self._create_iran_dt(hour=14, minute=0)
@@ -123,6 +128,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_08_additional_signals_cannot_bypass_active_kill_switch(self):
         """8. Once blocked, additional trade signals cannot open new positions."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
+        self.kill_switch.set_session_baseline(10000.0, "2026-03-01")
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_trigger = self._create_iran_dt(hour=12, minute=0)
@@ -139,6 +145,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_09_resets_at_next_0135_session_start(self):
         """9. At next 01:35 session start, the daily loss state resets correctly."""
         dt_day1 = self._create_iran_dt(day=1, hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_day1)
         self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=self._create_iran_dt(day=1, hour=12)) # Triggered
 
@@ -153,6 +160,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_10_reset_does_not_occur_at_midnight(self):
         """10. Reset does NOT occur at midnight (00:00)."""
         dt_day1 = self._create_iran_dt(day=1, hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_day1)
         self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=self._create_iran_dt(day=1, hour=12)) # Triggered
 
@@ -166,6 +174,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     def test_11_restart_recovery_preserves_kill_switch_and_baseline(self):
         """11. Restart/recovery does not accidentally reset daily baseline or bypass kill-switch."""
         dt_day1 = self._create_iran_dt(day=1, hour=1, minute=35)
+        self.assertTrue(self.kill_switch.set_session_baseline(10000.0, "2026-03-01"))
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_day1)
         self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=self._create_iran_dt(day=1, hour=12)) # Triggered
 
@@ -177,6 +186,52 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         self.assertFalse(res["allowed"])
         self.assertTrue(res["kill_switch_active"])
         self.assertEqual(res["baseline_equity"], 10000.0)
+
+    def test_12_missing_persistence_blocks_instead_of_baselining_from_current_equity(self):
+        """Missing persisted baseline must never become current equity."""
+        dt = self._create_iran_dt(hour=12, minute=0)
+        result = self.kill_switch.evaluate_entry_allowed(current_equity=8500.0, dt=dt)
+        self.assertFalse(result["allowed"])
+        self.assertEqual(result["reason"], "PERSISTENCE_UNAVAILABLE")
+
+    def test_13_corrupt_persistence_blocks(self):
+        with open(self.persistence_path, "w", encoding="utf-8") as f:
+            f.write("{not-json")
+        recovered = DailyLossKillSwitch(persistence_path=self.persistence_path)
+        result = recovered.evaluate_entry_allowed(current_equity=8500.0, dt=self._create_iran_dt(hour=12))
+        self.assertFalse(result["allowed"])
+        self.assertEqual(result["reason"], "PERSISTENCE_UNAVAILABLE")
+
+    def test_14_malformed_persistence_blocks(self):
+        import json
+        with open(self.persistence_path, "w", encoding="utf-8") as f:
+            json.dump({"current_session_key": "2026-03-01", "baseline_equity": "10000"}, f)
+        recovered = DailyLossKillSwitch(persistence_path=self.persistence_path)
+        result = recovered.evaluate_entry_allowed(current_equity=8500.0, dt=self._create_iran_dt(hour=12))
+        self.assertFalse(result["allowed"])
+        self.assertEqual(result["reason"], "PERSISTENCE_UNAVAILABLE")
+
+    def test_15_persistence_read_failure_blocks(self):
+        original_open = open
+        import builtins
+        def failing_open(*args, **kwargs):
+            raise OSError("simulated persistence read failure")
+        builtins.open = failing_open
+        try:
+            recovered = DailyLossKillSwitch(persistence_path=self.persistence_path)
+            result = recovered.evaluate_entry_allowed(current_equity=8500.0, dt=self._create_iran_dt(hour=12))
+            self.assertFalse(result["allowed"])
+            self.assertEqual(result["reason"], "PERSISTENCE_UNAVAILABLE")
+        finally:
+            builtins.open = original_open
+
+    def test_16_restart_preserves_original_valid_baseline(self):
+        self.kill_switch.set_session_baseline(10000.0, "2026-03-01")
+        recovered = DailyLossKillSwitch(persistence_path=self.persistence_path)
+        result = recovered.evaluate_entry_allowed(current_equity=8500.0, dt=self._create_iran_dt(hour=12))
+        self.assertFalse(result["allowed"])
+        self.assertEqual(result["baseline_equity"], 10000.0)
+        self.assertEqual(result["reason"], "DAILY_LOSS_LIMIT_REACHED")
 
     def test_12_existing_risk_engine_integration(self):
         """12. Existing Risk Engine behavior remains intact."""
@@ -198,6 +253,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         dt = datetime(2026, 8, 15, 10, 0, 0, tzinfo=timezone.utc)
 
         # Establish valid baseline $10,000.00 first
+        switch.set_session_baseline(10000.0, "2026-08-15")
         res_valid = switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt)
         self.assertTrue(res_valid["allowed"])
         self.assertEqual(switch.baseline_equity, 10000.0)

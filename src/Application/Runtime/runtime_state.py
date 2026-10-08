@@ -31,7 +31,11 @@ class RuntimeStateManager:
             "last_cycle_time": None,
             "research_cycle_count": 0,
             "research_last_successful_cycle": None,
-            "research_last_error": None
+            "research_last_error": None,
+            "operating_mode": "Research",
+            "runtime_command": None,
+            "system_halted": False,
+            "system_status": "RUNNING"
         }
 
     def _log_state_transition(self, key: str, old_val: Any, new_val: Any) -> None:
@@ -51,6 +55,38 @@ class RuntimeStateManager:
                 f.write(log_entry)
         except Exception:
             pass
+
+    def apply_control(self, command: str) -> Dict[str, Any]:
+        """Record a validated control request without claiming an unperformed worker mutation."""
+        allowed = {"start", "stop", "pause", "resume"}
+        if command not in allowed:
+            raise ValueError(f"unsupported runtime command: {command}")
+        with self.state_lock:
+            if command in {"start", "resume"} and self.state.get("system_halted"):
+                raise RuntimeError("runtime is halted; start/resume is blocked")
+            self.state["runtime_command"] = command
+            return self.state.copy()
+
+    def set_mode(self, mode: str) -> Dict[str, Any]:
+        """Set the authoritative operating mode."""
+        with self.state_lock:
+            if self.state.get("system_halted"):
+                raise RuntimeError("runtime is halted")
+            self.state["operating_mode"] = mode
+            return self.state.copy()
+
+    def emergency_halt(self) -> Dict[str, Any]:
+        """Enter the authoritative fail-safe halted state."""
+        with self.state_lock:
+            self.state["system_halted"] = True
+            self.state["system_status"] = "HALTED"
+            self.state["runtime_command"] = "emergency_stop"
+            for key in ("worker_status", "research_status", "intelligence_status", "shadow_status"):
+                old = self.state.get(key)
+                self.state[key] = "Stopped"
+                if old != "Stopped":
+                    self._log_state_transition(key, old, "Stopped")
+            return self.state.copy()
 
     def update_state(self, key: str, value: Any) -> None:
         """Updates a state key safely under lock and logs transitions."""

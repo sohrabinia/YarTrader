@@ -32,7 +32,7 @@ class IntelligenceWorker:
             self.thread.join(timeout=2.0)
 
     def _run_loop(self) -> None:
-        while self.is_running:
+        while self.is_running and not central_runtime_state.get_key("system_halted", False):
             try:
                 self.last_run_time = datetime.now()
                 self.loop_count += 1
@@ -43,6 +43,6 @@ class IntelligenceWorker:
                 central_runtime_state.update_state("intelligence_status", "Recovering")
 
             sleep_elapsed = 0.0
-            while sleep_elapsed < self.interval_sec and self.is_running:
+            while sleep_elapsed < self.interval_sec and self.is_running and not central_runtime_state.get_key("system_halted", False):
                 time.sleep(0.5)
                 sleep_elapsed += 0.5

@@ -6,6 +6,7 @@ import secrets
 import threading
 import time
 from typing import Dict, Any, Optional, List
+from datetime import datetime, timezone, timedelta
 from src.Application.Dashboard.auth_repo import AuthRepository
 
 class LockoutAuditStore:
@@ -114,6 +115,8 @@ class LockoutAuditStore:
 
 
 class AuthService:
+    SESSION_TTL_SECONDS = int(os.environ.get("YARTRADER_SESSION_TTL_SECONDS", "86400"))
+
     """
     Handles secure hashing (PBKDF2-SHA256), OAuth2 account linking,
     and role-based session token validation.
@@ -149,7 +152,9 @@ class AuthService:
                                 "role": user.get("role", "USER"),
                                 "name": user.get("name", ""),
                                 "tier": user.get("tier", "FREE"),
-                                "user_id": user.get("user_id", user["email"])
+                                "user_id": user.get("user_id", user["email"]),
+                                "created_at": sess_info.get("first_seen"),
+                                "expires_at": sess_info.get("expires_at")
                             }
         except Exception as err:
             try:
@@ -252,12 +257,16 @@ class AuthService:
 
     def create_session(self, user: Dict[str, Any], user_agent: Optional[str] = None, ip_address: Optional[str] = None) -> str:
         token = f"tkn-{secrets.token_hex(24)}"
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(seconds=max(300, self.SESSION_TTL_SECONDS))
         self.active_sessions[token] = {
             "email": user["email"],
             "role": user.get("role", "USER"),
             "name": user.get("name", ""),
             "tier": user.get("tier", "FREE"),
-            "user_id": user.get("user_id", user["email"])
+            "user_id": user.get("user_id", user["email"]),
+            "created_at": now.isoformat(),
+            "expires_at": expires_at.isoformat()
         }
 
         # Persistently record active session login
@@ -274,6 +283,17 @@ class AuthService:
         return self.get_session_user(token)
 
     def get_session_user(self, token: str) -> Optional[Dict[str, Any]]:
+        session = self.active_sessions.get(token)
+        if not session:
+            return None
+        try:
+            expires_raw = session.get("expires_at")
+            if not expires_raw or datetime.now(timezone.utc) >= datetime.fromisoformat(expires_raw):
+                self.logout(token)
+                return None
+        except (TypeError, ValueError):
+            self.logout(token)
+            return None
         try:
             from src.Application.Dashboard.device_tracker import DeviceTracker
             tracker = DeviceTracker()
