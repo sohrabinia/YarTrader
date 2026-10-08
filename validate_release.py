@@ -373,7 +373,14 @@ class ReleaseValidationPlatform:
 
             if p_failed > 0:
                 self.log(f"Partition [{part_name}] had {p_failed} test failures.", "WARNING")
-                diagnostic = (stdout + "\\n" + stderr).strip()\n                if diagnostic:\n                    self.log("TASK1_DIAGNOSTIC_PYTEST_OUTPUT_START", "WARNING")\n                    for diagnostic_line in diagnostic.splitlines():\n                        self.log(f"TASK1_DIAGNOSTIC {diagnostic_line}", "WARNING")\n                    self.log("TASK1_DIAGNOSTIC_PYTEST_OUTPUT_END", "WARNING")\n                in_failure_block = False
+                diagnostic = (stdout + "\
+" + stderr).strip()
+                if diagnostic:
+                    self.log("TASK1_DIAGNOSTIC_PYTEST_OUTPUT_START", "WARNING")
+                    for diagnostic_line in diagnostic.splitlines():
+                        self.log(f"TASK1_DIAGNOSTIC {diagnostic_line}", "WARNING")
+                    self.log("TASK1_DIAGNOSTIC_PYTEST_OUTPUT_END", "WARNING")
+                in_failure_block = False
                 current_fail_test = ""
                 current_traceback = []
 
