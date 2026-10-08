@@ -7,6 +7,9 @@ class TestPropChallengeAPI(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
         self.engine = PropChallengeEngine(config_filepath="test_runtime_logs/test_prop_config.json")
+        from src.Application.Services.web_dashboard import global_auth_service
+        admin = global_auth_service.repo.get_user_by_email("admin-disabled@yartrader.app")
+        self.admin_headers = {"Authorization": f"Bearer {global_auth_service.create_session(admin)}"}
 
     def test_unconfigured_prop_challenge_status(self):
         """Verifies that unconfigured prop challenge returns NOT_CONFIGURED status."""
