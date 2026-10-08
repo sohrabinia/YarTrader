@@ -66,7 +66,7 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
 
     def test_02_same_direction_buy_reentry(self):
         """Proves consecutive BUY -> BUY re-entries when Brain proposes BUY and market structure remains bullish."""
-        brain_buy = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
+        brain_buy = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2290.0, "take_profit": 2320.0}}]}
         c1 = self._generate_mock_candles(base_price=2300.0, trend="BULLISH")
         res1 = self.core.evaluate_context("XAUUSD", "H1", c1, newborn_brain_report=brain_buy)
 
@@ -78,7 +78,7 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
 
     def test_03_same_direction_sell_reentry(self):
         """Proves consecutive SELL -> SELL re-entries when Brain proposes SELL and market structure remains bearish."""
-        brain_sell = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
+        brain_sell = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2310.0, "take_profit": 2280.0}}]}
         all_tf_bearish = {
             tf: self._generate_mock_candles(base_price=2300.0, trend="BEARISH")
             for tf in ["M15", "H4", "D1"]
@@ -94,7 +94,7 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
 
     def test_04_dynamic_buy_to_sell_transition(self):
         """Proves dynamic BUY -> SELL transition when Brain proposal aligns with market structure shift."""
-        brain_buy = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
+        brain_buy = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2290.0, "take_profit": 2320.0}}]}
         all_tf_bullish = {
             tf: self._generate_mock_candles(base_price=2300.0, trend="BULLISH")
             for tf in ["M15", "H4", "D1"]
@@ -102,7 +102,7 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         c_bullish = self._generate_mock_candles(base_price=2300.0, trend="BULLISH")
         res_buy = self.core.evaluate_context("XAUUSD", "H1", c_bullish, all_timeframe_candles=all_tf_bullish, newborn_brain_report=brain_buy)
 
-        brain_sell = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
+        brain_sell = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2310.0, "take_profit": 2280.0}}]}
         all_tf_bearish = {
             tf: self._generate_mock_candles(base_price=2320.0, trend="BEARISH")
             for tf in ["M15", "H4", "D1"]
