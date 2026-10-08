@@ -21,6 +21,7 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
 
     def setUp(self):
         self.mock_adapter = MagicMock()
+        self.mock_adapter.platform_name = "MT5"
         # Mock account info and terminal info for DemoExecutionGate
         self.mock_adapter.get_account_info.return_value = {
             "login": "52961173",
