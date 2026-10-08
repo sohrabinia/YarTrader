@@ -7,6 +7,7 @@ from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
 from src.Execution.Models.models import OrderRequest, OrderResponse
 from src.Infrastructure.exceptions import ValidationException
 from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
+from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
 
 
 class TestPositionExclusivityAndReversal(unittest.TestCase):
@@ -20,7 +21,11 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
     """
 
     def setUp(self):
+        self._risk_baseline = DailyLossKillSwitch.get_instance()
+        session_key, _, _ = self._risk_baseline.get_session_key_and_window(datetime.now(timezone.utc))
+        self._risk_baseline.set_session_baseline(10000.0, session_key)
         self.mock_adapter = MagicMock()
+        self.mock_adapter.close_order = None
         self.mock_adapter.PLATFORM_NAME = "MT5"
         self.mock_adapter.TARGET_ACCOUNT = "52961173"
         self.mock_adapter.TARGET_SERVER = "Alpari-MT5-Demo"
