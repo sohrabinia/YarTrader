@@ -284,7 +284,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
         self.assertEqual(res_c["plan"]["decision_source"], "BRAIN")
 
         # Case D: Brain BUY + bullish alignment -> BUY
-        brain_buy = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
+        brain_buy = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 90.0, "trade_parameters": {"entry": 2005.0, "stop_loss": 1995.0, "take_profit": 2025.0}}]}
         res_d = planner.generate_execution_plan(
             symbol="XAUUSD", timeframe="H1", narrative=narrative_bullish, liquidity={},
             zones={}, alignment=bullish_alignment, similarity={}, portfolio_risk={"approved": True},
@@ -293,7 +293,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
         self.assertEqual(res_d["plan"]["action"], "BUY")
 
         # Case E: Brain SELL + bearish alignment -> SELL
-        brain_sell = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
+        brain_sell = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 90.0, "trade_parameters": {"entry": 2005.0, "stop_loss": 2015.0, "take_profit": 1985.0}}]}
         res_e = planner.generate_execution_plan(
             symbol="XAUUSD", timeframe="H1", narrative=narrative_bearish, liquidity={},
             zones={}, alignment=bearish_alignment, similarity={}, portfolio_risk={"approved": True},
@@ -442,7 +442,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
                 self.assertTrue(kill_switch.set_session_baseline(10000.0, "2026-10-08"))
                 with patch.object(DailyLossKillSwitch, "get_instance", return_value=kill_switch), \
                      patch.object(demo_engine.adapter, "get_account_info", return_value={"equity": 10000.0, "free_margin": 10000.0}), \
-                     patch.object(demo_engine.adapter, "get_terminal_info", return_value={"connected": True, "trade_allowed": True}), \
+                     patch.object(demo_engine.adapter, "get_terminal_info", return_value={"connected": True, "trade_allowed": True, "tradeapi_disabled": False}), \
                      patch.object(demo_engine.adapter, "get_symbol_info", return_value=sym_info), \
                      patch.object(demo_engine.adapter, "send_order_to_broker", return_value=mock_response):
                     exec_res = demo_engine.execute_demo_decision(
