@@ -717,6 +717,9 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         resp = self.adapter.send_order_to_broker(req)
 
         self.assertEqual(resp.Status, "Failed")
+        self.assertEqual(resp.Retcode, 10030)
+        self.assertEqual(resp.RawResponse["retcode"], 10030)
+        self.assertEqual(resp.RawResponse["trade_req"]["symbol"], "XAUUSD")
         self.assertEqual(mock_mt5.order_check.call_count, 3)
         mock_mt5.order_send.assert_not_called()
 

@@ -2,6 +2,7 @@ import os
 import unittest
 import json
 from datetime import datetime, timedelta
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from src.Application.Backtesting.models import BacktestScenario, BacktestResult
@@ -108,31 +109,79 @@ class TestTradingModesAndIsolation(unittest.TestCase):
         if trades_a and trades_b:
             self.assertNotEqual(trades_a[0]["direction"], trades_b[0]["direction"])
 
-    def test_demo_execution_persistence_isolation(self) -> None:
-        """Verifies Demo Trading runs write to independent demo_trades.json, completely isolated from shadow trades."""
-        # Trigger Demo Scenario
+    def test_demo_scenario_does_not_fabricate_execution_records(self) -> None:
+        """Scenario approval is not an executed trade and must not create fake PnL."""
         resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"})
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["success"])
+        self.assertIsNone(data["simulated_trade"])
+        self.assertEqual(data["report"]["data_provenance"], "PERSISTED_DEMO_EXECUTION_RECORDS_ONLY")
+        self.assertIsNone(data["report"]["account"])
+        self.assertIsNone(data["report"]["balance"])
 
-        # Fetch Demo Trades
         trades_resp = self.client.get("/api/demo/trades")
         self.assertEqual(trades_resp.status_code, 200)
-        demo_trades = trades_resp.json()
-        self.assertGreater(len(demo_trades), 0)
+        self.assertEqual(trades_resp.json(), [])
 
-        # Ensure every demo trade has explicit DEMO mode
-        for t in demo_trades:
-            self.assertEqual(t["mode"], "DEMO")
-
-        # Fetch independent Demo SRE Report
         report_resp = self.client.get("/api/demo/report")
         self.assertEqual(report_resp.status_code, 200)
         rep = report_resp.json()
-        self.assertEqual(rep["account"], "52961173")
-        self.assertEqual(rep["server"], "Alpari-MT5-Demo")
-        self.assertGreaterEqual(rep["total_trades"], len(demo_trades))
+        self.assertEqual(rep["data_provenance"], "PERSISTED_DEMO_EXECUTION_RECORDS_ONLY")
+        self.assertEqual(rep["total_trades"], 0)
+        self.assertIsNone(rep["account"])
+        self.assertIsNone(rep["balance"])
+
+    def test_demo_account_status_uses_broker_history_without_exposing_identifiers(self) -> None:
+        """Live DEMO telemetry must report real broker facts, separate deposits, and redact account identifiers."""
+        with patch("src.Execution.Adapters.mt5_adapter.RealMT5BrokerAdapter") as adapter_cls:
+            adapter = adapter_cls.return_value
+            adapter._initialized = True
+            adapter.get_account_info.return_value = {
+                "login": "52961173", "server": "Alpari-MT5-Demo", "trade_mode": 0,
+                "balance": 2970.18, "equity": 2970.18, "profit": 0.0, "currency": "USD",
+            }
+            adapter.get_terminal_info.return_value = {
+                "connected": True, "trade_allowed": True, "tradeapi_disabled": False,
+            }
+            adapter.verify_safety_and_account.return_value = True
+            adapter.get_positions.return_value = []
+            adapter.get_history_deals.return_value = [
+                {"type": 0, "entry": 0, "position_id": 1, "time": 100,
+                 "profit": 0.0, "commission": -0.1, "swap": 0.0, "fee": 0.0,
+                 "magic": 143056, "comment": "YarTrader DEMO", "symbol": "XAUUSD"},
+                {"type": 1, "entry": 1, "position_id": 1, "time": 101,
+                 "profit": -2.0, "commission": -0.1, "swap": 0.0, "fee": 0.0,
+                 "magic": 0, "comment": "", "symbol": "XAUUSD"},
+                {"type": 0, "entry": 0, "position_id": 2, "time": 200,
+                 "profit": 0.0, "commission": -0.1, "swap": 0.0, "fee": 0.0,
+                 "magic": 143056, "comment": "YarTrader DEMO", "symbol": "XAUUSD"},
+                {"type": 1, "entry": 1, "position_id": 2, "time": 201,
+                 "profit": 5.0, "commission": -0.1, "swap": 0.0, "fee": 0.0,
+                 "magic": 0, "comment": "", "symbol": "XAUUSD"},
+                {"type": 2, "entry": 0, "position_id": 0, "time": 202,
+                 "profit": 1000.0, "commission": 0.0, "swap": 0.0, "fee": 0.0,
+                 "magic": 0, "comment": "Deposit", "symbol": ""},
+            ]
+            response = self.client.get("/api/demo/account-status")
+
+        self.assertEqual(response.status_code, 200)
+        report = response.json()
+        self.assertEqual(report["account_mode"], "DEMO")
+        self.assertTrue(report["demo_execution_ready"])
+        self.assertEqual(report["balance"], 2970.18)
+        self.assertEqual(report["open_positions_count"], 0)
+        self.assertEqual(report["account_history"]["closed_trades"], 2)
+        self.assertAlmostEqual(report["account_history"]["net_pnl"], 2.6)
+        self.assertEqual(report["yartrader_associated_history"]["closed_trades"], 2)
+        self.assertAlmostEqual(report["yartrader_associated_history"]["net_pnl"], 2.6)
+        self.assertEqual(report["deposit_events"], 1)
+        self.assertEqual(report["deposit_total"], 1000.0)
+        self.assertEqual(report["cash_operations_net"], 1000.0)
+        self.assertAlmostEqual(report["net_change_including_cash_operations"], 1002.6)
+        self.assertAlmostEqual(report["estimated_balance_at_window_start"], 1967.58)
+        self.assertNotIn("52961173", response.text)
+        self.assertNotIn("Alpari", response.text)
 
     def test_safety_gate_mt4_rejection(self) -> None:
         """Confirms that MT4 real money execution is completely blocked to satisfy fail-closed SRE directives."""

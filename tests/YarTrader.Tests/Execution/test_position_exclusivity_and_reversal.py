@@ -21,6 +21,10 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
 
     def setUp(self):
         self.mock_adapter = MagicMock()
+        self.mock_adapter.PLATFORM_NAME = "MT5"
+        self.mock_adapter.TARGET_ACCOUNT = "52961173"
+        self.mock_adapter.TARGET_SERVER = "Alpari-MT5-Demo"
+        self.mock_adapter.close_order = None
         # Mock account info and terminal info for DemoExecutionGate
         self.mock_adapter.get_account_info.return_value = {
             "login": "52961173",
@@ -35,7 +39,8 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
         self.mock_adapter.get_symbol_info.return_value = {
             "trade_mode": 4,
             "volume_min": 0.01,
-            "volume_max": 100.0
+            "volume_max": 100.0,
+            "volume_step": 0.01,
         }
 
     def test_normal_buy_when_flat(self):

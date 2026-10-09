@@ -11,7 +11,7 @@ function normalizeLang(value) {
 
 function interpolate(value, params = {}) {
   if (typeof value !== 'string') return value;
-  return value.replace(/{{\\s*([^}]+?)\\s*}}|{\\s*([^}]+?)\\s*}/g, (_, a, b) => {
+  return value.replace(/{{\s*([^}]+?)\s*}}|{\s*([^}]+?)\s*}/g, (_, a, b) => {
     const key = (a || b || '').trim();
     return Object.prototype.hasOwnProperty.call(params, key) ? String(params[key]) : _;
   });

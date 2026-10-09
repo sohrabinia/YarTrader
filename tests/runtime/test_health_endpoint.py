@@ -1,6 +1,8 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 from fastapi.testclient import TestClient
-from src.Application.Services.web_dashboard import app, research_tracker
+from src.Application.Services.web_dashboard import app, research_tracker, global_research_runtime
 
 class TestHealthEndpoint(unittest.TestCase):
     def setUp(self) -> None:
@@ -16,7 +18,9 @@ class TestHealthEndpoint(unittest.TestCase):
         research_tracker["mt5_status"] = "CONNECTED"
         research_tracker["worker_status"] = "RUNNING"
 
-        response = self.client.get("/health")
+        with patch.object(global_research_runtime.provider.delegate, "get_connection_health",
+                          return_value=SimpleNamespace(connected=True)):
+            response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
 
         data = response.json()
@@ -61,14 +65,18 @@ class TestHealthEndpoint(unittest.TestCase):
     def test_health_ready_endpoint_connected(self):
         """Verifies calling /health/ready returns READY when MT5 is connected."""
         research_tracker["mt5_status"] = "CONNECTED"
-        response = self.client.get("/health/ready")
+        with patch.object(global_research_runtime.provider.delegate, "get_connection_health",
+                          return_value=SimpleNamespace(connected=True)):
+            response = self.client.get("/health/ready")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "READY")
 
     def test_get_ready_endpoint(self):
         """Verifies calling /ready returns readiness structure."""
         research_tracker["mt5_status"] = "CONNECTED"
-        response = self.client.get("/ready")
+        with patch.object(global_research_runtime.provider.delegate, "get_connection_health",
+                          return_value=SimpleNamespace(connected=True)):
+            response = self.client.get("/ready")
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "READY")

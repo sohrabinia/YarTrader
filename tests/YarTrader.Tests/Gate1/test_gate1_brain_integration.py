@@ -3,6 +3,7 @@ import os
 import socket
 import inspect
 import types
+import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
@@ -47,8 +48,11 @@ class TestGate1BrainIntegration(unittest.TestCase):
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
             p.start()
+        memory_tempdir = tempfile.TemporaryDirectory(prefix="yartrader-brain-test-")
 
         try:
+            from src.Research.Brain.memory import MarketMemorySystem
+            test_memory = MarketMemorySystem(storage_dir=memory_tempdir.name)
             worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
             provider = ControlledDataProvider(base_price=2000.0, count=100)
 
@@ -64,6 +68,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
             # Patch MetaTrader5Provider constructor so real _get_or_create_runtime instantiates MetaTrader5Provider with ControlledDataProvider delegate
             with patch("src.Application.Runtime.research_runtime.MetaTrader5Provider", return_value=provider), \
+                 patch("src.Research.Brain.live_brain.MarketMemorySystem", return_value=test_memory), \
                  patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]), \
                  patch.object(central_runtime_state, "update_multiple", side_effect=stop_worker_on_cycle_completion):
 
@@ -100,6 +105,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
             for p in boundary_patches:
                 p.stop()
             cleanup()
+            memory_tempdir.cleanup()
 
     def test_brain_exception_fails_closed_explicitly(self):
         """
@@ -109,8 +115,11 @@ class TestGate1BrainIntegration(unittest.TestCase):
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
             p.start()
+        memory_tempdir = tempfile.TemporaryDirectory(prefix="yartrader-brain-test-")
 
         try:
+            from src.Research.Brain.memory import MarketMemorySystem
+            test_memory = MarketMemorySystem(storage_dir=memory_tempdir.name)
             from src.Research.Brain.live_brain import LiveAnalysisBrain
 
             def crashing_process_live_candle(*args, **kwargs):
@@ -125,6 +134,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
                 return orig_update(state_dict)
 
             with patch("src.Application.Runtime.research_runtime.MetaTrader5Provider", return_value=provider), \
+                 patch("src.Research.Brain.live_brain.MarketMemorySystem", return_value=test_memory), \
                  patch.object(LiveAnalysisBrain, "process_live_candle", side_effect=crashing_process_live_candle), \
                  patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]), \
                  patch.object(central_runtime_state, "update_multiple", side_effect=stop_worker_on_cycle_completion):
@@ -158,6 +168,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
             for p in boundary_patches:
                 p.stop()
             cleanup()
+            memory_tempdir.cleanup()
 
     def test_fail_closed_when_brain_report_missing(self):
         """
@@ -283,7 +294,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
         self.assertEqual(res_c["plan"]["decision_source"], "BRAIN")
 
         # Case D: Brain BUY + bearish alignment -> BUY (Brain is sole authority)
-        brain_buy = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
+        brain_buy = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2005.0, "stop_loss": 1995.0, "take_profit": 2025.0, "risk_reward": 2.0}}]}
         res_d = planner.generate_execution_plan(
             symbol="XAUUSD", timeframe="H1", narrative=narrative_bearish, liquidity={},
             zones={}, alignment=bearish_alignment, similarity={}, portfolio_risk={"approved": True},
@@ -292,7 +303,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
         self.assertEqual(res_d["plan"]["action"], "BUY")
 
         # Case E: Brain SELL + bullish alignment -> SELL (Brain is sole authority)
-        brain_sell = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
+        brain_sell = {"symbol": "XAUUSD", "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2005.0, "stop_loss": 2015.0, "take_profit": 1985.0, "risk_reward": 2.0}}]}
         res_e = planner.generate_execution_plan(
             symbol="XAUUSD", timeframe="H1", narrative=narrative_bullish, liquidity={},
             zones={}, alignment=bullish_alignment, similarity={}, portfolio_risk={"approved": True},
@@ -368,6 +379,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
         try:
             from src.Research.Brain.cognitive_loop import CognitiveReplayLoop
+            from src.Research.Brain.memory import MarketMemorySystem
             from src.Research.Brain.models import MarketObservation
 
             obs_list = []
@@ -385,8 +397,16 @@ class TestGate1BrainIntegration(unittest.TestCase):
                 )
                 obs_list.append(obs)
 
-            replay_loop = CognitiveReplayLoop(symbol="XAUUSD", timeframe="H1", observations=obs_list)
-            episodes = replay_loop.execute_replay_session(steps_count=5, scale="hours")
+            # Keep replay/learning tests isolated from the production memory store.
+            # The default store may contain large historical corpora and must never be
+            # mutated by a unit test.
+            with tempfile.TemporaryDirectory(prefix="yartrader-replay-test-") as memory_dir:
+                test_memory = MarketMemorySystem(storage_dir=memory_dir)
+                replay_loop = CognitiveReplayLoop(
+                    symbol="XAUUSD", timeframe="H1", observations=obs_list,
+                    memory_system=test_memory,
+                )
+                episodes = replay_loop.execute_replay_session(steps_count=5, scale="hours")
 
             self.assertTrue(len(episodes) > 0)
             self.assertEqual(len(mt5_calls), 0)

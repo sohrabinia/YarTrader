@@ -6,7 +6,7 @@ class TestMultiLevelRiskAndReversal(unittest.TestCase):
     """
     Phase 5 & Phase 6 Deterministic Risk & Reversal Tests.
     Proves:
-    - 0.5% max risk per trade limit.
+    - 1.0% target risk per trade limit.
     - 3.0% strategy exposure ceiling.
     - 10.0% max daily equity drawdown circuit breaker (halts new trade generation).
     - FAST_SCALP / SCALP post-close opposite direction evaluation (prohibiting blind reversal).
@@ -21,7 +21,7 @@ class TestMultiLevelRiskAndReversal(unittest.TestCase):
         self.reversal_manager = ReversalHandoffManager()
 
     def test_single_trade_risk_limit_0_5_percent(self):
-        """Verifies single trade risk exceeding 0.5% equity is rejected."""
+        """Verifies single trade risk exceeding 1.0% equity is rejected."""
         active_trades = [
             {"symbol": "XAUUSD", "status": "RUNNING", "entry": 2000.0, "stop": 1990.0, "volume": 0.01, "risk_pct": 0.8}
         ]

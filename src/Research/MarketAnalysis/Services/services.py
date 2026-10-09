@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from typing import List, Any, Dict, Optional
 from src.Research.MarketAnalysis.Interfaces.interfaces import IMarketAnalyzer, IResearchEngine
@@ -115,10 +116,29 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
         else:
             self._base_engine = base_engine
         self._live_brains: Dict[tuple, Any] = {}
+        self._last_processed_candle_timestamps: Dict[tuple, datetime] = {}
 
     @property
     def data_provider(self) -> IMarketDataProvider:
         return self._data_provider
+
+    @staticmethod
+    def _timestamp_order(value: Any) -> float:
+        if isinstance(value, datetime):
+            return value.timestamp()
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+
+    def _select_brain_points(self, brain_key: tuple, data_points: List[MarketDataPoint]) -> List[MarketDataPoint]:
+        """Bootstrap on a bounded recent window, then feed only unseen candles to the live Brain."""
+        last_processed = self._last_processed_candle_timestamps.get(brain_key)
+        if last_processed is None:
+            try:
+                bootstrap_bars = max(1, int(os.getenv("YARTRADER_LIVE_BRAIN_BOOTSTRAP_BARS", "120")))
+            except (TypeError, ValueError):
+                bootstrap_bars = 120
+            return list(data_points[-bootstrap_bars:])
+        last_order = self._timestamp_order(last_processed)
+        return [dp for dp in data_points if self._timestamp_order(dp.Timestamp) > last_order]
 
     def analyze_market(self, request: ResearchRequest, market_data_response=None) -> ResearchResult:
         """
@@ -172,7 +192,8 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
                     newborn_brain = LiveAnalysisBrain(request.Asset, timeframe)
                     self._live_brains[brain_key] = newborn_brain
                 newborn_report = None
-                for dp in data_points:
+                brain_points = self._select_brain_points(brain_key, data_points)
+                for point_index, dp in enumerate(brain_points):
                     raw_candle_dict = {
                         "timestamp": dp.Timestamp.isoformat() if isinstance(dp.Timestamp, datetime) else str(dp.Timestamp),
                         "open": float(dp.Open),
@@ -181,14 +202,20 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
                         "close": float(dp.Close),
                         "volume": float(dp.Volume)
                     }
-                    newborn_report = newborn_brain.process_live_candle(raw_candle_dict)
+                    newborn_report = newborn_brain.process_live_candle(
+                        raw_candle_dict,
+                        learning_cycle_due=(point_index == len(brain_points) - 1),
+                    )
+                    self._last_processed_candle_timestamps[brain_key] = dp.Timestamp
+                if newborn_report is None:
+                    newborn_report = getattr(newborn_brain, "_last_report", None)
                 if newborn_report:
                     newborn_report_dict = newborn_report.to_dict()
                 else:
                     newborn_report_dict = {
                         "brain_available": False,
                         "suggested_virtual_action": "WAIT",
-                        "brain_error": "No candle processed by LiveAnalysisBrain"
+                        "brain_error": "No new or previously cached candle report is available from LiveAnalysisBrain"
                     }
             except Exception as be_err:
                 newborn_report_dict = {
@@ -223,7 +250,7 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
                 entry=float(plan.get("entry", 0.0)),
                 stop_loss=float(plan.get("stop_loss", 0.0)),
                 take_profit=float(plan.get("take_profit", 0.0)),
-                volume=0.01,
+                volume=0.0,
                 risk_reward=float(plan.get("risk_reward", 0.0)),
                 confidence=float(plan.get("confidence", 0.0)),
                 reasoning=plan.get("reasoning", ["Indicator-independent primitive evaluation"]),
@@ -259,6 +286,54 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
             "timestamp": latest_dp.Timestamp.isoformat() if hasattr(latest_dp.Timestamp, "isoformat") else str(latest_dp.Timestamp)
         }
 
+        brain_hypotheses = newborn_report_dict.get("active_hypotheses", []) if isinstance(newborn_report_dict, dict) else []
+        primary_hypothesis = brain_hypotheses[0] if brain_hypotheses and isinstance(brain_hypotheses[0], dict) else {}
+        brain_action = str(primary_hypothesis.get("suggested_virtual_action", "WAIT")).upper()
+        brain_confidence = float(primary_hypothesis.get("hypothesis_confidence", 0.0) or 0.0)
+        blocked_direction = str(primary_hypothesis.get("blocked_direction") or "WAIT").upper()
+        blocked_direction_confidence = float(primary_hypothesis.get("blocked_direction_confidence", 0.0) or 0.0)
+        evidence_status = str(primary_hypothesis.get("evidence_status", "NO_OUTCOME_LABELS"))
+        successful_outcomes = int(primary_hypothesis.get("successful_outcomes", 0) or 0)
+        brain_trade_parameters = primary_hypothesis.get("trade_parameters", {}) or {}
+        decision_action = str(auto_dec_dict.get("action", "WAIT")).upper()
+        try:
+            risk_parameters_available = isinstance(brain_trade_parameters, dict) and all(
+                float(brain_trade_parameters.get(key) or 0.0) > 0.0
+                for key in ("entry", "stop_loss", "take_profit")
+            )
+        except (TypeError, ValueError):
+            risk_parameters_available = False
+        if decision_action in ("BUY", "SELL"):
+            smart_bias = decision_action
+            smart_confidence = float(auto_dec_dict.get("confidence", 0.0) or 0.0)
+            signal_status = "ACTIVE"
+        elif brain_action in ("BUY", "SELL") and brain_confidence >= 50.0 and evidence_status == "VALIDATED_OUTCOMES" and successful_outcomes >= 3:
+            smart_bias = brain_action
+            smart_confidence = brain_confidence
+            signal_status = "CANDIDATE"
+        elif blocked_direction in ("BUY", "SELL") or (brain_action in ("BUY", "SELL") and (evidence_status != "VALIDATED_OUTCOMES" or successful_outcomes < 3)):
+            smart_bias = blocked_direction if blocked_direction in ("BUY", "SELL") else brain_action
+            smart_confidence = blocked_direction_confidence if blocked_direction in ("BUY", "SELL") else brain_confidence
+            signal_status = "BLOCKED"
+        else:
+            smart_bias = "Neutral"
+            smart_confidence = float(auto_dec_dict.get("confidence", 0.0) or 0.0)
+            signal_status = "WAIT"
+        smart_interpretation = {
+            "confidence": smart_confidence,
+            "bias": smart_bias,
+            "reasoning": auto_dec_dict.get("reasoning", []),
+            "execution_action": decision_action,
+            "signal_status": signal_status,
+            "risk_parameters_available": bool(risk_parameters_available),
+            "candidate_reason": (
+                "Brain proposed a direction, but learned entry/stop-loss/take-profit parameters are missing or failed planner validation."
+                if signal_status == "CANDIDATE" else
+                (primary_hypothesis.get("blocked_reason") or f"Historical outcome evidence is {evidence_status}; no executable signal is authorized.")
+                if signal_status == "BLOCKED" else None
+            ),
+        }
+
         findings = {
             "asset_id": request.Asset,
             "period_start": request.StartTime.isoformat(),
@@ -279,7 +354,7 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
             "newborn_brain_report": newborn_report_dict,
             "pipeline_outputs": {
                 "technical_analysis": {"candles": candles_dicts, "bar_count": len(candles_dicts)},
-                "smart_interpretation": {"confidence": float(auto_dec_dict.get("confidence", 50.0)), "bias": "Neutral"}
+                "smart_interpretation": smart_interpretation
             }
         }
 

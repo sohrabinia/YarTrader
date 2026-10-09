@@ -76,7 +76,12 @@ class ResearchWorker:
     def _get_active_matrix(self) -> list:
         try:
             from src.Market.Universe.symbol_registry import SymbolRegistry
-            return SymbolRegistry.get_instance().get_active_matrix()
+            matrix = SymbolRegistry.get_instance().get_active_matrix()
+            # Keep the configured multi-symbol active matrix in production.
+            # Research and execution share the enabled multi-symbol registry.
+            # Do not collapse production to one default symbol: each active symbol
+            # is evaluated independently and must pass the same broker/risk gates.
+            return matrix
         except Exception:
             return []
 
@@ -105,7 +110,15 @@ class ResearchWorker:
             return
         self.is_running = True
         self.status = "RUNNING"
-        central_runtime_state.update_state("research_status", "Running")
+        central_runtime_state.update_multiple({
+            "research_status": "Running",
+            "research_worker_started_at": datetime.now().isoformat(),
+            "research_cycle_started_at": None,
+            "research_cycle_symbol": None,
+            "research_cycle_timeframe": None,
+            "research_last_error": None,
+            "research_cycle_count": self.cycle_count,
+        })
         self.thread = threading.Thread(target=self._run_loop, daemon=True, name="ResearchWorker")
         self.thread.start()
 
@@ -119,7 +132,7 @@ class ResearchWorker:
 
     def _validate_and_size_decision(self, symbol: str, sig_dir: str, decision_dict: dict) -> Optional[Dict[str, Any]]:
         """
-        Canonical Fail-Closed Validation & 0.5% Risk Position Sizing Pipeline.
+        Canonical Fail-Closed Validation & 1.0% Risk Position Sizing Pipeline.
         Returns a dict with validated parameters and calculated volume_lots, or None if validation fails.
         """
         if not self.demo_engine or not hasattr(self.demo_engine, "adapter"):
@@ -149,6 +162,16 @@ class ResearchWorker:
             print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker account equity unavailable or invalid (equity={raw_equity}). Failing closed.")
             return None
 
+        raw_balance = acc_info.get("balance")
+        try:
+            balance_val = float(raw_balance)
+        except (TypeError, ValueError):
+            balance_val = -1.0
+        if balance_val <= 0 or not math.isfinite(balance_val):
+            print(f"[ResearchWorker] Execution BLOCKED: Authoritative current wallet balance unavailable or invalid (balance={raw_balance}). Failing closed.")
+            return None
+        risk_basis_val = min(balance_val, equity_val)
+
         raw_margin = acc_info.get("free_margin")
         free_margin_val = -1.0
         if raw_margin is not None:
@@ -165,7 +188,17 @@ class ResearchWorker:
         try:
             from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
             kill_switch = DailyLossKillSwitch.get_instance()
-            allowed, reason, meta = kill_switch.evaluate_daily_loss(equity_val)
+            from datetime import datetime, timezone
+            risk_now = datetime.now(timezone.utc)
+            bot_daily_pnl = None
+            if type(self.demo_engine.adapter).__name__ == "RealMT5BrokerAdapter":
+                from src.Risk.Services.daily_loss_kill_switch import calculate_yartrader_daily_pnl
+                bot_daily_pnl = calculate_yartrader_daily_pnl(
+                    self.demo_engine.adapter, now_utc=risk_now
+                )["total_pnl"]
+            allowed, reason, meta = kill_switch.evaluate_daily_loss(
+                equity_val, now_utc=risk_now, bot_daily_pnl=bot_daily_pnl
+            )
             if not allowed:
                 print(f"[ResearchWorker] Execution BLOCKED: Daily Loss Limit Gate active ({reason}, loss={meta.get('loss_pct', 0.0)}%). Failing closed.")
                 return None
@@ -192,66 +225,93 @@ class ResearchWorker:
             print(f"[ResearchWorker] Execution BLOCKED: Authoritative broker symbol volume limits invalid for {symbol} (min={vol_min}, max={vol_max}, step={vol_step}). Failing closed.")
             return None
 
-        # 3. Validate Entry Price and Stop Loss Parameters Without Fallbacks
+        # 3. Validate the model's entry against a fresh broker quote. Never submit stale model prices.
         raw_price = decision_dict.get("entry")
         raw_sl = decision_dict.get("stop_loss")
         raw_tp = decision_dict.get("take_profit")
-
-        price_val = -1.0
-        sl_val = -1.0
-        if raw_price is not None and raw_sl is not None:
-            try:
-                price_val = float(raw_price)
-                sl_val = float(raw_sl)
-            except (ValueError, TypeError):
-                price_val = sl_val = -1.0
-
-        is_valid_prices = (
-            price_val > 0 and sl_val > 0 and
-            math.isfinite(price_val) and math.isfinite(sl_val)
-        )
-
-        if is_valid_prices:
-            if sig_dir == "BUY" and sl_val >= price_val:
-                is_valid_prices = False
-            elif sig_dir == "SELL" and sl_val <= price_val:
-                is_valid_prices = False
-
-        if not is_valid_prices:
-            print(f"[ResearchWorker] Execution BLOCKED: Decision entry/SL parameters missing or invalid for {symbol} {sig_dir} (entry={raw_price}, sl={raw_sl}). Failing closed.")
-            return None
-
-        # 4. Calculate Risk Position Sizing (hard max ceiling 2.0% risk)
-        from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
-        risk_engine = ProfessionalRiskEngine()
-
-        # Target requested risk percentage (Fail-Closed: target 0.5%, strictly <= 2.0%)
-        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "0.5")
         try:
-            req_risk_f = float(raw_risk_env) if not isinstance(raw_risk_env, bool) else -1.0
-            if not math.isfinite(req_risk_f) or req_risk_f <= 0.0 or req_risk_f > 2.0:
-                print(f"[ResearchWorker] Execution BLOCKED: Requested risk_pct ({raw_risk_env}) is invalid or exceeds 2.0% ceiling. Failing closed.")
-                return None
-            requested_risk_pct = req_risk_f
+            model_entry = float(raw_price)
+            sl_val = float(raw_sl)
+            tp_val = float(raw_tp)
         except (ValueError, TypeError):
-            print(f"[ResearchWorker] Execution BLOCKED: Requested risk_pct ({raw_risk_env}) is non-numeric. Failing closed.")
+            print(f"[ResearchWorker] Execution BLOCKED: Decision entry/SL/TP missing or non-numeric for {symbol} {sig_dir}.")
+            return None
+        if any(not math.isfinite(v) or v <= 0 for v in (model_entry, sl_val, tp_val)):
+            print(f"[ResearchWorker] Execution BLOCKED: Decision entry/SL/TP invalid for {symbol} {sig_dir}.")
             return None
 
-        sizing_res = risk_engine.evaluate_equity_risk_and_position_size(
-            symbol=symbol,
-            direction=sig_dir,
-            entry_price=price_val,
-            stop_loss=sl_val,
-            account_equity=equity_val,
-            free_margin=free_margin_val,
-            risk_pct=requested_risk_pct,
-            volume_min=vol_min,
-            volume_max=vol_max,
-            volume_step=vol_step
-        )
+        try:
+            tick = self.demo_engine.adapter.get_symbol_tick(symbol)
+        except Exception as tick_err:
+            print(f"[ResearchWorker] Execution BLOCKED: Fresh broker tick unavailable for {symbol}: {tick_err}.")
+            return None
+        if not isinstance(tick, dict):
+            print(f"[ResearchWorker] Execution BLOCKED: Fresh broker tick unavailable for {symbol}.")
+            return None
+        quote_key = "ask" if sig_dir == "BUY" else "bid"
+        try:
+            price_val = float(tick.get(quote_key, 0.0))
+        except (ValueError, TypeError):
+            price_val = 0.0
+        if not math.isfinite(price_val) or price_val <= 0:
+            print(f"[ResearchWorker] Execution BLOCKED: Fresh broker {quote_key} quote is invalid for {symbol}.")
+            return None
 
-        if not sizing_res.is_valid:
-            print(f"[ResearchWorker] Position sizing rejected for {symbol} {sig_dir}: {sizing_res.rejection_reason}")
+        max_drift_pct = float(os.getenv("MAX_DEMO_ENTRY_DRIFT_PCT", "0.5"))
+        drift_pct = abs(model_entry - price_val) / price_val * 100.0
+        if not math.isfinite(max_drift_pct) or max_drift_pct <= 0 or drift_pct > max_drift_pct:
+            print(f"[ResearchWorker] Execution BLOCKED: Model entry is stale for {symbol} {sig_dir} (drift={drift_pct:.3f}% > max={max_drift_pct}%).")
+            return None
+
+        if sig_dir == "BUY":
+            geometry_valid = sl_val < price_val < tp_val
+        else:
+            geometry_valid = tp_val < price_val < sl_val
+        if not geometry_valid:
+            print(f"[ResearchWorker] Execution BLOCKED: SL/TP do not bracket the fresh {quote_key} quote for {symbol} {sig_dir} (price={price_val}, sl={sl_val}, tp={tp_val}).")
+            return None
+
+        risk_distance = abs(price_val - sl_val)
+        reward_distance = abs(tp_val - price_val)
+        live_rr = reward_distance / risk_distance if risk_distance > 0 else 0.0
+        min_rr = float(os.getenv("MINIMUM_RR", "1.5"))
+        if not math.isfinite(live_rr) or live_rr < min_rr:
+            print(f"[ResearchWorker] Execution BLOCKED: Live-quote risk/reward {live_rr:.3f} is below minimum {min_rr} for {symbol} {sig_dir}.")
+            return None
+
+        # 4. Shared broker-authoritative sizing: same 1.0% wallet policy as the
+        # autonomous DEMO trader. MT5 order_calc_profit uses the actual symbol's
+        # contract/tick-value conventions; no fixed-lot fallback is permitted.
+        from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
+        canonical_risk_pct = float(ProductionRiskPolicy.TARGET_RISK_PCT)
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", str(canonical_risk_pct))
+        try:
+            req_risk_f = float(raw_risk_env)
+            if (not math.isfinite(req_risk_f) or req_risk_f <= 0.0
+                    or req_risk_f > ProductionRiskPolicy.HARD_CEILING_RISK_PCT
+                    or not math.isclose(req_risk_f, canonical_risk_pct, rel_tol=0.0, abs_tol=1e-9)):
+                print(f"[ResearchWorker] Execution BLOCKED: RISK_PCT_PER_TRADE ({raw_risk_env}) must match canonical {canonical_risk_pct:.2f}% policy.")
+                return None
+        except (ValueError, TypeError):
+            print(f"[ResearchWorker] Execution BLOCKED: Requested risk_pct ({raw_risk_env}) is non-numeric.")
+            return None
+
+        mt5 = getattr(self.demo_engine.adapter, "_mt5", None)
+        if mt5 is None or not callable(getattr(mt5, "order_calc_profit", None)):
+            print(f"[ResearchWorker] Execution BLOCKED: Broker-authoritative PnL calculator unavailable for {symbol}.")
+            return None
+        try:
+            from src.Execution.Services.autonomous_demo_trader import calculate_demo_volume_by_risk
+            sizing = calculate_demo_volume_by_risk(
+                mt5=mt5, symbol=symbol, direction=sig_dir,
+                entry=price_val, stop_loss=sl_val, symbol_info=sym_info,
+                balance=balance_val, equity=equity_val, risk_pct=canonical_risk_pct,
+            )
+        except Exception as sizing_error:
+            print(f"[ResearchWorker] Broker-authoritative sizing rejected {symbol}: {sizing_error}")
+            return None
+        if not sizing.get("allowed"):
+            print(f"[ResearchWorker] Position sizing rejected for {symbol} {sig_dir}: {sizing.get('reason')}")
             return None
 
         return {
@@ -260,8 +320,10 @@ class ResearchWorker:
             "price": price_val,
             "sl": sl_val,
             "tp": float(raw_tp) if raw_tp is not None else None,
-            "volume_lots": sizing_res.volume_lots,
-            "risk_budget_usd": sizing_res.risk_budget_usd
+            "volume_lots": float(sizing["volume"]),
+            "risk_budget_usd": float(sizing["risk_budget_usd"]),
+            "estimated_risk_usd": float(sizing["estimated_risk_usd"]),
+            "risk_per_trade_pct": canonical_risk_pct,
         }
 
     def _run_loop(self) -> None:
@@ -269,7 +331,7 @@ class ResearchWorker:
         try:
             from src.Market.Universe.symbol_registry import SymbolRegistry
             registry = SymbolRegistry.get_instance()
-            active_matrix = registry.get_active_matrix()
+            active_matrix = self._get_active_matrix()
             unique_symbols = sorted(list(set(s for s, t, ac, p in active_matrix)))
             configured_tfs = sorted(list(set(t for s, t, ac, p in active_matrix)))
 
@@ -310,6 +372,11 @@ class ResearchWorker:
                         if not acquired:
                             print("[ResearchWorker] Research cycle skipped: another Brain/research cycle is still running.")
                             continue
+                        central_runtime_state.update_multiple({
+                            "research_cycle_started_at": datetime.now().isoformat(),
+                            "research_cycle_symbol": symbol,
+                            "research_cycle_timeframe": tf,
+                        })
                         try:
                             res = runtime.run_once()
                         finally:
@@ -327,6 +394,9 @@ class ResearchWorker:
                             "research_cycle_count": self.cycle_count,
                             "research_last_successful_cycle": self.last_analysis_time.isoformat(),
                             "research_last_error": None,
+                            "research_cycle_started_at": None,
+                            "research_cycle_symbol": None,
+                            "research_cycle_timeframe": None,
                         })
 
                         candles_count = len(res.Findings.get("pipeline_outputs", {}).get("technical_analysis", {}).get("candles", []))
@@ -334,10 +404,9 @@ class ResearchWorker:
                         print("Features: Generated")
                         print("Research: Completed\n")
 
-                        # DEMO Execution Scope Boundary: Order dispatch is strictly XAUUSD ONLY
-                        if symbol.upper() != "XAUUSD":
-                            print(f"[ResearchWorker] Symbol {symbol} research completed. Execution skipped (DEMO execution is XAUUSD only).")
-                            continue
+                        # Execution eligibility is determined by the canonical active-symbol
+                        # registry and broker-authoritative risk sizing, never by a gold-only gate.
+                        # Every enabled symbol reaches the same signal, freshness, risk and DEMO gates.
 
                         # DEMO Execution Bridge: Consume AutonomousTradingDecision with Kill Switch, RR, and Cooldown gates
                         auto_dec = res.Findings.get("autonomous_decision", {})
@@ -417,7 +486,7 @@ class ResearchWorker:
                                                         reassess_action = reassess_dec.get("action", "WAIT")
 
                                                         if reassess_action == sig_dir:
-                                                            # Run Reversal Decision through Canonical Validation & 0.5% Risk Position Sizing
+                                                            # Run Reversal Decision through Canonical Validation & 1.0% Risk Position Sizing
                                                             rev_sized = self._validate_and_size_decision(symbol, sig_dir, reassess_dec)
                                                             if rev_sized:
                                                                 decision_id = f"DEC-REV-{symbol.upper()}-{sig_dir}-{int(sig_time)}"
@@ -454,7 +523,7 @@ class ResearchWorker:
                                                 calculated_vol = flat_sized["volume_lots"]
                                                 decision_id = auto_dec.get("decision_id", f"DEC-{symbol.upper()}-{sig_dir}-{int(sig_time)}")
 
-                                                print(f"[ResearchWorker] Actionable decision detected for {symbol}: {sig_dir} with 0.5% risk volume = {calculated_vol} lots (Equity=${flat_sized['equity']}). Dispatching...")
+                                                print(f"[ResearchWorker] Actionable decision detected for {symbol}: {sig_dir} with 1.0% risk volume = {calculated_vol} lots (Equity=${flat_sized['equity']}). Dispatching...")
                                                 exec_resp = self.demo_engine.execute_demo_decision(
                                                     symbol=symbol,
                                                     direction=sig_dir,
@@ -493,7 +562,13 @@ class ResearchWorker:
                             # rest of the research universe remain healthy. Do not poison the
                             # worker lifecycle state or enable synthetic/fallback market data.
                             self.status = "RUNNING"
-                            central_runtime_state.update_state("research_status", "Running")
+                            central_runtime_state.update_multiple({
+                                "research_status": "Running",
+                                "research_last_error": str(e),
+                                "research_cycle_started_at": None,
+                                "research_cycle_symbol": None,
+                                "research_cycle_timeframe": None,
+                            })
                             print(
                                 f"[ResearchWorker] DATA_UNAVAILABLE/SKIPPED for {symbol} {tf}: "
                                 f"{type(e).__name__}: {e}"
@@ -502,7 +577,13 @@ class ResearchWorker:
 
                         self.error_count += 1
                         self.status = "RECOVERING"
-                        central_runtime_state.update_state("research_status", "Recovering")
+                        central_runtime_state.update_multiple({
+                            "research_status": "Recovering",
+                            "research_last_error": f"{type(e).__name__}: {e}",
+                            "research_cycle_started_at": None,
+                            "research_cycle_symbol": None,
+                            "research_cycle_timeframe": None,
+                        })
                         # Never swallow research-cycle failures: production diagnosis must retain
                         # the exact symbol/timeframe, exception type, and traceback.
                         import traceback

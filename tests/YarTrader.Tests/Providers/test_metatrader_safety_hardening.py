@@ -27,22 +27,22 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         with self.assertRaises(ValidationException) as ctx:
             MetaTraderSafetyGate.verify_operation(
                 terminal_type="MT5",
-                operation_type="DATA",
+                operation_type="DEMO",
                 account_id="99999999",  # Unauthorized account
                 server_name="Alpari-MT5-Demo"
             )
-        self.assertIn("unauthorized account", str(ctx.exception))
+        self.assertIn("Unauthorized MT5 account", str(ctx.exception))
 
     def test_safety_gate_rejects_unauthorized_mt5_server(self) -> None:
         """Verifies that Safety Gate blocks unauthorized servers on MT5."""
         with self.assertRaises(ValidationException) as ctx:
             MetaTraderSafetyGate.verify_operation(
                 terminal_type="MT5",
-                operation_type="DATA",
+                operation_type="DEMO",
                 account_id="52961173",
                 server_name="Insecure-Live-Server"  # Unauthorized server
             )
-        self.assertIn("unauthorized server", str(ctx.exception))
+        self.assertIn("Unauthorized MT5 server", str(ctx.exception))
 
     def test_safety_gate_rejects_live_trading_operation_completely(self) -> None:
         """Verifies that SRE Safety Gate completely blocks real live trading execution."""
@@ -51,7 +51,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
                 terminal_type="MT5",
                 operation_type="REAL_LIVE"
             )
-        self.assertIn("MT4 Live Trading is hard-disabled", str(ctx.exception))
+        self.assertIn("Real Live Trading is hard-disabled", str(ctx.exception))
 
     def test_safety_gate_rejects_live_trading_enabled_config_manipulation(self) -> None:
         """Verifies that even if config flag is enabled, SRE Safety Gate blocks real live operations."""
@@ -65,7 +65,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
                     terminal_type="MT4",
                     operation_type="REAL_LIVE"
                 )
-            self.assertIn("MT4 Live Trading is hard-disabled", str(ctx.exception))
+            self.assertIn("Real Live Trading is hard-disabled", str(ctx.exception))
 
     def test_safety_gate_allows_mt4_signal(self) -> None:
         """Verifies that MT4 can perform read-only Signal operations under the official account."""
@@ -86,7 +86,7 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
                 account_id="143056202",
                 server_name="Real-Live-Server"
             )
-        self.assertIn("unauthorized server", str(ctx.exception))
+        self.assertIn("Unauthorized MT4 server", str(ctx.exception))
 
     def test_health_endpoint_details_isolation(self) -> None:
         """Verifies that the /health API endpoint reports correct segregated MT5/MT4 schemas without credential leakage or account/broker disclosure."""
@@ -100,14 +100,17 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
         mt5_det = data["mt5_details"]
         self.assertNotIn("account", mt5_det)
         self.assertNotIn("server", mt5_det)
-        self.assertEqual(mt5_det["trading_allowed"], False)
+        self.assertIsInstance(mt5_det["trading_allowed"], bool)
+        self.assertIsInstance(mt5_det["demo_execution_ready"], bool)
+        self.assertEqual(mt5_det["trading_allowed"], mt5_det["demo_execution_ready"])
+        self.assertEqual(mt5_det["live_trading_enabled"], False)
         self.assertEqual(mt5_det["role"], "DEMO")
 
         mt4_det = data["mt4_details"]
         self.assertNotIn("account", mt4_det)
         self.assertNotIn("server", mt4_det)
         self.assertEqual(mt4_det["live_trading_enabled"], False)
-        self.assertEqual(mt4_det["role"], "DISABLED")
+        self.assertEqual(mt4_det["role"], "SIGNAL_BACKTEST_DEMO_DATA")
 
         # Confirm sensitive details, account numbers, and servers are not exposed publicly
         self.assertNotIn("52961173", str(data))
@@ -130,4 +133,4 @@ class TestMetaTraderSafetyHardening(unittest.TestCase):
                 MetaTraderSafetyGate.MT4_LIVE_ACCOUNT,
                 MetaTraderSafetyGate.MT4_LIVE_SERVER,
             )
-        self.assertIn("MT4 Live Trading is hard-disabled", str(ctx.exception))
+        self.assertIn("Real Live Trading is hard-disabled", str(ctx.exception))

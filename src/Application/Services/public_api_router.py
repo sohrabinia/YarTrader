@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
@@ -13,22 +15,58 @@ class SocialLoginPayload(BaseModel):
 # 1. Supported Markets & Stats
 @router.get("/metrics")
 def get_public_metrics():
-    """Returns compliant SaaS platform metrics and performance stats."""
-    return {
-        "symbols_active": 50,
-        "timeframes_active": 4,
-        "research_contexts": 200,
-        "providers": {
-            "mt5": "CONNECTED",
-            "crypto_provider": "CONNECTED"
-        },
-        "runtime_mode": "PRODUCTION",
-        "active_markets_count": 30,
-        "historical_simulated_trades": 125420,
-        "platform_uptime_pct": 99.9,
-        "apes_fin_compliant": True,
-        "compliance_disclaimer": "Simulated performance results have certain inherent limitations. Unlike an actual performance record, simulated results do not represent actual trading."
-    }
+    """Return live registry counts and never invent historical or uptime metrics."""
+    from src.Market.Universe.symbol_registry import SymbolRegistry
+
+    disclaimer = (
+        "Simulated performance results have inherent limitations and do not represent "
+        "actual trading. Historical trade counts and uptime are omitted unless measured."
+    )
+    try:
+        registry = SymbolRegistry.get_instance()
+        registered = registry.get_all_registered()
+        active = {
+            symbol: info for symbol, info in registered.items()
+            if bool(info.get("active", info.get("enabled", False)))
+        }
+        matrix = registry.get_active_matrix()
+        active_providers = {
+            str(info.get("provider", "MT5")).upper() for info in active.values()
+        }
+        supported_count = len(registered)
+        return {
+            "symbols_active": len(active),
+            "symbols_supported_count": supported_count,
+            "timeframes_active": len({str(item[1]).upper() for item in matrix}),
+            "research_contexts": len(matrix),
+            "providers": {
+                "mt5": "ENABLED" if "MT5" in active_providers else "DISABLED",
+                "crypto_provider": "ENABLED" if any("CRYPTO" in p for p in active_providers) else "DISABLED",
+            },
+            "runtime_mode": os.getenv("RG_ENV", os.getenv("YARTRADER_ENV", "production")).upper(),
+            # This card is labelled "Supported Market Symbols", not "currently active".
+            "active_markets_count": supported_count,
+            "historical_simulated_trades": None,
+            "platform_uptime_pct": None,
+            "apes_fin_compliant": None,
+            "metrics_status": "LIVE_REGISTRY",
+            "compliance_disclaimer": disclaimer,
+        }
+    except Exception:
+        return {
+            "symbols_active": 0,
+            "symbols_supported_count": 0,
+            "timeframes_active": 0,
+            "research_contexts": 0,
+            "providers": {"mt5": "UNKNOWN", "crypto_provider": "UNKNOWN"},
+            "runtime_mode": os.getenv("RG_ENV", os.getenv("YARTRADER_ENV", "production")).upper(),
+            "active_markets_count": 0,
+            "historical_simulated_trades": None,
+            "platform_uptime_pct": None,
+            "apes_fin_compliant": None,
+            "metrics_status": "DATA_UNAVAILABLE",
+            "compliance_disclaimer": disclaimer,
+        }
 
 # 2. SaaS Pricing Tiers & Subscription Plans
 @router.get("/pricing")
@@ -107,9 +145,23 @@ def initiate_purchase(payload: PurchasePayload):
 # 4. Supported Instrument Categories
 @router.get("/markets")
 def get_supported_markets():
-    """Returns list of SaaS supported market assets."""
+    """Return the canonical supported universe with current enablement separated."""
+    from src.Market.Universe.symbol_registry import SymbolRegistry
+
+    registry = SymbolRegistry.get_instance()
+    grouped: Dict[str, Dict[str, List[str]]] = {}
+    for symbol, info in registry.get_all_registered().items():
+        category = str(info.get("asset_class", "Forex"))
+        group = grouped.setdefault(category, {"symbols": [], "active_symbols": []})
+        group["symbols"].append(str(symbol).upper())
+        if bool(info.get("active", info.get("enabled", False))):
+            group["active_symbols"].append(str(symbol).upper())
+
     return [
-        {"category": "Forex", "symbols": ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD"]},
-        {"category": "Commodities", "symbols": ["XAUUSD", "XAGUSD", "USOIL"]},
-        {"category": "Crypto", "symbols": ["BTCUSD", "ETHUSD", "SOLUSD"]}
+        {
+            "category": category,
+            "symbols": sorted(values["symbols"]),
+            "active_symbols": sorted(values["active_symbols"]),
+        }
+        for category, values in sorted(grouped.items())
     ]

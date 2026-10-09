@@ -2,7 +2,7 @@ import os
 import json
 import threading
 from typing import Dict, Any, Optional
-from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, ProductionRiskPolicy
 
 DISCLAIMER_TEXT = (
     "The YarTrader Prop Firm Challenge Plan provides objective risk control monitoring and compliance gates. "
@@ -30,7 +30,7 @@ class PropChallengeEngine:
             "target_profit_pct": 10.0,
             "daily_loss_limit_pct": 5.0,
             "max_drawdown_pct": 10.0,
-            "risk_per_trade_pct": 1.0,
+            "risk_per_trade_pct": ProductionRiskPolicy.TARGET_RISK_PCT,
             "max_exposure_pct": 3.0,
             "max_concurrent_positions": 3,
             "session_rules": "ALLOW_ALL_SESSIONS",

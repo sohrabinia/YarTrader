@@ -239,7 +239,7 @@ class ResearchRuntime:
                     auto_decision = AutonomousTradingDecision(
                         decision_id=decision_id, cycle_id=cycle_id, action=action,
                         symbol=self._symbol, timeframe=self._timeframe, entry=entry,
-                        stop_loss=sl, take_profit=tp, volume=0.01, risk_reward=rr,
+                        stop_loss=sl, take_profit=tp, volume=0.0, risk_reward=rr,
                         confidence=confidence, reasoning=reasoning,
                         evidence={"brain_report": brain_report,
                                   "brain_hypothesis_id": hypothesis.get("hypothesis_id"),

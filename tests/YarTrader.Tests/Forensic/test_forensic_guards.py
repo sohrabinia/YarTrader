@@ -236,9 +236,10 @@ class TestIndicatorForensicGuard(unittest.TestCase):
                 worker.is_running = True
                 original_run_once = runtime.run_once
                 def run_once_and_stop():
-                    res = original_run_once()
-                    worker.is_running = False
-                    return res
+                    try:
+                        return original_run_once()
+                    finally:
+                        worker.is_running = False
 
                 runtime.run_once = run_once_and_stop
                 worker._run_loop()
@@ -348,9 +349,10 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
                 worker.is_running = True
                 original_run_once = runtime.run_once
                 def run_once_and_stop():
-                    res = original_run_once()
-                    worker.is_running = False
-                    return res
+                    try:
+                        return original_run_once()
+                    finally:
+                        worker.is_running = False
 
                 runtime.run_once = run_once_and_stop
                 worker._run_loop()

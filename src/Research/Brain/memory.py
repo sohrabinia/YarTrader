@@ -28,10 +28,22 @@ class MarketMemorySystem:
         self._storage_dir = storage_dir or os.path.join("runtime_logs", "brain_memory")
         os.makedirs(self._storage_dir, exist_ok=True)
         if artifact_store is None:
-            from src.Application.Deployment.storage import YarTraderStorageManager
-            artifact_store = YarTraderStorageManager.get_manager().get_artifact_store()
+            if storage_dir:
+                # Isolated backtests/tests must not flood the global production artifact store.
+                from src.Application.Deployment.artifact_store import YarTraderArtifactStore
+                artifact_store = YarTraderArtifactStore(os.path.join(self._storage_dir, "artifacts"))
+            else:
+                from src.Application.Deployment.storage import YarTraderStorageManager
+                artifact_store = YarTraderStorageManager.get_manager().get_artifact_store()
         self._artifact_store = artifact_store
         self._artifact_manifest_path = os.path.join(self._storage_dir, "artifact_manifest.json")
+        try:
+            self._artifact_snapshot_every = max(
+                1, int(os.getenv("YARTRADER_ARTIFACT_SNAPSHOT_EVERY", "100"))
+            )
+        except (TypeError, ValueError):
+            self._artifact_snapshot_every = 100
+        self._artifact_save_counts: Dict[str, int] = {}
         self._lock = threading.Lock()
         self._event_keys = set()
         self._event_pending = 0
@@ -100,6 +112,13 @@ class MarketMemorySystem:
                 self._save_layer("events")
                 self._event_pending = 0
 
+    def flush_artifact_snapshots(self) -> None:
+        """Persist one final recovery snapshot for every memory layer."""
+        with self._lock:
+            for layer in ("events", "experiences", "patterns", "concepts"):
+                self._save_layer(layer, force_artifact=True)
+            self._event_pending = 0
+
     def add_experience(self, exp: ExperienceMemory) -> None:
         """Stores an experience record in Experience Memory."""
         with self._lock:
@@ -164,30 +183,47 @@ class MarketMemorySystem:
             signature = list(evt.meta.get("sequence_signature") or [])
             if not signature:
                 signature = [evt.price_change, float(evt.duration_candles), evt.reaction_magnitude]
+            # A market reaction is an observation, not proof that a trading decision
+            # succeeded or failed. Only preserve a label when the event explicitly
+            # carries a decision, prediction, and resolved outcome together.
             base_action = "BUY" if evt.meta.get("direction") == "upward" else "SELL"
             is_continuation = evt.reaction_type == "extension"
-            predicted_action = base_action if is_continuation else ("SELL" if base_action == "BUY" else "BUY")
             favorable_excursion = abs(evt.price_change) if is_continuation else abs(evt.reaction_magnitude)
             adverse_excursion = abs(evt.reaction_magnitude) if is_continuation else abs(evt.price_change)
+            raw_decision = str(evt.meta.get("decision_action", "")).upper()
+            raw_prediction = str(evt.meta.get("predicted_action", "")).upper()
+            raw_outcome = str(evt.meta.get("outcome_result", "")).upper()
+            has_resolved_decision = (
+                raw_decision in {"BUY", "SELL", "WAIT"}
+                and raw_prediction in {"BUY", "SELL"}
+                and raw_outcome in {"SUCCESS", "FAILURE", "NEUTRAL", "BREAKEVEN"}
+            )
             exp_id = f"exp-{uuid.uuid4().hex[:8]}"
-
+            observed_event_only = not has_resolved_decision
             exp = ExperienceMemory(
                 experience_id=exp_id,
                 symbol=evt.symbol,
                 timeframe=evt.timeframe,
                 timestamp=evt.end_time,
                 situation_signature=signature,
-                decision_action="BUY" if evt.price_change > 0 else "SELL",
-                outcome_result="SUCCESS" if evt.reaction_type == "extension" else "FAILURE",
-                lesson_feedback=f"Promoted from raw event with reaction: {evt.reaction_type}",
-                max_favorable_excursion=abs(evt.price_change),
-                max_adverse_excursion=-abs(evt.reaction_magnitude),
+                decision_action=raw_decision if has_resolved_decision else "WAIT",
+                outcome_result=raw_outcome if has_resolved_decision else "UNLABELED",
+                lesson_feedback=(
+                    f"Resolved decision outcome from raw event: {raw_outcome}"
+                    if has_resolved_decision
+                    else f"Observed market reaction '{evt.reaction_type}'; no resolved trading decision outcome is available."
+                ),
+                max_favorable_excursion=favorable_excursion,
+                max_adverse_excursion=-adverse_excursion,
                 meta={
                     "raw_event_start": evt.start_time.isoformat(),
                     "pattern_symbol": evt.symbol.upper(),
                     "pattern_timeframe": evt.timeframe.upper(),
                     "timeframe_signature": [evt.timeframe.upper()],
-                    "predicted_action": predicted_action,
+                    "predicted_action": raw_prediction if has_resolved_decision else None,
+                    "observed_direction": base_action,
+                    "observed_reaction_type": evt.reaction_type,
+                    "is_observed_event_only": observed_event_only,
                     "favorable_excursion": favorable_excursion,
                     "adverse_excursion": adverse_excursion,
                 }
@@ -266,6 +302,7 @@ class MarketMemorySystem:
             validated_exps = [
                 exp for exp in self.experiences.values()
                 if (exp.meta.get("is_validated") is True or exp.outcome_result in ["SUCCESS", "FAILURE"])
+                and not exp.meta.get("is_observed_event_only", False)
                 and not exp.meta.get("is_lucky_win", False)
                 and not exp.meta.get("is_promoted_to_pattern", False)
             ]
@@ -588,10 +625,11 @@ class MarketMemorySystem:
     def _get_path(self, layer: str) -> str:
         return os.path.join(self._storage_dir, f"{layer}_memory.json")
 
-    def _save_layer(self, layer: str) -> None:
-        """Serializes and saves a memory layer atomically using the temp-swap pattern with JSON-validation check."""
+    def _save_layer(self, layer: str, *, force_artifact: bool = False) -> None:
+        """Persist the JSON mirror each time and checkpoint compressed artifacts sparingly."""
         filepath = self._get_path(layer)
-        temp_filepath = filepath + ".tmp"
+        temp_filepath = f"{filepath}.{os.getpid()}.{threading.get_ident()}.tmp"
+        tmp_manifest_path: Optional[str] = None
 
         try:
             if layer == "events":
@@ -612,11 +650,18 @@ class MarketMemorySystem:
             with open(temp_filepath, "r", encoding="utf-8") as f:
                 json.load(f)
 
-            # Atomic swap
+            # Atomic swap: this JSON mirror remains the durable, per-update source of truth.
             os.replace(temp_filepath, filepath)
 
-            # Persist the serialized layer in the universal artifact store.
-            # Legacy JSON remains as a compatibility mirror until migration is complete.
+            # The artifact store is a recovery checkpoint, not a per-mutation journal.
+            # Persisting every full memory snapshot created tens of thousands of redundant
+            # multi-megabyte objects and filled C:. Keep an initial snapshot, then checkpoint
+            # every N saves; explicit flushes force a final snapshot.
+            count = self._artifact_save_counts.get(layer, 0) + 1
+            self._artifact_save_counts[layer] = count
+            if not force_artifact and count != 1 and count % self._artifact_snapshot_every != 0:
+                return
+
             artifact = self._artifact_store.put(
                 json.dumps(data, indent=4).encode("utf-8"),
                 media_type="application/json",
@@ -629,21 +674,24 @@ class MarketMemorySystem:
             )
             manifest = self._load_artifact_manifest()
             manifest[layer] = artifact["id"]
-            tmp_manifest = self._artifact_manifest_path + ".tmp"
-            with open(tmp_manifest, "w", encoding="utf-8") as manifest_file:
+            tmp_manifest_path = (
+                f"{self._artifact_manifest_path}.{os.getpid()}.{threading.get_ident()}.tmp"
+            )
+            with open(tmp_manifest_path, "w", encoding="utf-8") as manifest_file:
                 json.dump(
                     manifest,
                     manifest_file,
                     ensure_ascii=False,
                     separators=(",", ":"),
                 )
-            os.replace(tmp_manifest, self._artifact_manifest_path)
+            os.replace(tmp_manifest_path, self._artifact_manifest_path)
         except Exception:
-            if os.path.exists(temp_filepath):
-                try:
-                    os.remove(temp_filepath)
-                except OSError:
-                    pass
+            for temp_path in (temp_filepath, tmp_manifest_path):
+                if temp_path and os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except OSError:
+                        pass
 
     def _load_artifact_manifest(self) -> Dict[str, str]:
         if not os.path.exists(self._artifact_manifest_path):

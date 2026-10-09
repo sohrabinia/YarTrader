@@ -8,10 +8,10 @@ from src.Risk.Models.campaign import CampaignLeg, TradeCampaign
 
 class ProductionRiskPolicy:
     """Single authoritative production risk policy for YarTrader."""
-    TARGET_RISK_PCT: float = 0.5
-    HARD_CEILING_RISK_PCT: float = 2.0
+    TARGET_RISK_PCT: float = 1.0
+    HARD_CEILING_RISK_PCT: float = 1.0
     MINIMUM_RR: float = 1.5
-    MAX_DAILY_LOSS_PCT: float = 8.0
+    MAX_DAILY_LOSS_PCT: float = 10.0
 
 
 @dataclass
@@ -64,11 +64,26 @@ class ProfessionalRiskEngine:
         s = symbol.upper()
         if "XAU" in s or "GOLD" in s:
             return 0.1
-        if "BTC" in s:
+        if any(token in s for token in ("BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE")):
             return 1.0
         if "JPY" in s:
             return 0.01
         return 0.0001
+
+    def get_contract_size(self, symbol: str, reference_price: float = 1.0) -> float:
+        """Return a simulation contract multiplier; live DEMO sizing uses MT5 order_calc_profit."""
+        s = symbol.upper()
+        if "XAU" in s or "GOLD" in s:
+            return 100.0
+        if "XAG" in s or "SILVER" in s:
+            return 5000.0
+        if any(token in s for token in ("BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK", "LTC", "BCH", "NEAR", "UNI", "ATOM")):
+            return 1.0
+        if len(s) == 6 and s.isalpha():
+            # Standard FX contract. JPY quote PnL is converted approximately to USD.
+            return 100000.0 / max(float(reference_price), 1e-9) if s.endswith("JPY") else 100000.0
+        # Non-FX CFD multipliers are broker-specific; callers should pass the broker contract size.
+        return 1.0
 
     def calculate_effective_risk_free_stop(
         self,
@@ -80,12 +95,15 @@ class ProfessionalRiskEngine:
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,
         safety_buffer_pip: float = 0.5,
-        contract_size: float = 100.0
+        contract_size: Optional[float] = None
     ) -> float:
         """
         Calculates exact stop loss price required for a position/leg to be zero-loss
         accounting for spread, commission, slippage, and execution safety buffer.
         """
+        contract_size = self.get_contract_size(symbol, entry_price) if contract_size is None else float(contract_size)
+        if not math.isfinite(contract_size) or contract_size <= 0:
+            raise ValueError("Contract size must be finite and positive.")
         pip_size = self.get_pip_size(symbol)
         total_pips_friction = spread_pip + estimated_slippage_pip + safety_buffer_pip
         friction_dist_from_pips = total_pips_friction * pip_size
@@ -112,24 +130,24 @@ class ProfessionalRiskEngine:
         stop_loss: float,
         account_equity: float,
         free_margin: float,
-        risk_pct: float = 0.5,
+        risk_pct: float = ProductionRiskPolicy.TARGET_RISK_PCT,
         leverage: float = 100.0,
         spread_pip: float = 1.0,
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,
-        contract_size: float = 100.0,
-        volume_min: float = 0.01,
+        contract_size: Optional[float] = None,
+        volume_min: float = 0.0,
         volume_max: float = 100.0,
-        volume_step: float = 0.01
+        volume_step: float = 0.0
     ) -> PositionSizingResult:
         """
         Enforces Free Margin Sequence:
-        Risk Budget (default 0.5%) -> Stop Distance -> Position Size -> Broker Constraint Check -> Free Margin Check -> Execution.
-        Calculates position size strictly against Account Equity (0.5% target per trade, 2.0% ceiling).
+        Risk Budget (default 1.0%) -> Stop Distance -> Position Size -> Broker Constraint Check -> Free Margin Check -> Execution.
+        Calculates position size strictly against Account Equity (1.0% target per trade, 1.0% ceiling).
         """
         try:
             risk_pct_f = float(risk_pct) if not isinstance(risk_pct, bool) else -1.0
-            if not math.isfinite(risk_pct_f) or risk_pct_f < 0.0 or risk_pct_f > 2.0:
+            if not math.isfinite(risk_pct_f) or risk_pct_f <= 0.0 or risk_pct_f > 1.0:
                 raise ValueError("Out of bounds")
         except (ValueError, TypeError):
             return PositionSizingResult(
@@ -140,7 +158,24 @@ class ProfessionalRiskEngine:
                 margin_required_usd=0.0,
                 free_margin_usd=free_margin,
                 effective_be_price=entry_price,
-                rejection_reason=f"SECURITY VIOLATION: Requested risk_pct ({risk_pct}) is invalid or exceeds maximum allowable ceiling of 2.0%."
+                rejection_reason=f"SECURITY VIOLATION: Requested risk_pct ({risk_pct}) is invalid or exceeds maximum allowable ceiling of 1.0%."
+            )
+        risk_pct = risk_pct_f
+
+        try:
+            raw_volume_limits = (volume_min, volume_max, volume_step)
+            if any(isinstance(v, bool) for v in raw_volume_limits):
+                raise ValueError("Boolean broker volume limit")
+            volume_min, volume_max, volume_step = (float(v) for v in raw_volume_limits)
+            limits_valid = (all(math.isfinite(v) and v > 0 for v in (volume_min, volume_max, volume_step))
+                            and volume_max >= volume_min)
+        except (TypeError, ValueError, OverflowError):
+            limits_valid = False
+        if not limits_valid:
+            return PositionSizingResult(
+                is_valid=False, risk_budget_usd=0.0, risk_pct=risk_pct, volume_lots=0.0,
+                margin_required_usd=0.0, free_margin_usd=free_margin, effective_be_price=entry_price,
+                rejection_reason="Authoritative broker volume minimum, maximum, and step are required; refusing to assume a lot size."
             )
 
         if account_equity <= 0:
@@ -169,11 +204,19 @@ class ProfessionalRiskEngine:
                 rejection_reason="Stop Loss distance must be greater than zero."
             )
 
+        contract_size = self.get_contract_size(symbol, entry_price) if contract_size is None else float(contract_size)
+        if not math.isfinite(contract_size) or contract_size <= 0:
+            return PositionSizingResult(
+                is_valid=False, risk_budget_usd=0.0, risk_pct=risk_pct, volume_lots=0.0,
+                margin_required_usd=0.0, free_margin_usd=free_margin, effective_be_price=entry_price,
+                rejection_reason="Contract size must be finite and positive."
+            )
+
         risk_budget_usd = account_equity * (risk_pct / 100.0)
         friction_dist = (spread_pip + estimated_slippage_pip) * pip_size
         net_sl_dist = raw_sl_dist + friction_dist
 
-        # Calculate volume in lots based on actual 0.5% risk budget
+        # Calculate volume in lots based on actual 1.0% risk budget
         risk_per_lot = (net_sl_dist * contract_size) + commission_per_lot
         if risk_per_lot <= 0:
             return PositionSizingResult(
@@ -191,11 +234,12 @@ class ProfessionalRiskEngine:
 
         # Align to broker volume_step
         if volume_step > 0:
-            normalized_lots = round(round(calculated_lots / volume_step) * volume_step, 4)
+            # Always round down so lot normalization can never exceed the risk budget.
+            normalized_lots = round(math.floor((calculated_lots + 1e-12) / volume_step) * volume_step, 8)
         else:
             normalized_lots = round(calculated_lots, 2)
 
-        # Reject if risk-based volume is below broker minimum allowed volume (NO ARTIFICIAL 0.01 FORCING)
+        # Reject if risk-based volume is below broker minimum allowed volume (NO FORCED MINIMUM-LOT OVERRIDE)
         if normalized_lots < volume_min:
             return PositionSizingResult(
                 is_valid=False,
@@ -259,7 +303,10 @@ class ProfessionalRiskEngine:
         estimated_slippage_pip: float = 0.5,
         leverage: float = 100.0,
         contract_size: float = 100.0,
-        max_portfolio_risk_pct: float = 6.0
+        max_portfolio_risk_pct: float = 6.0,
+        volume_min: float = 0.0,
+        volume_max: float = 0.0,
+        volume_step: float = 0.0
     ) -> Dict[str, Any]:
         """
         Enforces 1% Add-On Gate:
@@ -306,7 +353,10 @@ class ProfessionalRiskEngine:
             spread_pip=spread_pip,
             commission_per_lot=commission_per_lot,
             estimated_slippage_pip=estimated_slippage_pip,
-            contract_size=contract_size
+            contract_size=contract_size,
+            volume_min=volume_min,
+            volume_max=volume_max,
+            volume_step=volume_step
         )
 
         if not add_on_sizing.is_valid:
@@ -348,7 +398,7 @@ class ProfessionalRiskEngine:
         stop_loss: float,
         take_profit: float,
         account_balance: float = 10000.0,
-        risk_percentage: float = 0.5,
+        risk_percentage: float = 1.0,
         spread_pip: float = 1.0,
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,
@@ -401,7 +451,7 @@ class ProfessionalRiskEngine:
 
         try:
             risk_pct_f = float(risk_percentage) if not isinstance(risk_percentage, bool) else -1.0
-            if not math.isfinite(risk_pct_f) or risk_pct_f < 0.0 or risk_pct_f > 2.0:
+            if not math.isfinite(risk_pct_f) or risk_pct_f <= 0.0 or risk_pct_f > 1.0:
                 raise ValueError("Out of bounds")
         except (ValueError, TypeError):
             return RiskEvaluationResult(
@@ -421,6 +471,7 @@ class ProfessionalRiskEngine:
                 expected_value=0.0,
                 rejection_reason="Stop Loss distance must be greater than zero."
             )
+        risk_percentage = risk_pct_f
 
         gross_rr = raw_tp_distance / raw_sl_distance
 
@@ -442,8 +493,8 @@ class ProfessionalRiskEngine:
 
         # Qualification Gate Checks
         rejection_reasons = []
-        if risk_percentage > 2.0:
-            rejection_reasons.append(f"Risk percentage ({risk_percentage:.2f}%) exceeds maximum allowable ceiling of 2.0%.")
+        if risk_percentage > 1.0:
+            rejection_reasons.append(f"Risk percentage ({risk_percentage:.2f}%) exceeds maximum allowable ceiling of 1.0%.")
 
         if win_probability < 0.50:
             rejection_reasons.append(f"Win probability ({win_probability*100:.1f}%) < 50.0% threshold.")

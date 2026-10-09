@@ -149,7 +149,12 @@ class SymbolRegistry:
                     # Persisted data must match exact 30 canonical symbols
                     persisted_set = set(k.upper() for k in persisted_data.keys())
                     if persisted_set == CANONICAL_30_SYMBOLS:
-                        self.registry = persisted_data
+                        # YAML is the source of truth for rollout enablement and provider policy.
+                        # Preserve persisted per-symbol metadata only where YAML has no value.
+                        self.registry = {
+                            symbol: {**persisted_data.get(symbol, {}), **yaml_info}
+                            for symbol, yaml_info in yaml_registry.items()
+                        }
                         self.save_registry()
                         return
                     else:
@@ -181,9 +186,8 @@ class SymbolRegistry:
         with self.lock:
             matrix = []
             active_count = 0
-            # XAUUSD is the sole DEMO execution symbol. Keep it first so the
-            # execution-capable Brain decision is evaluated at the start of each
-            # research cycle instead of waiting behind the entire 30-symbol matrix.
+            # Prioritize XAUUSD for research scheduling, but execution eligibility
+            # is multi-symbol and is enforced by the shared broker/risk gates.
             ordered_symbols = sorted(self.registry.items(), key=lambda item: (item[0].upper() != "XAUUSD", item[0]))
             for symbol, info in ordered_symbols:
                 if info.get("active", True):

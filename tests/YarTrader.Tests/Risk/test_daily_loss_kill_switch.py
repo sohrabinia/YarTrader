@@ -6,7 +6,7 @@ from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch, IRAN_T
 
 class TestDailyLossKillSwitch(unittest.TestCase):
     """
-    Test suite covering all 12 requirements for the YarTrader Daily 8% Loss Kill-Switch:
+    Test suite covering daily 10% loss protection and session safety requirements:
     1. Session starts at 01:35 Iran time.
     2. 00:00–00:24 belongs to the previous session.
     3. 00:25–01:34 does not allow new entries.
@@ -80,41 +80,41 @@ class TestDailyLossKillSwitch(unittest.TestCase):
 
         self.assertEqual(res["baseline_equity"], 10000.0) # Baseline remains $10,000!
 
-    def test_05_loss_7_99_percent_remains_eligible(self):
-        """5. 7.99% loss -> entry remains eligible."""
+    def test_05_loss_9_99_percent_remains_eligible(self):
+        """5. 9.99% loss -> entry remains eligible."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_check = self._create_iran_dt(hour=12, minute=0)
-        # $10,000 - $799 = $9,201 (7.99% loss)
-        res = self.kill_switch.evaluate_entry_allowed(current_equity=9201.0, dt=dt_check)
+        # $10,000 - $999 = $9,001 (9.99% loss)
+        res = self.kill_switch.evaluate_entry_allowed(current_equity=9001.0, dt=dt_check)
 
         self.assertTrue(res["allowed"])
         self.assertFalse(res["kill_switch_active"])
-        self.assertAlmostEqual(res["daily_loss_pct"], 7.99, places=2)
+        self.assertAlmostEqual(res["daily_loss_pct"], 9.99, places=2)
 
-    def test_06_loss_8_00_percent_triggers_kill_switch(self):
-        """6. 8.00% loss -> entries blocked."""
+    def test_06_loss_10_00_percent_triggers_kill_switch(self):
+        """6. 10.00% loss -> entries blocked."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_check = self._create_iran_dt(hour=12, minute=0)
-        # $10,000 - $800 = $9,200 (8.00% loss)
-        res = self.kill_switch.evaluate_entry_allowed(current_equity=9200.0, dt=dt_check)
+        # $10,000 - $1,000 = $9,000 (10.00% loss)
+        res = self.kill_switch.evaluate_entry_allowed(current_equity=9000.0, dt=dt_check)
 
         self.assertFalse(res["allowed"])
         self.assertTrue(res["kill_switch_active"])
         self.assertEqual(res["reason"], "DAILY_LOSS_LIMIT_REACHED")
-        self.assertAlmostEqual(res["daily_loss_pct"], 8.00, places=2)
+        self.assertAlmostEqual(res["daily_loss_pct"], 10.00, places=2)
 
-    def test_07_loss_greater_than_8_percent_remains_blocked(self):
-        """7. Loss > 8% -> entries remain blocked."""
+    def test_07_loss_greater_than_10_percent_remains_blocked(self):
+        """7. Loss > 10% -> entries remain blocked."""
         dt_start = self._create_iran_dt(hour=1, minute=35)
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_check = self._create_iran_dt(hour=14, minute=0)
-        # $10,000 - $1,000 = $9,000 (10.00% loss)
-        res = self.kill_switch.evaluate_entry_allowed(current_equity=9000.0, dt=dt_check)
+        # $10,000 - $1,100 = $8,900 (11.00% loss)
+        res = self.kill_switch.evaluate_entry_allowed(current_equity=8900.0, dt=dt_check)
 
         self.assertFalse(res["allowed"])
         self.assertTrue(res["kill_switch_active"])
@@ -126,7 +126,7 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_start)
 
         dt_trigger = self._create_iran_dt(hour=12, minute=0)
-        self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=dt_trigger) # 9% loss -> active
+        self.kill_switch.evaluate_entry_allowed(current_equity=8900.0, dt=dt_trigger) # 11% loss -> active
 
         dt_signal = self._create_iran_dt(hour=15, minute=0)
         res = self.kill_switch.evaluate_entry_allowed(current_equity=9300.0, dt=dt_signal) # Equity recovered slightly to 7% loss
@@ -154,11 +154,11 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         """10. Reset does NOT occur at midnight (00:00)."""
         dt_day1 = self._create_iran_dt(day=1, hour=1, minute=35)
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_day1)
-        self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=self._create_iran_dt(day=1, hour=12)) # Triggered
+        self.kill_switch.evaluate_entry_allowed(current_equity=8900.0, dt=self._create_iran_dt(day=1, hour=12)) # 11% loss -> triggered
 
         # Check at 00:00 on March 2
         dt_midnight = self._create_iran_dt(day=2, hour=0, minute=0)
-        res = self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=dt_midnight)
+        res = self.kill_switch.evaluate_entry_allowed(current_equity=8900.0, dt=dt_midnight)
 
         self.assertFalse(res["allowed"])
         self.assertTrue(res["kill_switch_active"]) # STILL BLOCKED!
@@ -167,12 +167,12 @@ class TestDailyLossKillSwitch(unittest.TestCase):
         """11. Restart/recovery does not accidentally reset daily baseline or bypass kill-switch."""
         dt_day1 = self._create_iran_dt(day=1, hour=1, minute=35)
         self.kill_switch.evaluate_entry_allowed(current_equity=10000.0, dt=dt_day1)
-        self.kill_switch.evaluate_entry_allowed(current_equity=9100.0, dt=self._create_iran_dt(day=1, hour=12)) # Triggered
+        self.kill_switch.evaluate_entry_allowed(current_equity=8900.0, dt=self._create_iran_dt(day=1, hour=12)) # 11% loss -> triggered
 
         # Instantiate fresh DailyLossKillSwitch object simulating process restart
         recovered_ks = DailyLossKillSwitch(persistence_path=self.persistence_path)
         dt_after_restart = self._create_iran_dt(day=1, hour=14, minute=0)
-        res = recovered_ks.evaluate_entry_allowed(current_equity=9100.0, dt=dt_after_restart)
+        res = recovered_ks.evaluate_entry_allowed(current_equity=8900.0, dt=dt_after_restart)
 
         self.assertFalse(res["allowed"])
         self.assertTrue(res["kill_switch_active"])

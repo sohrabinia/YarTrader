@@ -5,6 +5,7 @@ import time
 import threading
 import subprocess
 import platform
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request, Query
@@ -56,13 +57,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount three isolated production-grade SaaS routers
-locales_dir = "trader-terminal/dist/locales" if os.path.exists("trader-terminal/dist/locales") else ("trader-terminal/public/locales" if os.path.exists("trader-terminal/public/locales") else "locales")
-app.mount("/locales", StaticFiles(directory=locales_dir), name="locales")
+# Resolve static asset paths from this module, not the service process working directory.
+# The service may be launched by a supervisor from outside the repository root.
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
-# Mount compiled React/Vite assets
-os.makedirs("trader-terminal/dist/assets", exist_ok=True)
-app.mount("/assets", StaticFiles(directory="trader-terminal/dist/assets"), name="assets")
+# Mount three isolated production-grade SaaS routers
+_locale_candidates = (
+    REPO_ROOT / "trader-terminal" / "dist" / "locales",
+    REPO_ROOT / "trader-terminal" / "public" / "locales",
+    REPO_ROOT / "locales",
+)
+locales_dir = next((candidate for candidate in _locale_candidates if candidate.is_dir()), None)
+if locales_dir is not None:
+    app.mount("/locales", StaticFiles(directory=str(locales_dir)), name="locales")
+
+# Mount compiled React/Vite assets using an absolute repository-root path.
+assets_dir = REPO_ROOT / "trader-terminal" / "dist" / "assets"
+assets_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
 from src.Application.Services.public_api_router import router as public_api_router
 from src.Application.Services.user_api_router import router as user_api_router
@@ -340,6 +352,18 @@ async def lifespan_context(app: FastAPI):
                           os.environ.get("TRADEYAR_SERVICE_RUN") == "True")
         if not is_service_run and "pytest" not in sys.modules:
             ensure_worker_started()
+
+        # DEMO order execution is a separate, explicitly opted-in worker. It remains
+        # active for the Windows service host too; its broker/account and risk gates
+        # are enforced again immediately before every order submission.
+        if "pytest" not in sys.modules:
+            from src.Execution.Services.autonomous_demo_trader import (
+                _read_flag as _demo_auto_trading_enabled,
+                start_autonomous_demo_trader,
+            )
+            if _demo_auto_trading_enabled():
+                start_autonomous_demo_trader()
+                log_event("INFO", "autonomous_demo_trader_worker_started")
     except Exception as e:
         log_event("ERROR", f"Non-blocking exception during FastAPI lifespan startup: {str(e)}", traceback=traceback.format_exc())
 
@@ -998,12 +1022,34 @@ def get_market_session_status(
     remaining session seconds, source authority, and pre-entry trade rejection details.
     """
     now = datetime.now(timezone.utc)
+    # The status endpoint must not seed the daily-loss baseline with a fake $10,000 default.
+    # Read only the explicitly authorized MT5 DEMO account; missing/unauthorized equity fails closed.
+    current_equity = None
+    try:
+        from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
+        adapter = RealMT5BrokerAdapter(auto_initialize=True)
+        if adapter._initialized:
+            account_info = adapter.get_account_info() or {}
+            terminal_info = adapter.get_terminal_info() or {}
+            if (
+                str(account_info.get("login", "")) == adapter.TARGET_ACCOUNT
+                and str(account_info.get("server", "")) == adapter.TARGET_SERVER
+                and account_info.get("trade_mode") == 0
+                and terminal_info.get("connected", False)
+                and terminal_info.get("trade_allowed", False)
+                and not terminal_info.get("tradeapi_disabled", False)
+            ):
+                current_equity = account_info.get("equity")
+    except Exception as equity_err:
+        logger.warning("Market session status could not read authorized DEMO equity: %s", equity_err)
+
     res = global_market_session_engine.validate_pre_entry(
         symbol=symbol,
         broker=broker,
         distance_to_tp=distance_to_tp,
         current_volatility_atr=current_volatility_atr,
-        current_time=now
+        current_time=now,
+        current_equity=current_equity
     )
 
     state, active_interval, source_auth = global_market_session_engine.get_market_state(
@@ -3477,7 +3523,8 @@ def get_intelligence_learning_report():
 @app.get("/v1/dashboard/live-research")
 def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] = None):
     """Returns the latest generated analysis, reading from disk snapshots first for true persistence."""
-    snapshot_dir = "runtime_logs/research_snapshots"
+    from src.Application.Deployment.storage import YarTraderStorageManager, is_research_snapshot_fresh
+    snapshot_dir = YarTraderStorageManager.get_manager().get_research_snapshots_dir()
     search_symbol = symbol or "XAUUSD"
     if os.path.exists(snapshot_dir):
         try:
@@ -3488,6 +3535,8 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
                 for file in files:
                     with open(os.path.join(snapshot_dir, file), "r", encoding="utf-8") as f:
                         data = json.load(f)
+                    if not is_research_snapshot_fresh(data):
+                        continue
 
                     sym_val = data.get("symbol") or data.get("asset") or "XAUUSD"
                     tf_val = data.get("timeframe") or "H1"
@@ -3499,13 +3548,58 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
 
                     findings = data.get("findings", {})
                     po = findings.get("pipeline_outputs", {})
-                    smart = po.get("smart_interpretation", {})
+                    smart = po.get("smart_interpretation", {}) or {}
+                    decision = findings.get("autonomous_decision", {}) or {}
+                    intel_plan = (findings.get("intel_summary", {}) or {}).get("plan", {}) or {}
+                    brain = findings.get("newborn_brain_report", {}) or {}
+                    hypotheses = brain.get("active_hypotheses", []) if isinstance(brain, dict) else []
+                    hypothesis = hypotheses[0] if hypotheses and isinstance(hypotheses[0], dict) else {}
+                    brain_action = str(intel_plan.get("brain_suggested_action") or hypothesis.get("suggested_virtual_action") or "WAIT").upper()
+                    brain_confidence = float(hypothesis.get("hypothesis_confidence", 0.0) or 0.0)
+                    blocked_action = str(hypothesis.get("blocked_direction") or "WAIT").upper()
+                    blocked_confidence = float(hypothesis.get("blocked_direction_confidence", 0.0) or 0.0)
+                    evidence_status = str(hypothesis.get("evidence_status", "NO_OUTCOME_LABELS"))
+                    successful_outcomes = int(hypothesis.get("successful_outcomes", 0) or 0)
+                    failed_outcomes = int(hypothesis.get("failed_outcomes", 0) or 0)
+                    outcome_success_rate = hypothesis.get("outcome_success_rate_pct")
+                    success_rate_label = (
+                        f"{float(outcome_success_rate):.1f}%"
+                        if isinstance(outcome_success_rate, (int, float)) and not isinstance(outcome_success_rate, bool)
+                        else "unknown"
+                    )
+                    has_brain_evidence = bool(hypotheses or intel_plan.get("brain_report_consumed"))
+                    evidence_ok = not has_brain_evidence or (evidence_status == "VALIDATED_OUTCOMES" and successful_outcomes >= 3)
+                    decision_action = str(decision.get("action", "WAIT")).upper()
+                    if decision_action in ("BUY", "SELL") and evidence_ok:
+                        bias = decision_action
+                        confidence = float(decision.get("confidence", 0.0) or 0.0)
+                        signal_status = "ACTIVE"
+                    elif decision_action in ("BUY", "SELL"):
+                        bias = decision_action
+                        confidence = float(decision.get("confidence", 0.0) or 0.0)
+                        signal_status = "BLOCKED"
+                    elif (smart.get("signal_status") == "CANDIDATE" and evidence_ok) or (brain_action in ("BUY", "SELL") and brain_confidence >= 50.0 and intel_plan.get("brain_report_consumed") and evidence_status == "VALIDATED_OUTCOMES" and successful_outcomes >= 3):
+                        bias = brain_action
+                        confidence = float(smart.get("confidence", brain_confidence) or brain_confidence)
+                        signal_status = "CANDIDATE"
+                    elif smart.get("signal_status") == "BLOCKED" or (smart.get("signal_status") == "CANDIDATE" and not evidence_ok) or blocked_action in ("BUY", "SELL") or (brain_action in ("BUY", "SELL") and (evidence_status != "VALIDATED_OUTCOMES" or successful_outcomes < 3)):
+                        bias = blocked_action if blocked_action in ("BUY", "SELL") else (brain_action if brain_action in ("BUY", "SELL") else smart.get("bias", "UNAVAILABLE"))
+                        confidence = float(smart.get("confidence", blocked_confidence or brain_confidence) or blocked_confidence or brain_confidence)
+                        signal_status = "BLOCKED"
+                    else:
+                        bias = smart.get("bias", "UNAVAILABLE")
+                        confidence = float(smart.get("confidence", 0.0) or 0.0)
+                        signal_status = smart.get("signal_status", "WAIT")
+                    reasoning = smart.get("reasoning") or decision.get("reasoning") or []
                     return {
                         "symbol": sym_val,
                         "timeframe": tf_val,
-                        "bias": smart.get("bias", "UNAVAILABLE"),
-                        "confidence": smart.get("confidence", 0),
-                        "reasoning": smart.get("reasoning", []),
+                        "bias": bias,
+                        "confidence": confidence,
+                        "reasoning": reasoning,
+                        "signal_status": signal_status,
+                        "execution_action": decision_action,
+                        "candidate_reason": smart.get("candidate_reason") or hypothesis.get("blocked_reason") or (f"Historical outcome evidence is {evidence_status} ({successful_outcomes} successes, {failed_outcomes} failures; success rate {success_rate_label}); no demo order is authorized." if signal_status == "BLOCKED" and not evidence_ok else ("Brain direction has insufficient learned risk parameters; no demo order is authorized." if signal_status == "CANDIDATE" else ("Historical outcome evidence is not strong enough; no demo order is authorized." if signal_status == "BLOCKED" else None))),
                         "timestamp": data.get("timestamp") or data.get("created_at"),
                         "indicators": po.get("technical_analysis", {})
                     }
@@ -3554,7 +3648,8 @@ def get_current_analysis(symbol: Optional[str] = None, timeframe: Optional[str] 
 def get_analysis_history(symbol: Optional[str] = "XAUUSD"):
     """Returns previous analyses, reading from serialized disk snapshots for absolute persistence."""
     history_list = []
-    snapshot_dir = "runtime_logs/research_snapshots"
+    from src.Application.Deployment.storage import YarTraderStorageManager, is_research_snapshot_fresh
+    snapshot_dir = YarTraderStorageManager.get_manager().get_research_snapshots_dir()
     search_symbol = symbol or "XAUUSD"
     if os.path.exists(snapshot_dir):
         try:
@@ -3614,16 +3709,26 @@ def get_research_health():
     research_tracker["mt5_status"] = "CONNECTED" if conn_health.connected else "DISCONNECTED"
 
     last_res_id = "None"
-    snapshot_dir = "runtime_logs/research_snapshots"
+    target_symbol = str(central_runtime_state.get_key("research_cycle_symbol") or global_research_runtime.symbol).upper()
+    target_timeframe = str(central_runtime_state.get_key("research_cycle_timeframe") or global_research_runtime.timeframe).upper()
+    from src.Application.Deployment.storage import YarTraderStorageManager
+    snapshot_dir = YarTraderStorageManager.get_manager().get_research_snapshots_dir()
     if os.path.exists(snapshot_dir):
         try:
-            files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
-            if files:
-                files.sort(key=lambda x: os.path.getmtime(os.path.join(snapshot_dir, x)))
-                latest_file = files[-1]
+            snapshot_prefix = f"rpt-{target_symbol}-{target_timeframe}-"
+            files = [
+                f for f in os.listdir(snapshot_dir)
+                if f.endswith(".json") and f.startswith(snapshot_prefix)
+            ]
+            files.sort(key=lambda x: os.path.getmtime(os.path.join(snapshot_dir, x)), reverse=True)
+            for latest_file in files:
                 with open(os.path.join(snapshot_dir, latest_file), "r", encoding="utf-8") as f:
                     data = json.load(f)
-                last_res_id = data.get("report_id", "None")
+                symbol_val = str(data.get("symbol") or data.get("asset") or "").upper()
+                timeframe_val = str(data.get("timeframe") or "H1").upper()
+                if symbol_val == target_symbol and timeframe_val == target_timeframe:
+                    last_res_id = data.get("report_id", "None")
+                    break
         except Exception:
             pass
 
@@ -3633,12 +3738,14 @@ def get_research_health():
     return {
         "mt5_status": "ONLINE" if research_tracker["mt5_status"] == "CONNECTED" else "DISCONNECTED",
         "worker_running": central_runtime_state.get_key("research_status") == "Running",
-        "last_analysis_time": research_tracker["last_analysis_time"] or datetime.now().isoformat(),
-        "symbol": global_research_runtime.symbol,
-        "timeframe": global_research_runtime.timeframe,
-        "worker_started_at": global_research_runtime.worker_started_at.isoformat() if global_research_runtime.worker_started_at else None,
+        "last_analysis_time": central_runtime_state.get_key("last_cycle_time"),
+        "symbol": central_runtime_state.get_key("research_cycle_symbol") or global_research_runtime.symbol,
+        "timeframe": central_runtime_state.get_key("research_cycle_timeframe") or global_research_runtime.timeframe,
+        "worker_started_at": central_runtime_state.get_key("research_worker_started_at"),
         "last_successful_cycle": central_runtime_state.get_key("research_last_successful_cycle"),
         "cycle_count": central_runtime_state.get_key("research_cycle_count", 0),
+        "cycle_in_progress": bool(central_runtime_state.get_key("research_cycle_started_at")),
+        "current_cycle_started_at": central_runtime_state.get_key("research_cycle_started_at"),
         "last_error": central_runtime_state.get_key("research_last_error"),
         "last_candle_time": research_tracker["last_candle_time"],
         "last_result_id": last_res_id
@@ -3787,8 +3894,14 @@ def get_production_health():
         mt4_connected = mt4_provider.check_health().value == "HEALTHY"
     except Exception:
         mt4_connected = False
-    mt5_connected = False
-    mt5_status = "Standby"
+    # Report the authenticated Session-2 MT5 bridge state rather than a hard-coded
+    # Standby value; the provider itself fails closed when its bridge is unavailable.
+    try:
+        mt5_health = global_research_runtime.provider.delegate.get_connection_health()
+        mt5_connected = bool(mt5_health.connected)
+    except Exception:
+        mt5_connected = False
+    mt5_status = "Connected" if mt5_connected else "Standby"
 
     # Shadow Trading is DEPRECATED & REMOVED repository-wide (SHADOW = ZERO)
     shadow_status_active = "Disabled"
@@ -3801,13 +3914,43 @@ def get_production_health():
         intelligence_status in degraded_states):
         overall_status = "degraded"
 
+    # Report DEMO eligibility from the real terminal/account flags. Live execution remains
+    # separately locked; a live-trading lock must not be misreported as a DEMO-terminal lock.
+    mt5_demo_execution_ready = False
+    mt5_terminal_connected = False
+    try:
+        from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
+        demo_adapter = RealMT5BrokerAdapter(auto_initialize=True)
+        if demo_adapter._initialized:
+            demo_account = demo_adapter.get_account_info() or {}
+            demo_terminal = demo_adapter.get_terminal_info() or {}
+            mt5_terminal_connected = bool(demo_terminal.get("connected", False))
+            mt5_demo_execution_ready = bool(
+                str(demo_account.get("login", "")) == demo_adapter.TARGET_ACCOUNT
+                and str(demo_account.get("server", "")) == demo_adapter.TARGET_SERVER
+                and demo_account.get("trade_mode") == 0
+                and demo_terminal.get("connected", False)
+                and demo_terminal.get("trade_allowed", False)
+                and not demo_terminal.get("tradeapi_disabled", False)
+                and demo_adapter.verify_safety_and_account(operation_type="DEMO")
+            )
+    except Exception as demo_gate_error:
+        logger.warning("Health check could not verify MT5 DEMO execution eligibility: %s", demo_gate_error)
+
+    # The authenticated direct MT5 adapter is authoritative for terminal connectivity;
+    # the optional research bridge may be unavailable while DEMO execution is healthy.
+    mt5_connected = mt5_terminal_connected
+    mt5_status = "Connected" if mt5_connected else "Standby"
+
     # Redacted public terminal operational health summary (no accounts, servers, or internal topology)
     mt5_report = {
         "terminal_running": mt5_connected,
         "connected": mt5_connected,
         "provider_health": "HEALTHY" if mt5_connected else "UNHEALTHY",
         "data_available": mt5_connected,
-        "trading_allowed": False,  # Strict read-only isolation lock
+        "trading_allowed": mt5_demo_execution_ready,
+        "demo_execution_ready": mt5_demo_execution_ready,
+        "live_trading_enabled": False,
         "role": "DEMO"
     }
 
@@ -4302,45 +4445,8 @@ def run_demo_trading_scenario(payload: Dict[str, Any]):
         except Exception:
             demo_trades = []
 
-    # If the scenario succeeded and reached a final decision, we map a demo position
+    # Scenario analysis is not broker execution; never fabricate a closed trade or PnL.
     simulated_trade = None
-    if result.success and result.final_decision_state in ["Approved", "ReviewRequired"]:
-        import uuid
-        direction = "BUY" if "continuation" in scenario_name or "reversal" in scenario_name else "SELL"
-        entry_price = scenario.price_data[-1].Close if scenario.price_data else 1.1020
-        sl = entry_price * 0.99
-        tp = entry_price * 1.025 if direction == "BUY" else entry_price * 0.975
-
-        # Finalized result
-        p_and_l = 250.0 if result.final_decision_state == "Approved" else -120.0
-
-        simulated_trade = {
-            "trade_id": f"demo-trade-{uuid.uuid4().hex[:6]}",
-            "mode": "DEMO",
-            "run_id": f"demo-run-{uuid.uuid4().hex[:6]}",
-            "timestamp": datetime.now().isoformat(),
-            "symbol": asset,
-            "timeframe": scenario.timeframe,
-            "side": direction,
-            "entry": round(entry_price, 4),
-            "exit": round(entry_price * 1.01 if direction == "BUY" else entry_price * 0.99, 4),
-            "volume": 1.0,
-            "sl": round(sl, 4),
-            "tp": round(tp, 4),
-            "strategy": scenario.name,
-            "signal": direction,
-            "reason": "Demo alignment confirmed",
-            "status": "CLOSED",
-            "p_and_l": p_and_l
-        }
-        demo_trades.append(simulated_trade)
-
-        os.makedirs("runtime_logs", exist_ok=True)
-        try:
-            with open(trades_file, "w", encoding="utf-8") as f:
-                json.dump(demo_trades, f, indent=4)
-        except Exception:
-            pass
 
     # Compile Demo report metrics
     total = len(demo_trades)
@@ -4360,11 +4466,12 @@ def run_demo_trading_scenario(payload: Dict[str, Any]):
         "overall_confidence": result.overall_confidence,
         "simulated_trade": simulated_trade,
         "report": {
-            "account": "52961173",
-            "broker": "Alpari",
-            "server": "Alpari-MT5-Demo",
-            "balance": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
-            "equity": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
+            "account": None,
+            "broker": None,
+            "server": None,
+            "data_provenance": "PERSISTED_DEMO_EXECUTION_RECORDS_ONLY",
+            "balance": None,
+            "equity": None,
             "total_trades": total,
             "open_trades_count": 0,
             "closed_trades_count": total,
@@ -4414,12 +4521,12 @@ def get_demo_report():
     profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 1.0)
 
     return {
-        "account": "52961173",
-        "broker": "Alpari",
-        "server": "Alpari-MT5-Demo",
-        "data_provenance": "DEMO_SIMULATED_BALANCE",
-        "balance": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
-        "equity": round(10000.0 + sum(t["p_and_l"] for t in demo_trades), 2),
+        "account": None,
+        "broker": None,
+        "server": None,
+        "data_provenance": "PERSISTED_DEMO_EXECUTION_RECORDS_ONLY",
+        "balance": None,
+        "equity": None,
         "total_trades": total,
         "open_trades_count": 0,
         "closed_trades_count": total,
@@ -4431,6 +4538,156 @@ def get_demo_report():
         "net_p_and_l": round(sum(t["p_and_l"] for t in demo_trades), 2),
         "profit_factor": round(profit_factor, 2)
     }
+
+
+@app.get("/api/demo/account-status")
+def get_demo_account_status():
+    """Read-only DEMO account snapshot and broker-history performance; never submits orders."""
+    import math
+    from collections import defaultdict
+    from datetime import datetime, timedelta
+    from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
+
+    try:
+        adapter = RealMT5BrokerAdapter(auto_initialize=True)
+        if not getattr(adapter, "_initialized", False):
+            raise RuntimeError("MT5 DEMO adapter is not initialized.")
+
+        account = adapter.get_account_info()
+        terminal = adapter.get_terminal_info()
+        if not isinstance(account, dict) or not isinstance(terminal, dict):
+            raise RuntimeError("Authoritative MT5 account or terminal state is unavailable.")
+
+        safety_ok = adapter.verify_safety_and_account(operation_type="DEMO")
+        is_demo = account.get("trade_mode") == 0
+        terminal_trade_allowed = bool(terminal.get("trade_allowed", False)) and not bool(
+            terminal.get("tradeapi_disabled", False)
+        )
+        positions = adapter.get_positions()
+        if positions is None:
+            raise RuntimeError("Open-position state is unknown; report fails closed.")
+
+        now = datetime.now()
+        window_start = now - timedelta(days=30)
+        deals = adapter.get_history_deals(date_from=window_start, date_to=now)
+        if deals is None:
+            raise RuntimeError("MT5 broker history is unavailable.")
+
+        def _amount(deal, key):
+            try:
+                value = float(deal.get(key) or 0.0)
+                return value if math.isfinite(value) else 0.0
+            except (TypeError, ValueError):
+                return 0.0
+
+        def _deal_pnl(deal):
+            return sum(_amount(deal, key) for key in ("profit", "commission", "swap", "fee"))
+
+        trade_deals = [deal for deal in deals if str(deal.get("type")) in {"0", "1"}]
+        grouped = defaultdict(list)
+        for deal in trade_deals:
+            position_id = deal.get("position_id") or deal.get("ticket")
+            if position_id is not None:
+                grouped[str(position_id)].append(deal)
+
+        closed_positions = []
+        for position_id, rows in grouped.items():
+            entries = {str(row.get("entry")) for row in rows}
+            if not {"0", "1"}.issubset(entries):
+                continue
+            closed_positions.append({
+                "position_id": position_id,
+                "net_pnl": sum(_deal_pnl(row) for row in rows),
+                "last_time": max(int(row.get("time") or 0) for row in rows),
+                "yartrader_associated": any(
+                    str(row.get("magic")) == "143056"
+                    or "YarTrader" in str(row.get("comment") or "")
+                    for row in rows
+                ),
+            })
+        closed_positions.sort(key=lambda item: (item["last_time"], item["position_id"]))
+
+        def _summarize(rows):
+            values = [float(item["net_pnl"]) for item in rows]
+            winners = [value for value in values if value > 0]
+            losers = [value for value in values if value < 0]
+            gross_profit = sum(winners)
+            gross_loss = -sum(losers)
+            curve = peak = max_drawdown = 0.0
+            for value in values:
+                curve += value
+                peak = max(peak, curve)
+                max_drawdown = max(max_drawdown, peak - curve)
+            return {
+                "closed_trades": len(values),
+                "wins": len(winners),
+                "losses": len(losers),
+                "breakeven": len(values) - len(winners) - len(losers),
+                "win_rate_pct": round(100.0 * len(winners) / len(values), 2) if values else 0.0,
+                "gross_profit": round(gross_profit, 2),
+                "gross_loss": round(gross_loss, 2),
+                "net_pnl": round(sum(values), 2),
+                "profit_factor": round(gross_profit / gross_loss, 3) if gross_loss > 0 else None,
+                "max_drawdown_from_realized_curve": round(max_drawdown, 2),
+            }
+
+        deposits = [
+            deal for deal in deals
+            if str(deal.get("type")) == "2" and str(deal.get("comment") or "").strip().lower() == "deposit"
+        ]
+        cash_operations = [deal for deal in deals if str(deal.get("type")) not in {"0", "1"}]
+        bot_deals = [
+            deal for deal in deals
+            if str(deal.get("magic")) == "143056"
+            or "YarTrader" in str(deal.get("comment") or "")
+        ]
+        bot_positions = [item for item in closed_positions if item["yartrader_associated"]]
+        latest_bot_time = max((int(deal.get("time") or 0) for deal in bot_deals), default=0)
+        net_change_including_cash_operations = round(sum(_deal_pnl(deal) for deal in deals), 2)
+        cash_operations_net = round(sum(_deal_pnl(deal) for deal in cash_operations), 2)
+        try:
+            estimated_balance_at_window_start = round(float(account.get("balance")) - net_change_including_cash_operations, 2)
+        except (TypeError, ValueError):
+            estimated_balance_at_window_start = None
+
+        return {
+            "status": "connected",
+            "account_mode": "DEMO" if is_demo else "NOT_VERIFIED_AS_DEMO",
+            "demo_execution_ready": bool(safety_ok and is_demo and terminal.get("connected", False) and terminal_trade_allowed),
+            "live_trading_enabled": False,
+            "terminal_connected": bool(terminal.get("connected", False)),
+            "terminal_trade_allowed": terminal_trade_allowed,
+            "balance": account.get("balance"),
+            "estimated_balance_at_window_start": estimated_balance_at_window_start,
+            "equity": account.get("equity"),
+            "floating_pnl": account.get("profit"),
+            "currency": account.get("currency"),
+            "open_positions_count": len(positions),
+            "open_positions": [
+                {
+                    "symbol": position.get("symbol"),
+                    "direction": "BUY" if position.get("type") == 0 else "SELL",
+                    "volume": position.get("volume"),
+                    "profit": position.get("profit"),
+                    "stop_loss": position.get("sl"),
+                    "take_profit": position.get("tp"),
+                }
+                for position in positions
+            ],
+            "history_window_days": 30,
+            "account_history": _summarize(closed_positions),
+            "yartrader_associated_history": _summarize(bot_positions),
+            "deposit_events": len(deposits),
+            "deposit_total": round(sum(_deal_pnl(deal) for deal in deposits), 2),
+            "cash_operations_net": cash_operations_net,
+            "net_change_including_cash_operations": net_change_including_cash_operations,
+            "latest_yartrader_deal_time": datetime.fromtimestamp(latest_bot_time).isoformat() if latest_bot_time else None,
+            "data_provenance": "LIVE_MT5_DEMO_ACCOUNT_AND_BROKER_HISTORY",
+            "note": "Account-wide results include other magic numbers/strategies; YarTrader-associated positions are identified by magic 143056 or a YarTrader comment.",
+        }
+    except Exception as exc:
+        logger.warning("Unable to verify MT5 DEMO account status: %s", exc)
+        raise HTTPException(status_code=503, detail="MT5 DEMO account status could not be verified safely.")
 
 
 @app.get("/api/shadow/report")
@@ -4673,8 +4930,30 @@ def get_admin_pattern_stats(request: Request, symbol: Optional[str] = None, time
 @app.get("/api/signals/pipeline")
 def get_signals_pipeline_diagnostic(market: Optional[str] = None, horizon: Optional[str] = None):
     from src.Application.Services.user_api_router import _snapshot_signals
-    signals=_snapshot_signals(market,horizon)
-    return {"pipeline_status":"ONLINE","diagnostic_counts":{"candidates_evaluated":len(signals),"rejected_by_macro":None,"rejected_by_structure":None,"rejected_by_risk":None,"accepted_signals":len(signals)},"live_signals_count":len(signals),"shadow_signals_count":0,"backtest_signals_count":None,"historical_signals_count":0,"signals":signals,"data_state":"REAL_RESEARCH_SNAPSHOT"}
+    signals = _snapshot_signals(market, horizon)
+    active = [signal for signal in signals if signal.get("status") == "ACTIVE"]
+    candidates = [signal for signal in signals if signal.get("status") == "CANDIDATE"]
+    blocked = [signal for signal in signals if signal.get("status") == "BLOCKED"]
+    return {
+        "pipeline_status": "ONLINE",
+        "diagnostic_counts": {
+            "candidates_evaluated": len(signals),
+            "candidate_signals": len(candidates),
+            "blocked_signals": len(blocked),
+            "rejected_by_macro": None,
+            "rejected_by_structure": None,
+            "rejected_by_risk": None,
+            "accepted_signals": len(active),
+        },
+        "live_signals_count": len(active),
+        "candidate_signals_count": len(candidates),
+        "blocked_signals_count": len(blocked),
+        "shadow_signals_count": 0,
+        "backtest_signals_count": None,
+        "historical_signals_count": 0,
+        "signals": signals,
+        "data_state": "REAL_RESEARCH_SNAPSHOT",
+    }
 
 @app.get("/api/user/signals")
 def get_user_signals(market: Optional[str] = None, horizon: Optional[str] = None):

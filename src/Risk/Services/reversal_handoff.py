@@ -7,7 +7,7 @@ and cost-adjusted effective break-even calculation.
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 
-from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, PositionSizingResult
+from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, PositionSizingResult, ProductionRiskPolicy
 
 @dataclass
 class ReversalCandidateResult:
@@ -113,7 +113,7 @@ class ReversalHandoffManager:
             stop_loss=rev_sl,
             take_profit=rev_tp,
             account_balance=account_equity,
-            risk_percentage=2.0,
+            risk_percentage=ProductionRiskPolicy.TARGET_RISK_PCT,
             spread_pip=spread_pip,
             commission_per_lot=commission_per_lot,
             estimated_slippage_pip=estimated_slippage_pip,

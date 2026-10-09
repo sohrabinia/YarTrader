@@ -119,7 +119,8 @@ class ServiceOrchestrator:
                 # Expose the latest research snapshot by reading from the disk persistence layer
                 import json
                 import os
-                snapshot_dir = "runtime_logs/research_snapshots"
+                from src.Application.Deployment.storage import YarTraderStorageManager
+                snapshot_dir = YarTraderStorageManager.get_manager().get_research_snapshots_dir()
                 if os.path.exists(snapshot_dir):
                     files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
                     if files:

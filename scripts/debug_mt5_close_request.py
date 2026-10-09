@@ -45,7 +45,9 @@ def debug_close_request(target_ticket: int = 368555219):
     pos_ticket = pos.get("ticket")
     symbol = pos.get("symbol")
     pos_type = pos.get("type", 0)  # 0=BUY, 1=SELL
-    volume = pos.get("volume", 0.01)
+    volume = pos.get("volume")
+    if not isinstance(volume, (int, float)) or volume <= 0:
+        raise RuntimeError("Broker-reported position volume is missing or invalid; refusing to send a close request.")
 
     sym_info = mt5.symbol_info(symbol)
     tick = mt5.symbol_info_tick(symbol)

@@ -118,6 +118,32 @@ def dataset_sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _checkpoint_matches_dataset(checkpoint: dict, manifest: dict, years: float) -> bool:
+    """Validate a checkpoint against the actual staged bars and requested learning window."""
+    if not isinstance(checkpoint, dict):
+        return False
+    checkpoint_manifest = checkpoint.get("dataset_manifest")
+    if not isinstance(checkpoint_manifest, dict):
+        return False
+    timeframe = str(checkpoint.get("timeframe") or "").upper()
+    try:
+        same_window = float(checkpoint.get("years_requested", -1)) == float(years)
+    except (TypeError, ValueError):
+        return False
+    checkpoint_frames = checkpoint_manifest.get("frames")
+    current_frames = manifest.get("frames")
+    if not isinstance(checkpoint_frames, dict) or not isinstance(current_frames, dict):
+        return False
+    # A change to M1 history must not invalidate an H1 checkpoint; compare only
+    # the exact timeframe whose candles were backtested.
+    return (
+        bool(timeframe)
+        and same_window
+        and checkpoint_manifest.get("schema") == manifest.get("schema")
+        and checkpoint_frames.get(timeframe) == current_frames.get(timeframe)
+    )
+
+
 def run_staged_backtest(symbol: str, timeframe: str, years: float, initial_balance: float,
                         root: Path, max_chunks: int = 0, sleep_sec: float = 0.5,
                         cleanup_on_success: bool = True) -> dict:
@@ -133,14 +159,15 @@ def run_staged_backtest(symbol: str, timeframe: str, years: float, initial_balan
     checkpoint_path = stage_dir / f"{timeframe.upper()}_checkpoint.json"
     dataset = None
     try:
-        if stage_path.exists() and manifest_path.exists():
+        if stage_path.exists():
             dataset = HistoricalDataset(stage_path)
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         else:
             dataset = stage_symbol_from_mt4(symbol, stage_path, provider)
-            manifest = dataset.manifest()
-            manifest_path.write_text(json.dumps({**manifest, "symbol": symbol.upper(),
-                "requested_max_years": years, "timeframe": timeframe.upper()}, indent=2), encoding="utf-8")
+        # Derive the canonical manifest from the actual SQLite contents every time.
+        # Do not mix per-timeframe/request metadata into this dataset identity: doing so
+        # made completed checkpoints mismatch after staging cleanup and caused retraining.
+        manifest = dataset.manifest()
+        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
         first,last,bars = dataset.first_last(timeframe)
         if not bars:
             raise RuntimeError(f"MT4 history unavailable for {symbol}/{timeframe}.")
@@ -151,9 +178,22 @@ def run_staged_backtest(symbol: str, timeframe: str, years: float, initial_balan
         cp = json.loads(checkpoint_path.read_text(encoding="utf-8")) if checkpoint_path.exists() else None
         if cp and (cp.get("symbol") != symbol.upper() or cp.get("timeframe") != timeframe.upper()):
             raise RuntimeError("Historical checkpoint does not match requested job.")
+        checkpoint_matches = _checkpoint_matches_dataset(cp, manifest, years)
+        # Completed work is terminal only for the exact same bars and requested window.
+        # If data identity differs (including legacy checkpoints without a manifest),
+        # discard the old cumulative state rather than counting the same history twice.
+        if cp and cp.get("status") == "COMPLETED":
+            if checkpoint_matches:
+                return cp
+            cp = None
+        elif cp and not checkpoint_matches:
+            cp = None
         cursor = int(cp.get("next_ts", actual_first)) if cp else actual_first
         state = cp.get("state") if cp else None
-        engine = BacktestAndLearningEngine(storage_dir=str(stage_dir / "brain_memory"))
+        # Batch raw-event writes during historical learning; flush at each durable chunk boundary.
+        engine = BacktestAndLearningEngine(
+            storage_dir=str(stage_dir / "brain_memory"), memory_autosave_every=500, learning_interval_bars=1
+        )
         duration_sec = {"M1":60,"M5":300,"M15":900,"M30":1800,"H1":3600,"H4":14400,
                         "D1":86400,"W1":604800,"MN1":2592000}.get(timeframe.upper(), 3600)
         chunk_seconds = 30 * 86400
@@ -169,25 +209,32 @@ def run_staged_backtest(symbol: str, timeframe: str, years: float, initial_balan
                 continue
             result = engine.run_backtest(symbol, timeframe, candles, initial_balance=initial_balance,
                                           start_index=process_index, context_window=500, state=state)
+            memory = engine.get_market_memory(symbol)
+            memory.flush_event_persistence()
+            memory.flush_artifact_snapshots()
             state = result["state"]
             processed += len(candles) - process_index
             chunks += 1
             cursor = chunk_end + 1
             payload = {"schema": SCHEMA, "status": "RUNNING", "symbol": symbol.upper(),
                        "timeframe": timeframe.upper(), "years_requested": years, "next_ts": cursor,
-                       "processed_bars": processed, "processed_chunks": chunks, "state": state}
+                       "processed_bars": processed, "processed_chunks": chunks, "state": state,
+                       "dataset_manifest": manifest}
             checkpoint_path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
             if max_chunks and chunks >= max_chunks:
                 return payload
             time.sleep(max(0.05, sleep_sec))
         final = {"schema": SCHEMA, "status": "COMPLETED", "symbol": symbol.upper(),
                  "timeframe": timeframe.upper(), "years_requested": years,
-                 "data_source": "MT4_HST_STAGED_SQLITE", "history_start": first,
+                 "data_source": f"{manifest.get('data_source', 'MT4_HST')}_STAGED_SQLITE", "history_start": first,
                  "history_end": last, "processed_bars": processed, "processed_chunks": chunks,
                  "state": state, "dataset_manifest": manifest,
                  "completed_at": datetime.now(timezone.utc).isoformat()}
-        (stage_dir / "final_result.json").write_text(json.dumps(final, indent=2, default=str), encoding="utf-8")
-        checkpoint_path.write_text(json.dumps(final, indent=2, default=str), encoding="utf-8")
+        result_json = json.dumps(final, indent=2, default=str)
+        # Keep a stable result per timeframe; final_result.json remains a legacy latest-result alias.
+        (stage_dir / f"{timeframe.upper()}_result.json").write_text(result_json, encoding="utf-8")
+        (stage_dir / "final_result.json").write_text(result_json, encoding="utf-8")
+        checkpoint_path.write_text(result_json, encoding="utf-8")
         return final
     finally:
         if dataset is not None:

@@ -1,6 +1,6 @@
 ﻿"""Autonomous historical-learning queue; intentionally independent of the 30-symbol production limit."""
 from __future__ import annotations
-import argparse, glob, json, subprocess, sys, time
+import argparse, glob, json, os, subprocess, sys, time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -11,13 +11,23 @@ CONFIG = ROOT / "config" / "historical_learning_symbols.json"
 DEFAULT_TIMEFRAMES = ("M1","M5","M15","M30","H1","H4","D1","W1","MN1")
 
 def load_symbols():
-    payload = json.loads(CONFIG.read_text(encoding="utf-8-sig"))
-    symbols = payload.get("symbols", [])
-    result=[]
+    # Optional production override lets a constrained host learn the primary market first.
+    raw_override = os.getenv("YARTRADER_HISTORICAL_LEARNING_SYMBOLS", "").strip()
+    if raw_override:
+        symbols = raw_override.replace(";", ",").split(",")
+    else:
+        payload = json.loads(CONFIG.read_text(encoding="utf-8-sig"))
+        symbols = payload.get("symbols", [])
+    result = []
     for s in symbols:
-        s=str(s).strip().upper()
-        if s and s not in result: result.append(s)
-    if not result: raise RuntimeError("Historical learning queue is empty.")
+        s = str(s).strip().upper()
+        if s and s not in result:
+            result.append(s)
+    if not result:
+        raise RuntimeError("Historical learning queue is empty.")
+    # Prioritize the configured execution symbol even when the full queue is enabled.
+    if "XAUUSD" in result:
+        result = ["XAUUSD", *[symbol for symbol in result if symbol != "XAUUSD"]]
     return result
 
 def save_state(state):
@@ -32,7 +42,12 @@ def _wait_for_signal_bridge(poll_sec=5.0):
         for common_dir in glob.glob(r"C:\Users\*\AppData\Roaming\MetaQuotes\Terminal\Common\Files"):
             bridge = MT4FileBridge(common_dir=common_dir)
             hb = bridge.heartbeat()
-            if hb and hb.get("login") == "143056202" and hb.get("server") == "Alpari-Pro.ECN" and not hb.get("is_demo"):
+            # This bridge is used strictly for READ-ONLY history acquisition.
+            # The authorized MT4 SIGNAL account is live-mode, but its role is data-only;
+            # MT4 order submission is not part of this queue and remains hard-locked.
+            if (hb and hb.get("login") == "143056202"
+                    and hb.get("server") == "Alpari-Pro.ECN"
+                    and hb.get("is_demo") is False):
                 return bridge
         time.sleep(poll_sec)
 
@@ -66,10 +81,42 @@ def run_queue(years=10, initial_balance=10000.0, sleep_sec=0.5, max_symbols=0):
         state["completed_symbols"].append(symbol); state["current_symbol"]=None; save_state(state)
     state["status"]="COMPLETED"; save_state(state); return state
 
+def _try_acquire_windows_lock(path: Path):
+    """Acquire a process-wide singleton lock; the OS releases it if the process exits."""
+    import msvcrt
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("a+b")
+    handle.seek(0, os.SEEK_END)
+    if handle.tell() == 0:
+        handle.write(b"0")
+        handle.flush()
+    handle.seek(0)
+    try:
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+    except OSError:
+        handle.close()
+        return None
+    return handle
+
+
 def main():
     p=argparse.ArgumentParser(); p.add_argument("--years",type=int,default=10)
     p.add_argument("--initial-balance",type=float,default=10000.0)
     p.add_argument("--sleep",type=float,default=0.5); p.add_argument("--max-symbols",type=int,default=0)
-    a=p.parse_args(); run_queue(a.years,a.initial_balance,a.sleep,a.max_symbols)
+    a=p.parse_args()
+    lock_root = Path(os.getenv("YARTRADER_HISTORICAL_LEARNING_ROOT", "runtime_logs/backtest_learning/historical_queue"))
+    lock_handle = _try_acquire_windows_lock(lock_root / ".queue.lock")
+    if lock_handle is None:
+        print("Historical learning queue already active; duplicate launch skipped.")
+        return
+    import msvcrt
+    try:
+        run_queue(a.years,a.initial_balance,a.sleep,a.max_symbols)
+    finally:
+        try:
+            lock_handle.seek(0)
+            msvcrt.locking(lock_handle.fileno(), msvcrt.LK_UNLCK, 1)
+        finally:
+            lock_handle.close()
 if __name__=="__main__": main()
 
