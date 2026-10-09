@@ -74,11 +74,11 @@ class TestYarTraderOnlyDailyPnl(unittest.TestCase):
             self.assertEqual(meta["loss_pct"], 1.0)
 
             allowed, reason, meta = guard.evaluate_daily_loss(
-                1000.0, now_utc=now, bot_daily_pnl=-80.0
+                1000.0, now_utc=now, bot_daily_pnl=-110.0
             )
             self.assertFalse(allowed)
             self.assertEqual(reason, "DAILY_LOSS_LIMIT_REACHED")
-            self.assertEqual(meta["loss_pct"], 8.0)
+            self.assertEqual(meta["loss_pct"], 11.0)
 
 
 if __name__ == "__main__":

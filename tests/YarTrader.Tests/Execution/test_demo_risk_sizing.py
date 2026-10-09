@@ -72,11 +72,17 @@ class TestDynamicDemoRiskSizing(unittest.TestCase):
         with patch("src.Market.Universe.symbol_registry.SymbolRegistry.get_instance", return_value=registry):
             self.assertEqual(_enabled_demo_symbols(), ["XAUUSD", "EURUSD"])
 
-    def test_rejects_risk_setting_above_hard_ceiling(self):
+    def test_allows_adaptive_risk_above_one_percent_but_rejects_above_safety_ceiling(self):
+        result = calculate_demo_volume_by_risk(
+            self.mt5, "XAUUSD", "BUY", 4184.17, 4173.04,
+            self.symbol_info, balance=100000.0, equity=100000.0, risk_pct=2.0,
+        )
+        self.assertTrue(result["allowed"])
+        self.assertAlmostEqual(result["risk_budget_usd"], 2000.0, places=2)
         with self.assertRaises(Exception):
             calculate_demo_volume_by_risk(
                 self.mt5, "XAUUSD", "BUY", 4184.17, 4173.04,
-                self.symbol_info, balance=100000.0, equity=100000.0, risk_pct=1.01,
+                self.symbol_info, balance=100000.0, equity=100000.0, risk_pct=3.01,
             )
 
     def test_rejects_legacy_lower_risk_override(self):
@@ -86,6 +92,34 @@ class TestDynamicDemoRiskSizing(unittest.TestCase):
                 {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01},
                 balance=100000.0, equity=100000.0, risk_pct=1.0 / 20.0,
             )
+
+
+class TestStructuralStop(unittest.TestCase):
+    def setUp(self):
+        from src.Execution.Services.autonomous_demo_trader import AutonomousDemoTrader
+        self.derive = AutonomousDemoTrader._derive_structural_stop
+        self.candles = []
+        price = 100.0
+        for i in range(30):
+            self.candles.append({"open": price, "high": price + 1.0,
+                                 "low": price - 1.0, "close": price + 0.2})
+            price += 0.1
+
+    def test_buy_stop_is_below_entry_and_uses_swing_buffer(self):
+        stop = self.derive(self.candles, "BUY", 103.0)
+        self.assertIsNotNone(stop)
+        self.assertLess(stop, 103.0)
+        self.assertLess(stop, min(c["low"] for c in self.candles[-12:]))
+
+    def test_sell_stop_is_above_entry_and_uses_swing_buffer(self):
+        stop = self.derive(self.candles, "SELL", 101.0)
+        self.assertIsNotNone(stop)
+        self.assertGreater(stop, 101.0)
+        self.assertGreater(stop, max(c["high"] for c in self.candles[-12:]))
+
+    def test_rejects_insufficient_history_and_overwide_stop(self):
+        self.assertIsNone(self.derive(self.candles[:10], "BUY", 103.0))
+        self.assertIsNone(self.derive(self.candles, "BUY", 200.0))
 
 
 if __name__ == "__main__":

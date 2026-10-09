@@ -325,7 +325,7 @@ class DailyLossKillSwitch:
         bot_daily_pnl: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
-        Evaluates pre-entry daily 8% loss limit and session window bounds.
+        Evaluates the 10% daily loss limit and session window bounds.
         Returns detailed status payload.
         """
         allowed, reason, meta = self.evaluate_daily_loss(

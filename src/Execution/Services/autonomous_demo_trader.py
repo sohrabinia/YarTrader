@@ -57,10 +57,11 @@ def calculate_demo_volume_by_risk(
     if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(float(v)) for v in values):
         raise ValidationException("Risk sizing received invalid numeric inputs.")
     target_risk_pct = float(ProductionRiskPolicy.TARGET_RISK_PCT)
+    min_risk_pct = float(ProductionRiskPolicy.MIN_ADAPTIVE_RISK_PCT)
+    max_risk_pct = float(ProductionRiskPolicy.HARD_CEILING_RISK_PCT)
     if (min(float(entry), float(stop_loss), float(balance), float(equity), float(risk_pct)) <= 0
-            or risk_pct > ProductionRiskPolicy.HARD_CEILING_RISK_PCT
-            or not math.isclose(float(risk_pct), target_risk_pct, rel_tol=0.0, abs_tol=1e-9)):
-        raise ValidationException(f"Risk sizing must use the canonical {target_risk_pct:.2f}% per-trade policy.")
+            or risk_pct < min_risk_pct or risk_pct > max_risk_pct):
+        raise ValidationException(f"Adaptive risk must be between {min_risk_pct:.2f}% and {max_risk_pct:.2f}% per trade.")
     volume_min = float(symbol_info.get("volume_min") or 0.0)
     volume_max = float(symbol_info.get("volume_max") or 0.0)
     volume_step = float(symbol_info.get("volume_step") or 0.0)
@@ -81,7 +82,7 @@ def calculate_demo_volume_by_risk(
     if minimum_lot_risk <= 0 or risk_budget <= 0:
         raise ValidationException("Broker minimum-lot risk or current wallet risk budget is invalid.")
     if minimum_lot_risk > risk_budget * 1.000001:
-        return {"allowed": False, "reason": "Broker minimum lot would exceed the dynamic 1.0% current-wallet risk budget.",
+        return {"allowed": False, "reason": "Broker minimum lot would exceed the adaptive current-wallet risk budget.",
                 "risk_basis_usd": round(risk_basis, 2), "risk_budget_usd": round(risk_budget, 4),
                 "minimum_lot_risk_usd": round(minimum_lot_risk, 4)}
     risk_per_lot = minimum_lot_risk / volume_min
@@ -90,7 +91,7 @@ def calculate_demo_volume_by_risk(
     volume_digits = max(0, min(8, len(str(volume_step).rstrip("0").split(".")[-1]) if "." in str(volume_step) else 0))
     volume = round(volume, volume_digits)
     if volume + 1e-12 < volume_min:
-        return {"allowed": False, "reason": "Broker minimum lot would exceed the dynamic 1.0% current-wallet risk budget.",
+        return {"allowed": False, "reason": "Broker minimum lot would exceed the adaptive current-wallet risk budget.",
                 "risk_basis_usd": round(risk_basis, 2), "risk_budget_usd": round(risk_budget, 4),
                 "minimum_lot_risk_usd": round(minimum_lot_risk, 4)}
     volume_profit = mt5.order_calc_profit(order_type_code, symbol, volume, float(entry), float(stop_loss))
@@ -98,7 +99,7 @@ def calculate_demo_volume_by_risk(
         raise ValidationException("MT5 could not verify selected-volume stop-loss risk; fail closed.")
     estimated_risk = abs(float(volume_profit))
     if estimated_risk > risk_budget * 1.000001:
-        return {"allowed": False, "reason": "Broker-calculated order risk exceeds the dynamic 1.0% wallet budget.",
+        return {"allowed": False, "reason": "Broker-calculated order risk exceeds the adaptive wallet budget.",
                 "risk_basis_usd": round(risk_basis, 2), "risk_budget_usd": round(risk_budget, 4),
                 "estimated_risk_usd": round(estimated_risk, 4)}
     return {"allowed": True, "volume": volume, "risk_basis_usd": round(risk_basis, 2),
@@ -189,6 +190,44 @@ class AutonomousDemoTrader:
             "yartrader_open_positions": pnl["owned_open_positions"],
         })
         return {"allowed": allowed, "reason": reason, "meta": meta, "pnl": pnl}
+
+    @staticmethod
+    def _derive_structural_stop(
+        candles: List[Dict[str, Any]], direction: str, entry: float,
+        lookback: int = 12, atr_period: int = 14,
+    ) -> Optional[float]:
+        """Derive a stop from closed-bar structure with an ATR buffer; reject unstable geometry."""
+        if direction not in ("BUY", "SELL") or not math.isfinite(entry) or entry <= 0:
+            return None
+        if len(candles) < max(lookback, atr_period) + 1:
+            return None
+        closed = candles[-(max(lookback, atr_period) + 1):]
+        try:
+            ranges = []
+            for i in range(1, len(closed)):
+                c, prev = closed[i], closed[i - 1]
+                tr = max(float(c["high"]) - float(c["low"]),
+                         abs(float(c["high"]) - float(prev["close"])),
+                         abs(float(c["low"]) - float(prev["close"])))
+                if not math.isfinite(tr) or tr <= 0:
+                    return None
+                ranges.append(tr)
+            atr = sum(ranges[-atr_period:]) / min(len(ranges), atr_period)
+            recent = closed[-lookback:]
+            if direction == "BUY":
+                swing = min(float(c["low"]) for c in recent)
+                stop = swing - 0.15 * atr
+                distance = entry - stop
+            else:
+                swing = max(float(c["high"]) for c in recent)
+                stop = swing + 0.15 * atr
+                distance = stop - entry
+            # Reject stops that are inside the market or so wide that the setup is not actionable.
+            if not math.isfinite(stop) or distance <= 0 or distance > 3.0 * atr:
+                return None
+            return stop
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
 
     @staticmethod
     def _m1_entry_confirmed(candles: List[Dict[str, Any]], direction: str) -> bool:
@@ -361,10 +400,15 @@ class AutonomousDemoTrader:
             # Try qualified setups in rank order. A wide stop or broker minimum-lot
             # mismatch on one timeframe must not hide a tighter valid setup on another.
             for option in ranked:
-                option_sl = float(option["stop_loss"])
-                option_tp = float(option["take_profit"])
                 original_entry = float(option["entry"])
-                original_risk = abs(original_entry - option_sl)
+                timeframe = str(option.get("timeframe") or "M15")
+                stop_candles = per_tf.get(timeframe, per_tf["M15"])
+                option_sl = self._derive_structural_stop(stop_candles, direction, entry)
+                if option_sl is None:
+                    selection_reason = "No valid structure/ATR stop found; refusing a guessed stop."
+                    continue
+                option_tp = float(option["take_profit"])
+                original_risk = abs(original_entry - float(option.get("stop_loss") or 0.0))
                 if original_risk <= 0 or abs(entry - original_entry) > original_risk * self.MAX_ENTRY_DRIFT_R:
                     selection_reason = "Current quote has moved too far from the qualified setup entry."
                     continue
@@ -378,9 +422,16 @@ class AutonomousDemoTrader:
                 if not math.isfinite(option_rr) or option_rr < self.MIN_RR:
                     selection_reason = "Live quote no longer supports the minimum risk/reward ratio."
                     continue
+                # Allocate more risk only to stronger setups; weaker setups receive less.
+                # This is a sizing heuristic, not a claimed calibrated win probability.
+                confidence = max(0.0, min(100.0, float(option.get("confidence") or 0.0)))
+                rr_quality = max(0.0, min(1.0, (option_rr - self.MIN_RR) / max(self.MIN_RR, 1e-9)))
+                confidence_quality = max(0.0, min(1.0, (confidence - self.MIN_CONFIDENCE) / max(100.0 - self.MIN_CONFIDENCE, 1e-9)))
+                quality = 0.7 * confidence_quality + 0.3 * rr_quality
+                adaptive_risk_pct = ProductionRiskPolicy.MIN_ADAPTIVE_RISK_PCT + quality * (ProductionRiskPolicy.HARD_CEILING_RISK_PCT - ProductionRiskPolicy.MIN_ADAPTIVE_RISK_PCT)
                 option_sizing = calculate_demo_volume_by_risk(
                     self.adapter._mt5, symbol, direction, entry, option_sl, symbol_info,
-                    balance, equity, self.RISK_PER_TRADE_PCT,
+                    balance, equity, adaptive_risk_pct,
                 )
                 if not option_sizing["allowed"]:
                     selection_reason = str(option_sizing.get("reason") or "Broker risk budget rejected this setup.")

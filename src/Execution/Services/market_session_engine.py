@@ -320,7 +320,7 @@ class MarketSessionEngine:
                 message=f"Trade rejected: Remaining session time ({rem_seconds:.1f}s) <= 121s cutoff threshold."
             )
 
-        # Evaluate Daily 8% Loss Kill-Switch & Iran Session Boundary Gate.
+        # Evaluate Daily 10% Loss Kill-Switch & Iran Session Boundary Gate.
         # Never substitute a configured/demo starting balance for authoritative broker equity:
         # doing so can persist a false daily baseline and either block or permit orders incorrectly.
         if (

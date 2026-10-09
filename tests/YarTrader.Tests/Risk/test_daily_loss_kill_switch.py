@@ -11,9 +11,9 @@ class TestDailyLossKillSwitch(unittest.TestCase):
     2. 00:00–00:24 belongs to the previous session.
     3. 00:25–01:34 does not allow new entries.
     4. Daily baseline is captured once per session at 01:35.
-    5. 7.99% loss -> entry remains eligible.
-    6. 8.00% loss -> entries blocked.
-    7. Loss > 8.00% -> entries remain blocked.
+    5. 9.99% loss -> entry remains eligible.
+    6. 10.00% loss -> entries blocked.
+    7. Loss > 10.00% -> entries remain blocked.
     8. Once blocked, additional trade signals cannot open new positions.
     9. At next 01:35 session start, the daily loss state resets correctly.
     10. Reset does not occur at midnight (00:00).

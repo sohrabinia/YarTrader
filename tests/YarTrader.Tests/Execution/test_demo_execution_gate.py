@@ -548,7 +548,7 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
     """
     Focused SRE Regression Tests for Risk Target Contract Remediation.
     Verifies that target risk is strictly 1.0%, 1.0% ceiling is enforced,
-    RR >= 1.5 is enforced, and daily loss >= 8.0% blocks trading.
+    RR >= 1.5 is enforced, and daily loss >= 10.0% blocks trading.
     """
 
     def setUp(self):
@@ -626,14 +626,14 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
         self.assertIn("< 1.5 minimum threshold", eval_res.rejection_reason)
 
     def test_07_daily_loss_limit_exceeded_blocks_trading(self):
-        """Test 7: Portfolio daily loss >= 8.0% blocks trading."""
+        """Test 7: Portfolio daily loss >= 10.0% blocks trading."""
         from src.Intelligence.Execution.portfolio import PortfolioRiskIntelligenceEngine
-        portfolio_engine = PortfolioRiskIntelligenceEngine(max_daily_drawdown_pct=8.0)
+        portfolio_engine = PortfolioRiskIntelligenceEngine(max_daily_drawdown_pct=10.0)
         res = portfolio_engine.calculate_portfolio_risk(
             active_trades=[],
             virtual_balance=10000.0,
             start_of_day_equity=10000.0,
-            daily_pnl=-850.0 # 8.5% loss >= 8.0%
+            daily_pnl=-1050.0 # 10.5% loss >= 10.0%
         )
         self.assertFalse(res["approved"])
         self.assertTrue(any("max daily loss threshold" in v for v in res["violations"]))
@@ -664,8 +664,8 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
     """
     SRE Unit Tests for DailyLossKillSwitch at the Execution Boundary.
     Verifies:
-    1. loss < 8% -> gate passes
-    2. loss >= 8% -> execution blocked
+    1. loss < 10% -> gate passes
+    2. loss >= 10% -> execution blocked
     3. invalid/missing equity -> execution blocked
     4. kill switch exception -> execution blocked
     5. no alternate execution path bypasses daily-loss protection.
@@ -688,16 +688,23 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
         DailyLossKillSwitch._instance = self._old_singleton
         self._temp_dir.cleanup()
 
-    def test_01_loss_below_8_percent_passes(self):
+    def test_01_loss_below_10_percent_passes(self):
         # 5% loss ($9500 current equity vs $10000 baseline) -> allowed
         allowed, reason, meta = self.kill_switch.evaluate_daily_loss(9500.0)
         self.assertTrue(allowed)
         self.assertIsNone(reason)
         self.assertFalse(meta["kill_switch_active"])
 
-    def test_02_loss_8_percent_or_higher_blocked(self):
-        # 8.5% loss ($9150 current equity vs $10000 baseline) -> blocked
+    def test_02_loss_8_5_percent_below_10_percent_passes(self):
+        # 8.5% loss ($9150 current equity vs $10000 baseline) -> still allowed
         allowed, reason, meta = self.kill_switch.evaluate_daily_loss(9150.0)
+        self.assertTrue(allowed)
+        self.assertIsNone(reason)
+        self.assertFalse(meta["kill_switch_active"])
+
+    def test_02b_loss_10_percent_or_higher_blocked(self):
+        # Exactly 10% loss ($9000 current equity vs $10000 baseline) -> blocked
+        allowed, reason, meta = self.kill_switch.evaluate_daily_loss(9000.0)
         self.assertFalse(allowed)
         self.assertEqual(reason, "DAILY_LOSS_LIMIT_REACHED")
         self.assertTrue(meta["kill_switch_active"])
@@ -764,7 +771,7 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
         req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2500.0, StopLoss=2490.0, TakeProfit=2520.0)
         with self.assertRaises(ValidationException) as ctx:
             DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req, demo_mode_flag=True)
-        self.assertIn("Daily 8% loss limit active", str(ctx.exception))
+        self.assertIn("Daily 10% loss limit active", str(ctx.exception))
 
 
 if __name__ == "__main__":

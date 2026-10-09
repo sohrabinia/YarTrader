@@ -111,7 +111,7 @@ class DemoExecutionGate:
             if sym_trade_mode == 0:
                 raise ValidationException(f"DemoExecutionGate Violation: Symbol '{request.Symbol}' trade mode is DISABLED (0).")
 
-        # Check 7: Daily Loss Limit Gate (8% Ceiling) - Strictly Fail Closed
+        # Check 7: Daily Loss Limit Gate (10% Ceiling) - Strictly Fail Closed
         import math
         raw_equity = acc_info.get("equity") if isinstance(acc_info, dict) else None
         if raw_equity is None or isinstance(raw_equity, bool) or not isinstance(raw_equity, (int, float)):
@@ -138,7 +138,7 @@ class DemoExecutionGate:
                 equity_val, now_utc=risk_now, bot_daily_pnl=bot_daily_pnl
             )
             if not allowed:
-                raise ValidationException(f"DemoExecutionGate Violation: Daily 8% loss limit active ({reason}, loss={meta.get('loss_pct', 0.0)}%). Execution strictly blocked.")
+                raise ValidationException(f"DemoExecutionGate Violation: Daily 10% loss limit active ({reason}, loss={meta.get('loss_pct', 0.0)}%). Execution strictly blocked.")
         except ValidationException:
             raise
         except Exception as ex:
