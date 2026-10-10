@@ -95,10 +95,19 @@ def metric_snapshot(result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def count_resolved_outcome_experiences(memory: Any) -> int:
+    """Count trade-outcome experiences, excluding unlabeled observation-only records."""
+    return sum(
+        1 for exp in memory.experiences.values()
+        if str(getattr(exp, "outcome_result", "")).upper() in {"SUCCESS", "FAILURE"}
+        and not (getattr(exp, "meta", {}) or {}).get("is_observed_event_only", False)
+    )
+
+
 def classify_cycle_status(results: list[dict[str, Any]]) -> dict[str, Any]:
     execution_completed = all(r.get("status") in {
-        "COMPLETED_WITH_LEARNING", "COMPLETED_EXPERIENCE_LEARNING_NO_PATTERN_PROMOTION",
-        "LEARNING_UPDATES_REPORTED_MEMORY_DELTA_UNCONFIRMED", "COMPLETED_NO_LEARNING_UPDATES",
+        "COMPLETED_WITH_LEARNING", "COMPLETED_OUTCOME_EXPERIENCES_NO_PATTERN_PROMOTION",
+        "COMPLETED_NO_RESOLVED_OUTCOME_EXPERIENCES", "COMPLETED_NO_LEARNING_UPDATES",
     } for r in results)
     learning_verified = bool(results) and all(
         r.get("status") == "COMPLETED_WITH_LEARNING" for r in results
@@ -146,11 +155,14 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
     learner = BacktestAndLearningEngine(storage_dir=str(ROOT / "runtime_logs" / "sequential_learning_memory" / f"learned_{symbol}"), memory_autosave_every=250)
     memory = learner.get_market_memory(symbol)
     memory_before = memory.get_learning_statistics()
+    resolved_before = count_resolved_outcome_experiences(memory)
     training_result = learner.run_backtest(
         symbol, timeframe, training, initial_balance=initial_balance,
         learn_from_outcomes=True,
     )
     memory_after_training = memory.get_learning_statistics()
+    resolved_after = count_resolved_outcome_experiences(memory)
+    new_resolved_experiences = resolved_after - resolved_before
 
     # Freeze a copy of the post-training state for held-out evaluation. The evaluation
     # must not mutate the persistent training memory with held-out observations.
@@ -177,12 +189,12 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
         int(memory_after_training.get("concepts_learned", 0))
         - int(memory_before.get("concepts_learned", 0))
     )
-    if updates > 0 and changed_experiences > 0 and (new_patterns > 0 or new_concepts > 0):
+    if updates > 0 and new_resolved_experiences > 0 and (new_patterns > 0 or new_concepts > 0):
         status = "COMPLETED_WITH_LEARNING"
-    elif updates > 0 and changed_experiences > 0:
-        status = "COMPLETED_EXPERIENCE_LEARNING_NO_PATTERN_PROMOTION"
+    elif updates > 0 and new_resolved_experiences > 0:
+        status = "COMPLETED_OUTCOME_EXPERIENCES_NO_PATTERN_PROMOTION"
     elif updates > 0:
-        status = "LEARNING_UPDATES_REPORTED_MEMORY_DELTA_UNCONFIRMED"
+        status = "COMPLETED_NO_RESOLVED_OUTCOME_EXPERIENCES"
     else:
         status = "COMPLETED_NO_LEARNING_UPDATES"
 
@@ -197,6 +209,7 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
         "memory_before": memory_before,
         "memory_after_training": memory_after_training,
         "new_experiences": changed_experiences,
+        "new_resolved_outcome_experiences": new_resolved_experiences,
         "new_patterns_created": new_patterns,
         "new_concepts_learned": new_concepts,
         "learning_updates_count": updates,
