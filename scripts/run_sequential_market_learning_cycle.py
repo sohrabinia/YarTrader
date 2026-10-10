@@ -104,6 +104,11 @@ def count_resolved_outcome_experiences(memory: Any) -> int:
     )
 
 
+def count_pattern_outcomes(memory: Any) -> int:
+    """Count accumulated validated outcomes across learned patterns."""
+    return sum(max(0, int(getattr(pattern, "occurrences_count", 0))) for pattern in memory.patterns.values())
+
+
 def classify_cycle_status(results: list[dict[str, Any]]) -> dict[str, Any]:
     execution_completed = all(r.get("status") in {
         "COMPLETED_WITH_LEARNING", "COMPLETED_OUTCOME_EXPERIENCES_NO_PATTERN_PROMOTION",
@@ -156,6 +161,7 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
     memory = learner.get_market_memory(symbol)
     memory_before = memory.get_learning_statistics()
     resolved_before = count_resolved_outcome_experiences(memory)
+    pattern_outcomes_before = count_pattern_outcomes(memory)
     training_result = learner.run_backtest(
         symbol, timeframe, training, initial_balance=initial_balance,
         learn_from_outcomes=True, research_fallback_enabled=True,
@@ -163,6 +169,8 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
     memory_after_training = memory.get_learning_statistics()
     resolved_after = count_resolved_outcome_experiences(memory)
     new_resolved_experiences = resolved_after - resolved_before
+    pattern_outcomes_after = count_pattern_outcomes(memory)
+    new_pattern_outcomes = pattern_outcomes_after - pattern_outcomes_before
 
     # Freeze a copy of the post-training state for held-out evaluation. The evaluation
     # must not mutate the persistent training memory with held-out observations.
@@ -189,7 +197,7 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
         int(memory_after_training.get("concepts_learned", 0))
         - int(memory_before.get("concepts_learned", 0))
     )
-    if updates > 0 and new_resolved_experiences > 0 and (new_patterns > 0 or new_concepts > 0):
+    if updates > 0 and new_resolved_experiences > 0 and (new_patterns > 0 or new_concepts > 0 or new_pattern_outcomes > 0):
         status = "COMPLETED_WITH_LEARNING"
     elif updates > 0 and new_resolved_experiences > 0:
         status = "COMPLETED_OUTCOME_EXPERIENCES_NO_PATTERN_PROMOTION"
@@ -214,6 +222,7 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
         "new_experiences": changed_experiences,
         "new_resolved_outcome_experiences": new_resolved_experiences,
         "new_patterns_created": new_patterns,
+        "new_pattern_outcomes": new_pattern_outcomes,
         "new_concepts_learned": new_concepts,
         "learning_updates_count": updates,
         "learned_heldout": learned_metrics,

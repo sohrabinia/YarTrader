@@ -6,7 +6,7 @@ from src.Application.Backtesting.backtest_learning_engine import (
     BacktestAndLearningEngine, build_research_fallback_signal,
 )
 from scripts.run_sequential_market_learning_cycle import (
-    SYMBOL_ORDER, atomic_json, classify_cycle_status, count_resolved_outcome_experiences, metric_snapshot,
+    SYMBOL_ORDER, atomic_json, classify_cycle_status, count_pattern_outcomes, count_resolved_outcome_experiences, metric_snapshot,
 )
 
 
@@ -128,3 +128,12 @@ def test_backtest_opt_in_fallback_records_research_strategy_trades(tmp_path):
         trade.get("strategy") == "RESEARCH_FALLBACK_EMA_TREND"
         for trade in result["closed_trades"]
     )
+
+
+def test_pattern_outcome_count_detects_updates_to_existing_patterns():
+    memory = SimpleNamespace(patterns={
+        "a": SimpleNamespace(occurrences_count=5),
+        "b": SimpleNamespace(occurrences_count=2),
+    })
+
+    assert count_pattern_outcomes(memory) == 7
