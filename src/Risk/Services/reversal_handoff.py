@@ -52,13 +52,47 @@ class ReversalHandoffManager:
             )
 
         exit_reason = closed_position.get("exit_reason", "").upper()
-        if "STRUCTURAL_TARGET" not in exit_reason and "TAKE_PROFIT" not in exit_reason and "BASE_NODE" not in exit_reason:
+        structural_completion = any(token in exit_reason for token in (
+            "STRUCTURAL_TARGET", "TAKE_PROFIT", "BASE_NODE"
+        ))
+        economic_wave_exit = exit_reason in {
+            "ECONOMIC_WAVE_EXHAUSTION", "WAVE_REVERSAL_CONFIRMED",
+            "STRUCTURAL_INVALIDATION", "TRAILING_STOP_REVERSAL"
+        }
+        if not (structural_completion or economic_wave_exit):
             return ReversalCandidateResult(
                 is_candidate=False,
                 reversal_direction="WAIT",
                 reversal_price=0.0,
-                reason=f"Exit reason '{exit_reason}' is not a valid structural target completion."
+                reason=f"Exit reason '{exit_reason}' is not eligible for reversal handoff."
             )
+
+        if economic_wave_exit:
+            reversal_confirmed = market_structure.get("reversal_confirmed") is True
+            net_ev = market_structure.get("net_expected_value_r")
+            net_rr = market_structure.get("net_reward_risk")
+            try:
+                economically_viable = (
+                    net_ev is not None and float(net_ev) > 0.0
+                    and net_rr is not None and float(net_rr) >= 1.2
+                )
+            except (TypeError, ValueError):
+                economically_viable = False
+            if not reversal_confirmed or not economically_viable:
+                return ReversalCandidateResult(
+                    is_candidate=False,
+                    reversal_direction="WAIT",
+                    reversal_price=0.0,
+                    reason=(
+                        "Economic reversal rejected: require confirmed opposite structure, "
+                        "positive net expected value after costs, and net reward/risk >= 1.2."
+                    ),
+                    risk_evaluation={
+                        "reversal_confirmed": reversal_confirmed,
+                        "net_expected_value_r": net_ev,
+                        "net_reward_risk": net_rr,
+                    }
+                )
 
         symbol = closed_position.get("symbol", "XAUUSD")
         closed_direction = closed_position.get("direction", "BUY").upper()

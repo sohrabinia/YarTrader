@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Any, Dict, Optional
 from src.Research.MarketAnalysis.Interfaces.interfaces import IMarketAnalyzer, IResearchEngine
 from src.Research.MarketAnalysis.Models.models import MarketObservation, MarketInsight, ResearchRequest, ResearchResult
@@ -572,7 +572,55 @@ class FeatureExtractionResearchEngine(IResearchEngine):
             fractal_engine = FractalEngine()
 
         try:
-            candles_by_tf = {timeframe: market_data_response.DataPoints}
+            from src.Research.Brain.fractal_range_learning_engine import TIMEFRAMES, TF_SECONDS
+            fractal_context = request.Context if isinstance(request.Context, dict) else {}
+            supplied_mtf = fractal_context.get("fractal_candles_by_timeframe")
+            if not isinstance(supplied_mtf, dict):
+                supplied_mtf = fractal_context.get("candles_by_timeframe")
+            candles_by_tf = {}
+            if isinstance(supplied_mtf, dict):
+                for tf_key, tf_rows in supplied_mtf.items():
+                    if isinstance(tf_rows, (list, tuple)) and tf_rows:
+                        candles_by_tf[str(tf_key).upper()] = tf_rows
+            candles_by_tf[str(timeframe).upper()] = market_data_response.DataPoints
+
+            # Supply real multi-timeframe history to the existing FractalEngine.
+            # Each auxiliary request is bounded by a configurable bar lookback, and
+            # failures remain non-fatal so the primary analysis still completes.
+            mtf_fetch_errors = []
+            if fractal_context.get("fractal_multi_timeframe", False):
+                try:
+                    context_bars = max(32, min(1000, int(fractal_context.get("fractal_context_bars", 64))))
+                except (TypeError, ValueError):
+                    context_bars = 64
+                for tf_key in TIMEFRAMES:
+                    if tf_key in candles_by_tf:
+                        continue
+                    try:
+                        seconds = TF_SECONDS.get(tf_key, 3600)
+                        tf_end = request.EndTime
+                        tf_start = tf_end - timedelta(seconds=seconds * context_bars)
+                        tf_request = MarketDataRequest(
+                            Asset=request.Asset,
+                            StartTime=tf_start,
+                            EndTime=tf_end,
+                            Timeframe=tf_key,
+                        )
+                        tf_response = self._data_provider.retrieve_market_data(tf_request)
+                        tf_rows = getattr(tf_response, "DataPoints", None) if tf_response is not None else None
+                        if tf_rows:
+                            # Some adapters return a wider cached range than requested.
+                            # Enforce the configured cap before passing data downstream.
+                            tf_rows = list(tf_rows)[-context_bars:]
+                            candles_by_tf[tf_key] = tf_rows
+                        else:
+                            mtf_fetch_errors.append({"timeframe": tf_key, "reason": "NO_DATA"})
+                    except Exception as tf_err:
+                        mtf_fetch_errors.append({
+                            "timeframe": tf_key,
+                            "reason": f"{type(tf_err).__name__}: {str(tf_err)}"[:160],
+                        })
+
             fractal_res = fractal_engine.analyze_fractals(
                 symbol=request.Asset,
                 primary_timeframe=timeframe,
@@ -580,6 +628,9 @@ class FeatureExtractionResearchEngine(IResearchEngine):
             )
             enriched_findings["fractal_analysis"] = fractal_res
             enriched_findings["pipeline_outputs"]["fractal_analysis"] = fractal_res
+            enriched_findings["fractal_analysis_timeframes_supplied"] = sorted(candles_by_tf)
+            if mtf_fetch_errors:
+                enriched_findings["fractal_analysis_timeframe_fetch_warnings"] = mtf_fetch_errors
         except Exception as fe_err:
             enriched_findings["fractal_analysis_error"] = str(fe_err)
 

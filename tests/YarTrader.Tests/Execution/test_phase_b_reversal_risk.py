@@ -82,6 +82,36 @@ class TestPhaseBRiskAndReversal:
         assert result2["add_on_allowed"]
         assert result2["add_on_risk_pct"] == 1.0
 
+    def test_economic_wave_exit_requires_confirmed_and_cost_positive_reverse_setup(self):
+        manager = ReversalHandoffManager()
+        closed = {
+            "symbol": "XAUUSD", "direction": "BUY", "exit_price": 2020.0,
+            "exit_reason": "ECONOMIC_WAVE_EXHAUSTION", "trading_style": "FAST_SCALP"
+        }
+        no_edge = manager.evaluate_reversal_candidate(
+            closed_position=closed,
+            market_structure={
+                "has_rtm_zone": True, "reversal_confirmed": True,
+                "net_expected_value_r": -0.1, "net_reward_risk": 2.0,
+                "suggested_sl_pips": 20, "suggested_tp_pips": 120, "win_probability": 0.60
+            },
+            account_equity=10000.0, free_margin=8000.0, spread_pip=1.0
+        )
+        assert not no_edge.is_candidate
+        assert no_edge.reversal_direction == "WAIT"
+
+        good = manager.evaluate_reversal_candidate(
+            closed_position=closed,
+            market_structure={
+                "has_rtm_zone": True, "reversal_confirmed": True,
+                "net_expected_value_r": 0.25, "net_reward_risk": 1.8,
+                "suggested_sl_pips": 20, "suggested_tp_pips": 120, "win_probability": 0.60
+            },
+            account_equity=10000.0, free_margin=8000.0, spread_pip=1.0
+        )
+        assert good.is_candidate
+        assert good.reversal_direction == "SELL"
+
     def test_reversal_handoff_candidate_evaluation(self):
         manager = ReversalHandoffManager()
         closed_pos = {

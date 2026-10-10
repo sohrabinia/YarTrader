@@ -20,6 +20,8 @@ from src.Decision.Intelligence.services import (
     DecisionHistoryStore
 )
 from src.Decision.Intelligence.professional_signal_engine import ProfessionalSignalEngine
+from src.Decision.Intelligence.hierarchical_base_behavior_engine import HierarchicalBaseBehaviorEngine
+from src.Decision.Intelligence.multitimeframe_base_behavior_monitor import MultitimeframeBaseBehaviorMonitor
 from src.Decision.Intelligence.timeframe_selector import UnifiedSignalContract
 from src.Data.MarketData.Models.models import MarketDataPoint
 from src.Infrastructure.exceptions import ValidationException
@@ -41,6 +43,11 @@ class DecisionEngine(IDecisionEngine):
         self.validator = DecisionValidator()
         self.history_store = DecisionHistoryStore()
         self.signal_engine = signal_engine or ProfessionalSignalEngine()
+        # Parent/child Base intelligence is proposal-only until a validated demo executor is added.
+        self.base_behavior_engine = HierarchicalBaseBehaviorEngine()
+        # Live closed-candle Base observer: hierarchy + reaction ledger, no broker side effects.
+        self.base_behavior_monitor = MultitimeframeBaseBehaviorMonitor()
+        self.last_base_behavior_report: Dict[str, Any] = {"status": "NOT_RUN", "execution_enabled": False}
 
     def generate_professional_signal(
         self,
@@ -53,12 +60,61 @@ class DecisionEngine(IDecisionEngine):
         Delegates signal generation directly to the integrated ProfessionalSignalEngine.
         Returns a UnifiedSignalContract containing the qualified BUY, SELL, or WAIT signal.
         """
+        # Run the Base watcher on the same multi-timeframe feed before scoring the
+        # conventional signal. Monitoring failures are recorded but do not corrupt
+        # or silently alter the existing signal path.
+        try:
+            self.last_base_behavior_report = self.base_behavior_monitor.analyze(
+                candles_by_tf=candles_by_tf, now=datetime.now().astimezone()
+            )
+        except Exception as exc:
+            self.last_base_behavior_report = {
+                "status": "MONITOR_ERROR", "error": str(exc),
+                "execution_enabled": False,
+            }
         return self.signal_engine.generate_unified_signal(
             symbol=symbol,
             candles_by_tf=candles_by_tf,
             spread_pip=spread_pip,
             account_balance=account_balance
         )
+
+    def generate_hierarchical_base_plan(
+        self,
+        events_by_tf: Dict[str, List[Dict[str, Any]]],
+        quote: Dict[str, float],
+        now: float,
+        historical_labels: Optional[List[Dict[str, Any]]] = None,
+        learning_as_of: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Generate a Base parent/child analysis and pending-order proposal only.
+
+        Historical labels are optional, but without sufficient prior labeled outcomes
+        the Base engine fails closed and returns WAIT. No broker order is submitted.
+        """
+        if historical_labels is not None:
+            self.base_behavior_engine.learn(
+                events_by_tf=events_by_tf,
+                labels=historical_labels,
+                as_of=int(learning_as_of if learning_as_of is not None else now),
+            )
+        return self.base_behavior_engine.analyze(events_by_tf=events_by_tf, quote=quote, now=now)
+
+    def analyze_multitimeframe_base_behavior(
+        self,
+        candles_by_tf: Dict[str, List[MarketDataPoint]],
+        now: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Analyze closed Base behavior across supplied timeframes.
+
+        The result includes detected zones, nested parent/child links, revisit
+        counts/depth/MFE/MAE, and an explicit WAIT decision until the strategy
+        has validated costed historical edge. This method never places orders.
+        Candle inputs are expected to be MarketDataPoint sequences keyed by TF.
+        """
+        if now is None:
+            now = datetime.now().astimezone()
+        return self.base_behavior_monitor.analyze(candles_by_tf=candles_by_tf, now=now)
 
     def evaluate_decision(self, context: DecisionContext) -> DecisionResult:
         """
