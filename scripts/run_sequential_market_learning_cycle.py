@@ -114,14 +114,15 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
                 "started_at": started, "broker_orders_submitted": 0}
 
     # Baseline and learned evaluation have isolated memories; held-out candles are identical.
-    baseline = BacktestAndLearningEngine(storage_dir=str(run_root / f"baseline_{symbol}"))
+    baseline = BacktestAndLearningEngine(storage_dir=str(run_root / f"baseline_{symbol}"), memory_autosave_every=250)
     baseline_result = baseline.run_backtest(
         symbol, timeframe, heldout, initial_balance=initial_balance,
         learn_from_outcomes=False,
     )
+    baseline.get_market_memory(symbol).flush_event_persistence()
     baseline_metrics = metric_snapshot(baseline_result)
 
-    learner = BacktestAndLearningEngine(storage_dir=str(ROOT / "runtime_logs" / "sequential_learning_memory" / f"learned_{symbol}"))
+    learner = BacktestAndLearningEngine(storage_dir=str(ROOT / "runtime_logs" / "sequential_learning_memory" / f"learned_{symbol}"), memory_autosave_every=250)
     memory = learner.get_market_memory(symbol)
     memory_before = memory.get_learning_statistics()
     training_result = learner.run_backtest(
@@ -136,7 +137,7 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
     memory.flush_event_persistence()
     evaluation_storage = run_root / f"evaluation_learned_{symbol}"
     shutil.copytree(learner.storage_dir, evaluation_storage)
-    evaluator = BacktestAndLearningEngine(storage_dir=str(evaluation_storage))
+    evaluator = BacktestAndLearningEngine(storage_dir=str(evaluation_storage), memory_autosave_every=250)
     learned_result = evaluator.run_backtest(
         symbol, timeframe, heldout, initial_balance=initial_balance,
         learn_from_outcomes=False,
