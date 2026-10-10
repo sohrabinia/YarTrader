@@ -20,12 +20,13 @@ class SessionExecutionManager:
     """
     Session Execution & EOD Lifecycle Manager for YarTrader Master Roadmap Phase C.
     Enforces:
-    1. Mandatory strictly >120-second minimum normal holding lifetime floor (`POSITION_MINIMUM_NORMAL_LIFETIME = 120.0`).
+    1. Legacy minimum-hold floor for discretionary exits only; never blocks protective stops
+       or explicitly confirmed structural/economic wave exits.
     2. Forbidden trading styles rejection (SWING, POSITION, OVERNIGHT).
-    3. Session EOD Entry Cutoff blocking entries when remaining session time <= 121s to guarantee >120s holding time before EOD.
-    4. Deterministic EOD Flattening sequence:
-       STOP ENTRIES -> CANCEL PENDING -> FLATTEN POSITIONS -> VERIFY ZERO STATE.
-    5. Forced safety exit isolation recording FORCED_SAFETY_EXIT separately from normal strategy behavior.
+    3. Session EOD entry cutoff and deterministic EOD flattening.
+    4. Forced safety exit isolation and auditable exit classification.
+    5. Reversal entry is separately gated by opposite-structure confirmation, net economics,
+       spread, and risk checks; closing a trade alone never authorizes a reverse order.
     """
 
     POSITION_MINIMUM_NORMAL_LIFETIME: float = 120.0  # Must be strictly > 120.0 seconds
@@ -37,29 +38,45 @@ class SessionExecutionManager:
     def evaluate_exit_permission(
         self,
         holding_duration_seconds: float,
-        exit_reason: str = "NORMAL_TAKE_PROFIT"
+        exit_reason: str = "NORMAL_TAKE_PROFIT",
+        wave_exit_confirmed: bool = False,
+        economic_reversal_confirmed: bool = False
     ) -> Dict[str, Any]:
         """
-        Enforces the strictly > 120-second minimum hold constraint.
-        Holding duration <= 120 seconds (including 120.0s) is strictly BLOCKED for normal strategy exits.
-        Genuine forced safety liquidations override minimum hold and are recorded separately as FORCED_SAFETY_EXIT.
+        Apply the legacy minimum-hold floor only to discretionary exits.
+
+        Confirmed structural invalidation / economic wave reversal must not be
+        trapped by a timer. Broker SL/TP orders are also never delayed by this
+        policy. A reverse entry remains a separate decision and requires its own
+        confirmation, net-of-cost edge, and risk checks.
         """
         forced_safety_reasons = {
-            "FORCED_SAFETY_EXIT",
-            "BROKER_LIQUIDATION",
-            "MARGIN_LIQUIDATION",
-            "CATASTROPHIC_ACCOUNT_PROTECTION",
-            "SYSTEM_SHUTDOWN",
-            "EMERGENCY_STOP"
+            "FORCED_SAFETY_EXIT", "BROKER_LIQUIDATION", "MARGIN_LIQUIDATION",
+            "CATASTROPHIC_ACCOUNT_PROTECTION", "SYSTEM_SHUTDOWN", "EMERGENCY_STOP"
+        }
+        protective_exit_reasons = {"STOP_LOSS", "BROKER_STOP_LOSS", "CATASTROPHIC_STOP"}
+        wave_exit_reasons = {
+            "STRUCTURAL_INVALIDATION", "REVERSAL_EXIT", "WAVE_REVERSAL_CONFIRMED",
+            "ECONOMIC_WAVE_EXHAUSTION", "SIGNAL_EXIT"
         }
         reason_upper = exit_reason.upper()
         is_forced_safety = reason_upper in forced_safety_reasons
+        is_protective_exit = reason_upper in protective_exit_reasons
+        is_confirmed_wave_exit = reason_upper in wave_exit_reasons and (
+            wave_exit_confirmed or economic_reversal_confirmed
+        )
 
-        # Strict rule: holding_duration_seconds MUST be strictly > 120.0
-        if holding_duration_seconds <= self.POSITION_MINIMUM_NORMAL_LIFETIME and not is_forced_safety:
+        if holding_duration_seconds < 0:
+            return {
+                "allowed": False, "rejection_reason": "INVALID_NEGATIVE_HOLD_DURATION",
+                "actual_duration": holding_duration_seconds, "exit_type": "BLOCKED"
+            }
+
+        if (holding_duration_seconds <= self.POSITION_MINIMUM_NORMAL_LIFETIME
+                and not (is_forced_safety or is_protective_exit or is_confirmed_wave_exit)):
             msg = (
-                f"Normal exit rejected: position holding duration ({holding_duration_seconds:.3f}s) "
-                f"<= minimum 120.0s threshold (strictly > 120s required)."
+                f"Discretionary exit rejected: holding duration ({holding_duration_seconds:.3f}s) "
+                f"<= legacy minimum {self.POSITION_MINIMUM_NORMAL_LIFETIME:.1f}s."
             )
             logger.warning(f"[SessionExecutionManager] {msg}")
             return {
@@ -71,12 +88,15 @@ class SessionExecutionManager:
                 "exit_type": "BLOCKED"
             }
 
+        exit_type = (
+            "FORCED_SAFETY_EXIT" if is_forced_safety else
+            "PROTECTIVE_EXIT" if is_protective_exit else
+            "CONFIRMED_WAVE_EXIT" if is_confirmed_wave_exit else "NORMAL_EXIT"
+        )
         return {
-            "allowed": True,
-            "rejection_reason": None,
-            "message": "Exit permitted.",
-            "actual_duration": holding_duration_seconds,
-            "exit_type": "FORCED_SAFETY_EXIT" if is_forced_safety else "NORMAL_EXIT"
+            "allowed": True, "rejection_reason": None,
+            "message": "Exit permitted by lifecycle policy.",
+            "actual_duration": holding_duration_seconds, "exit_type": exit_type
         }
 
     def evaluate_entry_permission(

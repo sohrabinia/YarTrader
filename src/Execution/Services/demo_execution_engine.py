@@ -226,13 +226,24 @@ class DemoExecutionEngine:
         volume: Optional[float] = None,
         comment: str = "YarTrader Close",
         open_timestamp: Optional[float] = None,
-        is_eod_flatten: bool = False
+        is_eod_flatten: bool = False,
+        exit_reason: str = "NORMAL_EXIT",
+        wave_exit_confirmed: bool = False,
+        economic_reversal_confirmed: bool = False
     ) -> OrderResponse:
         """
-        Submits CLOSE request for position ticket using authoritative broker-reported volume.
-        Enforces 120-second minimum holding period unless overridden by EOD flattening.
+        Close using authoritative broker facts. The legacy hold floor applies only to
+        discretionary exits; protective stops and confirmed structural/economic exits
+        must not be delayed. Reversal entry is a separate, independently gated order.
         """
-        if open_timestamp is not None and not is_eod_flatten:
+        reason = str(exit_reason or "NORMAL_EXIT").upper()
+        bypass_hold = is_eod_flatten or reason in {
+            "STOP_LOSS", "BROKER_STOP_LOSS", "CATASTROPHIC_STOP"
+        } or (reason in {
+            "STRUCTURAL_INVALIDATION", "REVERSAL_EXIT", "WAVE_REVERSAL_CONFIRMED",
+            "ECONOMIC_WAVE_EXHAUSTION", "SIGNAL_EXIT"
+        } and (wave_exit_confirmed or economic_reversal_confirmed))
+        if open_timestamp is not None and not bypass_hold:
             # MT5 position timestamps use broker/server epoch. Compare against an MT5
             # tick timestamp, not the Windows host clock, which can be several hours apart.
             now_for_hold = None

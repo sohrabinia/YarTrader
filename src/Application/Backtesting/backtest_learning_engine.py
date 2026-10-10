@@ -304,6 +304,31 @@ class BacktestAndLearningEngine:
                 action = hypothesis.get("suggested_virtual_action", "WAIT")
                 params = hypothesis.get("trade_parameters") or {}
                 confidence = float(hypothesis.get("hypothesis_confidence", 0.0))
+                # Backtest-only cold-start: derive a causal structural stop from past bars
+                # when clean Brain memory has no learned excursion parameters yet.
+                if action in ["BUY", "SELL"] and confidence >= 50.0 and not params:
+                    recent = history_candles[-15:]
+                    if len(recent) >= 15:
+                        ranges = []
+                        prev_close = float(recent[0]["close"])
+                        for candle in recent[1:]:
+                            hi, lo, cl = float(candle["high"]), float(candle["low"]), float(candle["close"])
+                            ranges.append(max(hi - lo, abs(hi - prev_close), abs(lo - prev_close)))
+                            prev_close = cl
+                        atr = sum(ranges[-14:]) / max(1, len(ranges[-14:]))
+                        entry = current_price
+                        if atr > 0.0:
+                            if action == "BUY":
+                                stop = min(float(c["low"]) for c in recent[-12:]) - 0.15 * atr
+                                distance = entry - stop
+                                target = entry + 1.5 * distance
+                            else:
+                                stop = max(float(c["high"]) for c in recent[-12:]) + 0.15 * atr
+                                distance = stop - entry
+                                target = entry - 1.5 * distance
+                            if 0.0 < distance <= 3.0 * atr and target > 0.0:
+                                params = {"entry": entry, "stop_loss": stop, "take_profit": target,
+                                          "risk_reward": 1.5, "source": "COLD_START_STRUCTURAL_ATR_BACKTEST_ONLY"}
 
                 if action in ["BUY", "SELL"] and confidence >= 50.0 and params.get("stop_loss") and params.get("take_profit") and float(params.get("risk_reward", 0.0)) >= 1.5:
                     open_position = {
