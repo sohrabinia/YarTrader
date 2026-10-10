@@ -97,8 +97,8 @@ def metric_snapshot(result: dict[str, Any]) -> dict[str, Any]:
 
 def classify_cycle_status(results: list[dict[str, Any]]) -> dict[str, Any]:
     execution_completed = all(r.get("status") in {
-        "COMPLETED_WITH_LEARNING", "LEARNING_UPDATES_REPORTED_MEMORY_DELTA_UNCONFIRMED",
-        "COMPLETED_NO_LEARNING_UPDATES",
+        "COMPLETED_WITH_LEARNING", "COMPLETED_EXPERIENCE_LEARNING_NO_PATTERN_PROMOTION",
+        "LEARNING_UPDATES_REPORTED_MEMORY_DELTA_UNCONFIRMED", "COMPLETED_NO_LEARNING_UPDATES",
     } for r in results)
     learning_verified = bool(results) and all(
         r.get("status") == "COMPLETED_WITH_LEARNING" for r in results
@@ -169,8 +169,18 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
         int(memory_after_training.get("total_experiences", 0))
         - int(memory_before.get("total_experiences", 0))
     )
-    if updates > 0 and changed_experiences > 0:
+    new_patterns = (
+        int(memory_after_training.get("patterns_created", 0))
+        - int(memory_before.get("patterns_created", 0))
+    )
+    new_concepts = (
+        int(memory_after_training.get("concepts_learned", 0))
+        - int(memory_before.get("concepts_learned", 0))
+    )
+    if updates > 0 and changed_experiences > 0 and (new_patterns > 0 or new_concepts > 0):
         status = "COMPLETED_WITH_LEARNING"
+    elif updates > 0 and changed_experiences > 0:
+        status = "COMPLETED_EXPERIENCE_LEARNING_NO_PATTERN_PROMOTION"
     elif updates > 0:
         status = "LEARNING_UPDATES_REPORTED_MEMORY_DELTA_UNCONFIRMED"
     else:
@@ -186,6 +196,10 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
         "training": metric_snapshot(training_result),
         "memory_before": memory_before,
         "memory_after_training": memory_after_training,
+        "new_experiences": changed_experiences,
+        "new_patterns_created": new_patterns,
+        "new_concepts_learned": new_concepts,
+        "learning_updates_count": updates,
         "learned_heldout": learned_metrics,
         "heldout_delta": {
             "net_pnl": (learned_metrics["net_pnl"] - baseline_metrics["net_pnl"])

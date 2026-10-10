@@ -47,3 +47,14 @@ def test_no_learning_updates_are_not_reported_as_verified_success():
     assert result["execution_completed"] is True
     assert result["learning_verified_for_all_symbols"] is False
     assert result["status"] == "COMPLETED_EXECUTION_LEARNING_UNVERIFIED"
+
+
+def test_experience_growth_without_pattern_or_concept_is_not_verified_learning():
+    result = classify_cycle_status([
+        {"symbol": "XAUUSD", "status": "COMPLETED_EXPERIENCE_LEARNING_NO_PATTERN_PROMOTION"},
+        {"symbol": "EURUSD", "status": "COMPLETED_WITH_LEARNING"},
+    ])
+
+    assert result["execution_completed"] is True
+    assert result["learning_verified_for_all_symbols"] is False
+    assert result["status"] == "COMPLETED_EXECUTION_LEARNING_UNVERIFIED"
