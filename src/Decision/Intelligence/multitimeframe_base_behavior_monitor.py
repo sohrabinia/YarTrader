@@ -80,10 +80,10 @@ def _normalize_candles(candles: Sequence[Any], tf: str, now: int) -> list[dict[s
 class MultitimeframeBaseBehaviorMonitor:
     """Stateful snapshot builder. All returned trade actions are proposal-only."""
 
-    def __init__(self, state_path: str | Path | None = None) -> None:
+    def __init__(self, state_path: str | Path | None = "runtime_logs/base_behavior_monitor_state.json") -> None:
         # Keep durable observation memory separate from source control and credentials.
         # Pass state_path=None to opt out (useful for isolated tests/research runs).
-        self.state_path = Path(state_path) if state_path is not None else Path("runtime_logs") / "base_behavior_monitor_state.json"
+        self.state_path = Path(state_path) if state_path is not None else None
         self._reaction_state: dict[str, dict[str, Any]] = {"schema_version": 1, "bases": {}}
         self._persistence_status = "DISABLED" if state_path is None else "NOT_LOADED"
         if state_path is not None:

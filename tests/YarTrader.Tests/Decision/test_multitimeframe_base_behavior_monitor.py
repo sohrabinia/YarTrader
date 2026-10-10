@@ -95,5 +95,15 @@ class MultitimeframeBaseBehaviorMonitorTests(unittest.TestCase):
             self.assertEqual(history[0]["mfe_atr"], 1.3)
 
 
+    def test_none_state_path_disables_durable_persistence(self):
+        monitor = MultitimeframeBaseBehaviorMonitor(state_path=None)
+        self.assertIsNone(monitor.state_path)
+        self.assertEqual(monitor._persistence_status, "DISABLED")
+        reaction = {"timeframe": "M1", "start_time": 60, "penetration_fraction": 0.1}
+        history = monitor._merge_reaction_history("base", "M1", [reaction])
+        self.assertEqual(len(history), 1)
+        self.assertEqual(monitor._persistence_status, "DISABLED")
+
+
 if __name__ == "__main__":
     unittest.main()
