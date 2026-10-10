@@ -130,8 +130,14 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
     )
     memory_after_training = memory.get_learning_statistics()
 
-    # Re-run the exact same held-out window, after training and with outcome learning frozen.
-    learned_result = learner.run_backtest(
+    # Freeze a copy of the post-training state for held-out evaluation. The evaluation
+    # must not mutate the persistent training memory with held-out observations.
+    import shutil
+    memory.flush_event_persistence()
+    evaluation_storage = run_root / f"evaluation_learned_{symbol}"
+    shutil.copytree(learner.storage_dir, evaluation_storage)
+    evaluator = BacktestAndLearningEngine(storage_dir=str(evaluation_storage))
+    learned_result = evaluator.run_backtest(
         symbol, timeframe, heldout, initial_balance=initial_balance,
         learn_from_outcomes=False,
     )
