@@ -184,10 +184,20 @@ def main() -> int:
     run_id = "cycle-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     run_root = ROOT / args.output_dir / run_id
     results = []
+    cycle_started = datetime.now(timezone.utc).isoformat()
     # Strictly sequential: finish and persist gold's result before starting EURUSD.
+    # A failure on one symbol is recorded and must not silently skip the next symbol.
     for symbol in SYMBOL_ORDER:
-        result = run_symbol_cycle(symbol, args.timeframe, args.years, args.train_fraction,
-                                  args.initial_balance, run_root)
+        try:
+            result = run_symbol_cycle(symbol, args.timeframe, args.years, args.train_fraction,
+                                      args.initial_balance, run_root)
+        except Exception as exc:
+            result = {
+                "symbol": symbol, "status": "ERROR",
+                "error": f"{type(exc).__name__}: {exc}",
+                "failed_at": datetime.now(timezone.utc).isoformat(),
+                "broker_orders_submitted": 0,
+            }
         results.append(result)
         atomic_json(run_root / f"{symbol}_result.json", result)
         print(f"{symbol}: {result['status']}", flush=True)
@@ -198,7 +208,8 @@ def main() -> int:
     } for r in results)
     report = {
         "run_id": run_id, "status": "COMPLETED_RESEARCH_CYCLE" if complete else "PARTIALLY_BLOCKED",
-        "started_at": datetime.now(timezone.utc).isoformat(),
+        "started_at": cycle_started,
+        "completed_at": datetime.now(timezone.utc).isoformat(),
         "symbol_order": list(SYMBOL_ORDER), "timeframe": args.timeframe.upper(),
         "years_requested": args.years, "train_fraction": args.train_fraction,
         "market_data_fabricated": False, "broker_orders_submitted": 0,
