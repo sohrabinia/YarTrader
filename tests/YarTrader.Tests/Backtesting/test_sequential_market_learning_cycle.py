@@ -1,6 +1,10 @@
 import json
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+from src.Application.Backtesting.backtest_learning_engine import (
+    BacktestAndLearningEngine, build_research_fallback_signal,
+)
 from scripts.run_sequential_market_learning_cycle import (
     SYMBOL_ORDER, atomic_json, classify_cycle_status, count_resolved_outcome_experiences, metric_snapshot,
 )
@@ -70,3 +74,57 @@ def test_resolved_outcome_count_excludes_observation_only_and_unlabeled_records(
     })
 
     assert count_resolved_outcome_experiences(memory) == 2
+
+
+def test_research_fallback_generates_causal_signal_from_trending_closed_candles():
+    candles = []
+    for index in range(100):
+        close = 100.0 + 0.05 * index
+        candles.append({
+            "timestamp": f"bar-{index}", "open": close - 0.02,
+            "high": close + 0.15, "low": close - 0.15,
+            "close": close, "volume": 1.0,
+        })
+
+    signal = build_research_fallback_signal(candles)
+
+    assert signal is not None
+    assert signal["action"] == "BUY"
+    assert signal["trade_parameters"]["source"] == "RESEARCH_FALLBACK_EMA_TREND"
+    assert signal["trade_parameters"]["risk_reward"] == 1.5
+    assert len(signal["sequence_signature"]) == 4
+
+
+def test_research_fallback_rejects_flat_market_and_short_history():
+    flat = [{
+        "timestamp": f"bar-{index}", "open": 100.0,
+        "high": 100.1, "low": 99.9, "close": 100.0, "volume": 1.0,
+    } for index in range(100)]
+
+    assert build_research_fallback_signal(flat) is None
+    assert build_research_fallback_signal(flat[:50]) is None
+
+
+def test_backtest_opt_in_fallback_records_research_strategy_trades(tmp_path):
+    candles = []
+    start = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    for index in range(180):
+        close = 100.0 + 0.05 * index
+        candles.append({
+            "timestamp": (start + timedelta(hours=index)).isoformat(),
+            "open": close - 0.02, "high": close + 0.15,
+            "low": close - 0.15, "close": close, "volume": 1.0,
+        })
+
+    engine = BacktestAndLearningEngine(
+        storage_dir=str(tmp_path / "backtest"), memory_autosave_every=1000,
+    )
+    result = engine.run_backtest(
+        "XAUUSD", "H1", candles, initial_balance=10000.0,
+        learn_from_outcomes=False, research_fallback_enabled=True,
+    )
+
+    assert any(
+        trade.get("strategy") == "RESEARCH_FALLBACK_EMA_TREND"
+        for trade in result["closed_trades"]
+    )

@@ -147,7 +147,7 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
     baseline = BacktestAndLearningEngine(storage_dir=str(run_root / f"baseline_{symbol}"), memory_autosave_every=250)
     baseline_result = baseline.run_backtest(
         symbol, timeframe, heldout, initial_balance=initial_balance,
-        learn_from_outcomes=False,
+        learn_from_outcomes=False, research_fallback_enabled=True,
     )
     baseline.get_market_memory(symbol).flush_event_persistence()
     baseline_metrics = metric_snapshot(baseline_result)
@@ -158,7 +158,7 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
     resolved_before = count_resolved_outcome_experiences(memory)
     training_result = learner.run_backtest(
         symbol, timeframe, training, initial_balance=initial_balance,
-        learn_from_outcomes=True,
+        learn_from_outcomes=True, research_fallback_enabled=True,
     )
     memory_after_training = memory.get_learning_statistics()
     resolved_after = count_resolved_outcome_experiences(memory)
@@ -173,7 +173,7 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
     evaluator = BacktestAndLearningEngine(storage_dir=str(evaluation_storage), memory_autosave_every=250)
     learned_result = evaluator.run_backtest(
         symbol, timeframe, heldout, initial_balance=initial_balance,
-        learn_from_outcomes=False,
+        learn_from_outcomes=False, research_fallback_enabled=True,
     )
     learned_metrics = metric_snapshot(learned_result)
     updates = int(training_result.get("learning_updates_count", 0))
@@ -204,6 +204,9 @@ def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: fl
         "data_source": source["data_source"], "history": source,
         "train_window": {"bars": len(training), "start": training[0]["timestamp"], "end": training[-1]["timestamp"]},
         "heldout_window": {"bars": len(heldout), "start": heldout[0]["timestamp"], "end": heldout[-1]["timestamp"]},
+        "baseline_strategy_mode": "BRAIN_PLUS_RESEARCH_FALLBACK_EMA_TREND",
+        "training_strategy_mode": "BRAIN_PLUS_RESEARCH_FALLBACK_EMA_TREND",
+        "learned_strategy_mode": "BRAIN_PLUS_RESEARCH_FALLBACK_EMA_TREND_WITH_FROZEN_OUTCOMES",
         "baseline_heldout": baseline_metrics,
         "training": metric_snapshot(training_result),
         "memory_before": memory_before,
