@@ -95,6 +95,27 @@ def metric_snapshot(result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def classify_cycle_status(results: list[dict[str, Any]]) -> dict[str, Any]:
+    execution_completed = all(r.get("status") in {
+        "COMPLETED_WITH_LEARNING", "LEARNING_UPDATES_REPORTED_MEMORY_DELTA_UNCONFIRMED",
+        "COMPLETED_NO_LEARNING_UPDATES",
+    } for r in results)
+    learning_verified = bool(results) and all(
+        r.get("status") == "COMPLETED_WITH_LEARNING" for r in results
+    )
+    if learning_verified:
+        overall_status = "COMPLETED_WITH_VERIFIED_LEARNING"
+    elif execution_completed:
+        overall_status = "COMPLETED_EXECUTION_LEARNING_UNVERIFIED"
+    else:
+        overall_status = "PARTIALLY_BLOCKED"
+    return {
+        "status": overall_status,
+        "execution_completed": execution_completed,
+        "learning_verified_for_all_symbols": learning_verified,
+    }
+
+
 def run_symbol_cycle(symbol: str, timeframe: str, years: int, train_fraction: float,
                      initial_balance: float, run_root: Path) -> dict[str, Any]:
     from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
@@ -209,12 +230,9 @@ def main() -> int:
         atomic_json(run_root / f"{symbol}_result.json", result)
         print(f"{symbol}: {result['status']}", flush=True)
 
-    complete = all(r.get("status") in {
-        "COMPLETED_WITH_LEARNING", "LEARNING_UPDATES_REPORTED_MEMORY_DELTA_UNCONFIRMED",
-        "COMPLETED_NO_LEARNING_UPDATES",
-    } for r in results)
+    status_summary = classify_cycle_status(results)
     report = {
-        "run_id": run_id, "status": "COMPLETED_RESEARCH_CYCLE" if complete else "PARTIALLY_BLOCKED",
+        "run_id": run_id, **status_summary,
         "started_at": cycle_started,
         "completed_at": datetime.now(timezone.utc).isoformat(),
         "symbol_order": list(SYMBOL_ORDER), "timeframe": args.timeframe.upper(),
@@ -224,7 +242,7 @@ def main() -> int:
     }
     atomic_json(run_root / "cycle_report.json", report)
     print(f"Report: {run_root / 'cycle_report.json'}", flush=True)
-    return 0 if complete else 2
+    return 0 if status_summary["learning_verified_for_all_symbols"] else 2
 
 
 if __name__ == "__main__":

@@ -1,6 +1,8 @@
 import json
 
-from scripts.run_sequential_market_learning_cycle import SYMBOL_ORDER, atomic_json, metric_snapshot
+from scripts.run_sequential_market_learning_cycle import (
+    SYMBOL_ORDER, atomic_json, classify_cycle_status, metric_snapshot,
+)
 
 
 def test_market_order_is_gold_then_eurusd():
@@ -34,3 +36,14 @@ def test_atomic_json_persists_parseable_report(tmp_path):
         "status": "ok", "broker_orders_submitted": 0
     }
     assert not path.with_suffix(".json.tmp").exists()
+
+
+def test_no_learning_updates_are_not_reported_as_verified_success():
+    result = classify_cycle_status([
+        {"symbol": "XAUUSD", "status": "COMPLETED_WITH_LEARNING"},
+        {"symbol": "EURUSD", "status": "COMPLETED_NO_LEARNING_UPDATES"},
+    ])
+
+    assert result["execution_completed"] is True
+    assert result["learning_verified_for_all_symbols"] is False
+    assert result["status"] == "COMPLETED_EXECUTION_LEARNING_UNVERIFIED"
