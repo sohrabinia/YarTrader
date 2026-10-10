@@ -78,7 +78,7 @@ class BrainPatternIdentityTests(unittest.TestCase):
                     "timestamp": (base + timedelta(minutes=i)).isoformat(),
                     "open": price - 0.2, "high": price + 0.5,
                     "low": price - 0.5, "close": price, "volume": 100,
-                }, simulate_virtual_trade=False)
+                }, simulate_virtual_trade=False, timeframe_signature=["M15"])
             hypothesis = report.to_dict()["active_hypotheses"][0]
             self.assertEqual(hypothesis["suggested_virtual_action"], "BUY")
             self.assertGreaterEqual(hypothesis["hypothesis_confidence"], 50.0)

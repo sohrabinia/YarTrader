@@ -14,6 +14,9 @@ import hashlib
 import json
 import os
 import struct
+import threading
+import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Optional
 
@@ -24,6 +27,48 @@ _HEADER = struct.Struct(">4sBBQQ32s")
 _CODEC_RAW = 0
 _CODEC_ZSTD = 1
 _CODEC_GZIP = 2
+_INDEX_LOCKS: dict[str, threading.RLock] = {}
+_INDEX_LOCKS_GUARD = threading.Lock()
+
+
+@contextmanager
+def _exclusive_file_lock(path: Path):
+    """Serialize index updates across threads and processes on Windows and Unix."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    key = str(path.resolve())
+    with _INDEX_LOCKS_GUARD:
+        local_lock = _INDEX_LOCKS.setdefault(key, threading.RLock())
+    with local_lock:
+        with path.open("a+b") as lock_file:
+            if os.name == "nt":
+                import msvcrt
+                lock_file.seek(0, os.SEEK_END)
+                if lock_file.tell() == 0:
+                    lock_file.write(b"0")
+                    lock_file.flush()
+                acquired = False
+                for _ in range(120):
+                    try:
+                        lock_file.seek(0)
+                        msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+                        acquired = True
+                        break
+                    except OSError:
+                        time.sleep(0.05)
+                if not acquired:
+                    raise TimeoutError(f"Timed out acquiring artifact index lock: {path}")
+                try:
+                    yield
+                finally:
+                    lock_file.seek(0)
+                    msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def _zstd_module():
@@ -98,16 +143,25 @@ class YarTraderArtifactStore:
 
         codec, payload = _compress(data)
         if not target.exists():
-            tmp = target.with_suffix(".tmp")
+            # Unique staging paths prevent concurrent writers from clobbering one another.
+            tmp = target.with_name(
+                f"{target.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+            )
             header = _HEADER.pack(
                 MAGIC, VERSION, codec, len(data), len(payload), bytes.fromhex(digest)
             )
-            with open(tmp, "wb") as handle:
-                handle.write(header)
-                handle.write(payload)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(tmp, target)
+            try:
+                with open(tmp, "wb") as handle:
+                    handle.write(header)
+                    handle.write(payload)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                if target.exists():
+                    tmp.unlink(missing_ok=True)
+                else:
+                    os.replace(tmp, target)
+            finally:
+                tmp.unlink(missing_ok=True)
 
         record = {
             "id": digest,
@@ -140,13 +194,30 @@ class YarTraderArtifactStore:
         return result
 
     def _write_index_entry(self, record: dict[str, Any]) -> None:
-        entries: dict[str, Any] = {}
-        if self.index.exists():
+        lock_path = self.root / ".index.lock"
+        with _exclusive_file_lock(lock_path):
+            entries: dict[str, Any] = {}
+            if self.index.exists():
+                try:
+                    entries = json.loads(self.index.read_text(encoding="utf-8"))
+                except (OSError, ValueError) as exc:
+                    # Never silently replace a damaged index with an empty one.
+                    raise RuntimeError(
+                        f"Artifact index is unreadable; refusing to overwrite {self.index}"
+                    ) from exc
+                if not isinstance(entries, dict):
+                    raise RuntimeError(
+                        f"Artifact index has an invalid root type; refusing to overwrite {self.index}"
+                    )
+            entries[record["id"]] = record
+            tmp = self.index.with_name(
+                f"{self.index.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+            )
             try:
-                entries = json.loads(self.index.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                entries = {}
-        entries[record["id"]] = record
-        tmp = self.index.with_suffix(".tmp")
-        tmp.write_text(json.dumps(entries, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-        os.replace(tmp, self.index)
+                with tmp.open("w", encoding="utf-8") as handle:
+                    json.dump(entries, handle, ensure_ascii=False, separators=(",", ":"))
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(tmp, self.index)
+            finally:
+                tmp.unlink(missing_ok=True)

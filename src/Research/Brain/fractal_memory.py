@@ -42,11 +42,14 @@ class FractalPatternMemory:
         self._seed_default_patterns()
 
     def _seed_default_patterns(self) -> None:
+        # Fresh installs start without fabricated historical win-rate priors.
+        # These are pattern definitions only; confidence remains neutral until
+        # genuine broker-reconciled outcomes are recorded.
         default_records = [
-            FractalPatternRecord("PAT_LIQUIDITY_SWEEP_REVERSAL", "M15", "TRENDING_UP", 42, 29, 13, 0.69, 0.85),
-            FractalPatternRecord("PAT_MSS_BREAKOUT", "H1", "TRENDING_UP", 35, 25, 10, 0.71, 0.88),
-            FractalPatternRecord("PAT_RANGE_COMPRESSION_EXPANSION", "H4", "RANGE_BOUND", 28, 18, 10, 0.64, 0.78),
-            FractalPatternRecord("PAT_FALSE_BREAKOUT_TRAP", "M5", "RANGE_BOUND", 55, 38, 17, 0.69, 0.82)
+            FractalPatternRecord("PAT_LIQUIDITY_SWEEP_REVERSAL", "M15", "TRENDING_UP", 0, 0, 0, 0.0, 0.5),
+            FractalPatternRecord("PAT_MSS_BREAKOUT", "H1", "TRENDING_UP", 0, 0, 0, 0.0, 0.5),
+            FractalPatternRecord("PAT_RANGE_COMPRESSION_EXPANSION", "H4", "RANGE_BOUND", 0, 0, 0, 0.0, 0.5),
+            FractalPatternRecord("PAT_FALSE_BREAKOUT_TRAP", "M5", "RANGE_BOUND", 0, 0, 0, 0.0, 0.5)
         ]
         for rec in default_records:
             self.memory[rec.pattern_id] = rec

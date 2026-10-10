@@ -16,6 +16,7 @@ import math
 import json
 import time
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
@@ -45,7 +46,7 @@ class DemoExecutionEngine:
         from src.Application.Deployment.storage import YarTraderStorageManager
         storage_mgr = YarTraderStorageManager.get_manager()
 
-        if not log_dir or not os.isabs(log_dir):
+        if not log_dir or not os.path.isabs(log_dir):
             sub_dir = log_dir if log_dir else "demo_execution"
             sub_folder = os.path.basename(sub_dir) if ("/" in sub_dir or "\\" in sub_dir) else sub_dir
             self.log_dir = os.path.join(storage_mgr.get_log_dir(), sub_folder)
@@ -136,26 +137,56 @@ class DemoExecutionEngine:
             response = self.adapter.send_order_to_broker(req)
 
             evidence["status"] = response.Status
-            evidence["order_send_retcode"] = response.Retcode
+            is_order_check_failure = (
+                response.Status == "Failed"
+                and "order_check failed" in str(response.Comment).lower()
+            )
+            # An order_check rejection means order_send was never called; do not
+            # misreport the adapter's retcode as an order-send result.
+            evidence["order_send_retcode"] = None if is_order_check_failure else response.Retcode
             evidence["order_ticket"] = response.OrderId
             evidence["deal_ticket"] = response.DealTicket
             evidence["rejection_reason"] = response.Comment if response.Status == "Failed" else None
 
-            if response.Retcode == 10018:
+            raw_response = response.RawResponse if isinstance(response.RawResponse, dict) else {}
+            actual_retcode = response.Retcode
+            if is_order_check_failure:
+                raw_retcode = raw_response.get("retcode")
+                # Prefer an explicit retcode embedded in a legacy comment if older
+                # evidence disagrees with the structured response field.
+                match = re.search(r"retcode\s*=\s*(\d+)", str(response.Comment), re.IGNORECASE)
+                if match:
+                    actual_retcode = int(match.group(1))
+                elif isinstance(raw_retcode, int):
+                    actual_retcode = raw_retcode
+                evidence["order_check_retcode"] = actual_retcode
+                evidence["order_check_comment"] = raw_response.get("comment") or response.Comment
+                trade_req = raw_response.get("trade_req")
+                if isinstance(trade_req, dict):
+                    evidence["request_diagnostics"] = {
+                        key: trade_req.get(key) for key in
+                        ("symbol", "type", "volume", "price", "sl", "tp", "deviation", "type_filling", "type_time")
+                        if key in trade_req
+                    }
+            if actual_retcode == 10018:
                 evidence["retcode_classification"] = "MARKET_CLOSED"
                 evidence["rejection_reason"] = "Market is closed (10018 MARKET_CLOSED). Recovering safely."
-            elif response.Retcode == 10009:
+            elif actual_retcode in (10008, 10009, 10010):
                 evidence["retcode_classification"] = "SUCCESS"
-            elif response.Retcode == 10013:
+            elif actual_retcode == 10013:
+                evidence["retcode_classification"] = "INVALID_REQUEST"
+            elif actual_retcode == 10016:
                 evidence["retcode_classification"] = "INVALID_STOPS"
-            elif response.Retcode == 10014:
+            elif actual_retcode == 10014:
                 evidence["retcode_classification"] = "INVALID_VOLUME"
-            elif response.Retcode == 10019:
+            elif actual_retcode == 10030:
+                evidence["retcode_classification"] = "UNSUPPORTED_FILLING_MODE"
+            elif actual_retcode == 10019:
                 evidence["retcode_classification"] = "INSUFFICIENT_MARGIN"
-            elif response.Retcode == 10021:
+            elif actual_retcode == 10021:
                 evidence["retcode_classification"] = "NO_CONNECTION"
             else:
-                evidence["retcode_classification"] = f"RETCODE_{response.Retcode}"
+                evidence["retcode_classification"] = f"RETCODE_{actual_retcode}"
 
             self._log_evidence(evidence)
             if response.Status != "Failed" and response.DealTicket:
@@ -202,7 +233,27 @@ class DemoExecutionEngine:
         Enforces 120-second minimum holding period unless overridden by EOD flattening.
         """
         if open_timestamp is not None and not is_eod_flatten:
-            elapsed_sec = time.time() - open_timestamp
+            # MT5 position timestamps use broker/server epoch. Compare against an MT5
+            # tick timestamp, not the Windows host clock, which can be several hours apart.
+            now_for_hold = None
+            if type(self.adapter).__name__ == "RealMT5BrokerAdapter":
+                try:
+                    quote = self.adapter.get_symbol_tick(symbol)
+                    quote_time = quote.get("time") if isinstance(quote, dict) else None
+                    if isinstance(quote_time, (int, float)) and not isinstance(quote_time, bool) and math.isfinite(float(quote_time)) and quote_time > 0:
+                        now_for_hold = float(quote_time)
+                except Exception:
+                    now_for_hold = None
+                if now_for_hold is None:
+                    return OrderResponse(
+                        OrderId="0", Symbol=symbol.upper(), Status="Failed",
+                        SubmittedAt=datetime.now(timezone.utc), Retcode=10013,
+                        Comment="Close blocked: authoritative MT5 server time unavailable.",
+                        RawResponse={"reason": "BROKER_TIME_UNKNOWN"}
+                    )
+            else:
+                now_for_hold = time.time()
+            elapsed_sec = now_for_hold - float(open_timestamp)
             if elapsed_sec < 120.0:
                 logger.warning(f"[DemoExecutionEngine] Close blocked for ticket {position_ticket}: Hold time ({int(elapsed_sec)}s) < 120s minimum hold constraint.")
                 return OrderResponse(
@@ -290,7 +341,8 @@ class DemoExecutionEngine:
             Comment=comment
         )
 
-        response = self.adapter.close_order(position_ticket, close_vol_f) if hasattr(self.adapter, "close_order") else self.adapter.send_order_to_broker(req)
+        close_order_fn = getattr(self.adapter, "close_order", None)
+        response = close_order_fn(position_ticket, close_vol_f) if callable(close_order_fn) else self.adapter.send_order_to_broker(req)
 
         # Confirm closure from broker position list
         remaining = self.get_active_positions(symbol=symbol)

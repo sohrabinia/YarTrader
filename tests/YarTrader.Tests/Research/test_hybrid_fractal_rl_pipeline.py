@@ -202,30 +202,30 @@ class TestHybridFractalRLPipeline:
         assert proposal["advisory_note"] is not None
 
     # ----------------------------------------------------
-    # G. RISK ENGINE 2% HARD CEILING ENFORCEMENT & VIRTUAL BALANCE ISOLATION
+    # G. RISK ENGINE 1% HARD CEILING ENFORCEMENT & VIRTUAL BALANCE ISOLATION
     # ----------------------------------------------------
-    def test_risk_engine_enforces_2_percent_hard_ceiling(self):
+    def test_risk_engine_enforces_1_percent_hard_ceiling(self):
         risk_engine = ProfessionalRiskEngine()
 
-        # 2.01% -> REJECT
+        # 1.01% -> REJECT
         res_201 = risk_engine.evaluate_equity_risk_and_position_size(
             symbol="XAUUSD", direction="BUY", entry_price=2000.0, stop_loss=1995.0,
-            account_equity=10000.0, free_margin=10000.0, risk_pct=2.01
+            account_equity=10000.0, free_margin=10000.0, risk_pct=1.01, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
         assert not res_201.is_valid
-        assert "exceeds maximum allowable ceiling of 2.0%" in res_201.rejection_reason
+        assert "exceeds maximum allowable ceiling of 1.0%" in res_201.rejection_reason
 
-        # 2.0% -> ALLOWED
+        # 1.0% -> ALLOWED
         res_200 = risk_engine.evaluate_equity_risk_and_position_size(
             symbol="XAUUSD", direction="BUY", entry_price=2000.0, stop_loss=1995.0,
-            account_equity=10000.0, free_margin=10000.0, risk_pct=2.0
+            account_equity=10000.0, free_margin=10000.0, risk_pct=1.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
         assert res_200.is_valid
 
         # 1.0% -> ALLOWED
         res_100 = risk_engine.evaluate_equity_risk_and_position_size(
             symbol="XAUUSD", direction="BUY", entry_price=2000.0, stop_loss=1995.0,
-            account_equity=10000.0, free_margin=10000.0, risk_pct=1.0
+            account_equity=10000.0, free_margin=10000.0, risk_pct=1.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
         assert res_100.is_valid
 
@@ -244,11 +244,11 @@ class TestHybridFractalRLPipeline:
 
         sizing_authoritative = risk_engine.evaluate_equity_risk_and_position_size(
             symbol="XAUUSD", direction="BUY", entry_price=2000.0, stop_loss=1995.0,
-            account_equity=broker_equity, free_margin=broker_free_margin, risk_pct=0.5
+            account_equity=broker_equity, free_margin=broker_free_margin, risk_pct=1.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
 
         # Authoritative sizing is calculated strictly on $5000 broker equity, ignoring virtual_balance 10k or 1M!
-        assert sizing_authoritative.risk_budget_usd == 25.0  # 0.5% of $5000 = $25
+        assert sizing_authoritative.risk_budget_usd == 50.0  # 1.0% of $5000 = $50
 
     # ----------------------------------------------------
     # H. END-TO-END HYBRID RESEARCH-TO-SAFETY PIPELINE
@@ -280,7 +280,7 @@ class TestHybridFractalRLPipeline:
                 stop_loss=candles_m5[-1]["close"] - 3.0 if direction == "BUY" else candles_m5[-1]["close"] + 3.0,
                 account_equity=10000.0,
                 free_margin=10000.0,
-                risk_pct=1.0
+                risk_pct=1.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
             )
             assert sizing.is_valid
             assert sizing.volume_lots > 0

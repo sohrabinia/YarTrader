@@ -12,9 +12,24 @@ JOB = ROOT / "runtime_logs" / "backtest_learning" / "active_job.json"
 LOG = ROOT / "runtime_logs" / "backtest_learning" / "supervisor.log"
 WORKER = ROOT / "app" / "workers" / "mt5_backtest_worker.py"
 MTF_WORKER = ROOT / "app" / "workers" / "mt5_mtf_backtest_worker.py"
+LOG_MAX_BYTES = 5 * 1024 * 1024
+LOG_BACKUP_COUNT = 3
+
+def _rotate_log_if_needed():
+    """Bound supervisor log growth while retaining the three most recent files."""
+    if not LOG.exists() or LOG.stat().st_size < LOG_MAX_BYTES:
+        return
+    oldest = LOG.with_name(f"{LOG.name}.{LOG_BACKUP_COUNT}")
+    oldest.unlink(missing_ok=True)
+    for index in range(LOG_BACKUP_COUNT - 1, 0, -1):
+        source = LOG.with_name(f"{LOG.name}.{index}")
+        if source.exists():
+            source.replace(LOG.with_name(f"{LOG.name}.{index + 1}"))
+    LOG.replace(LOG.with_name(f"{LOG.name}.1"))
 
 def log(message):
     LOG.parent.mkdir(parents=True, exist_ok=True)
+    _rotate_log_if_needed()
     with LOG.open("a", encoding="utf-8") as handle:
         handle.write(f"[{time.strftime('%Y-%m-%dT%H:%M:%S')}] {message}\n")
 

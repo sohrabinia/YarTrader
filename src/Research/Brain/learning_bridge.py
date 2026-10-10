@@ -1,6 +1,7 @@
 """Shared bridge from Backtest/Research/Signal/DEMO outcomes into the canonical Brain memory loop."""
 
 import json
+import math
 import os
 import uuid
 from datetime import datetime
@@ -51,8 +52,22 @@ class BrainLearningBridge:
         confidence: float,
         context: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Persist an actionable Signal prediction until its outcome is known."""
+        """Persist only geometrically valid, finite actionable predictions."""
         if direction not in {"BUY", "SELL"}:
+            return
+        try:
+            entry = float(entry_price)
+            stop = float(stop_loss)
+            target = float(take_profit)
+            conf = float(confidence)
+        except (TypeError, ValueError, OverflowError):
+            return
+        if (not all(math.isfinite(v) for v in (entry, stop, target, conf))
+                or min(entry, stop, target) <= 0 or not 0.0 <= conf <= 1.0):
+            return
+        if direction == "BUY" and not stop < entry < target:
+            return
+        if direction == "SELL" and not target < entry < stop:
             return
         pending = self._load_pending()
         pending[signal_id] = {

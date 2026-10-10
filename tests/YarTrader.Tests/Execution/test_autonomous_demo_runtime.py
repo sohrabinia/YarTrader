@@ -2,6 +2,7 @@ import os
 import json
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from scripts.run_autonomous_demo_runtime import run_autonomous_demo_cycle, generate_simulated_candles
 from src.Decision.Intelligence.timeframe_selector import AutomaticTimeframeSelector
@@ -25,7 +26,8 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertIn(res.selected_timeframe, ["M5", "M15", "H1", "H4"])
         self.assertGreaterEqual(res.confidence, 0.50)
 
-    def test_professional_signal_engine_unified_signal(self):
+    @patch("src.Decision.Intelligence.professional_signal_engine.BrainLearningBridge.record_signal")
+    def test_professional_signal_engine_unified_signal(self, mock_record_signal):
         engine = ProfessionalSignalEngine()
         candles_by_tf = {
             "M5": generate_simulated_candles("EURUSD", 1.0850, 50),
@@ -42,7 +44,20 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             self.assertGreater(sig.entry_price, 0.0)
 
     def test_autonomous_demo_cycle_execution(self):
-        run_autonomous_demo_cycle(symbols=["XAUUSD"], max_cycles=1)
+        # This unit test uses synthetic candles; never connect to or submit orders
+        # to the operator's real MT5 DEMO account from the test runner.
+        with patch("scripts.run_autonomous_demo_runtime.RealMT5BrokerAdapter") as adapter_factory, \
+             patch("src.Decision.Intelligence.professional_signal_engine.BrainLearningBridge.record_signal"), \
+             patch("scripts.run_autonomous_demo_runtime.FractalPatternMemory") as fractal_factory, \
+             patch("scripts.run_autonomous_demo_runtime.TradeJournalManager.get_instance") as journal_factory:
+            adapter = adapter_factory.return_value
+            adapter._initialized = False
+            adapter.get_terminal_info.return_value = None
+            fractal_factory.return_value.memory = {}
+            journal = journal_factory.return_value
+            journal.get_all_records.return_value = []
+            journal.journal_file = "test_journal.json"
+            run_autonomous_demo_cycle(symbols=["XAUUSD"], max_cycles=1)
         self.assertTrue(os.path.exists(self.report_file))
 
         with open(self.report_file, "r", encoding="utf-8") as f:

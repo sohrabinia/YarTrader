@@ -7,6 +7,7 @@ from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
 from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
 from src.Execution.Models.models import OrderRequest
 from src.Execution.Safety.demo_execution_gate import DemoExecutionGate
+from src.Execution.Services.autonomous_demo_trader import calculate_demo_volume_by_risk
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("DemoForwardValidation")
@@ -42,16 +43,31 @@ def run_demo_forward_validation():
     with open(os.path.join(out_dir, "01_environment.json"), "w") as f:
         json.dump(env_data, f, indent=2)
 
-    # 2. Execute Controlled Demo Order Request (Smallest volume 0.01 lot XAUUSD)
-    print("\n[Step 1] Submitting Controlled DEMO Order for XAUUSD (0.01 lot BUY)...")
+    # 2. Size only from current broker facts and the unified 1% wallet risk policy.
+    print("\n[Step 1] Checking whether a risk-sized XAUUSD DEMO order is eligible...")
     try:
+        account = adapter.get_account_info()
+        symbol_info = adapter.get_symbol_info("XAUUSD")
+        tick = adapter.get_symbol_tick("XAUUSD")
+        if not account or not symbol_info or not tick or float(tick.get("ask") or 0.0) <= 0:
+            raise RuntimeError("Current DEMO account, symbol contract, or quote unavailable; no order submitted.")
+        price = float(tick["ask"])
+        sl = price - 10.0
+        tp = price + 20.0
+        sizing = calculate_demo_volume_by_risk(
+            adapter._mt5, "XAUUSD", "BUY", price, sl, symbol_info,
+            balance=float(account.get("balance") or 0.0),
+            equity=float(account.get("equity") or 0.0), risk_pct=1.0,
+        )
+        if not sizing.get("allowed"):
+            raise RuntimeError(f"1% risk sizing rejected the trade: {sizing.get('reason')}; no order submitted.")
         resp = engine.execute_demo_decision(
             symbol="XAUUSD",
             direction="BUY",
-            volume=0.01,
-            price=2350.0,
-            sl=2340.0,
-            tp=2370.0,
+            volume=float(sizing["volume"]),
+            price=price,
+            sl=sl,
+            tp=tp,
             comment="YarTrader DEMO Forward Test",
             magic=143056,
             decision_id="DEC-FORWARD-DEMO-001"

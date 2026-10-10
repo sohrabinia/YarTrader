@@ -33,7 +33,44 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             self._try_import_and_init()
 
     def _try_import_and_init(self) -> bool:
-        """Initialize native MT5 or fall back to the Session-2 loopback bridge."""
+        """Initialize the authenticated Session-2 bridge first in production.
+
+        A native MT5 initialize() call from the LocalSystem service can appear
+        successful while binding to the wrong Windows session. Production must
+        therefore never accept native Session-0 IPC as authoritative.
+        """
+        import os
+        is_production = any(
+            os.environ.get(name, "").strip().lower() == "production"
+            for name in ("YARTRADER_ENV", "TRADEYAR_ENV", "RG_ENV")
+        )
+
+        if is_production:
+            try:
+                from src.Infrastructure.mt5_session_bridge import (
+                    MT5SessionBridgeClient,
+                    MT5BridgeProxy,
+                )
+                bridge = MT5SessionBridgeClient()
+                if not bridge.configured:
+                    raise RuntimeError("YARTRADER_MT5_BRIDGE_TOKEN is not configured")
+                health = bridge.call("health")
+                if not health or not health.get("connected"):
+                    raise RuntimeError("MT5 Session-2 bridge health check failed")
+                if (str(health.get("login", "")) != self.TARGET_ACCOUNT
+                        or str(health.get("server", "")) != self.TARGET_SERVER
+                        or health.get("trade_mode") not in (None, 0)):
+                    raise RuntimeError("MT5 Session-2 bridge account safety check failed")
+                self._mt5 = MT5BridgeProxy(bridge)
+                self._initialized = True
+                logger.info("[RealMT5BrokerAdapter] Production connected through authenticated Session-2 bridge.")
+                return True
+            except Exception as bridge_err:
+                self._mt5 = None
+                self._initialized = False
+                logger.error("[RealMT5BrokerAdapter] Production bridge unavailable; refusing native Session-0 fallback: %s", bridge_err)
+                return False
+
         try:
             import MetaTrader5 as mt5
             self._mt5 = mt5
@@ -42,49 +79,24 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 logger.info("[RealMT5BrokerAdapter] MetaTrader5 initialized successfully.")
                 return True
 
-            # Explicit terminal path is retained as a same-session fallback.
             import os
-            default_path = r"C:\Program Files\MetaTrader 5\terminal64.exe"
+            default_path = r"C:\\Program Files\\MetaTrader 5\\terminal64.exe"
             if os.path.exists(default_path) and self._mt5.initialize(default_path):
                 self._initialized = True
-                logger.info(f"[RealMT5BrokerAdapter] MetaTrader5 initialized via path: {default_path}")
+                logger.info("[RealMT5BrokerAdapter] MetaTrader5 initialized via path: %s", default_path)
                 return True
 
             native_err = self._mt5.last_error()
-
-            # Production Windows services run as LocalSystem/Session 0 while the
-            # interactive MT5 terminal runs in the operator session.  The Python
-            # package's native IPC cannot cross that session boundary, so use the
-            # authenticated loopback bridge when configured.
-            try:
-                from src.Infrastructure.mt5_session_bridge import (
-                    MT5SessionBridgeClient,
-                    MT5BridgeProxy,
-                )
-                bridge = MT5SessionBridgeClient()
-                if bridge.configured:
-                    proxy = MT5BridgeProxy(bridge)
-                    health = bridge.call("health")
-                    if health and health.get("connected"):
-                        self._mt5 = proxy
-                        self._initialized = True
-                        logger.info(
-                            "[RealMT5BrokerAdapter] Native MT5 IPC unavailable "
-                            f"({native_err}); Session-2 MT5 bridge connected."
-                        )
-                        return True
-            except Exception as bridge_err:
-                logger.warning(
-                    f"[RealMT5BrokerAdapter] Session-2 MT5 bridge unavailable: {bridge_err}"
-                )
-
-            logger.warning(f"[RealMT5BrokerAdapter] MT5 initialize failed: {native_err}")
+            logger.warning("[RealMT5BrokerAdapter] MT5 initialize failed: %s", native_err)
+            self._initialized = False
             return False
         except ImportError:
             logger.warning("[RealMT5BrokerAdapter] MetaTrader5 Python package not available.")
             return False
-        except Exception as e:
-            logger.error(f"[RealMT5BrokerAdapter] Exception initializing MT5: {e}")
+        except Exception as exc:
+            logger.error("[RealMT5BrokerAdapter] Exception initializing MT5: %s", exc)
+            self._mt5 = None
+            self._initialized = False
             return False
 
     def verify_safety_and_account(self, operation_type: str = "DEMO") -> bool:
@@ -193,8 +205,8 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             digits = raw_digits
         return sym._asdict() if hasattr(sym, "_asdict") else {
             "name": getattr(sym, "name", symbol),
-            "volume_min": getattr(sym, "volume_min", 0.01),
-            "volume_step": getattr(sym, "volume_step", 0.01),
+            "volume_min": getattr(sym, "volume_min", 0.0),
+            "volume_step": getattr(sym, "volume_step", 0.0),
             "volume_max": getattr(sym, "volume_max", 100.0),
             "trade_mode": getattr(sym, "trade_mode", 0),
             "digits": digits,
@@ -291,8 +303,8 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             raise ValidationException(f"Unsupported OrderType: '{request.OrderType}'")
 
         # Validate minimum volume safe bounds
-        vol_min = getattr(sym_info, "volume_min", 0.01)
-        vol_step = getattr(sym_info, "volume_step", 0.01)
+        vol_min = getattr(sym_info, "volume_min", 0.0)
+        vol_step = getattr(sym_info, "volume_step", 0.0)
         vol_max = getattr(sym_info, "volume_max", 100.0)
         volume = max(vol_min, min(request.Volume, vol_max))
         # Align to step
@@ -393,6 +405,21 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 f"(retcode={check_retcode}): {check_comment}. Halting order_send."
             )
 
+            raw_check_response: Dict[str, Any] = {}
+            if check_res is not None and hasattr(check_res, "_asdict"):
+                try:
+                    check_payload = check_res._asdict()
+                    if isinstance(check_payload, dict):
+                        raw_check_response.update(check_payload)
+                except Exception:
+                    pass
+            # These fields are authoritative for the adapter's fail-closed decision.
+            raw_check_response.update({
+                "retcode": check_retcode,
+                "comment": check_comment,
+                "trade_req": dict(trade_req),
+                "last_error": mt5.last_error() if hasattr(mt5, "last_error") else "N/A",
+            })
             return OrderResponse(
                 OrderId="0",
                 Symbol=request.Symbol,
@@ -400,16 +427,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 SubmittedAt=datetime.now(timezone.utc),
                 Retcode=check_retcode,
                 Comment=f"order_check failed: {check_comment}",
-                RawResponse=(
-                    check_res._asdict()
-                    if check_res is not None and hasattr(check_res, "_asdict")
-                    else {
-                        "retcode": check_retcode,
-                        "comment": check_comment,
-                        "trade_req": trade_req,
-                        "last_error": mt5.last_error() if hasattr(mt5, "last_error") else "N/A"
-                    }
-                )
+                RawResponse=raw_check_response,
             )
 
         # 5. Send Order
@@ -503,7 +521,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if ticket:
             orders = self._mt5.history_orders_get(ticket=int(ticket))
         elif date_from and date_to:
-            orders = self._mt5.history_orders_get(date_from, date_to, group=group or "")
+            if type(self._mt5).__name__ == "MT5BridgeProxy":
+                orders = self._mt5.history_orders_get(date_from=date_from, date_to=date_to, group=group or "")
+            else:
+                orders = self._mt5.history_orders_get(date_from, date_to, group=group or "")
         else:
             orders = self._mt5.history_orders_get(group=group or "")
 
@@ -525,7 +546,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         elif position:
             deals = self._mt5.history_deals_get(position=int(position))
         elif date_from and date_to:
-            deals = self._mt5.history_deals_get(date_from, date_to)
+            if type(self._mt5).__name__ == "MT5BridgeProxy":
+                deals = self._mt5.history_deals_get(date_from=date_from, date_to=date_to)
+            else:
+                deals = self._mt5.history_deals_get(date_from, date_to)
         else:
             deals = self._mt5.history_deals_get()
 

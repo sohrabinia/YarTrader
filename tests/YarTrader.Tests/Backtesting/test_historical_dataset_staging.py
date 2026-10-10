@@ -2,7 +2,8 @@ import sqlite3
 from pathlib import Path
 
 from src.Application.Backtesting.historical_dataset import (
-    HistoricalDataset, cleanup_staged_dataset, stage_symbol_from_mt4
+    HistoricalDataset, cleanup_staged_dataset, stage_symbol_from_mt4,
+    _checkpoint_matches_dataset,
 )
 
 
@@ -51,3 +52,46 @@ def test_dataset_is_symbol_local_and_sqlite(tmp_path):
         ).fetchone()[0] == 1
     finally:
         ds.close()
+
+
+def test_completed_checkpoint_matches_rebuilt_dataset_after_staging_cleanup():
+    current_manifest = {
+        "schema": 2,
+        "frames": {
+            "H1": {"first": 100, "last": 200, "bars": 3562},
+            "M1": {"first": 150, "last": 200, "bars": 5000},
+        },
+    }
+    # Legacy checkpoint metadata may contain extra per-run fields; dataset identity is
+    # the schema + actual frame manifest, not the metadata wrapper.
+    checkpoint = {
+        "status": "COMPLETED",
+        "symbol": "XAUUSD",
+        "timeframe": "H1",
+        "years_requested": 10.0,
+        "dataset_manifest": {
+            **current_manifest,
+            "symbol": "XAUUSD",
+            "timeframe": "H1",
+            "requested_max_years": 10.0,
+            "data_source": "MT4_HST",
+        },
+    }
+    assert _checkpoint_matches_dataset(checkpoint, current_manifest, 10)
+    assert not _checkpoint_matches_dataset(checkpoint, current_manifest, 5)
+
+    unrelated_timeframe_changed = {
+        "schema": 2,
+        "frames": {
+            "H1": {"first": 100, "last": 200, "bars": 3562},
+            "M1": {"first": 150, "last": 300, "bars": 5100},
+        },
+    }
+    assert _checkpoint_matches_dataset(checkpoint, unrelated_timeframe_changed, 10)
+
+    changed_manifest = {
+        "schema": 2,
+        "frames": {"H1": {"first": 100, "last": 300, "bars": 4000}},
+    }
+    assert not _checkpoint_matches_dataset(checkpoint, changed_manifest, 10)
+    assert not _checkpoint_matches_dataset({"status": "COMPLETED"}, current_manifest, 10)

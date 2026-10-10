@@ -117,6 +117,7 @@ class BacktestAndLearningEngine:
         state: Optional[Dict[str, Any]] = None,
         all_timeframe_candles_provider=None,
         decision_interval_minutes: int = 1,
+        learn_from_outcomes: bool = True,
     ) -> Dict[str, Any]:
         """
         Executes a chronological, walk-forward backtest simulation across historical candles.
@@ -192,7 +193,17 @@ class BacktestAndLearningEngine:
                 if exit_reason:
                     # Close position with execution friction (spread + commission)
                     pnl_dist = (exit_price - open_position["entry"]) if pos_direction == "BUY" else (open_position["entry"] - exit_price)
-                    multiplier = 100.0 if "XAU" in symbol.upper() else 10000.0
+                    sym_upper = symbol.upper()
+                    if "XAU" in sym_upper or "GOLD" in sym_upper:
+                        multiplier = 100.0
+                    elif "XAG" in sym_upper or "SILVER" in sym_upper:
+                        multiplier = 5000.0
+                    elif any(token in sym_upper for token in ("BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK", "LTC", "BCH", "NEAR", "UNI", "ATOM")):
+                        multiplier = 1.0
+                    elif "JPY" in sym_upper:
+                        multiplier = 100000.0 / max(exit_price, 1e-9)  # quote-currency JPY converted to USD
+                    else:
+                        multiplier = 100000.0  # standard FX contract size
                     raw_pnl = pnl_dist * open_position["volume"] * multiplier
 
                     # Asset-Class Specific Execution Friction Model
@@ -241,10 +252,13 @@ class BacktestAndLearningEngine:
                     open_position["r_multiple"] = r_multiple
                     open_position["outcome"] = outcome
 
-                    # 2. Trigger Post-Trade Learning Update via JudgeBrain and MarketMemorySystem
-                    learning_res = self._process_post_trade_learning(memory, open_position)
+                    # Evaluation-only segments must not update memory from held-out outcomes.
+                    if learn_from_outcomes:
+                        learning_res = self._process_post_trade_learning(memory, open_position)
+                        learning_updates_count += 1
+                    else:
+                        learning_res = {"status": "FROZEN_EVALUATION_NO_LEARNING"}
                     open_position["learning_update"] = learning_res
-                    learning_updates_count += 1
 
                     closed_trades.append(open_position)
                     open_position = None
@@ -281,7 +295,8 @@ class BacktestAndLearningEngine:
                 "close": float(current_bar["close"]), "volume": float(current_bar.get("volume", 0.0))
             }, simulate_virtual_trade=False, timeframe_signature=brain_scope,
                context_observations_by_tf=context_observations,
-               learning_cycle_due=(i - start_index + 1) % self.learning_interval_bars == 0)
+               learning_cycle_due=(learn_from_outcomes and
+                                   (i - start_index + 1) % self.learning_interval_bars == 0))
             latest_brain_report = brain_report.to_dict()
             if not open_position and decision_due:
                 brain_report_dict = latest_brain_report
@@ -302,7 +317,7 @@ class BacktestAndLearningEngine:
                         "take_profit": float(params.get("take_profit", 0.0)),
                         "risk_reward": float(params.get("risk_reward", 0.0)),
                         "confidence": confidence,
-                        "volume": 0.01,
+                        "volume": 0.0,
                         "entry_time": bar_time,
                         "market_context": hypothesis.get("context", {}),
                         "reasoning": ["Brain hypothesis", *hypothesis.get("matched_pattern_ids", [])],
@@ -313,10 +328,21 @@ class BacktestAndLearningEngine:
                     open_position["brain_hypothesis_id"] = hypothesis.get("hypothesis_id")
                     open_position["brain_signature"] = list(hypothesis.get("sequence_signature", []))
                     open_position["brain_pattern_ids"] = list(hypothesis.get("matched_pattern_ids", []))
-                    risk_budget_pct = 0.5 / 100.0
+                    from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
+                    risk_budget_pct = ProductionRiskPolicy.TARGET_RISK_PCT / 100.0
                     risk_dollars = max(0.0, balance * risk_budget_pct)
                     risk_distance = abs(open_position["entry"] - open_position["stop_loss"])
-                    pnl_multiplier = 100.0 if "XAU" in symbol.upper() else 10000.0
+                    sym_upper = symbol.upper()
+                    if "XAU" in sym_upper or "GOLD" in sym_upper:
+                        pnl_multiplier = 100.0
+                    elif "XAG" in sym_upper or "SILVER" in sym_upper:
+                        pnl_multiplier = 5000.0
+                    elif any(token in sym_upper for token in ("BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK", "LTC", "BCH", "NEAR", "UNI", "ATOM")):
+                        pnl_multiplier = 1.0
+                    elif "JPY" in sym_upper:
+                        pnl_multiplier = 100000.0 / max(float(params.get("entry", current_price)), 1e-9)
+                    else:
+                        pnl_multiplier = 100000.0
                     if risk_distance > 0.0 and risk_dollars > 0.0:
                         open_position["volume"] = round(risk_dollars / (risk_distance * pnl_multiplier), 6)
 

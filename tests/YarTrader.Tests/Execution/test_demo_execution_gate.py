@@ -1,4 +1,6 @@
 import os
+import tempfile
+import threading
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
@@ -19,6 +21,9 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         self.original_env = os.environ.get("AUTONOMOUS_DEMO_TRADING_ENABLED")
         os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "true"
         self.mock_adapter = MagicMock()
+        self.mock_adapter.PLATFORM_NAME = "MT5"
+        self.mock_adapter.TARGET_ACCOUNT = "52961173"
+        self.mock_adapter.TARGET_SERVER = "Alpari-MT5-Demo"
         self.mock_adapter.get_account_info.return_value = {
             "login": "52961173",
             "server": "Alpari-MT5-Demo",
@@ -125,7 +130,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01)
         with self.assertRaises(ValidationException) as ctx:
             DemoExecutionGate.verify_demo_execution_eligibility(self.mock_adapter, req, demo_mode_flag=True)
-        self.assertIn("MT5 Terminal is disconnected", str(ctx.exception))
+        self.assertIn("broker terminal is disconnected", str(ctx.exception))
 
     def test_10_shadow_trading_remains_functional(self):
         """Test 10: Shadow trading engine runs independently without live/broker order send."""
@@ -181,6 +186,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         for idx, acc_data in enumerate(adversarial_cases):
             mock_sizing.reset_mock()
             worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+            worker.interval_sec = 0.0  # Keep the single-cycle safety test deterministic and fast.
 
             mock_adapter = MagicMock()
             if acc_data == "raise_exception":
@@ -212,13 +218,16 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
             worker.is_running = True
             def stop_loop_after_one(*args, **kwargs):
-                if not hasattr(stop_loop_after_one, "called"):
-                    stop_loop_after_one.called = True
+                stop_loop_after_one.calls = getattr(stop_loop_after_one, "calls", 0) + 1
+                if stop_loop_after_one.calls <= 2:  # One startup-banner call plus one real research cycle.
                     return [("XAUUSD", "H1", "Commodities", "MT5")]
                 worker.is_running = False
                 return [("XAUUSD", "H1", "Commodities", "MT5")]
 
-            with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+            with patch("src.Market.Universe.symbol_registry.SymbolRegistry.get_instance") as mock_registry, patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+                mock_registry.return_value.max_symbols = 100
+                mock_registry.return_value.get_all_registered.return_value = ["XAUUSD"]
+                mock_registry.return_value.get_active_matrix.return_value = [("XAUUSD", "H1", "Commodities", "MT5")]
                 worker._run_loop()
 
             self.assertEqual(mock_sizing.call_count, 0, f"Case {idx+1} failed sizing call count expectation (expected 0, got {mock_sizing.call_count})")
@@ -245,9 +254,10 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
         for idx, sym_info in enumerate(invalid_symbol_cases):
             mock_sizing.reset_mock()
             worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+            worker.interval_sec = 0.0  # Keep the single-cycle safety test deterministic and fast.
 
             mock_adapter = MagicMock()
-            mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
+            mock_adapter.get_account_info.return_value = {"login": "52961173", "balance": 100000.0, "equity": 100000.0, "free_margin": 100000.0}
             mock_adapter.get_symbol_info.return_value = sym_info
 
             mock_demo = MagicMock()
@@ -273,42 +283,42 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
             worker.is_running = True
             def stop_loop_after_one(*args, **kwargs):
-                if not hasattr(stop_loop_after_one, "called"):
-                    stop_loop_after_one.called = True
+                stop_loop_after_one.calls = getattr(stop_loop_after_one, "calls", 0) + 1
+                if stop_loop_after_one.calls <= 2:  # One startup-banner call plus one real research cycle.
                     return [("XAUUSD", "H1", "Commodities", "MT5")]
                 worker.is_running = False
                 return [("XAUUSD", "H1", "Commodities", "MT5")]
 
-            with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+            with patch("src.Market.Universe.symbol_registry.SymbolRegistry.get_instance") as mock_registry, patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+                mock_registry.return_value.max_symbols = 100
+                mock_registry.return_value.get_all_registered.return_value = ["XAUUSD"]
+                mock_registry.return_value.get_active_matrix.return_value = [("XAUUSD", "H1", "Commodities", "MT5")]
                 worker._run_loop()
 
             self.assertEqual(mock_sizing.call_count, 0, f"Symbol Case {idx+1} failed sizing call count expectation")
             self.assertEqual(mock_demo.execute_demo_decision.call_count, 0, f"Symbol Case {idx+1} failed execution call count expectation")
 
     @patch("time.sleep", return_value=None)
-    @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
+    @patch("src.Execution.Services.autonomous_demo_trader.calculate_demo_volume_by_risk")
     def test_15_reversal_volume_authority_and_rejection_state(self, mock_sizing, mock_sleep):
-        """Test 15: Reversal volume input is ignored entirely (sizing computes volume) and failed execution status does NOT mutate state."""
+        """Reversal ignores decision-provided volume and uses shared broker-authoritative sizing."""
         from app.workers.research_worker import ResearchWorker
-        from src.Risk.Services.professional_risk_engine import PositionSizingResult
 
-        mock_sizing.return_value = PositionSizingResult(
-            is_valid=True,
-            volume_lots=0.85,
-            risk_budget_usd=50.0,
-            risk_pct=0.5,
-            margin_required_usd=1000.0,
-            free_margin_usd=10000.0,
-            effective_be_price=2500.0,
-            rejection_reason=""
-        )
+        mock_sizing.return_value = {
+            "allowed": True, "volume": 0.05, "risk_budget_usd": 1000.0,
+            "estimated_risk_usd": 995.0, "risk_basis_usd": 100000.0,
+            "risk_per_trade_pct": 1.0,
+        }
 
-        # 1. Test Reversal ignores reassessment volume input (e.g. malformed/huge volume 999.9) and uses sized volume 0.85
+        # 1. Test Reversal ignores reassessment volume input (e.g. malformed/huge volume 999.9) and uses sized volume 0.05
         worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
+        worker._analysis_lock = threading.Lock()  # Isolate this unit test from the class-wide production lock.
+        worker.interval_sec = 0.0  # Keep the single-cycle safety test deterministic and fast.
 
         mock_adapter = MagicMock()
-        mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
+        mock_adapter.get_account_info.return_value = {"login": "52961173", "balance": 100000.0, "equity": 100000.0, "free_margin": 100000.0}
         mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+        mock_adapter.get_symbol_tick.return_value = {"bid": 2499.9, "ask": 2500.1}
 
         mock_demo = MagicMock()
         mock_demo.adapter = mock_adapter
@@ -352,20 +362,26 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
         worker.is_running = True
         def stop_loop_after_one(*args, **kwargs):
-            if not hasattr(stop_loop_after_one, "called"):
-                stop_loop_after_one.called = True
+            stop_loop_after_one.calls = getattr(stop_loop_after_one, "calls", 0) + 1
+            if stop_loop_after_one.calls <= 2:  # One startup-banner call plus one real research cycle.
                 return [("XAUUSD", "H1", "Commodities", "MT5")]
             worker.is_running = False
             return [("XAUUSD", "H1", "Commodities", "MT5")]
 
-        with patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+        with patch.dict(os.environ, {"RISK_PCT_PER_TRADE": "1.0", "MAX_DEMO_ENTRY_DRIFT_PCT": "0.5"}), \
+             patch("src.Risk.Services.daily_loss_kill_switch.DailyLossKillSwitch.evaluate_daily_loss", return_value=(True, "OK", {"loss_pct": 0.0})), \
+             patch("src.Market.Universe.symbol_registry.SymbolRegistry.get_instance") as mock_registry, \
+             patch.object(worker, "_get_active_matrix", side_effect=stop_loop_after_one):
+            mock_registry.return_value.max_symbols = 100
+            mock_registry.return_value.get_all_registered.return_value = ["XAUUSD"]
+            mock_registry.return_value.get_active_matrix.return_value = [("XAUUSD", "H1", "Commodities", "MT5")]
             worker._run_loop()
 
         # Assertions
         self.assertEqual(mock_sizing.call_count, 1)
         self.assertEqual(mock_demo.execute_demo_decision.call_count, 1)
-        # Verify volume passed to execute_demo_decision is 0.85 (from sizing), NOT 999.9 (from decision dict)
-        self.assertEqual(mock_demo.execute_demo_decision.call_args[1]["volume"], 0.85)
+        # Verify volume passed to execute_demo_decision is 0.05 (from sizing), NOT 999.9 (from decision dict)
+        self.assertEqual(mock_demo.execute_demo_decision.call_args[1]["volume"], 0.05)
         # Verify state was NOT mutated because execution Status was 'Failed'
         self.assertNotIn("XAUUSD", worker.last_executed_signal)
 
@@ -423,7 +439,8 @@ class TestAutonomousDemoExecutionGate(unittest.TestCase):
             os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = val
             self.assertTrue(is_autonomous_demo_enabled(), f"Value '{val}' should be ENABLED")
 
-    def test_10_non_xauusd_remains_blocked(self):
+    @patch("time.sleep", return_value=None)
+    def test_10_non_xauusd_remains_blocked(self, mock_sleep):
         """Non-XAUUSD symbols are strictly blocked from execution dispatch regardless of ENV."""
         from app.workers.research_worker import ResearchWorker
         os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "true"
@@ -450,13 +467,18 @@ class TestAutonomousDemoExecutionGate(unittest.TestCase):
 
         worker.is_running = True
         def stop_after_one(*args, **kwargs):
-            if not hasattr(stop_after_one, "called"):
-                stop_after_one.called = True
+            stop_after_one.calls = getattr(stop_after_one, "calls", 0) + 1
+            if stop_after_one.calls <= 2:  # Startup banner plus one real loop iteration.
                 return [("EURUSD", "H1", "Forex", "MT5")]
             worker.is_running = False
             return [("EURUSD", "H1", "Forex", "MT5")]
 
-        with patch.object(worker, "_get_active_matrix", side_effect=stop_after_one):
+        mock_registry = MagicMock()
+        mock_registry.get_active_matrix.return_value = []
+        mock_registry.get_all_registered.return_value = []
+        mock_registry.max_symbols = 1
+        with patch("src.Market.Universe.symbol_registry.SymbolRegistry.get_instance", return_value=mock_registry), \
+             patch.object(worker, "_get_active_matrix", side_effect=stop_after_one):
             worker._run_loop()
 
         self.assertEqual(mock_demo.execute_demo_decision.call_count, 0)
@@ -508,8 +530,8 @@ class TestAutonomousDemoExecutionGate(unittest.TestCase):
 
         worker.is_running = True
         def stop_after_one(*args, **kwargs):
-            if not hasattr(stop_after_one, "called"):
-                stop_after_one.called = True
+            stop_after_one.calls = getattr(stop_after_one, "calls", 0) + 1
+            if stop_after_one.calls <= 2:  # Startup banner plus one real loop iteration.
                 return [("XAUUSD", "H1", "Commodities", "MT5")]
             worker.is_running = False
             return [("XAUUSD", "H1", "Commodities", "MT5")]
@@ -525,8 +547,8 @@ class TestAutonomousDemoExecutionGate(unittest.TestCase):
 class TestRiskTargetContractRemediation(unittest.TestCase):
     """
     Focused SRE Regression Tests for Risk Target Contract Remediation.
-    Verifies that target risk is strictly 0.5%, 2.0% ceiling is enforced,
-    RR >= 1.5 is enforced, and daily loss >= 8.0% blocks trading.
+    Verifies that target risk is strictly 1.0%, 1.0% ceiling is enforced,
+    RR >= 1.5 is enforced, and daily loss >= 10.0% blocks trading.
     """
 
     def setUp(self):
@@ -538,22 +560,22 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
         else:
             os.environ["RISK_PCT_PER_TRADE"] = self.original_env
 
-    def test_01_production_risk_policy_target_is_point_five(self):
-        """Test 1: ProductionRiskPolicy.TARGET_RISK_PCT is strictly 0.5%."""
+    def test_01_production_risk_policy_target_is_one_percent(self):
+        """Test 1: ProductionRiskPolicy.TARGET_RISK_PCT is strictly 1.0%."""
         from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
-        self.assertEqual(ProductionRiskPolicy.TARGET_RISK_PCT, 0.5)
+        self.assertEqual(ProductionRiskPolicy.TARGET_RISK_PCT, 1.0)
 
-    def test_02_missing_risk_env_defaults_to_point_five(self):
-        """Test 2: Missing RISK_PCT_PER_TRADE ENV defaults to 0.5%."""
+    def test_02_missing_risk_env_defaults_to_one_percent(self):
+        """Test 2: Missing RISK_PCT_PER_TRADE ENV defaults to 1.0%."""
         os.environ.pop("RISK_PCT_PER_TRADE", None)
-        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "0.5")
-        self.assertEqual(float(raw_risk_env), 0.5)
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "1.0")
+        self.assertEqual(float(raw_risk_env), 1.0)
 
     def test_03_explicit_risk_env_resolves_correctly(self):
         """Test 3: Explicit RISK_PCT_PER_TRADE resolves correctly."""
-        os.environ["RISK_PCT_PER_TRADE"] = "0.5"
-        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "0.5")
-        self.assertEqual(float(raw_risk_env), 0.5)
+        os.environ["RISK_PCT_PER_TRADE"] = "1.0"
+        raw_risk_env = os.getenv("RISK_PCT_PER_TRADE", "1.0")
+        self.assertEqual(float(raw_risk_env), 1.0)
 
     def test_04_invalid_risk_env_fails_closed(self):
         """Test 4: Invalid/non-numeric RISK_PCT_PER_TRADE fails closed in worker sizing."""
@@ -563,6 +585,7 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
         mock_adapter = MagicMock()
         mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
         mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+        mock_adapter.get_symbol_tick.return_value = {"bid": 2499.9, "ask": 2500.1}
         mock_demo = MagicMock()
         mock_demo.adapter = mock_adapter
         worker.demo_engine = mock_demo
@@ -572,7 +595,7 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
         self.assertIsNone(sized)
 
     def test_05_risk_exceeding_hard_ceiling_rejected(self):
-        """Test 5: Risk exceeding 2.0% hard ceiling is rejected."""
+        """Test 5: Risk exceeding 1.0% hard ceiling is rejected."""
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
         res = risk_engine.evaluate_equity_risk_and_position_size(
@@ -582,10 +605,10 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
             stop_loss=2490.0,
             account_equity=10000.0,
             free_margin=10000.0,
-            risk_pct=2.5 # Exceeds 2.0% hard ceiling
+            risk_pct=1.5 # Exceeds 1.0% hard ceiling
         )
         self.assertFalse(res.is_valid)
-        self.assertIn("exceeds maximum allowable ceiling of 2.0%", res.rejection_reason)
+        self.assertIn("exceeds maximum allowable ceiling of 1.0%", res.rejection_reason)
 
     def test_06_rr_below_minimum_threshold_rejected(self):
         """Test 6: Real RR < 1.5 minimum threshold is rejected."""
@@ -603,20 +626,20 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
         self.assertIn("< 1.5 minimum threshold", eval_res.rejection_reason)
 
     def test_07_daily_loss_limit_exceeded_blocks_trading(self):
-        """Test 7: Portfolio daily loss >= 8.0% blocks trading."""
+        """Test 7: Portfolio daily loss >= 10.0% blocks trading."""
         from src.Intelligence.Execution.portfolio import PortfolioRiskIntelligenceEngine
-        portfolio_engine = PortfolioRiskIntelligenceEngine(max_daily_drawdown_pct=8.0)
+        portfolio_engine = PortfolioRiskIntelligenceEngine(max_daily_drawdown_pct=10.0)
         res = portfolio_engine.calculate_portfolio_risk(
             active_trades=[],
             virtual_balance=10000.0,
             start_of_day_equity=10000.0,
-            daily_pnl=-850.0 # 8.5% loss >= 8.0%
+            daily_pnl=-1050.0 # 10.5% loss >= 10.0%
         )
         self.assertFalse(res["approved"])
         self.assertTrue(any("max daily loss threshold" in v for v in res["violations"]))
 
-    def test_08_position_sizing_uses_half_percent_risk_budget(self):
-        """Test 8: Position sizing calculation calculates exact risk budget using 0.5% target risk."""
+    def test_08_position_sizing_uses_one_percent_risk_budget(self):
+        """Test 8: Position sizing calculation calculates exact risk budget using 1.0% target risk."""
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
         equity = 10000.0
@@ -627,19 +650,22 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
             stop_loss=2490.0,
             account_equity=equity,
             free_margin=equity,
-            risk_pct=0.5
+            risk_pct=1.0,
+            volume_min=0.01,
+            volume_max=100.0,
+            volume_step=0.01
         )
         self.assertTrue(res.is_valid)
-        # 0.5% of $10,000 equity is $50.00 risk budget
-        self.assertEqual(res.risk_budget_usd, 50.0)
+        # 1.0% of $10,000 equity is $100.00 risk budget
+        self.assertEqual(res.risk_budget_usd, 100.0)
 
 
 class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
     """
     SRE Unit Tests for DailyLossKillSwitch at the Execution Boundary.
     Verifies:
-    1. loss < 8% -> gate passes
-    2. loss >= 8% -> execution blocked
+    1. loss < 10% -> gate passes
+    2. loss >= 10% -> execution blocked
     3. invalid/missing equity -> execution blocked
     4. kill switch exception -> execution blocked
     5. no alternate execution path bypasses daily-loss protection.
@@ -647,20 +673,38 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
 
     def setUp(self):
         from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
-        self.kill_switch = DailyLossKillSwitch.get_instance()
+        self._old_singleton = DailyLossKillSwitch._instance
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self.kill_switch = DailyLossKillSwitch(
+            persistence_path=os.path.join(self._temp_dir.name, "daily_loss_kill_switch.json")
+        )
+        # All execution-boundary tests must use isolated state, never production risk persistence.
+        DailyLossKillSwitch._instance = self.kill_switch
         today_key, _, _ = self.kill_switch.get_session_key_and_window()
         self.kill_switch.set_session_baseline(equity=10000.0, session_date=today_key)
 
-    def test_01_loss_below_8_percent_passes(self):
+    def tearDown(self):
+        from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+        DailyLossKillSwitch._instance = self._old_singleton
+        self._temp_dir.cleanup()
+
+    def test_01_loss_below_10_percent_passes(self):
         # 5% loss ($9500 current equity vs $10000 baseline) -> allowed
         allowed, reason, meta = self.kill_switch.evaluate_daily_loss(9500.0)
         self.assertTrue(allowed)
         self.assertIsNone(reason)
         self.assertFalse(meta["kill_switch_active"])
 
-    def test_02_loss_8_percent_or_higher_blocked(self):
-        # 8.5% loss ($9150 current equity vs $10000 baseline) -> blocked
+    def test_02_loss_8_5_percent_below_10_percent_passes(self):
+        # 8.5% loss ($9150 current equity vs $10000 baseline) -> still allowed
         allowed, reason, meta = self.kill_switch.evaluate_daily_loss(9150.0)
+        self.assertTrue(allowed)
+        self.assertIsNone(reason)
+        self.assertFalse(meta["kill_switch_active"])
+
+    def test_02b_loss_10_percent_or_higher_blocked(self):
+        # Exactly 10% loss ($9000 current equity vs $10000 baseline) -> blocked
+        allowed, reason, meta = self.kill_switch.evaluate_daily_loss(9000.0)
         self.assertFalse(allowed)
         self.assertEqual(reason, "DAILY_LOSS_LIMIT_REACHED")
         self.assertTrue(meta["kill_switch_active"])
@@ -712,6 +756,9 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
         self.kill_switch.evaluate_daily_loss(9000.0) # Active kill switch
 
         mock_adapter = MagicMock()
+        mock_adapter.PLATFORM_NAME = "MT5"
+        mock_adapter.TARGET_ACCOUNT = "52961173"
+        mock_adapter.TARGET_SERVER = "Alpari-MT5-Demo"
         mock_adapter.get_account_info.return_value = {
             "login": "52961173",
             "server": "Alpari-MT5-Demo",
@@ -724,7 +771,7 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
         req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2500.0, StopLoss=2490.0, TakeProfit=2520.0)
         with self.assertRaises(ValidationException) as ctx:
             DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req, demo_mode_flag=True)
-        self.assertIn("Daily 8% loss limit active", str(ctx.exception))
+        self.assertIn("Daily 10% loss limit active", str(ctx.exception))
 
 
 if __name__ == "__main__":

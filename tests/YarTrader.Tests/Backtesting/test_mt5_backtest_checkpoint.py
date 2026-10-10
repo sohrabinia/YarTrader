@@ -15,9 +15,11 @@ class TestMt5BacktestCheckpoint(unittest.TestCase):
             self.assertEqual(json.loads(path.read_text(encoding="utf-8")), payload)
             self.assertFalse(path.with_suffix(".json.tmp").exists())
 
-    def test_years_contract_requires_ten_years(self):
+    def test_legacy_mt5_years_contract_requires_ten_years(self):
+        # The legacy MT5-terminal path requires >=10 years; the active staged-HST path
+        # may legitimately use a shorter verified broker-history window.
         with self.assertRaises(ValueError):
-            worker.run("XAUUSD", "D1", 9, 10000.0, 0.0)
+            worker.run_legacy_mt5("XAUUSD", "D1", 9, 10000.0, 0.0)
 
     def test_chunk_sizes_are_resource_bounded(self):
         self.assertEqual(worker.chunk_days("M1"), 7)

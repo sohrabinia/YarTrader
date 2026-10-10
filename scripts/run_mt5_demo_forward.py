@@ -28,6 +28,7 @@ from src.Decision.Intelligence.professional_signal_engine import ProfessionalSig
 from src.Decision.Intelligence.engine import DecisionEngine
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, RiskEvaluationResult
 from src.Research.Brain.fractal_memory import FractalPatternMemory
+from src.Execution.Services.autonomous_demo_trader import calculate_demo_volume_by_risk
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("MT5DemoForwardRunner")
@@ -180,8 +181,18 @@ class MT5DemoForwardRunner:
             self.add_evidence("Forward Execution", "NOT_TRIGGERED", "Signal or Risk Gate did not approve active execution in this cycle")
             return self.finalize_report("REAL_MT5_DEMO_FORWARD_OPERATION_NOT_PROVEN")
 
-        recommended_volume = 0.01
-        self.add_evidence("Risk Gate", "PROVEN", f"Risk Gate Approved volume {recommended_volume}")
+        sizing = calculate_demo_volume_by_risk(
+            self.adapter._mt5, self.symbol, action_direction,
+            ask if action_direction == "BUY" else bid, sl_price, sym_info,
+            balance=float(acc_info.get("balance") or 0.0),
+            equity=float(acc_info.get("equity") or 0.0), risk_pct=1.0,
+        )
+        if not sizing.get("allowed"):
+            self.add_evidence("Risk-Based Volume", "BLOCKED", f"Unified 1% risk sizing rejected order: {sizing.get('reason')}")
+            self.add_evidence("Forward Execution", "NOT_TRIGGERED", "No broker order submitted because 1% risk sizing did not qualify")
+            return self.finalize_report("REAL_MT5_DEMO_FORWARD_OPERATION_NOT_PROVEN")
+        recommended_volume = float(sizing["volume"])
+        self.add_evidence("Risk Gate", "PROVEN", f"Risk Gate approved broker-calculated volume {recommended_volume} at 1% risk budget ${sizing['risk_budget_usd']:.2f}")
 
         # 8. Interactive Confirmation Gate (if manual)
         if not self.auto_confirm:

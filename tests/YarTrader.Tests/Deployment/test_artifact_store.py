@@ -1,4 +1,5 @@
 from pathlib import Path
+import hashlib
 
 import pytest
 
@@ -53,3 +54,45 @@ def test_corruption_is_detected(tmp_path: Path):
     path.write_bytes(raw)
     with pytest.raises(ValueError):
         store.get(record["id"])
+
+
+def test_concurrent_puts_preserve_every_index_entry(tmp_path: Path):
+    from concurrent.futures import ThreadPoolExecutor
+    import json
+
+    store = YarTraderArtifactStore(tmp_path)
+    payloads = [f"artifact-{i}-".encode() + bytes([i]) * 1024 for i in range(32)]
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        records = list(pool.map(lambda payload: store.put(payload, filename="parallel.bin"), payloads))
+
+    index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    assert len(index) == len(payloads)
+    assert set(index) == {record["id"] for record in records}
+    for record, payload in zip(records, payloads):
+        assert store.get(record["id"]) == payload
+
+
+def _process_put_batch(args):
+    root, start, count = args
+    store = YarTraderArtifactStore(root)
+    return [store.put(f"process-artifact-{i}".encode(), filename="process.bin")["id"]
+            for i in range(start, start + count)]
+
+
+def test_cross_process_puts_do_not_lose_index_entries(tmp_path: Path):
+    from concurrent.futures import ProcessPoolExecutor
+    import json
+
+    batches = [(str(tmp_path), start, 8) for start in (0, 8, 16, 24)]
+    with ProcessPoolExecutor(max_workers=4) as pool:
+        ids = [item for batch in pool.map(_process_put_batch, batches) for item in batch]
+
+    index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    assert len(index) == 32
+    assert set(index) == set(ids)
+    store = YarTraderArtifactStore(tmp_path)
+    for artifact_id in ids:
+        assert store.get(artifact_id) == next(
+            f"process-artifact-{i}".encode() for i in range(32)
+            if hashlib.sha256(f"process-artifact-{i}".encode()).hexdigest() == artifact_id
+        )

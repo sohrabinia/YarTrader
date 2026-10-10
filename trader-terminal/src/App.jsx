@@ -215,9 +215,11 @@ function MainApp() {
 
   const [blogArticles, setBlogArticles] = useState([]);
   const [publicMetrics, setPublicMetrics] = useState({
-    activeMarketsCount: '30',
-    historicalSimulatedTrades: '125.4k+',
-    platformUptimePct: null
+    activeMarketsCount: null,
+    historicalSimulatedTrades: null,
+    platformUptimePct: null,
+    apesFinCompliant: null,
+    metricsStatus: 'LOADING'
   });
   const [activeHorizon, setActiveHorizon] = useState('medium');
   const [selectedAsset, setSelectedAsset] = useState('all');
@@ -379,19 +381,28 @@ function MainApp() {
       navigateTo('/login');
       return;
     }
-    const isRestrictedRoute = routePath === '/dashboard' || routePath === '/execution-intel' || routePath === '/admin' || routePath === '/Operator' || routePath === '/operator' || routePath === '/learning' || routePath === '/wallet' || routePath === '/billing' || routePath === '/admin/wallet' || routePath === '/admin/financial';
+    const protectedPrefixes = ['/backtest', '/demo', '/live', '/signals'];
+    const isRestrictedRoute =
+      ['/dashboard', '/execution-intel', '/admin', '/Operator', '/operator', '/learning', '/wallet', '/billing']
+        .includes(routePath) ||
+      routePath.startsWith('/admin/') ||
+      protectedPrefixes.some(prefix => routePath === prefix || routePath.startsWith(prefix + '/'));
     if (isRestrictedRoute && !token) {
       navigateTo('/login');
       showNotification(
         lang === 'fa' ? 'لطفاً جهت دسترسی ابتدا وارد حساب کاربری خود شوید.' : 'Please sign in to access this zone.',
         'warning'
       );
+      return;
     }
-    if ((routePath === '/admin' || routePath === '/admin/wallet' || routePath === '/Operator' || routePath === '/operator') && token && role !== 'ADMIN') {
+    const isAdminRoute = routePath === '/admin' || routePath.startsWith('/admin/') ||
+      routePath === '/Operator' || routePath === '/operator';
+    if (isAdminRoute && token && String(role || '').toUpperCase() !== 'ADMIN') {
       showNotification(
         lang === 'fa' ? 'دسترسی فقط برای کاربران با نقش مدیریت (ADMIN) مجاز است.' : 'Admin role is required.',
         'warning'
       );
+      navigateTo('/dashboard');
     }
   }, [routePath, token, role]);
 
@@ -564,10 +575,22 @@ function MainApp() {
   const fetchPublicMetrics = async () => {
     try {
       const res = await apiService.get('/api/public/metrics');
+      const numericMetric = (value) => (
+        value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
+          ? Number(value)
+          : null
+      );
+      // Only trust metrics from the current explicit API contract. Older deployments
+      // exposed hard-coded trade counts, uptime, and compliance claims without provenance.
+      const registryMetricsAvailable = res?.metrics_status === 'LIVE_REGISTRY';
       setPublicMetrics({
-        activeMarketsCount: res.active_markets_count,
-        historicalSimulatedTrades: res.historical_simulated_trades,
-        platformUptimePct: res.platform_uptime_pct
+        activeMarketsCount: registryMetricsAvailable ? numericMetric(res.active_markets_count) : null,
+        historicalSimulatedTrades: registryMetricsAvailable ? numericMetric(res.historical_simulated_trades) : null,
+        platformUptimePct: registryMetricsAvailable ? numericMetric(res.platform_uptime_pct) : null,
+        apesFinCompliant: registryMetricsAvailable && typeof res.apes_fin_compliant === 'boolean'
+          ? res.apes_fin_compliant
+          : null,
+        metricsStatus: registryMetricsAvailable ? 'LIVE_REGISTRY' : 'DATA_UNAVAILABLE'
       });
     } catch (err) {
       console.error("Error fetching public metrics:", err);
@@ -909,6 +932,7 @@ function MainApp() {
       {/* Global Header */}
       <div className="header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <img src="/logo.svg" alt="YarTrader logo" width="36" height="36" style={{ display: 'block', objectFit: 'contain' }} />
           <span style={{ fontSize: '1.4em', fontWeight: 'bold', color: 'var(--primary)', letterSpacing: '1px' }}>
             YarTrader
           </span>
@@ -917,8 +941,8 @@ function MainApp() {
           </span>
           <HealthIndicator
             state={backendState}
-            label={backendState === 'LIVE' ? t('live_mode') :
-                   backendState === 'DEMO' ? t('demo_mode') :
+            label={backendState === 'LIVE' ? t('api_connected') :
+                   backendState === 'DEMO' ? t('api_limited') :
                    backendState === 'UNREACHABLE' ? t('unreachable_mode') : t('checking_mode')}
           />
           <span id="portal-status-label" style={{ fontSize: '0.85em', color: 'var(--text-muted)' }}>
@@ -986,8 +1010,8 @@ function MainApp() {
           {token && <a href={`/${lang}/signals`} className={`sidebar-link ${routePath === '/signals' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/signals'); }}>{t('nav_signals')}</a>}
           {token && <a href={`/${lang}/execution-intel`} className={`sidebar-link ${routePath === '/execution-intel' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/execution-intel'); }}>{t('nav_execution_intel')}</a>}
           {token && <a href={`/${lang}/learning`} className={`sidebar-link ${routePath.startsWith('/learning') ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/learning'); }}>{t('nav_learning')}</a>}
-          {token && role === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
-          {token && role === 'ADMIN' && <a href={`/${lang}/Operator`} className={`sidebar-link ${routePath === '/Operator' || routePath === '/operator' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/Operator'); }}>{t("nav_operator")}</a>}
+          {token && String(role || '').toUpperCase() === 'ADMIN' && <a href={`/${lang}/admin`} className={`sidebar-link ${routePath === '/admin' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/admin'); }}>{t('nav_admin')}</a>}
+          {token && String(role || '').toUpperCase() === 'ADMIN' && <a href={`/${lang}/Operator`} className={`sidebar-link ${routePath === '/Operator' || routePath === '/operator' ? 'active' : ''}`} onClick={(e) => { e.preventDefault(); navigateTo('/Operator'); }}>{t("nav_operator")}</a>}
 
           <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-dark)', paddingTop: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {token && (
@@ -1018,23 +1042,27 @@ function MainApp() {
                 <div className="status-board" style={{ marginTop: '25px' }}>
                   <MetricCard
                     title={t('pub_markets_title')}
-                    value={publicMetrics.activeMarketsCount}
-                    status="passed"
+                    value={publicMetrics.activeMarketsCount ?? t('data_unavailable')}
+                    status={publicMetrics.activeMarketsCount !== null ? 'passed' : 'warn'}
                   />
                   <MetricCard
                     title={t('pub_trades_title')}
-                    value={publicMetrics.historicalSimulatedTrades}
-                    status="primary"
+                    value={publicMetrics.historicalSimulatedTrades ?? t('data_unavailable')}
+                    status={publicMetrics.historicalSimulatedTrades !== null ? 'primary' : 'warn'}
                   />
                   <MetricCard
                     title={t('pub_uptime_title')}
-                    value={publicMetrics.platformUptimePct ? `${publicMetrics.platformUptimePct}%` : '99.9%'}
-                    status="passed"
+                    value={publicMetrics.platformUptimePct !== null ? `${publicMetrics.platformUptimePct}%` : t('data_unavailable')}
+                    status={publicMetrics.platformUptimePct !== null ? 'passed' : 'warn'}
                   />
                   <MetricCard
                     title={t('pub_standards_title')}
-                    value={t('pes_compliant')}
-                    status="warn"
+                    value={publicMetrics.apesFinCompliant === true
+                      ? t('pes_compliant')
+                      : publicMetrics.apesFinCompliant === false
+                        ? t('compliance_not_compliant')
+                        : t('compliance_not_verified')}
+                    status={publicMetrics.apesFinCompliant === true ? 'passed' : 'warn'}
                   />
                 </div>
               </div>

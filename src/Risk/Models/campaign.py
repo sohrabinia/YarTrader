@@ -13,7 +13,7 @@ class CampaignLeg:
     stop_loss: float
     take_profit: float
     volume_lots: float
-    risk_pct: float  # e.g., 2.0 for initial leg, 1.0 for add-on leg
+    risk_pct: float  # Unified 1.0% per-trade risk
     risk_amount_usd: float
     margin_required_usd: float
     effective_be_price: float
@@ -35,7 +35,7 @@ class TradeCampaign:
     legs: List[CampaignLeg] = field(default_factory=list)
     total_locked_profit_usd: float = 0.0
     total_current_risk_usd: float = 0.0
-    max_risk_pct: float = 2.0  # Initial risk cap
+    max_risk_pct: float = 1.0  # Unified per-trade risk cap
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     settled_at: Optional[datetime] = None
     settlement_reason: Optional[str] = None

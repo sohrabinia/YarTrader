@@ -58,7 +58,7 @@ AutonomousTradingDecision(
     entry=2600.50,
     stop_loss=2590.00,
     take_profit=2620.00,
-    volume=0.01,
+    volume=0.0,  # execution layer fills this only after broker-authoritative 1% risk sizing
     risk_reward=1.95,
     confidence=85.0,
     reasoning=["Bullish order block retest", "Liquidity swept"],
@@ -76,6 +76,8 @@ AutonomousTradingDecision(
 
 1. **Kill Switch:** Controlled via `AUTONOMOUS_DEMO_TRADING_ENABLED` environment variable. When set to `False`, autonomous order dispatching is halted immediately while research polling continues.
 2. **Risk & Confidence Gates:**
+   - Per-trade target and hard ceiling: `1.0%` of current wallet balance/equity (the lower authoritative value), verified by MT5 `order_calc_profit`.
+   - Position volume is calculated from the live stop-loss, current wallet, and broker-reported volume minimum/maximum/step; no fixed lot fallback is permitted.
    - Minimum Risk-Reward: `MINIMUM_RR` (default `1.5`).
    - Minimum Confidence: `MINIMUM_CONFIDENCE` (default `50.0`).
 3. **Duplicate & Cooldown Protection:**

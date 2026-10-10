@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
@@ -68,8 +69,19 @@ class TestGate2UniverseAndIndicatorFree(unittest.TestCase):
     def setUp(self):
         SymbolRegistry._instance = None
         self.registry = SymbolRegistry.get_instance()
+        # Keep runtime Brain learning isolated from the production memory corpus.
+        self._memory_tempdir = tempfile.TemporaryDirectory(prefix="yartrader-gate2-memory-")
+        from src.Research.Brain.memory import MarketMemorySystem
+        self._test_memory = MarketMemorySystem(storage_dir=self._memory_tempdir.name)
+        self._memory_patch = patch(
+            "src.Research.Brain.live_brain.MarketMemorySystem",
+            return_value=self._test_memory,
+        )
+        self._memory_patch.start()
 
     def tearDown(self):
+        self._memory_patch.stop()
+        self._memory_tempdir.cleanup()
         SymbolRegistry._instance = None
         if os.path.exists("runtime_logs/symbols_registry.json"):
             try:
@@ -84,8 +96,19 @@ class TestGate2UniverseAndIndicatorFree(unittest.TestCase):
         self.assertEqual(len(registered), 30)
         self.assertEqual(registered, CANONICAL_30_SYMBOLS)
 
-    # Case B: Duplicate symbol key rejection in parse_market_universe_yaml
-    def test_case_b_duplicate_symbol_key_rejection(self):
+    # Case B: Rollout remains limited to gold and euro until the 30-symbol expansion is approved.
+    def test_case_b_active_rollout_is_gold_and_euro_only(self):
+        registered = self.registry.get_all_registered()
+        active = {symbol for symbol, info in registered.items() if info.get("active")}
+        self.assertEqual(active, {"XAUUSD", "EURUSD"})
+        self.assertEqual(self.registry.max_symbols, 2)
+        matrix = self.registry.get_active_matrix()
+        self.assertEqual({row[0] for row in matrix}, active)
+        self.assertEqual(len(matrix), 8)
+        self.assertEqual({row[1] for row in matrix}, {"M15", "H1", "H4", "D1"})
+
+    # Case C: Duplicate symbol key rejection in parse_market_universe_yaml
+    def test_case_c_duplicate_symbol_key_rejection(self):
         duplicate_yaml = """
 market_universe:
   Commodities:
@@ -159,8 +182,9 @@ market_universe:
         self.assertIn("GBPUSD", researched_symbols)
         self.assertIn("XAUUSD", researched_symbols)
 
-    # Case F: DEMO execution boundary rejects non-XAUUSD symbols
-    def test_case_f_demo_execution_boundary_xauusd_only(self):
+    # Case F: Enabled non-gold symbols use the same canonical DEMO gates.
+    def test_case_f_enabled_eurusd_can_reach_canonical_demo_execution(self):
+        from types import SimpleNamespace
         worker = ResearchWorker()
         provider = ControlledDataProvider()
 
@@ -168,16 +192,30 @@ market_universe:
 
         def mock_execute_demo_decision(*args, **kwargs):
             executed_dispatches.append(kwargs.get("symbol"))
-            return MagicMock(Status="Placed")
+            return MagicMock(Status="Placed", OrderId="demo-test")
 
         worker.demo_engine = MagicMock()
+        worker.demo_engine.get_active_positions.return_value = []
         worker.demo_engine.execute_demo_decision = mock_execute_demo_decision
-
         matrix = [("EURUSD", "H1", "Forex", "MT5")]
         runtime = ResearchRuntime(provider=provider, symbol="EURUSD", timeframe="H1", provider_name="ControlledOfflineFixture")
+        runtime.run_once = lambda: SimpleNamespace(
+            Findings={
+                "pipeline_outputs": {"technical_analysis": {"candles": []}},
+                "autonomous_decision": {
+                    "action": "BUY", "risk_reward": 2.0, "confidence": 80.0,
+                    "entry": 1.1, "stop_loss": 1.09, "take_profit": 1.12,
+                    "decision_id": "test-eurusd"
+                },
+            },
+            Request=SimpleNamespace(EndTime=None),
+        )
 
         with patch.object(worker, "_get_or_create_runtime", return_value=runtime), \
              patch.object(worker, "_get_active_matrix", return_value=matrix), \
+             patch.object(worker, "_validate_and_size_decision", return_value={
+                 "volume_lots": 0.1, "price": 1.1, "sl": 1.09, "tp": 1.12, "equity": 10000.0
+             }), \
              patch("app.workers.research_worker.is_autonomous_demo_enabled", return_value=True):
 
             worker.is_running = True
@@ -187,8 +225,7 @@ market_universe:
             with patch("time.sleep", side_effect=stop_loop):
                 worker._run_loop()
 
-        # EURUSD execution MUST NOT be dispatched
-        self.assertNotIn("EURUSD", executed_dispatches)
+        self.assertIn("EURUSD", executed_dispatches)
 
     # Case G: Zero forbidden indicator execution starting from ResearchWorker._run_loop()
     def test_case_g_indicator_forensic_zero_calls(self):
@@ -262,7 +299,7 @@ market_universe:
             similarity={},
             portfolio_risk={"approved": True},
             current_price=2000.0,
-            newborn_brain_report={"brain_available": True, "suggested_virtual_action": "BUY"}
+            newborn_brain_report={"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2000.0, "stop_loss": 1990.0, "take_profit": 2020.0, "risk_reward": 2.0}}]}
         )
 
         plan = res["plan"]
@@ -284,7 +321,7 @@ market_universe:
             similarity={},
             portfolio_risk={"approved": True},
             current_price=2000.0,
-            newborn_brain_report={"brain_available": True, "suggested_virtual_action": "SELL"}
+            newborn_brain_report={"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2000.0, "stop_loss": 2010.0, "take_profit": 1980.0, "risk_reward": 2.0}}]}
         )
 
         plan = res["plan"]
@@ -323,7 +360,11 @@ market_universe:
             mock_brain_report.to_dict.return_value = {
                 "symbol": "XAUUSD",
                 "brain_available": True,
-                "suggested_virtual_action": target_action
+                "active_hypotheses": [{
+                    "suggested_virtual_action": target_action,
+                    "hypothesis_confidence": 80.0,
+                    "trade_parameters": {"entry": 2000.2, "stop_loss": 1990.2, "take_profit": 2020.2, "risk_reward": 2.0}
+                }]
             }
 
             with patch.object(LiveAnalysisBrain, "process_live_candle", return_value=mock_brain_report), \
@@ -370,7 +411,7 @@ market_universe:
         runtime1 = ResearchRuntime(provider=ControlledDataProvider(), symbol="XAUUSD", timeframe="H1", provider_name="ControlledOfflineFixture")
 
         report_sell = MagicMock()
-        report_sell.to_dict.return_value = {"symbol": "XAUUSD", "brain_available": True, "suggested_virtual_action": "SELL"}
+        report_sell.to_dict.return_value = {"symbol": "XAUUSD", "brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2000.2, "stop_loss": 2010.2, "take_profit": 1980.2, "risk_reward": 2.0}}]}
 
         with patch.object(StrategyOrchestrator, "evaluate_all_strategies", return_value=mock_buy_candidate), \
              patch.object(LiveAnalysisBrain, "process_live_candle", return_value=report_sell), \
@@ -394,7 +435,7 @@ market_universe:
         runtime2 = ResearchRuntime(provider=ControlledDataProvider(), symbol="XAUUSD", timeframe="H1", provider_name="ControlledOfflineFixture")
 
         report_buy = MagicMock()
-        report_buy.to_dict.return_value = {"symbol": "XAUUSD", "brain_available": True, "suggested_virtual_action": "BUY"}
+        report_buy.to_dict.return_value = {"symbol": "XAUUSD", "brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2000.2, "stop_loss": 1990.2, "take_profit": 2020.2, "risk_reward": 2.0}}]}
 
         with patch.object(StrategyOrchestrator, "evaluate_all_strategies", return_value=mock_sell_candidate), \
              patch.object(LiveAnalysisBrain, "process_live_candle", return_value=report_buy), \
