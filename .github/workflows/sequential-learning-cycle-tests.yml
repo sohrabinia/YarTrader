@@ -70,5 +70,9 @@ jobs:
             tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py \
             tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py \
             tests/YarTrader.Tests/Runtime/test_research_runtime.py \
-            tests/YarTrader.Tests/Services/test_web_dashboard.py \
             tests/test_research_snapshot_persistence.py
+      - name: Run targeted Base-only API acceptance tests
+        run: |
+          python -m pytest -q \
+            tests/YarTrader.Tests/Services/test_web_dashboard.py::TestWebDashboardFastAPI::test_trigger_backtesting_job_uses_base_only_and_real_history \
+            tests/YarTrader.Tests/Services/test_web_dashboard.py::TestWebDashboardFastAPI::test_get_health_diagnostics
