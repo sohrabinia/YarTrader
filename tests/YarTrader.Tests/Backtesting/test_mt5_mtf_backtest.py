@@ -1,5 +1,9 @@
 import unittest
+import tempfile
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from app.workers.mt5_mtf_backtest_worker import closed_context_provider, MTF_TIMEFRAMES, MAX_HISTORY_YEARS
+from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
 
 class TestMt5MtfBacktest(unittest.TestCase):
     def test_canonical_timeframes(self):
@@ -49,6 +53,54 @@ class TestMt5MtfBacktest(unittest.TestCase):
         ]}
         ctx = closed_context_provider(series, "2026-01-01T23:00:00+00:00")
         self.assertLessEqual(len(ctx["H1"]), 500)
+
+    def test_backtest_engine_mtf_provider_excludes_unclosed_future_bars(self):
+        class FakeMT5:
+            TIMEFRAME_M1 = 1
+            TIMEFRAME_M5 = 5
+            TIMEFRAME_M15 = 15
+            TIMEFRAME_M30 = 30
+            TIMEFRAME_H1 = 60
+            TIMEFRAME_H4 = 240
+            TIMEFRAME_D1 = 1440
+            TIMEFRAME_W1 = 10080
+            TIMEFRAME_MN1 = 43200
+            seconds = {1: 60, 5: 300, 15: 900, 30: 1800, 60: 3600, 240: 14400, 1440: 86400, 10080: 604800, 43200: 31 * 86400}
+
+            @classmethod
+            def copy_rates_range(cls, symbol, timeframe, start, end):
+                step = cls.seconds[timeframe]
+                end_epoch = int(end.timestamp())
+                return [
+                    {
+                        "time": end_epoch - (60 - i) * step,
+                        "open": 1.0 + i * 0.001,
+                        "high": 1.01 + i * 0.001,
+                        "low": 0.99 + i * 0.001,
+                        "close": 1.005 + i * 0.001,
+                        "tick_volume": 100 + i,
+                    }
+                    for i in range(60)
+                ]
+
+            @staticmethod
+            def last_error():
+                return (0, "ok")
+
+        with tempfile.TemporaryDirectory(prefix="yartrader-mtf-provider-test-") as tmp:
+            engine = BacktestAndLearningEngine(storage_dir=tmp)
+            end = datetime(2026, 10, 11, 12, 0, 0, tzinfo=timezone.utc)
+            provider, counts = engine.build_mt5_multitimeframe_provider(
+                "EURUSD", "H1", end - timedelta(days=30), end, FakeMT5
+            )
+            self.assertEqual(set(counts), {"H4", "H1", "M30"})
+            self.assertTrue(all(count == 60 for count in counts.values()))
+            cutoff = end - timedelta(hours=2)
+            context = provider(cutoff)
+            self.assertTrue(context["H1"])
+            last_open = datetime.fromisoformat(context["H1"][-1]["timestamp"])
+            self.assertLessEqual(last_open + timedelta(hours=1), cutoff)
+            self.assertLess(len(context["H1"]), counts["H1"])
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,6 +20,7 @@ LOGS_DIR = "logs"
 REPORTS_DIR = "reports"
 VALIDATION_DIR = "validation"
 HISTORY_DIR = "history"
+BACKTEST_RUNS_FILE = os.environ.get("YARTRADER_BACKTEST_RUNS_FILE", "runtime_logs/backtest_runs.json")
 
 # Import production logging functions
 from app.core.logging import log_event, log_audit, log_intelligence_decision
@@ -3962,7 +3963,7 @@ def get_production_health():
         mt5_connected = bool(mt5_health.connected)
     except Exception:
         mt5_connected = False
-    mt5_status = "Connected" if mt5_connected else "Standby"
+    mt5_status = "Connected" if mt5_connected else "Disconnected"
 
     # Shadow Trading is DEPRECATED & REMOVED repository-wide (SHADOW = ZERO)
     shadow_status_active = "Disabled"
@@ -4001,7 +4002,7 @@ def get_production_health():
     # The authenticated direct MT5 adapter is authoritative for terminal connectivity;
     # the optional research bridge may be unavailable while DEMO execution is healthy.
     mt5_connected = mt5_terminal_connected
-    mt5_status = "Connected" if mt5_connected else "Standby"
+    mt5_status = "Connected" if mt5_connected else "Disconnected"
 
     # Redacted public terminal operational health summary (no accounts, servers, or internal topology)
     mt5_report = {
@@ -4353,73 +4354,138 @@ def trigger_backtesting_job(params: Dict[str, Any]):
     """Triggers real, non-trading intelligence backtesting job over historical data."""
     symbol = str(params.get("symbol", "XAUUSD")).upper()
     timeframe = str(params.get("timeframe", "H1")).upper()
-    strategy_type = str(params.get("strategy_type", "Momentum"))
-    initial_balance = float(params.get("initial_balance", 10000.0))
+    # Strategy selection is intentionally fixed to the canonical Base hierarchy.
+    strategy_type = "BASE_HIERARCHY"
+    try:
+        initial_balance = float(params.get("initial_balance", 10000.0))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="initial_balance must be a positive finite number.")
+    import math
+    if not math.isfinite(initial_balance) or initial_balance <= 0.0:
+        raise HTTPException(status_code=400, detail="initial_balance must be a positive finite number.")
 
-    # Determine start and end times dynamically
-    from datetime import datetime, timedelta
-    end_dt = datetime.now()
-    start_dt = end_dt - timedelta(days=5)
-
-    if params.get("start_time"):
-        try:
-            start_dt = datetime.fromisoformat(params["start_time"])
-        except ValueError:
-            pass
+    # Default history windows provide enough closed bars for the selected timeframe;
+    # explicit caller-supplied ISO-8601 bounds always take precedence.
+    from datetime import datetime, timedelta, timezone
+    default_lookbacks = {
+        "M1": timedelta(hours=10), "M5": timedelta(days=2),
+        "M15": timedelta(days=6), "M30": timedelta(days=13),
+        "H1": timedelta(days=22), "H4": timedelta(days=52),
+        "D1": timedelta(days=205), "W1": timedelta(days=700),
+        "MN1": timedelta(days=1800),
+    }
+    end_dt = datetime.now(timezone.utc)
     if params.get("end_time"):
         try:
-            end_dt = datetime.fromisoformat(params["end_time"])
+            end_dt = datetime.fromisoformat(str(params["end_time"]))
         except ValueError:
-            pass
+            raise HTTPException(status_code=400, detail="end_time must be a valid ISO-8601 datetime.")
+    if params.get("start_time"):
+        try:
+            start_dt = datetime.fromisoformat(str(params["start_time"]))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="start_time must be a valid ISO-8601 datetime.")
+    else:
+        start_dt = end_dt - default_lookbacks.get(timeframe, timedelta(days=22))
 
-    from src.Application.Backtesting.models import BacktestScenario
-    from src.Application.Backtesting.engine import IntelligenceBacktestEngine
-    from src.Application.Agents.supervisor import IntelligenceSupervisor
-    from src.Application.Agents.concrete_agents import (
-        ResearchAgent,
-        StrategyAnalystAgent,
-        RiskAgent,
-        ValidationAgent,
-        LearningAgent
-    )
-    from src.Decision.Intelligence.engine import DecisionEngine
-    from src.Data.connector import ExternalDataPipelineConnector
+    # This endpoint must use the same Base-only decision engine as runtime signals.
+    # No supervisor/Brain/EMA fallback strategy may originate backtest entries.
+    strategy_type = "BASE_HIERARCHY"
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    else:
+        start_dt = start_dt.astimezone(timezone.utc)
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    else:
+        end_dt = end_dt.astimezone(timezone.utc)
+    from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
+    import MetaTrader5 as mt5
 
-    # Build Supervisor & Connector
-    supervisor = IntelligenceSupervisor()
-    supervisor.register_agent(ResearchAgent())
-    supervisor.register_agent(StrategyAnalystAgent())
-    supervisor.register_agent(RiskAgent())
-    supervisor.register_agent(ValidationAgent())
-    supervisor.register_agent(LearningAgent())
+    tf_map = {
+        "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5,
+        "M15": mt5.TIMEFRAME_M15, "M30": mt5.TIMEFRAME_M30,
+        "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+        "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1,
+        "MN1": mt5.TIMEFRAME_MN1,
+    }
+    tf_seconds = {
+        "M1": 60, "M5": 300, "M15": 900, "M30": 1800,
+        "H1": 3600, "H4": 14400, "D1": 86400,
+        "W1": 604800, "MN1": 31 * 86400,
+    }
+    if timeframe not in tf_map:
+        raise HTTPException(status_code=400, detail=f"Unsupported MT5 timeframe: {timeframe}")
+    if end_dt <= start_dt:
+        raise HTTPException(status_code=400, detail="Backtest end_time must be later than start_time.")
 
-    dec_engine = DecisionEngine()
-    connector = ExternalDataPipelineConnector()
-
-    engine = IntelligenceBacktestEngine(supervisor, dec_engine, connector)
+    # Do not shut down a terminal session that was already initialized by another
+    # runtime component in this process. If no session exists, initialize and own it.
+    terminal_was_initialized = False
+    initialized_here = False
+    started_at = time.perf_counter()
+    try:
+        terminal_was_initialized = mt5.terminal_info() is not None
+        if not terminal_was_initialized:
+            if not mt5.initialize():
+                raise RuntimeError(f"MT5 terminal unavailable: {mt5.last_error()}")
+            initialized_here = True
+        rates = mt5.copy_rates_range(symbol, tf_map[timeframe], start_dt, end_dt)
+        if rates is None or len(rates) == 0:
+            raise RuntimeError(f"MT5 returned no history for {symbol}/{timeframe}: {mt5.last_error()}")
+        # Backtest only fully closed bars. The final in-progress candle is never
+        # allowed to leak its partial high/low/close into a historical decision.
+        closed_rates = []
+        for rate in rates:
+            opened_at = datetime.fromtimestamp(int(rate["time"]), timezone.utc)
+            if opened_at + timedelta(seconds=tf_seconds[timeframe]) <= end_dt:
+                closed_rates.append(rate)
+        if len(closed_rates) <= 50:
+            raise RuntimeError(f"Insufficient closed MT5 history for {symbol}/{timeframe}; at least 51 closed bars are required.")
+        candles = [
+            {
+                "timestamp": datetime.fromtimestamp(int(rate["time"]), timezone.utc).isoformat(),
+                "open": float(rate["open"]),
+                "high": float(rate["high"]),
+                "low": float(rate["low"]),
+                "close": float(rate["close"]),
+                "volume": float(rate["tick_volume"]),
+            }
+            for rate in closed_rates
+        ]
+        engine = BacktestAndLearningEngine()
+        mtf_provider, mtf_history_counts = engine.build_mt5_multitimeframe_provider(
+            symbol=symbol,
+            primary_timeframe=timeframe,
+            start_time=start_dt,
+            end_time=end_dt,
+            mt5_module=mt5,
+        )
+        result = engine.run_backtest(
+            symbol=symbol,
+            timeframe=timeframe,
+            candles=candles,
+            initial_balance=initial_balance,
+            all_timeframe_candles_provider=mtf_provider,
+            learn_from_outcomes=True,
+        )
+        result["data_source"] = "MT5_TERMINAL_HISTORY"
+        result["base_timeframe_history_bars"] = mtf_history_counts
+        result["decision_authority"] = "BASE_HIERARCHY"
+        result["history_start"] = candles[0]["timestamp"]
+        result["history_end"] = candles[-1]["timestamp"]
+        result["history_bars"] = len(candles)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Base-only backtest failed closed: {str(e)}")
+    finally:
+        if initialized_here:
+            mt5.shutdown()
 
     import uuid
-    scenario = BacktestScenario(
-        scenario_id=f"scen-{uuid.uuid4().hex[:6]}",
-        name=f"{strategy_type} Historical Scenario",
-        start_time=start_dt,
-        end_time=end_dt,
-        symbol=symbol,
-        timeframe=timeframe,
-        parameters={
-            "interval_minutes": 240, # 4-hour intervals
-            "strategy_type": strategy_type,
-            "initial_balance": initial_balance
-        }
-    )
-
-    try:
-        result = engine.run_backtest(scenario)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Backtest Execution Failed: {str(e)}")
+    backtest_id = f"bt-{uuid.uuid4().hex[:12]}"
 
     # Prepare Run Entry to persist
-    runs_file = "runtime_logs/backtest_runs.json"
+    runs_file = BACKTEST_RUNS_FILE
     runs = []
     if os.path.exists(runs_file):
         try:
@@ -4428,17 +4494,33 @@ def trigger_backtesting_job(params: Dict[str, Any]):
         except Exception:
             runs = []
 
+    metrics = {
+        "initial_balance": result.get("initial_balance", initial_balance),
+        "final_balance": result.get("final_balance", initial_balance),
+        "net_pnl": result.get("net_pnl", 0.0),
+        "total_trades": result.get("total_trades", 0),
+        "wins": result.get("wins", 0),
+        "losses": result.get("losses", 0),
+        "breakevens": result.get("breakevens", 0),
+        "win_rate_pct": result.get("win_rate_pct", 0.0),
+        "learning_updates_count": result.get("learning_updates_count", 0),
+    }
     run_entry = {
-        "backtest_id": result.backtest_id,
-        "scenario_id": result.scenario_id,
+        "backtest_id": backtest_id,
         "symbol": symbol,
         "timeframe": timeframe,
-        "strategy_type": strategy_type,
+        "strategy_type": "BASE_HIERARCHY",
+        "decision_authority": "BASE_HIERARCHY",
+        "data_source": result.get("data_source", "MT5_TERMINAL_HISTORY"),
         "start_time": start_dt.isoformat(),
         "end_time": end_dt.isoformat(),
-        "total_intervals_processed": result.total_intervals_processed,
-        "metrics": result.performance_metrics,
-        "executed_at": datetime.now().isoformat()
+        "history_start": result.get("history_start"),
+        "history_end": result.get("history_end"),
+        "history_bars": result.get("history_bars", 0),
+        "base_timeframe_history_bars": result.get("base_timeframe_history_bars", {}),
+        "total_intervals_processed": result.get("history_bars", 0),
+        "metrics": metrics,
+        "executed_at": datetime.now(timezone.utc).isoformat(),
     }
     runs.append(run_entry)
 
@@ -4450,18 +4532,19 @@ def trigger_backtesting_job(params: Dict[str, Any]):
         pass
 
     return {
-        "job_id": result.backtest_id,
+        "job_id": backtest_id,
         "status": "Completed",
-        "duration_sec": 0.15,
-        "decision_consistency_pct": round(result.performance_metrics.get("decision_consistency", 0.95) * 100, 2),
-        "results": run_entry
+        "duration_sec": round(time.perf_counter() - started_at, 3),
+        "decision_authority": "BASE_HIERARCHY",
+        "decision_consistency_pct": None,
+        "results": run_entry,
     }
 
 
 @app.get("/api/backtest/history")
 def get_backtest_history():
     """Returns chronological history of all executed backtesting runs."""
-    runs_file = "runtime_logs/backtest_runs.json"
+    runs_file = BACKTEST_RUNS_FILE
     if not os.path.exists(runs_file):
         return []
     try:

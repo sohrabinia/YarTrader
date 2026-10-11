@@ -51,9 +51,11 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
     # OBJECTIVE A: UNIFY SYMBOL LIMIT
     # =========================================================================
 
-    def test_authoritative_symbol_limit_is_exactly_30(self) -> None:
-        """Verifies that the unified active symbol limit is exactly 30."""
-        self.assertEqual(self.registry.max_symbols, 30)
+    def test_canonical_universe_has_30_symbols_and_active_rollout_limit_is_configured(self) -> None:
+        """The 30-symbol universe is separate from the deliberately lower active rollout cap."""
+        from src.ShadowTrading.Engine.SymbolRegistry import CANONICAL_30_SYMBOLS
+        self.assertEqual(len(CANONICAL_30_SYMBOLS), 30)
+        self.assertEqual(self.registry.max_symbols, 2)
 
     def test_register_symbols_below_and_at_ceiling(self) -> None:
         """Verifies that registering up to canonical 30 active symbols succeeds."""
@@ -79,11 +81,13 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
         self.registry.register_symbol("EURUSD", ["H1", "H4"])
         self.assertTrue(os.path.exists(self.temp_registry_file))
 
-        # Re-load registry from file
+        # A partial persisted registry must not override the canonical YAML baseline.
         SymbolRegistry._instance = None
         new_registry = SymbolRegistry.get_instance()
-        self.assertEqual(new_registry.max_symbols, 30)
-        self.assertIn("EURUSD", new_registry.get_all_registered())
+        from src.ShadowTrading.Engine.SymbolRegistry import CANONICAL_30_SYMBOLS
+        self.assertEqual(new_registry.max_symbols, 2)
+        self.assertEqual(set(new_registry.get_all_registered()), CANONICAL_30_SYMBOLS)
+        self.assertLessEqual(sum(1 for item in new_registry.get_all_registered().values() if item.get("active")), 2)
 
     # =========================================================================
     # OBJECTIVE B: SECURITY & AUDIT LOGGING
@@ -171,6 +175,6 @@ class TestP0InfrastructureSecurityRemediation(unittest.TestCase):
             # 1. Admin user token -> 200 OK
             response = self.client.get("/api/admin/symbols", headers={"Authorization": f"Bearer {token}"})
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["max_limit"], 30)
+            self.assertEqual(response.json()["max_limit"], 2)
         finally:
             global_auth_service.logout(token)

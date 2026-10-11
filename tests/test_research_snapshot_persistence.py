@@ -45,8 +45,10 @@ def test_signal_api_reads_canonical_storage_and_maps_entry_field(tmp_path, monke
                     "take_profit": 2520.0,
                     "risk_reward": 1.97,
                     "confidence": 80.0,
-                    "reasoning": ["unit-test"]
-                }
+                    "reasoning": ["unit-test"],
+                    "evidence": {"decision_authority": "BASE_HIERARCHY"},
+                },
+                "intel_summary": {"decision_authority": "BASE_HIERARCHY", "candidate_available": True}
             }
         }
         with open(os.path.join(snapshot_dir, "fresh-test.json"), "w", encoding="utf-8") as handle:
@@ -62,7 +64,7 @@ def test_signal_api_reads_canonical_storage_and_maps_entry_field(tmp_path, monke
         YarTraderStorageManager.reset()
 
 
-def test_signal_api_surfaces_brain_candidate_without_resurrecting_older_active_signal(tmp_path, monkeypatch):
+def test_signal_api_rejects_brain_only_candidate_without_resurrecting_older_active_signal(tmp_path, monkeypatch):
     monkeypatch.setenv("YarTraderStorageRoot", str(tmp_path))
     monkeypatch.delenv("TradeYarStorageRoot", raising=False)
     snapshot_dir = tmp_path / "Runtime" / "research_logs" / "research_snapshots"
@@ -93,12 +95,9 @@ def test_signal_api_surfaces_brain_candidate_without_resurrecting_older_active_s
 
         from src.Application.Services.user_api_router import _snapshot_signals
         signals = _snapshot_signals()
-        assert len(signals) == 1
-        assert signals[0]["direction"] == "SELL"
-        assert signals[0]["status"] == "CANDIDATE"
-        assert signals[0]["execution_action"] == "WAIT"
-        assert signals[0]["entry_zone"] is None
-        assert signals[0]["confidence"] == 72.44
+        # The latest Brain-only WAIT snapshot suppresses older signals; it may not
+        # synthesize a customer-facing SELL candidate from a learned hypothesis.
+        assert signals == []
     finally:
         YarTraderStorageManager.reset()
 

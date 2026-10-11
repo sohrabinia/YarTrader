@@ -232,11 +232,19 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
             from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
             from src.Decision.Models.models import AutonomousTradingDecision
 
+            raw_mtf = (request.Context or {}).get("base_candles_by_timeframe", {})
+            all_tf_candles = {
+                str(tf).upper(): [bar for bar in bars if isinstance(bar, dict)]
+                for tf, bars in raw_mtf.items()
+                if isinstance(bars, list)
+            } if isinstance(raw_mtf, dict) else {}
+            if not all_tf_candles.get(timeframe):
+                all_tf_candles[timeframe] = candles_dicts
             base_report = StrategyOrchestrator().evaluate_all_strategies(
                 symbol=request.Asset,
                 primary_timeframe=timeframe,
                 candles=candles_dicts,
-                all_timeframe_candles={timeframe: candles_dicts},
+                all_timeframe_candles=all_tf_candles,
             )
             base_candidate = base_report.get("best_candidate")
             base_plan = base_report.get("base_plan") or {}

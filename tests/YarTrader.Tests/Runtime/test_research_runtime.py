@@ -1,8 +1,9 @@
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from typing import Optional, List
 from src.Infrastructure.exceptions import ValidationException
 from src.Data.MarketData.Models.models import (
@@ -203,6 +204,32 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         self.assertEqual(decision.get("confidence"), 0.0)
         self.assertEqual(decision.get("evidence", {}).get("decision_authority"), "BASE_HIERARCHY")
         self.assertEqual(result.Findings["intel_summary"].get("decision_authority"), "BASE_HIERARCHY")
+
+    def test_base_runtime_loads_adjacent_parent_and_child_timeframes(self) -> None:
+        """Base analysis receives real adjacent timeframe bars rather than a single-TF-only map."""
+        points = [
+            SimpleNamespace(
+                Timestamp=datetime(2026, 10, 1) + timedelta(hours=i),
+                Open=2000.0 + i * 0.1, High=2001.0 + i * 0.1,
+                Low=1999.0 + i * 0.1, Close=2000.5 + i * 0.1, Volume=100.0,
+            )
+            for i in range(60)
+        ]
+        provider = MagicMock()
+        provider.retrieve_market_data.return_value = SimpleNamespace(DataPoints=points)
+        runtime = ResearchRuntime(
+            provider=provider, symbol="MTFREGRESSION", timeframe="H1", provider_name="MTF_TEST"
+        )
+        all_tf = runtime._load_base_mtf_candles(
+            SimpleNamespace(DataPoints=points), datetime(2026, 10, 11, 12, 0, 0)
+        )
+
+        self.assertEqual(set(all_tf), {"H4", "H1", "M30"})
+        self.assertEqual(len(all_tf["H1"]), 60)
+        self.assertEqual(len(all_tf["H4"]), 60)
+        self.assertEqual(len(all_tf["M30"]), 60)
+        requested_timeframes = {call.args[0].Timeframe for call in provider.retrieve_market_data.call_args_list}
+        self.assertEqual(requested_timeframes, {"H4", "M30"})
 
     def test_runtime_single_cycle_run_once(self) -> None:
         """Verify that a single research execution loop completes successfully and generates correct findings and files."""

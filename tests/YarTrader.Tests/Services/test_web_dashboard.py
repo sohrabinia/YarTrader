@@ -1,5 +1,8 @@
 import unittest
 import os
+import time
+import tempfile
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app, val_state
 
@@ -155,11 +158,43 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         resp_err = self.client.post("/api/mode", json={"mode": "LiveActiveTrading"})
         self.assertEqual(resp_err.status_code, 400)
 
-    def test_trigger_backtesting_job(self):
-        """Verifies offline backtest execution endpoint."""
-        resp = self.client.post("/api/backtest/run", json={"symbol": "EURUSD"})
-        self.assertEqual(resp.status_code, 200)
-        self.assertIn("job_id", resp.json())
+    def test_trigger_backtesting_job_uses_base_only_and_real_history(self):
+        """Verifies the API runs the Base-only backtester against supplied MT5 history, without fallback strategies."""
+        now = int(time.time())
+        rates = [
+            {
+                "time": now - (60 - i) * 3600,
+                "open": 1.0800 + i * 0.0001,
+                "high": 1.0810 + i * 0.0001,
+                "low": 1.0790 + i * 0.0001,
+                "close": 1.0805 + i * 0.0001,
+                "tick_volume": 1000 + i,
+            }
+            for i in range(60)
+        ]
+        expected_result = {
+            "symbol": "EURUSD", "timeframe": "H1", "initial_balance": 10000.0,
+            "final_balance": 10000.0, "net_pnl": 0.0, "total_trades": 0,
+            "wins": 0, "losses": 0, "breakevens": 0, "win_rate_pct": 0.0,
+            "learning_updates_count": 0, "closed_trades": [],
+        }
+        with tempfile.TemporaryDirectory(prefix="yartrader-backtest-api-test-") as tmp, \
+             patch("MetaTrader5.terminal_info", return_value=object()), \
+             patch("MetaTrader5.copy_rates_range", return_value=rates) as history, \
+             patch("src.Application.Backtesting.backtest_learning_engine.BacktestAndLearningEngine.run_backtest", return_value=expected_result) as base_backtest, \
+             patch("src.Application.Services.web_dashboard.BACKTEST_RUNS_FILE", os.path.join(tmp, "runs.json")):
+            resp = self.client.post("/api/backtest/run", json={"symbol": "EURUSD", "timeframe": "H1"})
+
+        self.assertEqual(resp.status_code, 200, resp.text)
+        payload = resp.json()
+        self.assertIn("job_id", payload)
+        self.assertEqual(payload["decision_authority"], "BASE_HIERARCHY")
+        self.assertEqual(payload["results"]["strategy_type"], "BASE_HIERARCHY")
+        self.assertEqual(payload["results"]["data_source"], "MT5_TERMINAL_HISTORY")
+        self.assertEqual(history.call_count, 4)  # requested timeframe + parent/child Base frames
+        self.assertEqual(base_backtest.call_args.kwargs["symbol"], "EURUSD")
+        self.assertEqual(base_backtest.call_args.kwargs["timeframe"], "H1")
+        self.assertTrue(callable(base_backtest.call_args.kwargs["all_timeframe_candles_provider"]))
 
     def test_trigger_emergency_stop(self):
         """Verifies immediate emergency protective stop halts."""

@@ -53,7 +53,8 @@ class TestHealthStatus(unittest.TestCase):
             global_research_runtime.provider.delegate,
             "get_connection_health",
             return_value=type("Health", (), {"connected": False})(),
-        ):
+        ), patch("src.Execution.Adapters.mt5_adapter.RealMT5BrokerAdapter") as adapter_cls:
+            adapter_cls.return_value._initialized = False
             health = get_production_health()
             self.assertIn(health["status"], ["Healthy", "healthy"])
             self.assertEqual(health["mt5"], "Disconnected")

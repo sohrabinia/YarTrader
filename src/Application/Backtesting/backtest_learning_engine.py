@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from bisect import bisect_right
 import uuid
 import os
 import json
@@ -47,6 +48,83 @@ class BacktestAndLearningEngine:
             self.live_brains[key] = LiveAnalysisBrain(symbol.upper(), timeframe.upper(), memory_system=self.get_market_memory(symbol))
         return self.live_brains[key]
 
+    def build_mt5_multitimeframe_provider(
+        self, symbol: str, primary_timeframe: str, start_time: datetime,
+        end_time: datetime, mt5_module,
+    ):
+        """Build a no-lookahead provider of three adjacent, fully closed MT5 timeframes."""
+        tf_map = {
+            "M1": mt5_module.TIMEFRAME_M1, "M5": mt5_module.TIMEFRAME_M5,
+            "M15": mt5_module.TIMEFRAME_M15, "M30": mt5_module.TIMEFRAME_M30,
+            "H1": mt5_module.TIMEFRAME_H1, "H4": mt5_module.TIMEFRAME_H4,
+            "D1": mt5_module.TIMEFRAME_D1, "W1": mt5_module.TIMEFRAME_W1,
+            "MN1": mt5_module.TIMEFRAME_MN1,
+        }
+        tf_seconds = {
+            "M1": 60, "M5": 300, "M15": 900, "M30": 1800,
+            "H1": 3600, "H4": 14400, "D1": 86400,
+            "W1": 604800, "MN1": 31 * 86400,
+        }
+        lookbacks = {
+            "M1": timedelta(hours=10), "M5": timedelta(days=2),
+            "M15": timedelta(days=6), "M30": timedelta(days=13),
+            "H1": timedelta(days=22), "H4": timedelta(days=52),
+            "D1": timedelta(days=205), "W1": timedelta(days=700),
+            "MN1": timedelta(days=1800),
+        }
+        primary = str(primary_timeframe).upper()
+        if primary not in tf_map:
+            raise ValueError(f"Unsupported MT5 timeframe: {primary_timeframe}")
+        chain = ("MN1", "W1", "D1", "H4", "H1", "M30", "M15", "M5", "M1")
+        idx = chain.index(primary)
+        start = max(0, min(idx - 1, len(chain) - 3))
+        selected = chain[start:start + 3]
+        histories: Dict[str, List[Dict[str, Any]]] = {}
+        closed_epochs: Dict[str, List[float]] = {}
+
+        for tf in selected:
+            rates = mt5_module.copy_rates_range(
+                symbol, tf_map[tf], start_time - lookbacks[tf], end_time
+            )
+            if rates is None or len(rates) == 0:
+                raise RuntimeError(f"MT5 returned no closed {tf} history for {symbol}: {mt5_module.last_error()}")
+            bars: List[Dict[str, Any]] = []
+            closes: List[float] = []
+            for rate in rates:
+                opened_at = datetime.fromtimestamp(int(rate["time"]), timezone.utc)
+                closed_at = opened_at + timedelta(seconds=tf_seconds[tf])
+                if closed_at > end_time:
+                    continue
+                bars.append({
+                    "timestamp": opened_at.isoformat(),
+                    "open": float(rate["open"]), "high": float(rate["high"]),
+                    "low": float(rate["low"]), "close": float(rate["close"]),
+                    "volume": float(rate["tick_volume"]),
+                })
+                closes.append(closed_at.timestamp())
+            if len(bars) <= 50:
+                raise RuntimeError(
+                    f"Insufficient fully closed MT5 history for {symbol}/{tf}: {len(bars)} bars; at least 51 required."
+                )
+            histories[tf] = bars
+            closed_epochs[tf] = closes
+
+        def provider(cutoff_time):
+            if isinstance(cutoff_time, datetime):
+                cutoff = cutoff_time
+            else:
+                cutoff = datetime.fromisoformat(str(cutoff_time).replace("Z", "+00:00"))
+            if cutoff.tzinfo is None:
+                cutoff = cutoff.replace(tzinfo=timezone.utc)
+            cutoff_epoch = cutoff.timestamp()
+            context: Dict[str, List[Dict[str, Any]]] = {}
+            for tf in selected:
+                count = bisect_right(closed_epochs[tf], cutoff_epoch)
+                context[tf] = histories[tf][max(0, count - 500):count]
+            return context
+
+        return provider, {tf: len(histories[tf]) for tf in selected}
+
     def run_mt5_backtest(
         self,
         symbol: str,
@@ -69,13 +147,21 @@ class BacktestAndLearningEngine:
             "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1,
             "MN1": mt5.TIMEFRAME_MN1,
         }
+        tf_seconds = {
+            "M1": 60, "M5": 300, "M15": 900, "M30": 1800,
+            "H1": 3600, "H4": 14400, "D1": 86400,
+            "W1": 604800, "MN1": 31 * 86400,
+        }
         tf = timeframe.upper()
         if tf not in tf_map:
             raise ValueError(f"Unsupported MT5 timeframe: {timeframe}")
-        if not mt5.initialize():
-            raise RuntimeError(f"MT5 terminal unavailable: {mt5.last_error()}")
+        terminal_was_initialized = mt5.terminal_info() is not None
+        initialized_here = False
+        if not terminal_was_initialized:
+            if not mt5.initialize():
+                raise RuntimeError(f"MT5 terminal unavailable: {mt5.last_error()}")
+            initialized_here = True
         try:
-            from datetime import timezone
             end_time = datetime.now(timezone.utc)
             # Add a calendar buffer so weekends/holidays cannot make an intended
             # 10-year window fail by one or two daily bars.
@@ -83,7 +169,14 @@ class BacktestAndLearningEngine:
             rates = mt5.copy_rates_range(symbol, tf_map[tf], start_time, end_time)
             if rates is None or len(rates) == 0:
                 raise RuntimeError(f"MT5 returned no history for {symbol}/{tf}: {mt5.last_error()}")
-            first_time = datetime.fromtimestamp(int(rates[0]["time"]), timezone.utc)
+            closed_rates = []
+            for rate in rates:
+                opened_at = datetime.fromtimestamp(int(rate["time"]), timezone.utc)
+                if opened_at + timedelta(seconds=tf_seconds[tf]) <= end_time:
+                    closed_rates.append(rate)
+            if len(closed_rates) <= 50:
+                raise RuntimeError(f"MT5 returned insufficient fully closed history for {symbol}/{tf}.")
+            first_time = datetime.fromtimestamp(int(closed_rates[0]["time"]), timezone.utc)
             actual_history_days = (end_time - first_time).days
             if actual_history_days <= 0:
                 raise RuntimeError(f"MT5 returned invalid history window for {symbol}/{tf}.")
@@ -92,12 +185,21 @@ class BacktestAndLearningEngine:
                     "timestamp": datetime.fromtimestamp(int(r["time"]), timezone.utc).isoformat(),
                     "open": float(r["open"]), "high": float(r["high"]),
                     "low": float(r["low"]), "close": float(r["close"]),
-                    "volume": float(r.get("tick_volume", 0)) if hasattr(r, "get") else float(r["tick_volume"]),
+                    "volume": float(r["tick_volume"]),
                 }
-                for r in rates
+                for r in closed_rates
             ]
-            result = self.run_backtest(symbol, tf, candles, initial_balance=initial_balance)
+            mtf_provider, mtf_history_counts = self.build_mt5_multitimeframe_provider(
+                symbol=symbol, primary_timeframe=tf, start_time=start_time,
+                end_time=end_time, mt5_module=mt5,
+            )
+            result = self.run_backtest(
+                symbol, tf, candles, initial_balance=initial_balance,
+                all_timeframe_candles_provider=mtf_provider,
+            )
             result["data_source"] = "MT5_TERMINAL_HISTORY"
+            result["decision_authority"] = "BASE_HIERARCHY"
+            result["base_timeframe_history_bars"] = mtf_history_counts
             result["history_start"] = first_time.isoformat()
             result["history_end"] = end_time.isoformat()
             result["history_years_requested"] = years
@@ -106,7 +208,8 @@ class BacktestAndLearningEngine:
             result["history_bars"] = len(candles)
             return result
         finally:
-            mt5.shutdown()
+            if initialized_here:
+                mt5.shutdown()
 
     def run_backtest(
         self,
@@ -267,15 +370,28 @@ class BacktestAndLearningEngine:
                     closed_trades.append(open_position)
                     open_position = None
 
-            # 2. Evaluate new entries on a bounded decision cadence.
+            # 2. Evaluate after the current bar closes. MT5 timestamps are candle-open
+            # times; using the close timestamp keeps parent/child context strictly causal.
+            timeframe_seconds = {
+                "M1": 60, "M5": 300, "M15": 900, "M30": 1800,
+                "H1": 3600, "H4": 14400, "D1": 86400,
+                "W1": 604800, "MN1": 31 * 86400,
+            }
+            decision_time_value = bar_time
+            decision_dt = None
+            try:
+                opened_at = datetime.fromisoformat(str(bar_time).replace("Z", "+00:00"))
+                if opened_at.tzinfo is None:
+                    opened_at = opened_at.replace(tzinfo=timezone.utc)
+                decision_dt = opened_at + timedelta(seconds=timeframe_seconds.get(str(timeframe).upper(), 60))
+                decision_time_value = decision_dt.isoformat()
+            except (TypeError, ValueError):
+                decision_dt = None
+
             decision_due = True
-            if decision_interval_minutes > 1:
-                try:
-                    decision_dt = datetime.fromisoformat(str(bar_time).replace("Z", "+00:00"))
-                    decision_due = decision_dt.minute % decision_interval_minutes == 0
-                except (TypeError, ValueError):
-                    decision_due = True
-            mtf_context = all_timeframe_candles_provider(bar_time) if all_timeframe_candles_provider else None
+            if decision_interval_minutes > 1 and decision_dt is not None:
+                decision_due = decision_dt.minute % decision_interval_minutes == 0
+            mtf_context = all_timeframe_candles_provider(decision_time_value) if all_timeframe_candles_provider else None
             base_report = base_orchestrator.evaluate_all_strategies(
                 symbol=symbol, primary_timeframe=timeframe, candles=history_candles,
                 all_timeframe_candles=mtf_context, spread_pip=1.0,

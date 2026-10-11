@@ -31,7 +31,7 @@ def test_full_memory_promotion_pipeline_e2e(temp_memory_system):
         previous_sequence_len=0,
         reaction_type="extension",
         reaction_magnitude=10.0,
-        meta={}
+        meta={"direction": "upward", "decision_action": "BUY", "predicted_action": "BUY", "outcome_result": "SUCCESS"}
     )
     mem_sys.add_event(raw_event)
     assert len(mem_sys.get_events()) == 1

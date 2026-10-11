@@ -127,71 +127,38 @@ def _snapshot_signals(market: Optional[str] = None, horizon: Optional[str] = Non
             processed_keys.add(key)
             findings = data.get("findings", {}) or {}
             decision = findings.get("autonomous_decision", {}) or {}
-            intel_plan = (findings.get("intel_summary", {}) or {}).get("plan", {}) or {}
-            brain = findings.get("newborn_brain_report", {}) or {}
-            hypotheses = brain.get("active_hypotheses", []) if isinstance(brain, dict) else []
-            hypothesis = hypotheses[0] if hypotheses and isinstance(hypotheses[0], dict) else {}
+            intel_summary = findings.get("intel_summary", {}) or {}
+            decision_evidence = decision.get("evidence", {}) or {}
+            # Old snapshots may contain Brain-only or legacy-planner proposals. They
+            # are not valid trading signals: require explicit agreement from the
+            # authoritative Base-only decision and its summary, otherwise fail closed.
+            if (
+                decision_evidence.get("decision_authority") != "BASE_HIERARCHY"
+                or intel_summary.get("decision_authority") != "BASE_HIERARCHY"
+            ):
+                continue
+            base_candidate_available = bool(intel_summary.get("candidate_available"))
             action = str(decision.get("action", "WAIT")).upper()
-            brain_action = str(intel_plan.get("brain_suggested_action") or hypothesis.get("suggested_virtual_action") or "WAIT").upper()
-            brain_confidence = float(hypothesis.get("hypothesis_confidence", 0.0) or 0.0)
-            blocked_action = str(hypothesis.get("blocked_direction") or "WAIT").upper()
-            blocked_confidence = float(hypothesis.get("blocked_direction_confidence", 0.0) or 0.0)
-            evidence_status = str(hypothesis.get("evidence_status", "NO_OUTCOME_LABELS"))
-            successful_outcomes = int(hypothesis.get("successful_outcomes", 0) or 0)
-            failed_outcomes = int(hypothesis.get("failed_outcomes", 0) or 0)
-            outcome_success_rate = hypothesis.get("outcome_success_rate_pct")
-            success_rate_label = (
-                f"{float(outcome_success_rate):.1f}%"
-                if isinstance(outcome_success_rate, (int, float)) and not isinstance(outcome_success_rate, bool)
-                else "unknown"
-            )
-            brain_consumed = bool(intel_plan.get("brain_report_consumed"))
-            has_brain_evidence = bool(hypotheses or brain_consumed)
-            trade_params = hypothesis.get("trade_parameters", {}) or {}
+            if action not in {"BUY", "SELL"}:
+                continue
             entry = decision.get("entry", decision.get("entry_price"))
             stop_loss = decision.get("stop_loss")
             take_profit = decision.get("take_profit")
             confidence = float(decision.get("confidence", 0.0) or 0.0)
             reason = decision.get("reasoning", []) or []
-
-            if action not in {"BUY", "SELL"}:
-                direction = blocked_action if blocked_action in {"BUY", "SELL"} else brain_action
-                if direction not in {"BUY", "SELL"} or not brain_consumed:
-                    continue
-                action = direction
-                entry = trade_params.get("entry")
-                stop_loss = trade_params.get("stop_loss")
-                take_profit = trade_params.get("take_profit")
-                if evidence_status != "VALIDATED_OUTCOMES" or successful_outcomes < 3:
-                    confidence = blocked_confidence if blocked_action in {"BUY", "SELL"} else brain_confidence
-                    status = "BLOCKED"
-                    reason = list(reason) + [
-                        f"Blocked: historical evidence is {evidence_status} ({successful_outcomes} successes, {failed_outcomes} failures; success rate {success_rate_label}). Actionable signals require VALIDATED_OUTCOMES, at least 3 successes, and a success rate of at least 50%."
-                    ]
-                elif brain_confidence >= 50.0:
-                    confidence = brain_confidence
-                    status = "CANDIDATE"
-                    reason = list(reason) + [
-                        "Candidate only: learned entry/stop-loss/take-profit parameters are missing or did not pass the execution planner."
-                    ]
-                else:
-                    continue
+            rr = float(decision.get("risk_reward", 0.0) or 0.0)
+            valid_levels = all(
+                value is not None and float(value) > 0.0
+                for value in (entry, stop_loss, take_profit)
+            )
+            if not base_candidate_available:
+                status = "BLOCKED"
+                confidence = 0.0
+                reason = list(reason) + ["Blocked: the Base hierarchy summary does not contain an approved candidate."]
             else:
-                rr = float(decision.get("risk_reward", 0.0) or 0.0)
-                valid_levels = all(
-                    value is not None and float(value) > 0.0
-                    for value in (entry, stop_loss, take_profit)
-                )
-                evidence_ok = not has_brain_evidence or (evidence_status == "VALIDATED_OUTCOMES" and successful_outcomes >= 3)
-                if not evidence_ok:
-                    status = "BLOCKED"
-                    reason = list(reason) + [
-                        f"Blocked: historical evidence is {evidence_status} ({successful_outcomes} successes, {failed_outcomes} failures; success rate {success_rate_label}). Actionable signals require VALIDATED_OUTCOMES, at least 3 successes, and a success rate of at least 50%."
-                    ]
-                else:
-                    status = "ACTIVE" if valid_levels and confidence >= 50.0 and rr >= 1.5 else "CANDIDATE"
-                    if status == "CANDIDATE":
-                        reason = list(reason) + ["Candidate only: executable risk parameters or minimum risk/reward did not pass validation."]
+                status = "ACTIVE" if valid_levels and confidence >= 50.0 and rr >= 1.5 else "CANDIDATE"
+                if status == "CANDIDATE":
+                    reason = list(reason) + ["Candidate only: Base-model risk parameters or minimum risk/reward did not pass validation."]
 
             latest_by_key[key] = {
                 "signal_id": decision.get("decision_id") or data.get("report_id") or f"research-{symbol}-{timeframe}",
@@ -203,6 +170,7 @@ def _snapshot_signals(market: Optional[str] = None, horizon: Optional[str] = Non
                 "confidence": confidence,
                 "reason": reason,
                 "status": status,
+                "decision_authority": "BASE_HIERARCHY",
                 "execution_action": str(decision.get("action", "WAIT")).upper(),
                 "timeframe": timeframe,
                 "timestamp": data.get("timestamp") or data.get("created_at"),
