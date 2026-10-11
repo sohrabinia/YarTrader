@@ -65,9 +65,14 @@ class BaseReactionDecisionEngine:
         side = str(entry_side or "ANY").upper()
         if side not in ("FROM_ABOVE", "FROM_BELOW", "INTERIOR_OR_AMBIGUOUS_OHLC", "ANY"):
             raise ValueError("entry_side must identify the Base approach side")
+        # Exact visit counts are too sparse to estimate expectancy robustly.
+        # Preserve the meaningful early/repeated distinction without treating
+        # every later visit as an unrelated profile.
+        visit = max(1, int(reaction_number))
+        visit_bucket = "1" if visit == 1 else ("2" if visit == 2 else "3PLUS")
         return "|".join((str(timeframe), str(base_type), str(parent_timeframe),
                          str(parent_relation), "ALIGNED" if parent_aligned else "OPPOSED",
-                         direction, str(max(1, int(reaction_number))), _depth_bin(penetration_fraction), side))
+                         direction, visit_bucket, _depth_bin(penetration_fraction), side))
 
     def learn(self, labels: Sequence[Mapping[str, Any]], as_of: int) -> Dict[str, Any]:
         """Aggregate completed, costed net_R outcomes; reject future/ambiguous labels."""
@@ -124,7 +129,7 @@ class BaseReactionDecisionEngine:
     def export_stats(self) -> Dict[str, Any]:
         return {"version": 1, "status": "RESEARCH_ONLY_NOT_ACTIVATED",
                 "detector_version": "base_geometry_price_only_v2",
-                "model_schema_version": "base_only_directional_net_r_v2",
+                "model_schema_version": "base_only_directional_net_r_v3",
                 "min_samples": self.min_samples, "min_win_rate": self.min_win_rate,
                 "min_mean_net_r": self.min_mean_net_r,
                 "min_reverse_net_rr": self.min_reverse_net_rr,
@@ -133,7 +138,7 @@ class BaseReactionDecisionEngine:
     def load_stats(self, model: Mapping[str, Any]) -> None:
         if (int(model.get("version", 0)) != 1
                 or model.get("detector_version") != "base_geometry_price_only_v2"
-                or model.get("model_schema_version") != "base_only_directional_net_r_v2"
+                or model.get("model_schema_version") != "base_only_directional_net_r_v3"
                 or not isinstance(model.get("groups"), Mapping)):
             raise ValueError("Unsupported Base-only directional reaction model")
         clean: Dict[str, Dict[str, float]] = {}

@@ -99,7 +99,7 @@ class HierarchicalBaseBehaviorEngine:
 
     def export_stats(self) -> Dict[str, Any]:
         return {"version": 1, "detector_version": "base_geometry_price_only_v2",
-                "model_schema_version": "base_only_directional_net_r_v2",
+                "model_schema_version": "base_only_directional_net_r_v3",
                 "status": "RESEARCH_ONLY_NOT_ACTIVATED",
                 "min_samples": self.min_samples,
                 "min_win_rate": self.min_win_rate, "min_mean_net_r": self.min_mean_net_r,
@@ -108,7 +108,7 @@ class HierarchicalBaseBehaviorEngine:
     def load_stats(self, model: Mapping[str, Any]) -> None:
         if (int(model.get("version", 0)) != 1
                 or model.get("detector_version") != "base_geometry_price_only_v2"
-                or model.get("model_schema_version") != "base_only_directional_net_r_v2"
+                or model.get("model_schema_version") != "base_only_directional_net_r_v3"
                 or not isinstance(model.get("groups"), Mapping)):
             raise ValueError("Unsupported or malformed Base-only directional behavior model.")
         clean: Dict[str, Dict[str, float]] = {}

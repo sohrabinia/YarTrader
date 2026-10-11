@@ -118,7 +118,7 @@ class StrategyOrchestrator:
             if model_path.exists():
                 model = json.loads(model_path.read_text(encoding="utf-8"))
                 if (model.get("detector_version") == "base_geometry_price_only_v2"
-                        and model.get("model_schema_version") == "base_only_directional_net_r_v2"
+                        and model.get("model_schema_version") == "base_only_directional_net_r_v3"
                         and model.get("status") == "ACTIVE_VALIDATED"):
                     engine.load_stats(model)
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
@@ -136,7 +136,7 @@ class StrategyOrchestrator:
             if reaction_model_path.exists():
                 reaction_model = json.loads(reaction_model_path.read_text(encoding="utf-8"))
                 if (reaction_model.get("detector_version") != "base_geometry_price_only_v2"
-                        or reaction_model.get("model_schema_version") != "base_only_directional_net_r_v2"):
+                        or reaction_model.get("model_schema_version") != "base_only_directional_net_r_v3"):
                     reaction_model_status = "REACTION_MODEL_SCHEMA_VERSION_MISMATCH"
                 elif reaction_model.get("status") != "ACTIVE_VALIDATED":
                     reaction_model_status = "REACTION_MODEL_NOT_ACTIVATED"
