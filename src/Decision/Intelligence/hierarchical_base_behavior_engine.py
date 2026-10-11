@@ -91,7 +91,9 @@ class HierarchicalBaseBehaviorEngine:
                 "note": "Only completed, broker-costed net_R outcomes are eligible for actionable learning."}
 
     def export_stats(self) -> Dict[str, Any]:
-        return {"version": 1, "min_samples": self.min_samples,
+        return {"version": 1, "detector_version": "base_geometry_price_only_v2",
+                "status": "RESEARCH_ONLY_NOT_ACTIVATED",
+                "min_samples": self.min_samples,
                 "min_win_rate": self.min_win_rate, "min_mean_net_r": self.min_mean_net_r,
                 "groups": {key: dict(value) for key, value in self._stats.items()}}
 

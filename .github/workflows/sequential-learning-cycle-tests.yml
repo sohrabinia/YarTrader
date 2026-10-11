@@ -5,13 +5,17 @@ on:
     paths:
       - "scripts/run_sequential_market_learning_cycle.py"
       - "src/Decision/Intelligence/base_reaction_decision_engine.py"
+      - "src/Research/Brain/multitimeframe_base_transition_engine.py"
       - "src/Decision/Intelligence/hierarchical_base_behavior_engine.py"
       - "src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py"
+      - "src/Execution/Services/autonomous_demo_trader.py"
+      - "src/Intelligence/Execution/strategy_orchestrator.py"
       - "src/Application/Runtime/research_runtime.py"
       - "src/Application/Backtesting/backtest_learning_engine.py"
       - "tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py"
       - "tests/YarTrader.Tests/Backtesting/test_mt5_mtf_backtest.py"
       - "tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py"
+      - "tests/YarTrader.Tests/Execution/test_autonomous_demo_runtime.py"
       - "tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py"
       - "tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py"
       - "tests/YarTrader.Tests/Runtime/test_research_runtime.py"
@@ -24,13 +28,17 @@ on:
     paths:
       - "scripts/run_sequential_market_learning_cycle.py"
       - "src/Decision/Intelligence/base_reaction_decision_engine.py"
+      - "src/Research/Brain/multitimeframe_base_transition_engine.py"
       - "src/Decision/Intelligence/hierarchical_base_behavior_engine.py"
       - "src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py"
+      - "src/Execution/Services/autonomous_demo_trader.py"
+      - "src/Intelligence/Execution/strategy_orchestrator.py"
       - "src/Application/Runtime/research_runtime.py"
       - "src/Application/Backtesting/backtest_learning_engine.py"
       - "tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py"
       - "tests/YarTrader.Tests/Backtesting/test_mt5_mtf_backtest.py"
       - "tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py"
+      - "tests/YarTrader.Tests/Execution/test_autonomous_demo_runtime.py"
       - "tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py"
       - "tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py"
       - "tests/YarTrader.Tests/Runtime/test_research_runtime.py"
@@ -57,8 +65,11 @@ jobs:
           python -m py_compile \
             scripts/run_sequential_market_learning_cycle.py \
             src/Decision/Intelligence/base_reaction_decision_engine.py \
+            src/Research/Brain/multitimeframe_base_transition_engine.py \
             src/Decision/Intelligence/hierarchical_base_behavior_engine.py \
             src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py \
+            src/Execution/Services/autonomous_demo_trader.py \
+            src/Intelligence/Execution/strategy_orchestrator.py \
             src/Application/Runtime/research_runtime.py \
             src/Application/Backtesting/backtest_learning_engine.py
       - name: Run Base-only engine, MTF, and persistence regressions
@@ -67,8 +78,10 @@ jobs:
             tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py \
             tests/YarTrader.Tests/Backtesting/test_mt5_mtf_backtest.py \
             tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py \
+            tests/YarTrader.Tests/Execution/test_autonomous_demo_runtime.py \
             tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py \
             tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py \
+            tests/test_multitimeframe_base_transition_engine.py \
             tests/test_research_snapshot_persistence.py
       - name: Run targeted Base-only runtime and API acceptance tests
         run: |

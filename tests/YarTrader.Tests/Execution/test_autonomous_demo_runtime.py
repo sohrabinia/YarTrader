@@ -113,6 +113,23 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         ]
         self.assertEqual(AutonomousDemoTrader._next_reaction_number(candles, child, 150), 3)
 
+    def test_latest_base_reaction_measures_actual_side_depth_and_visit_number(self):
+        child = {"event_id": "M15:100:RBR", "confirmation_time": 100,
+                 "base_low": 10.0, "base_high": 20.0}
+        candles = [
+            {"timestamp": 90, "low": 24.0, "high": 26.0, "close": 25.0},
+            {"timestamp": 110, "low": 17.0, "high": 26.0, "close": 18.0},
+            {"timestamp": 120, "low": 19.0, "high": 21.0, "close": 20.0},
+            {"timestamp": 130, "low": 21.0, "high": 22.0, "close": 21.5},
+            {"timestamp": 140, "low": 15.0, "high": 22.0, "close": 16.0},
+            {"timestamp": 160, "low": 10.0, "high": 11.0, "close": 10.5},
+        ]
+        measured = AutonomousDemoTrader._measure_latest_base_reaction(candles, child, 150)
+        self.assertEqual(measured["reaction_number"], 2)
+        self.assertEqual(measured["entry_side"], "FROM_ABOVE")
+        self.assertAlmostEqual(measured["penetration_fraction"], 0.5)
+        self.assertEqual(measured["start_time"], 140)
+
     def test_base_reaction_number_fails_closed_on_invalid_zone(self):
         candles = [{"timestamp": 110, "low": 1.0, "high": 2.0}]
         child = {"confirmation_time": 100, "base_low": 3.0, "base_high": 2.0}

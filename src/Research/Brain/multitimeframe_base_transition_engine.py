@@ -48,22 +48,23 @@ def _atr(bars: Sequence[Mapping[str, Any]], period: int = 14) -> List[float]:
 
 
 def detect_base_departures(bars: Sequence[Mapping[str, Any]], timeframe: str,
-                           scan_step: int = 1, min_incoming_atr: float = 0.8,
-                           min_departure_atr: float = 1.0,
-                           max_width_atr: float = 1.5,
-                           max_mean_body_atr: float = 0.55,
+                           scan_step: int = 1, min_incoming_base_width: float = 1.5,
+                           min_departure_base_width: float = 1.0,
+                           max_base_width_to_incoming_leg: float = 0.8,
+                           max_mean_body_to_base_width: float = 0.55,
                            horizon: int = 24) -> List[Dict[str, Any]]:
-    """Detect RBR/DBD/DBR/RBD. Every emitted feature is known at confirmation."""
+    """Detect RBR/DBD/DBR/RBD using Base geometry and raw price only.
+
+    No technical indicator is calculated or consulted. Consolidation width is the
+    unit of measurement for the incoming leg, departure, and invalidation buffer.
+    """
     if scan_step < 1:
         raise ValueError("scan_step must be >= 1")
     n = len(bars)
     if n < 50:
         return []
-    a = _atr(bars)
     events, last_conf = [], -10**9
     for conf in range(30, n-horizon-1, scan_step):
-        if not math.isfinite(a[conf]) or a[conf] <= 0:
-            continue
         best = None
         for delay in (1, 2, 3):
             bend = conf-delay
@@ -72,43 +73,44 @@ def detect_base_departures(bars: Sequence[Mapping[str, Any]], timeframe: str,
                 if bs < 10:
                     continue
                 base = bars[bs:bend+1]
-                atr_vals = [a[j] for j in range(bs, bend+1) if math.isfinite(a[j]) and a[j] > 0]
-                if not atr_vals:
+                hi = max(float(x["high"]) for x in base)
+                lo = min(float(x["low"]) for x in base)
+                width = hi-lo
+                if not math.isfinite(width) or width <= 0:
                     continue
-                atr = sorted(atr_vals)[len(atr_vals)//2]
-                hi, lo = max(float(x["high"]) for x in base), min(float(x["low"]) for x in base)
-                if hi-lo > max_width_atr*atr:
+                mean_body = sum(abs(float(x["close"])-float(x["open"])) for x in base)/length
+                if mean_body > max_mean_body_to_base_width*width:
                     continue
-                if sum(abs(float(x["close"])-float(x["open"])) for x in base)/length > max_mean_body_atr*atr:
+                # The incoming leg is measured directly in price, relative to the
+                # candidate Base width; no rolling range/volatility indicator.
+                incoming = float(bars[bs-1]["close"])-float(bars[max(0,bs-5)]["close"])
+                if abs(incoming) < min_incoming_base_width*width:
                     continue
-                prev_i = bs-1
-                if not math.isfinite(a[prev_i]) or a[prev_i] <= 0:
-                    continue
-                incoming = (float(bars[prev_i]["close"])-float(bars[max(0,bs-5)]["close"]))/a[prev_i]
-                if abs(incoming) < min_incoming_atr:
+                if width > max_base_width_to_incoming_leg*abs(incoming):
                     continue
                 mid = (hi+lo)/2
-                dist = (float(bars[conf]["close"])-mid)/atr
-                if abs(dist) < min_departure_atr:
-                    continue
                 close = float(bars[conf]["close"])
-                if close > hi+0.15*atr:
+                dist = close-mid
+                if abs(dist) < min_departure_base_width*width:
+                    continue
+                buffer = 0.15*width
+                if close > hi+buffer:
                     outdir = 1
-                    if any(float(bars[j]["close"]) > hi+0.15*atr for j in range(bend, conf)):
+                    if any(float(bars[j]["close"]) > hi+buffer for j in range(bend, conf)):
                         continue
-                elif close < lo-0.15*atr:
+                elif close < lo-buffer:
                     outdir = -1
-                    if any(float(bars[j]["close"]) < lo-0.15*atr for j in range(bend, conf)):
+                    if any(float(bars[j]["close"]) < lo-buffer for j in range(bend, conf)):
                         continue
                 else:
                     continue
-                score = abs(dist)+0.01*abs(incoming)-length*0.0001
+                score = abs(dist)/width + 0.01*abs(incoming)/width-length*0.0001
                 if best is None or score > best[0]:
-                    best = (score, bs, bend, hi, lo, atr, 1 if incoming > 0 else -1,
+                    best = (score, bs, bend, hi, lo, width, 1 if incoming > 0 else -1,
                             outdir, length, delay, incoming, dist)
         if best is None or conf-last_conf < max(3, horizon//2):
             continue
-        _, bs, bend, hi, lo, atr, indir, outdir, length, delay, incoming, dist = best
+        _, bs, bend, hi, lo, width, indir, outdir, length, delay, incoming, dist = best
         typ = ("R" if indir > 0 else "D")+"B"+("R" if outdir > 0 else "D")
         confirmation_time = _bar_end_time(bars, conf, timeframe)
         events.append({
@@ -116,11 +118,14 @@ def detect_base_departures(bars: Sequence[Mapping[str, Any]], timeframe: str,
             "timeframe": timeframe, "base_start_index": bs, "base_end_index": bend,
             "confirmation_index": conf, "base_start_time": int(bars[bs]["time"]),
             "base_end_time": _bar_end_time(bars, bend, timeframe), "confirmation_time": confirmation_time,
-            "base_high": hi, "base_low": lo, "base_mid": (hi+lo)/2, "base_atr": atr,
-            "base_width_atr": (hi-lo)/atr, "base_length": length,
+            "base_high": hi, "base_low": lo, "base_mid": (hi+lo)/2, "base_width": width,
+            # Compatibility alias for consumers of previously serialized research events.
+            # This value is Base width, not ATR and must not be treated as an indicator.
+            "base_atr": width, "base_width_atr": 1.0, "base_length": length,
             "incoming_direction": indir, "exit_direction": outdir, "base_type": typ,
-            "incoming_leg_atr": incoming, "departure_size_atr": abs(dist),
-            "departure_delay_bars": delay, "detector_version": "mtf_base_transition_v1",
+            "incoming_leg_base_widths": incoming/width, "departure_size_base_widths": abs(dist)/width,
+            "incoming_leg_atr": incoming/width, "departure_size_atr": abs(dist)/width,
+            "departure_delay_bars": delay, "detector_version": "base_geometry_price_only_v2",
             "feature_cutoff_time": confirmation_time,
         })
         last_conf = conf
@@ -130,15 +135,14 @@ def detect_base_departures(bars: Sequence[Mapping[str, Any]], timeframe: str,
 
 def attach_market_context(events_by_tf: Mapping[str, Sequence[Mapping[str, Any]]],
                           bars_by_tf: Mapping[str, Sequence[Mapping[str, Any]]]) -> None:
-    """Attach only fully closed-bar trend/volatility context at each event timestamp."""
+    """Attach closed-candle raw-price context only; never calculate indicators."""
     cache = {}
     for tf, bars in bars_by_tf.items():
         if not bars:
             continue
-        atr = _atr(bars)
         ends = [_bar_end_time(bars, i, tf) for i in range(len(bars))]
         closes = [float(b["close"]) for b in bars]
-        cache[tf] = (bars, atr, ends, closes)
+        cache[tf] = (ends, closes)
     for events in events_by_tf.values():
         for event in events:
             ts = int(event["confirmation_time"])
@@ -147,23 +151,19 @@ def attach_market_context(events_by_tf: Mapping[str, Sequence[Mapping[str, Any]]
                 if tf not in cache:
                     context[tf] = {"status":"UNAVAILABLE"}
                     continue
-                bars, atr, ends, closes = cache[tf]
+                ends, closes = cache[tf]
                 idx = bisect_right(ends, ts)-1
-                if idx < 14 or not math.isfinite(atr[idx]) or atr[idx] <= 0:
+                if idx < 10:
                     context[tf] = {"status":"INSUFFICIENT_CLOSED_BARS"}
                     continue
-                trend_idx = max(0, idx-10)
-                trend_score = (closes[idx]-closes[trend_idx])/atr[idx]
-                trend = "BULLISH" if trend_score >= 0.5 else ("BEARISH" if trend_score <= -0.5 else "NEUTRAL")
-                vals = [x for x in atr[max(14,idx-99):idx+1] if math.isfinite(x) and x > 0]
-                med = sorted(vals)[len(vals)//2] if vals else float("nan")
-                ratio = atr[idx]/med if math.isfinite(med) and med > 0 else float("nan")
-                vol = "HIGH" if ratio >= 1.2 else ("LOW" if ratio <= 0.8 else "NORMAL")
+                prior_close = closes[idx-10]
+                current_close = closes[idx]
+                delta = current_close-prior_close
+                trend = "BULLISH" if delta > 0 else ("BEARISH" if delta < 0 else "NEUTRAL")
                 context[tf] = {
                     "status":"AVAILABLE", "closed_bar_time":ends[idx],
-                    "trend_score_atr":round(trend_score,4), "trend_regime":trend,
-                    "atr":round(atr[idx],6), "atr_ratio_to_rolling_median":round(ratio,4) if math.isfinite(ratio) else None,
-                    "volatility_regime":vol,
+                    "price_change_over_10_bars":round(delta, 8),
+                    "price_direction_over_10_bars":trend,
                 }
             event["market_context"] = context
 

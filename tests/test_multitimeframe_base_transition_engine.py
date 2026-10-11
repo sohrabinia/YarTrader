@@ -27,6 +27,37 @@ def test_detector_is_deterministic_and_returns_causal_metadata():
         assert event["base_type"] in {"RBR","DBD","DBR","RBD"}
 
 
+def test_base_detector_uses_only_raw_price_and_base_geometry(monkeypatch):
+    import src.Research.Brain.multitimeframe_base_transition_engine as engine
+
+    def indicator_must_not_run(*args, **kwargs):
+        raise AssertionError("Base-only detector must not call a technical indicator")
+
+    monkeypatch.setattr(engine, "_atr", indicator_must_not_run)
+    bars = []
+    price = 100.0
+    for i in range(100):
+        if 10 <= i < 25:
+            price += 0.3
+        elif 31 <= i < 35:
+            price += 0.35
+        o = price
+        c = price + (0.005 if i % 2 else -0.005)
+        if 26 <= i <= 30:
+            c = o + (0.002 if i % 2 else -0.002)
+        bars.append({"time": 1700000000+i*60, "open": o,
+                     "high": max(o, c)+0.02, "low": min(o, c)-0.02, "close": c})
+        price = c
+
+    events = engine.detect_base_departures(bars, "M1", horizon=0)
+    assert isinstance(events, list)
+    assert events, "Synthetic Base departure should be detected from price structure alone"
+    for event in events:
+        assert event["detector_version"] == "base_geometry_price_only_v2"
+        assert event["base_width"] == event["base_high"]-event["base_low"]
+        assert event["base_atr"] == event["base_width"]  # compatibility alias only
+
+
 def test_hierarchy_only_counts_children_confirmed_before_parent_exit():
     parent={
         "event_id":"H4:100:RBR","timeframe":"H4","base_start_time":10,

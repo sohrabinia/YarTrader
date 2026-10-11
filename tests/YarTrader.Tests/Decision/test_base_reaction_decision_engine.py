@@ -49,6 +49,13 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
         self.assertEqual(result["structure"]["penetration_bin"], "OUTER")
         self.assertAlmostEqual(result["order_plan"]["entry"], 99.625)
 
+    def test_entry_side_is_part_of_the_learned_base_reaction_profile(self):
+        above = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True,
+                                        1, 0.75, "BUY", "FROM_ABOVE")
+        below = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True,
+                                        1, 0.75, "BUY", "FROM_BELOW")
+        self.assertNotEqual(above, below)
+
     def test_model_without_mean_net_r_uncertainty_is_rejected(self):
         key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.125, "BUY")
         with self.assertRaises(ValueError):

@@ -197,6 +197,59 @@ class AutonomousDemoTrader:
             in_visit = touches
         return max(1, visits + 1)
 
+    @staticmethod
+    def _measure_latest_base_reaction(
+        m1_candles: List[Dict[str, Any]], child: Dict[str, Any], now: int,
+    ) -> Optional[Dict[str, Any]]:
+        """Measure the latest causal retest of this exact Base from closed M1 OHLC."""
+        try:
+            confirm = int(child["confirmation_time"])
+            zone_low, zone_high = float(child["base_low"]), float(child["base_high"])
+            width = zone_high-zone_low
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
+        if not (math.isfinite(width) and width > 0):
+            return None
+        episodes: List[Dict[str, Any]] = []
+        active: Optional[Dict[str, Any]] = None
+        in_visit = False
+        previous_close: Optional[float] = None
+        for candle in m1_candles:
+            try:
+                stamp = int(candle["timestamp"])
+                low, high = float(candle["low"]), float(candle["high"])
+                close = float(candle["close"])
+            except (KeyError, TypeError, ValueError, OverflowError):
+                in_visit = False
+                active = None
+                previous_close = None
+                continue
+            if stamp <= confirm or stamp > int(now):
+                previous_close = close
+                continue
+            touches = low <= zone_high and high >= zone_low
+            if touches and not in_visit:
+                side = ("FROM_ABOVE" if previous_close is not None and previous_close > zone_high
+                        else "FROM_BELOW" if previous_close is not None and previous_close < zone_low
+                        else "INTERIOR_OR_AMBIGUOUS_OHLC")
+                active = {"reaction_number": len(episodes)+1, "entry_side": side,
+                          "penetration_fraction": 0.0, "start_time": stamp}
+                episodes.append(active)
+            if touches and active is not None:
+                if active["entry_side"] == "FROM_ABOVE":
+                    depth = (zone_high-min(max(low, zone_low), zone_high))/width
+                elif active["entry_side"] == "FROM_BELOW":
+                    depth = (max(min(high, zone_high), zone_low)-zone_low)/width
+                else:
+                    depth = 0.0
+                active["penetration_fraction"] = round(max(float(active["penetration_fraction"]),
+                                                            min(1.0, max(0.0, depth))), 4)
+            in_visit = touches
+            previous_close = close
+        if not episodes:
+            return None
+        return dict(episodes[-1])
+
     def _evaluate_hierarchical_base_plan(
         self, per_tf: Dict[str, List[Dict[str, Any]]], tick: Dict[str, Any],
         symbol: str = "XAUUSD",
@@ -228,8 +281,11 @@ class AutonomousDemoTrader:
         try:
             if model_path.exists():
                 model = json.loads(model_path.read_text(encoding="utf-8"))
-                self.base_behavior_engine.load_stats(model)
-                self._base_model_status = str(model.get("status") or "MODEL_STATUS_UNSPECIFIED")
+                if model.get("detector_version") != "base_geometry_price_only_v2":
+                    self._base_model_status = "MODEL_DETECTOR_VERSION_MISMATCH"
+                else:
+                    self.base_behavior_engine.load_stats(model)
+                    self._base_model_status = str(model.get("status") or "MODEL_STATUS_UNSPECIFIED")
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
             self._base_model_status = "MODEL_LOAD_FAILED"
             logger.warning("Base behavior research model was rejected: %s", exc)
@@ -247,8 +303,12 @@ class AutonomousDemoTrader:
         reaction_model_status = "MISSING_COSTED_REACTION_MODEL"
         try:
             if reaction_model_path.exists():
-                reaction_engine.load_stats(json.loads(reaction_model_path.read_text(encoding="utf-8")))
-                reaction_model_status = "COSTED_REACTION_MODEL_LOADED_RESEARCH_ONLY"
+                reaction_model = json.loads(reaction_model_path.read_text(encoding="utf-8"))
+                if reaction_model.get("detector_version") != "base_geometry_price_only_v2":
+                    reaction_model_status = "REACTION_MODEL_DETECTOR_VERSION_MISMATCH"
+                else:
+                    reaction_engine.load_stats(reaction_model)
+                    reaction_model_status = "COSTED_REACTION_MODEL_LOADED_RESEARCH_ONLY"
         except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
             reaction_model_status = "REACTION_MODEL_LOAD_FAILED"
             logger.warning("Base reaction model was rejected: %s", exc)
@@ -261,20 +321,20 @@ class AutonomousDemoTrader:
         if parent and child and micro:
             tf = str(child.get("timeframe", "M15"))
             zone_low, zone_high = float(child.get("base_low", 0.0)), float(child.get("base_high", 0.0))
-            # Count all causal M1 visits available for the selected child Base.
-            # The history window must cover the H4 child freshness horizon so this
-            # runtime feature uses the same episode numbering as research labels.
+            # Measure the latest actual M1 retest of this exact Base. Never
+            # substitute a hard-coded penetration depth or infer a side from trend.
+            measured_reaction = self._measure_latest_base_reaction(
+                per_tf.get("M1", []), child, int(now))
             reaction = {
                 "base_id": child.get("event_id"),
-                "reaction_number": self._next_reaction_number(per_tf.get("M1", []), child, int(now)),
-                # 0.75 is the same causal candidate entry-depth bin used by the
-                # training labels; evaluate() may select another proven depth bin.
-                "penetration_fraction": 0.75,
+                "reaction_number": int(measured_reaction["reaction_number"]) if measured_reaction else 0,
+                "penetration_fraction": float(measured_reaction["penetration_fraction"]) if measured_reaction else -1.0,
+                "entry_side": str(measured_reaction["entry_side"]) if measured_reaction else "ANY",
             }
             direction_sign = int(child.get("exit_direction", 0))
-            atr = float(child.get("base_atr", 0.0))
+            base_width = float(child.get("base_width", child.get("base_atr", 0.0)))
             entry_mid = (zone_low + zone_high) / 2.0
-            stop = zone_low - 0.15 * atr if direction_sign > 0 else zone_high + 0.15 * atr
+            stop = zone_low - 0.15 * base_width if direction_sign > 0 else zone_high + 0.15 * base_width
             destination = []
             for event in events_by_tf.get(tf, []):
                 if event.get("event_id") == child.get("event_id"):
@@ -288,7 +348,7 @@ class AutonomousDemoTrader:
             setup = {"timeframe": tf, "base_type": str(child.get("base_type", "UNKNOWN")),
                      "parent_relation": str(structure.get("parent_relation", "NESTED")),
                      "setup_type": "RETEST", "zone_low": zone_low, "zone_high": zone_high,
-                     "invalidation": stop, "target": target, "atr": atr, "confidence": 100.0,
+                     "invalidation": stop, "target": target, "base_width": base_width, "atr": base_width, "confidence": 100.0,
                      "expires_at": now + (8 * TIMEFRAME_SECONDS.get(tf, 60))}
             reaction_result = reaction_engine.evaluate(
                 setup=setup, quote={"bid": float(tick["bid"]), "ask": float(tick["ask"])}, now=now,

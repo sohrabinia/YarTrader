@@ -58,13 +58,16 @@ class BaseReactionDecisionEngine:
     def profile_key(timeframe: str, base_type: str, parent_timeframe: str,
                     parent_relation: str, parent_aligned: bool,
                     reaction_number: int, penetration_fraction: float,
-                    candidate_direction: str = "ANY") -> str:
+                    candidate_direction: str = "ANY", entry_side: str = "ANY") -> str:
         direction = str(candidate_direction or "ANY").upper()
         if direction not in ("BUY", "SELL", "ANY"):
             raise ValueError("candidate_direction must be BUY, SELL, or ANY")
+        side = str(entry_side or "ANY").upper()
+        if side not in ("FROM_ABOVE", "FROM_BELOW", "INTERIOR_OR_AMBIGUOUS_OHLC", "ANY"):
+            raise ValueError("entry_side must identify the Base approach side")
         return "|".join((str(timeframe), str(base_type), str(parent_timeframe),
                          str(parent_relation), "ALIGNED" if parent_aligned else "OPPOSED",
-                         direction, str(max(1, int(reaction_number))), _depth_bin(penetration_fraction)))
+                         direction, str(max(1, int(reaction_number))), _depth_bin(penetration_fraction), side))
 
     def learn(self, labels: Sequence[Mapping[str, Any]], as_of: int) -> Dict[str, Any]:
         """Aggregate completed, costed net_R outcomes; reject future/ambiguous labels."""
@@ -96,6 +99,7 @@ class BaseReactionDecisionEngine:
                     row.get("parent_aligned") is True,
                     int(row.get("reaction_number", 1)), float(row.get("penetration_fraction", -1)),
                     str(row.get("candidate_direction", "ANY")),
+                    str(row.get("entry_side", "ANY")),
                 )
                 grouped[key].append(net_r)
             except (KeyError, TypeError, ValueError, OverflowError):
@@ -119,6 +123,7 @@ class BaseReactionDecisionEngine:
 
     def export_stats(self) -> Dict[str, Any]:
         return {"version": 1, "status": "RESEARCH_ONLY_NOT_ACTIVATED",
+                "detector_version": "base_geometry_price_only_v2",
                 "min_samples": self.min_samples, "min_win_rate": self.min_win_rate,
                 "min_mean_net_r": self.min_mean_net_r,
                 "min_reverse_net_rr": self.min_reverse_net_rr,
@@ -201,6 +206,12 @@ class BaseReactionDecisionEngine:
             return wait("Reaction count/depth is missing or invalid.")
         aligned = int(parent.get("exit_direction", 0)) == child_direction
         relation = str(setup.get("parent_relation", "NESTED"))
+        entry_side = str(reaction.get("entry_side", "ANY") or "ANY").upper()
+        # A Base reaction is side-dependent: a retest entering from above is not
+        # pooled with one entering from below. Ambiguous OHLC approach remains
+        # separately modeled and can never silently inherit either side's edge.
+        if entry_side not in ("FROM_ABOVE", "FROM_BELOW", "INTERIOR_OR_AMBIGUOUS_OHLC", "ANY"):
+            return wait("Reaction entry side is invalid.")
         # Compare representative entry points from each depth bin using only the
         # exact timeframe/parent/revisit profile. Do not pick a depth without prior
         # net-R evidence for that cell.
@@ -208,7 +219,7 @@ class BaseReactionDecisionEngine:
         for candidate_depth in (0.125, 0.375, 0.625, 0.875):
             candidate_key = self.profile_key(tf, str(child.get("base_type", "UNKNOWN")), ptf,
                                              relation, aligned, reaction_number, candidate_depth,
-                                             "BUY" if child_direction > 0 else "SELL")
+                                             "BUY" if child_direction > 0 else "SELL", entry_side)
             ok, reason, candidate_stat = self._qualifying_stat(candidate_key)
             if ok and candidate_stat:
                 candidate_profiles.append((float(candidate_stat["mean_net_r"]),
@@ -221,7 +232,7 @@ class BaseReactionDecisionEngine:
             depth = float(reaction.get("penetration_fraction", 0.5))
             key = self.profile_key(tf, str(child.get("base_type", "UNKNOWN")), ptf,
                                    relation, aligned, reaction_number, depth,
-                                   "BUY" if child_direction > 0 else "SELL")
+                                   "BUY" if child_direction > 0 else "SELL", entry_side)
             passes, profile_reason, stat = self._qualifying_stat(key)
         context = {"parent_id": parent.get("event_id"), "parent_timeframe": ptf,
                    "parent_relation": relation,

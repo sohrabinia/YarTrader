@@ -71,7 +71,9 @@ class StrategyOrchestrator:
         model_path = _PROJECT_ROOT / "runtime_logs" / model_dir / "hierarchical_base_behavior_model_research.json"
         try:
             if model_path.exists():
-                engine.load_stats(json.loads(model_path.read_text(encoding="utf-8")))
+                model = json.loads(model_path.read_text(encoding="utf-8"))
+                if model.get("detector_version") == "base_geometry_price_only_v2":
+                    engine.load_stats(model)
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             # Invalid/missing evidence fails closed; no alternative strategy is tried.
             pass
@@ -85,8 +87,12 @@ class StrategyOrchestrator:
         reaction_model_status = "MISSING_COSTED_REACTION_MODEL"
         try:
             if reaction_model_path.exists():
-                reaction_engine.load_stats(json.loads(reaction_model_path.read_text(encoding="utf-8")))
-                reaction_model_status = "COSTED_REACTION_MODEL_LOADED"
+                reaction_model = json.loads(reaction_model_path.read_text(encoding="utf-8"))
+                if reaction_model.get("detector_version") != "base_geometry_price_only_v2":
+                    reaction_model_status = "REACTION_MODEL_DETECTOR_VERSION_MISMATCH"
+                else:
+                    reaction_engine.load_stats(reaction_model)
+                    reaction_model_status = "COSTED_REACTION_MODEL_LOADED"
         except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError):
             reaction_model_status = "REACTION_MODEL_LOAD_FAILED"
         structure = hierarchy.get("structure") or {}
