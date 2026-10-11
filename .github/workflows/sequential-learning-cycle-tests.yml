@@ -5,6 +5,7 @@ on:
     paths:
       - "scripts/run_sequential_market_learning_cycle.py"
       - "src/Decision/Intelligence/base_reaction_decision_engine.py"
+      - "src/Decision/Intelligence/pending_order_planner.py"
       - "src/Research/Brain/multitimeframe_base_transition_engine.py"
       - "src/Decision/Intelligence/hierarchical_base_behavior_engine.py"
       - "src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py"
@@ -15,6 +16,7 @@ on:
       - "tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py"
       - "tests/YarTrader.Tests/Backtesting/test_mt5_mtf_backtest.py"
       - "tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py"
+      - "tests/YarTrader.Tests/Decision/test_pending_order_planner.py"
       - "tests/YarTrader.Tests/Execution/test_autonomous_demo_runtime.py"
       - "tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py"
       - "tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py"
@@ -28,6 +30,7 @@ on:
     paths:
       - "scripts/run_sequential_market_learning_cycle.py"
       - "src/Decision/Intelligence/base_reaction_decision_engine.py"
+      - "src/Decision/Intelligence/pending_order_planner.py"
       - "src/Research/Brain/multitimeframe_base_transition_engine.py"
       - "src/Decision/Intelligence/hierarchical_base_behavior_engine.py"
       - "src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py"
@@ -38,6 +41,7 @@ on:
       - "tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py"
       - "tests/YarTrader.Tests/Backtesting/test_mt5_mtf_backtest.py"
       - "tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py"
+      - "tests/YarTrader.Tests/Decision/test_pending_order_planner.py"
       - "tests/YarTrader.Tests/Execution/test_autonomous_demo_runtime.py"
       - "tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py"
       - "tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py"
@@ -65,6 +69,7 @@ jobs:
           python -m py_compile \
             scripts/run_sequential_market_learning_cycle.py \
             src/Decision/Intelligence/base_reaction_decision_engine.py \
+            src/Decision/Intelligence/pending_order_planner.py \
             src/Research/Brain/multitimeframe_base_transition_engine.py \
             src/Decision/Intelligence/hierarchical_base_behavior_engine.py \
             src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py \
@@ -78,6 +83,7 @@ jobs:
             tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py \
             tests/YarTrader.Tests/Backtesting/test_mt5_mtf_backtest.py \
             tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py \
+            tests/YarTrader.Tests/Decision/test_pending_order_planner.py \
             tests/YarTrader.Tests/Execution/test_autonomous_demo_runtime.py \
             tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py \
             tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py \

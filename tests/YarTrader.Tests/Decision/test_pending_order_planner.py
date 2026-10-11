@@ -30,6 +30,14 @@ class TestPendingOrderPlanner(unittest.TestCase):
         self.assertEqual(result.order_type, "SELL_STOP")
         self.assertLess(result.entry, self.quote["bid"])
 
+    def test_base_width_is_the_geometry_scale_even_if_legacy_atr_is_present(self):
+        scenario = {"direction": "BUY", "setup_type": "RETEST", "zone_low": 1998.0,
+                    "zone_high": 1999.0, "invalidation": 1995.0, "target": 2007.0,
+                    "base_width": 1.0, "atr": 100.0, "confidence": 80, "expires_at": 5000}
+        # Spread is 0.20 of the Base width, above the 0.12 Base-width gate.
+        # It must not be divided by the legacy ATR compatibility value of 100.
+        self.assertEqual(self.planner.plan(scenario, self.quote, now=1000).status, "WAIT")
+
     def test_expired_or_low_quality_scenario_waits(self):
         base = {"direction": "BUY", "setup_type": "RETEST", "zone_low": 1998,
                 "zone_high": 1999, "invalidation": 1995, "target": 2007,

@@ -264,7 +264,7 @@ class HierarchicalBaseBehaviorEngine:
         scenario = {
             "direction": direction, "setup_type": "RETEST", "zone_low": low, "zone_high": high,
             "invalidation": invalidation,
-            "target": target, "target_source": target_source, "atr": atr, "confidence": 100.0*stat["win_rate"],
+            "target": target, "target_source": target_source, "base_width": atr, "atr": atr, "confidence": 100.0*stat["win_rate"],
             "expires_at": float(now)+(8*900 if child.get("timeframe") == "M15" else 8*300),
             "slippage_allowance": slippage_allowance,
             "commission_price_allowance": commission_price_allowance,

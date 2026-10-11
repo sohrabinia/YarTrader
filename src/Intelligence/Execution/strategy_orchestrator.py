@@ -34,6 +34,51 @@ class StrategyOrchestrator:
         except (TypeError, ValueError, OverflowError):
             return fallback
 
+    @staticmethod
+    def _measure_latest_base_reaction(bars: List[Dict[str, Any]], child: Dict[str, Any],
+                                      now: int) -> Optional[Dict[str, Any]]:
+        """Measure latest closed-candle visit to the selected Base, with causal approach side."""
+        try:
+            confirm = int(child["confirmation_time"])
+            low, high = float(child["base_low"]), float(child["base_high"])
+            width = high-low
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
+        if not math.isfinite(width) or width <= 0:
+            return None
+        episodes: List[Dict[str, Any]] = []
+        active: Optional[Dict[str, Any]] = None
+        in_visit = False
+        previous_close: Optional[float] = None
+        for bar in bars:
+            stamp = int(bar["time"])
+            if stamp > now:
+                break
+            close = float(bar["close"])
+            if stamp <= confirm:
+                previous_close = close
+                continue
+            touches = float(bar["low"]) <= high and float(bar["high"]) >= low
+            if touches and not in_visit:
+                side = ("FROM_ABOVE" if previous_close is not None and previous_close > high
+                        else "FROM_BELOW" if previous_close is not None and previous_close < low
+                        else "INTERIOR_OR_AMBIGUOUS_OHLC")
+                active = {"reaction_number": len(episodes)+1, "entry_side": side,
+                          "penetration_fraction": 0.0, "start_time": stamp}
+                episodes.append(active)
+            if touches and active is not None:
+                if active["entry_side"] == "FROM_ABOVE":
+                    depth = (high-min(max(float(bar["low"]), low), high))/width
+                elif active["entry_side"] == "FROM_BELOW":
+                    depth = (max(min(float(bar["high"]), high), low)-low)/width
+                else:
+                    depth = 0.0
+                active["penetration_fraction"] = round(max(float(active["penetration_fraction"]),
+                                                            min(1.0, max(0.0, depth))), 4)
+            in_visit = touches
+            previous_close = close
+        return dict(episodes[-1]) if episodes else None
+
     def evaluate_all_strategies(
         self, symbol: str, primary_timeframe: str, candles: List[Dict[str, Any]],
         all_timeframe_candles: Optional[Dict[str, List[Dict[str, Any]]]] = None,
@@ -106,18 +151,11 @@ class StrategyOrchestrator:
             tf = str(child.get("timeframe", "M15"))
             low, high = float(child["base_low"]), float(child["base_high"])
             confirm = int(child["confirmation_time"])
-            visits = 0
-            in_visit = False
-            for candle in bars_by_tf.get("M1", []):
-                if int(candle["time"]) <= confirm:
-                    continue
-                touches = float(candle["low"]) <= high and float(candle["high"]) >= low
-                if touches and not in_visit:
-                    visits += 1
-                in_visit = touches
+            measured_reaction = self._measure_latest_base_reaction(
+                bars_by_tf.get("M1", []), child, int(latest_epoch))
             direction_sign = int(child.get("exit_direction", 0))
-            atr = float(child.get("base_atr", 0.0))
-            stop = low - 0.15 * atr if direction_sign > 0 else high + 0.15 * atr
+            base_width = float(child.get("base_width", child.get("base_atr", 0.0)))
+            stop = low - 0.15 * base_width if direction_sign > 0 else high + 0.15 * base_width
             destinations = []
             for event in events_by_tf.get(tf, []):
                 if event.get("event_id") == child.get("event_id"):
@@ -132,11 +170,14 @@ class StrategyOrchestrator:
                 setup={"timeframe": tf, "base_type": str(child.get("base_type", "UNKNOWN")),
                        "parent_relation": str(structure.get("parent_relation", "NESTED")),
                        "setup_type": "RETEST", "zone_low": low, "zone_high": high,
-                       "invalidation": stop, "target": target, "atr": atr, "confidence": 100.0,
+                       "invalidation": stop, "target": target, "base_width": base_width,
+                       "atr": base_width, "confidence": 100.0,
                        "expires_at": float(latest_epoch) + 8 * TIMEFRAME_SECONDS.get(tf, 60)},
                 quote=quote, now=float(latest_epoch), parent=parent, child=child, micro=micro,
-                reaction={"base_id": child.get("event_id"), "reaction_number": visits + 1,
-                          "penetration_fraction": 0.5},
+                reaction={"base_id": child.get("event_id"),
+                          "reaction_number": int(measured_reaction["reaction_number"]) if measured_reaction else 0,
+                          "penetration_fraction": float(measured_reaction["penetration_fraction"]) if measured_reaction else -1.0,
+                          "entry_side": str(measured_reaction["entry_side"]) if measured_reaction else "ANY"},
             )
             reaction_result["model_status"] = reaction_model_status
         plan = reaction_result.get("order_plan") or {"status": "WAIT", "reason": reaction_result.get("reason")}

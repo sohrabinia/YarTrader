@@ -51,13 +51,16 @@ class PendingOrderPlanner:
         expires_at = scenario.get("expires_at")
         if direction not in {"BUY", "SELL"}:
             return self._wait(direction, "Direction is not actionable.")
-        required = ("zone_low", "zone_high", "invalidation", "target", "atr", "confidence")
-        if any(scenario.get(k) is None for k in required):
-            return self._wait(direction, "Scenario lacks a zone, invalidation, target, ATR, or confidence.", expires_at)
+        required = ("zone_low", "zone_high", "invalidation", "target", "confidence")
+        if any(scenario.get(k) is None for k in required) or scenario.get("base_width", scenario.get("atr")) is None:
+            return self._wait(direction, "Scenario lacks a Base zone, Base-width scale, invalidation, target, or confidence.", expires_at)
         try:
             low, high = float(scenario["zone_low"]), float(scenario["zone_high"])
             invalidation, target = float(scenario["invalidation"]), float(scenario["target"])
-            atr, confidence = float(scenario["atr"]), float(scenario["confidence"])
+            # Base-only strategy uses the selected Base's own width as its geometric
+            # scale. "atr" is accepted only for backward compatibility with older
+            # callers; Base runtime supplies base_width explicitly.
+            base_width, confidence = float(scenario.get("base_width", scenario.get("atr"))), float(scenario["confidence"])
             bid, ask = float(quote["bid"]), float(quote["ask"])
             now = float(now)
             expiry = float(expires_at) if expires_at is not None else None
@@ -65,20 +68,20 @@ class PendingOrderPlanner:
             commission = max(0.0, float(scenario.get("commission_price_allowance", 0.0)))
         except (TypeError, ValueError, KeyError):
             return self._wait(direction, "Scenario or quote contains invalid numeric values.", expires_at)
-        nums = (low, high, invalidation, target, atr, confidence, bid, ask, now, slip, commission)
-        if not all(math.isfinite(v) for v in nums) or low >= high or atr <= 0 or bid <= 0 or ask < bid:
-            return self._wait(direction, "Invalid zone/ATR/quote geometry.", expires_at)
+        nums = (low, high, invalidation, target, base_width, confidence, bid, ask, now, slip, commission)
+        if not all(math.isfinite(v) for v in nums) or low >= high or base_width <= 0 or bid <= 0 or ask < bid:
+            return self._wait(direction, "Invalid Base zone/width/quote geometry.", expires_at)
         if expiry is not None and (not math.isfinite(expiry) or expiry <= now):
             return self._wait(direction, "Scenario expired; recalculate from fresh closed candles.", expires_at)
         if confidence < self.min_confidence:
             return self._wait(direction, "Confidence is below the pending-order threshold.", expires_at)
         spread = ask - bid
-        if spread / atr > self.max_spread_atr:
-            return self._wait(direction, "Spread is too large relative to current ATR.", expires_at)
+        if spread / base_width > self.max_spread_atr:
+            return self._wait(direction, "Spread is too large relative to the selected Base width.", expires_at)
         if setup not in {"RETEST", "BREAKOUT"}:
             return self._wait(direction, "Only confirmed RETEST or BREAKOUT scenarios can propose pending orders.", expires_at)
 
-        buffer = self.entry_buffer_atr * atr
+        buffer = self.entry_buffer_atr * base_width
         if setup == "RETEST":
             order_type = "BUY_LIMIT" if direction == "BUY" else "SELL_LIMIT"
             try:
