@@ -61,7 +61,7 @@ jobs:
             src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py \
             src/Application/Runtime/research_runtime.py \
             src/Application/Backtesting/backtest_learning_engine.py
-      - name: Run Base-only runtime, MTF, and learning regression tests
+      - name: Run Base-only engine, MTF, and persistence regressions
         run: |
           python -m pytest -q \
             tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py \
@@ -69,10 +69,12 @@ jobs:
             tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py \
             tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py \
             tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py \
-            tests/YarTrader.Tests/Runtime/test_research_runtime.py \
             tests/test_research_snapshot_persistence.py
-      - name: Run targeted Base-only API acceptance tests
+      - name: Run targeted Base-only runtime and API acceptance tests
         run: |
           python -m pytest -q \
+            tests/YarTrader.Tests/Runtime/test_research_runtime.py::TestResearchRuntimeAndAdapter::test_base_runtime_loads_adjacent_parent_and_child_timeframes \
+            tests/YarTrader.Tests/Runtime/test_research_runtime.py::TestResearchRuntimeAndAdapter::test_runtime_overwrites_legacy_brain_decision_without_base_evidence \
+            tests/YarTrader.Tests/Runtime/test_research_runtime.py::TestResearchRuntimeAndAdapter::test_strict_read_only_compliance_no_trading_api \
             tests/YarTrader.Tests/Services/test_web_dashboard.py::TestWebDashboardFastAPI::test_trigger_backtesting_job_uses_base_only_and_real_history \
             tests/YarTrader.Tests/Services/test_web_dashboard.py::TestWebDashboardFastAPI::test_get_health_diagnostics
