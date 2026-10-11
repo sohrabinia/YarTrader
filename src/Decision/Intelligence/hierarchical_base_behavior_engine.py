@@ -244,15 +244,20 @@ class HierarchicalBaseBehaviorEngine:
         low, high = float(child["base_low"]), float(child["base_high"])
         atr = float(child["base_atr"])
         entry = (low + high) / 2.0
+        child_confirmation = int(child.get("confirmation_time", 0))
+        known_destination_events = sorted(
+            [e for e in events
+             if e.get("timeframe") == child.get("timeframe")
+             and e.get("event_id") != child.get("event_id")
+             and int(e.get("confirmation_time", 0)) <= child_confirmation],
+            key=lambda e: int(e.get("confirmation_time", 0)),
+        )[-512:]
         target_candidates = []
-        for e in events:
-            if e.get("timeframe") != child.get("timeframe") or e.get("event_id") == child.get("event_id"):
-                continue
-            mid = float(e.get("base_mid", (float(e["base_low"])+float(e["base_high"]))/2))
-            if direction == "BUY" and mid > high:
-                target_candidates.append((mid-entry, e))
-            elif direction == "SELL" and mid < low:
-                target_candidates.append((entry-mid, e))
+        for e in known_destination_events:
+            if direction == "BUY" and float(e["base_low"]) > high:
+                target_candidates.append((float(e["base_low"])-entry, e))
+            elif direction == "SELL" and float(e["base_high"]) < low:
+                target_candidates.append((entry-float(e["base_high"]), e))
         invalidation = low-0.15*atr if direction == "BUY" else high+0.15*atr
         target_base = min(target_candidates, key=lambda x: x[0])[1] if target_candidates else None
         if target_base is not None:

@@ -156,10 +156,15 @@ class StrategyOrchestrator:
             direction_sign = int(child.get("exit_direction", 0))
             base_width = float(child.get("base_width", child.get("base_atr", 0.0)))
             stop = low - 0.15 * base_width if direction_sign > 0 else high + 0.15 * base_width
+            child_confirmation = int(child.get("confirmation_time", 0))
+            known_destination_events = sorted(
+                [event for event in events_by_tf.get(tf, [])
+                 if event.get("event_id") != child.get("event_id")
+                 and int(event.get("confirmation_time", 0)) <= child_confirmation],
+                key=lambda event: int(event.get("confirmation_time", 0)),
+            )[-512:]
             destinations = []
-            for event in events_by_tf.get(tf, []):
-                if event.get("event_id") == child.get("event_id"):
-                    continue
+            for event in known_destination_events:
                 if direction_sign > 0 and float(event["base_low"]) > max(high, price):
                     destinations.append((float(event["base_low"]) - price, float(event["base_low"])))
                 elif direction_sign < 0 and float(event["base_high"]) < min(low, price):

@@ -335,10 +335,15 @@ class AutonomousDemoTrader:
             base_width = float(child.get("base_width", child.get("base_atr", 0.0)))
             entry_mid = (zone_low + zone_high) / 2.0
             stop = zone_low - 0.15 * base_width if direction_sign > 0 else zone_high + 0.15 * base_width
+            child_confirmation = int(child.get("confirmation_time", 0))
+            known_destination_events = sorted(
+                [event for event in events_by_tf.get(tf, [])
+                 if event.get("event_id") != child.get("event_id")
+                 and int(event.get("confirmation_time", 0)) <= child_confirmation],
+                key=lambda event: int(event.get("confirmation_time", 0)),
+            )[-512:]
             destination = []
-            for event in events_by_tf.get(tf, []):
-                if event.get("event_id") == child.get("event_id"):
-                    continue
+            for event in known_destination_events:
                 lo, hi = float(event.get("base_low", 0.0)), float(event.get("base_high", 0.0))
                 if direction_sign > 0 and lo > zone_high:
                     destination.append((lo-entry_mid, lo))
