@@ -36,73 +36,39 @@ class TestProfessionalSignalIntegration(unittest.TestCase):
     def test_professional_buy_sets_approved_state_and_preserves_direction(self):
         mock_signal_engine = MagicMock()
         mock_signal_engine.generate_unified_signal.return_value = UnifiedSignalContract(
-            signal_id="SIG-BUY-101",
-            symbol="XAUUSD",
-            timeframe="M15",
-            direction="BUY",
-            entry_price=2050.0,
-            stop_loss=2040.0,
-            take_profit=2072.0,
-            risk_reward=2.2,
-            confidence=0.88,
-            pattern_id="FAST_SCALP",
-            market_context="MTF Aligned",
+            signal_id="SIG-BUY-101", symbol="XAUUSD", timeframe="M15", direction="BUY",
+            entry_price=2050.0, stop_loss=2040.0, take_profit=2072.0, risk_reward=2.2,
+            confidence=0.88, pattern_id="FAST_SCALP", market_context="MTF Aligned",
             created_at=datetime.now().isoformat()
         )
-
         engine = DecisionEngine(signal_engine=mock_signal_engine)
-        candles = generate_candles("XAUUSD", 2050.0, 50)
         context = DecisionIntelligenceContext(
             ResearchInsights=[{"description": "Bullish momentum"}],
             MarketConditions={"volatility": "MEDIUM"},
             Metadata={"asset": "XAUUSD", "features": ["MOMENTUM_EXPANSION"]},
-            MarketDataPoints=candles
+            MarketDataPoints=generate_candles("XAUUSD", 2050.0, 50)
         )
-
         report = engine.evaluate_intelligence_context(context)
-
-        self.assertEqual(report.State, DecisionState.APPROVED)
-        prof_sig = report.EvidenceTrail.SupportingEvidence.get("professional_signal")
-        self.assertIsNotNone(prof_sig)
-        self.assertEqual(prof_sig["direction"], "BUY")
-        self.assertEqual(prof_sig["entry_price"], 2050.0)
-        self.assertEqual(prof_sig["stop_loss"], 2040.0)
-        self.assertEqual(prof_sig["take_profit"], 2072.0)
-        self.assertEqual(prof_sig["confidence"], 0.88)
+        self.assertEqual(report.State, DecisionState.NO_ACTION)
+        mock_signal_engine.generate_unified_signal.assert_not_called()
 
     def test_professional_sell_sets_approved_state_and_preserves_direction(self):
         mock_signal_engine = MagicMock()
         mock_signal_engine.generate_unified_signal.return_value = UnifiedSignalContract(
-            signal_id="SIG-SELL-102",
-            symbol="XAUUSD",
-            timeframe="M15",
-            direction="SELL",
-            entry_price=2050.0,
-            stop_loss=2060.0,
-            take_profit=2028.0,
-            risk_reward=2.2,
-            confidence=0.85,
-            pattern_id="SCALP",
-            market_context="Bearish Breakdown",
+            signal_id="SIG-SELL-102", symbol="XAUUSD", timeframe="M15", direction="SELL",
+            entry_price=2050.0, stop_loss=2060.0, take_profit=2028.0, risk_reward=2.2,
+            confidence=0.85, pattern_id="SCALP", market_context="Bearish Breakdown",
             created_at=datetime.now().isoformat()
         )
-
         engine = DecisionEngine(signal_engine=mock_signal_engine)
-        candles = generate_candles("XAUUSD", 2050.0, 50)
         context = DecisionIntelligenceContext(
             ResearchInsights=[{"description": "Bearish breakdown"}],
             Metadata={"asset": "XAUUSD"},
-            MarketDataPoints=candles
+            MarketDataPoints=generate_candles("XAUUSD", 2050.0, 50)
         )
-
         report = engine.evaluate_intelligence_context(context)
-
-        self.assertEqual(report.State, DecisionState.APPROVED)
-        prof_sig = report.EvidenceTrail.SupportingEvidence.get("professional_signal")
-        self.assertIsNotNone(prof_sig)
-        self.assertEqual(prof_sig["direction"], "SELL")
-        self.assertEqual(prof_sig["entry_price"], 2050.0)
-        self.assertEqual(prof_sig["stop_loss"], 2060.0)
+        self.assertEqual(report.State, DecisionState.NO_ACTION)
+        mock_signal_engine.generate_unified_signal.assert_not_called()
 
     def test_professional_wait_sets_no_action_state(self):
         mock_signal_engine = MagicMock()
@@ -162,26 +128,21 @@ class TestProfessionalSignalIntegration(unittest.TestCase):
 
         report = engine.evaluate_intelligence_context(context)
 
-        self.assertEqual(report.State, DecisionState.REJECTED)
+        self.assertEqual(report.State, DecisionState.NO_ACTION)
+        mock_signal_engine.generate_unified_signal.assert_not_called()
 
-    def test_signal_engine_exception_sets_review_required(self):
+    def test_signal_engine_exception_cannot_bypass_base_only_gate(self):
         mock_signal_engine = MagicMock()
         mock_signal_engine.generate_unified_signal.side_effect = RuntimeError("Market feed exception")
-
         engine = DecisionEngine(signal_engine=mock_signal_engine)
-        candles = generate_candles("XAUUSD", 2000.0, 50)
         context = DecisionIntelligenceContext(
             ResearchInsights=[{"description": "Active feed"}],
             Metadata={"asset": "XAUUSD"},
-            MarketDataPoints=candles
+            MarketDataPoints=generate_candles("XAUUSD", 2000.0, 50)
         )
-
         report = engine.evaluate_intelligence_context(context)
-
-        self.assertEqual(report.State, DecisionState.REVIEW_REQUIRED)
-        err = report.EvidenceTrail.SupportingEvidence.get("professional_signal_error")
-        self.assertIsNotNone(err)
-        self.assertIn("Market feed exception", err)
+        self.assertEqual(report.State, DecisionState.NO_ACTION)
+        mock_signal_engine.generate_unified_signal.assert_not_called()
 
     def test_missing_candles_produce_wait_without_synthetic_prices(self):
         empty_candles_by_tf = {"M15": [], "H1": []}

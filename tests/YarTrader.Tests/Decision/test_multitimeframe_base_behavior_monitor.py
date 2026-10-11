@@ -50,8 +50,11 @@ class MultitimeframeBaseBehaviorMonitorTests(unittest.TestCase):
 
     def test_professional_signal_call_updates_base_monitor_snapshot(self):
         engine = DecisionEngine(signal_engine=FakeSignalEngine())
-        self.assertEqual(engine.generate_professional_signal("XAUUSD", {}), "signal-stub")
-        self.assertEqual(engine.last_base_behavior_report["status"], "BASE_BEHAVIOR_OBSERVATION_ONLY")
+        signal = engine.generate_professional_signal("XAUUSD", {})
+        self.assertEqual(signal.direction, "WAIT")
+        self.assertEqual(signal.pattern_id, "BASE_WAIT")
+        self.assertEqual(engine.last_base_behavior_report["status"], "WAIT")
+        self.assertFalse(engine.last_base_behavior_report["execution_enabled"])
 
     def test_decision_engine_exposes_base_monitor(self):
         engine = DecisionEngine()

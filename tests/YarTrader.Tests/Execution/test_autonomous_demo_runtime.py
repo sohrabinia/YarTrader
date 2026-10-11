@@ -7,6 +7,7 @@ from unittest.mock import patch
 from scripts.run_autonomous_demo_runtime import run_autonomous_demo_cycle, generate_simulated_candles
 from src.Decision.Intelligence.timeframe_selector import AutomaticTimeframeSelector
 from src.Decision.Intelligence.professional_signal_engine import ProfessionalSignalEngine
+from src.Execution.Services.autonomous_demo_trader import AutonomousDemoTrader
 
 
 class TestAutonomousDemoRuntime(unittest.TestCase):
@@ -28,6 +29,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
 
     @patch("src.Decision.Intelligence.professional_signal_engine.BrainLearningBridge.record_signal")
     def test_professional_signal_engine_unified_signal(self, mock_record_signal):
+        """Legacy API delegates to Base-only model and fails closed without learned profiles."""
         engine = ProfessionalSignalEngine()
         candles_by_tf = {
             "M5": generate_simulated_candles("EURUSD", 1.0850, 50),
@@ -36,12 +38,9 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             "H4": generate_simulated_candles("EURUSD", 1.0850, 50),
         }
         sig = engine.generate_unified_signal("EURUSD", candles_by_tf)
-        self.assertTrue(sig.signal_id.startswith("SIG-"))
-        self.assertEqual(sig.symbol, "EURUSD")
-        self.assertIn(sig.direction, ["BUY", "SELL", "WAIT"])
-        if sig.direction != "WAIT":
-            self.assertGreaterEqual(sig.risk_reward, 1.5)
-            self.assertGreater(sig.entry_price, 0.0)
+        self.assertEqual(sig.direction, "WAIT")
+        self.assertEqual(sig.pattern_id, "BASE_WAIT")
+        mock_record_signal.assert_not_called()
 
     def test_autonomous_demo_cycle_execution(self):
         # This unit test uses synthetic candles; never connect to or submit orders
@@ -101,6 +100,23 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(metrics.average_loss, 10.0)
         self.assertEqual(metrics.profit_factor, 2.0)
         self.assertEqual(metrics.expectancy, 5.0)  # (0.5 * 20.0) - (0.5 * 10.0) = 5.0
+
+    def test_base_reaction_number_counts_causal_contiguous_m1_visits(self):
+        child = {"confirmation_time": 100, "base_low": 10.0, "base_high": 20.0}
+        candles = [
+            {"timestamp": 90, "low": 12.0, "high": 18.0},   # before Base confirmation
+            {"timestamp": 110, "low": 12.0, "high": 18.0},  # visit 1
+            {"timestamp": 120, "low": 11.0, "high": 19.0},  # same contiguous visit
+            {"timestamp": 130, "low": 21.0, "high": 22.0},  # outside zone
+            {"timestamp": 140, "low": 12.0, "high": 18.0},  # visit 2
+            {"timestamp": 160, "low": 12.0, "high": 18.0},  # beyond causal cutoff
+        ]
+        self.assertEqual(AutonomousDemoTrader._next_reaction_number(candles, child, 150), 3)
+
+    def test_base_reaction_number_fails_closed_on_invalid_zone(self):
+        candles = [{"timestamp": 110, "low": 1.0, "high": 2.0}]
+        child = {"confirmation_time": 100, "base_low": 3.0, "base_high": 2.0}
+        self.assertEqual(AutonomousDemoTrader._next_reaction_number(candles, child, 150), 1)
 
 
 if __name__ == "__main__":

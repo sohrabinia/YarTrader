@@ -46,6 +46,17 @@ def test_hierarchy_only_counts_children_confirmed_before_parent_exit():
     assert parent_row["child_alignment_count"] == 1
     assert parent_row["child_opposition_count"] == 0
 
+    # Multiple lower-timeframe bases can coexist within the same parent.
+    second_child=dict(child,event_id="M5:85:DBD",timeframe="M5",base_start_time=30,
+                      base_end_time=75,confirmation_time=85,base_type="DBD",exit_direction=-1)
+    result=build_hierarchy({"H4":[parent],"M15":[child],"M5":[second_child,future_child]})
+    parent_row=next(x for x in result if x["event_id"]==parent["event_id"])
+    assert parent_row["child_bases"]["M15"]["count"] == 1
+    assert parent_row["child_bases"]["M5"]["count"] == 1
+    assert len(parent_row["child_events"]) == 2
+    assert parent_row["child_alignment_count"] == 1
+    assert parent_row["child_opposition_count"] == 1
+
 
 def test_transition_labels_exclude_future_confirmed_target_base():
     bars=_bars(80,2000.0)
@@ -151,3 +162,27 @@ def test_corridor_pause_tracks_following_departure_direction():
     assert rows[0]["corridor_pause_candidate"] is True
     assert rows[0]["corridor_pause_departure_direction"] == 1
     assert rows[0]["corridor_pause_departure_aligned"] is True
+
+
+def test_base_reentry_labels_capture_multiple_interactions_and_inside_acceptance():
+    from src.Research.Brain.multitimeframe_base_transition_engine import label_base_reentry_reactions
+    bars = []
+    for i in range(70):
+        bars.append({"time":1700000000+i*60,"open":105.0,"high":105.5,"low":104.5,"close":105.0})
+    # Base is [100, 102], confirmed at index 30. Two distinct later visits.
+    bars[31] = {"time":1700000000+31*60,"open":105.0,"high":105.2,"low":101.5,"close":103.0}
+    bars[32] = {"time":1700000000+32*60,"open":103.0,"high":104.0,"low":102.5,"close":103.5}
+    bars[33] = {"time":1700000000+33*60,"open":103.5,"high":104.0,"low":101.0,"close":101.5}
+    bars[34] = {"time":1700000000+34*60,"open":101.5,"high":101.8,"low":100.5,"close":101.0}
+    bars[35] = {"time":1700000000+35*60,"open":101.0,"high":103.0,"low":100.8,"close":102.5}
+    bars[36] = {"time":1700000000+36*60,"open":102.5,"high":104.0,"low":102.2,"close":103.5}
+    bars[37] = {"time":1700000000+37*60,"open":103.5,"high":104.0,"low":103.0,"close":103.5}
+    event = {"event_id":"M5:reentry:RBR","timeframe":"M5","base_type":"RBR",
+             "confirmation_index":30,"confirmation_time":bars[30]["time"],
+             "base_low":100.0,"base_high":102.0,"base_atr":1.0,"exit_direction":1}
+    rows = label_base_reentry_reactions({"M5":[event]},{"M5":bars},horizon_bars=20)
+    assert len(rows) == 2
+    assert rows[0]["interaction"]["entry_side"] == "FROM_ABOVE"
+    assert rows[1]["interaction"]["max_close_inside_streak"] >= 2
+    assert rows[1]["interaction"]["accepted_inside_zone"] is True
+    assert rows[0]["label_mode"] == "OFFLINE_REENTRY_OUTCOME_ONLY"

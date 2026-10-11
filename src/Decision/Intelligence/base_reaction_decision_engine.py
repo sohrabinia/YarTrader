@@ -45,20 +45,26 @@ class BaseReactionDecisionEngine:
     def __init__(self, planner: PendingOrderPlanner | None = None,
                  min_samples: int = 40, min_win_rate: float = 0.52,
                  min_mean_net_r: float = 0.05, min_reverse_net_rr: float = 1.2):
-        self.planner = planner or PendingOrderPlanner()
         self.min_samples = int(min_samples)
         self.min_win_rate = float(min_win_rate)
         self.min_mean_net_r = float(min_mean_net_r)
         self.min_reverse_net_rr = float(min_reverse_net_rr)
+        if self.min_samples < 1 or not 0.0 <= self.min_win_rate <= 1.0:
+            raise ValueError("min_samples must be positive and min_win_rate must be in [0, 1].")
+        self.planner = planner or PendingOrderPlanner(min_confidence=100.0 * self.min_win_rate)
         self._stats: Dict[str, Dict[str, float]] = {}
 
     @staticmethod
     def profile_key(timeframe: str, base_type: str, parent_timeframe: str,
                     parent_relation: str, parent_aligned: bool,
-                    reaction_number: int, penetration_fraction: float) -> str:
+                    reaction_number: int, penetration_fraction: float,
+                    candidate_direction: str = "ANY") -> str:
+        direction = str(candidate_direction or "ANY").upper()
+        if direction not in ("BUY", "SELL", "ANY"):
+            raise ValueError("candidate_direction must be BUY, SELL, or ANY")
         return "|".join((str(timeframe), str(base_type), str(parent_timeframe),
                          str(parent_relation), "ALIGNED" if parent_aligned else "OPPOSED",
-                         str(max(1, int(reaction_number))), _depth_bin(penetration_fraction)))
+                         direction, str(max(1, int(reaction_number))), _depth_bin(penetration_fraction)))
 
     def learn(self, labels: Sequence[Mapping[str, Any]], as_of: int) -> Dict[str, Any]:
         """Aggregate completed, costed net_R outcomes; reject future/ambiguous labels."""
@@ -89,6 +95,7 @@ class BaseReactionDecisionEngine:
                     str(row.get("parent_relation") or "NONE"),
                     row.get("parent_aligned") is True,
                     int(row.get("reaction_number", 1)), float(row.get("penetration_fraction", -1)),
+                    str(row.get("candidate_direction", "ANY")),
                 )
                 grouped[key].append(net_r)
             except (KeyError, TypeError, ValueError, OverflowError):
@@ -165,13 +172,16 @@ class BaseReactionDecisionEngine:
             return wait("A confirmed parent, child, fresh M1 trigger and measured same-Base reaction are all required.")
         tf = str(child.get("timeframe", ""))
         ptf = str(parent.get("timeframe", ""))
-        if _rank(ptf) >= _rank(tf) or tf not in ("M15", "M5"):
+        if _rank(ptf) >= _rank(tf) or tf not in ("H4", "H1", "M30", "M15", "M5"):
             return wait("Parent/child timeframe hierarchy is invalid.")
         if int(parent.get("confirmation_time", 0)) > int(child.get("confirmation_time", 0)):
             return wait("Parent was not confirmed before the child setup; causal ordering failed.")
         child_direction = int(child.get("exit_direction", 0))
-        if child_direction not in (-1, 1) or int(parent.get("exit_direction", 0)) != child_direction:
-            return wait("Parent and child departure directions are not aligned.")
+        if child_direction not in (-1, 1):
+            return wait("Child Base has no valid confirmed departure direction.")
+        # Parent/child alignment is a learned relationship feature, not a hard gate.
+        # Opposed parent/child setups are evaluated against their own separate
+        # historical profile and must pass the same economic/confidence gates.
         now_i = int(now)
         for event, name in ((parent, "parent"), (child, "child"), (micro, "M1 trigger")):
             if int(event.get("confirmation_time", 0)) > now_i:
@@ -197,7 +207,8 @@ class BaseReactionDecisionEngine:
         candidate_profiles = []
         for candidate_depth in (0.125, 0.375, 0.625, 0.875):
             candidate_key = self.profile_key(tf, str(child.get("base_type", "UNKNOWN")), ptf,
-                                             relation, aligned, reaction_number, candidate_depth)
+                                             relation, aligned, reaction_number, candidate_depth,
+                                             "BUY" if child_direction > 0 else "SELL")
             ok, reason, candidate_stat = self._qualifying_stat(candidate_key)
             if ok and candidate_stat:
                 candidate_profiles.append((float(candidate_stat["mean_net_r"]),
@@ -209,7 +220,8 @@ class BaseReactionDecisionEngine:
         else:
             depth = float(reaction.get("penetration_fraction", 0.5))
             key = self.profile_key(tf, str(child.get("base_type", "UNKNOWN")), ptf,
-                                   relation, aligned, reaction_number, depth)
+                                   relation, aligned, reaction_number, depth,
+                                   "BUY" if child_direction > 0 else "SELL")
             passes, profile_reason, stat = self._qualifying_stat(key)
         context = {"parent_id": parent.get("event_id"), "parent_timeframe": ptf,
                    "parent_relation": relation,

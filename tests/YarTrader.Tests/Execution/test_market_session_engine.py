@@ -278,7 +278,7 @@ class TestMarketSessionEngine:
         manager = SessionExecutionManager(market_session_engine=self.engine)
 
         perm = manager.evaluate_entry_permission(
-            trading_style="SCALP",
+            trading_style="BASE_HIERARCHY",
             remaining_session_seconds=5000.0,
             symbol="XAUUSD",
             distance_to_tp=180.0,

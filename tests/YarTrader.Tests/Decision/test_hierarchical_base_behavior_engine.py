@@ -43,6 +43,24 @@ class HierarchicalBaseBehaviorEngineTests(unittest.TestCase):
         restored.load_stats(source.export_stats())
         self.assertEqual(restored.export_stats()["groups"]["M15|RBR|H1|NESTED|ALIGNED"]["samples"], 45)
 
+    def test_opposed_parent_can_proceed_when_opposed_pattern_has_validated_stats(self):
+        engine = HierarchicalBaseBehaviorEngine(min_samples=2, min_win_rate=0.5)
+        parent = event("h1", "H1", "DBD", -1, 0, 1000, 100, 98, 105, 2)
+        child = event("m15", "M15", "RBR", 1, 100, 200, 250, 99, 100, 1)
+        destination = event("dest", "M15", "DBD", -1, 40, 80, 90, 106, 107, 1)
+        micro = event("micro", "M1", "RBR", 1, 700, 800, 900, 101.4, 101.6, 0.2)
+        engine._stats["M15|RBR|H1|NESTED|OPPOSED"] = {
+            "samples": 20, "win_rate": 0.65, "mean_net_r": 0.3,
+            "standard_error": 0.1, "net_r_samples": 20,
+        }
+        result = engine.analyze({"H1": [parent], "M15": [child, destination], "M1": [micro]},
+                                {"bid": 101.0, "ask": 101.1}, 1000)
+        self.assertEqual(result["structure"]["parent_child_alignment"], "OPPOSED")
+        self.assertEqual(result["learning"]["samples"], 20)
+        self.assertEqual(result["status"], "ORDER_PROPOSAL")
+        self.assertEqual(result["order_plan"]["status"], "PROPOSED")
+        self.assertFalse(result.get("execution_enabled", True))
+
     def test_proposes_only_with_aligned_parent_and_enough_prior_samples(self):
         engine = HierarchicalBaseBehaviorEngine(min_samples=2, min_win_rate=0.5)
         parent = event("h1", "H1", "RBR", 1, 0, 1000, 100, 98, 105, 2)

@@ -24,6 +24,9 @@ class TestExecutionIntelligenceEndpoints(unittest.TestCase):
             self.assertIn("stop_loss", data)
             self.assertIn("take_profit", data)
             self.assertIn("reasoning", data)
+            self.assertEqual(data["decision_source"], "BASE_HIERARCHY")
+            self.assertEqual(data["decision_authority"], "BASE_HIERARCHY")
+            self.assertEqual(data["strategy"], "BASE_HIERARCHY")
 
     def test_get_execution_plans_degraded_when_offline(self) -> None:
         with patch("src.Application.Services.web_dashboard.fetch_production_market_candles", return_value=[]):

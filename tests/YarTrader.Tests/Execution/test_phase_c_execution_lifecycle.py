@@ -19,7 +19,7 @@ class TestPhaseCExecutionLifecycle:
             account_equity=10000.0,
             free_margin=5000.0,
             execution_timeframe="M5",
-            trading_style="FAST_SCALP"
+            trading_style="BASE_HIERARCHY"
         )
         res = contract.validate_contract_rules()
         assert res["is_valid"] is True
@@ -37,7 +37,7 @@ class TestPhaseCExecutionLifecycle:
             account_equity=10000.0,
             free_margin=5000.0,
             execution_timeframe="M15",  # Invalid execution timeframe
-            trading_style="SCALP"
+            trading_style="BASE_HIERARCHY"
         )
         res = contract.validate_contract_rules()
         assert res["is_valid"] is False
@@ -132,12 +132,12 @@ class TestPhaseCExecutionLifecycle:
         manager = SessionExecutionManager()
 
         # Remaining session time <= 121s -> REJECTED
-        res_121s = manager.evaluate_entry_permission(trading_style="SCALP", remaining_session_seconds=121.0)
+        res_121s = manager.evaluate_entry_permission(trading_style="BASE_HIERARCHY", remaining_session_seconds=121.0)
         assert res_121s["allowed"] is False
         assert res_121s["rejection_reason"] == "INSUFFICIENT_REMAINING_SESSION_TIME"
 
         # Remaining session time = 122s -> ALLOWED
-        res_122s = manager.evaluate_entry_permission(trading_style="SCALP", remaining_session_seconds=122.0)
+        res_122s = manager.evaluate_entry_permission(trading_style="BASE_HIERARCHY", remaining_session_seconds=122.0)
         assert res_122s["allowed"] is True
 
     def test_forbidden_trading_style_rejection(self):
@@ -153,8 +153,8 @@ class TestPhaseCExecutionLifecycle:
         assert res_overnight["allowed"] is False
 
         # FAST_SCALP -> ALLOWED
-        res_scalp = manager.evaluate_entry_permission(trading_style="FAST_SCALP", remaining_session_seconds=3600.0)
-        assert res_scalp["allowed"] is True
+        res_base = manager.evaluate_entry_permission(trading_style="BASE_HIERARCHY", remaining_session_seconds=3600.0)
+        assert res_base["allowed"] is True
 
     def test_eod_flatten_safety_invariant(self):
         manager = SessionExecutionManager()

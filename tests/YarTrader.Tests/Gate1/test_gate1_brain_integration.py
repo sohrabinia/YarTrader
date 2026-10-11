@@ -26,10 +26,10 @@ from test_forensic_guards import ControlledDataProvider, enforce_offline_boundar
 
 class TestGate1BrainIntegration(unittest.TestCase):
     """
-    Focused Gate 1 Test Suite validating Canonical Brain Integration.
+    Focused Gate 1 Test Suite validating canonical Base-only decision authority.
     Proves:
-    - Test 1: Real Production Path — ResearchWorker._run_loop() calls real _get_or_create_runtime() with ZERO pre-population, ZERO patching of _get_or_create_runtime, and ZERO patching of ResearchRuntime.run_once(). Verifies real PrimitiveMarketResearchEngine invokes LiveAnalysisBrain, passes newborn_brain_report to ExecutionIntelligenceCore/Planner, and returns a proposal with decision_source = "BRAIN".
-    - Test 2: Explicit Fail-Closed Exception Handling — When LiveAnalysisBrain raises an unexpected exception, PrimitiveMarketResearchEngine catches it, outputs brain_available = False, sets decision_source = "BRAIN_UNAVAILABLE" and action = "WAIT", and performs 0 executions.
+    - Test 1: Real ResearchWorker path retains Brain output for learning but emits decisions only from BASE_HIERARCHY; a Brain BUY hypothesis cannot authorize an order without a Base candidate.
+    - Test 2: A LiveAnalysisBrain exception is diagnostic only; the Base-only decision remains fail-closed to WAIT when no validated Base candidate exists.
     - Test 3: Fail-Closed Boundary — When newborn_brain_report is missing/None, ExecutionIntelligencePlanner fails closed to action = "WAIT", decision = "NO_TRADE", and decision_source = "BRAIN_UNAVAILABLE".
     - Test 4: Causal Negative Test — When LiveAnalysisBrain proposes WAIT/AVOID, Planner outputs WAIT/AVOID even under strongly bullish or bearish structure.
     - Test 5: Causal Positive Test — Brain proposal BUY + bullish structure -> BUY. Brain proposal SELL + bullish structure -> WAIT.
@@ -42,8 +42,8 @@ class TestGate1BrainIntegration(unittest.TestCase):
         """
         Test 1: Prove ResearchWorker._run_loop uses real _get_or_create_runtime() with ZERO pre-population of worker.runtimes,
         ZERO patching of _get_or_create_runtime, and ZERO patching of ResearchRuntime.run_once().
-        Verifies worker.runtimes is initially empty, _run_loop creates a real ResearchRuntime, executes PrimitiveMarketResearchEngine and LiveAnalysisBrain,
-        and returns a Brain proposal with decision_source = "BRAIN" and brain_report_consumed = True.
+        Verifies worker.runtimes is initially empty, _run_loop creates a real ResearchRuntime, retains a strong Brain BUY for learning,
+        and still emits WAIT unless the Base hierarchy produces its own validated candidate.
         """
         boundary_patches, mt5_calls, broker_external_attempts, network_calls, credential_reads, cleanup = enforce_offline_boundary()
         for p in boundary_patches:
@@ -52,7 +52,19 @@ class TestGate1BrainIntegration(unittest.TestCase):
 
         try:
             from src.Research.Brain.memory import MarketMemorySystem
+            from src.Research.Brain.live_brain import LiveAnalysisBrain
             test_memory = MarketMemorySystem(storage_dir=memory_tempdir.name)
+            # A deliberately strong Brain BUY hypothesis must remain non-authoritative.
+            fake_brain_report = MagicMock()
+            fake_brain_report.to_dict.return_value = {
+                "symbol": "XAUUSD",
+                "is_read_only_compliant": True,
+                "active_hypotheses": [{
+                    "suggested_virtual_action": "BUY",
+                    "hypothesis_confidence": 99.0,
+                    "trade_parameters": {"entry": 2000.0, "stop_loss": 1990.0, "take_profit": 2020.0, "risk_reward": 2.0},
+                }],
+            }
             worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
             provider = ControlledDataProvider(base_price=2000.0, count=100)
 
@@ -69,6 +81,7 @@ class TestGate1BrainIntegration(unittest.TestCase):
             # Patch MetaTrader5Provider constructor so real _get_or_create_runtime instantiates MetaTrader5Provider with ControlledDataProvider delegate
             with patch("src.Application.Runtime.research_runtime.MetaTrader5Provider", return_value=provider), \
                  patch("src.Research.Brain.live_brain.MarketMemorySystem", return_value=test_memory), \
+                 patch.object(LiveAnalysisBrain, "process_live_candle", return_value=fake_brain_report), \
                  patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]), \
                  patch.object(central_runtime_state, "update_multiple", side_effect=stop_worker_on_cycle_completion):
 
@@ -91,11 +104,15 @@ class TestGate1BrainIntegration(unittest.TestCase):
             self.assertEqual(nb_report["symbol"], "XAUUSD")
             self.assertTrue(nb_report["is_read_only_compliant"])
 
-            # Verify plan incorporates Brain proposal metadata and shows consumption
+            # Brain hypotheses are retained for learning but cannot authorize a trade.
             self.assertIn("intel_summary", res.Findings)
-            plan = res.Findings["intel_summary"].get("plan", {})
-            self.assertEqual(plan.get("decision_source"), "BRAIN")
-            self.assertTrue(plan.get("brain_report_consumed"))
+            summary = res.Findings["intel_summary"]
+            decision = res.Findings["autonomous_decision"]
+            self.assertEqual(summary.get("decision_authority"), "BASE_HIERARCHY")
+            self.assertEqual(decision.get("evidence", {}).get("decision_authority"), "BASE_HIERARCHY")
+            self.assertEqual(decision.get("action"), "WAIT")
+            self.assertEqual(decision.get("confidence"), 0.0)
+            self.assertEqual(res.Findings["pipeline_outputs"]["smart_interpretation"].get("signal_status"), "WAIT")
 
             # Verify zero external calls were made
             self.assertEqual(len(mt5_calls), 0)
@@ -154,11 +171,14 @@ class TestGate1BrainIntegration(unittest.TestCase):
             self.assertFalse(nb_report.get("brain_available"))
             self.assertIn("LiveAnalysisBrain exception", nb_report.get("brain_error", ""))
 
-            # Verify decision_source is BRAIN_UNAVAILABLE and action is WAIT
-            plan = res.Findings["intel_summary"].get("plan", {})
-            self.assertEqual(plan.get("decision_source"), "BRAIN_UNAVAILABLE")
-            self.assertEqual(plan.get("action"), "WAIT")
-            self.assertFalse(plan.get("brain_report_consumed"))
+            # Brain failure affects learning diagnostics only; Base remains sole authority.
+            summary = res.Findings["intel_summary"]
+            decision = res.Findings["autonomous_decision"]
+            self.assertEqual(summary.get("decision_authority"), "BASE_HIERARCHY")
+            self.assertEqual(decision.get("evidence", {}).get("decision_authority"), "BASE_HIERARCHY")
+            self.assertEqual(decision.get("action"), "WAIT")
+            self.assertEqual(decision.get("confidence"), 0.0)
+            self.assertEqual(res.Findings["pipeline_outputs"]["smart_interpretation"].get("signal_status"), "WAIT")
 
             # Verify zero external calls were made
             self.assertEqual(len(mt5_calls), 0)
@@ -453,10 +473,17 @@ class TestGate1BrainIntegration(unittest.TestCase):
             }
 
             mt5_calls.clear()
+            fake_mt5 = types.SimpleNamespace(
+                ORDER_TYPE_BUY=0,
+                ORDER_TYPE_SELL=1,
+                order_calc_profit=MagicMock(return_value=-10.0),
+            )
 
-            with patch.object(demo_engine.adapter, "get_account_info", return_value={"equity": 10000.0, "free_margin": 10000.0}), \
+            with patch.object(demo_engine.adapter, "get_account_info", return_value={"balance": 10000.0, "equity": 10000.0, "free_margin": 10000.0}), \
                  patch.object(demo_engine.adapter, "get_terminal_info", return_value={"connected": True, "trade_allowed": True}), \
                  patch.object(demo_engine.adapter, "get_symbol_info", return_value=sym_info), \
+                 patch.object(demo_engine.adapter, "_mt5", fake_mt5), \
+                 patch("src.Risk.Services.daily_loss_kill_switch.calculate_yartrader_daily_pnl", return_value={"total_pnl": 0.0, "realized_pnl": 0.0, "floating_pnl": 0.0}), \
                  patch.object(demo_engine.adapter, "send_order_to_broker", return_value=mock_response):
                 exec_res = demo_engine.execute_demo_decision(
                     symbol="XAUUSD",

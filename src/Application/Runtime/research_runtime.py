@@ -213,49 +213,106 @@ class ResearchRuntime:
             self._log_evidence(f"Features Generated: {str(features_generated).lower()}")
             self._log_evidence("Research Completed: true")
 
-            # 6b. Single Source of Truth: Evaluate via ExecutionIntelligenceCore & Planner if not already evaluated
-            if "autonomous_decision" not in result.Findings or "intel_summary" not in result.Findings:
+            # 6b. Enforce the canonical Base-only decision authority at the runtime boundary.
+            # Never trust an upstream Brain/legacy planner decision, even if it already
+            # populated autonomous_decision; only a validated Base candidate can authorize BUY/SELL.
+            existing_decision = result.Findings.get("autonomous_decision") or {}
+            existing_evidence = existing_decision.get("evidence") if isinstance(existing_decision, dict) else {}
+            existing_summary = result.Findings.get("intel_summary") or {}
+            base_authority = (
+                isinstance(existing_evidence, dict)
+                and existing_evidence.get("decision_authority") == "BASE_HIERARCHY"
+                and isinstance(existing_summary, dict)
+                and existing_summary.get("decision_authority") == "BASE_HIERARCHY"
+            )
+            if not base_authority:
                 cycle_id = f"cyc-{self._symbol.upper()}-{self._timeframe.upper()}-{int(time.time())}"
+                decision_id = f"DEC-{self._symbol.upper()}-{self._timeframe.upper()}-{int(time.time())}"
                 try:
+                    from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
                     from src.Decision.Models.models import AutonomousTradingDecision
-                    brain_report = result.Findings.get("newborn_brain_report")
-                    if hasattr(brain_report, "to_dict"):
-                        brain_report = brain_report.to_dict()
-                    brain_report = brain_report or {}
-                    hypotheses = brain_report.get("active_hypotheses") or []
-                    hypothesis = hypotheses[0] if hypotheses else {}
-                    action = str(hypothesis.get("suggested_virtual_action", "WAIT")).upper()
-                    if action not in ["BUY", "SELL", "WAIT", "AVOID"]:
+
+                    base_candles = [
+                        {
+                            "timestamp": point.Timestamp.isoformat() if hasattr(point.Timestamp, "isoformat") else str(point.Timestamp),
+                            "open": float(point.Open), "high": float(point.High),
+                            "low": float(point.Low), "close": float(point.Close),
+                            "volume": float(point.Volume),
+                        }
+                        for point in data_response.DataPoints
+                    ]
+                    base_report = StrategyOrchestrator().evaluate_all_strategies(
+                        symbol=self._symbol,
+                        primary_timeframe=self._timeframe,
+                        candles=base_candles,
+                        all_timeframe_candles={self._timeframe: base_candles},
+                    )
+                    candidate = base_report.get("best_candidate")
+                    plan = base_report.get("base_plan") or {}
+                    action = str((candidate or {}).get("direction", "WAIT")).upper()
+                    if action not in ("BUY", "SELL"):
                         action = "WAIT"
-                    params = hypothesis.get("trade_parameters") or {}
-                    entry = float(params.get("entry", 0.0))
-                    sl = float(params.get("stop_loss", 0.0))
-                    tp = float(params.get("take_profit", 0.0))
-                    rr = float(params.get("risk_reward", 0.0))
-                    confidence = float(hypothesis.get("hypothesis_confidence", 0.0))
-                    reasoning = ["Brain hypothesis", *list(hypothesis.get("matched_pattern_ids", []))]
-                    timestamp_now = datetime.now().isoformat()
-                    decision_id = f"DEC-{self._symbol.upper()}-{self._timeframe.upper()}-{int(time.time())}"
+                        candidate = None
+                    entry = float((candidate or {}).get("entry", 0.0) or 0.0)
+                    stop_loss = float((candidate or {}).get("stop_loss", 0.0) or 0.0)
+                    take_profit = float((candidate or {}).get("take_profit", 0.0) or 0.0)
+                    risk_reward = float((candidate or {}).get("risk_reward", 0.0) or 0.0)
+                    confidence = float((candidate or {}).get("confidence", 0.0) or 0.0) if candidate else 0.0
+                    reasoning = (candidate or {}).get("reasoning")
+                    if isinstance(reasoning, str):
+                        reasoning = [reasoning]
+                    if not reasoning:
+                        reasoning = [str(base_report.get("summary") or plan.get("reason") or
+                                         "No validated Base-only proposal; waiting for sufficient evidence.")]
+                    base_summary = {
+                        "source": "BASE_HIERARCHY",
+                        "decision_authority": "BASE_HIERARCHY",
+                        "model_status": base_report.get("model_status", "UNKNOWN"),
+                        "summary": base_report.get("summary"),
+                        "base_plan": plan,
+                        "hierarchy": base_report.get("hierarchy", {}),
+                        "reaction_analysis": base_report.get("reaction_analysis", {}),
+                        "candidate_available": bool(candidate),
+                    }
                     auto_decision = AutonomousTradingDecision(
                         decision_id=decision_id, cycle_id=cycle_id, action=action,
                         symbol=self._symbol, timeframe=self._timeframe, entry=entry,
-                        stop_loss=sl, take_profit=tp, volume=0.0, risk_reward=rr,
-                        confidence=confidence, reasoning=reasoning,
-                        evidence={"brain_report": brain_report,
-                                  "brain_hypothesis_id": hypothesis.get("hypothesis_id"),
-                                  "matched_pattern_ids": list(hypothesis.get("matched_pattern_ids", [])),
-                                  "sequence_signature": list(hypothesis.get("sequence_signature", [])),
-                                  "timeframe_signature": list(hypothesis.get("timeframe_signature", [])),
-                                  "context_id": hypothesis.get("context_id"),
-                                  "latest_price": float(data_response.DataPoints[-1].Close)},
-                        risk_status="PENDING" if action in ["BUY", "SELL"] else "CHECKED",
-                        execution_status="PENDING" if action in ["BUY", "SELL"] else "SKIPPED",
-                        configuration_version="brain-native-1.0", timestamp=timestamp_now)
+                        stop_loss=stop_loss, take_profit=take_profit, volume=0.0,
+                        risk_reward=risk_reward, confidence=confidence,
+                        reasoning=reasoning,
+                        evidence={
+                            "decision_authority": "BASE_HIERARCHY",
+                            "base_model_status": base_summary["model_status"],
+                            "base_plan": plan,
+                            "hierarchy": base_summary["hierarchy"],
+                            "reaction_analysis": base_summary["reaction_analysis"],
+                            "latest_price": float(data_response.DataPoints[-1].Close),
+                        },
+                        risk_status="PENDING" if action in ("BUY", "SELL") else "CHECKED",
+                        execution_status="PENDING" if action in ("BUY", "SELL") else "SKIPPED",
+                        configuration_version="base-hierarchy-1.0",
+                        timestamp=datetime.now().isoformat(),
+                    )
                     result.Findings["autonomous_decision"] = auto_decision.to_dict()
-                    result.Findings["intel_summary"] = {"source": "LiveAnalysisBrain",
-                        "brain_report": brain_report, "decision_authority": "BRAIN"}
-                except Exception as ie:
-                    self._log_evidence(f"Brain decision projection error: {type(ie).__name__}: {ie}")
+                    result.Findings["intel_summary"] = base_summary
+                except Exception as base_error:
+                    self._log_evidence(f"Base-only decision projection failed closed: {type(base_error).__name__}")
+                    result.Findings["autonomous_decision"] = {
+                        "decision_id": decision_id, "cycle_id": cycle_id,
+                        "action": "WAIT", "symbol": self._symbol,
+                        "timeframe": self._timeframe, "entry": 0.0,
+                        "stop_loss": 0.0, "take_profit": 0.0, "volume": 0.0,
+                        "risk_reward": 0.0, "confidence": 0.0,
+                        "reasoning": ["Base-only analysis failed; no fallback strategy is permitted."],
+                        "evidence": {"decision_authority": "BASE_HIERARCHY", "base_model_status": "BASE_ANALYSIS_FAILED"},
+                        "risk_status": "CHECKED", "execution_status": "SKIPPED",
+                        "configuration_version": "base-hierarchy-1.0",
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                    result.Findings["intel_summary"] = {
+                        "source": "BASE_HIERARCHY", "decision_authority": "BASE_HIERARCHY",
+                        "model_status": "BASE_ANALYSIS_FAILED", "candidate_available": False,
+                    }
 
             # Shadow mode is retired. Research results flow only to the canonical
             # ResearchRuntime snapshot/history and the guarded DEMO execution boundary.

@@ -93,6 +93,8 @@ class DemoScenarioRunner(IDemoScenarioRunner):
         decision_report: Optional[DecisionIntelligenceReport] = None
         compliance_audit: Optional[Any] = None
         explainable_report: Optional[ExplainableIntelligenceReport] = None
+        base_only_report: Optional[Dict[str, Any]] = None
+        base_only_candidate: Optional[Dict[str, Any]] = None
 
         # ----------------------------------------------------
         # STAGE 1: Input Ingestion
@@ -190,6 +192,36 @@ class DemoScenarioRunner(IDemoScenarioRunner):
         if success and research_res:
             st_time = time.perf_counter()
             try:
+                # A generic research/strategy score is not sufficient to approve a
+                # trading decision. Only the canonical Base hierarchy may provide
+                # an actionable candidate; insufficient history or model evidence
+                # must fail closed to NoAction.
+                base_candles = [
+                    {
+                        "timestamp": point.Timestamp.isoformat() if hasattr(point.Timestamp, "isoformat") else str(point.Timestamp),
+                        "open": float(point.Open),
+                        "high": float(point.High),
+                        "low": float(point.Low),
+                        "close": float(point.Close),
+                        "volume": float(point.Volume),
+                    }
+                    for point in (market_data_resp.DataPoints if market_data_resp else [])
+                ]
+                try:
+                    from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
+                    base_only_report = StrategyOrchestrator().evaluate_all_strategies(
+                        symbol=scenario.asset,
+                        primary_timeframe=scenario.timeframe,
+                        candles=base_candles,
+                        all_timeframe_candles={scenario.timeframe: base_candles},
+                    )
+                    base_only_candidate = base_only_report.get("best_candidate")
+                except Exception as base_error:
+                    # Diagnostics are recorded, but a failure in the authoritative
+                    # Base-only gate can never fall back to a legacy strategy.
+                    base_only_report = {"model_status": "BASE_ONLY_ANALYSIS_FAILED", "error_type": type(base_error).__name__}
+                    base_only_candidate = None
+
                 candidate = StrategyCandidate(
                     Id=f"cand-{scenario.asset}",
                     Name=f"Demo Momentum Strategy for {scenario.asset}",
@@ -226,7 +258,9 @@ class DemoScenarioRunner(IDemoScenarioRunner):
                             "strategy_id": strategy_eval.StrategyId,
                             "overall_score": strategy_eval.Score.OverallScore,
                             "confidence": strategy_eval.Score.Confidence,
-                            "evaluation_notes": strategy_eval.EvaluationNotes
+                            "evaluation_notes": strategy_eval.EvaluationNotes,
+                            "base_model_status": (base_only_report or {}).get("model_status", "UNKNOWN"),
+                            "base_candidate_available": bool(base_only_candidate)
                         },
                         duration_ms=dur
                     )
@@ -327,9 +361,18 @@ class DemoScenarioRunner(IDemoScenarioRunner):
                 if scenario.parameters.get("scenario_type") == "HighVolatility":
                     state_override = "Rejected"
 
+                # No research score, synthetic trend, or legacy strategy can replace
+                # a missing Base-only candidate. Preserve explicit risk/conflict
+                # rejections, otherwise report NoAction with zero trade confidence.
+                if not base_only_candidate and state_override is None:
+                    state_override = "NoAction"
+
                 if state_override:
                     from dataclasses import replace
-                    decision_report = replace(decision_report, State=state_override)
+                    replacements = {"State": state_override}
+                    if state_override == "NoAction":
+                        replacements["Confidence"] = 0.0
+                    decision_report = replace(decision_report, **replacements)
 
                 dur = (time.perf_counter() - st_time) * 1000.0
                 step_results.append(

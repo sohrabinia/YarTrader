@@ -273,29 +273,19 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
         self.assertEqual(rev_tp, 1985.0)
         self.assertNotEqual(rev_price, auto_dec["entry"])
 
-    def test_same_cycle_multi_strategy_candidate_single_execution(self):
-        """Test 11: FAST_SCALP BUY + SCALP SELL in same cycle -> Exactly 1 candidate selected."""
+    def test_legacy_multi_strategy_candidates_are_disabled_in_base_only_mode(self):
+        """Legacy FAST_SCALP/SCALP inputs cannot create a signal without Base evidence."""
         orchestrator = StrategyOrchestrator()
         candles = [
-            {"open": 2000.0, "high": 2005.0, "low": 1995.0, "close": 2002.0}
-            for _ in range(10)
+            {"timestamp": i * 300, "open": 2000.0, "high": 2005.0, "low": 1995.0, "close": 2002.0}
+            for i in range(10)
         ]
         liquidity = {"latest_sweep": {"type": "SELL_SIDE_LIQUIDITY_SWEEP"}}
         zones = {"order_blocks": [{"type": "BEARISH_OB", "top": 2010.0, "bottom": 2002.0}]}
-
         eval_res = orchestrator.evaluate_all_strategies(
-            symbol="XAUUSD",
-            primary_timeframe="M5",
-            candles=candles,
-            liquidity=liquidity,
-            zones=zones
+            symbol="XAUUSD", primary_timeframe="M5", candles=candles,
+            liquidity=liquidity, zones=zones
         )
-
-        self.assertGreaterEqual(eval_res["active_candidates_count"], 1)
-        best = eval_res["best_candidate"]
-        self.assertIsNotNone(best)
-        self.assertIn(best["direction"], ["BUY", "SELL"])
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self.assertEqual(eval_res["active_candidates_count"], 0)
+        self.assertIsNone(eval_res["best_candidate"])
+        self.assertIn("no fallback strategy is available", eval_res["summary"])

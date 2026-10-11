@@ -126,8 +126,8 @@ class IntelligencePipeline:
         # 3. Strategy Layer Assessment
         candidate = StrategyCandidate(
             Id=f"cand-{context.Asset}",
-            Name="Pipeline Momentum Concept",
-            Description=f"Momentum concept for {context.Asset}",
+            Name="BASE_HIERARCHY_REENTRY",
+            Description=f"Base hierarchy and re-entry reaction for {context.Asset}",
             ResearchContext=research_res.Findings,
             CreatedAt=datetime.now(),
             EvaluationStatus="Pending"

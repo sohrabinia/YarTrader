@@ -69,14 +69,14 @@ class TestIntelligenceDemoScenarioPlatform(unittest.TestCase):
             self.assertEqual(sc.timeframe, "H1")
             self.assertGreater(len(sc.price_data), 0)
 
-    def test_trend_continuation_scenario_execution(self) -> None:
-        """Verify trend continuation scenario resolves to APPROVED state."""
+    def test_trend_continuation_without_base_evidence_fails_closed(self) -> None:
+        """A generic trend scenario must not be approved without validated Base evidence."""
         sc = create_trend_continuation_scenario(asset="GBPUSD")
         result = self.runner.run_scenario(sc)
 
         self.assertTrue(result.success)
-        self.assertEqual(result.final_decision_state, DecisionState.APPROVED)
-        self.assertGreaterEqual(result.overall_confidence, 0.75)
+        self.assertEqual(result.final_decision_state, DecisionState.NO_ACTION)
+        self.assertLess(result.overall_confidence, 0.75)
         self.assertEqual(len(result.steps), 8)  # 8 stages captured
 
         # Verify step traces are present and marked SUCCESS

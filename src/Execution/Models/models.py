@@ -16,6 +16,7 @@ class OrderRequest:
     Comment: str = "YarTrader Execution"
     Magic: int = 100001
     PositionTicket: Optional[int] = None  # Used when closing a specific position ticket
+    Expiration: Optional[int] = None  # Unix timestamp for broker-side pending-order expiry
 
 
 @dataclass(frozen=True)

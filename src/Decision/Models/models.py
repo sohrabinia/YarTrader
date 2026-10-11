@@ -73,7 +73,7 @@ class ExecutableTradingContract:
     account_equity: float
     free_margin: float
     execution_timeframe: str = "M5"
-    trading_style: str = "FAST_SCALP"  # "FAST_SCALP", "SCALP", "DAY_TRADING"
+    trading_style: str = "BASE_HIERARCHY"
     campaign_id: Optional[str] = None
     leg_id: Optional[str] = None
     risk_pct: float = 1.0
@@ -88,7 +88,7 @@ class ExecutableTradingContract:
         if self.execution_timeframe.upper() != "M5":
             rejection_reasons.append(f"Execution timeframe '{self.execution_timeframe}' violates primary M5 contract.")
 
-        allowed_styles = ["FAST_SCALP", "SCALP", "DAY_TRADING"]
+        allowed_styles = ["BASE_HIERARCHY"]
         if self.trading_style.upper() not in allowed_styles:
             rejection_reasons.append(f"Trading style '{self.trading_style}' is forbidden. Allowed: {allowed_styles}.")
 

@@ -276,14 +276,36 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if tick is None or getattr(tick, "bid", 0) <= 0 or getattr(tick, "ask", 0) <= 0:
             raise ValidationException(f"Real tick for symbol '{request.Symbol}' is unavailable or invalid.")
 
-        # 3. Map Order Action and Price
+        # 3. Map market, pending, and close actions. Pending orders are accepted
+        # only with an explicit entry price and valid position relative to the quote.
         order_type_str = request.OrderType.upper()
+        pending_types = {
+            "BUY_LIMIT": "ORDER_TYPE_BUY_LIMIT", "SELL_LIMIT": "ORDER_TYPE_SELL_LIMIT",
+            "BUY_STOP": "ORDER_TYPE_BUY_STOP", "SELL_STOP": "ORDER_TYPE_SELL_STOP",
+        }
+        is_pending = order_type_str in pending_types
         if order_type_str in ["BUY", "LONG"]:
             mt5_action_type = mt5.ORDER_TYPE_BUY
             price = request.Price or getattr(tick, "ask")
         elif order_type_str in ["SELL", "SHORT"]:
             mt5_action_type = mt5.ORDER_TYPE_SELL
             price = request.Price or getattr(tick, "bid")
+        elif is_pending:
+            mt5_action_type = getattr(mt5, pending_types[order_type_str], None)
+            if mt5_action_type is None or request.Price is None:
+                raise ValidationException("Pending order requires a supported MT5 order type and explicit entry price.")
+            price = float(request.Price)
+            bid, ask = float(getattr(tick, "bid")), float(getattr(tick, "ask"))
+            valid_geometry = (
+                (order_type_str == "BUY_LIMIT" and price < ask)
+                or (order_type_str == "SELL_LIMIT" and price > bid)
+                or (order_type_str == "BUY_STOP" and price > ask)
+                or (order_type_str == "SELL_STOP" and price < bid)
+            )
+            if not valid_geometry:
+                raise ValidationException(f"{order_type_str} entry price is on the wrong side of the current quote.")
+            if request.Expiration is not None and int(request.Expiration) <= int(getattr(tick, "time", 0)):
+                raise ValidationException("Pending order expiration must be later than the broker tick timestamp.")
         elif order_type_str == "CLOSE":
             # Position closing request
             if not request.PositionTicket:
@@ -324,7 +346,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         # Build MT5 order request structure with authoritative digits precision normalization
         price_norm = round(float(price), digits)
         trade_req = {
-            "action": mt5.TRADE_ACTION_DEAL,
+            "action": mt5.TRADE_ACTION_PENDING if is_pending else mt5.TRADE_ACTION_DEAL,
             "symbol": request.Symbol,
             "volume": float(volume),
             "type": mt5_action_type,
@@ -332,9 +354,12 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             "deviation": request.Deviation,
             "magic": request.Magic,
             "comment": sanitized_comment,
-            "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": filling_mode,
+            "type_time": (getattr(mt5, "ORDER_TIME_SPECIFIED", getattr(mt5, "ORDER_TIME_GTC", 0))
+                          if is_pending and request.Expiration is not None else mt5.ORDER_TIME_GTC),
+            "type_filling": (getattr(mt5, "ORDER_FILLING_RETURN", filling_mode) if is_pending else filling_mode),
         }
+        if is_pending and request.Expiration is not None:
+            trade_req["expiration"] = int(request.Expiration)
 
         if request.OrderType.upper() == "CLOSE" and request.PositionTicket:
             trade_req["position"] = int(request.PositionTicket)
@@ -362,10 +387,15 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         fok_code = getattr(mt5, "ORDER_FILLING_FOK", 0)
         ioc_code = getattr(mt5, "ORDER_FILLING_IOC", 1)
         return_code = getattr(mt5, "ORDER_FILLING_RETURN", 2)
-        candidates = [filling_mode]
-        for mode_opt in [fok_code, ioc_code, return_code]:
-            if mode_opt not in candidates:
-                candidates.append(mode_opt)
+        # MT5 pending orders require RETURN filling; cycling through FOK/IOC
+        # can make a valid pending request fail order_check on otherwise valid symbols.
+        if is_pending:
+            candidates = [return_code]
+        else:
+            candidates = [filling_mode]
+            for mode_opt in [fok_code, ioc_code, return_code]:
+                if mode_opt not in candidates:
+                    candidates.append(mode_opt)
 
         pos_id = trade_req.get("position", None)
         import json
@@ -473,6 +503,47 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             Price=fill_price,
             Volume=fill_volume,
             RawResponse=res_dict
+        )
+
+    def get_active_orders(self, symbol: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+        """Return active broker orders; None means state unknown and must block new entries."""
+        if not self._mt5 or not self._initialized:
+            return None
+        try:
+            orders = self._mt5.orders_get(symbol=symbol) if symbol else self._mt5.orders_get()
+        except Exception as exc:
+            logger.error("[RealMT5BrokerAdapter] orders_get failed: %s", exc)
+            return None
+        if orders is None:
+            return None
+        return [o._asdict() if hasattr(o, "_asdict") else dict(o) for o in orders]
+
+    def cancel_pending_order(self, ticket: int) -> OrderResponse:
+        """Remove a pending order only after the DEMO account safety gate passes."""
+        self.verify_safety_and_account(operation_type="DEMO")
+        if not self._mt5 or not self._initialized:
+            raise ValidationException("MT5 is not initialized; cannot cancel a pending order.")
+        ticket = int(ticket)
+        active = self._mt5.orders_get(ticket=ticket)
+        if not active:
+            raise ValidationException(f"Pending order {ticket} is not present in active broker orders.")
+        order = active[0]
+        symbol = str(getattr(order, "symbol", ""))
+        request = {"action": self._mt5.TRADE_ACTION_REMOVE, "order": ticket, "symbol": symbol}
+        checked = self._mt5.order_check(request)
+        retcode = getattr(checked, "retcode", -1) if checked is not None else -1
+        if checked is None or retcode not in (0, 10009):
+            raise ValidationException(f"Pending-order cancel check failed for {ticket}: {getattr(checked, 'comment', 'no response')}")
+        result = self._mt5.order_send(request)
+        if result is None:
+            raise ValidationException(f"Pending-order cancel returned no broker response for {ticket}.")
+        code = getattr(result, "retcode", -1)
+        success = code in (0, getattr(self._mt5, "TRADE_RETCODE_DONE", 10009), getattr(self._mt5, "TRADE_RETCODE_PLACED", 10008))
+        return OrderResponse(
+            OrderId=str(ticket), Symbol=symbol, Status="Cancelled" if success else "Failed",
+            SubmittedAt=datetime.now(timezone.utc), Retcode=code,
+            Comment=str(getattr(result, "comment", "")),
+            RawResponse=result._asdict() if hasattr(result, "_asdict") else {},
         )
 
     def get_positions(self, symbol: Optional[str] = None, ticket: Optional[int] = None) -> Optional[List[Dict[str, Any]]]:

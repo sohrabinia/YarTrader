@@ -42,7 +42,9 @@ class DecisionEngine(IDecisionEngine):
         self.report_builder = DecisionReportBuilder()
         self.validator = DecisionValidator()
         self.history_store = DecisionHistoryStore()
-        self.signal_engine = signal_engine or ProfessionalSignalEngine()
+        # Legacy injected signal engines are retained only as a constructor
+        # compatibility argument. They are never instantiated or called.
+        self.signal_engine = None
         # Parent/child Base intelligence is proposal-only until a validated demo executor is added.
         self.base_behavior_engine = HierarchicalBaseBehaviorEngine()
         # Live closed-candle Base observer: hierarchy + reaction ledger, no broker side effects.
@@ -60,23 +62,60 @@ class DecisionEngine(IDecisionEngine):
         Delegates signal generation directly to the integrated ProfessionalSignalEngine.
         Returns a UnifiedSignalContract containing the qualified BUY, SELL, or WAIT signal.
         """
-        # Run the Base watcher on the same multi-timeframe feed before scoring the
-        # conventional signal. Monitoring failures are recorded but do not corrupt
-        # or silently alter the existing signal path.
+        # Base hierarchy plus costed Base-re-entry profiles are the only signal source.
+        # Conventional/indicator signal engines are deliberately not consulted here.
         try:
             self.last_base_behavior_report = self.base_behavior_monitor.analyze(
                 candles_by_tf=candles_by_tf, now=datetime.now().astimezone()
             )
         except Exception as exc:
             self.last_base_behavior_report = {
-                "status": "MONITOR_ERROR", "error": str(exc),
-                "execution_enabled": False,
+                "status": "MONITOR_ERROR", "error": str(exc), "execution_enabled": False,
             }
-        return self.signal_engine.generate_unified_signal(
-            symbol=symbol,
-            candles_by_tf=candles_by_tf,
-            spread_pip=spread_pip,
-            account_balance=account_balance
+        from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
+        import json
+        tf_rank = {"MN1": 0, "W1": 1, "D1": 2, "H4": 3, "H1": 4, "M30": 5, "M15": 6, "M5": 7, "M1": 8}
+        normalized = {}
+        for tf, rows in (candles_by_tf or {}).items():
+            normalized[str(tf).upper()] = [
+                {"timestamp": (p.Timestamp.isoformat() if hasattr(p.Timestamp, "isoformat") else str(p.Timestamp)),
+                 "open": float(p.Open), "high": float(p.High), "low": float(p.Low),
+                 "close": float(p.Close)}
+                for p in rows
+            ]
+        primary_tf = max(normalized, key=lambda tf: tf_rank.get(tf, -1)) if normalized else "M1"
+        candles = normalized.get(primary_tf, [])
+        report = StrategyOrchestrator().evaluate_all_strategies(
+            symbol=symbol, primary_timeframe=primary_tf, candles=candles,
+            all_timeframe_candles=normalized, spread_pip=spread_pip,
+        )
+        candidate = report.get("best_candidate") or {}
+        direction = str(candidate.get("direction", "WAIT")).upper()
+        if direction not in ("BUY", "SELL"):
+            direction = "WAIT"
+        try:
+            entry = float(candidate.get("entry") or 0.0)
+            stop = float(candidate.get("stop_loss") or 0.0)
+            target = float(candidate.get("take_profit") or 0.0)
+            rr = float(candidate.get("risk_reward") or 0.0)
+            confidence = float(candidate.get("confidence") or 0.0)
+        except (TypeError, ValueError):
+            direction, entry, stop, target, rr, confidence = "WAIT", 0.0, 0.0, 0.0, 0.0, 0.0
+        if direction == "WAIT" or not all(v > 0 for v in (entry, stop, target, rr)):
+            direction, entry, stop, target, rr = "WAIT", 0.0, 0.0, 0.0, 0.0
+        self.last_base_behavior_report = {
+            **self.last_base_behavior_report,
+            "status": "BASE_SIGNAL_PROPOSED" if direction in ("BUY", "SELL") else "WAIT",
+            "base_strategy_report": report, "execution_enabled": False,
+        }
+        return UnifiedSignalContract(
+            signal_id=str(candidate.get("strategy_id") or uuid.uuid4()),
+            symbol=symbol, timeframe=str(candidate.get("timeframe") or primary_tf),
+            direction=direction, entry_price=entry, stop_loss=stop, take_profit=target,
+            risk_reward=rr, confidence=confidence,
+            pattern_id="BASE_HIERARCHY_REENTRY" if direction in ("BUY", "SELL") else "BASE_WAIT",
+            market_context=json.dumps(self.last_base_behavior_report, default=str, ensure_ascii=False),
+            created_at=datetime.now().astimezone().isoformat(),
         )
 
     def generate_hierarchical_base_plan(
@@ -181,7 +220,7 @@ class DecisionEngine(IDecisionEngine):
                 symbol = getattr(context, "Asset", "XAUUSD")
                 candles_by_tf = {"M15": context.MarketDataPoints} if isinstance(context.MarketDataPoints, list) else context.MarketDataPoints
                 if isinstance(candles_by_tf, dict):
-                    prof_sig = self.signal_engine.generate_unified_signal(symbol, candles_by_tf)
+                    prof_sig = self.generate_professional_signal(symbol, candles_by_tf)
                     analysis.SupportingEvidence["professional_signal"] = prof_sig.__dict__ if hasattr(prof_sig, "__dict__") else str(prof_sig)
             except Exception as pe:
                 prof_sig_error = str(pe)
@@ -213,23 +252,11 @@ class DecisionEngine(IDecisionEngine):
             else:
                 state = DecisionState.NO_ACTION
         else:
-            state = DecisionState.APPROVED
-            if not context.StrategyEvaluations or not context.ResearchInsights:
-                state = DecisionState.REVIEW_REQUIRED
+            # No Base-only signal means no actionable approval. Research, scoring,
+            # or generic allocation evidence cannot act as a fallback strategy.
+            state = DecisionState.NO_ACTION
+            analysis.SupportingEvidence["base_signal_missing"] = True
 
-            risk_approved = analysis.SupportingEvidence.get("risk_approved", True)
-            if not risk_approved:
-                state = DecisionState.REJECTED
-
-            has_weights = False
-            if context.StrategyEvaluations:
-                for s in context.StrategyEvaluations:
-                    if hasattr(s, "Score") and getattr(s, "Score").OverallScore > 0:
-                        has_weights = True
-                    elif isinstance(s, dict) and s.get("score", 0.0) > 0:
-                        has_weights = True
-            if not has_weights and state == DecisionState.APPROVED:
-                state = DecisionState.NO_ACTION
 
         # 7. Compile report
         report = self.report_builder.build_report(

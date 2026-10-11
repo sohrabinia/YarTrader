@@ -12,7 +12,7 @@ import math
 
 TIMEFRAME_SECONDS = {"M1":60,"M5":300,"M15":900,"M30":1800,"H1":3600,
                      "H4":14400,"D1":86400,"W1":604800,"MN1":2592000}
-TIMEFRAME_ORDER = ["MN1","W1","D1","H4","H1","M15","M5","M1"]
+TIMEFRAME_ORDER = ["MN1","W1","D1","H4","H1","M30","M15","M5","M1"]
 
 
 
@@ -191,7 +191,7 @@ def build_hierarchy(events_by_tf: Mapping[str, Sequence[Mapping[str, Any]]]) -> 
                         continue
                     children.append(child)
             child_summary = {}
-            for tf in ("H1","M15","M5","M1"):
+            for tf in ("H4","H1","M30","M15","M5","M1"):
                 vals = [c for c in children if c["timeframe"] == tf]
                 child_summary[tf] = {
                     "count":len(vals),
@@ -202,11 +202,113 @@ def build_hierarchy(events_by_tf: Mapping[str, Sequence[Mapping[str, Any]]]) -> 
                 "event_id":parent["event_id"], "timeframe":p_tf,
                 "confirmation_time":parent["confirmation_time"], "base_type":parent["base_type"],
                 "child_bases":child_summary,
+                # Preserve every child, not just one representative child per parent.
+                # A child can legitimately be nested in multiple active higher-TF bases.
+                "child_events":[{
+                    "event_id":c["event_id"],"timeframe":c["timeframe"],
+                    "base_type":c["base_type"],"base_start_time":c["base_start_time"],
+                    "base_end_time":c["base_end_time"],"confirmation_time":c["confirmation_time"],
+                    "exit_direction":c["exit_direction"],
+                    "parent_child_relation":"ALIGNED" if c["exit_direction"] == parent["exit_direction"] else "OPPOSED",
+                    "child_zone_within_parent":True,
+                } for c in sorted(children,key=lambda x:(x["base_start_time"],TIMEFRAME_ORDER.index(x["timeframe"])))],
                 "child_alignment_count":sum(c["exit_direction"] == parent["exit_direction"] for c in children),
                 "child_opposition_count":sum(c["exit_direction"] != parent["exit_direction"] for c in children),
                 "known_at_confirmation_only":True,
             })
     return summaries
+
+
+def label_base_reentry_reactions(events_by_tf: Mapping[str, Sequence[Mapping[str, Any]]],
+                                 bars_by_tf: Mapping[str, Sequence[Mapping[str, Any]]],
+                                 horizon_bars: int = 96,
+                                 departure_buffer_atr: float = 0.1) -> List[Dict[str, Any]]:
+    """Label repeated post-confirmation interactions with each Base, not only departures.
+
+    Emits one row per distinct re-entry episode per Base. It records entry side,
+    penetration depth, time spent/accepted inside the zone, and the first subsequent
+    rejection/escape direction. These are outcome labels for offline learning, never
+    features available before the interaction and never direct trading instructions.
+    """
+    if horizon_bars < 1:
+        raise ValueError("horizon_bars must be >= 1")
+    outputs = []
+    for tf, events in events_by_tf.items():
+        bars = bars_by_tf.get(tf, [])
+        if not bars:
+            continue
+        for event in events:
+            if "confirmation_index" not in event:
+                continue
+            conf = int(event["confirmation_index"])
+            lo, hi = float(event["base_low"]), float(event["base_high"])
+            width = hi-lo
+            atr = float(event.get("base_atr", 0.0))
+            if width <= 0 or atr <= 0 or conf+1 >= len(bars):
+                continue
+            end = min(len(bars), conf+1+horizon_bars)
+            active = False
+            episode = None
+            episode_num = 0
+            episodes = []
+            for i in range(conf+1, end):
+                b = bars[i]
+                touched = float(b["low"]) <= hi and float(b["high"]) >= lo
+                if touched and not active:
+                    episode_num += 1
+                    previous_close = float(bars[i-1]["close"])
+                    open_side = "FROM_ABOVE" if previous_close > hi else ("FROM_BELOW" if previous_close < lo else "INTERIOR_OR_AMBIGUOUS_OHLC")
+                    episode = {"episode_number":episode_num,"start_index":i,
+                               "start_time":int(b["time"]),"entry_side":open_side,
+                               "touch_bars":0,"closes_inside":0,"max_penetration_fraction":0.0,
+                               "lowest_price":float(b["low"]),"highest_price":float(b["high"]),
+                               "close_inside_streak":0,"max_close_inside_streak":0}
+                if touched and episode is not None:
+                    episode["touch_bars"] += 1
+                    episode["lowest_price"] = min(episode["lowest_price"],float(b["low"]))
+                    episode["highest_price"] = max(episode["highest_price"],float(b["high"]))
+                    penetration = min(1.0,max(0.0,(hi-float(b["low"])) / width,
+                                               (float(b["high"])-lo) / width))
+                    episode["max_penetration_fraction"] = max(episode["max_penetration_fraction"],penetration)
+                    inside = lo <= float(b["close"]) <= hi
+                    episode["closes_inside"] += int(inside)
+                    episode["close_inside_streak"] = episode["close_inside_streak"]+1 if inside else 0
+                    episode["max_close_inside_streak"] = max(episode["max_close_inside_streak"],episode["close_inside_streak"])
+                if not touched and active and episode is not None:
+                    episode["end_index"] = i-1
+                    episode["end_time"] = int(bars[i-1]["time"])
+                    episodes.append(episode)
+                    episode = None
+                active = touched
+            if active and episode is not None:
+                episode["end_index"] = end-1
+                episode["end_time"] = int(bars[end-1]["time"])
+                episodes.append(episode)
+            for ep in episodes:
+                escape = "UNRESOLVED"
+                escape_bars = None
+                follow_end = min(end, int(ep["end_index"])+1+max(3, min(12, horizon_bars//4)))
+                for j in range(int(ep["end_index"])+1, follow_end):
+                    close = float(bars[j]["close"])
+                    if close > hi+departure_buffer_atr*atr:
+                        escape, escape_bars = "UP_REJECTION_OR_ESCAPE", j-int(ep["end_index"])
+                        break
+                    if close < lo-departure_buffer_atr*atr:
+                        escape, escape_bars = "DOWN_REJECTION_OR_ESCAPE", j-int(ep["end_index"])
+                        break
+                ep["reaction_outcome"] = escape
+                ep["reaction_outcome_bars"] = escape_bars
+                ep["accepted_inside_zone"] = ep["max_close_inside_streak"] >= 2
+                ep["reaction_aligned_with_base_departure"] = (
+                    (escape == "UP_REJECTION_OR_ESCAPE" and int(event.get("exit_direction",0)) > 0) or
+                    (escape == "DOWN_REJECTION_OR_ESCAPE" and int(event.get("exit_direction",0)) < 0)
+                ) if escape != "UNRESOLVED" else None
+                ep["label_end_time"] = int(bars[min(end-1, int(ep["end_index"])+12)]["time"])
+                outputs.append({"event_id":event["event_id"],"timeframe":tf,
+                                "base_type":event.get("base_type"),"base_role":"MOTHER_OR_CHILD_CONTEXTUAL",
+                                "base_zone":{"low":lo,"high":hi},"feature_cutoff_time":event["confirmation_time"],
+                                "interaction":ep,"label_mode":"OFFLINE_REENTRY_OUTCOME_ONLY"})
+    return outputs
 
 
 def label_exit_to_next_base(events_by_tf: Mapping[str, Sequence[Mapping[str, Any]]],

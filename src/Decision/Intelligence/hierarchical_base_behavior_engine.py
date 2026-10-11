@@ -27,10 +27,15 @@ class HierarchicalBaseBehaviorEngine:
     def __init__(self, planner: PendingOrderPlanner | None = None,
                  min_samples: int = 40, min_win_rate: float = 0.52,
                  min_mean_net_r: float = 0.05) -> None:
-        self.planner = planner or PendingOrderPlanner()
         self.min_samples = int(min_samples)
         self.min_win_rate = float(min_win_rate)
         self.min_mean_net_r = float(min_mean_net_r)
+        # This engine's confidence field is the empirical win rate, not a separately
+        # calibrated probability. Keep the planner threshold consistent with the
+        # stricter historical sample/win-rate/mean-net-R gates above; the generic
+        # planner's 70% default otherwise silently rejects every 52–69% qualified
+        # profile after this engine has already accepted it.
+        self.planner = planner or PendingOrderPlanner(min_confidence=100.0 * self.min_win_rate)
         self._stats: Dict[str, Dict[str, float]] = {}
 
     @staticmethod
@@ -121,7 +126,9 @@ class HierarchicalBaseBehaviorEngine:
             return {"status": "WAIT", "reason": "No closed, confirmed base events.",
                     "order_plan": self.planner.plan({}, quote, now).to_dict()}
 
-        children = [e for e in events if e.get("timeframe") in ("M15", "M5")]
+        # Every lower Base timeframe can be a child: H4→H1/M30/M15/M5, H1→M30/M15/M5, etc.
+        # M1 remains the execution trigger rather than a structural child candidate.
+        children = [e for e in events if e.get("timeframe") in ("H4", "H1", "M30", "M15", "M5")]
         if not children:
             return {"status": "WAIT", "reason": "No confirmed M15/M5 child base.",
                     "order_plan": self.planner.plan({}, quote, now).to_dict()}
@@ -192,6 +199,11 @@ class HierarchicalBaseBehaviorEngine:
             "parent_relation": parent_relation,
             "child_base_id": child.get("event_id"),
             "child_timeframe": child.get("timeframe"),
+            "child_direction": child_direction,
+            "child_zone_low": child_low,
+            "child_zone_high": child_high,
+            "child_confirmation_time": child_confirm,
+            "parent_direction": int(parent.get("exit_direction", 0)) if parent else None,
             "parent_child_alignment": "ALIGNED" if aligned else ("OPPOSED" if parent else "NO_PARENT"),
             "parent_base_type": parent.get("base_type") if parent else None,
             "child_base_type": child.get("base_type"),
@@ -202,8 +214,12 @@ class HierarchicalBaseBehaviorEngine:
             "causal_cutoff": max(int(child.get("confirmation_time", 0)),
                                  int(parent.get("confirmation_time", 0)) if parent else 0),
         }
-        if not parent or not aligned:
-            return {"status": "WAIT", "reason": "A valid, aligned higher-timeframe parent and lower-timeframe child are required.",
+        # Parent/child direction is a learned feature, not a hard-coded trading rule.
+        # Both ALIGNED and OPPOSED relations may proceed to the same historical
+        # outcome gates; the relation-specific model key decides whether evidence
+        # supports the candidate. A parent is still required for hierarchical context.
+        if not parent:
+            return {"status": "WAIT", "reason": "A confirmed higher-timeframe parent and lower-timeframe child are required; direction alignment is not mandatory.",
                     "structure": context, "learning": stat,
                     "order_plan": self.planner.plan({}, quote, now).to_dict()}
         if not micro:

@@ -20,7 +20,7 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
                       "invalidation": 98.5, "target": 104.0, "atr": 1.0,
                       "confidence": 85, "expires_at": 5000}
         self.quote = {"bid": 100.5, "ask": 100.6}
-        key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.2)
+        key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.2, "BUY")
         self.engine.load_stats({"version": 1, "groups": {key: {"samples": 30, "win_rate": 0.75,
                                "mean_net_r": 0.2, "standard_error": 0.08, "mean_net_r_standard_error": 0.02}}})
 
@@ -38,8 +38,8 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
         self.assertFalse(result["execution_enabled"])
 
     def test_selects_best_qualified_depth_and_uses_that_limit_price(self):
-        outer = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.375)
-        edge = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.125)
+        outer = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.375, "BUY")
+        edge = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.125, "BUY")
         self.engine.load_stats({"version": 1, "groups": {
             edge: {"samples": 50, "win_rate": 0.60, "mean_net_r": 0.12, "standard_error": 0.07, "mean_net_r_standard_error": 0.02},
             outer: {"samples": 50, "win_rate": 0.65, "mean_net_r": 0.30, "standard_error": 0.07, "mean_net_r_standard_error": 0.03},
@@ -50,7 +50,7 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
         self.assertAlmostEqual(result["order_plan"]["entry"], 99.625)
 
     def test_model_without_mean_net_r_uncertainty_is_rejected(self):
-        key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.125)
+        key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.125, "BUY")
         with self.assertRaises(ValueError):
             self.engine.load_stats({"version": 1, "groups": {key: {
                 "samples": 50, "win_rate": 0.7, "mean_net_r": 0.2, "standard_error": 0.05}}})
@@ -59,9 +59,16 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
         self.assertEqual(self.evaluate(micro=None)["status"], "WAIT")
         self.assertEqual(self.evaluate(reaction={**self.reaction, "base_id": "other"})["status"], "WAIT")
 
-    def test_future_parent_or_opposed_parent_fails_closed(self):
+    def test_future_parent_fails_closed_but_opposed_parent_uses_its_own_learned_profile(self):
         self.assertEqual(self.evaluate(parent={**self.parent, "confirmation_time": 300})["status"], "WAIT")
-        self.assertEqual(self.evaluate(parent={**self.parent, "exit_direction": -1})["status"], "WAIT")
+        opposed_key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", False, 1, 0.2, "BUY")
+        self.engine.load_stats({"version": 1, "groups": {opposed_key: {
+            "samples": 30, "win_rate": 0.75, "mean_net_r": 0.2,
+            "standard_error": 0.08, "mean_net_r_standard_error": 0.02}}})
+        result = self.evaluate(parent={**self.parent, "exit_direction": -1})
+        self.assertEqual(result["status"], "ENTRY_PROPOSAL")
+        self.assertFalse(result["execution_enabled"])
+        self.assertEqual(result["structure"]["profile_key"], opposed_key)
 
     def test_exit_proposal_when_held_wave_loses_economic_edge(self):
         result = self.evaluate(active_position={"direction": "SELL"},

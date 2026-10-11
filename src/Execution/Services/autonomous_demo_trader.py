@@ -18,11 +18,11 @@ from typing import Any, Dict, List, Optional
 from src.Data.MarketData.Models.models import MarketDataPoint
 from src.Decision.Intelligence.hierarchical_base_behavior_engine import HierarchicalBaseBehaviorEngine
 from src.Decision.Intelligence.base_reaction_decision_engine import BaseReactionDecisionEngine
-from src.Research.Brain.multitimeframe_base_transition_engine import detect_base_departures
+from src.Research.Brain.multitimeframe_base_transition_engine import detect_base_departures, TIMEFRAME_SECONDS
 from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
+from src.Execution.Models.models import OrderRequest
 from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
 from src.Infrastructure.exceptions import ValidationException
-from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, ProductionRiskPolicy
 
 logger = logging.getLogger("AutonomousDemoTrader")
@@ -117,8 +117,10 @@ class AutonomousDemoTrader:
         "M1": "TIMEFRAME_M1",
         "M5": "TIMEFRAME_M5",
         "M15": "TIMEFRAME_M15",
+        "M30": "TIMEFRAME_M30",
         "H1": "TIMEFRAME_H1",
         "H4": "TIMEFRAME_H4",
+        "D1": "TIMEFRAME_D1",
     }
     MIN_CONFIDENCE = 70.0
     MIN_RR = 1.8
@@ -129,7 +131,6 @@ class AutonomousDemoTrader:
     def __init__(self, adapter: Optional[RealMT5BrokerAdapter] = None) -> None:
         self.adapter = adapter or RealMT5BrokerAdapter(auto_initialize=True)
         self.executor = DemoExecutionEngine(adapter=self.adapter, demo_mode=True)
-        self.orchestrator = StrategyOrchestrator()
         self.base_behavior_engine = HierarchicalBaseBehaviorEngine()
         self._base_model_status = "NOT_LOADED"
         self._last_attempt: Dict[str, str] = {}
@@ -167,28 +168,62 @@ class AutonomousDemoTrader:
             raise ValidationException(f"Invalid OHLC geometry found for {symbol} {timeframe}.")
         return candles
 
+    @staticmethod
+    def _next_reaction_number(
+        m1_candles: List[Dict[str, Any]], child: Dict[str, Any], now: int,
+    ) -> int:
+        """Match the research labeler's contiguous M1 zone-visit counting at a causal cutoff."""
+        try:
+            confirm = int(child["confirmation_time"])
+            zone_low, zone_high = float(child["base_low"]), float(child["base_high"])
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return 1
+        if not (math.isfinite(zone_low) and math.isfinite(zone_high) and 0 < zone_low < zone_high):
+            return 1
+        visits = 0
+        in_visit = False
+        for candle in m1_candles:
+            try:
+                stamp = int(candle["timestamp"])
+                low, high = float(candle["low"]), float(candle["high"])
+            except (KeyError, TypeError, ValueError, OverflowError):
+                in_visit = False
+                continue
+            if stamp <= confirm or stamp > int(now):
+                continue
+            touches = low <= zone_high and high >= zone_low
+            if touches and not in_visit:
+                visits += 1
+            in_visit = touches
+        return max(1, visits + 1)
+
     def _evaluate_hierarchical_base_plan(
-        self, per_tf: Dict[str, List[Dict[str, Any]]], tick: Dict[str, Any]
+        self, per_tf: Dict[str, List[Dict[str, Any]]], tick: Dict[str, Any],
+        symbol: str = "XAUUSD",
     ) -> Dict[str, Any]:
         """Analyze closed parent/child Base events. This path is proposal-only."""
         now = float(tick.get("time") or time.time())
         events_by_tf: Dict[str, List[Dict[str, Any]]] = {}
-        for tf in ("H4", "H1", "M15", "M5", "M1"):
+        for tf in ("D1", "H4", "H1", "M30", "M15", "M5", "M1"):
             candles = per_tf.get(tf, [])
+            # Only recent M1 bars are needed to detect the fresh execution trigger;
+            # the full causal M1 window remains available below for visit counting.
+            detector_candles = candles[-120:] if tf == "M1" else candles
             bars = [{
                 "time": int(c["timestamp"]), "open": float(c["open"]),
                 "high": float(c["high"]), "low": float(c["low"]), "close": float(c["close"]),
-            } for c in candles]
+            } for c in detector_candles]
             if len(bars) >= 50:
                 # Live inputs are already closed candles; horizon=0 avoids suppressing
                 # recent causal departures merely to reserve offline label bars.
-                step = 1 if tf in ("M15", "M5", "M1") else 2
+                step = 1 if tf in ("M30", "M15", "M5", "M1") else 2
                 events_by_tf[tf] = detect_base_departures(bars, tf, scan_step=step, horizon=0)
             else:
                 events_by_tf[tf] = []
 
         self.base_behavior_engine = HierarchicalBaseBehaviorEngine()
-        model_path = _PROJECT_ROOT / "runtime_logs" / "mt5_gold_history_full" / "hierarchical_base_behavior_model_research.json"
+        model_dir = "mt5_gold_history_full" if symbol.upper() in {"XAUUSD", "GOLD"} else f"mt5_{symbol.lower()}_history_full"
+        model_path = _PROJECT_ROOT / "runtime_logs" / model_dir / "hierarchical_base_behavior_model_research.json"
         self._base_model_status = "MISSING_RESEARCH_MODEL"
         try:
             if model_path.exists():
@@ -208,7 +243,7 @@ class AutonomousDemoTrader:
         # MFE/MAE study is deliberately NOT loaded as a trading model; only a future
         # costed net-R model can pass this gate.
         reaction_engine = BaseReactionDecisionEngine()
-        reaction_model_path = _PROJECT_ROOT / "runtime_logs" / "mt5_gold_history_full" / "base_reaction_behavior_model_research.json"
+        reaction_model_path = _PROJECT_ROOT / "runtime_logs" / model_dir / "base_reaction_behavior_model_research.json"
         reaction_model_status = "MISSING_COSTED_REACTION_MODEL"
         try:
             if reaction_model_path.exists():
@@ -226,23 +261,16 @@ class AutonomousDemoTrader:
         if parent and child and micro:
             tf = str(child.get("timeframe", "M15"))
             zone_low, zone_high = float(child.get("base_low", 0.0)), float(child.get("base_high", 0.0))
-            confirm = int(child.get("confirmation_time", 0))
-            visits = 0
-            in_visit = False
-            # Count contiguous price re-entries at M1 resolution for causal visit
-            # numbering; the zone/depth itself always belongs to the selected M15/M5 Base.
-            for candle in per_tf.get("M1", []):
-                if int(candle["timestamp"]) <= confirm:
-                    continue
-                touches = float(candle["high"]) >= zone_low and float(candle["low"]) <= zone_high
-                if touches and not in_visit:
-                    visits += 1
-                in_visit = touches
-            # The next planned retest is visit N+1. The reaction engine compares
-            # candidate depth bins only when that exact visit profile has enough
-            # prior net-R evidence and passes its confidence-bound gate.
-            reaction = {"base_id": child.get("event_id"), "reaction_number": visits + 1,
-                        "penetration_fraction": 0.5}
+            # Count all causal M1 visits available for the selected child Base.
+            # The history window must cover the H4 child freshness horizon so this
+            # runtime feature uses the same episode numbering as research labels.
+            reaction = {
+                "base_id": child.get("event_id"),
+                "reaction_number": self._next_reaction_number(per_tf.get("M1", []), child, int(now)),
+                # 0.75 is the same causal candidate entry-depth bin used by the
+                # training labels; evaluate() may select another proven depth bin.
+                "penetration_fraction": 0.75,
+            }
             direction_sign = int(child.get("exit_direction", 0))
             atr = float(child.get("base_atr", 0.0))
             entry_mid = (zone_low + zone_high) / 2.0
@@ -261,7 +289,7 @@ class AutonomousDemoTrader:
                      "parent_relation": str(structure.get("parent_relation", "NESTED")),
                      "setup_type": "RETEST", "zone_low": zone_low, "zone_high": zone_high,
                      "invalidation": stop, "target": target, "atr": atr, "confidence": 100.0,
-                     "expires_at": now + (8 * 900 if tf == "M15" else 8 * 300)}
+                     "expires_at": now + (8 * TIMEFRAME_SECONDS.get(tf, 60))}
             reaction_result = reaction_engine.evaluate(
                 setup=setup, quote={"bid": float(tick["bid"]), "ask": float(tick["ask"])}, now=now,
                 parent=parent, child=child, micro=micro, reaction=reaction,
@@ -270,14 +298,31 @@ class AutonomousDemoTrader:
         result["reaction_analysis"] = reaction_result
         result["model_status"] = self._base_model_status
         result["base_events_by_timeframe"] = {tf: len(rows) for tf, rows in events_by_tf.items()}
+        # Critical gate: the coarse hierarchy proposal is not actionable on its own.
+        # Require a costed re-entry reaction profile and a valid planned order.
+        reaction_plan = reaction_result.get("order_plan") or {}
+        if reaction_result.get("status") == "ENTRY_PROPOSAL" and reaction_plan.get("status") == "PROPOSED":
+            result["status"] = "ORDER_PROPOSAL"
+            result["order_plan"] = reaction_plan
+            result["reason"] = reaction_result.get("reason")
+        else:
+            result["status"] = "WAIT"
+            result["reason"] = reaction_result.get("reason") or result.get("reason") or "Base reaction evidence did not pass."
+            result["order_plan"] = {"status": "WAIT", "reason": result["reason"]}
+        # Keep proposal-only until the pending-order and position manager is connected.
         result["execution_enabled"] = False
-        result["execution_mode"] = "PROPOSAL_ONLY_PENDING_VALIDATION_AND_PENDING_ORDER_MANAGER"
+        result["execution_mode"] = "PROPOSAL_ONLY_BASE_REACTION_GATE"
         return result
 
     @staticmethod
     def _base_behavior_is_primary() -> bool:
-        value = os.environ.get("YARTRADER_BASE_BEHAVIOR_PRIMARY", "true").strip().lower()
-        return value not in {"0", "false", "no", "off"}
+        """Hard-lock the autonomous trader to the single Base-behavior strategy.
+
+        Legacy orchestrated strategies are intentionally not selectable from an
+        environment override. They remain in the codebase for research/backward
+        compatibility, but cannot be used by this autonomous execution worker.
+        """
+        return True
 
     def _log_event(self, event: Dict[str, Any]) -> None:
         event["timestamp_utc"] = datetime.now(timezone.utc).isoformat()
@@ -362,6 +407,101 @@ class AutonomousDemoTrader:
             return float(latest["close"]) > float(latest["open"]) and float(latest["close"]) > float(previous["high"])
         return float(latest["close"]) < float(latest["open"]) and float(latest["close"]) < float(previous["low"])
 
+    def _reconcile_base_pending_order(
+        self, symbol: str, base_plan: Dict[str, Any], tick: Dict[str, Any],
+        account: Dict[str, Any], symbol_info: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Idempotently reconcile one YarTrader-owned Base pending order for a symbol."""
+        orders = self.adapter.get_active_orders(symbol=symbol)
+        if orders is None:
+            return {"status": "BLOCKED", "reason": "Broker pending-order state is unknown; refusing duplicate or new entry."}
+        mt5 = self.adapter._mt5
+        owned = [
+            order for order in orders
+            if int(self._field(order, "magic", 0) or 0) == 100001
+            and str(self._field(order, "comment", "") or "").startswith("YarBase")
+        ]
+        plan = base_plan.get("order_plan") or {}
+        valid = base_plan.get("status") == "ORDER_PROPOSAL" and plan.get("status") == "PROPOSED"
+        if not valid:
+            cancelled = []
+            for order in owned:
+                ticket = int(self._field(order, "ticket", 0) or 0)
+                if ticket <= 0:
+                    return {"status": "BLOCKED", "reason": "Owned pending order has no valid broker ticket."}
+                response = self.adapter.cancel_pending_order(ticket)
+                if response.Status != "Cancelled":
+                    return {"status": "BLOCKED", "reason": f"Could not cancel stale Base pending order {ticket}: {response.Comment}"}
+                cancelled.append(ticket)
+            return {"status": "WAIT", "reason": base_plan.get("reason", "No qualified Base reaction proposal."),
+                    "cancelled_pending_orders": cancelled}
+
+        try:
+            direction = str(plan["direction"]).upper()
+            order_type = str(plan["order_type"]).upper()
+            entry, stop, target = float(plan["entry"]), float(plan["stop_loss"]), float(plan["take_profit"])
+            expires = int(float(plan["expires_at"])) if plan.get("expires_at") is not None else None
+            digits = int(symbol_info["digits"])
+            if direction not in ("BUY", "SELL") or order_type not in ("BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP"):
+                raise ValueError("Unsupported Base pending order type or direction.")
+            if not all(math.isfinite(x) and x > 0 for x in (entry, stop, target)):
+                raise ValueError("Base plan contains invalid prices.")
+            if (direction == "BUY" and not stop < entry < target) or (direction == "SELL" and not target < entry < stop):
+                raise ValueError("Base pending order has invalid stop/entry/target geometry.")
+            if expires is not None and expires <= int(tick.get("time") or time.time()):
+                raise ValueError("Base pending order has expired.")
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:
+            return {"status": "BLOCKED", "reason": f"Invalid Base pending order plan: {exc}"}
+
+        desired_type = getattr(mt5, {
+            "BUY_LIMIT": "ORDER_TYPE_BUY_LIMIT", "SELL_LIMIT": "ORDER_TYPE_SELL_LIMIT",
+            "BUY_STOP": "ORDER_TYPE_BUY_STOP", "SELL_STOP": "ORDER_TYPE_SELL_STOP",
+        }[order_type], None)
+        if desired_type is None:
+            return {"status": "BLOCKED", "reason": "MT5 does not expose the requested pending-order type."}
+        for order in owned:
+            same = (
+                int(self._field(order, "type", -1)) == int(desired_type)
+                and abs(float(self._field(order, "price_open", 0.0)) - entry) <= 10 ** (-digits)
+                and abs(float(self._field(order, "sl", 0.0)) - stop) <= 10 ** (-digits)
+                and abs(float(self._field(order, "tp", 0.0)) - target) <= 10 ** (-digits)
+                and (expires is None or int(self._field(order, "time_expiration", 0) or 0) in (0, expires))
+            )
+            if same:
+                return {"status": "ALREADY_PENDING", "ticket": int(self._field(order, "ticket", 0)),
+                        "order_type": order_type, "entry": entry}
+        # Remove obsolete orders before replacing them; never stack duplicate Base orders.
+        for order in owned:
+            ticket = int(self._field(order, "ticket", 0) or 0)
+            if ticket <= 0:
+                return {"status": "BLOCKED", "reason": "Owned pending order has no valid broker ticket."}
+            response = self.adapter.cancel_pending_order(ticket)
+            if response.Status != "Cancelled":
+                return {"status": "BLOCKED", "reason": f"Could not replace stale Base order {ticket}: {response.Comment}"}
+
+        sizing = calculate_demo_volume_by_risk(
+            mt5, symbol, direction, entry, stop, symbol_info,
+            float(account.get("balance") or 0), float(account.get("equity") or 0),
+            float(ProductionRiskPolicy.TARGET_RISK_PCT),
+        )
+        if not sizing.get("allowed"):
+            return {"status": "RISK_BLOCKED", "reason": sizing.get("reason"), "risk": sizing}
+        request = OrderRequest(
+            Symbol=symbol, OrderType=order_type, Volume=float(sizing["volume"]),
+            Price=round(entry, digits), StopLoss=round(stop, digits), TakeProfit=round(target, digits),
+            Comment="YarBase", Magic=100001, Expiration=expires,
+        )
+        response = self.adapter.send_order_to_broker(request)
+        self._log_event({
+            "event": "base_pending_order_submission", "symbol": symbol,
+            "order_type": order_type, "entry": entry, "stop_loss": stop, "take_profit": target,
+            "expiration": expires, "risk": sizing, "broker_status": response.Status,
+            "broker_order_id": response.OrderId, "broker_retcode": response.Retcode,
+        })
+        return {"status": "PENDING_PLACED" if response.Status == "Placed" else "ORDER_FAILED",
+                "ticket": response.OrderId, "broker_status": response.Status,
+                "reason": response.Comment, "risk": sizing, "order_type": order_type}
+
     def run_once(self, symbol_override: Optional[str] = None) -> Dict[str, Any]:
         """Run one read/decide/execute cycle for a selected enabled symbol."""
         if not _read_flag():
@@ -385,7 +525,10 @@ class AutonomousDemoTrader:
                 raise ValidationException(f"Valid live quote and symbol contract are unavailable for {symbol}.")
 
             # Compare MT5 server timestamps to one another; local PC clock may use a different zone.
-            m1 = self._fetch_candles(symbol, "M1", 120)
+            # H4 Base candidates may remain valid for 8 H4 bars (32 hours).
+            # Keep enough closed M1 history to count re-entry episodes over that
+            # full horizon, not just the most recent two hours.
+            m1 = self._fetch_candles(symbol, "M1", 2001)
             tick_time = int(tick.get("time") or 0)
             bar_time = int(m1[-1]["timestamp"])
             if tick_time <= 0 or abs(tick_time - bar_time) > self.MAX_TICK_BAR_GAP_SECONDS:
@@ -415,295 +558,95 @@ class AutonomousDemoTrader:
 
             # MT5 position 0 is the still-forming candle. Use it only for quote
             # freshness checks; strategy decisions must use fully closed candles.
-            per_tf: Dict[str, List[Dict[str, Any]]] = {"M1": m1[:-1]}
-            for timeframe in ("M5", "M15", "H1", "H4"):
-                fetched = self._fetch_candles(symbol, timeframe, 201)
-                per_tf[timeframe] = fetched[:-1]
+            # _fetch_candles starts at MT5 shift=1, so every returned row is
+            # already a fully closed candle. Do not drop the newest closed bar.
+            per_tf: Dict[str, List[Dict[str, Any]]] = {"M1": m1}
+            for timeframe in ("D1", "H4", "H1", "M30", "M15", "M5"):
+                per_tf[timeframe] = self._fetch_candles(symbol, timeframe, 201)
 
-            # Base parent/child logic is now the primary DEMO decision path by default.
-            # It cannot send orders: no pending-order executor is connected, and the
-            # legacy market-order strategy is not allowed to bypass this research gate.
-            if self._base_behavior_is_primary():
-                base_plan = self._evaluate_hierarchical_base_plan(per_tf, tick)
-                self._log_event({
-                    "event": "hierarchical_base_primary_decision",
-                    "symbol": symbol,
-                    "base_plan": base_plan,
-                    "open_positions": len(open_positions),
-                    "execution_enabled": False,
-                })
-                if open_positions:
-                    return {
-                        "status": "WAIT", "symbol": symbol,
-                        "reason": "Base-primary mode is active; Base-based position exit/reversal management is not yet connected. Existing broker SL/TP remain in place.",
-                        "base_plan": base_plan, "execution_enabled": False,
-                    }
-                if base_plan.get("status") == "ORDER_PROPOSAL":
-                    return {
-                        "status": "PROPOSAL_ONLY", "symbol": symbol,
-                        "reason": "Base scenario passed the research planner, but pending-order placement is intentionally not connected yet.",
-                        "base_plan": base_plan, "execution_enabled": False,
-                    }
-                return {
-                    "status": "WAIT", "symbol": symbol,
-                    "reason": base_plan.get("reason") or "No validated hierarchical Base setup.",
-                    "base_plan": base_plan, "execution_enabled": False,
-                }
-
-            candidates = []
-            for timeframe in ("M5", "M15", "H1"):
-                report = self.orchestrator.evaluate_all_strategies(
-                    symbol=symbol,
-                    primary_timeframe=timeframe,
-                    candles=per_tf[timeframe],
-                    all_timeframe_candles=per_tf,
-                    spread_pip=(float(tick["ask"]) - float(tick["bid"])) /
-                               ProfessionalRiskEngine().get_pip_size(symbol),
-                    account_balance=float(account.get("balance") or 0.0),
-                )
-                report_candidates = report.get("candidates") or []
-                if not report_candidates and report.get("best_candidate"):
-                    report_candidates = [report["best_candidate"]]
-                # Do not let a mediocre top-ranked candidate hide another valid
-                # strategy on the same timeframe. Keep the strongest candidate that
-                # already clears the common execution-quality gates for this symbol.
-                qualified_for_timeframe = [
-                    candidate for candidate in report_candidates
-                    if candidate.get("direction") in ("BUY", "SELL")
-                    and float(candidate.get("confidence") or 0.0) >= self.MIN_CONFIDENCE
-                    and float(candidate.get("risk_reward") or 0.0) >= self.MIN_RR
-                    and float(candidate.get("entry") or 0.0) > 0
-                    and float(candidate.get("stop_loss") or 0.0) > 0
-                    and float(candidate.get("take_profit") or 0.0) > 0
-                ]
-                qualified_for_timeframe.sort(
-                    key=lambda item: float(item.get("confidence") or 0.0) * float(item.get("risk_reward") or 0.0),
-                    reverse=True,
-                )
-                if qualified_for_timeframe:
-                    candidates.append(qualified_for_timeframe[0])
-
-            # Shared regime-aware policy: do not blindly reverse in trends, fade
-            # range edges only, and freeze a volatility-based target before spike entry.
-            from src.Decision.Intelligence.market_behavior_policy import MarketBehaviorPolicy
-            behavior = MarketBehaviorPolicy().evaluate(per_tf["M15"])
-            self._log_event({"event": "market_behavior", "symbol": symbol, **behavior.to_dict()})
-            if behavior.regime in ("TRANSITION", "UNCERTAIN") or behavior.direction == "WAIT":
-                return {"status": "WAIT", "symbol": symbol, "market_regime": behavior.regime,
-                        "reason": behavior.reason}
-            regime_candidates = []
-            for item in candidates:
-                item = dict(item)
-                item["market_regime"] = behavior.regime
-                proposed_direction = str(item.get("direction", "")).upper()
-                if proposed_direction != behavior.direction:
-                    continue
-                if behavior.regime == "SPIKE":
-                    # Target is fixed before submission; SL remains mandatory and broker-risk sized.
-                    live_entry = float(tick["ask"] if proposed_direction == "BUY" else tick["bid"])
-                    item["take_profit"] = live_entry + behavior.spike_target_distance * (1 if proposed_direction == "BUY" else -1)
-                    item["spike_target_precomputed"] = True
-                elif behavior.regime == "RANGE":
-                    live_price = float(tick["ask"] if proposed_direction == "BUY" else tick["bid"])
-                    if proposed_direction == "BUY" and live_price > behavior.entry_zone_low + 0.25*(behavior.channel_high-behavior.channel_low):
-                        continue
-                    if proposed_direction == "SELL" and live_price < behavior.entry_zone_high - 0.25*(behavior.channel_high-behavior.channel_low):
-                        continue
-                    item["take_profit"] = behavior.channel_low + 0.5*(behavior.channel_high-behavior.channel_low)
-                regime_candidates.append(item)
-            candidates = regime_candidates
-
-            eligible = [
-                c for c in candidates
-                if c.get("direction") in ("BUY", "SELL")
-                and float(c.get("confidence") or 0.0) >= self.MIN_CONFIDENCE
-                and float(c.get("risk_reward") or 0.0) >= self.MIN_RR
-                and float(c.get("entry") or 0.0) > 0
-                and float(c.get("stop_loss") or 0.0) > 0
-                and float(c.get("take_profit") or 0.0) > 0
-            ]
-            if not eligible:
-                return {"status": "WAIT", "symbol": symbol, "reason": "No candidate passed confidence, R/R and price-level checks."}
-
-            # One high-quality candidate is sufficient when no other candidate also
-            # clears the same confidence/RR gates in the opposite direction. Requiring
-            # two qualifying candidates caused permanent WAIT states for sparse setups.
-            directions = {str(c["direction"]).upper() for c in eligible}
-            if len(directions) != 1:
-                return {"status": "WAIT", "reason": "High-confidence qualified candidates conflict across timeframes."}
-
-            direction = next(iter(directions))
-            # A reversal requires at least one M15/H1 setup plus a closed M1 structure break.
-            if open_positions and not any(
-                str(c.get("timeframe", "")).upper() in ("M15", "H1")
-                and str(c.get("direction", "")).upper() == direction
-                for c in eligible
-            ):
-                return {"status": "WAIT", "symbol": symbol, "direction": direction,
-                        "reason": "Reversal lacks M15/H1 structural confirmation."}
-            # M15/H1 determine direction; a closed M1 structure break times the entry.
-            if not self._m1_entry_confirmed(per_tf["M1"], direction):
-                return {
-                    "status": "WAIT",
-                    "symbol": symbol,
-                    "direction": direction,
-                    "reason": "M1 entry confirmation is absent; wait for a closed-candle micro-structure break.",
-                }
-            entry = float(tick["ask"] if direction == "BUY" else tick["bid"])
-            balance = float(account.get("balance") or 0.0)
-            equity = float(account.get("equity") or 0.0)
-            ranked = sorted(eligible, key=lambda c: float(c["confidence"]) * float(c["risk_reward"]), reverse=True)
-            candidate = None
-            sizing = None
-            actual_rr = 0.0
-            selection_reason = "All qualified setups failed current-quote, R/R, or broker-risk checks."
-
-            # Try qualified setups in rank order. A wide stop or broker minimum-lot
-            # mismatch on one timeframe must not hide a tighter valid setup on another.
-            for option in ranked:
-                original_entry = float(option["entry"])
-                timeframe = str(option.get("timeframe") or "M15")
-                stop_candles = per_tf.get(timeframe, per_tf["M15"])
-                option_sl = self._derive_structural_stop(stop_candles, direction, entry)
-                if option_sl is None:
-                    selection_reason = "No valid structure/ATR stop found; refusing a guessed stop."
-                    continue
-                option_tp = float(option["take_profit"])
-                original_risk = abs(original_entry - float(option.get("stop_loss") or 0.0))
-                if original_risk <= 0 or abs(entry - original_entry) > original_risk * self.MAX_ENTRY_DRIFT_R:
-                    selection_reason = "Current quote has moved too far from the qualified setup entry."
-                    continue
-                if direction == "BUY" and not (option_sl < entry < option_tp):
-                    selection_reason = "BUY stop/entry/target geometry is no longer valid at the live quote."
-                    continue
-                if direction == "SELL" and not (option_tp < entry < option_sl):
-                    selection_reason = "SELL stop/entry/target geometry is no longer valid at the live quote."
-                    continue
-                option_rr = abs(option_tp - entry) / abs(entry - option_sl)
-                if not math.isfinite(option_rr) or option_rr < self.MIN_RR:
-                    selection_reason = "Live quote no longer supports the minimum risk/reward ratio."
-                    continue
-                # Allocate more risk only to stronger setups; weaker setups receive less.
-                # This is a sizing heuristic, not a claimed calibrated win probability.
-                confidence = max(0.0, min(100.0, float(option.get("confidence") or 0.0)))
-                rr_quality = max(0.0, min(1.0, (option_rr - self.MIN_RR) / max(self.MIN_RR, 1e-9)))
-                confidence_quality = max(0.0, min(1.0, (confidence - self.MIN_CONFIDENCE) / max(100.0 - self.MIN_CONFIDENCE, 1e-9)))
-                quality = 0.7 * confidence_quality + 0.3 * rr_quality
-                adaptive_risk_pct = ProductionRiskPolicy.MIN_ADAPTIVE_RISK_PCT + quality * (ProductionRiskPolicy.HARD_CEILING_RISK_PCT - ProductionRiskPolicy.MIN_ADAPTIVE_RISK_PCT)
-                option_sizing = calculate_demo_volume_by_risk(
-                    self.adapter._mt5, symbol, direction, entry, option_sl, symbol_info,
-                    balance, equity, adaptive_risk_pct,
-                )
-                if not option_sizing["allowed"]:
-                    selection_reason = str(option_sizing.get("reason") or "Broker risk budget rejected this setup.")
-                    continue
-                candidate = option
-                sl, tp = option_sl, option_tp
-                actual_rr = option_rr
-                sizing = option_sizing
-                break
-
-            if candidate is None or sizing is None:
-                return {"status": "WAIT", "symbol": symbol, "reason": selection_reason}
-
-            volume = float(sizing["volume"])
-            risk_budget = float(sizing["risk_budget_usd"])
-            risk_basis = float(sizing["risk_basis_usd"])
-            estimated_min_risk = float(sizing["estimated_risk_usd"])
-
-            attempt_key = f"{symbol}:{candidate.get('timeframe')}:{candidate.get('strategy_name')}:{direction}:{per_tf[str(candidate.get('timeframe') if candidate.get('timeframe') in per_tf else 'M15')][-1]['timestamp']}"
-            if self._last_attempt.get(symbol) == attempt_key:
-                return {"status": "SKIPPED", "reason": "This setup candle has already been attempted."}
-
-            reversal_meta = None
-            if open_positions:
-                current_position = open_positions[0]
-                # Never manage or close a manual/foreign EA position.
-                if int(current_position.get("magic") or 0) != 143056:
-                    return {"status": "BLOCKED", "symbol": symbol, "reason": "Existing position is not owned by YarTrader DEMO strategy."}
-                position_type = current_position.get("type")
-                held_direction = "BUY" if position_type == 0 else "SELL" if position_type == 1 else None
-                if held_direction is None:
-                    return {"status": "BLOCKED", "symbol": symbol, "reason": "Existing position direction is unknown."}
-                if held_direction == direction:
-                    return {"status": "HOLDING", "symbol": symbol, "direction": held_direction,
-                            "ticket": current_position.get("ticket"),
-                            "reason": "Same-direction position remains open; no duplicate entry submitted."}
-
-                # Economic reversal gate: require a confirmed opposite setup and positive
-                # net economics after spread, slippage and a conservative commission proxy.
-                pip_size = ProfessionalRiskEngine().get_pip_size(symbol)
-                spread_distance = float(tick["ask"]) - float(tick["bid"])
-                contract_size = float(symbol_info.get("trade_contract_size") or 100.0)
-                commission_distance = 14.0 / max(contract_size, 1e-9)  # round-trip $14/lot proxy in price units
-                cost_distance = spread_distance + pip_size + commission_distance
-                reward_distance = abs(tp - entry)
-                risk_distance = abs(entry - sl)
-                net_rr = ((reward_distance - cost_distance) / (risk_distance + cost_distance)
-                          if risk_distance > 0 and reward_distance > cost_distance else 0.0)
-                confidence_probability_proxy = max(0.01, min(0.99, float(candidate.get("confidence") or 0.0) / 100.0))
-                net_ev_r = confidence_probability_proxy * net_rr - (1.0 - confidence_probability_proxy)
-                if net_rr < 1.2 or net_ev_r <= 0.0:
-                    return {"status": "WAIT", "symbol": symbol, "direction": direction,
-                            "reason": "Opposite setup failed net-of-cost reward/risk or expected-value gate.",
-                            "net_reward_risk": round(net_rr, 4), "net_expected_value_r": round(net_ev_r, 4)}
-
-                close_result = self.executor.close_position(
-                    symbol=symbol, position_ticket=int(current_position.get("ticket") or 0),
-                    open_timestamp=float(current_position.get("time") or 0) or None,
-                    comment="YarTrader economic wave reversal",
-                    exit_reason="ECONOMIC_WAVE_EXHAUSTION", economic_reversal_confirmed=True
-                )
-                if close_result.Status == "Failed":
-                    return {"status": "BLOCKED", "symbol": symbol, "reason": "Existing position could not be closed; reverse entry cancelled.",
-                            "close_comment": close_result.Comment}
-                after_close = self.executor.get_active_positions(symbol=symbol)
-                if after_close is None or after_close:
-                    return {"status": "BLOCKED", "symbol": symbol,
-                            "reason": "Broker did not confirm flat state after close; reverse entry cancelled.",
-                            "close_status": close_result.Status}
-                reversal_meta = {"closed_ticket": current_position.get("ticket"),
-                                 "closed_direction": held_direction, "new_direction": direction,
-                                 "net_reward_risk": round(net_rr, 4), "net_expected_value_r": round(net_ev_r, 4),
-                                 "expected_value_probability_proxy": confidence_probability_proxy}
-
-            result = self.executor.execute_demo_decision(
-                symbol=symbol,
-                direction=direction,
-                volume=volume,
-                price=entry,
-                sl=sl,
-                tp=tp,
-                comment="YarTrader Auto DEMO",
-                magic=143056,
-                decision_id=str(candidate.get("strategy_id") or attempt_key),
-            )
-            self._last_attempt[symbol] = attempt_key
-            payload = {
-                "status": result.Status,
+            # The only enabled decision path is hierarchical Base behavior.
+            # A proposal is not an order: pending-order execution and Base-driven
+            # position exits/re-entry management must use a dedicated broker manager.
+            base_plan = self._evaluate_hierarchical_base_plan(per_tf, tick, symbol=symbol)
+            self._log_event({
+                "event": "hierarchical_base_primary_decision",
                 "symbol": symbol,
-                "direction": direction,
-                "volume": volume,
-                "price": entry,
-                "stop_loss": sl,
-                "take_profit": tp,
-                "confidence": candidate.get("confidence"),
-                "risk_reward": round(actual_rr, 3),
-                "estimated_risk_usd": round(estimated_min_risk, 4),
-                "risk_budget_usd": round(risk_budget, 4),
-                "risk_basis_usd": round(risk_basis, 2),
-                "risk_per_trade_pct": sizing["risk_per_trade_pct"],
-                "strategy": candidate.get("strategy_name"),
-                "timeframe": candidate.get("timeframe"),
-                "market_regime": candidate.get("market_regime"),
-                "spike_target_precomputed": bool(candidate.get("spike_target_precomputed", False)),
-                "order_id": result.OrderId,
-                "deal_ticket": result.DealTicket,
-                "comment": result.Comment,
-                "reversal": reversal_meta,
+                "base_plan": base_plan,
+                "open_positions": len(open_positions),
+                "execution_enabled": False,
+            })
+            if open_positions:
+                # Cancel any orphaned entry order before managing an existing position.
+                order_state = self._reconcile_base_pending_order(
+                    symbol, {"status": "WAIT", "reason": "Position already open; no additional entry."},
+                    tick, account, symbol_info,
+                )
+                if order_state.get("status") == "BLOCKED":
+                    return {"status": "BLOCKED", "symbol": symbol,
+                            "reason": "Pending-order state could not be reconciled; refusing to close/reverse while an orphan entry may still be working.",
+                            "pending_order_state": order_state, "base_plan": base_plan, "execution_enabled": False}
+                position = open_positions[0]
+                position_magic = int(self._field(position, "magic", 0) or 0)
+                position_comment = str(self._field(position, "comment", "") or "")
+                owned = position_magic == 100001 and position_comment.startswith("YarBase")
+                if not owned:
+                    return {"status": "MANUAL_POSITION_UNMANAGED", "symbol": symbol,
+                            "reason": "Open position is not identified as a YarTrader Base position; it will not be modified or closed.",
+                            "pending_order_state": order_state, "base_plan": base_plan, "execution_enabled": False}
+                pos_type = int(self._field(position, "type", -1))
+                buy_type = int(getattr(self.adapter._mt5, "POSITION_TYPE_BUY", 0))
+                sell_type = int(getattr(self.adapter._mt5, "POSITION_TYPE_SELL", 1))
+                held_direction = "BUY" if pos_type == buy_type else ("SELL" if pos_type == sell_type else "UNKNOWN")
+                structure = base_plan.get("structure") or {}
+                child_direction = int(structure.get("child_direction", 0) or 0)
+                zone_low = float(structure.get("child_zone_low") or 0.0)
+                zone_high = float(structure.get("child_zone_high") or 0.0)
+                market_price = float(tick.get("bid") if held_direction == "BUY" else tick.get("ask"))
+                structural_invalidation = (
+                    held_direction == "BUY" and child_direction < 0 and zone_low > 0 and market_price < zone_low
+                ) or (
+                    held_direction == "SELL" and child_direction > 0 and zone_high > 0 and market_price > zone_high
+                )
+                proposal_direction = str((base_plan.get("order_plan") or {}).get("direction", "")).upper()
+                qualified_opposite = (
+                    base_plan.get("status") == "ORDER_PROPOSAL"
+                    and proposal_direction in ("BUY", "SELL") and proposal_direction != held_direction
+                )
+                if structural_invalidation or qualified_opposite:
+                    ticket = int(self._field(position, "ticket", 0) or 0)
+                    volume = float(self._field(position, "volume", 0.0) or 0.0)
+                    if ticket <= 0 or volume <= 0:
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": "Owned Base position lacks a valid ticket or volume; cannot close safely.",
+                                "base_plan": base_plan, "execution_enabled": False}
+                    close_response = self.adapter.send_order_to_broker(OrderRequest(
+                        Symbol=symbol, OrderType="CLOSE", Volume=volume, PositionTicket=ticket,
+                        Comment="YarBaseExit", Magic=100001,
+                    ))
+                    self._log_event({"event": "base_position_exit", "symbol": symbol, "ticket": ticket,
+                                     "held_direction": held_direction,
+                                     "exit_reason": "STRUCTURAL_BASE_INVALIDATION" if structural_invalidation else "QUALIFIED_OPPOSITE_BASE_REACTION",
+                                     "broker_status": close_response.Status, "retcode": close_response.Retcode})
+                    success_codes = {0, 10009, int(getattr(self.adapter._mt5, "TRADE_RETCODE_DONE", 10009))}
+                    if close_response.Status not in ("Placed", "Executed") or int(close_response.Retcode) not in success_codes:
+                        return {"status": "EXIT_FAILED", "symbol": symbol, "reason": close_response.Comment,
+                                "base_plan": base_plan, "execution_enabled": False}
+                    return {"status": "POSITION_CLOSED_BASE_EXIT", "symbol": symbol,
+                            "reason": "Base invalidation or a separately qualified opposite Base reaction closed the existing position; a new entry requires a later cycle.",
+                            "base_plan": base_plan, "close_response": close_response.__dict__,
+                            "execution_enabled": True}
+                return {
+                    "status": "POSITION_HELD_BASE_STRUCTURE", "symbol": symbol,
+                    "reason": "No confirmed Base invalidation or qualified opposite reaction; retain the existing broker SL/TP.",
+                    "pending_order_state": order_state, "base_plan": base_plan, "execution_enabled": False,
+                }
+            order_state = self._reconcile_base_pending_order(symbol, base_plan, tick, account, symbol_info)
+            return {
+                "status": order_state.get("status", "WAIT"), "symbol": symbol,
+                "reason": order_state.get("reason") or base_plan.get("reason") or "No validated hierarchical Base setup.",
+                "base_plan": base_plan, "pending_order_state": order_state,
+                "execution_enabled": order_state.get("status") in ("PENDING_PLACED", "ALREADY_PENDING"),
             }
-            self._log_event(payload)
-            return payload
         except Exception as exc:
             result = {"status": "ERROR", "reason": str(exc)}
             self._log_event(result)

@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from unittest.mock import patch
 from datetime import datetime, timedelta
@@ -12,6 +13,7 @@ from src.Data.MarketData.Models.models import (
 from src.Data.Providers.MT5.mt5 import MT5DataProvider
 from src.Data.MarketData.Providers.providers import MetaTrader5Provider
 from src.Application.Runtime.research_runtime import ResearchRuntime
+from src.Research.MarketAnalysis.Models.models import ResearchResult
 from src.Research.MarketAnalysis.Services.services import FeatureExtractionResearchEngine
 
 
@@ -158,6 +160,49 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         self.assertEqual(runtime.symbol, "XAUUSD")
         self.assertEqual(runtime.timeframe, "H1")
         self.assertIs(runtime.provider, self.adapter)
+
+    def test_runtime_overwrites_legacy_brain_decision_without_base_evidence(self) -> None:
+        """A legacy BUY payload must never bypass the runtime's Base-only authority gate."""
+        class LegacyDecisionEngine:
+            def analyze_market(self, request):
+                return ResearchResult(
+                    Request=request,
+                    Findings={
+                        "autonomous_decision": {
+                            "action": "BUY", "confidence": 99.0,
+                            "entry": 2000.0, "stop_loss": 1990.0, "take_profit": 2020.0,
+                            "evidence": {"decision_authority": "BRAIN"},
+                        },
+                        "intel_summary": {"source": "LiveAnalysisBrain", "decision_authority": "BRAIN"},
+                    },
+                    ConfidenceScore=0.99,
+                    CreatedAt=datetime.now(),
+                )
+
+        no_candidate = {
+            "best_candidate": None,
+            "base_plan": {"status": "WAIT", "reason": "No validated Base candidate"},
+            "hierarchy": {},
+            "reaction_analysis": {},
+            "model_status": "WAIT",
+            "summary": "No validated Base hierarchy/reaction candidate exists.",
+        }
+        with tempfile.TemporaryDirectory(prefix="yartrader-base-runtime-test-") as evidence_dir, \
+             patch("src.Intelligence.Execution.strategy_orchestrator.StrategyOrchestrator.evaluate_all_strategies", return_value=no_candidate):
+            runtime = ResearchRuntime(
+                provider=self.adapter,
+                research_engine=LegacyDecisionEngine(),
+                symbol="XAUUSD",
+                timeframe="H1",
+                evidence_dir=evidence_dir,
+            )
+            result = runtime.run_once()
+
+        decision = result.Findings["autonomous_decision"]
+        self.assertEqual(decision.get("action"), "WAIT")
+        self.assertEqual(decision.get("confidence"), 0.0)
+        self.assertEqual(decision.get("evidence", {}).get("decision_authority"), "BASE_HIERARCHY")
+        self.assertEqual(result.Findings["intel_summary"].get("decision_authority"), "BASE_HIERARCHY")
 
     def test_runtime_single_cycle_run_once(self) -> None:
         """Verify that a single research execution loop completes successfully and generates correct findings and files."""

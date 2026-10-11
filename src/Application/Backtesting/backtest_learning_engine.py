@@ -8,86 +8,6 @@ from src.Research.Brain.memory import MarketMemorySystem
 from src.Research.Brain.judge import JudgeBrain
 
 
-def build_research_fallback_signal(history_candles: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Causal EMA-trend bootstrap signal for research backtests only.
-
-    Uses closed candles only, derives stops from prior bars, and never submits orders.
-    This fallback is opt-in so existing callers keep the original Brain-only behavior.
-    """
-    if len(history_candles) < 60:
-        return None
-
-    closes = [float(c["close"]) for c in history_candles]
-    current_close = closes[-1]
-
-    def ema(values: List[float], period: int) -> float:
-        alpha = 2.0 / (period + 1.0)
-        value = values[0]
-        for sample in values[1:]:
-            value = alpha * sample + (1.0 - alpha) * value
-        return value
-
-    ema20 = ema(closes, 20)
-    previous_ema20 = ema(closes[:-1], 20)
-    ema50 = ema(closes, 50)
-    prior_candles = history_candles[:-1]
-    recent_prior = prior_candles[-15:]
-    true_ranges = []
-    for idx in range(1, len(recent_prior)):
-        candle = recent_prior[idx]
-        previous_close = float(recent_prior[idx - 1]["close"])
-        high, low = float(candle["high"]), float(candle["low"])
-        true_ranges.append(max(high - low, abs(high - previous_close), abs(low - previous_close)))
-    if not true_ranges:
-        return None
-    atr = sum(true_ranges) / len(true_ranges)
-    if atr <= 0.0:
-        return None
-
-    if ema20 > ema50 and ema20 > previous_ema20 and current_close > ema20:
-        action = "BUY"
-        stop = min(float(c["low"]) for c in prior_candles[-12:]) - 0.15 * atr
-        distance = current_close - stop
-        direction = 1.0
-    elif ema20 < ema50 and ema20 < previous_ema20 and current_close < ema20:
-        action = "SELL"
-        stop = max(float(c["high"]) for c in prior_candles[-12:]) + 0.15 * atr
-        distance = stop - current_close
-        direction = -1.0
-    else:
-        return None
-
-    if distance <= 0.0 or distance > 3.0 * atr:
-        return None
-    target = current_close + 1.5 * distance if action == "BUY" else current_close - 1.5 * distance
-    if target <= 0.0:
-        return None
-
-    trend_strength = max(-2.0, min(2.0, (ema20 - ema50) / atr)) / 2.0
-    slope_strength = max(-1.0, min(1.0, (ema20 - previous_ema20) / atr))
-    price_extension = max(-2.0, min(2.0, (current_close - ema20) / atr)) / 2.0
-    signature = [direction, round(trend_strength, 6), round(slope_strength, 6), round(price_extension, 6)]
-    return {
-        "action": action,
-        "confidence": 55.0,
-        "sequence_signature": signature,
-        "hypothesis_id": "research-fallback-ema-trend",
-        "context": {
-            "source": "RESEARCH_FALLBACK_EMA_TREND",
-            "ema20": ema20,
-            "ema50": ema50,
-            "atr": atr,
-            "closed_candle_price": current_close,
-        },
-        "trade_parameters": {
-            "entry": current_close,
-            "stop_loss": stop,
-            "take_profit": target,
-            "risk_reward": 1.5,
-            "source": "RESEARCH_FALLBACK_EMA_TREND",
-        },
-    }
-
 
 class BacktestAndLearningEngine:
     """
@@ -200,7 +120,6 @@ class BacktestAndLearningEngine:
         all_timeframe_candles_provider=None,
         decision_interval_minutes: int = 1,
         learn_from_outcomes: bool = True,
-        research_fallback_enabled: bool = False,
     ) -> Dict[str, Any]:
         """
         Executes a chronological, walk-forward backtest simulation across historical candles.
@@ -225,8 +144,10 @@ class BacktestAndLearningEngine:
         latest_brain_report = None
 
         memory = self.get_market_memory(symbol)
-        canonical_brain = self.get_live_brain(symbol, timeframe)
-        canonical_brain.observation_brain.configure_historical_performance(1000, 100)
+        # The backtest decision source is Base-only. MarketMemory receives outcomes
+        # from Base trades, but no generic Brain/indicator strategy may originate entries.
+        from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
+        base_orchestrator = StrategyOrchestrator()
 
         # Walk-forward bar by bar chronologically
         for i in range(start_index, len(candles)):
@@ -355,83 +276,43 @@ class BacktestAndLearningEngine:
                 except (TypeError, ValueError):
                     decision_due = True
             mtf_context = all_timeframe_candles_provider(bar_time) if all_timeframe_candles_provider else None
-            brain_scope = sorted(mtf_context.keys()) if mtf_context else [timeframe]
-            from src.Research.Brain.models import MarketObservation
-            context_observations = {}
-            for ctx_tf, ctx_candles in (mtf_context or {}).items():
-                context_observations[ctx_tf] = [
-                    MarketObservation(
-                        symbol=symbol.upper(),
-                        timeframe=ctx_tf.upper(),
-                        timestamp=datetime.fromisoformat(str(c["timestamp"]).replace("Z", "+00:00")),
-                        open_price=float(c["open"]),
-                        high=float(c["high"]),
-                        low=float(c["low"]),
-                        close_price=float(c["close"]),
-                        volume=float(c.get("volume", 0.0)),
-                    )
-                    for c in ctx_candles
-                ]
-            brain_report = canonical_brain.process_live_candle({
-                "timestamp": str(bar_time), "open": float(current_bar["open"]),
-                "high": float(current_bar["high"]), "low": float(current_bar["low"]),
-                "close": float(current_bar["close"]), "volume": float(current_bar.get("volume", 0.0))
-            }, simulate_virtual_trade=False, timeframe_signature=brain_scope,
-               context_observations_by_tf=context_observations,
-               learning_cycle_due=(learn_from_outcomes and
-                                   (i - start_index + 1) % self.learning_interval_bars == 0))
-            latest_brain_report = brain_report.to_dict()
+            base_report = base_orchestrator.evaluate_all_strategies(
+                symbol=symbol, primary_timeframe=timeframe, candles=history_candles,
+                all_timeframe_candles=mtf_context, spread_pip=1.0,
+            )
+            latest_brain_report = base_report
             if not open_position and decision_due:
-                brain_report_dict = latest_brain_report
-                hypothesis = (brain_report_dict.get("active_hypotheses") or [{}])[0]
-                action = hypothesis.get("suggested_virtual_action", "WAIT")
-                params = hypothesis.get("trade_parameters") or {}
-                confidence = float(hypothesis.get("hypothesis_confidence", 0.0))
-                selected_hypothesis = hypothesis
-                if research_fallback_enabled and not (action in ["BUY", "SELL"] and confidence >= 50.0):
-                    fallback = build_research_fallback_signal(history_candles)
-                    if fallback:
-                        action = fallback["action"]
-                        confidence = fallback["confidence"]
-                        params = fallback["trade_parameters"]
-                        selected_hypothesis = {
-                            "hypothesis_id": fallback["hypothesis_id"],
-                            "context": fallback["context"],
-                            "sequence_signature": fallback["sequence_signature"],
-                            "matched_pattern_ids": [],
-                        }
-                # Backtest-only cold-start: derive a causal structural stop from past bars
-                # when clean Brain memory has no learned excursion parameters yet.
-                if action in ["BUY", "SELL"] and confidence >= 50.0 and not params:
-                    recent = history_candles[-15:]
-                    if len(recent) >= 15:
-                        ranges = []
-                        prev_close = float(recent[0]["close"])
-                        for candle in recent[1:]:
-                            hi, lo, cl = float(candle["high"]), float(candle["low"]), float(candle["close"])
-                            ranges.append(max(hi - lo, abs(hi - prev_close), abs(lo - prev_close)))
-                            prev_close = cl
-                        atr = sum(ranges[-14:]) / max(1, len(ranges[-14:]))
-                        entry = current_price
-                        if atr > 0.0:
-                            if action == "BUY":
-                                stop = min(float(c["low"]) for c in recent[-12:]) - 0.15 * atr
-                                distance = entry - stop
-                                target = entry + 1.5 * distance
-                            else:
-                                stop = max(float(c["high"]) for c in recent[-12:]) + 0.15 * atr
-                                distance = stop - entry
-                                target = entry - 1.5 * distance
-                            if 0.0 < distance <= 3.0 * atr and target > 0.0:
-                                params = {"entry": entry, "stop_loss": stop, "take_profit": target,
-                                          "risk_reward": 1.5, "source": "COLD_START_STRUCTURAL_ATR_BACKTEST_ONLY"}
-
+                candidate = base_report.get("best_candidate") or {}
+                action = str(candidate.get("direction", "WAIT")).upper()
+                params = {
+                    "entry": candidate.get("entry"),
+                    "stop_loss": candidate.get("stop_loss"),
+                    "take_profit": candidate.get("take_profit"),
+                    "risk_reward": candidate.get("risk_reward", 0.0),
+                    "source": "BASE_HIERARCHY_COSTED_REENTRY_REACTION",
+                } if candidate else {}
+                confidence = float(candidate.get("confidence", 0.0) or 0.0)
+                market_context = candidate.get("market_context") or {}
+                base_structure = market_context.get("base_structure") or {}
+                selected_hypothesis = {
+                    "hypothesis_id": candidate.get("strategy_id"),
+                    "context": market_context,
+                    "matched_pattern_ids": [],
+                    "sequence_signature": [
+                        "BASE_HIERARCHY",
+                        f"CHILD_TF:{base_structure.get('child_timeframe', 'UNKNOWN')}",
+                        f"PARENT_TF:{base_structure.get('parent_timeframe', 'UNKNOWN')}",
+                        f"RELATION:{base_structure.get('parent_relation', 'UNKNOWN')}",
+                        f"PROFILE:{base_structure.get('profile_key', 'UNKNOWN')}",
+                    ],
+                    "reasoning": candidate.get("reasoning") or [],
+                }
                 if action in ["BUY", "SELL"] and confidence >= 50.0 and params.get("stop_loss") and params.get("take_profit") and float(params.get("risk_reward", 0.0)) >= 1.5:
                     open_position = {
                         "trade_id": f"BT-{symbol.upper()}-{timeframe.upper()}-{str(bar_time).replace(":", "").replace("+", "p").replace("-", "")}-{action}",
                         "symbol": symbol.upper(),
                         "timeframe": timeframe,
-                        "strategy": "RESEARCH_FALLBACK_EMA_TREND" if params.get("source") == "RESEARCH_FALLBACK_EMA_TREND" else "BRAIN_LEARNED",
+                        "strategy": "BASE_HIERARCHY",
                         "direction": action,
                         "entry": float(params.get("entry", current_price)),
                         "stop_loss": float(params.get("stop_loss", 0.0)),
@@ -441,7 +322,7 @@ class BacktestAndLearningEngine:
                         "volume": 0.0,
                         "entry_time": bar_time,
                         "market_context": selected_hypothesis.get("context", {}),
-                        "reasoning": [("Research-only EMA trend fallback" if params.get("source") == "RESEARCH_FALLBACK_EMA_TREND" else "Brain hypothesis"), *selected_hypothesis.get("matched_pattern_ids", [])],
+                        "reasoning": list(selected_hypothesis.get("reasoning") or ["Validated Base re-entry reaction"]),
                         "mfe": 0.0,
                         "mae": 0.0
                     }

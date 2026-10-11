@@ -91,11 +91,20 @@ if __name__ == "__main__":
     unittest.main()
 
 
-def test_backtest_does_not_delegate_decision_to_execution_intelligence():
+def test_backtest_uses_only_base_hierarchy_and_keeps_execution_downstream():
     from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
     import inspect
+
     source = inspect.getsource(BacktestAndLearningEngine.run_backtest)
+
+    # The canonical backtest decision path is the single Base hierarchy facade.
+    # Brain/indicator fallback strategies and execution-intelligence decisions are
+    # intentionally excluded from the Base-only strategy contract.
+    assert "StrategyOrchestrator" in source
+    assert "evaluate_all_strategies(" in source
+    assert '"BASE_HIERARCHY"' in source
     assert "evaluate_context(" not in source
     assert "ExecutionIntelligenceCore" not in source
-    assert "suggested_virtual_action" in source
-    assert "context_observations_by_tf" in source
+    assert "RESEARCH_FALLBACK_EMA_TREND" not in source
+    assert "learn_from_outcomes" in source
+    assert "FROZEN_EVALUATION_NO_LEARNING" in source

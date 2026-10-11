@@ -118,7 +118,7 @@ class SessionExecutionManager:
         - Enforces EOD Entry Cutoff: rejects new entries if remaining session time <= 121s (120s + buffer),
           guaranteeing every opened ordinary position can safely reach >120s before EOD cutoff.
         """
-        allowed_styles = ["FAST_SCALP", "SCALP", "DAY_TRADING"]
+        allowed_styles = ["BASE_HIERARCHY"]
         style_upper = trading_style.upper()
 
         if style_upper not in allowed_styles:

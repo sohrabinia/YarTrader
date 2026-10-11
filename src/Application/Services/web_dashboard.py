@@ -591,50 +591,111 @@ def resolve_candles_for_context(symbol: str, timeframe: str) -> List[Dict[str, A
     return fetch_production_market_candles(symbol, timeframe)
 
 
+def _base_only_execution_report(symbol: str, timeframe: str, candles: List[Dict[str, Any]], all_tf: Optional[Dict[str, List[Dict[str, Any]]]] = None) -> Dict[str, Any]:
+    """The website's execution/signal endpoints use only the Base hierarchy and costed reaction model."""
+    from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
+
+    try:
+        report = StrategyOrchestrator().evaluate_all_strategies(
+            symbol=symbol or "XAUUSD",
+            primary_timeframe=timeframe or "H1",
+            candles=candles or [],
+            all_timeframe_candles=all_tf or {timeframe or "H1": candles or []},
+        ) if candles else {
+            "symbol": (symbol or "XAUUSD").upper(),
+            "primary_timeframe": timeframe or "H1",
+            "best_candidate": None,
+            "base_plan": {"status": "WAIT", "reason": "Real market data unavailable."},
+            "model_status": "MARKET_DATA_UNAVAILABLE",
+            "summary": "Real market data unavailable; no Base-only signal is authorized.",
+        }
+    except Exception as base_error:
+        report = {
+            "symbol": (symbol or "XAUUSD").upper(),
+            "primary_timeframe": timeframe or "H1",
+            "best_candidate": None,
+            "base_plan": {"status": "WAIT", "reason": "Base-only analysis failed; no fallback strategy is permitted."},
+            "model_status": "BASE_ANALYSIS_FAILED",
+            "summary": "Base-only analysis failed; no signal is authorized.",
+            "error_type": type(base_error).__name__,
+        }
+    candidate = report.get("best_candidate")
+    plan = report.get("base_plan") or {}
+    action = str((candidate or {}).get("direction", "WAIT")).upper()
+    if action not in ("BUY", "SELL"):
+        action = "WAIT"
+        candidate = None
+    return {
+        "symbol": (symbol or "XAUUSD").upper(),
+        "timeframe": (timeframe or "H1").upper(),
+        "action": action,
+        "decision": "TRADE" if candidate else "NO_TRADE",
+        "decision_source": "BASE_HIERARCHY",
+        "decision_authority": "BASE_HIERARCHY",
+        "strategy": "BASE_HIERARCHY",
+        "confidence": float((candidate or {}).get("confidence", 0.0) or 0.0),
+        "entry": float((candidate or {}).get("entry", 0.0) or 0.0),
+        "stop_loss": float((candidate or {}).get("stop_loss", 0.0) or 0.0),
+        "take_profit": float((candidate or {}).get("take_profit", 0.0) or 0.0),
+        "risk_reward": float((candidate or {}).get("risk_reward", 0.0) or 0.0),
+        "order_type": plan.get("order_type"),
+        "status": plan.get("status", "WAIT"),
+        "execution_enabled": bool(candidate),
+        "data_mode": "REAL_MARKET_DATA" if candles else "UNAVAILABLE",
+        "reasoning": (candidate or {}).get("reasoning") or [str(report.get("summary") or plan.get("reason") or "No validated Base-only proposal.")],
+        "model_status": report.get("model_status", "UNKNOWN"),
+        "base_plan": plan,
+        "hierarchy": report.get("hierarchy", {}),
+        "reaction_analysis": report.get("reaction_analysis", {}),
+        "candidate_available": bool(candidate),
+    }
+
+
+def _load_base_timeframe_candles(symbol: str) -> Dict[str, List[Dict[str, Any]]]:
+    """Load real multi-timeframe bars; one unavailable timeframe must not trigger a fallback strategy."""
+    bars: Dict[str, List[Dict[str, Any]]] = {}
+    for tf in ("D1", "H4", "H1", "M15", "M5", "M1"):
+        try:
+            bars[tf] = resolve_candles_for_context(symbol, tf) or []
+        except Exception:
+            bars[tf] = []
+    return bars
+
+
 @app.get("/api/execution/plans")
 def get_execution_plans(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1", lang: str = "fa"):
-    core = ExecutionIntelligenceCore.get_instance()
-    candles = resolve_candles_for_context(symbol, timeframe)
-    if not candles:
-        return {
-            "symbol": (symbol or "XAUUSD").upper(),
-            "timeframe": timeframe,
-            "action": "WAIT",
-            "decision": "NO_TRADE",
-            "decision_source": "BRAIN",
-            "strategy": "Multi-Timeframe Continuous Market Intelligence",
-            "reasoning": ["Real market data unavailable or MT5 provider disconnected."],
-            "data_mode": "UNAVAILABLE"
-        }
-
-    h4_c = resolve_candles_for_context(symbol, "H4")
-    h1_c = resolve_candles_for_context(symbol, "H1")
-    m15_c = resolve_candles_for_context(symbol, "M15")
-    m5_c = resolve_candles_for_context(symbol, "M5")
-    all_tf = {"H4": h4_c, "H1": h1_c, "M15": m15_c, "M5": m5_c}
-
-    res = core.evaluate_context(symbol, timeframe, candles, all_timeframe_candles=all_tf, lang=lang)
-    return res["plan"]
+    del lang  # The Base-only model does not use a legacy planner/language-specific strategy.
+    symbol = (symbol or "XAUUSD").upper()
+    timeframe = (timeframe or "H1").upper()
+    all_tf = _load_base_timeframe_candles(symbol)
+    candles = all_tf.get(timeframe)
+    if candles is None:
+        try:
+            candles = resolve_candles_for_context(symbol, timeframe) or []
+        except Exception:
+            candles = []
+    return _base_only_execution_report(symbol, timeframe, candles, all_tf)
 
 
 @app.get("/api/execution/confidence")
 def get_execution_confidence(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
-    core = ExecutionIntelligenceCore.get_instance()
-    candles = resolve_candles_for_context(symbol, timeframe)
-    if not candles:
-        return {"symbol": symbol, "timeframe": timeframe, "confidence": 0.0}
-    res = core.evaluate_context(symbol, timeframe, candles)
-    return {"symbol": symbol, "timeframe": timeframe, "confidence": res["plan"]["confidence"]}
+    symbol = (symbol or "XAUUSD").upper()
+    timeframe = (timeframe or "H1").upper()
+    all_tf = _load_base_timeframe_candles(symbol)
+    report = _base_only_execution_report(symbol, timeframe, all_tf.get(timeframe, []), all_tf)
+    return {"symbol": symbol, "timeframe": timeframe, "confidence": report["confidence"],
+            "decision_authority": "BASE_HIERARCHY", "model_status": report["model_status"]}
 
 
 @app.get("/api/execution/reasoning")
 def get_execution_reasoning(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1", lang: str = "fa"):
-    core = ExecutionIntelligenceCore.get_instance()
-    candles = resolve_candles_for_context(symbol, timeframe)
-    if not candles:
-        return {"symbol": symbol, "timeframe": timeframe, "reasoning": ["Real market data unavailable."]}
-    res = core.evaluate_context(symbol, timeframe, candles, lang=lang)
-    return {"symbol": symbol, "timeframe": timeframe, "reasoning": res["plan"]["reasoning"]}
+    del lang
+    symbol = (symbol or "XAUUSD").upper()
+    timeframe = (timeframe or "H1").upper()
+    all_tf = _load_base_timeframe_candles(symbol)
+    report = _base_only_execution_report(symbol, timeframe, all_tf.get(timeframe, []), all_tf)
+    return {"symbol": symbol, "timeframe": timeframe, "reasoning": report["reasoning"],
+            "decision_authority": "BASE_HIERARCHY", "model_status": report["model_status"]}
 
 
 @app.get("/api/structure/map")
