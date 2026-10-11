@@ -11,6 +11,9 @@ on:
       - "src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py"
       - "src/Execution/Services/autonomous_demo_trader.py"
       - "src/Intelligence/Execution/strategy_orchestrator.py"
+      - "src/Intelligence/Execution/core.py"
+      - "src/Intelligence/Execution/execution_planner.py"
+      - "src/Risk/Services/reversal_handoff.py"
       - "src/Application/Runtime/research_runtime.py"
       - "src/Application/Backtesting/backtest_learning_engine.py"
       - "tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py"
@@ -19,6 +22,16 @@ on:
       - "tests/YarTrader.Tests/Decision/test_pending_order_planner.py"
       - "tests/YarTrader.Tests/Execution/test_autonomous_demo_runtime.py"
       - "tests/YarTrader.Tests/Intelligence/test_strategy_orchestrator.py"
+      - "tests/YarTrader.Tests/Intelligence/test_multi_timeframe_execution_plans.py"
+      - "tests/YarTrader.Tests/Intelligence/test_true_mtf_brain_runtime.py"
+      - "tests/YarTrader.Tests/Intelligence/test_true_mtf_causal_isolation.py"
+      - "tests/YarTrader.Tests/Research/test_live_decision_indicator_free.py"
+      - "tests/YarTrader.Tests/Execution/test_phase_b_reversal_risk.py"
+      - "tests/YarTrader.Tests/Execution/test_phase_c_execution_lifecycle.py"
+      - "tests/YarTrader.Tests/Execution/test_position_exclusivity_and_reversal.py"
+      - "tests/YarTrader.Tests/Risk/test_multi_level_risk_and_reversal.py"
+      - "tests/YarTrader.Tests/Research/test_continuous_market_following.py"
+      - "tests/YarTrader.Tests/Decision/test_professional_signal_integration.py"
       - "tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py"
       - "tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py"
       - "tests/YarTrader.Tests/Runtime/test_research_runtime.py"
@@ -37,6 +50,9 @@ on:
       - "src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py"
       - "src/Execution/Services/autonomous_demo_trader.py"
       - "src/Intelligence/Execution/strategy_orchestrator.py"
+      - "src/Intelligence/Execution/core.py"
+      - "src/Intelligence/Execution/execution_planner.py"
+      - "src/Risk/Services/reversal_handoff.py"
       - "src/Application/Runtime/research_runtime.py"
       - "src/Application/Backtesting/backtest_learning_engine.py"
       - "tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py"
@@ -45,6 +61,16 @@ on:
       - "tests/YarTrader.Tests/Decision/test_pending_order_planner.py"
       - "tests/YarTrader.Tests/Execution/test_autonomous_demo_runtime.py"
       - "tests/YarTrader.Tests/Intelligence/test_strategy_orchestrator.py"
+      - "tests/YarTrader.Tests/Intelligence/test_multi_timeframe_execution_plans.py"
+      - "tests/YarTrader.Tests/Intelligence/test_true_mtf_brain_runtime.py"
+      - "tests/YarTrader.Tests/Intelligence/test_true_mtf_causal_isolation.py"
+      - "tests/YarTrader.Tests/Research/test_live_decision_indicator_free.py"
+      - "tests/YarTrader.Tests/Execution/test_phase_b_reversal_risk.py"
+      - "tests/YarTrader.Tests/Execution/test_phase_c_execution_lifecycle.py"
+      - "tests/YarTrader.Tests/Execution/test_position_exclusivity_and_reversal.py"
+      - "tests/YarTrader.Tests/Risk/test_multi_level_risk_and_reversal.py"
+      - "tests/YarTrader.Tests/Research/test_continuous_market_following.py"
+      - "tests/YarTrader.Tests/Decision/test_professional_signal_integration.py"
       - "tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py"
       - "tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py"
       - "tests/YarTrader.Tests/Runtime/test_research_runtime.py"
@@ -77,6 +103,9 @@ jobs:
             src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py \
             src/Execution/Services/autonomous_demo_trader.py \
             src/Intelligence/Execution/strategy_orchestrator.py \
+            src/Intelligence/Execution/core.py \
+            src/Intelligence/Execution/execution_planner.py \
+            src/Risk/Services/reversal_handoff.py \
             src/Application/Runtime/research_runtime.py \
             src/Application/Backtesting/backtest_learning_engine.py
       - name: Run Base-only engine, MTF, and persistence regressions
@@ -87,6 +116,14 @@ jobs:
             tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py \
             tests/YarTrader.Tests/Decision/test_pending_order_planner.py \
             tests/YarTrader.Tests/Execution/test_autonomous_demo_runtime.py \
+            tests/YarTrader.Tests/Intelligence/test_strategy_orchestrator.py \
+            tests/YarTrader.Tests/Intelligence/test_multi_timeframe_execution_plans.py \
+            tests/YarTrader.Tests/Intelligence/test_true_mtf_brain_runtime.py \
+            tests/YarTrader.Tests/Intelligence/test_true_mtf_causal_isolation.py \
+            tests/YarTrader.Tests/Research/test_live_decision_indicator_free.py \
+            tests/YarTrader.Tests/Execution/test_phase_b_reversal_risk.py \
+            tests/YarTrader.Tests/Risk/test_multi_level_risk_and_reversal.py \
+            tests/YarTrader.Tests/Decision/test_professional_signal_integration.py \
             tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py \
             tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py \
             tests/test_multitimeframe_base_transition_engine.py \

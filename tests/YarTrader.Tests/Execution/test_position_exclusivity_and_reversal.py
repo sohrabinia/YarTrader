@@ -274,7 +274,7 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
         self.assertNotEqual(rev_price, auto_dec["entry"])
 
     def test_legacy_multi_strategy_candidates_are_disabled_in_base_only_mode(self):
-        """Legacy FAST_SCALP/SCALP inputs cannot create a signal without Base evidence."""
+        """Non-Base strategy inputs cannot create a signal without Base evidence."""
         orchestrator = StrategyOrchestrator()
         candles = [
             {"timestamp": i * 300, "open": 2000.0, "high": 2005.0, "low": 1995.0, "close": 2002.0}

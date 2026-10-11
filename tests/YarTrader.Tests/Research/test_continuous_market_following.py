@@ -16,7 +16,7 @@ from src.Infrastructure.exceptions import ValidationException
 
 
 class DummyRequest:
-    def __init__(self, symbol="XAUUSD", order_type="BUY", price=2500.0, sl=2497.5, tp=2506.0, strategy="FAST_SCALP", volume=0.1):
+    def __init__(self, symbol="XAUUSD", order_type="BUY", price=2500.0, sl=2497.5, tp=2506.0, strategy="BASE_HIERARCHY", volume=0.1):
         self.Symbol = symbol
         self.OrderType = order_type
         self.Price = price

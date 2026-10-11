@@ -40,8 +40,11 @@ class HierarchicalBaseBehaviorEngine:
 
     @staticmethod
     def _key(tf: str, base_type: str, parent_tf: str, aligned: bool,
-             relation: str = "NESTED") -> str:
-        return f"{tf}|{base_type}|{parent_tf}|{relation}|{'ALIGNED' if aligned else 'OPPOSED'}"
+             relation: str = "NESTED", candidate_direction: str = "ANY") -> str:
+        direction = str(candidate_direction or "ANY").upper()
+        if direction not in ("BUY", "SELL", "ANY"):
+            raise ValueError("candidate_direction must be BUY, SELL, or ANY")
+        return f"{tf}|{base_type}|{parent_tf}|{relation}|{'ALIGNED' if aligned else 'OPPOSED'}|{direction}"
 
     def learn(self, events_by_tf: Mapping[str, Sequence[Mapping[str, Any]]],
               labels: Sequence[Mapping[str, Any]], as_of: int) -> Dict[str, Any]:
@@ -75,7 +78,11 @@ class HierarchicalBaseBehaviorEngine:
             if not math.isfinite(net_r):
                 continue
             relation = str(label.get("parent_relation") or "NESTED")
-            key = self._key(str(event["timeframe"]), str(event["base_type"]), parent_tf, aligned, relation)
+            candidate_direction = str(label.get("candidate_direction") or
+                                       ("BUY" if int(event.get("exit_direction", 0)) > 0 else
+                                        "SELL" if int(event.get("exit_direction", 0)) < 0 else "ANY")).upper()
+            key = self._key(str(event["timeframe"]), str(event["base_type"]), parent_tf,
+                            aligned, relation, candidate_direction)
             grouped[key].append(net_r)
             eligible += 1
         self._stats = {}
@@ -92,14 +99,18 @@ class HierarchicalBaseBehaviorEngine:
 
     def export_stats(self) -> Dict[str, Any]:
         return {"version": 1, "detector_version": "base_geometry_price_only_v2",
+                "model_schema_version": "base_only_directional_net_r_v2",
                 "status": "RESEARCH_ONLY_NOT_ACTIVATED",
                 "min_samples": self.min_samples,
                 "min_win_rate": self.min_win_rate, "min_mean_net_r": self.min_mean_net_r,
                 "groups": {key: dict(value) for key, value in self._stats.items()}}
 
     def load_stats(self, model: Mapping[str, Any]) -> None:
-        if int(model.get("version", 0)) != 1 or not isinstance(model.get("groups"), Mapping):
-            raise ValueError("Unsupported or malformed Base behavior model.")
+        if (int(model.get("version", 0)) != 1
+                or model.get("detector_version") != "base_geometry_price_only_v2"
+                or model.get("model_schema_version") != "base_only_directional_net_r_v2"
+                or not isinstance(model.get("groups"), Mapping)):
+            raise ValueError("Unsupported or malformed Base-only directional behavior model.")
         clean: Dict[str, Dict[str, float]] = {}
         for key, raw in model["groups"].items():
             try:
@@ -192,7 +203,8 @@ class HierarchicalBaseBehaviorEngine:
                  else (float(quote.get("bid", 0.0)) < child_low))
         ]
         micro = max(micro_candidates, key=lambda e: int(e["confirmation_time"])) if micro_candidates else None
-        key = self._key(str(child["timeframe"]), str(child["base_type"]), parent_tf, aligned, parent_relation)
+        key = self._key(str(child["timeframe"]), str(child["base_type"]), parent_tf,
+                        aligned, parent_relation, direction)
         stat = self._stats.get(key)
 
         context = {

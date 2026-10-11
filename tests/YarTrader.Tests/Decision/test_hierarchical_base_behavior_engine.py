@@ -31,17 +31,17 @@ class HierarchicalBaseBehaviorEngineTests(unittest.TestCase):
         stats = engine.learn({"M15": [child]}, labels, as_of=1000)
         self.assertEqual(stats["eligible_labels"], 2)
         self.assertEqual(stats["groups"], 1)
-        self.assertAlmostEqual(engine.export_stats()["groups"]["M15|RBR|H1|NESTED|ALIGNED"]["mean_net_r"], -0.1)
+        self.assertAlmostEqual(engine.export_stats()["groups"]["M15|RBR|H1|NESTED|ALIGNED|BUY"]["mean_net_r"], -0.1)
 
     def test_exported_net_r_model_can_be_loaded(self):
         source = HierarchicalBaseBehaviorEngine(min_samples=1)
-        source._stats = {"M15|RBR|H1|NESTED|ALIGNED": {
+        source._stats = {"M15|RBR|H1|NESTED|ALIGNED|BUY": {
             "samples": 45, "win_rate": 0.6, "mean_net_r": 0.12,
             "standard_error": 0.07, "net_r_samples": 45,
         }}
         restored = HierarchicalBaseBehaviorEngine()
         restored.load_stats(source.export_stats())
-        self.assertEqual(restored.export_stats()["groups"]["M15|RBR|H1|NESTED|ALIGNED"]["samples"], 45)
+        self.assertEqual(restored.export_stats()["groups"]["M15|RBR|H1|NESTED|ALIGNED|BUY"]["samples"], 45)
 
     def test_opposed_parent_can_proceed_when_opposed_pattern_has_validated_stats(self):
         engine = HierarchicalBaseBehaviorEngine(min_samples=2, min_win_rate=0.5)
@@ -49,7 +49,7 @@ class HierarchicalBaseBehaviorEngineTests(unittest.TestCase):
         child = event("m15", "M15", "RBR", 1, 100, 200, 250, 99, 100, 1)
         destination = event("dest", "M15", "DBD", -1, 40, 80, 90, 106, 107, 1)
         micro = event("micro", "M1", "RBR", 1, 700, 800, 900, 101.4, 101.6, 0.2)
-        engine._stats["M15|RBR|H1|NESTED|OPPOSED"] = {
+        engine._stats["M15|RBR|H1|NESTED|OPPOSED|BUY"] = {
             "samples": 20, "win_rate": 0.65, "mean_net_r": 0.3,
             "standard_error": 0.1, "net_r_samples": 20,
         }

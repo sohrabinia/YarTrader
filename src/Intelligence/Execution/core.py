@@ -8,7 +8,6 @@ from src.Intelligence.Execution.zones import InstitutionalZoneEngine
 from src.Intelligence.Execution.alignment import MultiTimeframeAlignmentEngine
 from src.Intelligence.Execution.similarity import PatternSimilarityIntelligenceEngine
 from src.Intelligence.Execution.portfolio import PortfolioRiskIntelligenceEngine
-from src.Intelligence.Execution.execution_planner import ExecutionIntelligencePlanner
 
 class ExecutionIntelligenceCore:
     """
@@ -17,12 +16,13 @@ class ExecutionIntelligenceCore:
     - Liquidity Intelligence Engine
     - Institutional Zone Engine
     - Multi-Timeframe Structural Alignment
-    - Pattern Similarity Intelligence
-    - Explainable Execution Planning
+    - Pattern Similarity Intelligence (research telemetry only)
     - Portfolio Risk Intelligence
+    - Canonical Base-hierarchy decision authority (only actionable strategy)
 
-    Adheres strictly to the Shared Cognitive Intelligence Core rule (no separate per-symbol/TF models).
-    Serves 300 independent research contexts with complete memory/state isolation.
+    Legacy analytics are non-authoritative research telemetry. Only the hierarchical
+    Base behavior and costed Base-reaction engine may emit an actionable plan.
+    Context state remains isolated by symbol and timeframe.
     """
     _instance: Optional["ExecutionIntelligenceCore"] = None
 
@@ -39,7 +39,6 @@ class ExecutionIntelligenceCore:
         self.alignment_engine = MultiTimeframeAlignmentEngine()
         self.similarity_engine = PatternSimilarityIntelligenceEngine()
         self.portfolio_engine = PortfolioRiskIntelligenceEngine()
-        self.planner = ExecutionIntelligencePlanner()
 
         # In-memory registry of isolated context states to prevent cross-contamination
         # Keys are (symbol, timeframe) tuples
@@ -145,41 +144,69 @@ class ExecutionIntelligenceCore:
         active_trades = active_portfolio_trades or []
         portfolio_res = self.portfolio_engine.calculate_portfolio_risk(active_trades, virtual_balance)
 
-        # 6b. Legacy strategy profiles are diagnostic-only and never participate in
-        # the executable decision path. Preserve an explicit disabled record for audit/UI
-        # consumers while the Brain remains the sole market-strategy authority.
-        strategy_eval_res = {
-            "candidates": [{
-                "strategy_name": "FRACTAL",
-                "direction": "WAIT",
-                "confidence": 0.0,
-                "reasoning": ["FRACTAL strategy explicitly disabled: insufficient pattern memory evidence."]
-            }],
-            "authority": "BRAIN_ONLY",
-            "execution_authority": False
-        }
-
-        # 7. Generate advisory plan recommendation
-        current_price = float(candles[-1]["close"])
-        plan_res = self.planner.generate_execution_plan(
+        # 6b. Canonical strategy authority: hierarchical Bases and costed Base reactions.
+        # The legacy planner and its narrative/liquidity/zone/similarity inputs are
+        # deliberately not allowed to emit or override actionable BUY/SELL decisions.
+        from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
+        base_result = StrategyOrchestrator().evaluate_all_strategies(
             symbol=symbol,
-            timeframe=timeframe,
-            narrative=narrative_res,
-            liquidity=liquidity_res,
-            zones=zones_res,
-            alignment=alignment_res,
-            similarity=similarity_res,
-            portfolio_risk=portfolio_res,
-            current_price=current_price,
-            strategy_eval=None,
-            lang=lang,
-            newborn_brain_report=newborn_brain_report
+            primary_timeframe=timeframe,
+            candles=candles,
+            all_timeframe_candles=all_timeframe_candles,
+            spread_pip=1.0,
         )
-        state["plan"] = plan_res["plan"]
+        base_candidates = list(base_result.get("candidates") or [])
+        strategy_eval_res = {
+            "candidates": base_candidates,
+            "authority": "BASE_HIERARCHY_ONLY",
+            "execution_authority": True,
+            "decision_source": "hierarchical_base_behavior_plus_costed_reaction",
+            "summary": base_result.get("summary", "Base-only strategy."),
+        }
+        if base_candidates:
+            candidate = base_candidates[0]
+            plan = {
+                "action": str(candidate.get("direction", "WAIT")),
+                "decision": str(candidate.get("direction", "WAIT")),
+                "strategy": "BASE_HIERARCHY",
+                "status": "PROPOSED",
+                "entry": candidate.get("entry"),
+                "stop_loss": candidate.get("stop_loss"),
+                "take_profit": candidate.get("take_profit"),
+                "risk_reward": candidate.get("risk_reward"),
+                "confidence": candidate.get("confidence", 0.0),
+                "reason": "; ".join(candidate.get("reasoning") or []),
+                "decision_authority": "BASE_HIERARCHY_ONLY",
+                "decision_source": "BASE_HIERARCHY_ONLY",
+                "context_identity": ctx_hash,
+                "decision_cycle_id": cycle_id,
+                "source": "hierarchical_base_behavior_plus_costed_reaction",
+            }
+        else:
+            base_plan = base_result.get("base_plan") or {}
+            plan = {
+                "action": "WAIT",
+                "decision": "WAIT",
+                "strategy": "BASE_HIERARCHY",
+                "status": "WAIT",
+                "entry": None,
+                "stop_loss": None,
+                "take_profit": None,
+                "risk_reward": 0.0,
+                "confidence": 0.0,
+                "reason": str(base_plan.get("reason") or base_result.get("summary") or
+                              "No validated Base-reaction setup; no alternative strategy is permitted."),
+                "decision_authority": "BASE_HIERARCHY_ONLY",
+                "decision_source": "BASE_HIERARCHY_ONLY",
+                "context_identity": ctx_hash,
+                "decision_cycle_id": cycle_id,
+                "source": "hierarchical_base_behavior_plus_costed_reaction",
+            }
+        state["plan"] = plan
         from datetime import datetime
         state["last_updated"] = datetime.now().isoformat()
 
-        # Combine results
+        # Combine research telemetry with the sole Base-only actionable plan.
         return {
             "symbol": symbol.upper(),
             "timeframe": timeframe.upper(),
@@ -191,7 +218,8 @@ class ExecutionIntelligenceCore:
             "fractal": state.get("fractal", {}),
             "strategy_evaluation": strategy_eval_res,
             "portfolio_risk": portfolio_res,
-            "plan": plan_res["plan"]
+            "plan": plan,
+            "base_analysis": base_result,
         }
 
     def _load_historical_pattern_memory(self) -> List[Dict[str, Any]]:

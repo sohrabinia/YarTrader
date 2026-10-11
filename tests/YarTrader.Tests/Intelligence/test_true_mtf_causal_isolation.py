@@ -135,15 +135,15 @@ class TestTrueMTFCausalIsolation(unittest.TestCase):
         }
         self.assertEqual(len(identities), 4)
 
-    def test_04_legacy_orchestrator_is_not_execution_authority(self):
-        """Confirms strategy_orchestrator.py is NOT execution authority and decision_source == 'BRAIN' when report consumed."""
+    def test_04_base_hierarchy_is_the_only_execution_authority(self):
+        """Confirms Brain hypotheses cannot override the canonical Base decision engine."""
         candles = self._generate_mock_candles(trend="BULLISH")
         brain_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
         plan = self.core.evaluate_context("XAUUSD", "H1", candles, newborn_brain_report=brain_report)["plan"]
 
-        self.assertEqual(plan["decision_source"], "BRAIN")
-        self.assertEqual(plan["strategy"], "Multi-Timeframe Continuous Market Intelligence")
-        self.assertIn(plan["decision"], ["BUY", "SELL", "NO_TRADE"])
+        self.assertEqual(plan["decision_source"], "BASE_HIERARCHY_ONLY")
+        self.assertEqual(plan["strategy"], "BASE_HIERARCHY")
+        self.assertEqual(plan["decision"], "WAIT")
 
     def test_05_safety_gate_remains_fail_closed(self):
         """Confirms LIVE_TRADING_ENABLED = False remains fail-closed."""

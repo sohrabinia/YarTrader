@@ -38,7 +38,7 @@ class TestProfessionalSignalIntegration(unittest.TestCase):
         mock_signal_engine.generate_unified_signal.return_value = UnifiedSignalContract(
             signal_id="SIG-BUY-101", symbol="XAUUSD", timeframe="M15", direction="BUY",
             entry_price=2050.0, stop_loss=2040.0, take_profit=2072.0, risk_reward=2.2,
-            confidence=0.88, pattern_id="FAST_SCALP", market_context="MTF Aligned",
+            confidence=0.88, pattern_id="BASE_HIERARCHY", market_context="MTF Aligned",
             created_at=datetime.now().isoformat()
         )
         engine = DecisionEngine(signal_engine=mock_signal_engine)

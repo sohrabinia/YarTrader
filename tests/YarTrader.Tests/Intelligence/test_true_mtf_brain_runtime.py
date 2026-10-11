@@ -62,7 +62,8 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         self.assertEqual(res["timeframe"], "H1")
         self.assertIn("plan", res)
         self.assertIn(res["plan"]["action"], ["BUY", "SELL", "WAIT", "AVOID"])
-        self.assertEqual(res["plan"]["strategy"], "Multi-Timeframe Continuous Market Intelligence")
+        self.assertEqual(res["plan"]["strategy"], "BASE_HIERARCHY")
+        self.assertEqual(res["plan"]["decision_authority"], "BASE_HIERARCHY_ONLY")
 
     def test_02_same_direction_buy_reentry(self):
         """Proves consecutive BUY -> BUY re-entries when Brain proposes BUY and market structure remains bullish."""
@@ -73,8 +74,10 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         c2 = self._generate_mock_candles(base_price=2310.0, trend="BULLISH")
         res2 = self.core.evaluate_context("XAUUSD", "H1", c2, newborn_brain_report=brain_buy)
 
-        self.assertEqual(res1["plan"]["action"], "BUY")
-        self.assertEqual(res2["plan"]["action"], "BUY")
+        # A Brain hypothesis cannot bypass the Base hierarchy or missing costed reaction evidence.
+        self.assertEqual(res1["plan"]["action"], "WAIT")
+        self.assertEqual(res2["plan"]["action"], "WAIT")
+        self.assertEqual(res1["plan"]["decision_source"], "BASE_HIERARCHY_ONLY")
 
     def test_03_same_direction_sell_reentry(self):
         """Proves consecutive SELL -> SELL re-entries when Brain proposes SELL and market structure remains bearish."""
@@ -89,8 +92,9 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         c2 = self._generate_mock_candles(base_price=2290.0, trend="BEARISH")
         res2 = self.core.evaluate_context("XAUUSD", "H1", c2, all_timeframe_candles=all_tf_bearish, newborn_brain_report=brain_sell)
 
-        self.assertEqual(res1["plan"]["action"], "SELL")
-        self.assertEqual(res2["plan"]["action"], "SELL")
+        self.assertEqual(res1["plan"]["action"], "WAIT")
+        self.assertEqual(res2["plan"]["action"], "WAIT")
+        self.assertEqual(res1["plan"]["decision_source"], "BASE_HIERARCHY_ONLY")
 
     def test_04_dynamic_buy_to_sell_transition(self):
         """Proves dynamic BUY -> SELL transition when Brain proposal aligns with market structure shift."""
@@ -110,8 +114,10 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         c_bearish = self._generate_mock_candles(base_price=2320.0, trend="BEARISH")
         res_sell = self.core.evaluate_context("XAUUSD", "H1", c_bearish, all_timeframe_candles=all_tf_bearish, newborn_brain_report=brain_sell)
 
-        self.assertEqual(res_buy["plan"]["action"], "BUY")
-        self.assertEqual(res_sell["plan"]["action"], "SELL")
+        self.assertEqual(res_buy["plan"]["action"], "WAIT")
+        self.assertEqual(res_sell["plan"]["action"], "WAIT")
+        self.assertEqual(res_buy["plan"]["decision_authority"], "BASE_HIERARCHY_ONLY")
+        self.assertEqual(res_sell["plan"]["decision_authority"], "BASE_HIERARCHY_ONLY")
 
     def test_05_independent_one_percent_max_risk_budget(self):
         """Proves 1.0% account equity risk calculation in risk engine."""
@@ -131,14 +137,13 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         self.assertAlmostEqual(sizing_res.risk_budget_usd, expected_budget, places=2)
         self.assertGreater(sizing_res.volume_lots, 0.0)
 
-    def test_06_legacy_strategy_isolation(self):
-        """Proves legacy strategy identities (e.g. PRICE_ACTION_RTM, FAST_SCALP) are isolated."""
+    def test_06_base_hierarchy_is_the_only_decision_authority(self):
         c = self._generate_mock_candles(trend="BULLISH")
         plan = self.core.evaluate_context("XAUUSD", "H1", c)["plan"]
 
-        self.assertNotEqual(plan["strategy"], "PRICE_ACTION_RTM")
-        self.assertNotEqual(plan["strategy"], "FAST_SCALP")
-        self.assertEqual(plan["strategy"], "Multi-Timeframe Continuous Market Intelligence")
+        self.assertEqual(plan["strategy"], "BASE_HIERARCHY")
+        self.assertEqual(plan["decision_authority"], "BASE_HIERARCHY_ONLY")
+        self.assertEqual(plan["action"], "WAIT")
 
     def test_07_fail_closed_safety_gate(self):
         """Proves live broker order execution remains fail-closed."""

@@ -21,7 +21,8 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
                       "confidence": 85, "expires_at": 5000}
         self.quote = {"bid": 100.5, "ask": 100.6}
         key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.2, "BUY")
-        self.engine.load_stats({"version": 1, "groups": {key: {"samples": 30, "win_rate": 0.75,
+        self.engine.load_stats({"version": 1, "detector_version": "base_geometry_price_only_v2",
+                               "model_schema_version": "base_only_directional_net_r_v2", "groups": {key: {"samples": 30, "win_rate": 0.75,
                                "mean_net_r": 0.2, "standard_error": 0.08, "mean_net_r_standard_error": 0.02}}})
 
     def evaluate(self, **kwargs):
@@ -40,7 +41,8 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
     def test_selects_best_qualified_depth_and_uses_that_limit_price(self):
         outer = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.375, "BUY")
         edge = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.125, "BUY")
-        self.engine.load_stats({"version": 1, "groups": {
+        self.engine.load_stats({"version": 1, "detector_version": "base_geometry_price_only_v2",
+                               "model_schema_version": "base_only_directional_net_r_v2", "groups": {
             edge: {"samples": 50, "win_rate": 0.60, "mean_net_r": 0.12, "standard_error": 0.07, "mean_net_r_standard_error": 0.02},
             outer: {"samples": 50, "win_rate": 0.65, "mean_net_r": 0.30, "standard_error": 0.07, "mean_net_r_standard_error": 0.03},
         }})
@@ -58,7 +60,8 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
 
     def test_far_edge_uses_the_same_entry_depth_that_was_trained(self):
         key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.75, "BUY")
-        self.engine.load_stats({"version": 1, "groups": {key: {
+        self.engine.load_stats({"version": 1, "detector_version": "base_geometry_price_only_v2",
+                               "model_schema_version": "base_only_directional_net_r_v2", "groups": {key: {
             "samples": 50, "win_rate": 0.65, "mean_net_r": 0.30,
             "standard_error": 0.07, "mean_net_r_standard_error": 0.02}}})
         result = self.evaluate(reaction={**self.reaction, "penetration_fraction": 0.75})
@@ -69,7 +72,8 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
     def test_model_without_mean_net_r_uncertainty_is_rejected(self):
         key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.125, "BUY")
         with self.assertRaises(ValueError):
-            self.engine.load_stats({"version": 1, "groups": {key: {
+            self.engine.load_stats({"version": 1, "detector_version": "base_geometry_price_only_v2",
+                               "model_schema_version": "base_only_directional_net_r_v2", "groups": {key: {
                 "samples": 50, "win_rate": 0.7, "mean_net_r": 0.2, "standard_error": 0.05}}})
 
     def test_missing_micro_or_mismatched_reaction_fails_closed(self):
@@ -79,7 +83,8 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
     def test_future_parent_fails_closed_but_opposed_parent_uses_its_own_learned_profile(self):
         self.assertEqual(self.evaluate(parent={**self.parent, "confirmation_time": 300})["status"], "WAIT")
         opposed_key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", False, 1, 0.2, "BUY")
-        self.engine.load_stats({"version": 1, "groups": {opposed_key: {
+        self.engine.load_stats({"version": 1, "detector_version": "base_geometry_price_only_v2",
+                               "model_schema_version": "base_only_directional_net_r_v2", "groups": {opposed_key: {
             "samples": 30, "win_rate": 0.75, "mean_net_r": 0.2,
             "standard_error": 0.08, "mean_net_r_standard_error": 0.02}}})
         result = self.evaluate(parent={**self.parent, "exit_direction": -1})

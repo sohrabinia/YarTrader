@@ -152,7 +152,7 @@ class TestPhaseCExecutionLifecycle:
         res_overnight = manager.evaluate_entry_permission(trading_style="OVERNIGHT", remaining_session_seconds=3600.0)
         assert res_overnight["allowed"] is False
 
-        # FAST_SCALP -> ALLOWED
+        # BASE_HIERARCHY -> ALLOWED
         res_base = manager.evaluate_entry_permission(trading_style="BASE_HIERARCHY", remaining_session_seconds=3600.0)
         assert res_base["allowed"] is True
 

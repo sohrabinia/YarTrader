@@ -17,7 +17,7 @@ class TestMultiTimeframeExecutionPlans(unittest.TestCase):
     5. NO_TRADE / WAIT state is returned when conditions are conflicting or risk limits fail.
     6. Zero fixed BUY/SELL alternation mechanism exists.
     7. Daily-only logic is not authoritative.
-    8. PRICE_ACTION_RTM is NOT the authoritative execution strategy.
+    8. The hierarchical Base engine is the sole execution strategy.
     9. Live trading remains fail-closed (LIVE_TRADING_ENABLED = False).
     """
 
@@ -59,7 +59,7 @@ class TestMultiTimeframeExecutionPlans(unittest.TestCase):
         self.assertIn("similarity", res)
 
     def test_02_consecutive_buy_buy_plans(self):
-        """Verify BUY can be followed by another BUY when Brain proposes BUY and conditions remain bullish."""
+        """Brain hypotheses alone cannot bypass the Base-only decision gate."""
         brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2290.0, "take_profit": 2320.0, "risk_reward": 2.0}}]}
         candles_1 = self._generate_mock_candles(base_price=2300.0, trend="BULLISH")
         plan_1 = self.core.evaluate_context("XAUUSD", "H1", candles_1, newborn_brain_report=brain_buy_report)["plan"]
@@ -67,11 +67,12 @@ class TestMultiTimeframeExecutionPlans(unittest.TestCase):
         candles_2 = self._generate_mock_candles(base_price=2310.0, trend="BULLISH")
         plan_2 = self.core.evaluate_context("XAUUSD", "H1", candles_2, newborn_brain_report=brain_buy_report)["plan"]
 
-        self.assertEqual(plan_1["action"], "BUY")
-        self.assertEqual(plan_2["action"], "BUY")
+        self.assertEqual(plan_1["action"], "WAIT")
+        self.assertEqual(plan_2["action"], "WAIT")
+        self.assertEqual(plan_1["decision_authority"], "BASE_HIERARCHY_ONLY")
 
     def test_03_consecutive_sell_sell_plans(self):
-        """Verify SELL can be followed by another SELL when Brain proposes SELL and conditions remain bearish."""
+        """Brain hypotheses alone cannot bypass the Base-only decision gate."""
         brain_sell_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2310.0, "take_profit": 2280.0, "risk_reward": 2.0}}]}
         candles_1 = self._generate_mock_candles(base_price=2300.0, trend="BEARISH")
         plan_1 = self.core.evaluate_context("XAUUSD", "H1", candles_1, newborn_brain_report=brain_sell_report)["plan"]
@@ -79,11 +80,12 @@ class TestMultiTimeframeExecutionPlans(unittest.TestCase):
         candles_2 = self._generate_mock_candles(base_price=2290.0, trend="BEARISH")
         plan_2 = self.core.evaluate_context("XAUUSD", "H1", candles_2, newborn_brain_report=brain_sell_report)["plan"]
 
-        self.assertEqual(plan_1["action"], "SELL")
-        self.assertEqual(plan_2["action"], "SELL")
+        self.assertEqual(plan_1["action"], "WAIT")
+        self.assertEqual(plan_2["action"], "WAIT")
+        self.assertEqual(plan_1["decision_authority"], "BASE_HIERARCHY_ONLY")
 
     def test_04_dynamic_buy_to_sell_transition_on_genuine_trend_shift(self):
-        """Verify BUY -> SELL transition occurs when Brain proposes trade direction matching structural shifts."""
+        """A trend narrative alone cannot trigger a Base-only trade transition."""
         brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2290.0, "take_profit": 2320.0, "risk_reward": 2.0}}]}
         bullish_candles = self._generate_mock_candles(base_price=2300.0, trend="BULLISH")
         plan_buy = self.core.evaluate_context("XAUUSD", "H1", bullish_candles, newborn_brain_report=brain_buy_report)["plan"]
@@ -92,11 +94,30 @@ class TestMultiTimeframeExecutionPlans(unittest.TestCase):
         bearish_candles = self._generate_mock_candles(base_price=2320.0, trend="BEARISH")
         plan_sell = self.core.evaluate_context("XAUUSD", "H1", bearish_candles, newborn_brain_report=brain_sell_report)["plan"]
 
-        self.assertEqual(plan_buy["action"], "BUY")
-        self.assertEqual(plan_sell["action"], "SELL")
+        self.assertEqual(plan_buy["action"], "WAIT")
+        self.assertEqual(plan_sell["action"], "WAIT")
+        self.assertEqual(plan_buy["decision_authority"], "BASE_HIERARCHY_ONLY")
+        self.assertEqual(plan_sell["decision_authority"], "BASE_HIERARCHY_ONLY")
 
     def test_05_no_trade_wait_state_on_conflicting_conditions_or_risk(self):
-        """Verify AVOID / WAIT state returned when risk limits are violated."""
+        """Legacy planner cannot turn Brain/narrative hypotheses into Base trades."""
+        brain_only_plan = self.planner.generate_execution_plan(
+            symbol="XAUUSD",
+            timeframe="H1",
+            narrative={"trend": "BULLISH"},
+            liquidity={},
+            zones={},
+            alignment={"alignment": "FULLY_ALIGNED", "confidence": 85},
+            similarity={},
+            portfolio_risk={"approved": True},
+            current_price=2300.0,
+            newborn_brain_report={"brain_available": True,
+                                  "active_hypotheses": [{"suggested_virtual_action": "BUY"}]},
+        )["plan"]
+        self.assertEqual(brain_only_plan["action"], "WAIT")
+        self.assertEqual(brain_only_plan["strategy"], "BASE_HIERARCHY")
+        self.assertEqual(brain_only_plan["decision_authority"], "BASE_HIERARCHY_ONLY")
+
         portfolio_risk_blocked = {"approved": False, "violations": ["Max drawdown ceiling exceeded"]}
 
         plan = self.planner.generate_execution_plan(
@@ -112,6 +133,8 @@ class TestMultiTimeframeExecutionPlans(unittest.TestCase):
         )["plan"]
 
         self.assertEqual(plan["action"], "AVOID")
+        self.assertEqual(plan["strategy"], "BASE_HIERARCHY")
+        self.assertEqual(plan["decision_authority"], "BASE_HIERARCHY_ONLY")
         self.assertEqual(plan["entry"], 0.0)
 
     def test_06_proof_zero_fixed_buy_sell_alternation(self):
@@ -119,7 +142,7 @@ class TestMultiTimeframeExecutionPlans(unittest.TestCase):
         c = self._generate_mock_candles(trend="BULLISH")
         brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2290.0, "take_profit": 2320.0, "risk_reward": 2.0}}]}
         actions = [self.core.evaluate_context("XAUUSD", "H1", c, newborn_brain_report=brain_buy_report)["plan"]["action"] for _ in range(3)]
-        self.assertEqual(actions, ["BUY", "BUY", "BUY"])
+        self.assertEqual(actions, ["WAIT", "WAIT", "WAIT"])
 
     def test_07_daily_only_logic_not_authoritative(self):
         """Verify execution plans operate on sub-daily timeframes (M1, M5, M15, H1)."""
@@ -127,14 +150,14 @@ class TestMultiTimeframeExecutionPlans(unittest.TestCase):
         brain_buy_report = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2290.0, "take_profit": 2320.0, "risk_reward": 2.0}}]}
         res_m5 = self.core.evaluate_context("XAUUSD", "M5", m5_candles, newborn_brain_report=brain_buy_report)
         self.assertEqual(res_m5["timeframe"], "M5")
-        self.assertEqual(res_m5["plan"]["action"], "BUY")
+        self.assertEqual(res_m5["plan"]["action"], "WAIT")
+        self.assertEqual(res_m5["plan"]["strategy"], "BASE_HIERARCHY")
 
-    def test_08_price_action_rtm_not_authoritative_strategy(self):
-        """Verify execution plan strategy identity is NOT 'PRICE_ACTION_RTM'."""
+    def test_08_base_hierarchy_is_only_strategy(self):
         candles = self._generate_mock_candles(trend="BULLISH")
         plan = self.core.evaluate_context("XAUUSD", "H1", candles)["plan"]
-        self.assertNotEqual(plan["strategy"], "PRICE_ACTION_RTM")
-        self.assertEqual(plan["strategy"], "Multi-Timeframe Continuous Market Intelligence")
+        self.assertEqual(plan["strategy"], "BASE_HIERARCHY")
+        self.assertEqual(plan["decision_authority"], "BASE_HIERARCHY_ONLY")
 
     def test_09_live_trading_remains_fail_closed(self):
         """Verify real live trading remains hard-blocked and fail-closed."""

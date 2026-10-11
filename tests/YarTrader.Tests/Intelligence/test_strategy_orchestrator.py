@@ -35,47 +35,22 @@ class TestStrategyOrchestrator(unittest.TestCase):
         self.assertEqual(measured["entry_side"], "FROM_ABOVE")
         self.assertAlmostEqual(measured["penetration_fraction"], 0.5)
 
-    def test_evaluate_all_6_strategies(self):
-        """Verifies all 6 strategy profiles are evaluated independently."""
-        res = self.orchestrator.evaluate_all_strategies(
-            symbol="XAUUSD",
-            primary_timeframe="M5",
-            candles=self.mock_candles
+    def test_only_base_hierarchy_is_supported(self):
+        """Legacy named strategies are not exposed or evaluated."""
+        self.assertEqual(self.orchestrator.supported_strategies, ["BASE_HIERARCHY"])
+        result = self.orchestrator.evaluate_all_strategies(
+            symbol="XAUUSD", primary_timeframe="M5", candles=self.mock_candles
         )
-        self.assertEqual(res["symbol"], "XAUUSD")
-        self.assertEqual(res["primary_timeframe"], "M5")
-        self.assertEqual(len(res["candidates"]), 6)
-
-        strategy_names = [c["strategy_name"] for c in res["candidates"]]
-        expected = ["FAST_SCALP", "SCALP", "DAY_TRADING", "JUMP", "PRICE_ACTION_RTM", "FRACTAL"]
-        for exp in expected:
-            self.assertIn(exp, strategy_names)
-
-    def test_fvg_boundary_safety_bullish_and_bearish(self):
-        """
-        Verifies that PRICE_ACTION_RTM correctly handles both bullish and bearish FVGs
-        without outer/inner block short-circuiting.
-        """
-        zones = {
-            "fair_value_gaps": [
-                {"type": "BULLISH_FVG", "bottom": 1900.0, "top": 1950.0}, # Out of range for current price 2000.0
-                {"type": "BEARISH_FVG", "bottom": 1990.0, "top": 2010.0}  # In range for current price 2000.0
-            ]
-        }
-
-        rtm_cand = self.orchestrator._evaluate_price_action_rtm(
-            symbol="XAUUSD",
-            tf="M15",
-            candles=self.mock_candles,
-            zones=zones,
-            liquidity={},
-            current_price=2000.0,
-            pip_factor=0.1
+        self.assertEqual(result["symbol"], "XAUUSD")
+        self.assertEqual(result["primary_timeframe"], "M5")
+        self.assertEqual(
+            {candidate["strategy_name"] for candidate in result["candidates"]},
+            {"BASE_HIERARCHY"} if result["candidates"] else set(),
         )
+        self.assertIn("no fallback strategy", result["summary"].lower())
 
-        # Must correctly identify the bearish FVG in-range and output SELL
-        self.assertEqual(rtm_cand.direction, "SELL")
-        self.assertEqual(rtm_cand.strategy_name, "PRICE_ACTION_RTM")
+    def test_legacy_fvg_strategy_evaluator_is_removed(self):
+        self.assertFalse(hasattr(self.orchestrator, "_evaluate_price_action_rtm"))
 
 if __name__ == "__main__":
     unittest.main()

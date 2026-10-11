@@ -124,14 +124,18 @@ class BaseReactionDecisionEngine:
     def export_stats(self) -> Dict[str, Any]:
         return {"version": 1, "status": "RESEARCH_ONLY_NOT_ACTIVATED",
                 "detector_version": "base_geometry_price_only_v2",
+                "model_schema_version": "base_only_directional_net_r_v2",
                 "min_samples": self.min_samples, "min_win_rate": self.min_win_rate,
                 "min_mean_net_r": self.min_mean_net_r,
                 "min_reverse_net_rr": self.min_reverse_net_rr,
                 "groups": {k: dict(v) for k, v in self._stats.items()}}
 
     def load_stats(self, model: Mapping[str, Any]) -> None:
-        if int(model.get("version", 0)) != 1 or not isinstance(model.get("groups"), Mapping):
-            raise ValueError("Unsupported Base reaction model")
+        if (int(model.get("version", 0)) != 1
+                or model.get("detector_version") != "base_geometry_price_only_v2"
+                or model.get("model_schema_version") != "base_only_directional_net_r_v2"
+                or not isinstance(model.get("groups"), Mapping)):
+            raise ValueError("Unsupported Base-only directional reaction model")
         clean: Dict[str, Dict[str, float]] = {}
         for key, value in model["groups"].items():
             n, win, mean = int(value["samples"]), float(value["win_rate"]), float(value["mean_net_r"])
