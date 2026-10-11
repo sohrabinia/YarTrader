@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 import math
 from typing import Dict, List, Any
 from src.Intelligence.Execution.core import ExecutionIntelligenceCore
@@ -159,7 +160,20 @@ class TestMultiTimeframeExecutionPlans(unittest.TestCase):
         self.assertEqual(plan["strategy"], "BASE_HIERARCHY")
         self.assertEqual(plan["decision_authority"], "BASE_HIERARCHY_ONLY")
 
-    def test_09_live_trading_remains_fail_closed(self):
+    def test_09_portfolio_risk_gate_overrides_base_proposal(self):
+        candles = self._generate_mock_candles(trend="BULLISH")
+        with patch.object(
+            self.core.portfolio_engine,
+            "calculate_portfolio_risk",
+            return_value={"approved": False, "violations": ["test risk block"]},
+        ):
+            plan = self.core.evaluate_context("XAUUSD", "H1", candles)["plan"]
+        self.assertEqual(plan["action"], "AVOID")
+        self.assertEqual(plan["strategy"], "BASE_HIERARCHY")
+        self.assertEqual(plan["decision_authority"], "BASE_HIERARCHY_ONLY")
+        self.assertIn("test risk block", plan["reason"])
+
+    def test_10_live_trading_remains_fail_closed(self):
         """Verify real live trading remains hard-blocked and fail-closed."""
         with self.assertRaises(ValidationException) as ctx:
             MetaTraderSafetyGate.verify_operation(terminal_type="MT5", operation_type="REAL_LIVE")

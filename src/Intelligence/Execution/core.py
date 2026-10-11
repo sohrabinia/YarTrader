@@ -163,7 +163,26 @@ class ExecutionIntelligenceCore:
             "decision_source": "hierarchical_base_behavior_plus_costed_reaction",
             "summary": base_result.get("summary", "Base-only strategy."),
         }
-        if base_candidates:
+        if not portfolio_res.get("approved", True):
+            violations = list(portfolio_res.get("violations") or [])
+            plan = {
+                "action": "AVOID",
+                "decision": "AVOID",
+                "strategy": "BASE_HIERARCHY",
+                "status": "AVOID",
+                "entry": None,
+                "stop_loss": None,
+                "take_profit": None,
+                "risk_reward": 0.0,
+                "confidence": 0.0,
+                "reason": "Portfolio risk gate blocked the Base setup: " + "; ".join(str(v) for v in violations),
+                "decision_authority": "BASE_HIERARCHY_ONLY",
+                "decision_source": "BASE_HIERARCHY_ONLY",
+                "context_identity": ctx_hash,
+                "decision_cycle_id": cycle_id,
+                "source": "portfolio_risk_gate",
+            }
+        elif base_candidates:
             candidate = base_candidates[0]
             plan = {
                 "action": str(candidate.get("direction", "WAIT")),

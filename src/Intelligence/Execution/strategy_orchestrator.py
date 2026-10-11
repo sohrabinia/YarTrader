@@ -118,7 +118,8 @@ class StrategyOrchestrator:
             if model_path.exists():
                 model = json.loads(model_path.read_text(encoding="utf-8"))
                 if (model.get("detector_version") == "base_geometry_price_only_v2"
-                        and model.get("model_schema_version") == "base_only_directional_net_r_v2"):
+                        and model.get("model_schema_version") == "base_only_directional_net_r_v2"
+                        and model.get("status") == "ACTIVE_VALIDATED"):
                     engine.load_stats(model)
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             # Invalid/missing evidence fails closed; no alternative strategy is tried.
@@ -137,6 +138,8 @@ class StrategyOrchestrator:
                 if (reaction_model.get("detector_version") != "base_geometry_price_only_v2"
                         or reaction_model.get("model_schema_version") != "base_only_directional_net_r_v2"):
                     reaction_model_status = "REACTION_MODEL_SCHEMA_VERSION_MISMATCH"
+                elif reaction_model.get("status") != "ACTIVE_VALIDATED":
+                    reaction_model_status = "REACTION_MODEL_NOT_ACTIVATED"
                 else:
                     reaction_engine.load_stats(reaction_model)
                     reaction_model_status = "COSTED_REACTION_MODEL_LOADED"
@@ -158,13 +161,16 @@ class StrategyOrchestrator:
             direction_sign = int(child.get("exit_direction", 0))
             base_width = float(child.get("base_width", child.get("base_atr", 0.0)))
             stop = low - 0.15 * base_width if direction_sign > 0 else high + 0.15 * base_width
-            child_confirmation = int(child.get("confirmation_time", 0))
+            # Destination Bases may form after the source Base, but must be fully
+            # confirmed before the current decision candle; never freeze targets
+            # at the older source-Base confirmation timestamp.
+            decision_time = int(latest_epoch)
             known_destination_events = sorted(
                 [event for event in events_by_tf.get(tf, [])
                  if event.get("event_id") != child.get("event_id")
-                 and int(event.get("confirmation_time", 0)) <= child_confirmation],
+                 and int(event.get("confirmation_time", 0)) <= decision_time],
                 key=lambda event: int(event.get("confirmation_time", 0)),
-            )[-512:]
+            )
             if direction_sign > 0:
                 known_destination_events = sorted(
                     (event for event in known_destination_events if float(event["base_low"]) > high),
