@@ -342,12 +342,22 @@ class AutonomousDemoTrader:
                  and int(event.get("confirmation_time", 0)) <= child_confirmation],
                 key=lambda event: int(event.get("confirmation_time", 0)),
             )[-512:]
+            if direction_sign > 0:
+                known_destination_events = sorted(
+                    (event for event in known_destination_events if float(event.get("base_low", 0.0)) > zone_high),
+                    key=lambda event: float(event.get("base_low", 0.0)),
+                )[:32]
+            else:
+                known_destination_events = sorted(
+                    (event for event in known_destination_events if float(event.get("base_high", 0.0)) < zone_low),
+                    key=lambda event: float(event.get("base_high", 0.0)), reverse=True,
+                )[:32]
             destination = []
             for event in known_destination_events:
                 lo, hi = float(event.get("base_low", 0.0)), float(event.get("base_high", 0.0))
-                if direction_sign > 0 and lo > zone_high:
+                if direction_sign > 0 and lo > max(zone_high, float(tick["ask"])):
                     destination.append((lo-entry_mid, lo))
-                elif direction_sign < 0 and hi < zone_low:
+                elif direction_sign < 0 and hi < min(zone_low, float(tick["bid"])):
                     destination.append((entry_mid-hi, hi))
             target = min(destination, key=lambda item: item[0])[1] if destination else entry_mid + (1 if direction_sign > 0 else -1) * 3 * abs(entry_mid-stop)
             setup = {"timeframe": tf, "base_type": str(child.get("base_type", "UNKNOWN")),

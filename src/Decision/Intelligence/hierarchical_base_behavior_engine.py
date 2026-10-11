@@ -252,11 +252,21 @@ class HierarchicalBaseBehaviorEngine:
              and int(e.get("confirmation_time", 0)) <= child_confirmation],
             key=lambda e: int(e.get("confirmation_time", 0)),
         )[-512:]
+        if direction == "BUY":
+            known_destination_events = sorted(
+                (e for e in known_destination_events if float(e["base_low"]) > high),
+                key=lambda e: float(e["base_low"]),
+            )[:32]
+        else:
+            known_destination_events = sorted(
+                (e for e in known_destination_events if float(e["base_high"]) < low),
+                key=lambda e: float(e["base_high"]), reverse=True,
+            )[:32]
         target_candidates = []
         for e in known_destination_events:
-            if direction == "BUY" and float(e["base_low"]) > high:
+            if direction == "BUY" and float(e["base_low"]) > max(high, float(quote["ask"])):
                 target_candidates.append((float(e["base_low"])-entry, e))
-            elif direction == "SELL" and float(e["base_high"]) < low:
+            elif direction == "SELL" and float(e["base_high"]) < min(low, float(quote["bid"])):
                 target_candidates.append((entry-float(e["base_high"]), e))
         invalidation = low-0.15*atr if direction == "BUY" else high+0.15*atr
         target_base = min(target_candidates, key=lambda x: x[0])[1] if target_candidates else None

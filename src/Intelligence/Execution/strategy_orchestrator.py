@@ -163,6 +163,16 @@ class StrategyOrchestrator:
                  and int(event.get("confirmation_time", 0)) <= child_confirmation],
                 key=lambda event: int(event.get("confirmation_time", 0)),
             )[-512:]
+            if direction_sign > 0:
+                known_destination_events = sorted(
+                    (event for event in known_destination_events if float(event["base_low"]) > high),
+                    key=lambda event: float(event["base_low"]),
+                )[:32]
+            else:
+                known_destination_events = sorted(
+                    (event for event in known_destination_events if float(event["base_high"]) < low),
+                    key=lambda event: float(event["base_high"]), reverse=True,
+                )[:32]
             destinations = []
             for event in known_destination_events:
                 if direction_sign > 0 and float(event["base_low"]) > max(high, price):
