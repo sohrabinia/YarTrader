@@ -18,6 +18,7 @@ on:
       - "tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py"
       - "tests/YarTrader.Tests/Decision/test_pending_order_planner.py"
       - "tests/YarTrader.Tests/Execution/test_autonomous_demo_runtime.py"
+      - "tests/YarTrader.Tests/Intelligence/test_strategy_orchestrator.py"
       - "tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py"
       - "tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py"
       - "tests/YarTrader.Tests/Runtime/test_research_runtime.py"
@@ -43,6 +44,7 @@ on:
       - "tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py"
       - "tests/YarTrader.Tests/Decision/test_pending_order_planner.py"
       - "tests/YarTrader.Tests/Execution/test_autonomous_demo_runtime.py"
+      - "tests/YarTrader.Tests/Intelligence/test_strategy_orchestrator.py"
       - "tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py"
       - "tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py"
       - "tests/YarTrader.Tests/Runtime/test_research_runtime.py"
@@ -96,4 +98,5 @@ jobs:
             tests/YarTrader.Tests/Runtime/test_research_runtime.py::TestResearchRuntimeAndAdapter::test_runtime_overwrites_legacy_brain_decision_without_base_evidence \
             tests/YarTrader.Tests/Runtime/test_research_runtime.py::TestResearchRuntimeAndAdapter::test_strict_read_only_compliance_no_trading_api \
             tests/YarTrader.Tests/Services/test_web_dashboard.py::TestWebDashboardFastAPI::test_trigger_backtesting_job_uses_base_only_and_real_history \
-            tests/YarTrader.Tests/Services/test_web_dashboard.py::TestWebDashboardFastAPI::test_get_health_diagnostics
+            tests/YarTrader.Tests/Services/test_web_dashboard.py::TestWebDashboardFastAPI::test_get_health_diagnostics \
+            tests/YarTrader.Tests/Intelligence/test_strategy_orchestrator.py::TestStrategyOrchestrator::test_latest_base_reaction_uses_actual_side_and_depth

@@ -19,6 +19,22 @@ class TestStrategyOrchestrator(unittest.TestCase):
             for i in range(20)
         ]
 
+    def test_latest_base_reaction_uses_actual_side_and_depth(self):
+        child = {"event_id": "M15:100:RBR", "confirmation_time": 100,
+                 "base_low": 10.0, "base_high": 20.0}
+        bars = [
+            {"time": 90, "low": 24.0, "high": 26.0, "close": 25.0},
+            {"time": 110, "low": 17.0, "high": 26.0, "close": 18.0},
+            {"time": 120, "low": 19.0, "high": 21.0, "close": 20.0},
+            {"time": 130, "low": 21.0, "high": 22.0, "close": 21.5},
+            {"time": 140, "low": 15.0, "high": 22.0, "close": 16.0},
+            {"time": 160, "low": 10.0, "high": 11.0, "close": 10.5},
+        ]
+        measured = self.orchestrator._measure_latest_base_reaction(bars, child, 150)
+        self.assertEqual(measured["reaction_number"], 2)
+        self.assertEqual(measured["entry_side"], "FROM_ABOVE")
+        self.assertAlmostEqual(measured["penetration_fraction"], 0.5)
+
     def test_evaluate_all_6_strategies(self):
         """Verifies all 6 strategy profiles are evaluated independently."""
         res = self.orchestrator.evaluate_all_strategies(
