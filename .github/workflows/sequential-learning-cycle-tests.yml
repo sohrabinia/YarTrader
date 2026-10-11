@@ -4,14 +4,38 @@ on:
   pull_request:
     paths:
       - "scripts/run_sequential_market_learning_cycle.py"
+      - "src/Decision/Intelligence/base_reaction_decision_engine.py"
+      - "src/Decision/Intelligence/hierarchical_base_behavior_engine.py"
+      - "src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py"
+      - "src/Application/Runtime/research_runtime.py"
+      - "src/Application/Backtesting/backtest_learning_engine.py"
       - "tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py"
+      - "tests/YarTrader.Tests/Backtesting/test_mt5_mtf_backtest.py"
+      - "tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py"
+      - "tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py"
+      - "tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py"
+      - "tests/YarTrader.Tests/Runtime/test_research_runtime.py"
+      - "tests/YarTrader.Tests/Services/test_web_dashboard.py"
+      - "tests/test_research_snapshot_persistence.py"
       - ".github/workflows/sequential-learning-cycle-tests.yml"
   push:
     branches:
       - feature/base-behavior-memory-20261010
     paths:
       - "scripts/run_sequential_market_learning_cycle.py"
+      - "src/Decision/Intelligence/base_reaction_decision_engine.py"
+      - "src/Decision/Intelligence/hierarchical_base_behavior_engine.py"
+      - "src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py"
+      - "src/Application/Runtime/research_runtime.py"
+      - "src/Application/Backtesting/backtest_learning_engine.py"
       - "tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py"
+      - "tests/YarTrader.Tests/Backtesting/test_mt5_mtf_backtest.py"
+      - "tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py"
+      - "tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py"
+      - "tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py"
+      - "tests/YarTrader.Tests/Runtime/test_research_runtime.py"
+      - "tests/YarTrader.Tests/Services/test_web_dashboard.py"
+      - "tests/test_research_snapshot_persistence.py"
       - ".github/workflows/sequential-learning-cycle-tests.yml"
 
 jobs:
@@ -24,9 +48,27 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install test dependency
-        run: python -m pip install pytest
-      - name: Compile research-cycle script
-        run: python -m py_compile scripts/run_sequential_market_learning_cycle.py
-      - name: Run focused unit tests
-        run: python -m pytest -q tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py
+      - name: Install pinned project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Compile strategy and research modules
+        run: |
+          python -m py_compile \
+            scripts/run_sequential_market_learning_cycle.py \
+            src/Decision/Intelligence/base_reaction_decision_engine.py \
+            src/Decision/Intelligence/hierarchical_base_behavior_engine.py \
+            src/Decision/Intelligence/multitimeframe_base_behavior_monitor.py \
+            src/Application/Runtime/research_runtime.py \
+            src/Application/Backtesting/backtest_learning_engine.py
+      - name: Run Base-only runtime, MTF, and learning regression tests
+        run: |
+          python -m pytest -q \
+            tests/YarTrader.Tests/Backtesting/test_sequential_market_learning_cycle.py \
+            tests/YarTrader.Tests/Backtesting/test_mt5_mtf_backtest.py \
+            tests/YarTrader.Tests/Decision/test_base_reaction_decision_engine.py \
+            tests/YarTrader.Tests/Decision/test_hierarchical_base_behavior_engine.py \
+            tests/YarTrader.Tests/Decision/test_multitimeframe_base_behavior_monitor.py \
+            tests/YarTrader.Tests/Runtime/test_research_runtime.py \
+            tests/YarTrader.Tests/Services/test_web_dashboard.py \
+            tests/test_research_snapshot_persistence.py
