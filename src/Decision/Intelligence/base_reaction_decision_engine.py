@@ -216,7 +216,7 @@ class BaseReactionDecisionEngine:
         # exact timeframe/parent/revisit profile. Do not pick a depth without prior
         # net-R evidence for that cell.
         candidate_profiles = []
-        for candidate_depth in (0.125, 0.375, 0.625, 0.875):
+        for candidate_depth in (0.125, 0.375, 0.625, 0.75):
             candidate_key = self.profile_key(tf, str(child.get("base_type", "UNKNOWN")), ptf,
                                              relation, aligned, reaction_number, candidate_depth,
                                              "BUY" if child_direction > 0 else "SELL", entry_side)

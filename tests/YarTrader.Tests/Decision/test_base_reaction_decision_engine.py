@@ -56,6 +56,16 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
                                         1, 0.75, "BUY", "FROM_BELOW")
         self.assertNotEqual(above, below)
 
+    def test_far_edge_uses_the_same_entry_depth_that_was_trained(self):
+        key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.75, "BUY")
+        self.engine.load_stats({"version": 1, "groups": {key: {
+            "samples": 50, "win_rate": 0.65, "mean_net_r": 0.30,
+            "standard_error": 0.07, "mean_net_r_standard_error": 0.02}}})
+        result = self.evaluate(reaction={**self.reaction, "penetration_fraction": 0.75})
+        self.assertEqual(result["status"], "ENTRY_PROPOSAL")
+        self.assertEqual(result["structure"]["penetration_bin"], "FAR_EDGE")
+        self.assertAlmostEqual(result["order_plan"]["entry"], 99.25)
+
     def test_model_without_mean_net_r_uncertainty_is_rejected(self):
         key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.125, "BUY")
         with self.assertRaises(ValueError):
