@@ -245,6 +245,23 @@ class AutonomousDemoTrader:
             logger.exception("Unable to persist autonomous DEMO trader event")
         logger.info("Autonomous DEMO trader: %s", event)
 
+    def _confirm_position_flat(self, symbol: str, ticket: int) -> Dict[str, Any]:
+        """Require an authoritative broker snapshot to confirm the old position is flat."""
+        try:
+            positions = self.adapter.get_positions(symbol=symbol)
+        except Exception as exc:
+            return {"confirmed": False, "reason": f"Broker position re-query failed after close: {exc}"}
+        if positions is None:
+            return {"confirmed": False, "reason": "Broker position state is unknown after close; opposite entry remains blocked."}
+        for position in positions:
+            try:
+                current_ticket = int(self._field(position, "ticket", 0) or 0)
+            except (TypeError, ValueError, OverflowError):
+                return {"confirmed": False, "reason": "Broker returned an invalid position ticket after close; opposite entry remains blocked."}
+            if current_ticket == int(ticket):
+                return {"confirmed": False, "reason": f"Position {ticket} is still open after close request; opposite entry remains blocked."}
+        return {"confirmed": True, "reason": "Broker confirms the previous position is flat; a fresh next-cycle assessment may consider the opposite direction."}
+
     def _evaluate_daily_risk(self, account: Dict[str, Any], broker_tick_time: int) -> Dict[str, Any]:
         from src.Risk.Services.daily_loss_kill_switch import (
             DailyLossKillSwitch, calculate_yartrader_daily_pnl,
@@ -508,10 +525,19 @@ class AutonomousDemoTrader:
                     if close_response.Status not in ("Placed", "Executed") or int(close_response.Retcode) not in success_codes:
                         return {"status": "EXIT_FAILED", "symbol": symbol, "reason": close_response.Comment,
                                 "base_plan": base_plan, "execution_enabled": False}
+                    # A successful close response alone is not enough: query MT5 again
+                    # and fail closed unless the old ticket is verifiably absent.
+                    flat_check = self._confirm_position_flat(symbol, ticket)
+                    self._log_event({"event": "base_position_exit_reconciliation", "symbol": symbol,
+                                     "ticket": ticket, **flat_check})
+                    if not flat_check.get("confirmed"):
+                        return {"status": "EXIT_NOT_CONFIRMED", "symbol": symbol,
+                                "reason": flat_check.get("reason"), "base_plan": base_plan,
+                                "close_response": close_response.__dict__, "execution_enabled": False}
                     return {"status": "POSITION_CLOSED_BASE_EXIT", "symbol": symbol,
-                            "reason": "Base invalidation or a separately qualified opposite Base reaction closed the existing position; a new entry requires a later cycle.",
+                            "reason": "Broker-confirmed flat after Base invalidation or a cost-qualified opposite Base reaction; only a fresh next-cycle proposal may open the opposite direction.",
                             "base_plan": base_plan, "close_response": close_response.__dict__,
-                            "execution_enabled": True}
+                            "flat_confirmation": flat_check, "execution_enabled": True}
                 return {
                     "status": "POSITION_HELD_BASE_STRUCTURE", "symbol": symbol,
                     "reason": "No confirmed Base invalidation or qualified opposite reaction; retain the existing broker SL/TP.",
