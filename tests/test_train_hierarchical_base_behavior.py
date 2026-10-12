@@ -1,6 +1,10 @@
 import math
 
-from scripts.research.train_hierarchical_base_behavior import attach_causal_atr_scale
+from scripts.research.train_hierarchical_base_behavior import (
+    attach_causal_atr_scale,
+    historical_spread_cost_price,
+    simulate_pending_retest,
+)
 
 
 def test_attach_causal_atr_uses_only_closed_bars_at_confirmation():
@@ -33,3 +37,26 @@ def test_attach_causal_atr_skips_insufficient_or_invalid_event_index():
     attach_causal_atr_scale(events, bars, period=3)
 
     assert all("base_atr" not in event for event in events)
+
+
+def test_historical_spread_cost_uses_entry_for_buy_and_exit_for_sell():
+    bars = [{"spread_points": 10}, {"spread_points": 40}]
+
+    assert historical_spread_cost_price(bars, 0, 1, 1, 0.01) == 0.1
+    assert historical_spread_cost_price(bars, 0, 1, -1, 0.01) == 0.4
+
+
+def test_historical_spread_cost_rejects_missing_or_invalid_data():
+    assert historical_spread_cost_price([{}], 0, 0, 1, 0.01) is None
+    assert historical_spread_cost_price([{"spread_points": 10}], 0, 0, 1, 0.0) is None
+
+
+def test_simulation_refuses_candidate_without_confirmed_destination_base():
+    event = {
+        "timeframe": "M15",
+        "exit_direction": 1,
+        "base_low": 100.0,
+        "base_high": 101.0,
+        "base_atr": 1.0,
+    }
+    assert simulate_pending_retest(event, {"parent_aligned": True}, None, [], [], 1000, "m1-trigger", 0.05) is None

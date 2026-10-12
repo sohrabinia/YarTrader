@@ -1,9 +1,10 @@
 """Walk-forward research for hierarchical parent/child Base retest orders.
 
 No broker interaction. The script simulates limit-entry retests, conservative stop/target
-ordering, ATR-based round-trip cost sensitivity, and only learns from outcomes completed
-before each subsequent signal. Results are an event study; overlapping trades are not
-portfolio-constrained and cost is a proxy, not broker execution data.
+ordering, observed MT5 historical spread plus an additional ATR-based cost allowance, and
+only learns from outcomes completed before each subsequent signal. Results are an event
+study; overlapping trades are not portfolio-constrained, and commission/slippage are not
+available as broker-reported historical values.
 """
 from __future__ import annotations
 import argparse
@@ -51,6 +52,11 @@ def load_bars(tf: str, max_bars: int) -> List[Dict[str, Any]]:
                 t = int(float(raw[time_col]))
                 row = {"time": t, "open": float(raw["open"]), "high": float(raw["high"]),
                        "low": float(raw["low"]), "close": float(raw["close"])}
+                try:
+                    spread_points = float(raw.get("spread", ""))
+                    row["spread_points"] = spread_points if math.isfinite(spread_points) and spread_points >= 0 else None
+                except (TypeError, ValueError, OverflowError):
+                    row["spread_points"] = None
             except (TypeError, ValueError, KeyError, OverflowError):
                 continue
             if not all(math.isfinite(row[k]) for k in ("open", "high", "low", "close")):
@@ -90,6 +96,24 @@ def attach_causal_atr_scale(events: Sequence[Dict[str, Any]],
             event["base_atr"] = atr
 
 
+def historical_spread_cost_price(bars: Sequence[Mapping[str, Any]], fill_index: int,
+                                 exit_index: int, direction: int, point_size: float) -> float | None:
+    """Estimate the spread cost using the observed MT5 spread at the priced side.
+
+    MT5 OHLC bars are bid-based: for BUY, entry is ask so use spread at fill;
+    for SELL, exit is ask so use spread at exit. Missing spread data is rejected.
+    """
+    if direction not in (-1, 1) or not math.isfinite(point_size) or point_size <= 0:
+        return None
+    index = fill_index if direction > 0 else exit_index
+    if index < 0 or index >= len(bars):
+        return None
+    points = bars[index].get("spread_points")
+    if isinstance(points, bool) or not isinstance(points, (int, float)) or not math.isfinite(float(points)) or points < 0:
+        return None
+    return float(points) * point_size
+
+
 def key_for(event: Mapping[str, Any], label: Mapping[str, Any]) -> str:
     parent_tf = str(label.get("parent_timeframe") or "NONE")
     aligned = bool(label.get("parent_aligned", False))
@@ -104,7 +128,7 @@ def simulate_pending_retest(event: Mapping[str, Any], label: Mapping[str, Any],
                             target_event: Mapping[str, Any] | None, bars: Sequence[Mapping[str, Any]],
                             bar_times: Sequence[int], activation_time: int, trigger_id: str,
                             round_trip_cost_atr: float, penetration_fraction: float = 0.5,
-                            target_reaction_number: int = 1) -> Dict[str, Any] | None:
+                            target_reaction_number: int = 1, point_size: float = 0.01) -> Dict[str, Any] | None:
     tf = str(event["timeframe"])
     if tf not in ("M15", "M5"):
         return None
@@ -124,15 +148,12 @@ def simulate_pending_retest(event: Mapping[str, Any], label: Mapping[str, Any],
     risk = abs(entry - stop)
     if risk <= 0:
         return None
+    # Match the live execution policy: without a destination Base already
+    # confirmed at signal time, this candidate is not a valid trade.
+    if target_event is None:
+        return None
     target_source = "PREVIOUSLY_KNOWN_DESTINATION_BASE"
-    if target_event is not None:
-        target = float(target_event["base_low"] if direction > 0 else target_event["base_high"])
-    else:
-        target = entry + direction * 3.0 * risk
-        target_source = "STRUCTURAL_3R_FALLBACK"
-    if (direction > 0 and not stop < entry < target) or (direction < 0 and not target < entry < stop):
-        target = entry + direction * 3.0 * risk
-        target_source = "STRUCTURAL_3R_FALLBACK"
+    target = float(target_event["base_low"] if direction > 0 else target_event["base_high"])
     if (direction > 0 and not stop < entry < target) or (direction < 0 and not target < entry < stop):
         return None
 
@@ -209,7 +230,11 @@ def simulate_pending_retest(event: Mapping[str, Any], label: Mapping[str, Any],
             break
 
     gross_r = direction * (exit_price - entry) / risk
-    cost_r = round_trip_cost_atr * atr / risk
+    spread_cost_price = historical_spread_cost_price(bars, fill_index, exit_index, direction, point_size)
+    if spread_cost_price is None:
+        return None
+    extra_cost_price = round_trip_cost_atr * atr
+    cost_r = (spread_cost_price + extra_cost_price) / risk
     net_r = gross_r - cost_r
     return {
         "event_id": event["event_id"], "timeframe": tf, "base_type": event["base_type"],
@@ -226,7 +251,8 @@ def simulate_pending_retest(event: Mapping[str, Any], label: Mapping[str, Any],
         "exit_reason": exit_reason, "first_transition": exit_reason,
         "label_horizon_bars": max(1, exit_index - fill_index),
         "outcome_source": "historical_execution_simulation",
-        "gross_R": gross_r, "cost_R_proxy": cost_r, "net_R": net_r,
+        "gross_R": gross_r, "cost_R_proxy": cost_r, "historical_spread_cost_price": spread_cost_price,
+        "additional_cost_R_proxy": extra_cost_price / risk, "net_R": net_r,
         "ambiguous_fill_bar_excluded": True,
     }
 
@@ -255,7 +281,10 @@ def main() -> None:
     parser.add_argument("--min-samples", type=int, default=40)
     parser.add_argument("--min-win-rate", type=float, default=0.52)
     parser.add_argument("--min-mean-net-r", type=float, default=0.05)
-    parser.add_argument("--round-trip-cost-atr", type=float, default=0.05)
+    parser.add_argument("--round-trip-cost-atr", type=float, default=0.05,
+                        help="Additional round-trip commission/slippage sensitivity allowance beyond observed spread")
+    parser.add_argument("--point-size", type=float, default=0.01,
+                        help="MT5 symbol point size used to convert historical spread points to price units")
     parser.add_argument("--depth-fractions", default="0.125,0.375,0.625,0.875",
                         help="Comma-separated penetration fractions from near to far edge")
     parser.add_argument("--reaction-numbers", default="1,2,3",
@@ -267,6 +296,10 @@ def main() -> None:
         raise ValueError("Depth fractions must be a non-empty list within [0,1].")
     if not reaction_numbers or any(x < 1 or x > 10 for x in reaction_numbers):
         raise ValueError("Reaction numbers must be a non-empty list in [1,10].")
+    if not math.isfinite(args.point_size) or args.point_size <= 0:
+        raise ValueError("MT5 point size must be finite and positive.")
+    if not math.isfinite(args.round_trip_cost_atr) or args.round_trip_cost_atr < 0:
+        raise ValueError("Additional round-trip cost allowance must be finite and non-negative.")
 
     bars_by_tf, events_by_tf = {}, {}
     for tf in FILES:
@@ -337,6 +370,7 @@ def main() -> None:
                         event, label, target_event, m1_bars, m1_times,
                         int(trigger["confirmation_time"]), str(trigger["event_id"]),
                         args.round_trip_cost_atr, depth_fraction, reaction_number,
+                        point_size=args.point_size,
                     )
                     if outcome:
                         potential.append(outcome)
@@ -422,7 +456,6 @@ def main() -> None:
         n = len(vals)
         win_rate = sum(x > 0 for x in vals) / n
         mean_net = sum(vals) / n
-        import math
         se = math.sqrt(max(win_rate * (1 - win_rate), 0.0) / n)
         net_variance = sum((value - mean_net) ** 2 for value in vals) / (n - 1) if n > 1 else 1e18
         net_se = math.sqrt(net_variance / n)
@@ -441,13 +474,22 @@ def main() -> None:
                           "reaction_numbering": "Each contiguous return into the selected child Base zone after the M1 trigger counts as one visit; a visit must touch the specified limit price to fill",
                           "m1_timing": "first direction-aligned M1 Base departure after the M15/M5 setup, with close beyond the child Base in the setup direction",
                           "stop": "outside origin Base by 0.15 ATR",
-                          "target": "previously known next Base edge; 3R structural fallback when no valid destination edge exists",
+                          "target": "previously confirmed destination Base only; skip the candidate if no valid destination edge exists",
                           "wave_exit": "breakeven at +1R, 2.5 ATR trail after +1.5R, two profitable closes inside origin Base",
-                          "cost_model": "round-trip 0.05 ATR sensitivity proxy; not broker costs",
+                          "point_size": args.point_size,
+                          "additional_round_trip_cost_atr": args.round_trip_cost_atr,
+                          "cost_model": "observed M1 spread at BUY fill / SELL exit (MT5 spread points multiplied by point_size), plus additional ATR-based commission/slippage sensitivity allowance; historical commissions/slippage are unavailable",
                           "same_fill_candle": "excluded from post-fill path to avoid OHLC ordering assumptions",
                           "portfolio_constraints": "not modeled; overlapping event trades are independent",
                           "limitations": ["sampled base detector", "bar data cannot resolve intrabar order",
-                                          "no real spread/commission/slippage model", "research artifact not activated"]},
+                                          "historical spread is modeled; broker commission/slippage schedules are unavailable",
+                                          "overlapping event trades are not portfolio-constrained", "research artifact not activated"]},
+        "historical_spread_coverage": {
+            "m1_bars": len(m1_bars),
+            "m1_bars_with_spread": sum(isinstance(b.get("spread_points"), (int, float)) and not isinstance(b.get("spread_points"), bool) for b in m1_bars),
+            "point_size": args.point_size,
+            "source_column": "MT5 spread points in M1.csv"
+        },
         "potential_filled_trades": summarize(potential),
         "selection_diagnostics": dict(diagnostics),
         "target_source_counts": {source: sum(row.get("target_source") == source for row in potential)
