@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 
 class DailyIntelligenceAgent:
@@ -12,7 +12,7 @@ class DailyIntelligenceAgent:
 
     def generate_daily_brief(self, symbol: str, market_data: Dict[str, Any]) -> Dict[str, Any]:
         symbol_upper = symbol.upper()
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         # Determine brief narrative based on provided inputs
         structure = market_data.get("structure", "Range")
@@ -54,7 +54,7 @@ class ResearchPublisherAgent:
     def publish_report(self, symbol: str, report_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
         symbol_upper = symbol.upper()
         type_upper = report_type.upper() # WEEKLY, MONTHLY, DAILY
-        now = datetime.utcnow().isoformat() + "Z"
+        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
         market_context = data.get("market_context", "Broad multi-asset lateral trend.")
         historical_analysis = data.get("historical_analysis", "Consistent historical support zones intact.")

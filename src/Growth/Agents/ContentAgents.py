@@ -1,7 +1,7 @@
 import uuid
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
 class ContentDBManager:
@@ -273,13 +273,13 @@ class NewsIntelligenceAgent:
                         "event": "US CPI Release",
                         "impact": "HIGH_VOLATILITY_EXPECTED",
                         "simulated_sentiment": 0.12,
-                        "timestamp": datetime.utcnow().isoformat() + "Z"
+                        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                     },
                     {
                         "event": "FOMC Meeting Minutes",
                         "impact": "CRITICAL_SESSION_HOURS",
                         "simulated_sentiment": -0.05,
-                        "timestamp": datetime.utcnow().isoformat() + "Z"
+                        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                     }
                 ],
                 "logged_status": "External Data Blockers - Missing API Key. Ingesting high-fidelity mock stream."
@@ -294,7 +294,7 @@ class NewsIntelligenceAgent:
                     "event": "Real-time API economic headline fetched",
                     "impact": "NORMAL",
                     "simulated_sentiment": 0.45,
-                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                    "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                 }
             ]
         }

@@ -3453,7 +3453,7 @@ def get_multi_timeframe():
                     MarketObservation(
                         symbol=sym,
                         timeframe=tf,
-                        timestamp=datetime.utcnow() - timedelta(minutes=i * 15),
+                        timestamp=datetime.now(timezone.utc) - timedelta(minutes=i * 15),
                         high=base_price + i * 0.5 + 0.2,
                         low=base_price + i * 0.5 - 0.2,
                         open_price=base_price + i * 0.5,
