@@ -206,29 +206,24 @@ class TestPipelineIntegration(unittest.TestCase):
         self.assertEqual(self.research_engine.received_request.Asset, "BTCUSD")
         self.assertEqual(self.research_engine.received_request.Context.get("bars_count"), 1)
 
-        # 3. Verify Strategy evaluation receives research output
-        self.assertIsNotNone(self.strategy_evaluator.received_candidate)
-        self.assertEqual(self.strategy_evaluator.received_candidate.Name, "Pipeline Momentum Concept")
-        self.assertEqual(
-            self.strategy_evaluator.received_candidate.ResearchContext.get("status"),
-            "completed"
-        )
-        self.assertEqual(
-            self.strategy_evaluator.received_candidate.ResearchContext.get("bars_count"),
-            1
-        )
+        # 3. Only the canonical Base hierarchy may create a candidate. The injected
+        # legacy evaluator is intentionally not called, and one bar is insufficient.
+        self.assertIsNone(self.strategy_evaluator.received_candidate)
+        self.assertEqual(result.Strategy.StrategyId, "BASE_HIERARCHY")
+        self.assertEqual(result.Strategy.Score.OverallScore, 0.0)
+        self.assertFalse(result.Research.Findings.get("base_candidate_available"))
 
-        # 4. Verify Risk receives evaluation
+        # 4. Risk receives zero proposed exposure while Base evidence is absent.
         self.assertIsNotNone(self.risk_engine.received_weights)
         self.assertIn("BTCUSD", self.risk_engine.received_weights)
-        self.assertEqual(self.risk_engine.received_weights["BTCUSD"], 0.85)
+        self.assertEqual(self.risk_engine.received_weights["BTCUSD"], 0.0)
         self.assertEqual(self.risk_engine.received_profile, profile)
 
-        # 5. Verify Decision engine produces DecisionResult
+        # 5. Decision engine cannot turn missing Base evidence into a trade.
         self.assertIsNotNone(self.decision_engine.received_context)
-        self.assertEqual(self.decision_engine.received_context.StrategyId, "cand-BTCUSD")
-        self.assertEqual(self.decision_engine.received_context.AssetWeights["BTCUSD"], 0.85)
-        self.assertEqual(result.Decision.State, DecisionState.APPROVED)
+        self.assertEqual(self.decision_engine.received_context.StrategyId, "BASE_HIERARCHY")
+        self.assertEqual(self.decision_engine.received_context.AssetWeights["BTCUSD"], 0.0)
+        self.assertEqual(result.Decision.State, DecisionState.NO_ACTION)
 
         # 6. Verify Learning receives feedback
         self.assertIsNotNone(self.learning_engine.received_feedback)
@@ -239,6 +234,6 @@ class TestPipelineIntegration(unittest.TestCase):
         self.assertEqual(result.Context, context)
         self.assertEqual(result.MarketData.Request.Asset, "BTCUSD")
         self.assertEqual(result.Research.ConfidenceScore, 0.88)
-        self.assertEqual(result.Strategy.Score.OverallScore, 0.85)
+        self.assertEqual(result.Strategy.Score.OverallScore, 0.0)
         self.assertTrue(result.Risk.IsApproved)
         self.assertEqual(result.Feedback, self.learning_engine.received_feedback)

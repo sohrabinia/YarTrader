@@ -5,7 +5,6 @@ from src.Research.MarketAnalysis.Interfaces.interfaces import IMarketAnalyzer, I
 from src.Research.MarketAnalysis.Models.models import MarketObservation, MarketInsight, ResearchRequest, ResearchResult
 from src.Data.MarketData.Models.models import MarketDataPoint, MarketDataRequest
 from src.Data.MarketData.Interfaces.interfaces import IMarketDataProvider
-from src.Research.Features.pipeline import FeaturePipeline
 from src.Infrastructure.exceptions import ValidationException
 
 
@@ -419,278 +418,27 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
         )
 
 
-class FeatureExtractionResearchEngine(IResearchEngine):
-    """
-    Decorator/Adapter implementing IResearchEngine that orchestrates feature extraction
-    from market data before delegating to an underlying research engine.
+class FeatureExtractionResearchEngine(PrimitiveMarketResearchEngine):
+    """Backward-compatible alias for the indicator-free, Base-only research engine.
+
+    The legacy name remains temporarily importable for callers being migrated, but
+    it does not instantiate FeaturePipeline or run technical/trend/momentum/
+    volatility/regime indicators. Actionable decisions still come only from the
+    hierarchical Base + costed reaction model; all other hypotheses are telemetry.
     """
 
     def __init__(
         self,
         data_provider: IMarketDataProvider,
         base_engine: Optional[IResearchEngine] = None,
-        feature_pipeline: Optional[FeaturePipeline] = None
+        feature_pipeline=None,
     ) -> None:
-        self._data_provider = data_provider
-        if base_engine is None:
-            from src.Research.Engine.services import ResearchEngine
-            self._base_engine = ResearchEngine()
-        else:
-            self._base_engine = base_engine
-        self._feature_pipeline = feature_pipeline or FeaturePipeline()
-        # Keep one Brain instance per symbol/timeframe across research cycles.
-        # This preserves pending hypotheses/simulated positions while isolating assets.
-        self._live_brains: Dict[tuple, Any] = {}
+        # Accept the former argument for source compatibility, but deliberately
+        # do not construct, store, or execute a feature/indicator pipeline.
+        del feature_pipeline
+        super().__init__(data_provider=data_provider, base_engine=base_engine)
 
     @property
-    def data_provider(self) -> IMarketDataProvider:
-        return self._data_provider
-
-    @property
-    def base_engine(self) -> IResearchEngine:
-        return self._base_engine
-
-    @property
-    def feature_pipeline(self) -> FeaturePipeline:
-        return self._feature_pipeline
-
-    def _get_live_brain(self, asset: str, timeframe: str):
-        """Return the persistent Brain instance for one isolated symbol/timeframe."""
-        from src.Research.Brain.live_brain import LiveAnalysisBrain
-        brain_key = (asset.upper(), timeframe.upper())
-        newborn_brain = self._live_brains.get(brain_key)
-        if newborn_brain is None:
-            newborn_brain = LiveAnalysisBrain(asset, timeframe)
-            self._live_brains[brain_key] = newborn_brain
-        return newborn_brain
-
-    def analyze_market(self, request: ResearchRequest, market_data_response=None) -> ResearchResult:
-        """
-        Executes feature calculations on the caller-supplied market data when provided.
-        This preserves the selected universe provider (for example Crypto) end-to-end
-        instead of silently re-fetching the same symbol through MT5.
-        """
-        # 1. Fetch market data points from provider
-        timeframe = request.Context.get("timeframe", "H1")
-        data_req = MarketDataRequest(
-            Asset=request.Asset,
-            StartTime=request.StartTime,
-            EndTime=request.EndTime,
-            Timeframe=timeframe
-        )
-
-        try:
-            if market_data_response is None:
-                market_data_response = self._data_provider.retrieve_market_data(data_req)
-        except Exception as e:
-            raise ValidationException(
-                f"Validation Error: Failed to fetch market data for feature extraction: {str(e)}"
-            ) from e
-
-        # Feed real candles explicitly into the six dedicated pipeline/analytical engines
-        from src.Research.analysis_pipeline import (
-            TechnicalAnalysisEngine,
-            FeatureEngineeringLayer,
-            MarketRegimeDetection,
-            TrendAnalysis,
-            VolatilityAnalysis,
-            MomentumAnalysis
-        )
-
-        # A. Technical Analysis Engine
-        tech_engine = TechnicalAnalysisEngine()
-        tech_results = tech_engine.analyze(market_data_response.DataPoints)
-
-        # B. Feature Engineering Layer
-        feat_layer = FeatureEngineeringLayer(pipeline=self._feature_pipeline)
-        feature_set = feat_layer.process(market_data_response.DataPoints)
-
-        # C. Trend Analysis
-        trend_analysis = TrendAnalysis()
-        trend_results = trend_analysis.analyze(market_data_response.DataPoints, feature_set)
-
-        # D. Volatility Analysis
-        vol_analysis = VolatilityAnalysis()
-        vol_results = vol_analysis.analyze(market_data_response.DataPoints, feature_set)
-
-        # E. Momentum Analysis
-        mom_analysis = MomentumAnalysis()
-        mom_results = mom_analysis.analyze(market_data_response.DataPoints, feature_set)
-
-        # F. Market Regime Detection
-        regime_detector = MarketRegimeDetection()
-        regime_results = regime_detector.detect(market_data_response.DataPoints, feature_set)
-
-        # G. Smart Interpretation Engine (combines results to generate qualitative bias & confidence)
-        from src.Research.analysis_pipeline import SmartInterpretationEngine
-        interpretation_engine = SmartInterpretationEngine()
-        smart_results = interpretation_engine.interpret(
-            candles=market_data_response.DataPoints,
-            tech=tech_results,
-            trend=trend_results,
-            vol=vol_results,
-            mom=mom_results,
-            regime=regime_results
-        )
-
-        # 3. Create MarketObservation from MarketFeatureSet
-        observations_map = {name: fval.Value for name, fval in feature_set.Features.items()}
-        market_observation = MarketObservation(
-            Asset=request.Asset,
-            Timestamp=datetime.now(),
-            Observations=observations_map,
-            Source="FeatureExtractionResearchEngine"
-        )
-
-        # 4. Enforce base engine execution with enriched context
-        enriched_context = dict(request.Context)
-        enriched_context["market_feature_set"] = feature_set
-        enriched_context["extracted_features"] = {
-            name: {
-                "value": fval.Value,
-                "timestamp": fval.Timestamp.isoformat(),
-                "metadata": fval.Metadata
-            }
-            for name, fval in feature_set.Features.items()
-        }
-        enriched_context["observation"] = {
-            "asset": market_observation.Asset,
-            "observations": market_observation.Observations,
-            "source": market_observation.Source
-        }
-        # Inject explicit pipeline results into enriched context
-        enriched_context["technical_analysis"] = tech_results
-        enriched_context["trend_analysis"] = trend_results
-        enriched_context["volatility_analysis"] = vol_results
-        enriched_context["momentum_analysis"] = mom_results
-        enriched_context["market_regime"] = regime_results
-        enriched_context["smart_interpretation"] = smart_results
-
-        enriched_request = ResearchRequest(
-            Asset=request.Asset,
-            StartTime=request.StartTime,
-            EndTime=request.EndTime,
-            Context=enriched_context
-        )
-
-        # H. Newborn Market Discovery Brain v1 Integration
-        newborn_brain = self._get_live_brain(request.Asset, timeframe)
-        newborn_report = None
-        for dp in market_data_response.DataPoints:
-            raw_candle_dict = {
-                "timestamp": dp.Timestamp.isoformat() if isinstance(dp.Timestamp, datetime) else str(dp.Timestamp),
-                "open": dp.Open,
-                "high": dp.High,
-                "low": dp.Low,
-                "close": dp.Close,
-                "volume": dp.Volume
-            }
-            newborn_report = newborn_brain.process_live_candle(raw_candle_dict)
-
-        base_result = self._base_engine.analyze_market(enriched_request)
-
-        # 5. Enrich findings with features and observations
-        enriched_findings = dict(base_result.Findings)
-        enriched_findings["feature_set"] = {
-            "asset_id": feature_set.AssetId,
-            "start_time": feature_set.StartTime.isoformat(),
-            "end_time": feature_set.EndTime.isoformat(),
-            "features_count": len(feature_set.Features)
-        }
-        enriched_findings["observation_summary"] = market_observation.Observations
-
-        # Expose final compiled pipeline outputs in the findings dict
-        enriched_findings["pipeline_outputs"] = {
-            "technical_analysis": tech_results,
-            "trend_analysis": trend_results,
-            "volatility_analysis": vol_results,
-            "momentum_analysis": mom_results,
-            "market_regime": regime_results,
-            "smart_interpretation": smart_results
-        }
-
-        # Embed Newborn Market Discovery Brain v1 report if generated
-        if newborn_report:
-            enriched_findings["newborn_brain_report"] = newborn_report.to_dict()
-
-        # I. Fractal Behavior Analysis Engine Integration
-        try:
-            from src.Infrastructure.DI.container import container_instance
-            from src.Research.MarketAnalysis.Interfaces.interfaces import IFractalEngine
-            fractal_engine = container_instance.resolve(IFractalEngine)
-        except Exception:
-            from src.Research.Brain.fractal_engine import FractalEngine
-            fractal_engine = FractalEngine()
-
-        try:
-            from src.Research.Brain.fractal_range_learning_engine import TIMEFRAMES, TF_SECONDS
-            fractal_context = request.Context if isinstance(request.Context, dict) else {}
-            supplied_mtf = fractal_context.get("fractal_candles_by_timeframe")
-            if not isinstance(supplied_mtf, dict):
-                supplied_mtf = fractal_context.get("candles_by_timeframe")
-            candles_by_tf = {}
-            if isinstance(supplied_mtf, dict):
-                for tf_key, tf_rows in supplied_mtf.items():
-                    if isinstance(tf_rows, (list, tuple)) and tf_rows:
-                        candles_by_tf[str(tf_key).upper()] = tf_rows
-            candles_by_tf[str(timeframe).upper()] = market_data_response.DataPoints
-
-            # Supply real multi-timeframe history to the existing FractalEngine.
-            # Each auxiliary request is bounded by a configurable bar lookback, and
-            # failures remain non-fatal so the primary analysis still completes.
-            mtf_fetch_errors = []
-            if fractal_context.get("fractal_multi_timeframe", False):
-                try:
-                    context_bars = max(32, min(1000, int(fractal_context.get("fractal_context_bars", 64))))
-                except (TypeError, ValueError):
-                    context_bars = 64
-                for tf_key in TIMEFRAMES:
-                    if tf_key in candles_by_tf:
-                        continue
-                    try:
-                        seconds = TF_SECONDS.get(tf_key, 3600)
-                        tf_end = request.EndTime
-                        tf_start = tf_end - timedelta(seconds=seconds * context_bars)
-                        tf_request = MarketDataRequest(
-                            Asset=request.Asset,
-                            StartTime=tf_start,
-                            EndTime=tf_end,
-                            Timeframe=tf_key,
-                        )
-                        tf_response = self._data_provider.retrieve_market_data(tf_request)
-                        tf_rows = getattr(tf_response, "DataPoints", None) if tf_response is not None else None
-                        if tf_rows:
-                            # Some adapters return a wider cached range than requested.
-                            # Enforce the configured cap before passing data downstream.
-                            tf_rows = list(tf_rows)[-context_bars:]
-                            candles_by_tf[tf_key] = tf_rows
-                        else:
-                            mtf_fetch_errors.append({"timeframe": tf_key, "reason": "NO_DATA"})
-                    except Exception as tf_err:
-                        mtf_fetch_errors.append({
-                            "timeframe": tf_key,
-                            "reason": f"{type(tf_err).__name__}: {str(tf_err)}"[:160],
-                        })
-
-            fractal_res = fractal_engine.analyze_fractals(
-                symbol=request.Asset,
-                primary_timeframe=timeframe,
-                candles_by_tf=candles_by_tf
-            )
-            enriched_findings["fractal_analysis"] = fractal_res
-            enriched_findings["pipeline_outputs"]["fractal_analysis"] = fractal_res
-            enriched_findings["fractal_analysis_timeframes_supplied"] = sorted(candles_by_tf)
-            if mtf_fetch_errors:
-                enriched_findings["fractal_analysis_timeframe_fetch_warnings"] = mtf_fetch_errors
-        except Exception as fe_err:
-            enriched_findings["fractal_analysis_error"] = str(fe_err)
-
-        # Dynamically set the confidence score from smart interpretation (converted back to fraction [0, 1])
-        conf_score = float(smart_results.get("confidence", 50.0)) / 100.0
-
-        return ResearchResult(
-            Request=request,
-            Findings=enriched_findings,
-            ConfidenceScore=conf_score,
-            CreatedAt=datetime.now()
-        )
+    def feature_pipeline(self):
+        """Legacy compatibility property; no feature/indicator pipeline is active."""
+        return None

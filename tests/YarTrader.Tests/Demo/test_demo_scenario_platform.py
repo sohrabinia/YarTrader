@@ -85,8 +85,8 @@ class TestIntelligenceDemoScenarioPlatform(unittest.TestCase):
             step_names,
             [
                 "Input",
-                "Feature Extraction",
-                "Research",
+                "Price Structure",
+                "Base-only Research",
                 "Strategy Evaluation",
                 "Risk Analysis",
                 "Decision",
@@ -130,18 +130,19 @@ class TestIntelligenceDemoScenarioPlatform(unittest.TestCase):
         self.assertIn(result.final_decision_state, [DecisionState.REVIEW_REQUIRED, DecisionState.INSUFFICIENT_DATA])
 
     def test_conflicting_signals_scenario_execution(self) -> None:
-        """Verify conflicting signals scenario triggers conflict detection and resolves to REVIEW_REQUIRED."""
+        """Legacy conflicting hypotheses cannot override missing Base-only evidence."""
         sc = create_conflicting_signals_scenario(asset="GBPUSD")
         result = self.runner.run_scenario(sc)
 
         self.assertTrue(result.success)
-        self.assertEqual(result.final_decision_state, DecisionState.REVIEW_REQUIRED)
+        # Legacy conflicting-signal hypotheses cannot authorize or alter a Base-only decision.
+        self.assertEqual(result.final_decision_state, DecisionState.NO_ACTION)
 
-        # Verify conflict detected in decision report step
-        dec_step = result.steps[5]
-        self.assertEqual(dec_step.step_name, "Decision")
-        self.assertTrue(dec_step.payload["conflict_detected"])
-        self.assertEqual(dec_step.payload["conflict_type"], "Research_vs_Strategy")
+        # A legacy conflict report is telemetry only; without a validated Base
+        # candidate the result remains NoAction and cannot become a trade signal.
+        strategy_step = result.steps[3]
+        self.assertEqual(strategy_step.step_name, "Strategy Evaluation")
+        self.assertFalse(strategy_step.payload["base_candidate_available"])
 
     def test_demo_report_generation(self) -> None:
         """Verify report generator produces a beautifully formatted trace report."""
