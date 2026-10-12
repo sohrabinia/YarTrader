@@ -203,20 +203,19 @@ class TestResearchEngine(unittest.TestCase):
         # Run pipeline
         result = pipeline.execute(context)
 
-        # Confirm that report structure has successfully compiled inside the research findings
+        # Legacy pattern and indicator pipelines no longer participate in decisions.
         findings = result.Research.Findings
         self.assertEqual(findings["asset_id"], "AAPL")
-        self.assertIn("report_id", findings)
-        self.assertTrue(findings["observations_count"] >= 1)
-        self.assertTrue(findings["patterns_count"] >= 1)
-        self.assertTrue(findings["insights_count"] >= 1)
+        self.assertTrue(findings["indicator_independent"])
+        self.assertEqual(findings["feature_set"]["features_count"], 0)
+        self.assertEqual(findings["decision_authority"], "BASE_HIERARCHY")
+        self.assertFalse(findings["base_candidate_available"])
+        self.assertEqual(findings["autonomous_decision"]["action"], "WAIT")
+        self.assertEqual(findings["intel_summary"]["decision_authority"], "BASE_HIERARCHY")
+        self.assertEqual(findings["pipeline_outputs"]["technical_analysis"]["bar_count"], 5)
 
-        # Verify specific patterns detected
-        patterns_list = [p["name"] for p in findings["patterns"]]
-        self.assertIn("Strong Directional Momentum Pattern", patterns_list)
-
-        # Verify confidence score is correctly computed
-        self.assertTrue(result.Research.ConfidenceScore > 0.0)
+        # Research confidence cannot create a candidate without Base evidence.
+        self.assertEqual(result.Research.ConfidenceScore, 0.0)
 
     def test_simulation_safety(self):
         """Test 6: Safety verification. Assert no order execution hooks or trade signals can be emitted."""

@@ -172,13 +172,16 @@ class TestFeatureExtraction(unittest.TestCase):
         # Run pipeline
         result = pipeline.execute(context)
 
-        # Confirm features correctly reached the research result findings
-        self.assertIn("feature_set", result.Research.Findings)
-        self.assertIn("observation_summary", result.Research.Findings)
-
-        obs_summary = result.Research.Findings["observation_summary"]
-        self.assertEqual(obs_summary["price_change"], 6.0)
-        self.assertEqual(obs_summary["trend_strength_classification"], "strong_bullish")
+        # The compatibility engine is now indicator-free and Base-only.
+        findings = result.Research.Findings
+        self.assertIn("feature_set", findings)
+        self.assertIn("primitive_observation", findings)
+        self.assertTrue(findings["indicator_independent"])
+        self.assertEqual(findings["feature_set"]["features_count"], 0)
+        self.assertEqual(findings["intel_summary"]["decision_authority"], "BASE_HIERARCHY")
+        self.assertFalse(findings["intel_summary"]["candidate_available"])
+        self.assertEqual(findings["autonomous_decision"]["action"], "WAIT")
+        self.assertNotIn("observation_summary", findings)
 
     def test_simulation_safety(self):
         """Test 5: Safety verification. Assert no trading execution properties or BUY/SELL triggers exist."""

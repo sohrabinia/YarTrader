@@ -68,7 +68,8 @@ class TestSimulationScenarios(unittest.TestCase):
         self.assertTrue(result.ExecutionPrevented)
         self.assertEqual(result.OutcomeMetric, 0.08)
         self.assertEqual(result.PipelineResult.Context.Asset, "AAPL")
-        self.assertEqual(result.PipelineResult.Decision.State, DecisionState.APPROVED)
+        # A short single-timeframe sample has no validated parent/child Base evidence.
+        self.assertEqual(result.PipelineResult.Decision.State, DecisionState.NO_ACTION)
 
         # Verify generation of report
         report = self.runner.generate_report(result)
@@ -80,8 +81,8 @@ class TestSimulationScenarios(unittest.TestCase):
 
     def test_scenario_execution_high_volatility(self) -> None:
         """Test 2: Verify risk engine responds appropriately under strict risk limits (e.g. high volatility/tight profiles)."""
-        # Set extremely restrictive risk limits where single asset weight cannot exceed 0.20
-        # This will trigger a risk rejection because the strategy evaluator returns score 0.85 (higher than 0.20)
+        # Set restrictive risk limits. With no validated Base proposal there is
+        # no exposure to reject; legacy strategy scores are intentionally disabled.
         profile = RiskProfile("High Volatility Restrictive", 1.0, 0.20)
         scenario_input = ScenarioInput(
             Scenario=self.valid_scenario,
@@ -92,16 +93,16 @@ class TestSimulationScenarios(unittest.TestCase):
 
         result = self.runner.run_scenario(scenario_input)
 
-        # Verify risk analyzer successfully rejected the allocation
+        # No Base proposal means zero exposure and no action, independent of
+        # the legacy strategy score that used to trigger a synthetic rejection.
         self.assertIsNotNone(result)
-        self.assertFalse(result.PipelineResult.Risk.IsApproved)
+        self.assertTrue(result.PipelineResult.Risk.IsApproved)
         self.assertEqual(result.PipelineResult.Decision.State, DecisionState.NO_ACTION)
 
-        # Verify report includes the rejection detail
         report = self.runner.generate_report(result)
         self.assertEqual(report.PipelineStatus, "Success")
-        self.assertIn("REJECTED", report.RiskSummary)
-        self.assertIn("No asset allocation recommended", report.DecisionSummary)
+        self.assertIn("APPROVED", report.RiskSummary)
+        self.assertIn("No validated hierarchical Base proposal", report.DecisionSummary)
 
     def test_scenario_simulation_safety(self) -> None:
         """Test 3: Verify SimulationEnvironmentGuard successfully blocks live execution attempts."""
