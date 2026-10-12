@@ -9,7 +9,7 @@ from src.Risk.Models.campaign import CampaignLeg, TradeCampaign
 class ProductionRiskPolicy:
     """Single authoritative production risk policy for YarTrader."""
     TARGET_RISK_PCT: float = 1.0  # baseline; live sizing adapts per setup
-    HARD_CEILING_RISK_PCT: float = 1.0  # prevents one trade consuming the daily loss budget
+    HARD_CEILING_RISK_PCT: float = 3.0  # adaptive sizing safety ceiling; broker execution gate enforces the 1% target budget
     MIN_ADAPTIVE_RISK_PCT: float = 0.25
     MINIMUM_RR: float = 1.0
     MAX_DAILY_LOSS_PCT: float = 10.0
