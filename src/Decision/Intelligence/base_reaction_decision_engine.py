@@ -202,6 +202,31 @@ class BaseReactionDecisionEngine:
                 return wait(f"{name} contains future information.")
         if str(micro.get("timeframe")) != "M1" or int(micro.get("exit_direction", 0)) != child_direction:
             return wait("M1 timing Base is not direction-aligned.")
+        # Production orchestration supplies the full mother-to-M1 inventory. Do
+        # not allow an incomplete, unordered, or non-causal chain to reach scoring.
+        chain = setup.get("hierarchy_chain")
+        if chain is not None:
+            if not setup.get("hierarchy_complete_to_m1") or not isinstance(chain, (list, tuple)) or not chain:
+                return wait("Full confirmed Base hierarchy from mother through M1 is incomplete.")
+            chain_ids = [str(item.get("event_id")) for item in chain if isinstance(item, Mapping)]
+            if (str(parent.get("event_id")) not in chain_ids
+                    or str(child.get("event_id")) not in chain_ids
+                    or str(micro.get("event_id")) not in chain_ids):
+                return wait("Mother, selected child, and M1 trigger must all be present in the Base hierarchy.")
+            ranks = []
+            for item in chain:
+                if not isinstance(item, Mapping):
+                    return wait("Malformed timeframe entry in the Base hierarchy.")
+                timeframe = str(item.get("timeframe", ""))
+                if timeframe not in TIMEFRAME_ORDER:
+                    return wait("Unknown timeframe in the Base hierarchy.")
+                if int(item.get("confirmation_time", 0)) > now_i:
+                    return wait("A Base in the hierarchy contains future information.")
+                ranks.append(_rank(timeframe))
+            if ranks != sorted(ranks) or len(ranks) != len(set(ranks)):
+                return wait("Base hierarchy must be ordered from mother timeframe down to M1 without duplicate levels.")
+            if str(chain[-1].get("timeframe")) != "M1":
+                return wait("The smallest child in the Base hierarchy must be M1.")
         if now_i - int(micro.get("confirmation_time", 0)) > 8 * TIMEFRAME_SECONDS["M1"]:
             return wait("M1 trigger is stale.")
         if str(reaction.get("base_id")) != str(child.get("event_id")):

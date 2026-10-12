@@ -193,6 +193,8 @@ class StrategyOrchestrator:
             reaction_result = reaction_engine.evaluate(
                 setup={"timeframe": tf, "base_type": str(child.get("base_type", "UNKNOWN")),
                        "parent_relation": str(structure.get("parent_relation", "NESTED")),
+                       "hierarchy_chain": list(structure.get("hierarchy_chain", [])),
+                       "hierarchy_complete_to_m1": bool(structure.get("hierarchy_complete_to_m1", False)),
                        "setup_type": "RETEST", "zone_low": low, "zone_high": high,
                        "invalidation": stop, "target": target, "base_width": base_width,
                        "base_width": base_width, "confidence": 100.0,

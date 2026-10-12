@@ -207,7 +207,50 @@ class HierarchicalBaseBehaviorEngine:
                         aligned, parent_relation, direction)
         stat = self._stats.get(key)
 
+        # Explicitly inventory every available confirmed Base from the selected
+        # mother timeframe through intermediate levels down to the M1 trigger.
+        # The pairwise model may score parent/child statistics, but the full chain
+        # remains visible in the decision context rather than silently discarded.
+        hierarchy_chain = []
+        if parent:
+            parent_rank = _tf_rank(str(parent.get("timeframe", "")))
+            for timeframe in TIMEFRAME_ORDER:
+                rank = _tf_rank(timeframe)
+                if rank < parent_rank:
+                    continue
+                eligible = [
+                    event for event in events
+                    if str(event.get("timeframe", "")) == timeframe
+                    and int(event.get("confirmation_time", 0)) <= int(now)
+                    and int(event.get("confirmation_time", 0)) >= int(parent.get("confirmation_time", 0))
+                ]
+                if timeframe == str(parent.get("timeframe")):
+                    chosen = parent
+                elif timeframe == str(child.get("timeframe")):
+                    chosen = child
+                elif timeframe == "M1":
+                    chosen = micro
+                else:
+                    chosen = max(eligible, key=lambda event: int(event.get("confirmation_time", 0))) if eligible else None
+                if chosen:
+                    hierarchy_chain.append({
+                        "timeframe": timeframe,
+                        "event_id": chosen.get("event_id"),
+                        "base_type": chosen.get("base_type"),
+                        "direction": int(chosen.get("exit_direction", 0)),
+                        "confirmation_time": int(chosen.get("confirmation_time", 0)),
+                        "base_low": float(chosen.get("base_low", 0.0)),
+                        "base_high": float(chosen.get("base_high", 0.0)),
+                        "role": ("MOTHER" if chosen.get("event_id") == parent.get("event_id")
+                                 else "EXECUTION_TRIGGER" if timeframe == "M1"
+                                 else "SELECTED_CHILD" if chosen.get("event_id") == child.get("event_id")
+                                 else "INTERMEDIATE_BASE"),
+                    })
         context = {
+            "hierarchy_chain": hierarchy_chain,
+            "hierarchy_timeframes_considered": list(TIMEFRAME_ORDER),
+            "hierarchy_complete_to_m1": bool(parent and child and micro and
+                hierarchy_chain and hierarchy_chain[-1].get("timeframe") == "M1"),
             "parent_base_id": parent.get("event_id") if parent else None,
             "parent_timeframe": parent_tf,
             "parent_relation": parent_relation,
