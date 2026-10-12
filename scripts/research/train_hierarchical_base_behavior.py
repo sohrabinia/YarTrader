@@ -66,6 +66,30 @@ def load_bars(tf: str, max_bars: int) -> List[Dict[str, Any]]:
     return list(rows)
 
 
+def attach_causal_atr_scale(events: Sequence[Dict[str, Any]],
+                            bars: Sequence[Mapping[str, Any]], period: int = 14) -> None:
+    """Attach a backward-only ATR scale for offline risk/cost simulation.
+
+    The Base detector remains price-geometry-only. ATR is computed here solely
+    to scale simulated stops/trailing/costs, using bars available at confirmation.
+    """
+    if period < 1:
+        raise ValueError("period must be positive")
+    for event in events:
+        idx = int(event.get("confirmation_index", -1))
+        if idx < period or idx >= len(bars):
+            continue
+        true_ranges = []
+        for i in range(idx - period + 1, idx + 1):
+            high = float(bars[i]["high"])
+            low = float(bars[i]["low"])
+            previous_close = float(bars[i - 1]["close"])
+            true_ranges.append(max(high - low, abs(high - previous_close), abs(low - previous_close)))
+        atr = sum(true_ranges) / len(true_ranges)
+        if math.isfinite(atr) and atr > 0:
+            event["base_atr"] = atr
+
+
 def key_for(event: Mapping[str, Any], label: Mapping[str, Any]) -> str:
     parent_tf = str(label.get("parent_timeframe") or "NONE")
     aligned = bool(label.get("parent_aligned", False))
@@ -249,6 +273,7 @@ def main() -> None:
         bars = load_bars(tf, args.m1_max_bars if tf == "M1" else 0)
         bars_by_tf[tf] = bars
         events_by_tf[tf] = detect_base_departures(bars, tf, scan_step=STEPS[tf]) if len(bars) >= 50 else []
+        attach_causal_atr_scale(events_by_tf[tf], bars)
         print("DATA", tf, "bars", len(bars), "base_events", len(events_by_tf[tf]), flush=True)
 
     labels = label_exit_to_next_base(events_by_tf, bars_by_tf, horizon_bars=24)
@@ -353,6 +378,38 @@ def main() -> None:
         decision_counts["walk_forward_accepted"] += 1
         accepted.append(row)
 
+    # Diagnostic only: pool sparse exact profiles by child timeframe and direction.
+    # This tests whether the lack of exact-profile samples is the only blocker; it
+    # does not produce an executable model and still uses only outcomes completed
+    # before each signal.
+    pooled_history: Dict[str, List[float]] = defaultdict(list)
+    pooled_end_cursor = 0
+    pooled_accepted = []
+    pooled_decision_counts = defaultdict(int)
+    for row in potential:
+        signal_time = int(row["signal_time"])
+        while (pooled_end_cursor < len(outcomes_by_end)
+               and int(outcomes_by_end[pooled_end_cursor]["label_end_time"]) < signal_time):
+            completed = outcomes_by_end[pooled_end_cursor]
+            direction = "BUY" if str(completed["base_type"]).endswith("R") else "SELL"
+            pooled_history[f"{completed['timeframe']}|{direction}"].append(float(completed["net_R"]))
+            pooled_end_cursor += 1
+        direction = "BUY" if str(row["base_type"]).endswith("R") else "SELL"
+        prior = pooled_history.get(f"{row['timeframe']}|{direction}", [])
+        if len(prior) < args.min_samples:
+            pooled_decision_counts["insufficient_history"] += 1
+            continue
+        win_rate = sum(value > 0 for value in prior) / len(prior)
+        mean_net = sum(prior) / len(prior)
+        variance = sum((value - mean_net) ** 2 for value in prior) / (len(prior) - 1) if len(prior) > 1 else 1e18
+        mean_se = math.sqrt(variance / len(prior))
+        if (win_rate < args.min_win_rate or mean_net < args.min_mean_net_r
+                or mean_net - 2.5 * mean_se < args.min_mean_net_r):
+            pooled_decision_counts["historical_gate_rejected"] += 1
+            continue
+        pooled_decision_counts["walk_forward_accepted"] += 1
+        pooled_accepted.append(row)
+
     # Train the research artifact on all outcomes completed before the last observed
     # bar timestamp; this artifact is NOT automatically activated in the trading loop.
     last_ts = max((int(b[-1]["time"]) for b in bars_by_tf.values() if b), default=0)
@@ -398,6 +455,12 @@ def main() -> None:
         "walk_forward": {"accepted_trades": summarize(accepted),
                          "decision_counts": dict(decision_counts),
                          "note": "Each decision only uses outcomes with exit timestamps before its signal; event trades can overlap."},
+        "pooled_walk_forward_diagnostic": {
+            "accepted_trades": summarize(pooled_accepted),
+            "decision_counts": dict(pooled_decision_counts),
+            "pooling": "child timeframe + direction only; diagnostic research, not an executable model",
+            "note": "Each decision only uses outcomes with exit timestamps before its signal; event trades can overlap and portfolio constraints are not modeled."
+        },
         "model_groups": len(model_groups),
         "model_groups_passing_gates": sum(1 for v in model_groups.values()
             if v["samples"] >= args.min_samples and v["win_rate"] >= args.min_win_rate
@@ -408,16 +471,21 @@ def main() -> None:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, allow_nan=False), encoding="utf-8")
-    model = {"version": 1, "min_samples": args.min_samples, "min_win_rate": args.min_win_rate,
+    model = {"version": 1, "detector_version": "base_geometry_price_only_v2",
+             "model_schema_version": "base_only_directional_net_r_v3",
+             "min_samples": args.min_samples, "min_win_rate": args.min_win_rate,
              "min_mean_net_r": args.min_mean_net_r, "as_of": last_ts, "groups": model_groups,
-             "status": "RESEARCH_ONLY_NOT_ACTIVATED"}
+             "status": "RESEARCH_ONLY_NOT_ACTIVATED",
+             "activation_note": "Research artifact only; requires independent walk-forward and broker-cost validation before activation."}
     model_path = Path(args.model_out)
     model_path.parent.mkdir(parents=True, exist_ok=True)
     model_path.write_text(json.dumps(model, indent=2, allow_nan=False), encoding="utf-8")
     print("REPORT", out, flush=True)
     print("MODEL", model_path, "groups", len(model_groups), "as_of", last_ts, flush=True)
     print("SUMMARY", json.dumps({"potential": report["potential_filled_trades"],
-          "walk_forward": report["walk_forward"], "model_groups": len(model_groups),
+          "walk_forward": report["walk_forward"],
+          "pooled_walk_forward": report["pooled_walk_forward_diagnostic"],
+          "model_groups": len(model_groups),
           "passing_groups": report["model_groups_passing_gates"]}), flush=True)
 
 

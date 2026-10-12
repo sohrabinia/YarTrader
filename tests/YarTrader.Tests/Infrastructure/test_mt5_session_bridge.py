@@ -15,6 +15,17 @@ class TestMT5SessionBridge(unittest.TestCase):
         self.assertEqual(account.server, "Alpari-MT5-Demo")
         client.call.assert_called_once_with("account_info")
 
+    def test_proxy_forwards_active_orders_as_objects(self):
+        client = MagicMock()
+        client.call.return_value = [{"ticket": 123, "symbol": "XAUUSD"}]
+        proxy = MT5BridgeProxy(client)
+
+        orders = proxy.orders_get(symbol="XAUUSD")
+
+        self.assertEqual(orders[0].ticket, 123)
+        self.assertEqual(orders[0].symbol, "XAUUSD")
+        client.call.assert_called_once_with("orders_get", symbol="XAUUSD")
+
     def test_proxy_forwards_rates_and_serializes_dates(self):
         client = MagicMock()
         client.call.return_value = []

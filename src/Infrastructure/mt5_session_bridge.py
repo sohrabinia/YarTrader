@@ -175,6 +175,10 @@ class MT5BridgeProxy:
         result = self.client.call("positions_get", **kwargs)
         return None if result is None else [_DictObject(x) for x in result]
 
+    def orders_get(self, **kwargs: Any) -> Any:
+        result = self.client.call("orders_get", **kwargs)
+        return None if result is None else [_DictObject(x) for x in result]
+
     def history_orders_get(self, **kwargs: Any) -> Any:
         result = self.client.call("history_orders_get", **kwargs)
         return None if result is None else [_DictObject(x) for x in result]
@@ -298,7 +302,7 @@ class MT5SessionAgent(ThreadingHTTPServer):
 
         if method in {"terminal_info", "account_info", "symbols_get", "symbol_info", "symbol_info_tick",
                       "copy_rates_range", "copy_rates_from", "copy_rates_from_pos", "positions_get",
-                      "history_orders_get", "history_deals_get", "order_calc_profit"}:
+                      "orders_get", "history_orders_get", "history_deals_get", "order_calc_profit"}:
             self._account_guard()
             fn = getattr(self.mt5, method)
             if method == "symbol_info":
