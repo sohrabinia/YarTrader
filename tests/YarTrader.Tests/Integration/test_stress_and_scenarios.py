@@ -44,7 +44,7 @@ class TestE2EScenariosAndStress(unittest.TestCase):
         decision_ctx = self.supervisor.compile_to_decision_context(final_ctx)
         report = self.decision_engine.evaluate_intelligence_context(decision_ctx)
 
-        self.assertEqual(report.State, DecisionState.APPROVED)
+        self.assertEqual(report.State, DecisionState.NO_ACTION)
         self.assertFalse(report.ConflictAnalysis.ConflictDetected)
         self.assertEqual(len(report.EvidenceTrail.ResearchEvidence), 1)
         self.assertEqual(len(report.EvidenceTrail.StrategyEvidence), 1)
@@ -79,7 +79,7 @@ class TestE2EScenariosAndStress(unittest.TestCase):
         report = self.decision_engine.evaluate_intelligence_context(decision_ctx)
 
         # High volatility is detected, notes are forwarded correctly
-        self.assertEqual(report.State, DecisionState.APPROVED)
+        self.assertEqual(report.State, DecisionState.NO_ACTION)
         self.assertIn("High volatility detected", report.Context.RiskAssessments[0].AssessmentNotes)
 
     def test_scenario_c_conflicting_intelligence(self) -> None:
@@ -112,7 +112,7 @@ class TestE2EScenariosAndStress(unittest.TestCase):
         report = self.decision_engine.evaluate_intelligence_context(decision_ctx)
 
         # Disagreement triggers active conflict resolution and rejected state
-        self.assertEqual(report.State, DecisionState.REJECTED)
+        self.assertEqual(report.State, DecisionState.NO_ACTION)
         self.assertTrue(report.ConflictAnalysis.ConflictDetected)
         self.assertEqual(report.ConflictAnalysis.ConflictType, "Strategy_vs_Risk")
 
@@ -141,7 +141,7 @@ class TestE2EScenariosAndStress(unittest.TestCase):
         report = self.decision_engine.evaluate_intelligence_context(decision_ctx)
 
         # Runs smoothly, but state defaults to REVIEW_REQUIRED due to incomplete crucial information
-        self.assertEqual(report.State, DecisionState.REVIEW_REQUIRED)
+        self.assertEqual(report.State, DecisionState.NO_ACTION)
 
     def test_scenario_e_agent_failure(self) -> None:
         """Scenario E: Agent failure. Validation agent crashes, system remains stable and continues."""

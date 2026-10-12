@@ -1,5 +1,6 @@
 import math
 import uuid
+from types import SimpleNamespace
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -15,6 +16,44 @@ from src.Decision.Intelligence.models import (
     DecisionIntelligenceReport,
     DecisionHistoryRecord
 )
+
+
+_FORBIDDEN_CONTEXT_TERMS = ("order", "position", "broker", "trade_command", "buy_signal", "sell_signal", "execute")
+_EXECUTION_ONLY_KEYS = {
+    "autonomous_decision", "base_plan", "order_plan", "execution_plan", "best_candidate",
+    "candidates", "candidate", "entry", "stop_loss", "take_profit", "volume", "lot_size",
+    "position_size", "risk_reward", "risk_status", "execution_status", "broker_dispatch",
+}
+_DROP_CONTEXT_VALUE = object()
+
+
+def _sanitize_research_evidence(value: Any) -> Any:
+    """Remove actionable execution payloads before research evidence enters decision context."""
+    if isinstance(value, dict):
+        safe = {}
+        for key, item in value.items():
+            key_text = str(key).lower()
+            if key_text in _EXECUTION_ONLY_KEYS or any(term in key_text for term in _FORBIDDEN_CONTEXT_TERMS):
+                continue
+            clean_item = _sanitize_research_evidence(item)
+            if clean_item is not _DROP_CONTEXT_VALUE:
+                safe[key] = clean_item
+        return safe
+    if isinstance(value, (list, tuple)):
+        cleaned = [_sanitize_research_evidence(item) for item in value]
+        return [item for item in cleaned if item is not _DROP_CONTEXT_VALUE]
+    if isinstance(value, set):
+        cleaned = [_sanitize_research_evidence(item) for item in value]
+        return {item for item in cleaned if item is not _DROP_CONTEXT_VALUE}
+    if isinstance(value, str) and any(term in value.lower() for term in _FORBIDDEN_CONTEXT_TERMS):
+        return _DROP_CONTEXT_VALUE
+    if hasattr(value, "__dict__"):
+        clean_fields = _sanitize_research_evidence(vars(value))
+        if clean_fields is _DROP_CONTEXT_VALUE or not isinstance(clean_fields, dict):
+            return _DROP_CONTEXT_VALUE
+        # Preserve attribute-style access for DecisionAnalyzer while excluding broker/action fields.
+        return SimpleNamespace(**clean_fields)
+    return value
 
 
 class DecisionContextBuilder:
@@ -43,7 +82,11 @@ class DecisionContextBuilder:
                 if isinstance(findings, list):
                     insights = findings
                 elif isinstance(findings, dict):
-                    insights = [findings]
+                    # Research may include a Base plan for the guarded execution layer.
+                    # Strip actionable order/position/broker payloads before this separate
+                    # decision context is built; the context must remain research-only.
+                    sanitized = _sanitize_research_evidence(findings)
+                    insights = [sanitized] if isinstance(sanitized, dict) else []
             elif isinstance(research_output, list):
                 insights = research_output
 
@@ -64,8 +107,14 @@ class DecisionContextBuilder:
             else:
                 risks = [risk_assessment]
 
-        norm_market = market_context.copy() if market_context else {}
-        norm_metadata = metadata.copy() if metadata else {}
+        # Sanitize every context channel, not just findings: strategy/risk dataclasses
+        # may carry position-sizing or broker fields that must never enter this layer.
+        insights = [clean for item in insights if (clean := _sanitize_research_evidence(item)) is not _DROP_CONTEXT_VALUE]
+        patterns = [clean for item in patterns if (clean := _sanitize_research_evidence(item)) is not _DROP_CONTEXT_VALUE]
+        evals = [clean for item in evals if (clean := _sanitize_research_evidence(item)) is not _DROP_CONTEXT_VALUE]
+        risks = [clean for item in risks if (clean := _sanitize_research_evidence(item)) is not _DROP_CONTEXT_VALUE]
+        norm_market = _sanitize_research_evidence(market_context.copy() if market_context else {})
+        norm_metadata = _sanitize_research_evidence(metadata.copy() if metadata else {})
 
         # Resolve missing crucial details gracefully
         if "asset" not in norm_metadata:

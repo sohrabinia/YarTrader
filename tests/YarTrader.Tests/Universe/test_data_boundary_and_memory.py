@@ -76,14 +76,14 @@ class TestDataBoundaryAndMemorySafety(unittest.TestCase):
         self.assertNotIn("momentum_rsi", prim_obs)
         self.assertNotIn("price_trend", prim_obs)
 
-    def test_legacy_engine_name_is_indicator_free_base_only_alias(self):
-        # The compatibility name must not re-enable the old indicator pipeline.
-        legacy_engine = FeatureExtractionResearchEngine(data_provider=self.provider)
-        runtime = ResearchRuntime(symbol="XAUUSD", timeframe="H1", research_engine=legacy_engine)
-        self.assertIsInstance(runtime.research_engine, FeatureExtractionResearchEngine)
+    def test_feature_engine_compatibility_alias_is_base_only(self):
+        # The compatibility class name resolves to the canonical indicator-free engine.
+        alias_engine = FeatureExtractionResearchEngine(data_provider=self.provider)
+        runtime = ResearchRuntime(symbol="XAUUSD", timeframe="H1", research_engine=alias_engine)
         self.assertIsInstance(runtime.research_engine, PrimitiveMarketResearchEngine)
+        self.assertIs(runtime.research_engine, alias_engine)
         self.assertIsNone(runtime.research_engine.feature_pipeline)
-        self.assertFalse(hasattr(runtime.research_engine, "_feature_pipeline"))
+        self.assertEqual(runtime.research_engine._live_brains, {})
 
     def test_compact_market_state_has_no_technical_indicators(self):
         req = ExternalDataRequest(

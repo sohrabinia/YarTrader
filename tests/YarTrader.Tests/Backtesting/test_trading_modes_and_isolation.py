@@ -52,7 +52,7 @@ class TestTradingModesAndIsolation(unittest.TestCase):
             timeframe="M15",
             parameters={
                 "interval_minutes": 120,
-                "strategy_type": "Momentum",
+                "strategy_type": "BASE_HIERARCHY",
                 "initial_balance": 10000.0
             }
         )
@@ -72,42 +72,19 @@ class TestTradingModesAndIsolation(unittest.TestCase):
         self.assertIn("trade_list", metrics)
         self.assertIn("equity_curve", metrics)
 
-    def test_backtest_runs_differ_by_strategy(self) -> None:
-        """Verifies that Momentum and MeanReversion backtests generate explainable different outcomes."""
-        scen_a = BacktestScenario(
-            scenario_id="scen-a",
-            name="Momentum",
-            start_time=self.now - timedelta(hours=6),
-            end_time=self.now,
-            symbol="EURUSD",
-            timeframe="M15",
-            parameters={
-                "interval_minutes": 120,
-                "strategy_type": "Momentum"
-            }
-        )
-        scen_b = BacktestScenario(
-            scenario_id="scen-b",
-            name="MeanReversion",
-            start_time=self.now - timedelta(hours=6),
-            end_time=self.now,
-            symbol="EURUSD",
-            timeframe="M15",
-            parameters={
-                "interval_minutes": 120,
-                "strategy_type": "MeanReversion"
-            }
-        )
-
-        res_a = self.engine.run_backtest(scen_a)
-        res_b = self.engine.run_backtest(scen_b)
-
-        # Confirm that trades exist and differ
-        trades_a = res_a.performance_metrics["trade_list"]
-        trades_b = res_b.performance_metrics["trade_list"]
-
-        if trades_a and trades_b:
-            self.assertNotEqual(trades_a[0]["direction"], trades_b[0]["direction"])
+    def test_backtest_rejects_legacy_strategy_selection(self) -> None:
+        for old_strategy in ("Momentum", "MeanReversion", "JUMP", "SCALP"):
+            scenario = BacktestScenario(
+                scenario_id=f"legacy-{old_strategy}",
+                name="Retired strategy must not run",
+                start_time=self.now - timedelta(hours=4),
+                end_time=self.now,
+                symbol="EURUSD",
+                timeframe="M15",
+                parameters={"interval_minutes": 120, "strategy_type": old_strategy},
+            )
+            with self.assertRaises(Exception):
+                self.engine.run_backtest(scenario)
 
     def test_demo_scenario_does_not_fabricate_execution_records(self) -> None:
         """Scenario approval is not an executed trade and must not create fake PnL."""

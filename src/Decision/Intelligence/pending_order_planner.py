@@ -33,11 +33,11 @@ class PendingOrderPlanner:
     """
 
     def __init__(self, min_confidence: float = 70.0, min_net_rr: float = 1.5,
-                 max_spread_atr: float = 0.12, entry_buffer_atr: float = 0.05):
+                 max_spread_base_width_ratio: float = 0.12, entry_buffer_base_width_ratio: float = 0.05):
         self.min_confidence = float(min_confidence)
         self.min_net_rr = float(min_net_rr)
-        self.max_spread_atr = float(max_spread_atr)
-        self.entry_buffer_atr = float(entry_buffer_atr)
+        self.max_spread_base_width_ratio = float(max_spread_base_width_ratio)
+        self.entry_buffer_base_width_ratio = float(entry_buffer_base_width_ratio)
 
     @staticmethod
     def _wait(direction: str, reason: str, expires_at: Optional[float] = None) -> PendingOrderPlan:
@@ -51,16 +51,14 @@ class PendingOrderPlanner:
         expires_at = scenario.get("expires_at")
         if direction not in {"BUY", "SELL"}:
             return self._wait(direction, "Direction is not actionable.")
-        required = ("zone_low", "zone_high", "invalidation", "target", "confidence")
-        if any(scenario.get(k) is None for k in required) or scenario.get("base_width", scenario.get("atr")) is None:
+        required = ("zone_low", "zone_high", "invalidation", "target", "base_width", "confidence")
+        if any(scenario.get(k) is None for k in required):
             return self._wait(direction, "Scenario lacks a Base zone, Base-width scale, invalidation, target, or confidence.", expires_at)
         try:
             low, high = float(scenario["zone_low"]), float(scenario["zone_high"])
             invalidation, target = float(scenario["invalidation"]), float(scenario["target"])
-            # Base-only strategy uses the selected Base's own width as its geometric
-            # scale. "atr" is accepted only for backward compatibility with older
-            # callers; Base runtime supplies base_width explicitly.
-            base_width, confidence = float(scenario.get("base_width", scenario.get("atr"))), float(scenario["confidence"])
+            # The selected Base's own geometric width is the only scale used here.
+            base_width, confidence = float(scenario["base_width"]), float(scenario["confidence"])
             bid, ask = float(quote["bid"]), float(quote["ask"])
             now = float(now)
             expiry = float(expires_at) if expires_at is not None else None
@@ -76,12 +74,12 @@ class PendingOrderPlanner:
         if confidence < self.min_confidence:
             return self._wait(direction, "Confidence is below the pending-order threshold.", expires_at)
         spread = ask - bid
-        if spread / base_width > self.max_spread_atr:
+        if spread / base_width > self.max_spread_base_width_ratio:
             return self._wait(direction, "Spread is too large relative to the selected Base width.", expires_at)
         if setup not in {"RETEST", "BREAKOUT"}:
             return self._wait(direction, "Only confirmed RETEST or BREAKOUT scenarios can propose pending orders.", expires_at)
 
-        buffer = self.entry_buffer_atr * base_width
+        buffer = self.entry_buffer_base_width_ratio * base_width
         if setup == "RETEST":
             order_type = "BUY_LIMIT" if direction == "BUY" else "SELL_LIMIT"
             try:
@@ -128,14 +126,14 @@ class PendingOrderPlanner:
 
     @staticmethod
     def should_cancel(plan: Mapping[str, Any], *, now: float, zone_invalidated: bool,
-                      opposite_structure_confirmed: bool, spread_atr: float,
-                      max_spread_atr: float = 0.12) -> bool:
+                      opposite_structure_confirmed: bool, spread_base_width_ratio: float,
+                      max_spread_base_width_ratio: float = 0.12) -> bool:
         """Pure cancellation policy for a pending order; caller must verify broker state."""
         expiry = plan.get("expires_at")
         try:
             if expiry is not None and float(now) >= float(expiry):
                 return True
-            if not math.isfinite(float(spread_atr)) or float(spread_atr) > max_spread_atr:
+            if not math.isfinite(float(spread_base_width_ratio)) or float(spread_base_width_ratio) > max_spread_base_width_ratio:
                 return True
         except (TypeError, ValueError):
             return True

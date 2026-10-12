@@ -35,18 +35,6 @@ def _bar_end_time(bars: Sequence[Mapping[str, Any]], index: int, timeframe: str)
     return nominal
 
 
-def _atr(bars: Sequence[Mapping[str, Any]], period: int = 14) -> List[float]:
-    out = [float("nan")] * len(bars)
-    trs, prev = [], None
-    for i, b in enumerate(bars):
-        hi, lo, cl = float(b["high"]), float(b["low"]), float(b["close"])
-        trs.append(hi-lo if prev is None else max(hi-lo, abs(hi-prev), abs(lo-prev)))
-        if i >= period-1:
-            out[i] = sum(trs[i-period+1:i+1]) / period
-        prev = cl
-    return out
-
-
 def detect_base_departures(bars: Sequence[Mapping[str, Any]], timeframe: str,
                            scan_step: int = 1, min_incoming_base_width: float = 1.5,
                            min_departure_base_width: float = 1.0,
@@ -119,12 +107,10 @@ def detect_base_departures(bars: Sequence[Mapping[str, Any]], timeframe: str,
             "confirmation_index": conf, "base_start_time": int(bars[bs]["time"]),
             "base_end_time": _bar_end_time(bars, bend, timeframe), "confirmation_time": confirmation_time,
             "base_high": hi, "base_low": lo, "base_mid": (hi+lo)/2, "base_width": width,
-            # Compatibility alias for consumers of previously serialized research events.
-            # This value is Base width, not ATR and must not be treated as an indicator.
-            "base_atr": width, "base_width_atr": 1.0, "base_length": length,
+            "base_length": length,
             "incoming_direction": indir, "exit_direction": outdir, "base_type": typ,
-            "incoming_leg_base_widths": incoming/width, "departure_size_base_widths": abs(dist)/width,
-            "incoming_leg_atr": incoming/width, "departure_size_atr": abs(dist)/width,
+            "incoming_leg_base_widths": incoming/width,
+            "departure_size_base_widths": abs(dist)/width,
             "departure_delay_bars": delay, "detector_version": "base_geometry_price_only_v2",
             "feature_cutoff_time": confirmation_time,
         })
@@ -222,7 +208,7 @@ def build_hierarchy(events_by_tf: Mapping[str, Sequence[Mapping[str, Any]]]) -> 
 def label_base_reentry_reactions(events_by_tf: Mapping[str, Sequence[Mapping[str, Any]]],
                                  bars_by_tf: Mapping[str, Sequence[Mapping[str, Any]]],
                                  horizon_bars: int = 96,
-                                 departure_buffer_atr: float = 0.1) -> List[Dict[str, Any]]:
+                                 departure_buffer_base_widths: float = 0.1) -> List[Dict[str, Any]]:
     """Label repeated post-confirmation interactions with each Base, not only departures.
 
     Emits one row per distinct re-entry episode per Base. It records entry side,
@@ -243,8 +229,8 @@ def label_base_reentry_reactions(events_by_tf: Mapping[str, Sequence[Mapping[str
             conf = int(event["confirmation_index"])
             lo, hi = float(event["base_low"]), float(event["base_high"])
             width = hi-lo
-            atr = float(event.get("base_atr", 0.0))
-            if width <= 0 or atr <= 0 or conf+1 >= len(bars):
+            base_width = float(event.get("base_width", 0.0))
+            if width <= 0 or base_width <= 0 or conf+1 >= len(bars):
                 continue
             end = min(len(bars), conf+1+horizon_bars)
             active = False
@@ -290,10 +276,10 @@ def label_base_reentry_reactions(events_by_tf: Mapping[str, Sequence[Mapping[str
                 follow_end = min(end, int(ep["end_index"])+1+max(3, min(12, horizon_bars//4)))
                 for j in range(int(ep["end_index"])+1, follow_end):
                     close = float(bars[j]["close"])
-                    if close > hi+departure_buffer_atr*atr:
+                    if close > hi+departure_buffer_base_widths*base_width:
                         escape, escape_bars = "UP_REJECTION_OR_ESCAPE", j-int(ep["end_index"])
                         break
-                    if close < lo-departure_buffer_atr*atr:
+                    if close < lo-departure_buffer_base_widths*base_width:
                         escape, escape_bars = "DOWN_REJECTION_OR_ESCAPE", j-int(ep["end_index"])
                         break
                 ep["reaction_outcome"] = escape
@@ -343,8 +329,8 @@ def label_exit_to_next_base(events_by_tf: Mapping[str, Sequence[Mapping[str, Any
                 continue
             direction = int(e["exit_direction"])
             origin_hi, origin_lo = float(e["base_high"]), float(e["base_low"])
-            close0, atr = float(bars[i]["close"]), float(e["base_atr"])
-            if not math.isfinite(atr) or atr <= 0:
+            close0, base_width = float(bars[i]["close"]), float(e["base_width"])
+            if not math.isfinite(base_width) or base_width <= 0:
                 continue
             target = None
             if direction > 0:
@@ -363,7 +349,7 @@ def label_exit_to_next_base(events_by_tf: Mapping[str, Sequence[Mapping[str, Any
             retest_idx = target_idx = cont_idx = rev_idx = failed_idx = None
             corridor_pause = False
             pause_start = pause_departure = pause_direction = None
-            pause_range_atr = None
+            pause_range_base_widths = None
             pause_high = pause_low = None
             for k, b in enumerate(future, start=1):
                 hi, lo = float(b["high"]), float(b["low"])
@@ -374,27 +360,27 @@ def label_exit_to_next_base(events_by_tf: Mapping[str, Sequence[Mapping[str, Any
                     failed_idx = k
                 if target is not None and target_idx is None and lo <= float(target["base_high"]) and hi >= float(target["base_low"]):
                     target_idx = k
-                if cont_idx is None and ((hi-close0 >= atr) if direction > 0 else (close0-lo >= atr)):
+                if cont_idx is None and ((hi-close0 >= base_width) if direction > 0 else (close0-lo >= base_width)):
                     cont_idx = k
-                if rev_idx is None and ((close0-lo >= atr) if direction > 0 else (hi-close0 >= atr)):
+                if rev_idx is None and ((close0-lo >= base_width) if direction > 0 else (hi-close0 >= base_width)):
                     rev_idx = k
                 if pause_start is None and 3 <= k <= horizon_bars-2:
                     recent = future[max(0,k-3):k+1]
                     rng = max(float(x["high"]) for x in recent)-min(float(x["low"]) for x in recent)
                     mean_body = sum(abs(float(x["close"])-float(x["open"])) for x in recent)/len(recent)
-                    if rng <= 0.75*atr and mean_body <= 0.35*atr:
+                    if rng <= 0.75*base_width and mean_body <= 0.35*base_width:
                         corridor_pause = True
                         pause_start = k
-                        pause_range_atr = rng/atr
+                        pause_range_base_widths = rng/base_width
                         pause_high = max(float(x["high"]) for x in recent)
                         pause_low = min(float(x["low"]) for x in recent)
             if pause_start is not None:
                 for j in range(pause_start+1, len(future)+1):
                     close_after_pause = float(future[j-1]["close"])
-                    if close_after_pause > pause_high+0.15*atr:
+                    if close_after_pause > pause_high+0.15*base_width:
                         pause_departure, pause_direction = j, 1
                         break
-                    if close_after_pause < pause_low-0.15*atr:
+                    if close_after_pause < pause_low-0.15*base_width:
                         pause_departure, pause_direction = j, -1
                         break
             candidates = [(cont_idx,"continuation_barrier"),(rev_idx,"reversal_barrier"),
@@ -460,9 +446,9 @@ def label_exit_to_next_base(events_by_tf: Mapping[str, Sequence[Mapping[str, Any
                 "continuation_barrier_bars":cont_idx,"reversal_barrier_bars":rev_idx,
                 "origin_retest_bars":retest_idx,"failed_exit_closeback_bars":failed_idx,
                 "next_base_id":target["event_id"] if target else None,
-                "next_base_distance_atr":abs(float(target["base_mid"])-close0)/atr if target else None,
+                "next_base_distance_base_widths":abs(float(target["base_mid"])-close0)/base_width if target else None,
                 "next_base_touch_bars":target_idx,"corridor_pause_candidate":corridor_pause,
-                "corridor_pause_start_bar":pause_start,"corridor_pause_range_atr":round(pause_range_atr,4) if pause_range_atr is not None else None,
+                "corridor_pause_start_bar":pause_start,"corridor_pause_range_base_widths":round(pause_range_base_widths,4) if pause_range_base_widths is not None else None,
                 "corridor_pause_departure_bars":pause_departure,"corridor_pause_departure_direction":pause_direction,
                 "corridor_pause_departure_aligned":(pause_direction == direction) if pause_direction is not None else None,
                 "label_mode":"OFFLINE_OUTCOME_ONLY","feature_cutoff_time":e["confirmation_time"],
@@ -477,11 +463,11 @@ def label_exit_to_next_base(events_by_tf: Mapping[str, Sequence[Mapping[str, Any
 def simulate_departure_trades(events_by_tf: Mapping[str, Sequence[Mapping[str, Any]]],
                               bars_by_tf: Mapping[str, Sequence[Mapping[str, Any]]],
                               transition_labels: Sequence[Mapping[str, Any]],
-                              horizon_bars: int = 24, stop_buffer_atr: float = 0.1,
-                              target_r: float = 2.0, round_trip_cost_atr: float = 0.05) -> Dict[str, Any]:
+                              horizon_bars: int = 24, stop_buffer_base_widths: float = 0.1,
+                              target_r: float = 2.0, round_trip_cost_base_widths: float = 0.05) -> Dict[str, Any]:
     """Conservative baseline trade simulation; entry is next-bar open, stop wins same-bar ties.
 
-    Cost is an ATR-based sensitivity proxy, not broker spread or a claim of net profitability.
+    Cost is an base_width-based sensitivity proxy, not broker spread or a claim of net profitability.
     """
     event_map = {e["event_id"]:e for vals in events_by_tf.values() for e in vals}
     label_map = {x["event_id"]:x for x in transition_labels}
@@ -493,12 +479,12 @@ def simulate_departure_trades(events_by_tf: Mapping[str, Sequence[Mapping[str, A
             if i+1 >= len(bars) or i+horizon_bars >= len(bars):
                 continue
             direction = int(e["exit_direction"])
-            atr = float(e["base_atr"])
+            base_width = float(e["base_width"])
             entry = float(bars[i+1]["open"])
-            stop = (float(e["base_low"])-stop_buffer_atr*atr if direction > 0
-                    else float(e["base_high"])+stop_buffer_atr*atr)
+            stop = (float(e["base_low"])-stop_buffer_base_widths*base_width if direction > 0
+                    else float(e["base_high"])+stop_buffer_base_widths*base_width)
             risk = direction*(entry-stop)
-            if not math.isfinite(risk) or risk <= 0 or not math.isfinite(atr) or atr <= 0:
+            if not math.isfinite(risk) or risk <= 0 or not math.isfinite(base_width) or base_width <= 0:
                 continue
             label = label_map.get(e["event_id"], {})
             for mode in ("fixed_2R", "next_base", "wave_rider"):
@@ -542,7 +528,7 @@ def simulate_departure_trades(events_by_tf: Mapping[str, Sequence[Mapping[str, A
                             # Once +1R has been reached, never allow the protective stop below breakeven.
                             active_stop = max(active_stop, entry) if direction > 0 else min(active_stop, entry)
                         if best_move >= 1.5*risk:
-                            trail = favorable_extreme - direction*2.5*atr
+                            trail = favorable_extreme - direction*2.5*base_width
                             active_stop = max(active_stop, trail) if direction > 0 else min(active_stop, trail)
                         # Exit only after two closes back inside the origin base, and only if still profitable.
                         inside = float(e["base_low"]) <= cl <= float(e["base_high"])
@@ -563,7 +549,7 @@ def simulate_departure_trades(events_by_tf: Mapping[str, Sequence[Mapping[str, A
                         exit_price, exit_reason, exit_index = target, "target", j
                         break
                 gross_r = direction*(exit_price-entry)/risk
-                cost_r = round_trip_cost_atr*atr/risk
+                cost_r = round_trip_cost_base_widths*base_width/risk
                 trades.append({
                     "event_id":e["event_id"],"timeframe":tf,"base_type":e["base_type"],
                     "strategy":mode,"confirmation_time":e["confirmation_time"],
@@ -626,12 +612,12 @@ def simulate_departure_trades(events_by_tf: Mapping[str, Sequence[Mapping[str, A
                     for value, subset in groups.items():
                         summary[tf][mode]["by_higher_timeframe_context"][context_tf][axis][value] = summarize(subset)
     return {
-        "configuration":{"entry":"next bar open after departure confirmation","stop_buffer_atr":stop_buffer_atr,
-                         "fixed_target_R":target_r,"round_trip_cost_atr_proxy":round_trip_cost_atr,
+        "configuration":{"entry":"next bar open after departure confirmation","stop_buffer_base_widths":stop_buffer_base_widths,
+                         "fixed_target_R":target_r,"round_trip_cost_base_widths_proxy":round_trip_cost_base_widths,
                          "same_bar_stop_target":"stop-first conservative","horizon_bars":horizon_bars,
                          "wave_rider":{"timeframes":["M15","M5","M1"],"fixed_profit_target":False,
                                        "breakeven_activation_R":1.0,"trailing_activation_R":1.5,
-                                       "trailing_distance_ATR":2.5,
+                                       "trailing_distance_base_widths":2.5,
                                        "exit_on_two_closes_back_inside_origin_base_if_profitable":True,
                                        "evaluation_cap_bars":{"M15":48,"M5":96,"M1":240},
                                        "note":"Research baseline only; cap closes remaining positions for evaluation, not a live time-based exit rule"}},

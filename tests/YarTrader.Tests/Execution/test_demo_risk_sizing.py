@@ -94,33 +94,13 @@ class TestDynamicDemoRiskSizing(unittest.TestCase):
             )
 
 
-class TestStructuralStop(unittest.TestCase):
-    def setUp(self):
+class TestLegacyIndicatorStopRemoved(unittest.TestCase):
+    def test_atr_derived_stop_helper_is_not_available(self):
         from src.Execution.Services.autonomous_demo_trader import AutonomousDemoTrader
-        self.derive = AutonomousDemoTrader._derive_structural_stop
-        self.candles = []
-        price = 100.0
-        for i in range(30):
-            self.candles.append({"open": price, "high": price + 1.0,
-                                 "low": price - 1.0, "close": price + 0.2})
-            price += 0.1
-
-    def test_buy_stop_is_below_entry_and_uses_swing_buffer(self):
-        stop = self.derive(self.candles, "BUY", 103.0)
-        self.assertIsNotNone(stop)
-        self.assertLess(stop, 103.0)
-        self.assertLess(stop, min(c["low"] for c in self.candles[-12:]))
-
-    def test_sell_stop_is_above_entry_and_uses_swing_buffer(self):
-        stop = self.derive(self.candles, "SELL", 101.0)
-        self.assertIsNotNone(stop)
-        self.assertGreater(stop, 101.0)
-        self.assertGreater(stop, max(c["high"] for c in self.candles[-12:]))
-
-    def test_rejects_insufficient_history_and_overwide_stop(self):
-        self.assertIsNone(self.derive(self.candles[:10], "BUY", 103.0))
-        self.assertIsNone(self.derive(self.candles, "BUY", 200.0))
+        self.assertFalse(hasattr(AutonomousDemoTrader, "_derive_structural_stop"))
 
 
+if __name__ == "__main__":
+    unittest.main()
 if __name__ == "__main__":
     unittest.main()

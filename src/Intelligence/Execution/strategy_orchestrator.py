@@ -159,7 +159,7 @@ class StrategyOrchestrator:
             measured_reaction = self._measure_latest_base_reaction(
                 bars_by_tf.get("M1", []), child, int(latest_epoch))
             direction_sign = int(child.get("exit_direction", 0))
-            base_width = float(child.get("base_width", child.get("base_atr", 0.0)))
+            base_width = float(child.get("base_width", 0.0))
             stop = low - 0.15 * base_width if direction_sign > 0 else high + 0.15 * base_width
             # Destination Bases may form after the source Base, but must be fully
             # confirmed before the current decision candle; never freeze targets
@@ -194,7 +194,7 @@ class StrategyOrchestrator:
                        "parent_relation": str(structure.get("parent_relation", "NESTED")),
                        "setup_type": "RETEST", "zone_low": low, "zone_high": high,
                        "invalidation": stop, "target": target, "base_width": base_width,
-                       "atr": base_width, "confidence": 100.0,
+                       "base_width": base_width, "confidence": 100.0,
                        "expires_at": float(latest_epoch) + 8 * TIMEFRAME_SECONDS.get(tf, 60)},
                 quote=quote, now=float(latest_epoch), parent=parent, child=child, micro=micro,
                 reaction={"base_id": child.get("event_id"),

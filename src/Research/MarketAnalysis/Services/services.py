@@ -129,18 +129,6 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
             return value.timestamp()
         return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
 
-    def _select_brain_points(self, brain_key: tuple, data_points: List[MarketDataPoint]) -> List[MarketDataPoint]:
-        """Bootstrap on a bounded recent window, then feed only unseen candles to the live Brain."""
-        last_processed = self._last_processed_candle_timestamps.get(brain_key)
-        if last_processed is None:
-            try:
-                bootstrap_bars = max(1, int(os.getenv("YARTRADER_LIVE_BRAIN_BOOTSTRAP_BARS", "120")))
-            except (TypeError, ValueError):
-                bootstrap_bars = 120
-            return list(data_points[-bootstrap_bars:])
-        last_order = self._timestamp_order(last_processed)
-        return [dp for dp in data_points if self._timestamp_order(dp.Timestamp) > last_order]
-
     def analyze_market(self, request: ResearchRequest, market_data_response=None) -> ResearchResult:
         """
         Retrieves primitive market data and context intelligence without technical indicators.
@@ -182,51 +170,18 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
         cycle_id = f"cyc-{request.Asset.upper()}-{timeframe.upper()}-{int(time.time())}"
         decision_id = f"DEC-{request.Asset.upper()}-{timeframe.upper()}-{int(time.time())}"
 
-        # Check if newborn_brain_report is already provided in request context or compute via LiveAnalysisBrain
-        newborn_report_dict = request.Context.get("newborn_brain_report")
-        if not newborn_report_dict:
-            try:
-                from src.Research.Brain.live_brain import LiveAnalysisBrain
-                brain_key = (request.Asset.upper(), timeframe.upper())
-                newborn_brain = self._live_brains.get(brain_key)
-                if newborn_brain is None:
-                    newborn_brain = LiveAnalysisBrain(request.Asset, timeframe)
-                    self._live_brains[brain_key] = newborn_brain
-                newborn_report = None
-                brain_points = self._select_brain_points(brain_key, data_points)
-                for point_index, dp in enumerate(brain_points):
-                    raw_candle_dict = {
-                        "timestamp": dp.Timestamp.isoformat() if isinstance(dp.Timestamp, datetime) else str(dp.Timestamp),
-                        "open": float(dp.Open),
-                        "high": float(dp.High),
-                        "low": float(dp.Low),
-                        "close": float(dp.Close),
-                        "volume": float(dp.Volume)
-                    }
-                    newborn_report = newborn_brain.process_live_candle(
-                        raw_candle_dict,
-                        learning_cycle_due=(point_index == len(brain_points) - 1),
-                    )
-                    self._last_processed_candle_timestamps[brain_key] = dp.Timestamp
-                if newborn_report is None:
-                    newborn_report = getattr(newborn_brain, "_last_report", None)
-                if newborn_report:
-                    newborn_report_dict = newborn_report.to_dict()
-                else:
-                    newborn_report_dict = {
-                        "brain_available": False,
-                        "suggested_virtual_action": "WAIT",
-                        "brain_error": "No new or previously cached candle report is available from LiveAnalysisBrain"
-                    }
-            except Exception as be_err:
-                newborn_report_dict = {
-                    "brain_available": False,
-                    "suggested_virtual_action": "WAIT",
-                    "brain_error": f"LiveAnalysisBrain exception: {type(be_err).__name__}: {str(be_err)}"[:200]
-                }
+        # The parallel discovery Brain and its virtual-trade hypotheses are retired
+        # from active analysis. Only the canonical Base hierarchy may describe a setup.
+        newborn_report_dict = {
+            "symbol": request.Asset,
+            "brain_available": False,
+            "status": "DISABLED_NON_BASE",
+            "decision_authority": "BASE_HIERARCHY_ONLY",
+            "execution_enabled": False,
+        }
 
         # Canonical decision authority: Base hierarchy + costed re-entry reaction only.
-        # Brain hypotheses remain available for learning but cannot originate signals.
+        # Parallel Brain hypotheses are not consumed by active Base-only analysis.
         try:
             from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
             from src.Decision.Models.models import AutonomousTradingDecision
@@ -399,6 +354,7 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
                 "mode": "primitive_indicator_free"
             },
             "primitive_observation": primitive_observation,
+            "observation_summary": primitive_observation,
             "autonomous_decision": auto_dec_dict,
             "intel_summary": intel_res,
             "newborn_brain_report": newborn_report_dict,

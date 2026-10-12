@@ -33,7 +33,7 @@ from src.Infrastructure.exceptions import ValidationException
 from src.Data.MarketData.Providers.providers import MetaTrader5Provider
 from src.Data.MarketData.Models.models import MarketDataRequest
 from src.Research.MarketAnalysis.Models.models import ResearchRequest, ResearchResult
-from src.Research.MarketAnalysis.Services.services import FeatureExtractionResearchEngine, PrimitiveMarketResearchEngine
+from src.Research.MarketAnalysis.Services.services import PrimitiveMarketResearchEngine
 from src.Research.MarketAnalysis.Interfaces.interfaces import IResearchEngine
 
 class ResearchRuntime:
@@ -54,6 +54,10 @@ class ResearchRuntime:
     ) -> None:
         self._timeframe = validate_research_timeframe(timeframe)
         self._provider = provider or MetaTrader5Provider()
+        if research_engine is not None and not isinstance(research_engine, PrimitiveMarketResearchEngine):
+            raise ValidationException(
+                "Legacy feature/indicator research engines are retired. ResearchRuntime accepts only PrimitiveMarketResearchEngine (raw OHLC + Base hierarchy)."
+            )
         self._research_engine = research_engine or PrimitiveMarketResearchEngine(data_provider=self._provider)
         self._symbol = symbol
 
@@ -305,7 +309,7 @@ class ResearchRuntime:
             )
 
             # 5. Run the decorated FeatureExtractionResearchEngine
-            if isinstance(self._research_engine, (PrimitiveMarketResearchEngine, FeatureExtractionResearchEngine)):
+            if isinstance(self._research_engine, PrimitiveMarketResearchEngine):
                 result = self._research_engine.analyze_market(research_req, market_data_response=data_response)
             else:
                 result = self._research_engine.analyze_market(research_req)
@@ -447,10 +451,20 @@ class ResearchRuntime:
             print(f"Features:\nGenerated\n")
             print(f"Status:\nCompleted\n")
 
-            # Update metrics
-            self.last_successful_cycle = datetime.now()
+            # Update instance and shared API health metrics from the same successful cycle.
+            completed_at = datetime.now()
+            self.last_successful_cycle = completed_at
             self.cycle_count += 1
             self.last_error = None
+            from src.Application.Runtime.runtime_state import central_runtime_state
+            central_runtime_state.update_multiple({
+                "last_cycle_time": completed_at.isoformat(),
+                "research_last_successful_cycle": completed_at.isoformat(),
+                "research_cycle_count": self.cycle_count,
+                "research_cycle_symbol": self._symbol,
+                "research_cycle_timeframe": self._timeframe,
+                "research_status": "Completed",
+            })
 
             return result
 

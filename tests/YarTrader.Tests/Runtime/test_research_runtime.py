@@ -15,7 +15,7 @@ from src.Data.Providers.MT5.mt5 import MT5DataProvider
 from src.Data.MarketData.Providers.providers import MetaTrader5Provider
 from src.Application.Runtime.research_runtime import ResearchRuntime
 from src.Research.MarketAnalysis.Models.models import ResearchResult
-from src.Research.MarketAnalysis.Services.services import FeatureExtractionResearchEngine
+from src.Research.MarketAnalysis.Services.services import FeatureExtractionResearchEngine, PrimitiveMarketResearchEngine
 
 
 
@@ -162,48 +162,25 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         self.assertEqual(runtime.timeframe, "H1")
         self.assertIs(runtime.provider, self.adapter)
 
-    def test_runtime_overwrites_legacy_brain_decision_without_base_evidence(self) -> None:
-        """A legacy BUY payload must never bypass the runtime's Base-only authority gate."""
+    def test_runtime_rejects_legacy_brain_engine_at_constructor(self) -> None:
+        """Legacy Brain engines are rejected rather than allowed to feed runtime decisions."""
         class LegacyDecisionEngine:
             def analyze_market(self, request):
                 return ResearchResult(
                     Request=request,
-                    Findings={
-                        "autonomous_decision": {
-                            "action": "BUY", "confidence": 99.0,
-                            "entry": 2000.0, "stop_loss": 1990.0, "take_profit": 2020.0,
-                            "evidence": {"decision_authority": "BRAIN"},
-                        },
-                        "intel_summary": {"source": "LiveAnalysisBrain", "decision_authority": "BRAIN"},
-                    },
+                    Findings={"autonomous_decision": {"action": "BUY", "confidence": 99.0}},
                     ConfidenceScore=0.99,
                     CreatedAt=datetime.now(),
                 )
 
-        no_candidate = {
-            "best_candidate": None,
-            "base_plan": {"status": "WAIT", "reason": "No validated Base candidate"},
-            "hierarchy": {},
-            "reaction_analysis": {},
-            "model_status": "WAIT",
-            "summary": "No validated Base hierarchy/reaction candidate exists.",
-        }
-        with tempfile.TemporaryDirectory(prefix="yartrader-base-runtime-test-") as evidence_dir, \
-             patch("src.Intelligence.Execution.strategy_orchestrator.StrategyOrchestrator.evaluate_all_strategies", return_value=no_candidate):
-            runtime = ResearchRuntime(
+        with self.assertRaises(ValidationException):
+            ResearchRuntime(
                 provider=self.adapter,
                 research_engine=LegacyDecisionEngine(),
                 symbol="XAUUSD",
                 timeframe="H1",
-                evidence_dir=evidence_dir,
+                evidence_dir=tempfile.gettempdir(),
             )
-            result = runtime.run_once()
-
-        decision = result.Findings["autonomous_decision"]
-        self.assertEqual(decision.get("action"), "WAIT")
-        self.assertEqual(decision.get("confidence"), 0.0)
-        self.assertEqual(decision.get("evidence", {}).get("decision_authority"), "BASE_HIERARCHY")
-        self.assertEqual(result.Findings["intel_summary"].get("decision_authority"), "BASE_HIERARCHY")
 
     def test_base_runtime_loads_adjacent_parent_and_child_timeframes(self) -> None:
         """Base analysis receives real adjacent timeframe bars rather than a single-TF-only map."""
@@ -235,7 +212,7 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         """Verify that a single research execution loop completes successfully and generates correct findings and files."""
         runtime = ResearchRuntime(
             provider=self.adapter,
-            research_engine=FeatureExtractionResearchEngine(data_provider=self.adapter),
+            research_engine=PrimitiveMarketResearchEngine(data_provider=self.adapter),
             symbol="XAUUSD",
             timeframe="H1",
             evidence_dir=self.evidence_dir
@@ -449,7 +426,7 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
         original_provider = global_research_runtime._provider
         original_engine = global_research_runtime._research_engine
         global_research_runtime._provider = self.adapter
-        global_research_runtime._research_engine = FeatureExtractionResearchEngine(
+        global_research_runtime._research_engine = PrimitiveMarketResearchEngine(
             data_provider=self.adapter
         )
         try:

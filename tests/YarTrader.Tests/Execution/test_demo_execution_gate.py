@@ -232,7 +232,7 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
 
             self.assertEqual(mock_sizing.call_count, 0, f"Case {idx+1} failed sizing call count expectation (expected 0, got {mock_sizing.call_count})")
             self.assertEqual(mock_demo.execute_demo_decision.call_count, 0, f"Case {idx+1} failed execution call count expectation")
-            self.assertNotIn("XAUUSD", worker.last_executed_signal, f"Case {idx+1} updated last_executed_signal unexpectedly")
+            self.assertFalse(hasattr(worker, "last_executed_signal"), f"Case {idx+1} unexpectedly restored the retired direct-dispatch path")
 
     @patch("time.sleep", return_value=None)
     @patch("src.Risk.Services.professional_risk_engine.ProfessionalRiskEngine.evaluate_equity_risk_and_position_size")
@@ -377,13 +377,11 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
             mock_registry.return_value.get_active_matrix.return_value = [("XAUUSD", "H1", "Commodities", "MT5")]
             worker._run_loop()
 
-        # Assertions
-        self.assertEqual(mock_sizing.call_count, 1)
-        self.assertEqual(mock_demo.execute_demo_decision.call_count, 1)
-        # Verify volume passed to execute_demo_decision is 0.05 (from sizing), NOT 999.9 (from decision dict)
-        self.assertEqual(mock_demo.execute_demo_decision.call_args[1]["volume"], 0.05)
-        # Verify state was NOT mutated because execution Status was 'Failed'
-        self.assertNotIn("XAUUSD", worker.last_executed_signal)
+        # Legacy ResearchWorker must not size or dispatch orders, even with a BUY/SELL payload.
+        # Canonical pending-order sizing is covered by AutonomousDemoTrader tests.
+        self.assertEqual(mock_sizing.call_count, 0)
+        self.assertEqual(mock_demo.execute_demo_decision.call_count, 0)
+        self.assertFalse(hasattr(worker, "last_executed_signal"))
 
 
 class TestAutonomousDemoExecutionGate(unittest.TestCase):
@@ -541,7 +539,7 @@ class TestAutonomousDemoExecutionGate(unittest.TestCase):
 
         # Proves execution dispatch was NOT called when ENV was absent!
         self.assertEqual(mock_demo.execute_demo_decision.call_count, 0)
-        self.assertNotIn("XAUUSD", worker.last_executed_signal)
+        self.assertFalse(hasattr(worker, "last_executed_signal"))
 
 
 class TestRiskTargetContractRemediation(unittest.TestCase):
@@ -578,21 +576,16 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
         self.assertEqual(float(raw_risk_env), 1.0)
 
     def test_04_invalid_risk_env_fails_closed(self):
-        """Test 4: Invalid/non-numeric RISK_PCT_PER_TRADE fails closed in worker sizing."""
-        from app.workers.research_worker import ResearchWorker
-        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
-
-        mock_adapter = MagicMock()
-        mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
-        mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
-        mock_adapter.get_symbol_tick.return_value = {"bid": 2499.9, "ask": 2500.1}
-        mock_demo = MagicMock()
-        mock_demo.adapter = mock_adapter
-        worker.demo_engine = mock_demo
-
-        os.environ["RISK_PCT_PER_TRADE"] = "invalid_string"
-        sized = worker._validate_and_size_decision("XAUUSD", "BUY", {"entry": 2500.0, "stop_loss": 2490.0, "take_profit": 2520.0})
-        self.assertIsNone(sized)
+        """Invalid risk input is rejected by the canonical DEMO sizing function."""
+        from src.Execution.Services.autonomous_demo_trader import calculate_demo_volume_by_risk
+        from src.Infrastructure.exceptions import ValidationException
+        mt5 = MagicMock()
+        symbol_info = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
+        with self.assertRaises(ValidationException):
+            calculate_demo_volume_by_risk(
+                mt5, "XAUUSD", "BUY", 2500.0, 2490.0, symbol_info,
+                balance=10000.0, equity=10000.0, risk_pct="invalid_string",
+            )
 
     def test_05_risk_exceeding_hard_ceiling_rejected(self):
         """Test 5: Risk exceeding 1.0% hard ceiling is rejected."""
@@ -735,19 +728,18 @@ class TestDailyLossKillSwitchExecutionBoundary(unittest.TestCase):
                 DemoExecutionGate.verify_demo_execution_eligibility(mock_adapter, req, demo_mode_flag=True)
 
     def test_04_kill_switch_exception_blocks_worker_validation(self):
-        from app.workers.research_worker import ResearchWorker
-        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
-
-        mock_adapter = MagicMock()
-        mock_adapter.get_account_info.return_value = {"login": "52961173", "equity": 10000.0, "free_margin": 10000.0}
-        mock_adapter.get_symbol_info.return_value = {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
-        mock_demo = MagicMock()
-        mock_demo.adapter = mock_adapter
-        worker.demo_engine = mock_demo
-
-        with patch.object(self.kill_switch, "evaluate_daily_loss", side_effect=RuntimeError("Persistence disk error")):
-            sized = worker._validate_and_size_decision("XAUUSD", "BUY", {"entry": 2500.0, "stop_loss": 2490.0, "take_profit": 2520.0})
-            self.assertIsNone(sized)
+        """A kill-switch exception must propagate as an error, never as approval."""
+        from src.Execution.Services.autonomous_demo_trader import AutonomousDemoTrader
+        from src.Risk.Services.daily_loss_kill_switch import calculate_yartrader_daily_pnl
+        adapter = MagicMock()
+        trader = AutonomousDemoTrader(adapter=adapter)
+        with patch("src.Risk.Services.daily_loss_kill_switch.calculate_yartrader_daily_pnl", return_value={
+            "realized_pnl": 0.0, "floating_pnl": 0.0, "total_pnl": 0.0,
+            "owned_deal_count": 0, "owned_open_positions": 0,
+        }), patch.object(self.kill_switch, "evaluate_daily_loss", side_effect=RuntimeError("Persistence disk error")):
+            with self.assertRaises(RuntimeError):
+                trader._evaluate_daily_risk({"equity": 10000.0}, 1_800_000_000)
+        adapter.send_order_to_broker.assert_not_called()
 
     def test_05_demo_execution_gate_enforces_daily_loss_protection(self):
         # Trigger kill switch with 10% loss

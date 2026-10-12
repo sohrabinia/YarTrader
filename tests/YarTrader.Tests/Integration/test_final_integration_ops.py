@@ -66,7 +66,7 @@ class TestFinalIntegrationAndIntelligenceOperations(unittest.TestCase):
         demo_sc = create_trend_continuation_scenario(asset="EURUSD")
         demo_res = self.demo_runner.run_scenario(demo_sc)
         self.assertTrue(demo_res.success)
-        self.assertEqual(demo_res.final_decision_state, "Approved")
+        self.assertEqual(demo_res.final_decision_state, "NoAction")
 
         demo_report = self.demo_generator.generate_report(demo_res)
         self.assertTrue("TRADEYAR_AI" in demo_report.rendered_summary or "YARTRADER" in demo_report.rendered_summary or "YarTrader" in demo_report.rendered_summary)

@@ -192,47 +192,57 @@ def _worker_with_demo_quote(monkeypatch, bid=2499.9, ask=2500.1):
     return worker
 
 
-def test_demo_sizing_uses_fresh_executable_quote(monkeypatch):
-    monkeypatch.setenv("RISK_PCT_PER_TRADE", "1.0")
-    monkeypatch.setenv("MAX_DEMO_ENTRY_DRIFT_PCT", "0.5")
-    worker = _worker_with_demo_quote(monkeypatch)
+def test_demo_sizing_uses_broker_authoritative_stop_risk(monkeypatch):
+    from src.Execution.Services.autonomous_demo_trader import calculate_demo_volume_by_risk
 
-    sized = worker._validate_and_size_decision(
-        "XAUUSD", "BUY", {"entry": 2500.0, "stop_loss": 2490.0, "take_profit": 2520.0}
+    class FakeMT5:
+        ORDER_TYPE_BUY = 0
+        ORDER_TYPE_SELL = 1
+
+        @staticmethod
+        def order_calc_profit(order_type, symbol, volume, entry, stop_loss):
+            return -abs(float(entry) - float(stop_loss)) * 100.0 * float(volume)
+
+    sized = calculate_demo_volume_by_risk(
+        FakeMT5(), "XAUUSD", "BUY", 2500.1, 2490.0,
+        {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01},
+        balance=100000.0, equity=100000.0, risk_pct=1.0,
     )
-    assert sized is not None
-    assert sized["price"] == 2500.1
-    assert sized["sl"] == 2490.0
-    assert sized["tp"] == 2520.0
-    assert 0 < sized["volume_lots"] <= 100
+    assert sized["allowed"] is True
+    assert sized["estimated_risk_usd"] <= sized["risk_budget_usd"]
 
 
-def test_demo_sizing_blocks_stale_model_entry(monkeypatch):
-    monkeypatch.setenv("RISK_PCT_PER_TRADE", "1.0")
-    monkeypatch.setenv("MAX_DEMO_ENTRY_DRIFT_PCT", "0.5")
-    worker = _worker_with_demo_quote(monkeypatch, bid=4142.68, ask=4142.82)
+def test_demo_sizing_blocks_crossed_pending_trigger(monkeypatch):
+    from src.Execution.Services.autonomous_demo_trader import AutonomousDemoTrader
 
-    sized = worker._validate_and_size_decision(
-        "XAUUSD", "BUY", {"entry": 2367.17, "stop_loss": 2363.42, "take_profit": 2375.42}
+    adapter = MagicMock()
+    adapter.get_active_orders.return_value = []
+    trader = AutonomousDemoTrader(adapter=adapter)
+    now = int(datetime.now(timezone.utc).timestamp())
+    plan = {
+        "status": "ORDER_PROPOSAL",
+        "order_plan": {
+            "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
+            "entry": 2500.3, "stop_loss": 2490.3, "take_profit": 2520.3,
+            "expires_at": now + 300,
+        },
+    }
+    result = trader._reconcile_base_pending_order(
+        "XAUUSD", plan, {"bid": 2500.0, "ask": 2500.2, "time": now},
+        {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
     )
-    assert sized is None
+    assert result["status"] == "BLOCKED"
+    assert "trigger is no longer valid" in result["reason"]
+    adapter.send_order_to_broker.assert_not_called()
 
 
-def test_live_brain_bootstrap_is_bounded_and_subsequent_cycles_are_incremental(monkeypatch):
+def test_base_only_engine_does_not_bootstrap_live_brains(monkeypatch):
     from src.Research.MarketAnalysis.Services.services import PrimitiveMarketResearchEngine
 
-    monkeypatch.setenv("YARTRADER_LIVE_BRAIN_BOOTSTRAP_BARS", "3")
     engine = PrimitiveMarketResearchEngine(data_provider=MagicMock(), base_engine=MagicMock())
-    key = ("XAUUSD", "H1")
-    base = datetime(2026, 10, 1, tzinfo=timezone.utc)
-    points = [SimpleNamespace(Timestamp=base + timedelta(hours=i)) for i in range(5)]
-
-    bootstrap = engine._select_brain_points(key, points)
-    assert bootstrap == points[-3:]
-    engine._last_processed_candle_timestamps[key] = points[-1].Timestamp
-    assert engine._select_brain_points(key, points) == []
-    points.append(SimpleNamespace(Timestamp=base + timedelta(hours=5)))
-    assert engine._select_brain_points(key, points) == [points[-1]]
+    assert engine._live_brains == {}
+    assert not hasattr(engine, "_select_brain_points")
+    assert not hasattr(engine, "_get_live_brain")
 
 
 def test_demo_order_check_failure_keeps_true_retcode_and_request_diagnostics(tmp_path, monkeypatch):

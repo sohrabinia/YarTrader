@@ -122,13 +122,13 @@ class TestGoldFractalIntelligenceEngine:
         res1 = client.get("/api/fractal/gold/summary?symbol=XAUUSD")
         assert res1.status_code == 200
         data1 = res1.json()
-        assert data1["status"] == "SUCCESS"
+        assert data1["status"] == "BASE_ONLY"
         assert data1["symbol"] == "XAUUSD"
 
         res2 = client.get("/api/fractal/gold/structures?symbol=XAUUSD&timeframe=H1&direction=Bullish")
         assert res2.status_code == 200
         data2 = res2.json()
-        assert data2["status"] == "SUCCESS"
+        assert data2["status"] == "BASE_ONLY"
 
         res3 = client.get("/api/fractal/gold/hierarchy?symbol=XAUUSD")
         assert res3.status_code == 200

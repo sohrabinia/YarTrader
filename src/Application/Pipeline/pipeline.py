@@ -123,7 +123,29 @@ class IntelligencePipeline:
             Context={"bars_count": len(data_resp.DataPoints), "simulation": self._config.SimulationMode,
                      "timeframe": context.Timeframe, "indicator_independent": True}
         )
-        research_res = self._research_engine.analyze_market(res_req)
+        raw_points = list(data_resp.DataPoints or [])
+        primitive_observation = {
+            "symbol": context.Asset,
+            "timeframe": context.Timeframe,
+            "bar_count": len(raw_points),
+            "latest_price": float(raw_points[-1].Close) if raw_points else None,
+            "window_high": max((float(point.High) for point in raw_points), default=None),
+            "window_low": min((float(point.Low) for point in raw_points), default=None),
+        }
+        research_res = ResearchResult(
+            Request=res_req,
+            Findings={
+                "asset_id": context.Asset,
+                "status": "completed" if raw_points else "no_data",
+                "indicator_independent": True,
+                "feature_set": {"features_count": 0, "mode": "primitive_indicator_free"},
+                "primitive_observation": primitive_observation,
+                "newborn_brain_report": {"status": "DISABLED_NON_BASE", "execution_enabled": False},
+                "findings": [], "observations": [], "insights": [], "patterns": [],
+            },
+            ConfidenceScore=0.0,
+            CreatedAt=datetime.now(),
+        )
 
         base_candles = [
             {
@@ -147,11 +169,56 @@ class IntelligencePipeline:
             if isinstance(base_candidate, dict) else 0.0
         )
         score = base_confidence if base_candidate else 0.0
+        # Evaluate risk before constructing the unified decision payload; a qualified
+        # Base candidate must never bypass the risk layer due to ordering of locals.
+        proposed_weights = {context.Asset: score}
+        risk_assess = self._risk_engine.analyze_risk(proposed_weights, context.TargetRiskProfile)
         findings = dict(research_res.Findings or {})
         findings["indicator_independent"] = True
         findings["decision_authority"] = "BASE_HIERARCHY"
         findings["base_only_report"] = base_report
         findings["base_candidate_available"] = bool(base_candidate)
+        base_plan = base_report.get("base_plan") or {}
+        direction = str((base_candidate or {}).get("direction", "WAIT")).upper()
+        actionable = bool(
+            base_candidate
+            and direction in ("BUY", "SELL")
+            and str(base_plan.get("status", "")).upper() == "PROPOSED"
+            and bool(getattr(risk_assess, "IsApproved", False))
+        )
+        findings["intel_summary"] = {
+            "decision_authority": "BASE_HIERARCHY",
+            "candidate_available": bool(base_candidate),
+            "plan": base_plan,
+            "summary": base_report.get("summary") or "No validated Base-only proposal.",
+            "execution_enabled": False,
+        }
+        findings["autonomous_decision"] = {
+            "action": direction if actionable else "WAIT",
+            "entry": float((base_candidate or {}).get("entry") or 0.0) if actionable else 0.0,
+            "stop_loss": float((base_candidate or {}).get("stop_loss") or 0.0) if actionable else 0.0,
+            "take_profit": float((base_candidate or {}).get("take_profit") or 0.0) if actionable else 0.0,
+            "risk_reward": float((base_candidate or {}).get("risk_reward") or 0.0) if actionable else 0.0,
+            "confidence": float((base_candidate or {}).get("confidence") or 0.0) if actionable else 0.0,
+            "reasoning": list((base_candidate or {}).get("reasoning") or []) if actionable else [
+                str(base_plan.get("reason") or base_report.get("summary") or "No validated Base-only proposal; wait.")
+            ],
+            "evidence": {"decision_authority": "BASE_HIERARCHY"},
+            "execution_enabled": False,
+        }
+        findings["pipeline_outputs"] = {
+            "technical_analysis": {
+                "bar_count": len(raw_points),
+                "latest_price": primitive_observation.get("latest_price"),
+                "indicator_independent": True,
+                "features_count": 0,
+            },
+            "smart_interpretation": {
+                "action": findings["autonomous_decision"]["action"],
+                "decision_authority": "BASE_HIERARCHY",
+                "summary": findings["intel_summary"]["summary"],
+            },
+        }
         research_res = replace(research_res, Findings=findings)
 
         # 3. The sole strategy candidate is the canonical hierarchical Base model.
@@ -177,10 +244,7 @@ class IntelligencePipeline:
             EvaluatedAt=datetime.now(),
         )
 
-        # 4. Risk Layer Verification; no Base candidate means zero proposed exposure.
-        proposed_weights = {context.Asset: score}
-        risk_assess = self._risk_engine.analyze_risk(proposed_weights, context.TargetRiskProfile)
-
+        # 4. Risk Layer Verification was evaluated before the signal payload was built.
         return data_resp, research_res, candidate, strat_eval, risk_assess, proposed_weights
 
     def execute(self, context: PipelineContext) -> PipelineResult:

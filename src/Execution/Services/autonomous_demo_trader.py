@@ -16,12 +16,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.Data.MarketData.Models.models import MarketDataPoint
-from src.Decision.Intelligence.hierarchical_base_behavior_engine import HierarchicalBaseBehaviorEngine
-from src.Decision.Intelligence.base_reaction_decision_engine import BaseReactionDecisionEngine
-from src.Research.Brain.multitimeframe_base_transition_engine import detect_base_departures, TIMEFRAME_SECONDS
 from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
 from src.Execution.Models.models import OrderRequest
-from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
 from src.Infrastructure.exceptions import ValidationException
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, ProductionRiskPolicy
 
@@ -130,9 +126,6 @@ class AutonomousDemoTrader:
 
     def __init__(self, adapter: Optional[RealMT5BrokerAdapter] = None) -> None:
         self.adapter = adapter or RealMT5BrokerAdapter(auto_initialize=True)
-        self.executor = DemoExecutionEngine(adapter=self.adapter, demo_mode=True)
-        self.base_behavior_engine = HierarchicalBaseBehaviorEngine()
-        self._base_model_status = "NOT_LOADED"
         self._last_attempt: Dict[str, str] = {}
         self._last_report: Dict[str, Any] = {}
 
@@ -168,226 +161,68 @@ class AutonomousDemoTrader:
             raise ValidationException(f"Invalid OHLC geometry found for {symbol} {timeframe}.")
         return candles
 
-    @staticmethod
-    def _next_reaction_number(
-        m1_candles: List[Dict[str, Any]], child: Dict[str, Any], now: int,
-    ) -> int:
-        """Match the research labeler's contiguous M1 zone-visit counting at a causal cutoff."""
-        try:
-            confirm = int(child["confirmation_time"])
-            zone_low, zone_high = float(child["base_low"]), float(child["base_high"])
-        except (KeyError, TypeError, ValueError, OverflowError):
-            return 1
-        if not (math.isfinite(zone_low) and math.isfinite(zone_high) and 0 < zone_low < zone_high):
-            return 1
-        visits = 0
-        in_visit = False
-        for candle in m1_candles:
-            try:
-                stamp = int(candle["timestamp"])
-                low, high = float(candle["low"]), float(candle["high"])
-            except (KeyError, TypeError, ValueError, OverflowError):
-                in_visit = False
-                continue
-            if stamp <= confirm or stamp > int(now):
-                continue
-            touches = low <= zone_high and high >= zone_low
-            if touches and not in_visit:
-                visits += 1
-            in_visit = touches
-        return max(1, visits + 1)
-
-    @staticmethod
-    def _measure_latest_base_reaction(
-        m1_candles: List[Dict[str, Any]], child: Dict[str, Any], now: int,
-    ) -> Optional[Dict[str, Any]]:
-        """Measure the latest causal retest of this exact Base from closed M1 OHLC."""
-        try:
-            confirm = int(child["confirmation_time"])
-            zone_low, zone_high = float(child["base_low"]), float(child["base_high"])
-            width = zone_high-zone_low
-        except (KeyError, TypeError, ValueError, OverflowError):
-            return None
-        if not (math.isfinite(width) and width > 0):
-            return None
-        episodes: List[Dict[str, Any]] = []
-        active: Optional[Dict[str, Any]] = None
-        in_visit = False
-        previous_close: Optional[float] = None
-        for candle in m1_candles:
-            try:
-                stamp = int(candle["timestamp"])
-                low, high = float(candle["low"]), float(candle["high"])
-                close = float(candle["close"])
-            except (KeyError, TypeError, ValueError, OverflowError):
-                in_visit = False
-                active = None
-                previous_close = None
-                continue
-            if stamp <= confirm or stamp > int(now):
-                previous_close = close
-                continue
-            touches = low <= zone_high and high >= zone_low
-            if touches and not in_visit:
-                side = ("FROM_ABOVE" if previous_close is not None and previous_close > zone_high
-                        else "FROM_BELOW" if previous_close is not None and previous_close < zone_low
-                        else "INTERIOR_OR_AMBIGUOUS_OHLC")
-                active = {"reaction_number": len(episodes)+1, "entry_side": side,
-                          "penetration_fraction": 0.0, "start_time": stamp}
-                episodes.append(active)
-            if touches and active is not None:
-                if active["entry_side"] == "FROM_ABOVE":
-                    depth = (zone_high-min(max(low, zone_low), zone_high))/width
-                elif active["entry_side"] == "FROM_BELOW":
-                    depth = (max(min(high, zone_high), zone_low)-zone_low)/width
-                else:
-                    depth = 0.0
-                active["penetration_fraction"] = round(max(float(active["penetration_fraction"]),
-                                                            min(1.0, max(0.0, depth))), 4)
-            in_visit = touches
-            previous_close = close
-        if not episodes:
-            return None
-        return dict(episodes[-1])
-
     def _evaluate_hierarchical_base_plan(
         self, per_tf: Dict[str, List[Dict[str, Any]]], tick: Dict[str, Any],
         symbol: str = "XAUUSD",
     ) -> Dict[str, Any]:
-        """Analyze closed parent/child Base events. This path is proposal-only."""
-        now = float(tick.get("time") or time.time())
-        events_by_tf: Dict[str, List[Dict[str, Any]]] = {}
-        for tf in ("D1", "H4", "H1", "M30", "M15", "M5", "M1"):
-            candles = per_tf.get(tf, [])
-            # Only recent M1 bars are needed to detect the fresh execution trigger;
-            # the full causal M1 window remains available below for visit counting.
-            detector_candles = candles[-120:] if tf == "M1" else candles
-            bars = [{
-                "time": int(c["timestamp"]), "open": float(c["open"]),
-                "high": float(c["high"]), "low": float(c["low"]), "close": float(c["close"]),
-            } for c in detector_candles]
-            if len(bars) >= 50:
-                # Live inputs are already closed candles; horizon=0 avoids suppressing
-                # recent causal departures merely to reserve offline label bars.
-                step = 1 if tf in ("M30", "M15", "M5", "M1") else 2
-                events_by_tf[tf] = detect_base_departures(bars, tf, scan_step=step, horizon=0)
-            else:
-                events_by_tf[tf] = []
+        """Delegate DEMO decisions to the same Base-only authority used by signals/API."""
+        from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
 
-        self.base_behavior_engine = HierarchicalBaseBehaviorEngine()
-        model_dir = "mt5_gold_history_full" if symbol.upper() in {"XAUUSD", "GOLD"} else f"mt5_{symbol.lower()}_history_full"
-        model_path = _PROJECT_ROOT / "runtime_logs" / model_dir / "hierarchical_base_behavior_model_research.json"
-        self._base_model_status = "MISSING_RESEARCH_MODEL"
+        primary_tf = "M1"
+        candles = per_tf.get(primary_tf, [])
         try:
-            if model_path.exists():
-                model = json.loads(model_path.read_text(encoding="utf-8"))
-                if model.get("detector_version") != "base_geometry_price_only_v2":
-                    self._base_model_status = "MODEL_DETECTOR_VERSION_MISMATCH"
-                else:
-                    self.base_behavior_engine.load_stats(model)
-                    self._base_model_status = str(model.get("status") or "MODEL_STATUS_UNSPECIFIED")
-        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-            self._base_model_status = "MODEL_LOAD_FAILED"
-            logger.warning("Base behavior research model was rejected: %s", exc)
-
-        result = self.base_behavior_engine.analyze(
-            events_by_tf=events_by_tf,
-            quote={"bid": float(tick["bid"]), "ask": float(tick["ask"])},
-            now=now,
-        )
-        # Reaction-profile gate is a separate proposal-only layer. The descriptive
-        # MFE/MAE study is deliberately NOT loaded as a trading model; only a future
-        # costed net-R model can pass this gate.
-        reaction_engine = BaseReactionDecisionEngine()
-        reaction_model_path = _PROJECT_ROOT / "runtime_logs" / model_dir / "base_reaction_behavior_model_research.json"
-        reaction_model_status = "MISSING_COSTED_REACTION_MODEL"
-        try:
-            if reaction_model_path.exists():
-                reaction_model = json.loads(reaction_model_path.read_text(encoding="utf-8"))
-                if reaction_model.get("detector_version") != "base_geometry_price_only_v2":
-                    reaction_model_status = "REACTION_MODEL_DETECTOR_VERSION_MISMATCH"
-                else:
-                    reaction_engine.load_stats(reaction_model)
-                    reaction_model_status = "COSTED_REACTION_MODEL_LOADED_RESEARCH_ONLY"
-        except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
-            reaction_model_status = "REACTION_MODEL_LOAD_FAILED"
-            logger.warning("Base reaction model was rejected: %s", exc)
-        structure = result.get("structure") or {}
-        all_events = {str(e.get("event_id")): e for group in events_by_tf.values() for e in group}
-        parent = all_events.get(str(structure.get("parent_base_id")))
-        child = all_events.get(str(structure.get("child_base_id")))
-        micro = all_events.get(str(structure.get("micro_base_id")))
-        reaction_result: Dict[str, Any] = {"status": "WAIT", "reason": "Confirmed parent/child/M1 structure is not available from the current analysis.", "execution_enabled": False}
-        if parent and child and micro:
-            tf = str(child.get("timeframe", "M15"))
-            zone_low, zone_high = float(child.get("base_low", 0.0)), float(child.get("base_high", 0.0))
-            # Measure the latest actual M1 retest of this exact Base. Never
-            # substitute a hard-coded penetration depth or infer a side from trend.
-            measured_reaction = self._measure_latest_base_reaction(
-                per_tf.get("M1", []), child, int(now))
-            reaction = {
-                "base_id": child.get("event_id"),
-                "reaction_number": int(measured_reaction["reaction_number"]) if measured_reaction else 0,
-                "penetration_fraction": float(measured_reaction["penetration_fraction"]) if measured_reaction else -1.0,
-                "entry_side": str(measured_reaction["entry_side"]) if measured_reaction else "ANY",
-            }
-            direction_sign = int(child.get("exit_direction", 0))
-            base_width = float(child.get("base_width", child.get("base_atr", 0.0)))
-            entry_mid = (zone_low + zone_high) / 2.0
-            stop = zone_low - 0.15 * base_width if direction_sign > 0 else zone_high + 0.15 * base_width
-            child_confirmation = int(child.get("confirmation_time", 0))
-            known_destination_events = sorted(
-                [event for event in events_by_tf.get(tf, [])
-                 if event.get("event_id") != child.get("event_id")
-                 and int(event.get("confirmation_time", 0)) <= child_confirmation],
-                key=lambda event: int(event.get("confirmation_time", 0)),
-            )[-512:]
-            if direction_sign > 0:
-                known_destination_events = sorted(
-                    (event for event in known_destination_events if float(event.get("base_low", 0.0)) > zone_high),
-                    key=lambda event: float(event.get("base_low", 0.0)),
-                )[:32]
-            else:
-                known_destination_events = sorted(
-                    (event for event in known_destination_events if float(event.get("base_high", 0.0)) < zone_low),
-                    key=lambda event: float(event.get("base_high", 0.0)), reverse=True,
-                )[:32]
-            destination = []
-            for event in known_destination_events:
-                lo, hi = float(event.get("base_low", 0.0)), float(event.get("base_high", 0.0))
-                if direction_sign > 0 and lo > max(zone_high, float(tick["ask"])):
-                    destination.append((lo-entry_mid, lo))
-                elif direction_sign < 0 and hi < min(zone_low, float(tick["bid"])):
-                    destination.append((entry_mid-hi, hi))
-            target = min(destination, key=lambda item: item[0])[1] if destination else entry_mid + (1 if direction_sign > 0 else -1) * 3 * abs(entry_mid-stop)
-            setup = {"timeframe": tf, "base_type": str(child.get("base_type", "UNKNOWN")),
-                     "parent_relation": str(structure.get("parent_relation", "NESTED")),
-                     "setup_type": "RETEST", "zone_low": zone_low, "zone_high": zone_high,
-                     "invalidation": stop, "target": target, "base_width": base_width, "atr": base_width, "confidence": 100.0,
-                     "expires_at": now + (8 * TIMEFRAME_SECONDS.get(tf, 60))}
-            reaction_result = reaction_engine.evaluate(
-                setup=setup, quote={"bid": float(tick["bid"]), "ask": float(tick["ask"])}, now=now,
-                parent=parent, child=child, micro=micro, reaction=reaction,
+            if not candles:
+                raise ValidationException("No closed M1 candles are available for canonical Base analysis.")
+            report = StrategyOrchestrator().evaluate_all_strategies(
+                symbol=symbol,
+                primary_timeframe=primary_tf,
+                candles=candles,
+                all_timeframe_candles=per_tf,
+                spread_pip=(
+                    max(0.0, float(tick["ask"])-float(tick["bid"])) /
+                    (0.1 if "XAU" in symbol.upper() else (1.0 if "BTC" in symbol.upper() else 0.0001))
+                ),
             )
-        reaction_result["model_status"] = reaction_model_status
-        result["reaction_analysis"] = reaction_result
-        result["model_status"] = self._base_model_status
-        result["base_events_by_timeframe"] = {tf: len(rows) for tf, rows in events_by_tf.items()}
-        # Critical gate: the coarse hierarchy proposal is not actionable on its own.
-        # Require a costed re-entry reaction profile and a valid planned order.
-        reaction_plan = reaction_result.get("order_plan") or {}
-        if reaction_result.get("status") == "ENTRY_PROPOSAL" and reaction_plan.get("status") == "PROPOSED":
-            result["status"] = "ORDER_PROPOSAL"
-            result["order_plan"] = reaction_plan
-            result["reason"] = reaction_result.get("reason")
-        else:
-            result["status"] = "WAIT"
-            result["reason"] = reaction_result.get("reason") or result.get("reason") or "Base reaction evidence did not pass."
-            result["order_plan"] = {"status": "WAIT", "reason": result["reason"]}
-        # Keep proposal-only until the pending-order and position manager is connected.
-        result["execution_enabled"] = False
-        result["execution_mode"] = "PROPOSAL_ONLY_BASE_REACTION_GATE"
-        return result
+            plan = report.get("base_plan") or {}
+            hierarchy = report.get("hierarchy") or {}
+            reaction = report.get("reaction_analysis") or {}
+            candidate = report.get("best_candidate")
+            qualified = bool(
+                candidate
+                and str(candidate.get("strategy_name", "")).upper() == "BASE_HIERARCHY"
+                and str(candidate.get("direction", "")).upper() in ("BUY", "SELL")
+                and str(plan.get("status", "")).upper() == "PROPOSED"
+                and str(report.get("model_status", "")).upper() == "COSTED_REACTION_MODEL_LOADED"
+            )
+            return {
+                "status": "ORDER_PROPOSAL" if qualified else "WAIT",
+                "reason": report.get("summary") or plan.get("reason") or
+                          "No validated Base-only reaction proposal; no fallback strategy is permitted.",
+                "structure": hierarchy.get("structure") or {},
+                "hierarchy": hierarchy,
+                "reaction_analysis": reaction,
+                "model_status": report.get("model_status", "UNKNOWN"),
+                "base_plan": plan,
+                "order_plan": plan if qualified else {"status": "WAIT", "reason": plan.get("reason") or report.get("summary")},
+                "decision_authority": "BASE_HIERARCHY",
+                "execution_enabled": False,
+                "execution_mode": "CANONICAL_BASE_ONLY_GATE",
+            }
+        except Exception as exc:
+            logger.warning("Canonical Base-only DEMO analysis failed closed: %s", exc)
+            return {
+                "status": "WAIT",
+                "reason": "Base-only analysis failed; no alternative strategy is permitted.",
+                "structure": {},
+                "hierarchy": {},
+                "reaction_analysis": {"status": "WAIT", "execution_enabled": False},
+                "model_status": "BASE_ANALYSIS_FAILED",
+                "base_plan": {"status": "WAIT"},
+                "order_plan": {"status": "WAIT", "reason": str(exc)},
+                "decision_authority": "BASE_HIERARCHY",
+                "execution_enabled": False,
+                "execution_mode": "CANONICAL_BASE_ONLY_GATE",
+            }
 
     @staticmethod
     def _base_behavior_is_primary() -> bool:
@@ -431,57 +266,6 @@ class AutonomousDemoTrader:
         })
         return {"allowed": allowed, "reason": reason, "meta": meta, "pnl": pnl}
 
-    @staticmethod
-    def _derive_structural_stop(
-        candles: List[Dict[str, Any]], direction: str, entry: float,
-        lookback: int = 12, atr_period: int = 14,
-    ) -> Optional[float]:
-        """Derive a stop from closed-bar structure with an ATR buffer; reject unstable geometry."""
-        if direction not in ("BUY", "SELL") or not math.isfinite(entry) or entry <= 0:
-            return None
-        if len(candles) < max(lookback, atr_period) + 1:
-            return None
-        closed = candles[-(max(lookback, atr_period) + 1):]
-        try:
-            ranges = []
-            for i in range(1, len(closed)):
-                c, prev = closed[i], closed[i - 1]
-                tr = max(float(c["high"]) - float(c["low"]),
-                         abs(float(c["high"]) - float(prev["close"])),
-                         abs(float(c["low"]) - float(prev["close"])))
-                if not math.isfinite(tr) or tr <= 0:
-                    return None
-                ranges.append(tr)
-            atr = sum(ranges[-atr_period:]) / min(len(ranges), atr_period)
-            recent = closed[-lookback:]
-            if direction == "BUY":
-                swing = min(float(c["low"]) for c in recent)
-                stop = swing - 0.15 * atr
-                distance = entry - stop
-            else:
-                swing = max(float(c["high"]) for c in recent)
-                stop = swing + 0.15 * atr
-                distance = stop - entry
-            # Reject stops that are inside the market or so wide that the setup is not actionable.
-            if not math.isfinite(stop) or distance <= 0 or distance > 3.0 * atr:
-                return None
-            return stop
-        except (KeyError, TypeError, ValueError, OverflowError):
-            return None
-
-    @staticmethod
-    def _m1_entry_confirmed(candles: List[Dict[str, Any]], direction: str) -> bool:
-        """Require a closed-M1 micro-structure break before executing a higher-TF setup."""
-        if len(candles) < 3 or direction not in ("BUY", "SELL"):
-            return False
-        previous, latest = candles[-2], candles[-1]
-        values = [float(c[key]) for c in (previous, latest) for key in ("open", "high", "low", "close")]
-        if any(not math.isfinite(value) for value in values):
-            return False
-        if direction == "BUY":
-            return float(latest["close"]) > float(latest["open"]) and float(latest["close"]) > float(previous["high"])
-        return float(latest["close"]) < float(latest["open"]) and float(latest["close"]) < float(previous["low"])
-
     def _reconcile_base_pending_order(
         self, symbol: str, base_plan: Dict[str, Any], tick: Dict[str, Any],
         account: Dict[str, Any], symbol_info: Dict[str, Any],
@@ -523,6 +307,20 @@ class AutonomousDemoTrader:
                 raise ValueError("Base plan contains invalid prices.")
             if (direction == "BUY" and not stop < entry < target) or (direction == "SELL" and not target < entry < stop):
                 raise ValueError("Base pending order has invalid stop/entry/target geometry.")
+            bid = float(tick.get("bid") or 0.0)
+            ask = float(tick.get("ask") or 0.0)
+            if not math.isfinite(bid) or not math.isfinite(ask) or bid <= 0.0 or ask < bid:
+                raise ValueError("Current broker quote is invalid; pending order blocked.")
+            # A pending order whose trigger has already crossed the executable quote
+            # is stale: do not let MT5 turn it into an unintended immediate entry.
+            trigger_is_valid = {
+                "BUY_LIMIT": entry < ask,
+                "SELL_LIMIT": entry > bid,
+                "BUY_STOP": entry > ask,
+                "SELL_STOP": entry < bid,
+            }[order_type]
+            if not trigger_is_valid:
+                raise ValueError(f"{order_type} trigger is no longer valid against the current broker quote.")
             if expires is not None and expires <= int(tick.get("time") or time.time()):
                 raise ValueError("Base pending order has expired.")
         except (KeyError, TypeError, ValueError, OverflowError) as exc:

@@ -254,7 +254,7 @@ class HierarchicalBaseBehaviorEngine:
                     "order_plan": self.planner.plan({}, quote, now).to_dict()}
 
         low, high = float(child["base_low"]), float(child["base_high"])
-        atr = float(child["base_atr"])
+        base_width = float(child["base_width"])
         entry = (low + high) / 2.0
         child_confirmation = int(child.get("confirmation_time", 0))
         known_destination_events = sorted(
@@ -280,7 +280,7 @@ class HierarchicalBaseBehaviorEngine:
                 target_candidates.append((float(e["base_low"])-entry, e))
             elif direction == "SELL" and float(e["base_high"]) < min(low, float(quote["bid"])):
                 target_candidates.append((entry-float(e["base_high"]), e))
-        invalidation = low-0.15*atr if direction == "BUY" else high+0.15*atr
+        invalidation = low-0.15*base_width if direction == "BUY" else high+0.15*base_width
         target_base = min(target_candidates, key=lambda x: x[0])[1] if target_candidates else None
         if target_base is not None:
             target = float(target_base.get("base_low") if direction == "BUY" else target_base.get("base_high"))
@@ -291,7 +291,7 @@ class HierarchicalBaseBehaviorEngine:
         scenario = {
             "direction": direction, "setup_type": "RETEST", "zone_low": low, "zone_high": high,
             "invalidation": invalidation,
-            "target": target, "target_source": target_source, "base_width": atr, "atr": atr, "confidence": 100.0*stat["win_rate"],
+            "target": target, "target_source": target_source, "base_width": base_width, "confidence": 100.0*stat["win_rate"],
             "expires_at": float(now)+(8*900 if child.get("timeframe") == "M15" else 8*300),
             "slippage_allowance": slippage_allowance,
             "commission_price_allowance": commission_price_allowance,

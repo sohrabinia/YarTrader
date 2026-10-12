@@ -53,7 +53,7 @@ class TestPlatformIntegration(unittest.TestCase):
         result = pipeline.execute(context)
         self.assertIsNotNone(result)
         self.assertEqual(result.Context.Asset, "AAPL")
-        self.assertEqual(result.Decision.State, DecisionState.APPROVED)
+        self.assertEqual(result.Decision.State, DecisionState.NO_ACTION)
         self.assertTrue(result.Risk.IsApproved)
 
     def test_advanced_research_market_analysis_engine(self):

@@ -101,40 +101,53 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(metrics.profit_factor, 2.0)
         self.assertEqual(metrics.expectancy, 5.0)  # (0.5 * 20.0) - (0.5 * 10.0) = 5.0
 
-    def test_base_reaction_number_counts_causal_contiguous_m1_visits(self):
-        child = {"confirmation_time": 100, "base_low": 10.0, "base_high": 20.0}
-        candles = [
-            {"timestamp": 90, "low": 12.0, "high": 18.0},   # before Base confirmation
-            {"timestamp": 110, "low": 12.0, "high": 18.0},  # visit 1
-            {"timestamp": 120, "low": 11.0, "high": 19.0},  # same contiguous visit
-            {"timestamp": 130, "low": 21.0, "high": 22.0},  # outside zone
-            {"timestamp": 140, "low": 12.0, "high": 18.0},  # visit 2
-            {"timestamp": 160, "low": 12.0, "high": 18.0},  # beyond causal cutoff
-        ]
-        self.assertEqual(AutonomousDemoTrader._next_reaction_number(candles, child, 150), 3)
-
-    def test_latest_base_reaction_measures_actual_side_depth_and_visit_number(self):
-        child = {"event_id": "M15:100:RBR", "confirmation_time": 100,
-                 "base_low": 10.0, "base_high": 20.0}
-        candles = [
-            {"timestamp": 90, "low": 24.0, "high": 26.0, "close": 25.0},
-            {"timestamp": 110, "low": 17.0, "high": 26.0, "close": 18.0},
-            {"timestamp": 120, "low": 19.0, "high": 21.0, "close": 20.0},
-            {"timestamp": 130, "low": 21.0, "high": 22.0, "close": 21.5},
-            {"timestamp": 140, "low": 15.0, "high": 22.0, "close": 16.0},
-            {"timestamp": 160, "low": 10.0, "high": 11.0, "close": 10.5},
-        ]
-        measured = AutonomousDemoTrader._measure_latest_base_reaction(candles, child, 150)
-        self.assertEqual(measured["reaction_number"], 2)
-        self.assertEqual(measured["entry_side"], "FROM_ABOVE")
-        self.assertAlmostEqual(measured["penetration_fraction"], 0.5)
-        self.assertEqual(measured["start_time"], 140)
-
-    def test_base_reaction_number_fails_closed_on_invalid_zone(self):
-        candles = [{"timestamp": 110, "low": 1.0, "high": 2.0}]
-        child = {"confirmation_time": 100, "base_low": 3.0, "base_high": 2.0}
-        self.assertEqual(AutonomousDemoTrader._next_reaction_number(candles, child, 150), 1)
+    @patch("src.Intelligence.Execution.strategy_orchestrator.StrategyOrchestrator.evaluate_all_strategies")
+    def test_demo_plan_delegates_to_canonical_base_orchestrator(self, evaluate):
+        from unittest.mock import MagicMock
+        evaluate.return_value = {
+            "symbol": "XAUUSD", "primary_timeframe": "M1", "candidates": [],
+            "best_candidate": None, "base_plan": {"status": "WAIT", "reason": "Model not validated"},
+            "hierarchy": {"structure": {}},
+            "reaction_analysis": {"status": "WAIT", "execution_enabled": False},
+            "model_status": "REACTION_MODEL_NOT_ACTIVATED",
+            "summary": "No validated Base-only reaction proposal.",
+        }
+        trader = AutonomousDemoTrader(adapter=MagicMock())
+        bars = [{"timestamp": 100, "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5}]
+        result = trader._evaluate_hierarchical_base_plan(
+            {"M1": bars}, {"time": 100, "bid": 100.4, "ask": 100.5}, symbol="XAUUSD"
+        )
+        evaluate.assert_called_once()
+        self.assertEqual(result["decision_authority"], "BASE_HIERARCHY")
+        self.assertEqual(result["status"], "WAIT")
+        self.assertFalse(result["execution_enabled"])
+        self.assertEqual(result["model_status"], "REACTION_MODEL_NOT_ACTIVATED")
 
 
+    def test_stale_pending_trigger_is_blocked_before_broker_dispatch(self):
+        """A crossed pending trigger must not be submitted as an unintended immediate entry."""
+        from unittest.mock import MagicMock
+        adapter = MagicMock()
+        adapter.get_active_orders.return_value = []
+        trader = AutonomousDemoTrader(adapter=adapter)
+        plan = {
+            "status": "ORDER_PROPOSAL",
+            "order_plan": {
+                "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
+                "entry": 2500.3, "stop_loss": 2490.3, "take_profit": 2520.3,
+                "expires_at": 2000,
+            },
+        }
+        result = trader._reconcile_base_pending_order(
+            "XAUUSD", plan, {"bid": 2500.0, "ask": 2500.2, "time": 1000},
+            {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
+        )
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertIn("trigger is no longer valid", result["reason"])
+        adapter.send_order_to_broker.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()
 if __name__ == "__main__":
     unittest.main()

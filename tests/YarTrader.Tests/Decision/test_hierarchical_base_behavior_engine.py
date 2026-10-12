@@ -3,12 +3,12 @@ import unittest
 from src.Decision.Intelligence.hierarchical_base_behavior_engine import HierarchicalBaseBehaviorEngine
 
 
-def event(event_id, tf, typ, direction, start, end, confirm, low, high, atr=1.0):
+def event(event_id, tf, typ, direction, start, end, confirm, low, high, base_width=1.0):
     return {
         "event_id": event_id, "timeframe": tf, "base_type": typ,
         "exit_direction": direction, "base_start_time": start, "base_end_time": end,
         "confirmation_time": confirm, "base_low": low, "base_high": high,
-        "base_mid": (low + high) / 2, "base_atr": atr,
+        "base_mid": (low + high) / 2, "base_width": base_width,
     }
 
 

@@ -701,18 +701,32 @@ def get_execution_reasoning(symbol: Optional[str] = "XAUUSD", timeframe: Optiona
 
 @app.get("/api/structure/map")
 def get_structure_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
+    symbol = (symbol or "XAUUSD").upper()
+    timeframe = (timeframe or "H1").upper()
     core = ExecutionIntelligenceCore.get_instance()
     candles = resolve_candles_for_context(symbol, timeframe)
     if not candles:
-        return {"symbol": symbol, "timeframe": timeframe, "swings": [], "structure_nodes": [], "order_blocks": [], "fair_value_gaps": []}
+        return {
+            "symbol": symbol, "timeframe": timeframe,
+            "status": "UNAVAILABLE", "decision_authority": "BASE_HIERARCHY_ONLY",
+            "swings": [], "structure_nodes": [], "order_blocks": [], "fair_value_gaps": [],
+        }
     res = core.evaluate_context(symbol, timeframe, candles)
+    narrative = res.get("narrative") or {}
+    zones = res.get("zones") or {}
+    hierarchy = narrative.get("base_hierarchy") or {}
+    structure = hierarchy.get("structure") or {}
+    nodes = structure.get("nodes") or []
     return {
         "symbol": symbol,
         "timeframe": timeframe,
-        "swings": res["narrative"]["swings"],
-        "structure_nodes": res["narrative"]["structure_nodes"],
-        "order_blocks": res["zones"]["order_blocks"],
-        "fair_value_gaps": res["zones"]["fair_value_gaps"]
+        "status": "BASE_ONLY" if hierarchy else "DISABLED_NON_BASE",
+        "decision_authority": "BASE_HIERARCHY_ONLY",
+        # Legacy swing/OB/FVG engines are retired; never synthesize their output.
+        "swings": [],
+        "structure_nodes": nodes if isinstance(nodes, list) else [],
+        "order_blocks": zones.get("order_blocks") or [],
+        "fair_value_gaps": zones.get("fair_value_gaps") or [],
     }
 
 
@@ -730,17 +744,37 @@ def get_structure_alignment(symbol: Optional[str] = "XAUUSD"):
         }
     all_tf = {"H4": h4_candles, "H1": h1_candles}
     res = core.evaluate_context(symbol, "H1", h1_candles, all_timeframe_candles=all_tf)
-    return res["alignment"]
+    alignment = dict(res.get("alignment") or {})
+    alignment.setdefault("symbol", (symbol or "XAUUSD").upper())
+    alignment.setdefault("timeframe", "H1")
+    alignment.setdefault("confidence", 0.0)
+    return alignment
 
 
 @app.get("/api/structure/narrative")
 def get_structure_narrative(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
-    core = ExecutionIntelligenceCore.get_instance()
+    symbol = (symbol or "XAUUSD").upper()
+    timeframe = (timeframe or "H1").upper()
     candles = resolve_candles_for_context(symbol, timeframe)
     if not candles:
-        return {}
-    res = core.evaluate_context(symbol, timeframe, candles)
-    return res["narrative"]
+        return {
+            "symbol": symbol, "timeframe": timeframe, "state": "WAIT",
+            "trend": "UNAVAILABLE", "status": "UNAVAILABLE",
+            "decision_authority": "BASE_HIERARCHY_ONLY",
+            "summary": "Market candles are unavailable; no Base-only conclusion can be drawn.",
+            "base_hierarchy": {},
+        }
+    res = ExecutionIntelligenceCore.get_instance().evaluate_context(symbol, timeframe, candles)
+    narrative = dict(res.get("narrative") or {})
+    plan = res.get("plan") or {}
+    narrative.setdefault("symbol", symbol)
+    narrative.setdefault("timeframe", timeframe)
+    narrative.setdefault("state", plan.get("status", "WAIT"))
+    # Trend is intentionally not inferred by the retired legacy narrative engine.
+    narrative.setdefault("trend", "UNAVAILABLE")
+    narrative.setdefault("status", "BASE_ONLY")
+    narrative.setdefault("decision_authority", "BASE_HIERARCHY_ONLY")
+    return narrative
 
 
 @app.get("/api/liquidity/map")
@@ -778,94 +812,71 @@ def get_liquidity_events(symbol: Optional[str] = "XAUUSD", timeframe: Optional[s
 
 @app.get("/api/pattern/similarity")
 def get_pattern_similarity(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
-    core = ExecutionIntelligenceCore.get_instance()
+    symbol = (symbol or "XAUUSD").upper()
+    timeframe = (timeframe or "H1").upper()
     candles = resolve_candles_for_context(symbol, timeframe)
     if not candles:
-        return {}
-    res = core.evaluate_context(symbol, timeframe, candles)
-    return res["similarity"]
+        return {
+            "symbol": symbol, "timeframe": timeframe,
+            "status": "DISABLED_NON_BASE", "decision_authority": "BASE_HIERARCHY_ONLY",
+            "similar_pattern_found": False, "best_match": None,
+        }
+    res = ExecutionIntelligenceCore.get_instance().evaluate_context(symbol, timeframe, candles)
+    similarity = dict(res.get("similarity") or {})
+    similarity.setdefault("symbol", symbol)
+    similarity.setdefault("timeframe", timeframe)
+    similarity.setdefault("status", "DISABLED_NON_BASE")
+    similarity.setdefault("decision_authority", "BASE_HIERARCHY_ONLY")
+    # Compatibility fields are explicit no-result values; no legacy similarity engine runs.
+    similarity.setdefault("similar_pattern_found", False)
+    similarity.setdefault("best_match", None)
+    return similarity
 
 
 @app.get("/api/fractal/status")
 def get_fractal_status(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str] = "H1"):
-    """Exposes real-time Fractal Intelligence Status and multi-scale metrics."""
-    core = ExecutionIntelligenceCore.get_instance()
-    candles = resolve_candles_for_context(symbol, timeframe)
+    """Compatibility endpoint: fractal analytics are retired; Base hierarchy is canonical."""
     sym_str = (symbol or "XAUUSD").upper()
     tf_str = (timeframe or "H1").upper()
-    if not candles:
-        return {
-            "status": "DISCONNECTED",
-            "symbol": sym_str,
-            "primary_timeframe": tf_str,
-            "observability": {
-                "fractal_score": 0.0,
-                "similarity_score": 0.0,
-                "market_regime": "UNKNOWN",
-                "scale_state": "DISCONNECTED"
-            },
-            "details": {},
-            "timestamp": None
-        }
-    res = core.evaluate_context(symbol, timeframe, candles)
-    fractal_res = res.get("fractal", {})
-    similarity = res.get("similarity", {})
-    matching_rec = fractal_res.get("matching_pattern_record", {})
-
+    all_tf = _load_base_timeframe_candles(sym_str)
+    candles = all_tf.get(tf_str, [])
+    report = _base_only_execution_report(sym_str, tf_str, candles, all_tf)
+    # Preserve connectivity observability while keeping the legacy fractal engine disabled.
+    status = "BASE_ONLY" if candles else "DISCONNECTED"
     return {
-        "status": "CONNECTED",
-        "fractal_engine_status": fractal_res.get("fractal_status", "ACTIVE"),
+        "status": status,
         "symbol": sym_str,
         "primary_timeframe": tf_str,
+        "decision_authority": "BASE_HIERARCHY",
+        "base_plan": report.get("base_plan", {}),
+        "hierarchy": report.get("hierarchy", {}),
+        "reaction_analysis": report.get("reaction_analysis", {}),
+        "legacy_fractal_analytics": "DISABLED",
         "observability": {
-            "fractal_score": float(matching_rec.get("confidence_weight", 0.0)),
-            "similarity_score": float(similarity.get("average_similarity_score", 0.0)),
-            "market_regime": res.get("narrative", {}).get("regime", "UNKNOWN"),
-            "scale_state": "MULTISCALE_STABLE" if fractal_res.get("scales_evaluated_count", 0) > 0 else "SINGLE_SCALE"
+            "fractal_score": 0.0,
+            "similarity_score": 0.0,
+            "market_regime": "UNKNOWN" if not candles else "BASE_ONLY",
         },
-        "details": fractal_res,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
 @app.get("/api/fractal/gold/summary")
 def get_gold_fractal_summary(symbol: str = "XAUUSD", scale_family: str = "STANDARD_MT5"):
-    """Returns active XAUUSD fractal status, dominant scale, market phase, base status, and target zone."""
-    db_file = "data/research/gold_fractal_database.json"
-    if os.path.exists(db_file):
-        with open(db_file, "r", encoding="utf-8") as f:
-            db_data = json.load(f)
-            families = db_data.get("scale_families_summary", {})
-            fam_info = families.get(scale_family, {})
-            report = fam_info.get("active_report", db_data.get("active_fractal_report", {}))
-            return {
-                "status": "SUCCESS",
-                "symbol": symbol.upper(),
-                "scale_family": scale_family,
-                "active_fractal": report,
-                "dominant_timeframe": report.get("Dominant_Scale", "H1"),
-                "market_phase": report.get("Phase", "Expansion Preparation"),
-                "base_status": report.get("Current_Structure", "H1 Bullish Base"),
-                "confidence": report.get("Confidence", 85),
-                "last_update": report.get("Time", datetime.now().isoformat()),
-                "chart_markings": report.get("Chart_Markings", {}),
-                "target_zone": report.get("Target_Zone", {})
-            }
-    from src.Research.Brain.gold_fractal_intelligence_engine import GoldFractalIntelligenceEngine
-    engine = GoldFractalIntelligenceEngine(symbol=symbol)
-    report = engine.generate_active_fractal_report({}, scale_family=scale_family)
+    """Legacy endpoint redirected to canonical Base hierarchy; no fractal DB is consulted."""
+    sym_str = (symbol or "XAUUSD").upper()
+    all_tf = _load_base_timeframe_candles(sym_str)
+    tf = "H1" if "H1" in all_tf else next(iter(all_tf), "H1")
+    report = _base_only_execution_report(sym_str, tf, all_tf.get(tf, []), all_tf)
     return {
-        "status": "SUCCESS",
-        "symbol": symbol.upper(),
-        "scale_family": scale_family,
-        "active_fractal": report,
-        "dominant_timeframe": report.get("Dominant_Scale", "H1"),
-        "market_phase": report.get("Phase", "Expansion Preparation"),
-        "base_status": report.get("Current_Structure", "H1 Bullish Base"),
-        "confidence": report.get("Confidence", 85),
-        "last_update": report.get("Time", datetime.now().isoformat()),
-        "chart_markings": report.get("Chart_Markings", {}),
-        "target_zone": report.get("Target_Zone", {})
+        "status": "BASE_ONLY",
+        "symbol": sym_str,
+        "scale_family": "DISABLED_NON_BASE",
+        "decision_authority": "BASE_HIERARCHY",
+        "base_plan": report.get("base_plan", {}),
+        "hierarchy": report.get("hierarchy", {}),
+        "reaction_analysis": report.get("reaction_analysis", {}),
+        "legacy_fractal_analytics": "DISABLED",
     }
 
 
@@ -880,139 +891,55 @@ def get_gold_fractal_structures(
     confidence_min: float = 0.0,
     confidence_max: float = 100.0
 ):
-    """Lists detected Gold fractal structures supporting multi-parameter filtering."""
-    db_file = "data/research/gold_fractal_database.json"
-    bases = []
-    if os.path.exists(db_file):
-        with open(db_file, "r", encoding="utf-8") as f:
-            db_data = json.load(f)
-            bases = db_data.get("bases_db", [])
-    if not bases:
-        from src.Research.Brain.gold_fractal_intelligence_engine import GoldFractalIntelligenceEngine
-        engine = GoldFractalIntelligenceEngine(symbol=symbol)
-        bases = engine.detect_base_structures("H1", [])
-
-    filtered = []
-    for b in bases:
-        b_tf = b.get("Timeframe", "H1")
-        b_type = b.get("Type", "Bullish Base")
-        b_phase = b.get("Internal_Behavior", {}).get("state", "Balanced")
-        b_conf = float(b.get("Confidence", 85))
-
-        if timeframe != "ALL" and b_tf.upper() != timeframe.upper():
-            continue
-        if structure_type != "ALL" and structure_type.lower() not in b_type.lower():
-            continue
-        if direction != "ALL" and direction.lower() not in b_type.lower():
-            continue
-        if phase != "ALL" and phase.lower() not in b_phase.lower():
-            continue
-        if not (confidence_min <= b_conf <= confidence_max):
-            continue
-        filtered.append(b)
-
+    """Compatibility endpoint: returns only canonical Base hierarchy evidence."""
+    sym = symbol.upper()
+    all_tf = _load_base_timeframe_candles(sym)
+    tf = timeframe.upper() if timeframe.upper() != "ALL" else ("H1" if "H1" in all_tf else next(iter(all_tf), "H1"))
+    report = _base_only_execution_report(sym, tf, all_tf.get(tf, []), all_tf)
+    hierarchy = report.get("hierarchy", {})
     return {
-        "status": "SUCCESS",
-        "symbol": symbol.upper(),
-        "total_count": len(filtered),
-        "filters": {
-            "timeframe": timeframe,
-            "structure_type": structure_type,
-            "direction": direction,
-            "phase": phase,
-            "status": status,
-            "confidence_range": [confidence_min, confidence_max]
-        },
-        "structures": filtered[:100]
+        "status": "BASE_ONLY", "symbol": sym, "decision_authority": "BASE_HIERARCHY",
+        "timeframe": tf, "total_count": 0, "structures": [],
+        "hierarchy": hierarchy, "base_plan": report.get("base_plan", {}),
+        "legacy_fractal_analytics": "DISABLED",
     }
 
 
 @app.get("/api/fractal/gold/hierarchy")
 def get_gold_fractal_hierarchy(symbol: str = "XAUUSD", scale_family: str = "STANDARD_MT5"):
-    """Returns nested fractal hierarchy tree across STANDARD_MT5, POWER_OF_2, or POWER_OF_3 families."""
-    db_file = "data/research/gold_fractal_database.json"
-    if os.path.exists(db_file):
-        with open(db_file, "r", encoding="utf-8") as f:
-            db_data = json.load(f)
-            bases = db_data.get("bases_db", [])
-
-            if scale_family == "POWER_OF_2":
-                scales = ["1m", "4m", "16m", "64m", "256m", "1024m", "4096m", "16384m"]
-            elif scale_family == "POWER_OF_3":
-                scales = ["1m", "3m", "9m", "27m", "81m", "243m", "729m", "2187m"]
-            else:
-                scales = ["MN1", "W1", "D1", "H4", "H1", "M15", "M5", "M1"]
-
-            hierarchy = {}
-            for sc in scales:
-                sc_bases = [b for b in bases if b.get("Timeframe") in [sc, sc.upper(), {"MN1": "Monthly", "W1": "Weekly", "D1": "Daily"}.get(sc, sc)]]
-                entry = {
-                    "timeframe": sc,
-                    "total_bases": len(sc_bases),
-                    "active_base": sc_bases[-1] if sc_bases else None,
-                    "status": "ACTIVE_BASE" if sc_bases else "EXPANSION_PHASE",
-                    "nested_child_count": max(1, len(sc_bases) // 4)
-                }
-                hierarchy[sc] = entry
-
-                if scale_family == "STANDARD_MT5":
-                    if sc == "MN1": hierarchy["Monthly"] = entry
-                    elif sc == "W1": hierarchy["Weekly"] = entry
-                    elif sc == "D1": hierarchy["Daily"] = entry
-
-            return {
-                "status": "SUCCESS",
-                "symbol": symbol.upper(),
-                "scale_family": scale_family,
-                "dominant_scale": scales[min(4, len(scales)-1)],
-                "hierarchy": hierarchy
-            }
-    from src.Research.Brain.gold_fractal_intelligence_engine import GoldFractalIntelligenceEngine
-    engine = GoldFractalIntelligenceEngine(symbol=symbol)
-    res = engine.map_multi_timeframe_fractals({}, scale_family=scale_family)
-    return {"status": "SUCCESS", "symbol": symbol.upper(), "hierarchy": res.get("hierarchy_tree", {})}
+    """Compatibility endpoint: hierarchy is the Base-only parent/child structure."""
+    sym = symbol.upper()
+    all_tf = _load_base_timeframe_candles(sym)
+    tf = "H1" if "H1" in all_tf else next(iter(all_tf), "H1")
+    report = _base_only_execution_report(sym, tf, all_tf.get(tf, []), all_tf)
+    return {
+        "status": "BASE_ONLY", "symbol": sym, "scale_family": "MT5_BASE_HIERARCHY",
+        "decision_authority": "BASE_HIERARCHY",
+        "hierarchy": report.get("hierarchy", {}),
+        "base_plan": report.get("base_plan", {}),
+        "legacy_fractal_analytics": "DISABLED",
+    }
 
 
 @app.get("/api/fractal/gold/case-studies")
 def get_gold_fractal_case_studies(symbol: str = "XAUUSD"):
-    """Exposes 50+ historical XAUUSD case studies and failure logs."""
-    file_path = "data/research/gold_fractal_case_studies.json"
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    from src.Research.Brain.gold_fractal_intelligence_engine import GoldFractalIntelligenceEngine
-    engine = GoldFractalIntelligenceEngine(symbol=symbol)
-    cases, fails = engine.run_historical_case_studies(50)
+    """Legacy case-study feed is retired; only Base hierarchy research is exposed."""
     return {
-        "symbol": symbol.upper(),
-        "total_cases": len(cases),
-        "validated_cases": len(cases) - len(fails),
-        "failed_cases": len(fails),
-        "case_studies": cases,
-        "failures": fails
+        "status": "BASE_ONLY", "symbol": symbol.upper(),
+        "decision_authority": "BASE_HIERARCHY",
+        "total_cases": 0, "validated_cases": 0, "failed_cases": 0,
+        "case_studies": [], "failures": [], "legacy_fractal_analytics": "DISABLED",
     }
 
 
 @app.get("/api/fractal/gold/demo-validation")
 def get_gold_fractal_demo_validation(symbol: str = "XAUUSD"):
-    """Exposes live demo trading validation logs and structural accuracy scores."""
-    db_file = "data/research/gold_fractal_database.json"
-    if os.path.exists(db_file):
-        with open(db_file, "r", encoding="utf-8") as f:
-            db_data = json.load(f)
-            return {
-                "status": "SUCCESS",
-                "symbol": symbol.upper(),
-                "demo_validations": db_data.get("demo_validations", []),
-                "overall_accuracy_score": 86.0,
-                "validation_mode": "DEMO_PAPER_EXECUTION_ONLY"
-            }
+    """No synthetic fractal accuracy or legacy demo results are reported."""
     return {
-        "status": "SUCCESS",
-        "symbol": symbol.upper(),
-        "demo_validations": [],
-        "overall_accuracy_score": 86.0,
-        "validation_mode": "DEMO_PAPER_EXECUTION_ONLY"
+        "status": "BASE_ONLY", "symbol": symbol.upper(),
+        "decision_authority": "BASE_HIERARCHY",
+        "demo_validations": [], "validation_mode": "BASE_ONLY_NO_LEGACY_REPORTS",
+        "legacy_fractal_analytics": "DISABLED",
     }
 
 

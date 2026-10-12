@@ -17,7 +17,7 @@ class BaseReactionDecisionEngineTests(unittest.TestCase):
         self.reaction = {"base_id": "m15", "reaction_number": 1, "penetration_fraction": 0.2}
         self.setup = {"timeframe": "M15", "base_type": "RBR", "parent_relation": "NESTED",
                       "setup_type": "RETEST", "zone_low": 99.0, "zone_high": 100.0,
-                      "invalidation": 98.5, "target": 104.0, "atr": 1.0,
+                      "invalidation": 98.5, "target": 104.0, "base_width": 1.0,
                       "confidence": 85, "expires_at": 5000}
         self.quote = {"bid": 100.5, "ask": 100.6}
         key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.2, "BUY")

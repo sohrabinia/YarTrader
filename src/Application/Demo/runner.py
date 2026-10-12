@@ -33,22 +33,11 @@ class DemoMarketDataProvider(IMarketDataProvider):
         self._price_data = price_data
 
     def retrieve_market_data(self, request: MarketDataRequest) -> MarketDataResponse:
-        # If no points are available, return a standard fallback point
+        # No synthetic fallback prices: absent scenario data means no analysis/trade.
         if not self._price_data:
-            fallback = [
-                MarketDataPoint(
-                    AssetId=request.Asset,
-                    Timestamp=request.StartTime,
-                    Open=1.1000,
-                    High=1.1050,
-                    Low=1.0950,
-                    Close=1.1010,
-                    Volume=50000.0
-                )
-            ]
             return MarketDataResponse(
                 Request=request,
-                DataPoints=fallback,
+                DataPoints=[],
                 RetrievedAt=datetime.now()
             )
         return MarketDataResponse(

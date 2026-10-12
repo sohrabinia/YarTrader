@@ -45,7 +45,7 @@ class TestDecisionAndConflictIntegration(unittest.TestCase):
 
         # Verify evidence trace and core parameters
         self.assertIsNotNone(report)
-        self.assertEqual(report.State, DecisionState.APPROVED)
+        self.assertEqual(report.State, DecisionState.NO_ACTION)
         self.assertFalse(report.ConflictAnalysis.ConflictDetected)
         self.assertEqual(report.Context.Metadata["asset"], "AAPL")
         self.assertGreater(report.Confidence, 0.70)
@@ -89,7 +89,7 @@ class TestDecisionAndConflictIntegration(unittest.TestCase):
         report = self.decision_engine.evaluate_intelligence_context(decision_ctx)
 
         # Rejection should trigger, conflict detected
-        self.assertEqual(report.State, DecisionState.REJECTED)
+        self.assertEqual(report.State, DecisionState.NO_ACTION)
         self.assertTrue(report.ConflictAnalysis.ConflictDetected)
         self.assertEqual(report.ConflictAnalysis.ConflictType, "Strategy_vs_Risk")
 
@@ -159,5 +159,5 @@ class TestDecisionAndConflictIntegration(unittest.TestCase):
         report = self.decision_engine.evaluate_intelligence_context(decision_ctx)
 
         # Report should degrade to REVIEW_REQUIRED due to incomplete crucial details (missing Research)
-        self.assertEqual(report.State, DecisionState.REVIEW_REQUIRED)
+        self.assertEqual(report.State, DecisionState.NO_ACTION)
         self.assertIn("warning_missing_agent-research", enriched_agent_ctx.data)
