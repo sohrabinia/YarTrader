@@ -3,7 +3,7 @@
 ## 1. Executive Overview & Single Repository Architecture
 
 `sohrabinia/YarTrader` is the single, authoritative monorepo home for all YarTrader software assets, encompassing:
-* **Product Core:** XAUUSD multi-timeframe market intelligence, fractal mathematical feature engine, risk management controls (2% max per-trade ceiling, 8% daily loss kill switch), and MT5 DEMO execution boundaries with hard MT4 rejection.
+* **Product Core:** XAUUSD multi-timeframe market intelligence, fractal mathematical feature engine, YarTrader-calculated position sizing under a 1% per-trade risk budget, strict net R:R > 1.0, 10% daily loss kill switch, and MT5 DEMO execution boundaries with hard MT4 rejection.
 * **Central Agent Brain:** Multi-agent orchestration engine (`AIAgentOrchestrator` in `src/Intelligence/Orchestration/orchestrator.py`).
 * **Product & Growth Agents:** Multi-domain agents across Growth, Content, Distribution, Security, Trust, and Performance (`src/Growth/Agents/`).
 * **Content & Blog Platform:** Localized UI components (`trader-terminal/src/views/BlogView.jsx`), SEO page generators, and multilingual content lifecycle.
@@ -21,7 +21,7 @@ To maintain strict truthfulness, system capabilities are explicitly separated be
 ### CURRENT IMPLEMENTED STATE
 * **Single Repository Ownership:** All active code and specs reside strictly within `sohrabinia/YarTrader`.
 * **Central Product Agent Brain:** `AIAgentOrchestrator` in `src/Intelligence/Orchestration/orchestrator.py` provides read-only advisory planning and execution.
-* **Product Core & Safety Gates:** FastAPI backend (`app/`), React SPA frontend (`trader-terminal/`), MT5 DEMO execution gate, and 2% risk / 8% daily kill switch limits.
+* **Product Core & Safety Gates:** FastAPI backend (`app/`), React SPA frontend (`trader-terminal/`), MT5 DEMO execution gate, system-calculated position sizing, net R:R > 1.0, and a 10% daily kill switch.
 * **Product & Growth Agents:** Domain-specific agents in `src/Growth/Agents/` operating as standalone domain modules.
 * **Blog & Content Subsystem:** Localized views and SEO metadata in `trader-terminal`.
 * **Deterministic Release Gate:** `.github/workflows/release.yml` executing `pytest`, `npm ci`, `npm run build`, `git diff --check`, and `python validate_release.py`.
@@ -116,7 +116,7 @@ An evidence-based comparison evaluating historical CTO audit claims against actu
 | Audit Claim | Status Tag | Codebase Verification Evidence | Reconciled Reality |
 | :--- | :--- | :--- | :--- |
 | **Product is XAUUSD Research/Backtest Engine** | `HISTORICAL` | Codebase includes FastAPI web service (`app/`), React SPA frontend (`trader-terminal/`), and Multi-Agent system (`src/Growth/Agents/`). | YarTrader is a complete market intelligence web platform, not merely a backtest script. |
-| **2% Max Risk Ceiling & 8% Daily Loss Switch** | `CONFIRMED` | `src/Risk/Services/professional_risk_engine.py` & `daily_loss_kill_switch.py` | Strict fail-closed risk bounds are programmatically enforced at the Risk Engine layer. |
+| **System-calculated position volume, net R:R > 1.0, and 10% daily loss switch** | `CONFIRMED` | `src/Risk/Services/professional_risk_engine.py` & `daily_loss_kill_switch.py` | Structural SL/TP and broker-sized volume are validated fail-closed; daily drawdown policy is centralized. |
 | **MT5 DEMO Boundary & MT4 Rejection** | `CONFIRMED` | `src/Execution/Safety/demo_execution_gate.py` & `src/Execution/Adapters/mt4_adapter.py` | MT4 order submission is hard-rejected. MT5 is restricted strictly to DEMO accounts and XAUUSD symbol. |
 | **AIAgentOrchestrator Control** | `CONFIRMED` | `src/Intelligence/Orchestration/orchestrator.py` | Serves as the central orchestrator for core intelligence task planning and squad routing. |
 | **Single Repository Setup** | `CONFIRMED` | `sohrabinia/YarTrader` | All domain capabilities reside in `YarTrader`; `yartrader.DevOps` is deprecated as active dependency. |

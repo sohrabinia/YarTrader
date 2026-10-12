@@ -1,6 +1,8 @@
 # API_CONTRACTS.md — API Contracts and Endpoint Mapping
 
-This document establishes the strict HTTP API contract between the client frontend applications and the TradeYar AI core service. All endpoints correspond exactly to the active backend FastAPI routers.
+This document establishes the HTTP API contract between client applications and the YarTrader core service. Some legacy endpoint examples below are archival and may not map to active routers.
+
+**Canonical trading policy:** YarTrader owns trade-level Stop Loss, Take Profit, and position-volume calculation. Clients must not override those values. Net reward/risk must be strictly greater than 1.0 after estimated costs, and the daily drawdown kill switch is fixed at 10%.
 
 ---
 
@@ -124,7 +126,7 @@ This document establishes the strict HTTP API contract between the client fronte
   "mode": "LEARNING_VALIDATION",
   "limits": {
     "learning_daily_limit_percent": 10.0,
-    "production_daily_limit_percent": 2.0,
+    "production_daily_limit_percent": 10.0,
     "max_daily_loss_usd": 119.40,
     "daily_risk_used_usd": 0.00,
     "remaining_risk_usd": 119.40
@@ -154,7 +156,7 @@ This document establishes the strict HTTP API contract between the client fronte
     "stop_loss": 2305.00,
     "take_profit": 2335.00,
     "pnl": 27.00,
-    "risk_percent": 1.5,
+    "risk_percent": 1.0,
     "confidence": 82,
     "timestamp": "2023-11-20T14:15:02Z",
     "explanation": {
@@ -184,7 +186,7 @@ This document establishes the strict HTTP API contract between the client fronte
     "exit": 2322.00,
     "profit_loss": 115.00,
     "confidence": 82,
-    "risk_used": 1.5,
+    "risk_used": 1.0,
     "result": "SUCCESS",
     "lesson_feedback": "Exceeded support structure confirmation. Validated concept pattern promotion.",
     "timestamp": "2023-11-20T12:10:00Z"
@@ -202,13 +204,12 @@ This document establishes the strict HTTP API contract between the client fronte
   "symbol": "XAUUSD",
   "timeframe": "H1",
   "decision": "BUY",
-  "volume": 0.1,
-  "stop_loss": 2305.00,
-  "take_profit": 2335.00,
   "pattern": "Base Expansion Continuation",
   "strategy": "Structural Momentum Core",
   "confidence": 82
 }
+
+The example intentionally omits volume, stop-loss, and take-profit: these are calculated and validated by YarTrader from confirmed market structure, the current account risk budget, and broker volume constraints.
 ```
 - **Response Schema (201 Created):**
 ```json

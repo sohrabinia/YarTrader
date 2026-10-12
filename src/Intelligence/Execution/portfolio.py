@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional
+from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
 
 class PortfolioRiskIntelligenceEngine:
     """
@@ -13,7 +14,7 @@ class PortfolioRiskIntelligenceEngine:
         max_correlation_exposure_pct: float = 15.0,
         max_risk_per_trade_pct: float = 1.0,
         max_strategy_exposure_ceiling_pct: float = 3.0,
-        max_daily_drawdown_pct: float = 8.0,
+        max_daily_drawdown_pct: float = ProductionRiskPolicy.MAX_DAILY_LOSS_PCT,
         start_of_day_equity: Optional[float] = None,
         daily_pnl: float = 0.0
     ) -> None:
@@ -22,7 +23,9 @@ class PortfolioRiskIntelligenceEngine:
         self.max_correlation_exposure_pct = max_correlation_exposure_pct
         self.max_risk_per_trade_pct = max_risk_per_trade_pct
         self.max_strategy_exposure_ceiling_pct = max_strategy_exposure_ceiling_pct
-        self.max_daily_drawdown_pct = max_daily_drawdown_pct
+        # The constructor parameter remains for compatibility; the repository-wide
+        # daily drawdown policy is authoritative and fixed at 10%.
+        self.max_daily_drawdown_pct = ProductionRiskPolicy.MAX_DAILY_LOSS_PCT
         self.start_of_day_equity = start_of_day_equity
         self.daily_pnl = daily_pnl
 

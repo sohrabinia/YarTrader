@@ -1,7 +1,7 @@
 # YarTrader DEMO restart plan
 
 ## Scope and safety
-- Never enable LIVE trading. Keep the MT5 DEMO-only safety gate and existing 8% daily loss ceiling.
+- Never enable LIVE trading. Keep the MT5 DEMO-only safety gate and canonical 10% daily drawdown kill switch.
 - Daily drawdown uses YarTrader-owned MT5 deal/position PnL only (magic 143056 or YarTrader comment), divided by current wallet equity. Balance/credit/deposit/withdrawal operations and manual trades are not PnL.
 - Recompute wallet risk basis from min(current balance, current equity) before each order. Per-trade risk target and hard ceiling are 1.0%, shared across enabled symbols and execution modes; round lots down to broker volume step and refuse the order if broker minimum lot exceeds budget. No fixed 0.01-lot cap.
 - Reset only generated trading/learning/backtest artifacts and old kill-switch state. Preserve source, configs, secrets, account/auth/business data, and security/audit records.

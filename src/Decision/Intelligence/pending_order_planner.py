@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, Mapping, Optional
 import math
+from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
 
 
 @dataclass(frozen=True)
@@ -32,7 +33,7 @@ class PendingOrderPlanner:
     placing, modifying, or cancelling any order.
     """
 
-    def __init__(self, min_confidence: float = 70.0, min_net_rr: float = 1.5,
+    def __init__(self, min_confidence: float = 70.0, min_net_rr: float = ProductionRiskPolicy.MINIMUM_RR,
                  max_spread_base_width_ratio: float = 0.12, entry_buffer_base_width_ratio: float = 0.05):
         self.min_confidence = float(min_confidence)
         self.min_net_rr = float(min_net_rr)
@@ -111,8 +112,8 @@ class PendingOrderPlanner:
         net_risk = risk + cost
         gross_rr = reward / risk if risk > 0 else 0.0
         net_rr = net_reward / net_risk if net_reward > 0 and net_risk > 0 else 0.0
-        if net_rr < self.min_net_rr:
-            return self._wait(direction, "Expected reward after estimated costs does not meet minimum net R/R.", expires_at)
+        if net_rr <= self.min_net_rr:
+            return self._wait(direction, f"Net reward/risk ({net_rr:.4f}) must be strictly greater than {self.min_net_rr:.1f} after costs.", expires_at)
 
         return PendingOrderPlan(
             status="PROPOSED", order_type=order_type, direction=direction,

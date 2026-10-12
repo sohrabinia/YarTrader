@@ -183,9 +183,9 @@ class DemoExecutionGate:
                     or float(raw_price) <= 0 or float(raw_sl) <= 0
                     or risk_basis <= 0 or mt5 is None):
                 raise ValidationException("DemoExecutionGate Violation: Current wallet, price, stop-loss or MT5 profit calculator unavailable for 1.0% risk sizing.")
-            if order_type in ("BUY", "LONG"):
+            if order_type in ("BUY", "LONG") or order_type.startswith("BUY_"):
                 mt5_order_type = mt5.ORDER_TYPE_BUY
-            elif order_type in ("SELL", "SHORT"):
+            elif order_type in ("SELL", "SHORT") or order_type.startswith("SELL_"):
                 mt5_order_type = mt5.ORDER_TYPE_SELL
             else:
                 raise ValidationException(f"DemoExecutionGate Violation: Unsupported order direction for risk sizing ({order_type}).")
@@ -206,16 +206,23 @@ class DemoExecutionGate:
             sl = getattr(request, "StopLoss", None)
             tp = getattr(request, "TakeProfit", None)
 
-            if order_type in ["BUY", "LONG"]:
-                if sl and sl > 0 and sl >= request.Price:
+            is_buy = order_type in ("BUY", "LONG") or order_type.startswith("BUY_")
+            is_sell = order_type in ("SELL", "SHORT") or order_type.startswith("SELL_")
+            if is_buy or is_sell:
+                if is_buy and sl and sl > 0 and sl >= request.Price:
                     raise ValidationException(f"DemoExecutionGate Violation: Buy order SL {sl} must be below entry price {request.Price}.")
-                if tp and tp > 0 and tp <= request.Price:
+                if is_buy and tp and tp > 0 and tp <= request.Price:
                     raise ValidationException(f"DemoExecutionGate Violation: Buy order TP {tp} must be above entry price {request.Price}.")
-            elif order_type in ["SELL", "SHORT"]:
-                if sl and sl > 0 and sl <= request.Price:
+                if is_sell and sl and sl > 0 and sl <= request.Price:
                     raise ValidationException(f"DemoExecutionGate Violation: Sell order SL {sl} must be above entry price {request.Price}.")
-                if tp and tp > 0 and tp >= request.Price:
+                if is_sell and tp and tp > 0 and tp >= request.Price:
                     raise ValidationException(f"DemoExecutionGate Violation: Sell order TP {tp} must be below entry price {request.Price}.")
+                if not sl or not tp or float(sl) <= 0 or float(tp) <= 0:
+                    raise ValidationException("DemoExecutionGate Violation: Every new entry must include YarTrader-calculated Stop Loss and Take Profit.")
+                risk_distance = abs(float(request.Price) - float(sl))
+                reward_distance = abs(float(tp) - float(request.Price))
+                if risk_distance <= 0 or reward_distance / risk_distance <= ProductionRiskPolicy.MINIMUM_RR:
+                    raise ValidationException("DemoExecutionGate Violation: Reward/risk must be strictly greater than 1.0.")
 
         # Check 10: Position Exclusivity Guard (At most 1 active directional position per symbol)
         if order_type != "CLOSE" and hasattr(request, "Symbol"):

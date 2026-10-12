@@ -52,7 +52,7 @@ YARTRADER SINGLE-REPOSITORY UNIFIED ARCHITECTURE
    IMPLEMENTED & VERIFIED IN YARTRADER:
    [X] Single Authoritative Repository Ownership (sohrabinia/YarTrader)
    [X] Central Product Agent Brain (AIAgentOrchestrator in src/Intelligence/Orchestration/orchestrator.py)
-   [X] Product Core Preservation (FastAPI, trader-terminal, MT5 Demo, 2% Risk, 8% Kill Switch)
+   [X] Product Core Preservation (FastAPI, trader-terminal, MT5 DEMO, system-calculated position sizing, net R:R > 1.0, 10% daily kill switch)
    [X] AI Agents Subsystem Preservation (src/Growth/Agents, app/intelligence)
    [X] Blog & Content Subsystem Preservation (ContentAgents.py, BlogView.jsx)
    [X] Removal of Obsolete Manual Deployment Scripts (update-site.ps1, update-site.sh)

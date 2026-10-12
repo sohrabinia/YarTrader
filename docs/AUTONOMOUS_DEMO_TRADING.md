@@ -24,7 +24,7 @@ ExecutionIntelligencePlanner
        ↓
 AutonomousTradingDecision (Immutable Contract)
        ↓
-Decision Gate & Risk Gate (RR >= 1.5, Conf >= 50.0, Portfolio Risk, Cooldown, Kill Switch)
+Decision Gate & Risk Gate (net R:R > 1.0, Conf >= 50.0, Portfolio Risk, Cooldown, 10% Daily Kill Switch)
        ↓
 DemoExecutionGate & MetaTraderSafetyGate
        ↓
@@ -58,7 +58,7 @@ AutonomousTradingDecision(
     entry=2600.50,
     stop_loss=2590.00,
     take_profit=2620.00,
-    volume=0.0,  # execution layer fills this only after broker-authoritative 1% risk sizing
+    volume=0.0,  # execution layer fills this from YarTrader's current-wallet risk budget and broker volume constraints
     risk_reward=1.95,
     confidence=85.0,
     reasoning=["Bullish order block retest", "Liquidity swept"],
@@ -78,7 +78,9 @@ AutonomousTradingDecision(
 2. **Risk & Confidence Gates:**
    - Per-trade target and hard ceiling: `1.0%` of current wallet balance/equity (the lower authoritative value), verified by MT5 `order_calc_profit`.
    - Position volume is calculated from the live stop-loss, current wallet, and broker-reported volume minimum/maximum/step; no fixed lot fallback is permitted.
-   - Minimum Risk-Reward: `MINIMUM_RR` (default `1.5`).
+   - YarTrader derives SL/TP from confirmed market structure; no fixed-pip or fixed-R target fallback is permitted.
+   - Net reward/risk after estimated costs must be strictly greater than 1.0; otherwise the setup is rejected.
+   - Position volume is calculated by YarTrader from the selected structural stop, wallet risk budget, and broker volume constraints.
    - Minimum Confidence: `MINIMUM_CONFIDENCE` (default `50.0`).
 3. **Duplicate & Cooldown Protection:**
    - Active per-symbol cooldown tracking prevents duplicate order submission.

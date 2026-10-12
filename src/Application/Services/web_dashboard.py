@@ -4064,7 +4064,7 @@ class PropConfigPayload(BaseModel):
     account_number: Optional[str] = ""
     account_size: float = 100000.0
     target_profit_pct: float = 10.0
-    daily_loss_limit_pct: float = 5.0
+    daily_loss_limit_pct: float = 10.0
     max_drawdown_pct: float = 10.0
     risk_per_trade_pct: float = 1.0
     max_exposure_pct: float = 3.0

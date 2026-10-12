@@ -20,7 +20,7 @@ This package is optimized to be directly consumable by both **Frontend AI Coding
 *   **MT5 Demo Account Integration:** Active simulated execution connecting to broker Demo environments. Initial balance is configured at exactly **1194 USD** virtual capital.
 *   **Dual Risk validation limits:**
     *   Learning Validation Risk Mode: **10%** daily loss limit (max daily loss calculation of 119.40 USD).
-    *   Production Simulation Risk Mode: **2%** limit (max daily loss calculation of 23.88 USD).
+    *   Production Simulation Risk Mode: canonical **10%** daily drawdown ceiling (max daily loss calculation of 119.40 USD). YarTrader calculates each trade's structural Stop Loss, Take Profit, and broker-compliant position volume; client-supplied values do not override the system policy.
 *   **Cognitive Learning Loop Sync:** Every completed demo trade automatically feeds back into **Learning Memory** to update strategy scores and pattern confidence metrics.
 *   **AI Decision Explanation:** Detailed entry reasons outlining detected patterns, timeframes, confidence levels, and active decision chains.
 

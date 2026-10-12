@@ -72,7 +72,7 @@ AutonomousTradingDecision (src/Decision/Models/models.py)
 Every decision evaluated by `ResearchWorker` must pass 4 mandatory pre-execution gates:
 
 1. **Confidence Threshold Gate:** `confidence >= MINIMUM_CONFIDENCE` (default `50.0`).
-2. **Risk-Reward Gate:** `risk_reward >= MINIMUM_RR` (default `1.5`).
+2. **Risk-Reward Gate:** YarTrader derives levels from Base structure and accepts only net reward/risk strictly greater than 1.0 after estimated costs.
 3. **Portfolio Risk Gate:** Checked via `PortfolioRiskIntelligenceEngine`.
 4. **Duplicate & Cooldown Gate:** Per-symbol timestamp tracking (`cooldown_sec = 300.0`).
 

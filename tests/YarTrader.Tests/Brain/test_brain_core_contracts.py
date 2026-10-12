@@ -82,7 +82,7 @@ class BrainPatternIdentityTests(unittest.TestCase):
             hypothesis = report.to_dict()["active_hypotheses"][0]
             self.assertEqual(hypothesis["suggested_virtual_action"], "BUY")
             self.assertGreaterEqual(hypothesis["hypothesis_confidence"], 50.0)
-            self.assertGreaterEqual(hypothesis["trade_parameters"]["risk_reward"], 1.5)
+            self.assertGreater(hypothesis["trade_parameters"]["risk_reward"], 1.0)
         finally:
             shutil.rmtree(root, ignore_errors=True)
 

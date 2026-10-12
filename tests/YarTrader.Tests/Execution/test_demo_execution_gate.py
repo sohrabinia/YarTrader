@@ -604,7 +604,7 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
         self.assertIn("exceeds maximum allowable ceiling of 1.0%", res.rejection_reason)
 
     def test_06_rr_below_minimum_threshold_rejected(self):
-        """Test 6: Real RR < 1.5 minimum threshold is rejected."""
+        """Reward/risk at or below 1.0 is rejected."""
         from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
         risk_engine = ProfessionalRiskEngine()
         eval_res = risk_engine.evaluate_trade_risk(
@@ -612,11 +612,11 @@ class TestRiskTargetContractRemediation(unittest.TestCase):
             direction="BUY",
             entry_price=2500.0,
             stop_loss=2490.0,
-            take_profit=2505.0 # Low RR < 1.5
+            take_profit=2510.0 # Gross R:R is exactly 1.0; costs make net R:R worse.
         )
         self.assertFalse(eval_res.is_valid)
         self.assertEqual(eval_res.direction, "WAIT")
-        self.assertIn("< 1.5 minimum threshold", eval_res.rejection_reason)
+        self.assertIn("strictly greater than 1.0", eval_res.rejection_reason)
 
     def test_07_daily_loss_limit_exceeded_blocks_trading(self):
         """Test 7: Portfolio daily loss >= 10.0% blocks trading."""

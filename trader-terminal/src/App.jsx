@@ -203,7 +203,7 @@ function MainApp() {
     account_number: '',
     account_size: 100000,
     target_profit_pct: 10,
-    daily_loss_limit_pct: 5,
+    daily_loss_limit_pct: 10,
     max_drawdown_pct: 10,
     risk_per_trade_pct: 1,
     max_exposure_pct: 3,
@@ -609,7 +609,9 @@ function MainApp() {
         if (config && typeof config === 'object') {
           setPropConfigForm(prev => ({
             ...prev,
-            ...config
+            ...config,
+            daily_loss_limit_pct: 10,
+            risk_per_trade_pct: 1
           }));
         }
       } else {
@@ -633,9 +635,8 @@ function MainApp() {
         account_number: propConfigForm.account_number || '',
         account_size: Number(propConfigForm.account_size) || 0,
         target_profit_pct: Number(propConfigForm.target_profit_pct) || 0,
-        daily_loss_limit_pct: Number(propConfigForm.daily_loss_limit_pct) || 0,
+        daily_loss_limit_pct: 10,
         max_drawdown_pct: Number(propConfigForm.max_drawdown_pct) || 0,
-        risk_per_trade_pct: Number(propConfigForm.risk_per_trade_pct) || 0,
         max_exposure_pct: Number(propConfigForm.max_exposure_pct) || 0,
         max_concurrent_positions: Number(propConfigForm.max_concurrent_positions) || 1,
         session_rules: propConfigForm.session_rules || 'ALLOW_ALL_SESSIONS',
@@ -1218,8 +1219,9 @@ function MainApp() {
                       type="number"
                       step="0.1"
                       className="form-control"
-                      value={propConfigForm.daily_loss_limit_pct}
-                      onChange={(e) => setPropConfigForm({ ...propConfigForm, daily_loss_limit_pct: parseFloat(e.target.value) || 0 })}
+                      value={10}
+                      readOnly
+                      aria-label="YarTrader fixed daily drawdown ceiling: 10 percent"
                     />
                   </div>
                   <div>
@@ -1230,16 +1232,6 @@ function MainApp() {
                       className="form-control"
                       value={propConfigForm.max_drawdown_pct}
                       onChange={(e) => setPropConfigForm({ ...propConfigForm, max_drawdown_pct: parseFloat(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div>
-                    <label className="form-label">{lang === 'fa' ? 'ریسک در هر معامله (%)' : 'Risk Per Trade (%)'}</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      className="form-control"
-                      value={propConfigForm.risk_per_trade_pct}
-                      onChange={(e) => setPropConfigForm({ ...propConfigForm, risk_per_trade_pct: parseFloat(e.target.value) || 0 })}
                     />
                   </div>
                   <div>

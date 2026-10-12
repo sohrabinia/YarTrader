@@ -187,8 +187,9 @@ class StrategyOrchestrator:
                     destinations.append((float(event["base_low"]) - price, float(event["base_low"])))
                 elif direction_sign < 0 and float(event["base_high"]) < min(low, price):
                     destinations.append((price - float(event["base_high"]), float(event["base_high"])))
-            target = min(destinations, key=lambda item: item[0])[1] if destinations else (
-                price + (1 if direction_sign > 0 else -1) * 3.0 * abs(price-stop))
+            # The next confirmed structural Base is the target authority. If no
+            # destination Base exists, do not invent a fixed-multiple fallback target.
+            target = min(destinations, key=lambda item: item[0])[1] if destinations else None
             reaction_result = reaction_engine.evaluate(
                 setup={"timeframe": tf, "base_type": str(child.get("base_type", "UNKNOWN")),
                        "parent_relation": str(structure.get("parent_relation", "NESTED")),

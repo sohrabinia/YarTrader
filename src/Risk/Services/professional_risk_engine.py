@@ -9,9 +9,9 @@ from src.Risk.Models.campaign import CampaignLeg, TradeCampaign
 class ProductionRiskPolicy:
     """Single authoritative production risk policy for YarTrader."""
     TARGET_RISK_PCT: float = 1.0  # baseline; live sizing adapts per setup
-    HARD_CEILING_RISK_PCT: float = 3.0  # prevents one trade consuming the daily loss budget
+    HARD_CEILING_RISK_PCT: float = 1.0  # prevents one trade consuming the daily loss budget
     MIN_ADAPTIVE_RISK_PCT: float = 0.25
-    MINIMUM_RR: float = 1.5
+    MINIMUM_RR: float = 1.0
     MAX_DAILY_LOSS_PCT: float = 10.0
 
 
@@ -55,7 +55,7 @@ class ProfessionalRiskEngine:
 
     Enforces mandatory trade qualification rules:
     - Win Probability >= 50%
-    - Real RR >= 1.5
+    - Real RR > 1.0
     - Expected Value > 0
     - Acceptable Risk & Spread Conditions
     - Strict Free Margin & Portfolio Risk Constraints
@@ -500,8 +500,8 @@ class ProfessionalRiskEngine:
         if win_probability < 0.50:
             rejection_reasons.append(f"Win probability ({win_probability*100:.1f}%) < 50.0% threshold.")
 
-        if real_rr < 1.5:
-            rejection_reasons.append(f"Real RR ({real_rr:.2f}) < 1.5 minimum threshold.")
+        if real_rr <= ProductionRiskPolicy.MINIMUM_RR:
+            rejection_reasons.append(f"Real RR ({real_rr:.2f}) must be strictly greater than {ProductionRiskPolicy.MINIMUM_RR:.1f}.")
 
         if expected_value <= 0:
             rejection_reasons.append(f"Expected Value (${expected_value:.2f}) <= 0.")

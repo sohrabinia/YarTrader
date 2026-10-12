@@ -5,7 +5,7 @@ from src.Decision.Intelligence.pending_order_planner import PendingOrderPlanner
 
 class TestPendingOrderPlanner(unittest.TestCase):
     def setUp(self):
-        self.planner = PendingOrderPlanner(min_confidence=70, min_net_rr=1.5)
+        self.planner = PendingOrderPlanner(min_confidence=70, min_net_rr=1.0)
         self.quote = {"bid": 2000.0, "ask": 2000.2}
 
     def test_buy_retest_proposes_limit_order_without_execution(self):
@@ -18,7 +18,7 @@ class TestPendingOrderPlanner(unittest.TestCase):
         self.assertEqual(result.status, "PROPOSED")
         self.assertEqual(result.order_type, "BUY_LIMIT")
         self.assertLess(result.entry, self.quote["ask"])
-        self.assertGreaterEqual(result.net_reward_risk, 1.5)
+        self.assertGreater(result.net_reward_risk, 1.0)
 
     def test_sell_breakout_proposes_stop_order(self):
         result = self.planner.plan({
@@ -47,6 +47,22 @@ class TestPendingOrderPlanner(unittest.TestCase):
         base["expires_at"] = 5000
         base["confidence"] = 30
         self.assertEqual(self.planner.plan(base, self.quote, now=1000).status, "WAIT")
+
+    def test_net_reward_risk_between_one_and_old_1_5_threshold_is_accepted(self):
+        scenario = {"direction": "BUY", "setup_type": "RETEST", "zone_low": 1998.0,
+                    "zone_high": 1999.0, "invalidation": 1995.0, "target": 2003.14,
+                    "base_width": 5.0, "confidence": 80, "expires_at": 5000}
+        result = self.planner.plan(scenario, self.quote, now=1000)
+        self.assertEqual(result.status, "PROPOSED")
+        self.assertGreater(result.net_reward_risk, 1.0)
+        self.assertLess(result.net_reward_risk, 1.5)
+
+    def test_net_reward_risk_must_be_strictly_greater_than_one(self):
+        scenario = {"direction": "BUY", "setup_type": "RETEST", "zone_low": 1998.0,
+                    "zone_high": 1999.0, "invalidation": 1995.0, "target": 2002.4,
+                    "base_width": 5.0, "confidence": 80, "expires_at": 5000}
+        # At the midpoint entry, estimated net reward equals net risk exactly.
+        self.assertEqual(self.planner.plan(scenario, self.quote, now=1000).status, "WAIT")
 
     def test_invalidated_opposite_or_expired_order_must_cancel(self):
         plan = {"expires_at": 2000}

@@ -2,6 +2,7 @@ import os
 import json
 import re
 import time
+import math
 from fastapi import APIRouter, HTTPException, Header, Depends, Query
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
@@ -148,17 +149,20 @@ def _snapshot_signals(market: Optional[str] = None, horizon: Optional[str] = Non
             reason = decision.get("reasoning", []) or []
             rr = float(decision.get("risk_reward", 0.0) or 0.0)
             valid_levels = all(
-                value is not None and float(value) > 0.0
+                value is not None and math.isfinite(float(value)) and float(value) > 0.0
                 for value in (entry, stop_loss, take_profit)
+            ) and (
+                (action == "BUY" and float(stop_loss) < float(entry) < float(take_profit))
+                or (action == "SELL" and float(take_profit) < float(entry) < float(stop_loss))
             )
             if not base_candidate_available:
                 status = "BLOCKED"
                 confidence = 0.0
                 reason = list(reason) + ["Blocked: the Base hierarchy summary does not contain an approved candidate."]
             else:
-                status = "ACTIVE" if valid_levels and confidence >= 50.0 and rr >= 1.5 else "CANDIDATE"
+                status = "ACTIVE" if valid_levels and confidence >= 50.0 and rr > 1.0 else "CANDIDATE"
                 if status == "CANDIDATE":
-                    reason = list(reason) + ["Candidate only: Base-model risk parameters or minimum risk/reward did not pass validation."]
+                    reason = list(reason) + ["Candidate only: Base-model risk parameters or strictly-greater-than-1.0 risk/reward did not pass validation."]
 
             latest_by_key[key] = {
                 "signal_id": decision.get("decision_id") or data.get("report_id") or f"research-{symbol}-{timeframe}",

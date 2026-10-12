@@ -286,8 +286,9 @@ class HierarchicalBaseBehaviorEngine:
             target = float(target_base.get("base_low") if direction == "BUY" else target_base.get("base_high"))
             target_source = "PREVIOUSLY_KNOWN_DESTINATION_BASE"
         else:
-            target = entry + (1 if direction == "BUY" else -1) * 3.0 * abs(entry-invalidation)
-            target_source = "STRUCTURAL_3R_FALLBACK"
+            # No confirmed structural destination means no trade; never fabricate a fixed-R target.
+            target = None
+            target_source = "NO_CONFIRMED_DESTINATION_BASE"
         scenario = {
             "direction": direction, "setup_type": "RETEST", "zone_low": low, "zone_high": high,
             "invalidation": invalidation,

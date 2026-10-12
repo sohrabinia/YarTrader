@@ -119,7 +119,7 @@ class AutonomousDemoTrader:
         "D1": "TIMEFRAME_D1",
     }
     MIN_CONFIDENCE = 70.0
-    MIN_RR = 1.8
+    MIN_RR = ProductionRiskPolicy.MINIMUM_RR
     RISK_PER_TRADE_PCT = ProductionRiskPolicy.TARGET_RISK_PCT
     MAX_ENTRY_DRIFT_R = 0.35
     MAX_TICK_BAR_GAP_SECONDS = 300
@@ -307,6 +307,10 @@ class AutonomousDemoTrader:
                 raise ValueError("Base plan contains invalid prices.")
             if (direction == "BUY" and not stop < entry < target) or (direction == "SELL" and not target < entry < stop):
                 raise ValueError("Base pending order has invalid stop/entry/target geometry.")
+            risk_distance = abs(entry - stop)
+            reward_distance = abs(target - entry)
+            if risk_distance <= 0 or reward_distance / risk_distance <= 1.0:
+                raise ValueError("YarTrader requires reward/risk strictly greater than 1.0.")
             bid = float(tick.get("bid") or 0.0)
             ask = float(tick.get("ask") or 0.0)
             if not math.isfinite(bid) or not math.isfinite(ask) or bid <= 0.0 or ask < bid:

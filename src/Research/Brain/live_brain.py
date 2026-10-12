@@ -12,6 +12,7 @@ from src.Research.Brain.hypothesis import HypothesisEngine
 from src.Research.Brain.judge import JudgeBrain
 from src.Research.Brain.active_learning import ActiveLearningEngine
 from src.Research.Brain.brain_context import build_brain_context, GLOBAL_CONTEXT_CACHE
+from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
 
 class LiveAnalysisBrain:
     """
@@ -275,7 +276,7 @@ class LiveAnalysisBrain:
         if favorable <= 0.0 or adverse <= 0.0:
             return {}
         rr = favorable / adverse
-        if rr < 1.5:
+        if rr <= ProductionRiskPolicy.MINIMUM_RR:
             return {}
         if hypothesis.expected_direction == "BUY":
             stop_loss = current_price - adverse

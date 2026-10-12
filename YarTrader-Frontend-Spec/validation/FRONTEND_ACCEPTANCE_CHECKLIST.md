@@ -23,7 +23,7 @@ This document defines the strict, non-negotiable quality and compliance checkgat
 - [ ] **Demo Capital Initialization:** Confirm that the Demo Dashboard Account Overview widget initializes with exactly **1194 USD** starting balance on fetch.
 - [ ] **Bilingual AI Explanation:** Check that the Trade History view displays detailed bilingual (English & Persian) explanation logs mapping the detected pattern, strategy, confidence score, and decision chain.
 - [ ] **Learning Experience Logging:** Confirm that completed simulated trades log their corresponding structural lessons, classifying outcomes as `SUCCESS`, `FAILURE`, `LUCKY_WIN`, or `STRUCTURAL_ERROR`.
-- [ ] **Dual Mode Risk Meters:** Confirm that risk telemetry cards render both Learning Validation Mode (10% daily risk limit = 119.40 USD max loss) and Production Simulation Mode (2% risk = 23.88 USD max loss) metrics cleanly.
+- [ ] **Canonical Risk Meters:** Confirm that risk telemetry displays the single YarTrader 10% daily drawdown ceiling (119.40 USD max loss on 1194 USD equity), calculated SL/TP, system-calculated position volume, and net R:R strictly greater than 1.0 after estimated costs.
 - [ ] **Live Trading Perm-Block Check:** Audit client layouts and codebase. Verify that the UI strictly contains **ZERO** entry points, forms, inputs, toggles, or routes allowing active live trading configuration, real account keys, or production broker connection endpoints.
 
 ---

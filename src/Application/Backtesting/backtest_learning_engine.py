@@ -423,7 +423,7 @@ class BacktestAndLearningEngine:
                     ],
                     "reasoning": candidate.get("reasoning") or [],
                 }
-                if action in ["BUY", "SELL"] and confidence >= 50.0 and params.get("stop_loss") and params.get("take_profit") and float(params.get("risk_reward", 0.0)) >= 1.5:
+                if action in ["BUY", "SELL"] and confidence >= 50.0 and params.get("stop_loss") and params.get("take_profit") and float(params.get("risk_reward", 0.0)) > 1.0:
                     open_position = {
                         "trade_id": f"BT-{symbol.upper()}-{timeframe.upper()}-{str(bar_time).replace(":", "").replace("+", "p").replace("-", "")}-{action}",
                         "symbol": symbol.upper(),

@@ -11,6 +11,8 @@ try:
 except Exception:
     IRAN_TZ = timezone(timedelta(hours=3, minutes=30))
 
+from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
+
 logger = logging.getLogger("DailyLossKillSwitch")
 
 
@@ -135,7 +137,7 @@ class DailyLossKillSwitch:
     3. Fail-closed on missing/invalid/non-finite equity or uninitialized baseline.
     """
 
-    MAX_DAILY_LOSS_PCT: float = 10.0  # Strict 10% limit
+    MAX_DAILY_LOSS_PCT: float = ProductionRiskPolicy.MAX_DAILY_LOSS_PCT
     SESSION_OPEN_TIME: time = time(1, 35, 0)
     SESSION_CLOSE_TIME: time = time(0, 25, 0)
 
