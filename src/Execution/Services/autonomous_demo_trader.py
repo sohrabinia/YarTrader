@@ -134,6 +134,8 @@ class AutonomousDemoTrader:
         "H1": "TIMEFRAME_H1",
         "H4": "TIMEFRAME_H4",
         "D1": "TIMEFRAME_D1",
+        "W1": "TIMEFRAME_W1",
+        "MN1": "TIMEFRAME_MN1",
     }
     MIN_CONFIDENCE = 70.0
     MIN_RR = ProductionRiskPolicy.MINIMUM_RR
