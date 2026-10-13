@@ -120,15 +120,14 @@ class PendingOrderPlanner:
         return PendingOrderPlan(
             status="PROPOSED", order_type=order_type, direction=direction,
             entry=round(entry, 5), stop_loss=round(invalidation, 5),
-            # Target is used only as a candidate-reward estimate for entry qualification.
-            # Never transmit a pre-set TP: position management exits only on a qualified
-            # opposite Base entry scenario (or the protective stop).
-            take_profit=None,
+            # Every qualified order must carry a broker-side target so open profit
+            # can be realized even when no later reversal signal appears.
+            take_profit=round(target, 5),
             gross_reward_risk=round(gross_rr, 4), net_reward_risk=round(net_rr, 4),
             expires_at=expiry,
             cancel_if=("zone invalidated, opposite structure confirmed, spread exceeds threshold, "
                        "or scenario expires"),
-            reason="Conditional entry proposal; no broker TP is set. Exit is managed by opposite Base confirmation.",
+            reason="Conditional entry proposal with broker-side SL and TP protection.",
         )
 
     @staticmethod

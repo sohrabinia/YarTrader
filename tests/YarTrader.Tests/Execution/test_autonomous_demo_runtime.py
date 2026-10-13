@@ -148,14 +148,16 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             {"M1": bars}, {"time": 100, "bid": 100.4, "ask": 100.5}, symbol="XAUUSD"
         )
         evaluate.assert_called_once()
-        self.assertEqual(result["decision_authority"], "BASE_HIERARCHY")
+        self.assertEqual(result["decision_authority"], "NONE")
         self.assertEqual(result["status"], "WAIT")
         self.assertFalse(result["execution_enabled"])
         self.assertEqual(result["model_status"], "REACTION_MODEL_NOT_ACTIVATED")
+        self.assertEqual(set(result["strategy_results"]), {"BASE_HIERARCHY", "RTM", "PRICE_ACTION"})
+        self.assertEqual(result["execution_mode"], "INDEPENDENT_STRATEGIES_SHARED_RISK_GATE")
 
 
     @patch("src.Intelligence.Execution.strategy_orchestrator.StrategyOrchestrator.evaluate_all_strategies")
-    def test_executable_plan_separates_reward_estimate_from_broker_tp(self, evaluate):
+    def test_executable_plan_preserves_broker_take_profit(self, evaluate):
         from unittest.mock import MagicMock
         evaluate.return_value = {
             "symbol": "XAUUSD", "primary_timeframe": "M1", "candidates": [],
@@ -179,13 +181,11 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             {"M1": bars}, {"time": 100, "bid": 2000.0, "ask": 2000.2}, symbol="XAUUSD"
         )
         self.assertEqual(result["status"], "ORDER_PROPOSAL")
-        self.assertIsNone(result["order_plan"]["take_profit"])
-        self.assertEqual(result["order_plan"]["reward_target_estimate"], 2007.0)
-        self.assertIsNone(result["base_plan"]["take_profit"])
-        self.assertIsNone(result["hierarchy"]["order_plan"]["take_profit"])
-        self.assertEqual(result["hierarchy"]["order_plan"]["reward_target_estimate"], 2007.0)
-        self.assertIsNone(result["reaction_analysis"]["order_plan"]["take_profit"])
-        self.assertEqual(result["reaction_analysis"]["order_plan"]["reward_target_estimate"], 2007.0)
+        self.assertEqual(result["order_plan"]["take_profit"], 2007.0)
+        self.assertNotIn("reward_target_estimate", result["order_plan"])
+        self.assertEqual(result["base_plan"]["take_profit"], 2007.0)
+        self.assertEqual(result["hierarchy"]["order_plan"]["take_profit"], 2007.0)
+        self.assertEqual(result["reaction_analysis"]["order_plan"]["take_profit"], 2007.0)
 
         # A plausible candidate must still be blocked when the MTF parent/child/M1
         # chain is absent; reaction-only exploration is not an execution fallback.
@@ -266,14 +266,47 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             "XAUUSD", plan, {"bid": 2000.0, "ask": 2000.2, "time": 1000},
             {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
         )
-        self.assertEqual(result["status"], "ALREADY_PENDING")
-        self.assertEqual(result["retained_pending_orders"], [55501])
-        self.assertEqual(result["cancelled_pending_orders"], [])
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertIn("broker-side TP", result["reason"])
         adapter.cancel_pending_order.assert_not_called()
         adapter.send_order_to_broker.assert_not_called()
 
-    def test_same_pending_order_without_preset_tp_is_reused(self):
-        """A valid pending entry with no broker TP remains working across polling cycles."""
+    @patch.dict(os.environ, {
+        "YARTRADER_DEMO_EXPLORATION_MODE": "true",
+        "YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED": "true",
+        "YARTRADER_TRADING_MODE": "DEMO",
+        "LIVE_TRADING_ENABLED": "false",
+    })
+    def test_new_pending_order_gets_atr_widened_stop_and_broker_tp(self):
+        from unittest.mock import MagicMock
+        adapter = MagicMock()
+        adapter._mt5.ORDER_TYPE_BUY_LIMIT = 2
+        adapter.get_active_orders.return_value = []
+        adapter.send_order_to_broker.return_value = MagicMock(
+            Status="Placed", OrderId=98765, Comment="accepted", Retcode=10009
+        )
+        trader = AutonomousDemoTrader(adapter=adapter)
+        plan = {"status": "ORDER_PROPOSAL", "order_plan": {
+            "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
+            "entry": 1998.0, "stop_loss": 1997.5, "take_profit": 2020.0,
+            "net_reward_risk": 1.5, "expires_at": 5000,
+        }}
+        def bars(rng):
+            return [{"timestamp": 100 + i * 30, "open": 2000.0, "high": 2000.0 + rng / 2,
+                     "low": 2000.0 - rng / 2, "close": 2000.0} for i in range(20)]
+        result = trader._reconcile_base_pending_order(
+            "XAUUSD", plan, {"bid": 2000.0, "ask": 2000.2, "time": 1000},
+            {"balance": 100000.0, "equity": 100000.0},
+            {"digits": 2, "volume_min": 0.01, "volume_step": 0.01, "volume_max": 10.0},
+            per_tf={"M5": bars(2.0), "M15": bars(4.0)},
+        )
+        self.assertEqual(result["status"], "PENDING_PLACED")
+        request = adapter.send_order_to_broker.call_args.args[0]
+        self.assertLessEqual(request.StopLoss, 1995.0)
+        self.assertEqual(request.TakeProfit, 2020.0)
+
+    def test_same_pending_order_without_preset_tp_is_blocked(self):
+        """A TP-free legacy order is never treated as a fully protected entry."""
         from unittest.mock import MagicMock
         adapter = MagicMock()
         adapter._mt5.ORDER_TYPE_BUY_LIMIT = 2
@@ -292,10 +325,8 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             "XAUUSD", plan, {"bid": 2000.0, "ask": 2000.2, "time": 1000},
             {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
         )
-        self.assertEqual(result["status"], "ALREADY_PENDING")
-        self.assertEqual(result["ticket"], 12345)
-        self.assertGreater(result["entry_qualification_net_rr"], 1.0)
-        self.assertEqual(result["take_profit"], 0.0)
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertIn("broker-side TP", result["reason"])
         adapter.cancel_pending_order.assert_not_called()
         adapter.send_order_to_broker.assert_not_called()
 

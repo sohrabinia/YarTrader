@@ -66,22 +66,18 @@ class TestAutonomousDemoReversalConfirmation(unittest.TestCase):
         self.assertEqual(result["status"], "POSITION_HELD_WAITING_REVERSE_FILL")
         self.adapter.send_order_to_broker.assert_not_called()
 
-    def test_legacy_position_tp_is_cleared_without_closing_the_position(self):
+    def test_legacy_position_tp_is_preserved(self):
         from unittest.mock import patch
         old_buy = {"ticket": 101, "type": 0, "volume": 0.01, "magic": 100001,
                    "comment": "YarBase", "time": 100, "sl": 1990.0, "tp": 2050.0}
-        refreshed_buy = {**old_buy, "tp": 0.0}
         plan = {"status": "WAIT", "structure": {},
                 "order_plan": {"status": "WAIT", "direction": "WAIT"}}
         self._configure_cycle([old_buy], plan)
-        self.adapter.get_positions.side_effect = [[old_buy], [refreshed_buy]]
-        self.adapter.clear_position_take_profit.return_value = MagicMock(
-            Status="Modified", Retcode=10009, Comment="TP cleared"
-        )
+        self.adapter.get_positions.return_value = [old_buy]
         self.trader._reconcile_base_pending_order = MagicMock(return_value={"status": "WAIT"})
         with patch("src.Execution.Services.autonomous_demo_trader._read_flag", return_value=True):
             result = self.trader.run_once("XAUUSD")
-        self.adapter.clear_position_take_profit.assert_called_once_with(101)
+        self.adapter.clear_position_take_profit.assert_not_called()
         self.adapter.send_order_to_broker.assert_not_called()
         self.assertEqual(result["status"], "POSITION_HELD_BASE_STRUCTURE")
 
