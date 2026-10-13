@@ -332,6 +332,53 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(request.StopLoss, 1994.5)
         self.assertEqual(request.TakeProfit, 0.0)
 
+    @patch.dict(os.environ, {
+        "YARTRADER_DEMO_EXPLORATION_MODE": "true",
+        "YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED": "true",
+        "YARTRADER_TRADING_MODE": "DEMO",
+        "LIVE_TRADING_ENABLED": "false",
+    })
+    def test_too_close_child_stop_promotes_to_nearest_parent_boundary(self):
+        from unittest.mock import MagicMock
+        adapter = MagicMock()
+        adapter._mt5.ORDER_TYPE_SELL_LIMIT = 3
+        adapter.get_active_orders.return_value = []
+        adapter.send_order_to_broker.return_value = MagicMock(
+            Status="Placed", OrderId=98766, Comment="accepted", Retcode=10009
+        )
+        trader = AutonomousDemoTrader(adapter=adapter)
+        plan = {
+            "status": "ORDER_PROPOSAL",
+            "order_plan": {
+                "status": "PROPOSED", "direction": "SELL", "order_type": "SELL_LIMIT",
+                "entry": 1.1202, "stop_loss": 1.12025, "take_profit": None,
+                "gross_reward_risk": 24.0, "net_reward_risk": 16.0, "expires_at": 5000,
+            },
+            "structure": {"hierarchy_chain": [
+                {"timeframe": "M5", "role": "SELECTED_CHILD", "base_low": 1.11989, "base_high": 1.1202},
+                {"timeframe": "H1", "role": "INTERMEDIATE_BASE", "event_id": "H1:test", "base_low": 1.11855, "base_high": 1.1204},
+                {"timeframe": "H4", "role": "INTERMEDIATE_BASE", "event_id": "H4:test", "base_low": 1.12119, "base_high": 1.12311},
+                {"timeframe": "W1", "role": "MOTHER", "event_id": "W1:test", "base_low": 1.13616, "base_high": 1.14724},
+            ]},
+            "reaction_analysis": {"scenario": {"target": 1.11908}},
+        }
+        def bars(width):
+            return [{"timestamp": 100 + i * 30, "open": 1.1200,
+                     "high": 1.1200 + width / 2, "low": 1.1200 - width / 2,
+                     "close": 1.1200} for i in range(20)]
+        result = trader._reconcile_base_pending_order(
+            "EURUSD", plan, {"bid": 1.1201, "ask": 1.1202, "time": 1000},
+            {"balance": 2771.46, "equity": 2771.46},
+            {"digits": 5, "volume_min": 0.01, "volume_step": 0.01, "volume_max": 100.0},
+            per_tf={"M5": bars(0.0004), "M15": bars(0.0004)},
+        )
+        self.assertEqual(result["status"], "PENDING_PLACED")
+        request = adapter.send_order_to_broker.call_args.args[0]
+        self.assertEqual(request.StopLoss, 1.12331)
+        self.assertEqual(request.TakeProfit, 0.0)
+        self.assertLessEqual(request.Price, request.StopLoss)
+        self.assertAlmostEqual(plan["order_plan"]["stop_loss"], 1.12025)
+
     def test_same_pending_order_without_preset_tp_is_reused(self):
         """A TP-free pending order is retained for strategy-managed exits."""
         from unittest.mock import MagicMock

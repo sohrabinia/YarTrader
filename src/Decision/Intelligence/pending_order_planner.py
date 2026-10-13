@@ -127,7 +127,7 @@ class PendingOrderPlanner:
             expires_at=expiry,
             cancel_if=("zone invalidated, opposite structure confirmed, spread exceeds threshold, "
                        "or scenario expires"),
-            reason="Conditional entry proposal with broker-side SL and TP protection.",
+            reason="Conditional entry proposal with structural broker-side SL; exits are strategy-managed and no preset TP is sent.",
         )
 
     @staticmethod

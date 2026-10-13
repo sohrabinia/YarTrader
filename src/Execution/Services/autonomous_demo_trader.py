@@ -611,6 +611,7 @@ class AutonomousDemoTrader:
             direction = str(plan["direction"]).upper()
             order_type = str(plan["order_type"]).upper()
             entry, stop = float(plan["entry"]), float(plan["stop_loss"])
+            original_stop = stop
             target = float(plan.get("take_profit") or 0.0)
             if per_tf is not None:
                 # Do not let a tiny M1/M5 Base define the entire stop distance.
@@ -645,16 +646,54 @@ class AutonomousDemoTrader:
                 )
                 structural_risk = entry - stop if direction == "BUY" else stop - entry
                 if structural_risk < volatility_floor:
-                    return {
-                        "status": "BLOCKED",
-                        "reason": (
-                            f"Strategy structural invalidation is too close for current closed-bar volatility "
-                            f"(risk distance {structural_risk:.5f}, required floor {volatility_floor:.5f}); "
-                            "no artificial stop was forced and no order was sent."
-                        ),
-                    }
-                # Keep the strategy's structural stop exactly where its thesis is
-                # invalidated. Volatility is a rejection guard, not an arbitrary SL generator.
+                    # The child Base's own edge can be too close for current volatility.
+                    # In that case, select the nearest confirmed parent/intermediate Base
+                    # boundary that genuinely invalidates the setup and clears the floor.
+                    # Never manufacture a wider stop by multiplying ATR or adding fixed pips.
+                    structure = base_plan.get("structure") or {}
+                    chain = structure.get("hierarchy_chain") or []
+                    if not chain:
+                        reaction = base_plan.get("reaction_analysis") or {}
+                        scenario = reaction.get("scenario") or {}
+                        chain = scenario.get("hierarchy_chain") or []
+                    spread_buffer = max(2.0 * spread_now, 1e-8)
+                    candidates = []
+                    for node in chain:
+                        if str(node.get("role", "")).upper() not in ("MOTHER", "INTERMEDIATE_BASE"):
+                            continue
+                        try:
+                            boundary = float(node["base_low"] if direction == "BUY" else node["base_high"])
+                            candidate_stop = boundary - spread_buffer if direction == "BUY" else boundary + spread_buffer
+                            candidate_risk = entry - candidate_stop if direction == "BUY" else candidate_stop - entry
+                        except (KeyError, TypeError, ValueError, OverflowError):
+                            continue
+                        if (math.isfinite(candidate_stop) and candidate_risk >= volatility_floor
+                                and candidate_risk > 0):
+                            candidates.append((candidate_risk, candidate_stop, str(node.get("timeframe", "")),
+                                               str(node.get("event_id", ""))))
+                    if candidates:
+                        _, stop, stop_timeframe, stop_event_id = min(candidates, key=lambda item: item[0])
+                        structural_risk = entry - stop if direction == "BUY" else stop - entry
+                        plan["stop_loss"] = stop
+                        self._log_event({
+                            "event": "structural_stop_promoted_to_parent_boundary",
+                            "symbol": symbol, "direction": direction, "entry": entry,
+                            "old_stop_loss": original_stop,
+                            "new_stop_loss": stop, "stop_timeframe": stop_timeframe,
+                            "stop_event_id": stop_event_id, "volatility_floor": volatility_floor,
+                            "risk_distance": structural_risk,
+                        })
+                    else:
+                        return {
+                            "status": "BLOCKED",
+                            "reason": (
+                                f"Child structural stop is too close (risk distance {structural_risk:.5f}, "
+                                f"required floor {volatility_floor:.5f}) and no confirmed parent/intermediate "
+                                "Base boundary clears the volatility floor; no artificial stop was forced."
+                            ),
+                        }
+                # A confirmed structural boundary is used; volatility is a minimum
+                # validity check, never an arbitrary distance used to invent an SL.
                 plan["stop_loss"] = stop
                 plan["take_profit"] = None
             expires = int(float(plan["expires_at"])) if plan.get("expires_at") is not None else None
@@ -672,6 +711,21 @@ class AutonomousDemoTrader:
                 raise ValueError("Pending order has invalid protective-stop geometry.")
             risk_distance = abs(entry - stop)
             net_rr = float(plan.get("net_reward_risk") or 0.0)
+            analytical_scenario = (base_plan.get("reaction_analysis") or {}).get("scenario") or {}
+            if not analytical_scenario:
+                analytical_scenario = (base_plan.get("hierarchy") or {}).get("scenario") or {}
+            try:
+                analytical_target = float(analytical_scenario.get("target"))
+                if math.isfinite(analytical_target) and analytical_target > 0:
+                    reward_distance = (analytical_target - entry if direction == "BUY" else entry - analytical_target)
+                    if reward_distance > 0 and risk_distance > 0:
+                        cost_allowance = spread_now
+                        gross_rr = reward_distance / risk_distance
+                        net_rr = max(0.0, reward_distance - cost_allowance) / (risk_distance + cost_allowance)
+                        plan["gross_reward_risk"] = round(gross_rr, 4)
+                        plan["net_reward_risk"] = round(net_rr, 4)
+            except (TypeError, ValueError, OverflowError):
+                pass
             if (risk_distance <= 0 or not math.isfinite(net_rr)
                     or (net_rr <= 1.0 and not demo_exploration_autonomy_enabled())):
                 raise ValueError("Candidate entry fails the net reward/risk > 1 qualification after costs.")
