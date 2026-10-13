@@ -223,8 +223,18 @@ class AutonomousDemoTrader:
             if isinstance(reaction.get("order_plan"), dict):
                 reaction["order_plan"] = _without_preset_tp(reaction["order_plan"])
             candidate = report.get("best_candidate")
+            hierarchy_structure = hierarchy.get("structure") or {}
+            # Fail closed: DEMO exploration is still multi-timeframe Base trading.
+            # Never let a reaction-only fallback bypass a missing parent or M1 chain.
+            complete_hierarchy = bool(
+                hierarchy_structure.get("hierarchy_complete_to_m1")
+                and hierarchy_structure.get("parent_base_id")
+                and hierarchy_structure.get("child_base_id")
+                and hierarchy_structure.get("micro_base_id")
+            )
             qualified = bool(
-                candidate
+                complete_hierarchy
+                and candidate
                 and str(candidate.get("strategy_name", "")).upper() == "BASE_HIERARCHY"
                 and str(candidate.get("direction", "")).upper() in ("BUY", "SELL")
                 and str(plan.get("status", "")).upper() == "PROPOSED"
@@ -701,7 +711,9 @@ class AutonomousDemoTrader:
             # _fetch_candles starts at MT5 shift=1, so every returned row is
             # already a fully closed candle. Do not drop the newest closed bar.
             per_tf: Dict[str, List[Dict[str, Any]]] = {"M1": m1}
-            for timeframe in ("D1", "H4", "H1", "M30", "M15", "M5"):
+            # Fetch the full configured Base hierarchy, including weekly and monthly
+            # parents. Omitting these silently downgraded the supposed MTF model.
+            for timeframe in ("MN1", "W1", "D1", "H4", "H1", "M30", "M15", "M5"):
                 per_tf[timeframe] = self._fetch_candles(symbol, timeframe, 201)
 
             # The only enabled decision path is hierarchical Base behavior.

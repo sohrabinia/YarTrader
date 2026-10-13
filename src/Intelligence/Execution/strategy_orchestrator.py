@@ -425,7 +425,8 @@ class StrategyOrchestrator:
         # in explicitly enabled DEMO exploration until costed historical profiles
         # for this setup are validated; it never sets a broker TP.
         if (demo_exploration and reaction_result.get("status") != "ENTRY_PROPOSAL"
-                and child):
+                and parent and child and micro
+                and bool(structure.get("hierarchy_complete_to_m1"))):
             # Prefer M1 triggers, but historical DEMO/backtest exploration may
             # have sparse or unavailable M1 history for older train windows. Use
             # the finest real, causally available closed timeframe with a recent

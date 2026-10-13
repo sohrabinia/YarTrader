@@ -165,7 +165,11 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
                 "entry": 1998.0, "stop_loss": 1995.0, "take_profit": 2007.0,
                 "net_reward_risk": 1.5,
             },
-            "hierarchy": {"structure": {}, "order_plan": {"take_profit": 2007.0}},
+            "hierarchy": {"structure": {
+                "hierarchy_complete_to_m1": True,
+                "parent_base_id": "H1:parent", "child_base_id": "M5:child",
+                "micro_base_id": "M1:micro",
+            }, "order_plan": {"take_profit": 2007.0}},
             "reaction_analysis": {"order_plan": {"take_profit": 2007.0}},
             "model_status": "COSTED_REACTION_MODEL_LOADED", "summary": "qualified",
         }
@@ -182,6 +186,15 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(result["hierarchy"]["order_plan"]["reward_target_estimate"], 2007.0)
         self.assertIsNone(result["reaction_analysis"]["order_plan"]["take_profit"])
         self.assertEqual(result["reaction_analysis"]["order_plan"]["reward_target_estimate"], 2007.0)
+
+        # A plausible candidate must still be blocked when the MTF parent/child/M1
+        # chain is absent; reaction-only exploration is not an execution fallback.
+        evaluate.return_value["hierarchy"]["structure"] = {}
+        blocked = trader._evaluate_hierarchical_base_plan(
+            {"M1": bars}, {"time": 100, "bid": 2000.0, "ask": 2000.2}, symbol="XAUUSD"
+        )
+        self.assertEqual(blocked["status"], "WAIT")
+        self.assertEqual(blocked["order_plan"]["status"], "WAIT")
 
     def test_stale_pending_trigger_is_blocked_before_broker_dispatch(self):
         """A crossed pending trigger must not be submitted as an unintended immediate entry."""
