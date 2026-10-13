@@ -331,6 +331,70 @@ class AutonomousDemoTrader:
         """
         return True
 
+    def _candidate_structural_trailing_stop(
+        self, position: Any, candles: List[Dict[str, Any]], tick: Dict[str, Any],
+        symbol_info: Dict[str, Any],
+    ) -> Optional[float]:
+        """Use the latest confirmed M5 swing to protect earned profit without a fixed TP.
+
+        Only closed candles are passed in. A candidate must be beyond entry, tighter
+        than the existing SL, and safely on the protective side of the current quote.
+        """
+        if len(candles) < 4:
+            return None
+        mt5 = self.adapter._mt5
+        buy_type = int(getattr(mt5, "POSITION_TYPE_BUY", 0))
+        sell_type = int(getattr(mt5, "POSITION_TYPE_SELL", 1))
+        position_type = int(self._field(position, "type", -1))
+        entry = float(self._field(position, "price_open", 0.0) or 0.0)
+        old_sl = float(self._field(position, "sl", 0.0) or 0.0)
+        if entry <= 0 or old_sl <= 0 or position_type not in (buy_type, sell_type):
+            return None
+        bid = float(tick.get("bid", 0.0) or 0.0)
+        ask = float(tick.get("ask", 0.0) or 0.0)
+        point = float(symbol_info.get("point", 0.0) or 0.0)
+        if bid <= 0 or ask < bid or point <= 0:
+            return None
+        # Do not trail a losing/flat position into an arbitrary stop. Structure must
+        # have advanced far enough that the new stop locks a positive result.
+        if position_type == buy_type and bid <= entry:
+            return None
+        if position_type == sell_type and ask >= entry:
+            return None
+        opened_msc = int(self._field(position, "time_msc", 0) or 0)
+        opened_at = opened_msc // 1000 if opened_msc > 0 else int(self._field(position, "time", 0) or 0)
+        spread = max(0.0, ask - bid)
+        buffer = max(2.0 * spread, 2.0 * point)
+        min_distance = max(float(symbol_info.get("trade_stops_level", 0.0) or 0.0) * point, point)
+        # The right-hand candle confirms each swing; the forming candle is never used.
+        first = max(1, len(candles) - 32)
+        for i in range(len(candles) - 2, first - 1, -1):
+            candle = candles[i]
+            if int(candle.get("timestamp", 0) or 0) <= opened_at:
+                continue
+            previous, following = candles[i - 1], candles[i + 1]
+            if position_type == buy_type:
+                pivot = float(candle["low"])
+                if not (pivot < float(previous["low"]) and pivot <= float(following["low"])):
+                    continue
+                candidate = pivot - buffer
+                if candidate <= entry or candidate <= old_sl + point * 0.5:
+                    continue
+                if candidate >= bid - min_distance:
+                    continue
+                return candidate
+            else:
+                pivot = float(candle["high"])
+                if not (pivot > float(previous["high"]) and pivot >= float(following["high"])):
+                    continue
+                candidate = pivot + buffer
+                if candidate >= entry or candidate >= old_sl - point * 0.5:
+                    continue
+                if candidate <= ask + min_distance:
+                    continue
+                return candidate
+        return None
+
     def _log_event(self, event: Dict[str, Any]) -> None:
         event["timestamp_utc"] = datetime.now(timezone.utc).isoformat()
         try:
@@ -956,6 +1020,39 @@ class AutonomousDemoTrader:
                             return {"status": "BLOCKED", "symbol": symbol,
                                     "reason": "Broker still reports a preset TP after the removal request.",
                                     "base_plan": base_plan, "execution_enabled": False}
+                # Strategy-managed profit protection: tighten the broker SL only
+                # behind a confirmed M5 swing that has formed after entry. No preset
+                # TP or fixed-pip trailing distance is introduced.
+                trailing_candidate = self._candidate_structural_trailing_stop(
+                    position, per_tf.get("M5", []), tick, symbol_info,
+                )
+                if trailing_candidate is not None:
+                    position_ticket = int(self._field(position, "ticket", 0) or 0)
+                    update_sl = getattr(self.adapter, "update_position_stop_loss", None)
+                    if position_ticket <= 0 or not callable(update_sl):
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": "A structural profit-protection update is indicated but broker SL modification is unavailable.",
+                                "base_plan": base_plan, "execution_enabled": False}
+                    update_response = update_sl(position_ticket, trailing_candidate)
+                    if (update_response.Status not in ("Modified", "NoChange")
+                            or int(update_response.Retcode) not in (0, 10009)):
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": f"Could not apply structural profit-protection stop: {update_response.Comment}",
+                                "base_plan": base_plan, "execution_enabled": False}
+                    if update_response.Status == "Modified":
+                        self._log_event({"event": "base_structural_profit_protection", "symbol": symbol,
+                                         "ticket": position_ticket,
+                                         "old_sl": float(self._field(position, "sl", 0.0) or 0.0),
+                                         "new_sl": trailing_candidate, "basis": "CONFIRMED_M5_SWING"})
+                        refreshed = self.adapter.get_positions(symbol=symbol)
+                        if refreshed is None:
+                            return {"status": "BLOCKED", "symbol": symbol,
+                                    "reason": "Broker position state unavailable after structural SL update.",
+                                    "base_plan": base_plan, "execution_enabled": False}
+                        position = next((candidate for candidate in refreshed
+                                         if int(self._field(candidate, "ticket", 0) or 0) == position_ticket), position)
+                        open_positions = refreshed
+
                 pos_type = int(self._field(position, "type", -1))
                 held_direction = "BUY" if pos_type == buy_type else ("SELL" if pos_type == sell_type else "UNKNOWN")
                 proposal_direction = str((base_plan.get("order_plan") or {}).get("direction", "")).upper()

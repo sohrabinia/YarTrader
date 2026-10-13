@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
@@ -547,6 +548,56 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             Volume=fill_volume,
             RawResponse=res_dict
         )
+
+    def update_position_stop_loss(self, ticket: int, stop_loss: float) -> OrderResponse:
+        """Tighten a bot-owned DEMO position stop without ever widening risk."""
+        self.verify_safety_and_account(operation_type="DEMO")
+        mt5 = self._mt5
+        if mt5 is None or not self._initialized:
+            raise ValidationException("MT5 is not initialized; cannot update position SL.")
+        ticket = int(ticket)
+        if not isinstance(stop_loss, (int, float)) or isinstance(stop_loss, bool) or not math.isfinite(float(stop_loss)) or float(stop_loss) <= 0:
+            raise ValidationException("New structural stop must be a finite positive price.")
+        positions = mt5.positions_get(ticket=ticket)
+        if not positions:
+            return OrderResponse(OrderId=str(ticket), Symbol="", Status="Failed",
+                                 SubmittedAt=datetime.now(timezone.utc), Retcode=-1,
+                                 Comment=f"Position {ticket} was not found; SL was not modified.")
+        position = positions[0]
+        def _value(obj: Any, name: str, default: Any = None) -> Any:
+            return obj.get(name, default) if isinstance(obj, dict) else getattr(obj, name, default)
+        symbol = str(_value(position, "symbol", ""))
+        old_sl = float(_value(position, "sl", 0.0) or 0.0)
+        current_tp = float(_value(position, "tp", 0.0) or 0.0)
+        position_type = int(_value(position, "type", -1))
+        buy_type = int(getattr(mt5, "POSITION_TYPE_BUY", 0))
+        sell_type = int(getattr(mt5, "POSITION_TYPE_SELL", 1))
+        if ((position_type == buy_type and old_sl > 0 and float(stop_loss) <= old_sl)
+                or (position_type == sell_type and old_sl > 0 and float(stop_loss) >= old_sl)
+                or position_type not in (buy_type, sell_type)):
+            return OrderResponse(OrderId=str(ticket), Symbol=symbol, Status="NoChange",
+                                 SubmittedAt=datetime.now(timezone.utc), Retcode=0,
+                                 Comment="Structural stop update would not tighten existing risk.")
+        action = getattr(mt5, "TRADE_ACTION_SLTP", None)
+        if action is None:
+            return OrderResponse(OrderId=str(ticket), Symbol=symbol, Status="Failed",
+                                 SubmittedAt=datetime.now(timezone.utc), Retcode=-1,
+                                 Comment="MT5 does not expose TRADE_ACTION_SLTP.")
+        request = {"action": action, "symbol": symbol, "position": ticket,
+                   "sl": float(stop_loss), "tp": current_tp}
+        checked = mt5.order_check(request)
+        code = int(_value(checked, "retcode", -1) if checked is not None else -1)
+        if checked is None or code not in (0, 10009):
+            return OrderResponse(OrderId=str(ticket), Symbol=symbol, Status="Failed",
+                                 SubmittedAt=datetime.now(timezone.utc), Retcode=code,
+                                 Comment=f"Structural SL order_check failed: {_value(checked, 'comment', 'no response')}")
+        result = mt5.order_send(request)
+        result_code = int(_value(result, "retcode", -1) if result is not None else -1)
+        success_codes = {0, 10009, int(getattr(mt5, "TRADE_RETCODE_DONE", 10009))}
+        return OrderResponse(OrderId=str(ticket), Symbol=symbol,
+                             Status="Modified" if result is not None and result_code in success_codes else "Failed",
+                             SubmittedAt=datetime.now(timezone.utc), Retcode=result_code,
+                             Comment=str(_value(result, "comment", "no response") if result is not None else "SL update returned None"))
 
     def clear_position_take_profit(self, ticket: int) -> OrderResponse:
         """Clear a preset TP on an existing position while preserving its protective SL.

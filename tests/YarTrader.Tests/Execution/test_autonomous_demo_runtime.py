@@ -45,6 +45,33 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(len(saved["11"]["observations"]), 1)
         self.assertGreater(saved["11"]["max_favorable_move"], 0)
 
+    def test_structural_profit_protection_uses_confirmed_swing_and_only_tightens(self):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+
+        adapter = MagicMock()
+        adapter._mt5 = SimpleNamespace(POSITION_TYPE_BUY=0, POSITION_TYPE_SELL=1)
+        trader = AutonomousDemoTrader(adapter=adapter)
+        position = {"type": 0, "price_open": 100.5, "sl": 99.5,
+                    "time": 102, "time_msc": 102000, "ticket": 77}
+        lows = [100.8, 101.4, 101.3, 101.0, 101.2, 101.5, 101.3, 101.6]
+        candles = [{"timestamp": 101 + i, "open": low + 0.2,
+                    "high": low + 0.5, "low": low, "close": low + 0.3}
+                   for i, low in enumerate(lows)]
+        candidate = trader._candidate_structural_trailing_stop(
+            position, candles, {"bid": 102.0, "ask": 102.02},
+            {"point": 0.01, "trade_stops_level": 0},
+        )
+        self.assertAlmostEqual(candidate, 101.26, places=6)
+
+        # If the stop has already advanced beyond the latest swing-based candidate,
+        # the manager never loosens it or falls back to an older/wider swing.
+        position["sl"] = 101.3
+        self.assertIsNone(trader._candidate_structural_trailing_stop(
+            position, candles, {"bid": 102.0, "ask": 102.02},
+            {"point": 0.01, "trade_stops_level": 0},
+        ))
+
     def test_automatic_timeframe_selector(self):
         selector = AutomaticTimeframeSelector()
         candles_by_tf = {
