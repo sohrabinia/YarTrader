@@ -130,7 +130,8 @@ class HierarchicalBaseBehaviorEngine:
     def analyze(self, events_by_tf: Mapping[str, Sequence[Mapping[str, Any]]],
                 quote: Mapping[str, Any], now: float,
                 slippage_allowance: float = 0.0,
-                commission_price_allowance: float = 0.0) -> Dict[str, Any]:
+                commission_price_allowance: float = 0.0,
+                exploration_mode: bool = False) -> Dict[str, Any]:
         """Return parent/child interpretation and a proposal-only conditional order plan."""
         events = [dict(e) for vals in events_by_tf.values() for e in vals
                   if int(e.get("confirmation_time", 0)) <= int(now)]
@@ -146,8 +147,11 @@ class HierarchicalBaseBehaviorEngine:
             return {"status": "WAIT", "reason": "No confirmed M15/M5 child base.",
                     "order_plan": self.planner.plan({}, quote, now).to_dict()}
         child = children[-1]
+        # Production requires a fresh child Base. DEMO/backtest exploration may
+        # reuse a previously confirmed zone, but only if a fresh causal M1 trigger
+        # and structural SL/TP with net R:R > 1 are still present.
         max_age = 8 * TIMEFRAME_SECONDS.get(str(child.get("timeframe")), 60)
-        if float(now) - int(child.get("confirmation_time", 0)) > max_age:
+        if not exploration_mode and float(now) - int(child.get("confirmation_time", 0)) > max_age:
             return {"status": "WAIT", "reason": "Latest child Base is stale; wait for a fresh confirmed Base event.",
                     "order_plan": self.planner.plan({}, quote, now).to_dict()}
         child_direction = int(child.get("exit_direction", 0))
@@ -193,14 +197,16 @@ class HierarchicalBaseBehaviorEngine:
             parent, parent_relation = None, "NONE"
         aligned = bool(parent and int(parent.get("exit_direction", 0)) == child_direction)
         parent_tf = str(parent.get("timeframe")) if parent else "NONE"
+        micro_age_bars = 24 if exploration_mode else 8
         micro_candidates = [
             e for e in events
             if e.get("timeframe") == "M1"
             and child_confirm <= int(e.get("confirmation_time", 0)) <= int(now)
-            and int(now) - int(e.get("confirmation_time", 0)) <= 8 * TIMEFRAME_SECONDS["M1"]
+            and int(now) - int(e.get("confirmation_time", 0)) <= micro_age_bars * TIMEFRAME_SECONDS["M1"]
             and int(e.get("exit_direction", 0)) == child_direction
-            and ((float(quote.get("ask", 0.0)) > child_high) if child_direction > 0
-                 else (float(quote.get("bid", 0.0)) < child_low))
+            and (exploration_mode or
+                 ((float(quote.get("ask", 0.0)) > child_high) if child_direction > 0
+                  else (float(quote.get("bid", 0.0)) < child_low)))
         ]
         micro = max(micro_candidates, key=lambda e: int(e["confirmation_time"])) if micro_candidates else None
         key = self._key(str(child["timeframe"]), str(child["base_type"]), parent_tf,
@@ -283,18 +289,19 @@ class HierarchicalBaseBehaviorEngine:
             return {"status": "WAIT", "reason": "No fresh, direction-aligned M1 Base departure confirms timing outside the child zone.",
                     "structure": context, "learning": stat,
                     "order_plan": self.planner.plan({}, quote, now).to_dict()}
-        if not stat or int(stat["samples"]) < self.min_samples:
-            return {"status": "WAIT", "reason": "Insufficient prior, outcome-labeled examples for this parent/child pattern.",
-                    "structure": context, "learning": stat,
-                    "order_plan": self.planner.plan({}, quote, now).to_dict()}
-        if stat["win_rate"] < self.min_win_rate:
-            return {"status": "WAIT", "reason": "Historical net-R win rate does not pass the configured research gate.",
-                    "structure": context, "learning": stat,
-                    "order_plan": self.planner.plan({}, quote, now).to_dict()}
-        if stat.get("mean_net_r") is None or float(stat["mean_net_r"]) < self.min_mean_net_r:
-            return {"status": "WAIT", "reason": "Historical broker-costed net expectancy is unavailable or below threshold.",
-                    "structure": context, "learning": stat,
-                    "order_plan": self.planner.plan({}, quote, now).to_dict()}
+        if not exploration_mode:
+            if not stat or int(stat["samples"]) < self.min_samples:
+                return {"status": "WAIT", "reason": "Insufficient prior, outcome-labeled examples for this parent/child pattern.",
+                        "structure": context, "learning": stat,
+                        "order_plan": self.planner.plan({}, quote, now).to_dict()}
+            if stat["win_rate"] < self.min_win_rate:
+                return {"status": "WAIT", "reason": "Historical net-R win rate does not pass the configured research gate.",
+                        "structure": context, "learning": stat,
+                        "order_plan": self.planner.plan({}, quote, now).to_dict()}
+            if stat.get("mean_net_r") is None or float(stat["mean_net_r"]) < self.min_mean_net_r:
+                return {"status": "WAIT", "reason": "Historical broker-costed net expectancy is unavailable or below threshold.",
+                        "structure": context, "learning": stat,
+                        "order_plan": self.planner.plan({}, quote, now).to_dict()}
 
         low, high = float(child["base_low"]), float(child["base_high"])
         base_width = float(child["base_width"])
@@ -332,10 +339,15 @@ class HierarchicalBaseBehaviorEngine:
             # No confirmed structural destination means no trade; never fabricate a fixed-R target.
             target = None
             target_source = "NO_CONFIRMED_DESTINATION_BASE"
+        # In explicit DEMO/backtest exploration, missing historical statistics are
+        # expected. This value only satisfies the proposal planner's structural gate;
+        # it is not a statistical win-rate/confidence estimate.
+        planner_confidence = 100.0 * float(stat["win_rate"]) if stat is not None else (100.0 if exploration_mode else 0.0)
         scenario = {
             "direction": direction, "setup_type": "RETEST", "zone_low": low, "zone_high": high,
             "invalidation": invalidation,
-            "target": target, "target_source": target_source, "base_width": base_width, "confidence": 100.0*stat["win_rate"],
+            "target": target, "target_source": target_source, "base_width": base_width, "confidence": planner_confidence,
+            "confidence_basis": "EXPLORATION_NOT_STATISTICAL" if stat is None and exploration_mode else "HISTORICAL_PROFILE_WIN_RATE",
             "expires_at": float(now)+(8*900 if child.get("timeframe") == "M15" else 8*300),
             "slippage_allowance": slippage_allowance,
             "commission_price_allowance": commission_price_allowance,

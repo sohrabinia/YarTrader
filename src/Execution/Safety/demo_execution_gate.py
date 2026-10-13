@@ -1,11 +1,31 @@
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
+from pathlib import Path
 from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
 from src.Infrastructure.exceptions import ValidationException
 from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
+from src.Execution.Safety.demo_exploration_policy import demo_exploration_autonomy_enabled
 
 logger = logging.getLogger("DemoExecutionGate")
+
+
+def _demo_config_value(name: str, default: str) -> str:
+    """Read explicit process settings first, then project env files without overriding process env."""
+    value = os.environ.get(name)
+    if value is not None:
+        return value
+    project_root = Path(__file__).resolve().parents[3]
+    for filename in (".env.production", ".env"):
+        try:
+            for line in (project_root / filename).read_text(encoding="utf-8-sig").splitlines():
+                stripped = line.strip()
+                if stripped.startswith(name + "="):
+                    return stripped.split("=", 1)[1].strip().strip("\"'")
+        except OSError:
+            continue
+    return default
 
 
 class DemoExecutionGate:
@@ -137,8 +157,13 @@ class DemoExecutionGate:
             allowed, reason, meta = DailyLossKillSwitch.get_instance().evaluate_daily_loss(
                 equity_val, now_utc=risk_now, bot_daily_pnl=bot_daily_pnl
             )
-            if not allowed:
-                raise ValidationException(f"DemoExecutionGate Violation: Daily 10% loss limit active ({reason}, loss={meta.get('loss_pct', 0.0)}%). Execution strictly blocked.")
+            if not allowed and not (demo_exploration_autonomy_enabled() and reason == "DAILY_LOSS_LIMIT_REACHED"):
+                raise ValidationException(
+                    f"DemoExecutionGate Violation: Daily {meta.get('max_daily_loss_pct', DailyLossKillSwitch.MAX_DAILY_LOSS_PCT):g}% "
+                    f"loss limit active ({reason}, loss={meta.get('loss_pct', 0.0)}%). Execution strictly blocked."
+                )
+            if not allowed and demo_exploration_autonomy_enabled():
+                logger.warning("DEMO_EXPLORATION_OVERRIDE: daily-loss threshold is telemetry-only; invalid equity/history errors still block.")
         except ValidationException:
             raise
         except Exception as ex:
@@ -167,7 +192,8 @@ class DemoExecutionGate:
 
         # Enforce the unified 1.0% wallet-based risk ceiling at the final broker gate,
         # regardless of which strategy/worker generated the order.
-        if type(adapter_or_mt5).__name__ == "RealMT5BrokerAdapter" and order_type not in ("CLOSE", "EXIT"):
+        if (type(adapter_or_mt5).__name__ == "RealMT5BrokerAdapter" and order_type not in ("CLOSE", "EXIT")
+                and not demo_exploration_autonomy_enabled()):
             raw_price = getattr(request, "Price", None)
             raw_sl = getattr(request, "StopLoss", None)
             raw_balance = acc_info.get("balance") if isinstance(acc_info, dict) else None
@@ -217,32 +243,65 @@ class DemoExecutionGate:
                     raise ValidationException(f"DemoExecutionGate Violation: Sell order SL {sl} must be above entry price {request.Price}.")
                 if is_sell and tp and tp > 0 and tp >= request.Price:
                     raise ValidationException(f"DemoExecutionGate Violation: Sell order TP {tp} must be below entry price {request.Price}.")
-                if not sl or not tp or float(sl) <= 0 or float(tp) <= 0:
-                    raise ValidationException("DemoExecutionGate Violation: Every new entry must include YarTrader-calculated Stop Loss and Take Profit.")
+                exploration = demo_exploration_autonomy_enabled()
+                if not sl or float(sl) <= 0 or (not exploration and (not tp or float(tp) <= 0)):
+                    raise ValidationException("DemoExecutionGate Violation: A valid protective Stop Loss is required; a preset Take Profit is optional only in explicit DEMO exploration mode.")
                 risk_distance = abs(float(request.Price) - float(sl))
-                reward_distance = abs(float(tp) - float(request.Price))
-                if risk_distance <= 0 or reward_distance / risk_distance <= ProductionRiskPolicy.MINIMUM_RR:
-                    raise ValidationException("DemoExecutionGate Violation: Reward/risk must be strictly greater than 1.0.")
+                reward_distance = abs(float(tp) - float(request.Price)) if tp and float(tp) > 0 else 0.0
+                if risk_distance <= 0 or (not exploration and reward_distance / risk_distance <= ProductionRiskPolicy.MINIMUM_RR):
+                    raise ValidationException("DemoExecutionGate Violation: Reward/risk must be strictly greater than 1.0 outside DEMO exploration mode.")
 
-        # Check 10: Position Exclusivity Guard (At most 1 active directional position per symbol)
+        # Check 10: DEMO-only multi-position guard.
+        # Default remains one position. Multiple same/opposite-direction entries
+        # require an explicit opt-in and are bounded per symbol after DEMO account
+        # verification above; LIVE trading remains prohibited by MetaTraderSafetyGate.
         if order_type != "CLOSE" and hasattr(request, "Symbol"):
             get_pos_fn = getattr(adapter_or_mt5, "get_positions", None)
             if callable(get_pos_fn):
                 try:
-                    active_positions = get_pos_fn(symbol=request.Symbol)
-                    if active_positions and len(active_positions) > 0:
-                        pos_ticket = active_positions[0].get("ticket", "N/A")
-                        pos_dir = "BUY" if active_positions[0].get("type", 0) == 0 else "SELL"
+                    allow_multiple = _demo_config_value(
+                        "YARTRADER_DEMO_ALLOW_MULTIPLE_POSITIONS", "false"
+                    ).strip().lower() in {"1", "true", "yes", "on"}
+                    max_positions = 1
+                    if allow_multiple:
+                        try:
+                            max_positions = int(_demo_config_value(
+                                "YARTRADER_DEMO_MAX_POSITIONS_PER_SYMBOL", "3"
+                            ))
+                        except (TypeError, ValueError):
+                            raise ValidationException(
+                                "DemoExecutionGate Violation: YARTRADER_DEMO_MAX_POSITIONS_PER_SYMBOL must be an integer."
+                            )
+                        if max_positions < 1 or max_positions > 10:
+                            raise ValidationException(
+                                "DemoExecutionGate Violation: maximum positions per symbol must be between 1 and 10."
+                            )
+                    active_positions = get_pos_fn(symbol=request.Symbol) or []
+                    if len(active_positions) >= max_positions:
+                        pos_ticket = active_positions[0].get("ticket", "N/A") if active_positions else "N/A"
+                        pos_dir = (
+                            "BUY" if active_positions and active_positions[0].get("type", 0) == 0
+                            else "SELL" if active_positions else "N/A"
+                        )
+                        if not allow_multiple:
+                            detail = (
+                                f"Active position exists (ticket={pos_ticket}, direction={pos_dir}). "
+                                "Simultaneous or duplicate position entry is strictly forbidden."
+                            )
+                        else:
+                            detail = (
+                                f"{len(active_positions)} active position(s) already exist; "
+                                f"the configured limit is {max_positions}. Same- and opposite-direction "
+                                "entries are allowed below the limit."
+                            )
                         raise ValidationException(
-                            f"DemoExecutionGate Violation: Position Exclusivity Guard for '{request.Symbol}'. "
-                            f"Active position exists (ticket={pos_ticket}, direction={pos_dir}). "
-                            f"Simultaneous or duplicate position entry is strictly forbidden."
+                            f"DemoExecutionGate Violation: Position Exclusivity Guard for '{request.Symbol}'. {detail}"
                         )
                 except ValidationException:
                     raise
                 except Exception as ex:
-                    logger.error(f"[DemoExecutionGate] Fail-Closed: Error checking position exclusivity: {ex}")
-                    raise ValidationException(f"DemoExecutionGate Fail-Closed Violation: Unable to verify active position exclusivity for '{request.Symbol}': {ex}")
+                    logger.error(f"[DemoExecutionGate] Fail-Closed: Error checking active positions: {ex}")
+                    raise ValidationException(f"DemoExecutionGate Fail-Closed Violation: Unable to verify active positions for '{request.Symbol}': {ex}")
 
         logger.info("[DemoExecutionGate] All SRE Demo Execution safety checks PASSED.")
         return True

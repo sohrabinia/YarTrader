@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 from src.Data.MarketData.Models.models import MarketDataPoint
 from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
 from src.Execution.Models.models import OrderRequest
+from src.Execution.Safety.demo_exploration_policy import demo_exploration_autonomy_enabled
 from src.Infrastructure.exceptions import ValidationException
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, ProductionRiskPolicy
 
@@ -25,6 +26,22 @@ logger = logging.getLogger("AutonomousDemoTrader")
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _START_LOCK = threading.Lock()
 _WORKER: Optional[threading.Thread] = None
+
+
+def _demo_config_value(name: str, default: str) -> str:
+    """Resolve DEMO settings consistently with the execution gate."""
+    value = os.environ.get(name)
+    if value is not None:
+        return value
+    for filename in (".env.production", ".env"):
+        try:
+            for line in (_PROJECT_ROOT / filename).read_text(encoding="utf-8-sig").splitlines():
+                stripped = line.strip()
+                if stripped.startswith(name + "="):
+                    return stripped.split("=", 1)[1].strip().strip("\"'")
+        except OSError:
+            continue
+    return default
 
 
 def _read_flag() -> bool:
@@ -182,17 +199,43 @@ class AutonomousDemoTrader:
                     max(0.0, float(tick["ask"])-float(tick["bid"])) /
                     (0.1 if "XAU" in symbol.upper() else (1.0 if "BTC" in symbol.upper() else 0.0001))
                 ),
+                exploration_mode=(
+                    os.environ.get("YARTRADER_DEMO_EXPLORATION_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+                    and os.environ.get("YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+                    and os.environ.get("YARTRADER_TRADING_MODE", "").strip().upper() == "DEMO"
+                ),
             )
-            plan = report.get("base_plan") or {}
-            hierarchy = report.get("hierarchy") or {}
-            reaction = report.get("reaction_analysis") or {}
+            # The Base model may carry a destination-price estimate for entry
+            # qualification. Keep that estimate explicitly separate from broker TP
+            # in every returned execution/diagnostic plan; none is sent to MT5.
+            def _without_preset_tp(source: Any) -> Dict[str, Any]:
+                cleaned = dict(source or {})
+                if cleaned.get("take_profit") not in (None, 0, 0.0):
+                    cleaned["reward_target_estimate"] = cleaned.get("take_profit")
+                    cleaned["take_profit"] = None
+                return cleaned
+
+            plan = _without_preset_tp(report.get("base_plan"))
+            hierarchy = dict(report.get("hierarchy") or {})
+            if isinstance(hierarchy.get("order_plan"), dict):
+                hierarchy["order_plan"] = _without_preset_tp(hierarchy["order_plan"])
+            reaction = dict(report.get("reaction_analysis") or {})
+            if isinstance(reaction.get("order_plan"), dict):
+                reaction["order_plan"] = _without_preset_tp(reaction["order_plan"])
             candidate = report.get("best_candidate")
             qualified = bool(
                 candidate
                 and str(candidate.get("strategy_name", "")).upper() == "BASE_HIERARCHY"
                 and str(candidate.get("direction", "")).upper() in ("BUY", "SELL")
                 and str(plan.get("status", "")).upper() == "PROPOSED"
-                and str(report.get("model_status", "")).upper() == "COSTED_REACTION_MODEL_LOADED"
+                and (
+                    str(report.get("model_status", "")).upper() == "COSTED_REACTION_MODEL_LOADED"
+                    or (
+                        os.environ.get("YARTRADER_DEMO_EXPLORATION_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+                        and os.environ.get("YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+                        and os.environ.get("YARTRADER_TRADING_MODE", "").strip().upper() == "DEMO"
+                    )
+                )
             )
             return {
                 "status": "ORDER_PROPOSAL" if qualified else "WAIT",
@@ -209,7 +252,7 @@ class AutonomousDemoTrader:
                 "execution_mode": "CANONICAL_BASE_ONLY_GATE",
             }
         except Exception as exc:
-            logger.warning("Canonical Base-only DEMO analysis failed closed: %s", exc)
+            logger.exception("Canonical Base-only DEMO analysis failed closed: %s", exc)
             return {
                 "status": "WAIT",
                 "reason": "Base-only analysis failed; no alternative strategy is permitted.",
@@ -244,6 +287,126 @@ class AutonomousDemoTrader:
         except OSError:
             logger.exception("Unable to persist autonomous DEMO trader event")
         logger.info("Autonomous DEMO trader: %s", event)
+
+    def _track_post_exit_market_path(self, symbol: str, tick: Dict[str, Any]) -> None:
+        """Observe price for 60 minutes after DEMO SL/TP exits and persist excursion feedback."""
+        try:
+            from datetime import timedelta
+            now = datetime.now(timezone.utc)
+            start = now - timedelta(days=7)
+            deals = self.adapter.get_history_deals(date_from=start, date_to=now)
+            if deals is None:
+                return
+            path = _PROJECT_ROOT / "runtime_logs" / "post_exit_price_tracking.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                state = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+            except (OSError, ValueError, TypeError):
+                state = {}
+            if not isinstance(state, dict):
+                state = {}
+            mt5 = self.adapter._mt5
+            entry_in = int(getattr(mt5, "DEAL_ENTRY_IN", 0))
+            entry_out = int(getattr(mt5, "DEAL_ENTRY_OUT", 1))
+            entry_out_by = int(getattr(mt5, "DEAL_ENTRY_OUT_BY", 3))
+            reason_sl = int(getattr(mt5, "DEAL_REASON_SL", 4))
+            reason_tp = int(getattr(mt5, "DEAL_REASON_TP", 5))
+            deal_buy = int(getattr(mt5, "DEAL_TYPE_BUY", 0))
+            deal_sell = int(getattr(mt5, "DEAL_TYPE_SELL", 1))
+            relevant = [
+                d for d in deals
+                if str(self._field(d, "symbol", "")).upper() == symbol.upper()
+                and int(self._field(d, "magic", 0) or 0) == 100001
+            ]
+            entries = {
+                int(self._field(d, "position_id", 0) or 0): d
+                for d in relevant
+                if int(self._field(d, "entry", -1) or 0) == entry_in
+                and int(self._field(d, "position_id", 0) or 0) > 0
+            }
+            for deal in relevant:
+                reason = int(self._field(deal, "reason", -1) or 0)
+                entry_kind = int(self._field(deal, "entry", -1) or 0)
+                if reason not in (reason_sl, reason_tp) or entry_kind not in (entry_out, entry_out_by):
+                    continue
+                ticket = int(self._field(deal, "ticket", 0) or 0)
+                if ticket <= 0 or str(ticket) in state:
+                    continue
+                position_id = int(self._field(deal, "position_id", 0) or 0)
+                entry_deal = entries.get(position_id)
+                entry_type = int(self._field(entry_deal, "type", -1) or 0) if entry_deal else -1
+                exit_type = int(self._field(deal, "type", -1) or 0)
+                if entry_type == deal_buy:
+                    direction = "BUY"
+                elif entry_type == deal_sell:
+                    direction = "SELL"
+                elif exit_type == deal_sell:
+                    direction = "BUY"
+                elif exit_type == deal_buy:
+                    direction = "SELL"
+                else:
+                    continue
+                state[str(ticket)] = {
+                    "deal_ticket": ticket, "position_id": position_id, "symbol": symbol.upper(),
+                    "direction": direction,
+                    "exit_reason": "STOP_LOSS" if reason == reason_sl else "TAKE_PROFIT",
+                    "exit_time": int(self._field(deal, "time", 0) or 0),
+                    "exit_price": float(self._field(deal, "price", 0.0) or 0.0),
+                    "profit": float(self._field(deal, "profit", 0.0) or 0.0),
+                    "observations": [], "max_favorable_move": 0.0, "max_adverse_move": 0.0,
+                    "tracking_complete": False,
+                }
+                self._log_event({
+                    "event": "post_exit_price_tracking_started", "symbol": symbol.upper(),
+                    "deal_ticket": ticket, "exit_reason": state[str(ticket)]["exit_reason"],
+                    "direction": direction, "exit_price": state[str(ticket)]["exit_price"],
+                    "tracking_minutes": 60,
+                })
+            mid = (float(tick.get("bid", 0.0)) + float(tick.get("ask", 0.0))) / 2.0
+            if mid <= 0:
+                return
+            changed = False
+            for record in state.values():
+                if record.get("symbol") != symbol.upper() or record.get("tracking_complete"):
+                    continue
+                exit_epoch = int(record.get("exit_time", 0) or 0)
+                exit_price = float(record.get("exit_price", 0.0) or 0.0)
+                if exit_epoch <= 0 or exit_price <= 0:
+                    continue
+                elapsed = max(0, int(now.timestamp()) - exit_epoch)
+                move = (mid - exit_price) if record.get("direction") == "BUY" else (exit_price - mid)
+                record["max_favorable_move"] = max(float(record.get("max_favorable_move", 0.0)), move, 0.0)
+                record["max_adverse_move"] = min(float(record.get("max_adverse_move", 0.0)), move, 0.0)
+                record.setdefault("observations", []).append({
+                    "time_utc": now.isoformat(), "bid": float(tick.get("bid", 0.0)),
+                    "ask": float(tick.get("ask", 0.0)), "mid": mid,
+                    "move_in_trade_direction": move,
+                })
+                # Keep the persistent journal bounded while retaining the full one-hour sample.
+                record["observations"] = record["observations"][-130:]
+                record["elapsed_seconds"] = elapsed
+                changed = True
+                if elapsed >= 3600:
+                    record["tracking_complete"] = True
+                    self._log_event({
+                        "event": "post_exit_price_tracking_completed", "symbol": symbol.upper(),
+                        "deal_ticket": record["deal_ticket"], "exit_reason": record["exit_reason"],
+                        "observations": len(record["observations"]),
+                        "max_favorable_move": record["max_favorable_move"],
+                        "max_adverse_move": record["max_adverse_move"],
+                        "learning_note": (
+                            "Post-exit price continued favorably after exit; review entry/exit timing."
+                            if record["max_favorable_move"] > 0 else
+                            "No favorable continuation observed during the tracking window."
+                        ),
+                    })
+            if changed or state:
+                temp = path.with_suffix(".json.tmp")
+                temp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+                temp.replace(path)
+        except Exception:
+            # Market observation is non-blocking: it must never halt safe DEMO execution.
+            logger.exception("Post-exit market-path tracking failed for %s", symbol)
 
     def _confirm_position_flat(self, symbol: str, ticket: int) -> Dict[str, Any]:
         """Require an authoritative broker snapshot to confirm the old position is flat."""
@@ -281,6 +444,11 @@ class AutonomousDemoTrader:
             "yartrader_owned_deals": pnl["owned_deal_count"],
             "yartrader_open_positions": pnl["owned_open_positions"],
         })
+        exploration = demo_exploration_autonomy_enabled()
+        if exploration and not allowed and reason == "DAILY_LOSS_LIMIT_REACHED":
+            logger.warning("DEMO_EXPLORATION_OVERRIDE: daily-loss threshold is telemetry-only; hard account/data validation remains enforced.")
+            return {"allowed": True, "reason": "DEMO_EXPLORATION_DAILY_LOSS_OVERRIDE", "meta": meta, "pnl": pnl,
+                    "exploration_override": True}
         return {"allowed": allowed, "reason": reason, "meta": meta, "pnl": pnl}
 
     def _reconcile_base_pending_order(
@@ -300,34 +468,47 @@ class AutonomousDemoTrader:
         plan = base_plan.get("order_plan") or {}
         valid = base_plan.get("status") == "ORDER_PROPOSAL" and plan.get("status") == "PROPOSED"
         if not valid:
-            cancelled = []
-            for order in owned:
-                ticket = int(self._field(order, "ticket", 0) or 0)
-                if ticket <= 0:
-                    return {"status": "BLOCKED", "reason": "Owned pending order has no valid broker ticket."}
-                response = self.adapter.cancel_pending_order(ticket)
-                if response.Status != "Cancelled":
-                    return {"status": "BLOCKED", "reason": f"Could not cancel stale Base pending order {ticket}: {response.Comment}"}
-                cancelled.append(ticket)
-            return {"status": "WAIT", "reason": base_plan.get("reason", "No qualified Base reaction proposal."),
-                    "cancelled_pending_orders": cancelled}
+            # A missing proposal in this polling cycle is not proof that a working
+            # broker-side pending order is invalid. Keep accepted orders working
+            # until broker expiry or a new qualified proposal explicitly replaces
+            # them; otherwise a transient WAIT/no-parent/model-not-ready decision
+            # would cancel orders seconds after successful placement.
+            retained = [
+                int(self._field(order, "ticket", 0) or 0)
+                for order in owned
+                if int(self._field(order, "ticket", 0) or 0) > 0
+            ]
+            if len(retained) != len(owned):
+                return {"status": "BLOCKED", "reason": "Owned pending order has no valid broker ticket; refusing to assume its state."}
+            return {
+                "status": "WAIT" if not retained else "ALREADY_PENDING",
+                "reason": base_plan.get("reason", "No new qualified Base reaction proposal; existing broker orders are retained."),
+                "retained_pending_orders": retained,
+                "cancelled_pending_orders": [],
+            }
 
         try:
             direction = str(plan["direction"]).upper()
             order_type = str(plan["order_type"]).upper()
-            entry, stop, target = float(plan["entry"]), float(plan["stop_loss"]), float(plan["take_profit"])
+            entry, stop = float(plan["entry"]), float(plan["stop_loss"])
             expires = int(float(plan["expires_at"])) if plan.get("expires_at") is not None else None
+            # DEMO exploration orders are GTC where the broker supports it; short
+            # strategy-sample expiries were causing accepted orders to disappear
+            # before the learning cycle could observe fills.
+            if demo_exploration_autonomy_enabled():
+                expires = None
             digits = int(symbol_info["digits"])
             if direction not in ("BUY", "SELL") or order_type not in ("BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP"):
                 raise ValueError("Unsupported Base pending order type or direction.")
-            if not all(math.isfinite(x) and x > 0 for x in (entry, stop, target)):
-                raise ValueError("Base plan contains invalid prices.")
-            if (direction == "BUY" and not stop < entry < target) or (direction == "SELL" and not target < entry < stop):
-                raise ValueError("Base pending order has invalid stop/entry/target geometry.")
+            if not all(math.isfinite(x) and x > 0 for x in (entry, stop)):
+                raise ValueError("Base plan contains invalid entry or protective stop.")
+            if (direction == "BUY" and not stop < entry) or (direction == "SELL" and not entry < stop):
+                raise ValueError("Base pending order has invalid protective-stop geometry.")
             risk_distance = abs(entry - stop)
-            reward_distance = abs(target - entry)
-            if risk_distance <= 0 or reward_distance / risk_distance <= 1.0:
-                raise ValueError("YarTrader requires reward/risk strictly greater than 1.0.")
+            net_rr = float(plan.get("net_reward_risk") or 0.0)
+            if (risk_distance <= 0 or not math.isfinite(net_rr)
+                    or (net_rr <= 1.0 and not demo_exploration_autonomy_enabled())):
+                raise ValueError("Candidate entry fails the net reward/risk > 1 qualification after costs.")
             bid = float(tick.get("bid") or 0.0)
             ask = float(tick.get("ask") or 0.0)
             if not math.isfinite(bid) or not math.isfinite(ask) or bid <= 0.0 or ask < bid:
@@ -353,17 +534,48 @@ class AutonomousDemoTrader:
         }[order_type], None)
         if desired_type is None:
             return {"status": "BLOCKED", "reason": "MT5 does not expose the requested pending-order type."}
+        if demo_exploration_autonomy_enabled() and owned:
+            # In exploration, a new candle/model proposal must not erase an accepted
+            # broker order. Keep one or more known, protected, TP-free orders working
+            # and wait for fill/SL; do not churn orders on every polling cycle.
+            tickets = []
+            for order in owned:
+                ticket = int(self._field(order, "ticket", 0) or 0)
+                stop_value = float(self._field(order, "sl", 0.0) or 0.0)
+                target_value = float(self._field(order, "tp", 0.0) or 0.0)
+                if ticket <= 0 or stop_value <= 0 or target_value > 10 ** (-int(symbol_info["digits"])):
+                    return {"status": "BLOCKED", "reason": "Existing DEMO exploration order lacks a ticket/protective SL or has a preset TP; refusing unsafe silent replacement."}
+                tickets.append(ticket)
+            return {
+                "status": "ALREADY_PENDING",
+                "reason": "DEMO exploration retains broker-accepted pending orders until fill or broker expiry; new polling proposals do not cancel them.",
+                "retained_pending_orders": tickets,
+                "cancelled_pending_orders": [],
+            }
         for order in owned:
-            same = (
-                int(self._field(order, "type", -1)) == int(desired_type)
-                and abs(float(self._field(order, "price_open", 0.0)) - entry) <= 10 ** (-digits)
-                and abs(float(self._field(order, "sl", 0.0)) - stop) <= 10 ** (-digits)
-                and abs(float(self._field(order, "tp", 0.0)) - target) <= 10 ** (-digits)
-                and (expires is None or int(self._field(order, "time_expiration", 0) or 0) in (0, expires))
-            )
+            # Reuse an already-working order only if it has no preset TP,
+            # matches the intended entry/protective stop, and has not expired.
+            try:
+                old_type = int(self._field(order, "type", -1))
+                old_entry = float(self._field(order, "price_open", 0.0))
+                old_stop = float(self._field(order, "sl", 0.0))
+                old_target = float(self._field(order, "tp", 0.0) or 0.0)
+                old_expiry = int(self._field(order, "time_expiration", 0) or 0)
+                current_time = int(tick.get("time") or time.time())
+                same = (
+                    old_type == int(desired_type)
+                    and abs(old_entry - entry) <= 10 ** (-digits)
+                    and abs(old_stop - stop) <= 10 ** (-digits)
+                    and abs(old_target) <= 10 ** (-digits)
+                    and (old_expiry == 0 or old_expiry > current_time)
+                )
+            except (TypeError, ValueError, OverflowError):
+                same = False
             if same:
                 return {"status": "ALREADY_PENDING", "ticket": int(self._field(order, "ticket", 0)),
-                        "order_type": order_type, "entry": entry}
+                        "order_type": order_type, "entry": old_entry,
+                        "take_profit": 0.0, "entry_qualification_net_rr": round(net_rr, 4),
+                        "expires_at": old_expiry}
         # Remove obsolete orders before replacing them; never stack duplicate Base orders.
         for order in owned:
             ticket = int(self._field(order, "ticket", 0) or 0)
@@ -373,22 +585,36 @@ class AutonomousDemoTrader:
             if response.Status != "Cancelled":
                 return {"status": "BLOCKED", "reason": f"Could not replace stale Base order {ticket}: {response.Comment}"}
 
-        sizing = calculate_demo_volume_by_risk(
-            mt5, symbol, direction, entry, stop, symbol_info,
-            float(account.get("balance") or 0), float(account.get("equity") or 0),
-            float(ProductionRiskPolicy.TARGET_RISK_PCT),
-        )
-        if not sizing.get("allowed"):
-            return {"status": "RISK_BLOCKED", "reason": sizing.get("reason"), "risk": sizing}
+        if demo_exploration_autonomy_enabled():
+            # Research-only mode samples with broker minimum volume. Strategy-level
+            # percent-risk sizing is bypassed; broker volume bounds remain mandatory.
+            min_volume = float(symbol_info.get("volume_min") or 0.0)
+            volume_step = float(symbol_info.get("volume_step") or 0.0)
+            volume_max = float(symbol_info.get("volume_max") or 0.0)
+            if (not all(math.isfinite(v) for v in (min_volume, volume_step, volume_max))
+                    or min_volume <= 0 or volume_step <= 0 or volume_max < min_volume):
+                return {"status": "RISK_BLOCKED", "reason": "Broker minimum-volume metadata is invalid in DEMO exploration."}
+            sizing = {"allowed": True, "volume": min_volume, "risk_model": "DEMO_EXPLORATION_BROKER_MINIMUM_LOT",
+                      "risk_per_trade_pct": None, "note": "Percentage risk cap bypassed for DEMO exploration; minimum broker volume retained."}
+        else:
+            sizing = calculate_demo_volume_by_risk(
+                mt5, symbol, direction, entry, stop, symbol_info,
+                float(account.get("balance") or 0), float(account.get("equity") or 0),
+                float(ProductionRiskPolicy.TARGET_RISK_PCT),
+            )
+            if not sizing.get("allowed"):
+                return {"status": "RISK_BLOCKED", "reason": sizing.get("reason"), "risk": sizing}
         request = OrderRequest(
             Symbol=symbol, OrderType=order_type, Volume=float(sizing["volume"]),
-            Price=round(entry, digits), StopLoss=round(stop, digits), TakeProfit=round(target, digits),
+            Price=round(entry, digits), StopLoss=round(stop, digits), TakeProfit=0.0,
             Comment="YarBase", Magic=100001, Expiration=expires,
         )
         response = self.adapter.send_order_to_broker(request)
         self._log_event({
             "event": "base_pending_order_submission", "symbol": symbol,
-            "order_type": order_type, "entry": entry, "stop_loss": stop, "take_profit": target,
+            "order_type": order_type, "entry": entry, "stop_loss": stop, "take_profit": 0.0,
+            "entry_qualification_net_rr": net_rr,
+            "exit_policy": "hold_until_qualified_opposite_base_setup_or_protective_stop",
             "expiration": expires, "risk": sizing, "broker_status": response.Status,
             "broker_order_id": response.OrderId, "broker_retcode": response.Retcode,
         })
@@ -418,6 +644,10 @@ class AutonomousDemoTrader:
             if not symbol_info or not tick or float(tick.get("bid") or 0) <= 0 or float(tick.get("ask") or 0) <= 0:
                 raise ValidationException(f"Valid live quote and symbol contract are unavailable for {symbol}.")
 
+            # Keep observing the market after broker-side SL/TP exits so post-exit
+            # continuation becomes durable evidence for entry/exit review.
+            self._track_post_exit_market_path(symbol, tick)
+
             # Compare MT5 server timestamps to one another; local PC clock may use a different zone.
             # H4 Base candidates may remain valid for 8 H4 bars (32 hours).
             # Keep enough closed M1 history to count re-entry episodes over that
@@ -444,10 +674,26 @@ class AutonomousDemoTrader:
             positions = self.adapter.get_positions(symbol=symbol)
             if positions is None:
                 raise ValidationException("Open-position state is unknown; fail-closed.")
-            if len(positions) > 1:
-                return {"status": "BLOCKED", "symbol": symbol, "reason": "Multiple open positions exist; reversal automation requires a single reconciled position."}
-            # A single existing position is evaluated against the new, fully-confirmed setup below.
-            # It is never blindly duplicated or closed before a qualified opposite setup exists.
+            # Multiple positions are normally unsafe. The only supported two-position
+            # state is a confirmed YarTrader-owned hedge during an actual reversal.
+            # Validate ownership/directions after the fresh Base plan is evaluated below.
+            allow_multiple_positions = _demo_config_value(
+                "YARTRADER_DEMO_ALLOW_MULTIPLE_POSITIONS", "false"
+            ).strip().lower() in {"1", "true", "yes", "on"}
+            if allow_multiple_positions:
+                try:
+                    configured_max_positions = int(_demo_config_value(
+                        "YARTRADER_DEMO_MAX_POSITIONS_PER_SYMBOL", "3"
+                    ))
+                except (TypeError, ValueError):
+                    raise ValidationException("Invalid DEMO multi-position limit configuration.")
+                if configured_max_positions < 1 or configured_max_positions > 10:
+                    raise ValidationException("DEMO multi-position limit must be between 1 and 10.")
+                if len(positions) > configured_max_positions:
+                    return {"status": "BLOCKED", "symbol": symbol,
+                            "reason": f"More open positions than the configured per-symbol limit ({configured_max_positions}); manual reconciliation required."}
+            elif len(positions) > 2:
+                return {"status": "BLOCKED", "symbol": symbol, "reason": "More than two positions exist while multi-position mode is disabled; manual reconciliation required."}
             open_positions = positions
 
             # MT5 position 0 is the still-forming candle. Use it only for quote
@@ -469,44 +715,225 @@ class AutonomousDemoTrader:
                 "open_positions": len(open_positions),
                 "execution_enabled": False,
             })
-            if open_positions:
-                # Cancel any orphaned entry order before managing an existing position.
-                order_state = self._reconcile_base_pending_order(
-                    symbol, {"status": "WAIT", "reason": "Position already open; no additional entry."},
-                    tick, account, symbol_info,
-                )
-                if order_state.get("status") == "BLOCKED":
+
+            # Explicit multi-position DEMO mode: keep all bot-owned positions
+            # (including same-direction adds and opposite-direction hedges) under
+            # their broker-side protective SLs. Never manage unrelated/manual trades.
+            if allow_multiple_positions and open_positions:
+                try:
+                    max_positions = int(_demo_config_value(
+                        "YARTRADER_DEMO_MAX_POSITIONS_PER_SYMBOL", "3"
+                    ))
+                except (TypeError, ValueError):
                     return {"status": "BLOCKED", "symbol": symbol,
-                            "reason": "Pending-order state could not be reconciled; refusing to close/reverse while an orphan entry may still be working.",
-                            "pending_order_state": order_state, "base_plan": base_plan, "execution_enabled": False}
+                            "reason": "Invalid multi-position limit configuration.",
+                            "execution_enabled": False}
+                if max_positions < 1 or max_positions > 10 or len(open_positions) > max_positions:
+                    return {"status": "BLOCKED", "symbol": symbol,
+                            "reason": f"Open position count/configuration exceeds the configured per-symbol limit ({max_positions}).",
+                            "execution_enabled": False}
+                for existing in open_positions:
+                    existing_magic = int(self._field(existing, "magic", 0) or 0)
+                    existing_comment = str(self._field(existing, "comment", "") or "")
+                    existing_ticket = int(self._field(existing, "ticket", 0) or 0)
+                    existing_sl = float(self._field(existing, "sl", 0.0) or 0.0)
+                    if existing_magic != 100001 or not existing_comment.startswith("YarBase"):
+                        return {"status": "MANUAL_POSITION_UNMANAGED", "symbol": symbol,
+                                "reason": "Multi-position mode refuses to modify or add exposure alongside a non-YarTrader position.",
+                                "execution_enabled": False}
+                    if existing_ticket <= 0 or existing_sl <= 0:
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": "Every managed position must have a valid ticket and protective stop loss in multi-position mode.",
+                                "execution_enabled": False}
+                if len(open_positions) >= max_positions:
+                    return {"status": "MULTI_POSITION_LIMIT_REACHED", "symbol": symbol,
+                            "reason": f"Configured limit of {max_positions} active positions per symbol reached; no additional entry submitted.",
+                            "open_positions": len(open_positions), "execution_enabled": False}
+                if (base_plan.get("status") == "ORDER_PROPOSAL"
+                        and str((base_plan.get("order_plan") or {}).get("direction", "")).upper() in ("BUY", "SELL")):
+                    order_state = self._reconcile_base_pending_order(
+                        symbol, base_plan, tick, account, symbol_info
+                    )
+                    return {
+                        "status": order_state.get("status", "WAIT"),
+                        "symbol": symbol,
+                        "reason": order_state.get("reason") or "Multi-position DEMO proposal evaluated.",
+                        "pending_order_state": order_state,
+                        "open_positions": len(open_positions),
+                        "max_positions_per_symbol": max_positions,
+                        "position_mode": "SAME_OR_OPPOSITE_DIRECTION_DEMO",
+                        "execution_enabled": order_state.get("status") in ("PENDING_PLACED", "ALREADY_PENDING"),
+                    }
+                return {"status": "MULTI_POSITION_HOLD", "symbol": symbol,
+                        "reason": "No qualified Base entry; existing same/opposite-direction DEMO positions are retained with protective stop losses.",
+                        "open_positions": len(open_positions),
+                        "max_positions_per_symbol": max_positions,
+                        "execution_enabled": False}
+
+            if len(open_positions) > 1:
+                mt5 = self.adapter._mt5
+                buy_type_check = int(getattr(mt5, "POSITION_TYPE_BUY", 0))
+                sell_type_check = int(getattr(mt5, "POSITION_TYPE_SELL", 1))
+                directions = []
+                for existing in open_positions:
+                    existing_magic = int(self._field(existing, "magic", 0) or 0)
+                    existing_comment = str(self._field(existing, "comment", "") or "")
+                    existing_type = int(self._field(existing, "type", -1))
+                    if existing_magic != 100001 or not existing_comment.startswith("YarBase"):
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": "Multiple positions include a non-YarTrader position; manual reconciliation required."}
+                    directions.append("BUY" if existing_type == buy_type_check else
+                                      ("SELL" if existing_type == sell_type_check else "UNKNOWN"))
+                if set(directions) != {"BUY", "SELL"}:
+                    return {"status": "BLOCKED", "symbol": symbol,
+                            "reason": "Multiple positions are not a clean opposite-direction YarTrader hedge."}
+
+            if open_positions:
+                # Keep a qualified reverse pending order intact across polling cycles.
+                # Orphan orders are reconciled only after the fresh setup is classified.
+                proposal_direction = str((base_plan.get("order_plan") or {}).get("direction", "")).upper()
+                buy_type = int(getattr(self.adapter._mt5, "POSITION_TYPE_BUY", 0))
+                sell_type = int(getattr(self.adapter._mt5, "POSITION_TYPE_SELL", 1))
+                # When a reverse leg has filled on a hedging account, select the old
+                # position first; never accidentally close the newly opened reverse leg.
                 position = open_positions[0]
+                if len(open_positions) > 1:
+                    # With two broker-confirmed opposite legs, close the older leg
+                    # after validating that both are bot-owned; retain the newer reverse leg.
+                    def _position_opened_at(candidate: Any) -> int:
+                        return int(self._field(candidate, "time_msc", 0) or
+                                   (int(self._field(candidate, "time", 0) or 0) * 1000))
+                    position_times = [_position_opened_at(candidate) for candidate in open_positions]
+                    if any(opened_at <= 0 for opened_at in position_times):
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": "Cannot establish the order of two opposite positions from broker timestamps; manual reconciliation required.",
+                                "base_plan": base_plan, "execution_enabled": False}
+                    position = open_positions[position_times.index(min(position_times))]
                 position_magic = int(self._field(position, "magic", 0) or 0)
                 position_comment = str(self._field(position, "comment", "") or "")
                 owned = position_magic == 100001 and position_comment.startswith("YarBase")
                 if not owned:
                     return {"status": "MANUAL_POSITION_UNMANAGED", "symbol": symbol,
                             "reason": "Open position is not identified as a YarTrader Base position; it will not be modified or closed.",
-                            "pending_order_state": order_state, "base_plan": base_plan, "execution_enabled": False}
+                            "base_plan": base_plan, "execution_enabled": False}
+
+                # Remove legacy broker-side TPs from every owned position and verify
+                # the broker snapshot before continuing management. Preserve each SL.
+                cleared_any_tp = False
+                for candidate in open_positions:
+                    candidate_ticket = int(self._field(candidate, "ticket", 0) or 0)
+                    candidate_magic = int(self._field(candidate, "magic", 0) or 0)
+                    candidate_comment = str(self._field(candidate, "comment", "") or "")
+                    if candidate_magic != 100001 or not candidate_comment.startswith("YarBase"):
+                        continue
+                    candidate_tp = float(self._field(candidate, "tp", 0.0) or 0.0)
+                    if candidate_tp > 0.0:
+                        clear_tp = getattr(self.adapter, "clear_position_take_profit", None)
+                        if not callable(clear_tp) or candidate_ticket <= 0:
+                            return {"status": "BLOCKED", "symbol": symbol,
+                                    "reason": "A legacy preset TP exists but safe DEMO-only TP removal is unavailable.",
+                                    "base_plan": base_plan, "execution_enabled": False}
+                        clear_response = clear_tp(candidate_ticket)
+                        if clear_response.Status not in ("Modified", "NoChange") or int(clear_response.Retcode) not in (0, 10009):
+                            return {"status": "BLOCKED", "symbol": symbol,
+                                    "reason": f"Could not clear legacy TP for position {candidate_ticket}: {clear_response.Comment}",
+                                    "base_plan": base_plan, "execution_enabled": False}
+                        self._log_event({"event": "base_position_preset_tp_cleared", "symbol": symbol,
+                                         "ticket": candidate_ticket, "old_tp": candidate_tp,
+                                         "broker_status": clear_response.Status, "retcode": clear_response.Retcode})
+                        cleared_any_tp = True
+                if cleared_any_tp:
+                    refreshed_positions = self.adapter.get_positions(symbol=symbol)
+                    if refreshed_positions is None:
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": "Broker position state unavailable after TP removal; management paused fail-closed.",
+                                "base_plan": base_plan, "execution_enabled": False}
+                    for candidate in refreshed_positions:
+                        candidate_magic = int(self._field(candidate, "magic", 0) or 0)
+                        candidate_comment = str(self._field(candidate, "comment", "") or "")
+                        if (candidate_magic == 100001 and candidate_comment.startswith("YarBase")
+                                and float(self._field(candidate, "tp", 0.0) or 0.0) > 0.0):
+                            return {"status": "BLOCKED", "symbol": symbol,
+                                    "reason": "Broker still reports a preset TP after the removal request.",
+                                    "base_plan": base_plan, "execution_enabled": False}
+                    open_positions = refreshed_positions
+                    position_ticket = int(self._field(position, "ticket", 0) or 0)
+                    position = next((candidate for candidate in open_positions
+                                     if int(self._field(candidate, "ticket", 0) or 0) == position_ticket), None)
+                    if position is None:
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": "Managed position disappeared during TP-removal reconciliation; re-evaluation required.",
+                                "base_plan": base_plan, "execution_enabled": False}
+
                 pos_type = int(self._field(position, "type", -1))
-                buy_type = int(getattr(self.adapter._mt5, "POSITION_TYPE_BUY", 0))
-                sell_type = int(getattr(self.adapter._mt5, "POSITION_TYPE_SELL", 1))
                 held_direction = "BUY" if pos_type == buy_type else ("SELL" if pos_type == sell_type else "UNKNOWN")
-                structure = base_plan.get("structure") or {}
-                child_direction = int(structure.get("child_direction", 0) or 0)
-                zone_low = float(structure.get("child_zone_low") or 0.0)
-                zone_high = float(structure.get("child_zone_high") or 0.0)
-                market_price = float(tick.get("bid") if held_direction == "BUY" else tick.get("ask"))
-                structural_invalidation = (
-                    held_direction == "BUY" and child_direction < 0 and zone_low > 0 and market_price < zone_low
-                ) or (
-                    held_direction == "SELL" and child_direction > 0 and zone_high > 0 and market_price > zone_high
-                )
                 proposal_direction = str((base_plan.get("order_plan") or {}).get("direction", "")).upper()
-                qualified_opposite = (
+                opposite_positions = []
+                for candidate in open_positions:
+                    candidate_magic = int(self._field(candidate, "magic", 0) or 0)
+                    candidate_comment = str(self._field(candidate, "comment", "") or "")
+                    candidate_type = int(self._field(candidate, "type", -1))
+                    candidate_direction = (
+                        "BUY" if candidate_type == buy_type
+                        else ("SELL" if candidate_type == sell_type else "UNKNOWN")
+                    )
+                    if (candidate_magic == 100001 and candidate_comment.startswith("YarBase")
+                            and candidate_direction in ("BUY", "SELL")
+                            and candidate_direction != held_direction):
+                        opposite_positions.append(candidate)
+
+                qualified_opposite = bool(opposite_positions) or (
                     base_plan.get("status") == "ORDER_PROPOSAL"
                     and proposal_direction in ("BUY", "SELL") and proposal_direction != held_direction
                 )
-                if structural_invalidation or qualified_opposite:
+                if qualified_opposite:
+                    # A pending opposite order is only an intention, not an opposite
+                    # position. Keep the current position until the broker confirms that
+                    # a YarTrader-owned position in the opposite direction actually exists.
+                    if not opposite_positions:
+                        reverse_order_state = self._reconcile_base_pending_order(
+                            symbol, base_plan, tick, account, symbol_info,
+                        )
+                        if reverse_order_state.get("status") not in ("PENDING_PLACED", "ALREADY_PENDING"):
+                            return {
+                                "status": "POSITION_HELD_REVERSE_NOT_FILLED",
+                                "symbol": symbol,
+                                "reason": "Opposite setup is not an executed broker position; keep the current position and wait. A pending order alone never triggers an exit.",
+                                "reverse_order_state": reverse_order_state,
+                                "base_plan": base_plan,
+                                "execution_enabled": False,
+                            }
+                        return {
+                            "status": "POSITION_HELD_WAITING_REVERSE_FILL",
+                            "symbol": symbol,
+                            "reason": "Opposite pending order is working but has not filled; keep the current position with no preset TP.",
+                            "reverse_order_state": reverse_order_state,
+                            "base_plan": base_plan,
+                            "execution_enabled": True,
+                        }
+
+                    # The reverse position is already live. Cancel any remaining
+                    # YarTrader Base pending entries first, so they cannot create a
+                    # duplicate position after this transition.
+                    active_orders = self.adapter.get_active_orders(symbol=symbol)
+                    if active_orders is None:
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": "Cannot verify pending-order state before closing the old position.",
+                                "base_plan": base_plan, "execution_enabled": False}
+                    for pending in active_orders:
+                        if (int(self._field(pending, "magic", 0) or 0) == 100001
+                                and str(self._field(pending, "comment", "") or "").startswith("YarBase")):
+                            pending_ticket = int(self._field(pending, "ticket", 0) or 0)
+                            if pending_ticket <= 0:
+                                return {"status": "BLOCKED", "symbol": symbol,
+                                        "reason": "Owned pending order has no valid ticket during reversal cleanup.",
+                                        "base_plan": base_plan, "execution_enabled": False}
+                            cancel_response = self.adapter.cancel_pending_order(pending_ticket)
+                            if cancel_response.Status != "Cancelled":
+                                return {"status": "BLOCKED", "symbol": symbol,
+                                        "reason": f"Could not cancel residual pending order {pending_ticket} before reversal cleanup: {cancel_response.Comment}",
+                                        "base_plan": base_plan, "execution_enabled": False}
+
                     ticket = int(self._field(position, "ticket", 0) or 0)
                     volume = float(self._field(position, "volume", 0.0) or 0.0)
                     if ticket <= 0 or volume <= 0:
@@ -519,14 +946,13 @@ class AutonomousDemoTrader:
                     ))
                     self._log_event({"event": "base_position_exit", "symbol": symbol, "ticket": ticket,
                                      "held_direction": held_direction,
-                                     "exit_reason": "STRUCTURAL_BASE_INVALIDATION" if structural_invalidation else "QUALIFIED_OPPOSITE_BASE_REACTION",
+                                     "exit_reason": "OPPOSITE_BASE_POSITION_CONFIRMED",
+                                     "reverse_position_confirmed": True,
                                      "broker_status": close_response.Status, "retcode": close_response.Retcode})
                     success_codes = {0, 10009, int(getattr(self.adapter._mt5, "TRADE_RETCODE_DONE", 10009))}
                     if close_response.Status not in ("Placed", "Executed") or int(close_response.Retcode) not in success_codes:
                         return {"status": "EXIT_FAILED", "symbol": symbol, "reason": close_response.Comment,
                                 "base_plan": base_plan, "execution_enabled": False}
-                    # A successful close response alone is not enough: query MT5 again
-                    # and fail closed unless the old ticket is verifiably absent.
                     flat_check = self._confirm_position_flat(symbol, ticket)
                     self._log_event({"event": "base_position_exit_reconciliation", "symbol": symbol,
                                      "ticket": ticket, **flat_check})
@@ -535,12 +961,20 @@ class AutonomousDemoTrader:
                                 "reason": flat_check.get("reason"), "base_plan": base_plan,
                                 "close_response": close_response.__dict__, "execution_enabled": False}
                     return {"status": "POSITION_CLOSED_BASE_EXIT", "symbol": symbol,
-                            "reason": "Broker-confirmed flat after Base invalidation or a cost-qualified opposite Base reaction; only a fresh next-cycle proposal may open the opposite direction.",
+                            "reason": "Old position closed only after broker-confirmed execution of an opposite YarTrader Base position; no preset TP is used.",
                             "base_plan": base_plan, "close_response": close_response.__dict__,
                             "flat_confirmation": flat_check, "execution_enabled": True}
+                order_state = self._reconcile_base_pending_order(
+                    symbol, {"status": "WAIT", "reason": "Position held; no qualified opposite entry setup."},
+                    tick, account, symbol_info,
+                )
+                if order_state.get("status") == "BLOCKED":
+                    return {"status": "BLOCKED", "symbol": symbol,
+                            "reason": "Could not reconcile stale pending orders while holding the position.",
+                            "pending_order_state": order_state, "base_plan": base_plan, "execution_enabled": False}
                 return {
                     "status": "POSITION_HELD_BASE_STRUCTURE", "symbol": symbol,
-                    "reason": "No confirmed Base invalidation or qualified opposite reaction; retain the existing broker SL/TP.",
+                    "reason": "No qualified opposite Base entry is available; hold the position without a preset TP and retain the protective SL.",
                     "pending_order_state": order_state, "base_plan": base_plan, "execution_enabled": False,
                 }
             order_state = self._reconcile_base_pending_order(symbol, base_plan, tick, account, symbol_info)
@@ -588,9 +1022,11 @@ def run_autonomous_demo_trading_loop() -> None:
             for symbol in symbols:
                 result = trader.run_once(symbol_override=symbol)
                 results.append(result)
-                # Never open multiple fresh positions in one polling cycle. If a
-                # trade is placed, the next cycle re-evaluates the whole universe.
-                if result.get("status") not in ("WAIT", "SKIPPED", "BLOCKED", "ERROR", "DISABLED"):
+                # A managed position on one symbol must not starve the rest of the
+                # enabled universe. Stop only after a NEW pending entry is actually
+                # submitted; held positions and already-pending orders still allow
+                # later symbols (such as EURUSD) to be evaluated this cycle.
+                if result.get("status") == "PENDING_PLACED":
                     break
                 if result.get("status") in ("BLOCKED", "DISABLED") and (
                     result.get("daily_loss_pct") is not None
@@ -621,6 +1057,10 @@ def start_autonomous_demo_trader() -> None:
     global _WORKER
     with _START_LOCK:
         if _WORKER is not None and _WORKER.is_alive():
+            return
+        from src.Execution.Services.demo_worker_singleton import acquire_demo_worker_singleton
+        if not acquire_demo_worker_singleton():
+            logger.warning("DEMO worker not started because another process owns the cross-process singleton.")
             return
         _WORKER = threading.Thread(
             target=run_autonomous_demo_trading_loop,

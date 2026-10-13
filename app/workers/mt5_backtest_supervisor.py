@@ -14,6 +14,24 @@ WORKER = ROOT / "app" / "workers" / "mt5_backtest_worker.py"
 MTF_WORKER = ROOT / "app" / "workers" / "mt5_mtf_backtest_worker.py"
 LOG_MAX_BYTES = 5 * 1024 * 1024
 LOG_BACKUP_COUNT = 3
+_SUPERVISOR_MUTEX_HANDLE = None
+
+def _acquire_singleton() -> bool:
+    global _SUPERVISOR_MUTEX_HANDLE
+    import ctypes
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    ctypes.set_last_error(0)
+    handle = kernel32.CreateMutexW(None, True, r"Local\YarTraderMT5BacktestSupervisor")
+    if not handle:
+        raise OSError(f"Could not create backtest supervisor mutex (WinError {ctypes.get_last_error()}).")
+    if ctypes.get_last_error() == 183:
+        kernel32.CloseHandle(handle)
+        return False
+    _SUPERVISOR_MUTEX_HANDLE = handle
+    return True
 
 def _rotate_log_if_needed():
     """Bound supervisor log growth while retaining the three most recent files."""
@@ -115,4 +133,7 @@ def run_forever():
         time.sleep(max(2.0, sleep_sec))
 
 if __name__ == "__main__":
+    if not _acquire_singleton():
+        print("Another MT5 backtest supervisor already owns the singleton mutex; exiting.", flush=True)
+        raise SystemExit(0)
     run_forever()

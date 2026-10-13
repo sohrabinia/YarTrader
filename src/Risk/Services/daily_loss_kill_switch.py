@@ -163,6 +163,16 @@ class DailyLossKillSwitch:
 
         self._load_persistence()
 
+    @classmethod
+    def effective_max_daily_loss_pct(cls) -> float:
+        """60% is allowed only in the explicitly opted-in DEMO exploration process."""
+        enabled = lambda key: os.environ.get(key, "").strip().lower() in {"1", "true", "yes", "on"}
+        if (enabled("YARTRADER_DEMO_EXPLORATION_MODE")
+                and enabled("YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED")
+                and os.environ.get("YARTRADER_TRADING_MODE", "").strip().upper() == "DEMO"):
+            return 60.0
+        return float(cls.MAX_DAILY_LOSS_PCT)
+
     def set_session_baseline(self, equity: float, session_date: str) -> bool:
         """Sets active session baseline equity explicitly for a given session date string."""
         if equity is None or isinstance(equity, bool) or not isinstance(equity, (int, float)):
@@ -298,7 +308,8 @@ class DailyLossKillSwitch:
             loss_amount_usd = max(0.0, baseline - eq_val)
             loss_pct = (loss_amount_usd / baseline) * 100.0
 
-        if loss_pct >= self.MAX_DAILY_LOSS_PCT:
+        max_daily_loss_pct = self.effective_max_daily_loss_pct()
+        if loss_pct >= max_daily_loss_pct:
             self.kill_switch_active = True
             self._save_persistence()
 
@@ -307,6 +318,7 @@ class DailyLossKillSwitch:
             "baseline_equity": baseline,
             "current_equity": eq_val,
             "loss_pct": round(loss_pct, 2),
+            "max_daily_loss_pct": max_daily_loss_pct,
             "kill_switch_active": self.kill_switch_active,
             "loss_amount_usd": round(loss_amount_usd, 2),
             "bot_daily_pnl_usd": round(float(bot_daily_pnl), 2) if bot_daily_pnl is not None else None,

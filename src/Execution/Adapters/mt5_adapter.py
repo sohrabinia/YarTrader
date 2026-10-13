@@ -29,6 +29,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         logger.info("[MT5 ADAPTER VERSION] CLOSE FORENSIC REMEDIATION ACTIVE")
         self._mt5 = None
         self._initialized = False
+        self._using_session_bridge = False
         if auto_initialize:
             self._try_import_and_init()
 
@@ -63,16 +64,19 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                     raise RuntimeError("MT5 Session-2 bridge account safety check failed")
                 self._mt5 = MT5BridgeProxy(bridge)
                 self._initialized = True
+                self._using_session_bridge = True
                 logger.info("[RealMT5BrokerAdapter] Production connected through authenticated Session-2 bridge.")
                 return True
             except Exception as bridge_err:
                 self._mt5 = None
                 self._initialized = False
+                self._using_session_bridge = False
                 logger.error("[RealMT5BrokerAdapter] Production bridge unavailable; refusing native Session-0 fallback: %s", bridge_err)
                 return False
 
         try:
             import MetaTrader5 as mt5
+            self._using_session_bridge = False
             self._mt5 = mt5
             if self._mt5.initialize() and self._mt5.account_info() is not None:
                 self._initialized = True
@@ -99,6 +103,24 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             self._initialized = False
             return False
 
+    def _reconnect_and_read_account(self) -> Any:
+        """Reset stale MT5 state and attempt one fresh connection."""
+        self._mt5 = None
+        self._initialized = False
+        if not self._try_import_and_init():
+            return None
+        try:
+            account = self._mt5.account_info()
+        except Exception as exc:
+            logger.error("MT5 account probe failed after reconnect: %s", exc)
+            self._mt5 = None
+            self._initialized = False
+            return None
+        if account is None:
+            self._mt5 = None
+            self._initialized = False
+        return account
+
     def verify_safety_and_account(self, operation_type: str = "DEMO") -> bool:
         """
         Enforces MetaTraderSafetyGate and verifies active account and server match target DEMO credentials.
@@ -116,10 +138,31 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             if not self._try_import_and_init():
                 raise ValidationException("MT5 Terminal is not initialized or MetaTrader5 package is unavailable.")
 
-        acc_info = self._mt5.account_info()
+        # The Session-2 bridge can disappear while the service process stays alive.
+        # A proxy that was initialized once must not remain marked healthy forever:
+        # invalidate it and reconnect once on every failed account-health probe.
+        try:
+            acc_info = self._mt5.account_info()
+        except Exception as exc:
+            if not self._using_session_bridge:
+                raise ValidationException(f"Failed to fetch MT5 account info: {exc}") from exc
+            logger.warning("[RealMT5BrokerAdapter] MT5 bridge account probe raised; reconnecting once: %s", exc)
+            acc_info = self._reconnect_and_read_account()
+            if acc_info is None:
+                raise ValidationException("MT5 bridge account probe failed after reconnect attempt; DEMO execution is paused.") from exc
+
         if acc_info is None:
-            err = self._mt5.last_error()
-            raise ValidationException(f"Failed to fetch MT5 account info: {err}")
+            try:
+                err = self._mt5.last_error()
+            except Exception as exc:
+                err = str(exc)
+            if self._using_session_bridge:
+                logger.warning("[RealMT5BrokerAdapter] MT5 bridge returned no account (%s); reconnecting once.", err)
+                acc_info = self._reconnect_and_read_account()
+                if acc_info is None:
+                    raise ValidationException(f"Failed to fetch MT5 account info after bridge reconnect attempt: {err}")
+            else:
+                raise ValidationException(f"Failed to fetch MT5 account info: {err}")
 
         actual_login = str(getattr(acc_info, "login", ""))
         actual_server = str(getattr(acc_info, "server", ""))
@@ -503,6 +546,69 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             Price=fill_price,
             Volume=fill_volume,
             RawResponse=res_dict
+        )
+
+    def clear_position_take_profit(self, ticket: int) -> OrderResponse:
+        """Clear a preset TP on an existing position while preserving its protective SL.
+
+        This operation is intentionally DEMO-only and fail-closed. The caller must
+        verify the position belongs to YarTrader before invoking it.
+        """
+        self.verify_safety_and_account(operation_type="DEMO")
+        mt5 = self._mt5
+        if mt5 is None or not self._initialized:
+            raise ValidationException("MT5 is not initialized; cannot clear position TP.")
+        ticket = int(ticket)
+        positions = mt5.positions_get(ticket=ticket)
+        if not positions:
+            return OrderResponse(
+                OrderId=str(ticket), Symbol="", Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc), Retcode=-1,
+                Comment=f"Position {ticket} was not found; TP was not modified.",
+            )
+        position = positions[0]
+        def _field_value(obj: Any, name: str, default: Any = None) -> Any:
+            return obj.get(name, default) if isinstance(obj, dict) else getattr(obj, name, default)
+        symbol = str(_field_value(position, "symbol", ""))
+        stop_loss = float(_field_value(position, "sl", 0.0) or 0.0)
+        current_tp = float(_field_value(position, "tp", 0.0) or 0.0)
+        if current_tp <= 0.0:
+            return OrderResponse(
+                OrderId=str(ticket), Symbol=symbol, Status="NoChange",
+                SubmittedAt=datetime.now(timezone.utc), Retcode=0,
+                Comment="Position already has no preset take-profit.",
+            )
+        action = getattr(mt5, "TRADE_ACTION_SLTP", None)
+        if action is None:
+            return OrderResponse(
+                OrderId=str(ticket), Symbol=symbol, Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc), Retcode=-1,
+                Comment="MT5 does not expose TRADE_ACTION_SLTP; TP was not modified.",
+            )
+        request = {
+            "action": action, "symbol": symbol, "position": ticket,
+            "sl": stop_loss, "tp": 0.0,
+        }
+        checked = mt5.order_check(request)
+        check_code = int(_field_value(checked, "retcode", -1) if checked is not None else -1)
+        if checked is None or check_code not in (0, 10009):
+            raw_check = checked if isinstance(checked, dict) else (checked._asdict() if hasattr(checked, "_asdict") else {})
+            return OrderResponse(
+                OrderId=str(ticket), Symbol=symbol, Status="Failed",
+                SubmittedAt=datetime.now(timezone.utc), Retcode=check_code,
+                Comment=f"TP-clear order_check failed: {_field_value(checked, 'comment', 'no response')}",
+                RawResponse=raw_check,
+            )
+        result = mt5.order_send(request)
+        result_code = int(_field_value(result, "retcode", -1) if result is not None else -1)
+        success_codes = {0, 10009, int(getattr(mt5, "TRADE_RETCODE_DONE", 10009))}
+        raw_result = result if isinstance(result, dict) else (result._asdict() if hasattr(result, "_asdict") else {})
+        return OrderResponse(
+            OrderId=str(ticket), Symbol=symbol,
+            Status="Modified" if result is not None and result_code in success_codes else "Failed",
+            SubmittedAt=datetime.now(timezone.utc), Retcode=result_code,
+            Comment=str(_field_value(result, "comment", "no response") if result is not None else "TP-clear order_send returned None"),
+            RawResponse=raw_result,
         )
 
     def get_active_orders(self, symbol: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:

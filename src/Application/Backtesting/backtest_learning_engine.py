@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
 from bisect import bisect_right
+import math
 import uuid
 import os
 import json
@@ -223,6 +224,8 @@ class BacktestAndLearningEngine:
         all_timeframe_candles_provider=None,
         decision_interval_minutes: int = 1,
         learn_from_outcomes: bool = True,
+        max_daily_drawdown_pct: float = 60.0,
+        autonomous_exploration_mode: bool = False,
     ) -> Dict[str, Any]:
         """
         Executes a chronological, walk-forward backtest simulation across historical candles.
@@ -238,9 +241,17 @@ class BacktestAndLearningEngine:
                 "summary": "Insufficient candles for backtest."
             }
 
+        if isinstance(max_daily_drawdown_pct, bool) or not isinstance(max_daily_drawdown_pct, (int, float)) or not math.isfinite(float(max_daily_drawdown_pct)) or not 0.0 < float(max_daily_drawdown_pct) <= 100.0:
+            raise ValueError("max_daily_drawdown_pct must be finite and within (0, 100].")
+        max_daily_drawdown_pct = float(max_daily_drawdown_pct)
         state = state or {}
         balance = float(state.get("balance", initial_balance))
         equity = float(state.get("equity", balance))
+        daily_session_key = None
+        daily_session_start_balance = balance
+        daily_realized_pnl = 0.0
+        daily_halted = False
+        daily_halted_sessions = set()
         open_position: Optional[Dict[str, Any]] = state.get("open_position")
         closed_trades: List[Dict[str, Any]] = []
         learning_updates_count = 0
@@ -261,6 +272,18 @@ class BacktestAndLearningEngine:
             history_candles = candles[window_start:i+1]
             current_price = float(current_bar["close"])
             bar_time = current_bar.get("timestamp", f"bar-{i}")
+            try:
+                parsed_bar_time = datetime.fromisoformat(str(bar_time).replace("Z", "+00:00"))
+                if parsed_bar_time.tzinfo is None:
+                    parsed_bar_time = parsed_bar_time.replace(tzinfo=timezone.utc)
+                current_day_key = parsed_bar_time.date().isoformat()
+            except (TypeError, ValueError, OverflowError):
+                current_day_key = daily_session_key
+            if current_day_key and current_day_key != daily_session_key:
+                daily_session_key = current_day_key
+                daily_session_start_balance = balance
+                daily_realized_pnl = 0.0
+                daily_halted = False
 
             # 1. Update open position if exists
             if open_position:
@@ -269,7 +292,7 @@ class BacktestAndLearningEngine:
 
                 pos_direction = open_position["direction"]
                 sl = open_position["stop_loss"]
-                tp = open_position["take_profit"]
+                tp = open_position.get("take_profit")
 
                 exit_reason = None
                 exit_price = current_price
@@ -281,18 +304,24 @@ class BacktestAndLearningEngine:
                     if low_price <= sl:
                         exit_reason = "STOP_LOSS_HIT"
                         exit_price = sl
-                    elif high_price >= tp:
+                    elif tp is not None and float(tp) > 0 and high_price >= float(tp):
                         exit_reason = "TAKE_PROFIT_HIT"
-                        exit_price = tp
+                        exit_price = float(tp)
+                    elif autonomous_exploration_mode and str(((latest_brain_report or {}).get("best_candidate") or {}).get("direction", "")).upper() == "SELL":
+                        exit_reason = "OPPOSITE_BASE_SIGNAL"
+                        exit_price = current_price
                 else:  # SELL
                     mfe = max(open_position.get("mfe", 0.0), open_position["entry"] - low_price)
                     mae = min(open_position.get("mae", 0.0), open_position["entry"] - high_price)
                     if high_price >= sl:
                         exit_reason = "STOP_LOSS_HIT"
                         exit_price = sl
-                    elif low_price <= tp:
+                    elif tp is not None and float(tp) > 0 and low_price <= float(tp):
                         exit_reason = "TAKE_PROFIT_HIT"
-                        exit_price = tp
+                        exit_price = float(tp)
+                    elif autonomous_exploration_mode and str(((latest_brain_report or {}).get("best_candidate") or {}).get("direction", "")).upper() == "BUY":
+                        exit_reason = "OPPOSITE_BASE_SIGNAL"
+                        exit_price = current_price
 
                 open_position["mfe"] = mfe
                 open_position["mae"] = mae
@@ -341,6 +370,12 @@ class BacktestAndLearningEngine:
                     trade_pnl = raw_pnl - total_friction_usd
                     balance += trade_pnl
                     equity = balance
+                    daily_realized_pnl += trade_pnl
+                    daily_loss_pct = max(0.0, -daily_realized_pnl) / max(daily_session_start_balance, 1e-9) * 100.0
+                    if daily_loss_pct >= max_daily_drawdown_pct:
+                        daily_halted = True
+                        if daily_session_key:
+                            daily_halted_sessions.add(daily_session_key)
 
                     risk_dist = abs(open_position["entry"] - sl)
                     r_multiple = round(pnl_dist / risk_dist, 2) if risk_dist > 0 else 0.0
@@ -395,9 +430,10 @@ class BacktestAndLearningEngine:
             base_report = base_orchestrator.evaluate_all_strategies(
                 symbol=symbol, primary_timeframe=timeframe, candles=history_candles,
                 all_timeframe_candles=mtf_context, spread_pip=1.0,
+                exploration_mode=bool(autonomous_exploration_mode),
             )
             latest_brain_report = base_report
-            if not open_position and decision_due:
+            if not open_position and decision_due and (not daily_halted or autonomous_exploration_mode):
                 candidate = base_report.get("best_candidate") or {}
                 action = str(candidate.get("direction", "WAIT")).upper()
                 params = {
@@ -423,7 +459,10 @@ class BacktestAndLearningEngine:
                     ],
                     "reasoning": candidate.get("reasoning") or [],
                 }
-                if action in ["BUY", "SELL"] and confidence >= 50.0 and params.get("stop_loss") and params.get("take_profit") and float(params.get("risk_reward", 0.0)) > 1.0:
+                if (action in ["BUY", "SELL"]
+                        and (confidence >= 50.0 or base_report.get("exploration_mode") is True)
+                        and params.get("stop_loss")
+                        and (autonomous_exploration_mode or (params.get("take_profit") and float(params.get("risk_reward", 0.0)) > 1.0))):
                     open_position = {
                         "trade_id": f"BT-{symbol.upper()}-{timeframe.upper()}-{str(bar_time).replace(":", "").replace("+", "p").replace("-", "")}-{action}",
                         "symbol": symbol.upper(),
@@ -432,9 +471,11 @@ class BacktestAndLearningEngine:
                         "direction": action,
                         "entry": float(params.get("entry", current_price)),
                         "stop_loss": float(params.get("stop_loss", 0.0)),
-                        "take_profit": float(params.get("take_profit", 0.0)),
+                        "take_profit": (float(params["take_profit"]) if params.get("take_profit") else None),
                         "risk_reward": float(params.get("risk_reward", 0.0)),
                         "confidence": confidence,
+                        "exploration_mode": bool(base_report.get("exploration_mode")),
+                        "autonomous_exploration_mode": bool(autonomous_exploration_mode),
                         "volume": 0.0,
                         "entry_time": bar_time,
                         "market_context": selected_hypothesis.get("context", {}),
@@ -460,7 +501,11 @@ class BacktestAndLearningEngine:
                         pnl_multiplier = 100000.0 / max(float(params.get("entry", current_price)), 1e-9)
                     else:
                         pnl_multiplier = 100000.0
-                    if risk_distance > 0.0 and risk_dollars > 0.0:
+                    if autonomous_exploration_mode:
+                        # Match demo exploration's minimum-volume sampling rather than
+                        # sizing every trade from the production percentage-risk policy.
+                        open_position["volume"] = 0.01
+                    elif risk_distance > 0.0 and risk_dollars > 0.0:
                         open_position["volume"] = round(risk_dollars / (risk_distance * pnl_multiplier), 6)
 
         # Calculate backtest report metrics
@@ -494,6 +539,9 @@ class BacktestAndLearningEngine:
             "breakevens": cumulative_bes,
             "win_rate_pct": round(cumulative_win_rate, 2),
             "learning_updates_count": cumulative_learning,
+            "daily_drawdown_limit_pct": max_daily_drawdown_pct,
+            "daily_halted_sessions_count": len(daily_halted_sessions),
+            "exploration_mode": True,
             "closed_trades": closed_trades,
             "state": {
                 "balance": balance,

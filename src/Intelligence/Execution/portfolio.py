@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional
+import math
 from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
 
 class PortfolioRiskIntelligenceEngine:
@@ -23,9 +24,13 @@ class PortfolioRiskIntelligenceEngine:
         self.max_correlation_exposure_pct = max_correlation_exposure_pct
         self.max_risk_per_trade_pct = max_risk_per_trade_pct
         self.max_strategy_exposure_ceiling_pct = max_strategy_exposure_ceiling_pct
-        # The constructor parameter remains for compatibility; the repository-wide
-        # daily drawdown policy is authoritative and fixed at 10%.
-        self.max_daily_drawdown_pct = ProductionRiskPolicy.MAX_DAILY_LOSS_PCT
+        try:
+            configured_daily_dd = float(max_daily_drawdown_pct)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("max_daily_drawdown_pct must be finite and within (0, 100].") from exc
+        if not math.isfinite(configured_daily_dd) or not 0.0 < configured_daily_dd <= 100.0:
+            raise ValueError("max_daily_drawdown_pct must be finite and within (0, 100].")
+        self.max_daily_drawdown_pct = configured_daily_dd
         self.start_of_day_equity = start_of_day_equity
         self.daily_pnl = daily_pnl
 

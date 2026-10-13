@@ -9,6 +9,14 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Dict, Mapping, Sequence
 import math
+import os
+
+
+def _demo_exploration_enabled() -> bool:
+    enabled = lambda key: os.environ.get(key, "").strip().lower() in {"1", "true", "yes", "on"}
+    return (enabled("YARTRADER_DEMO_EXPLORATION_MODE")
+            and enabled("YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED")
+            and os.environ.get("YARTRADER_TRADING_MODE", "").strip().upper() == "DEMO")
 
 from src.Decision.Intelligence.pending_order_planner import PendingOrderPlanner
 from src.Research.Brain.multitimeframe_base_transition_engine import TIMEFRAME_ORDER, TIMEFRAME_SECONDS
@@ -44,7 +52,7 @@ class BaseReactionDecisionEngine:
 
     def __init__(self, planner: PendingOrderPlanner | None = None,
                  min_samples: int = 40, min_win_rate: float = 0.52,
-                 min_mean_net_r: float = 0.05, min_reverse_net_rr: float = 1.2):
+                 min_mean_net_r: float = 0.05, min_reverse_net_rr: float = 1.0):
         self.min_samples = int(min_samples)
         self.min_win_rate = float(min_win_rate)
         self.min_mean_net_r = float(min_mean_net_r)
@@ -171,6 +179,7 @@ class BaseReactionDecisionEngine:
     def evaluate(self, *, setup: Mapping[str, Any], quote: Mapping[str, Any], now: float,
                  parent: Mapping[str, Any] | None, child: Mapping[str, Any] | None,
                  micro: Mapping[str, Any] | None, reaction: Mapping[str, Any] | None,
+                 exploration_mode: bool = False,
                  active_position: Mapping[str, Any] | None = None,
                  current_trade: Mapping[str, Any] | None = None,
                  opposite_setup: Mapping[str, Any] | None = None) -> Dict[str, Any]:
@@ -227,7 +236,8 @@ class BaseReactionDecisionEngine:
                 return wait("Base hierarchy must be ordered from mother timeframe down to M1 without duplicate levels.")
             if str(chain[-1].get("timeframe")) != "M1":
                 return wait("The smallest child in the Base hierarchy must be M1.")
-        if now_i - int(micro.get("confirmation_time", 0)) > 8 * TIMEFRAME_SECONDS["M1"]:
+        micro_freshness_bars = 24 if exploration_mode else 8
+        if now_i - int(micro.get("confirmation_time", 0)) > micro_freshness_bars * TIMEFRAME_SECONDS["M1"]:
             return wait("M1 trigger is stale.")
         if str(reaction.get("base_id")) != str(child.get("event_id")):
             return wait("Reaction measurement does not belong to the selected child Base.")
@@ -268,6 +278,14 @@ class BaseReactionDecisionEngine:
                                    relation, aligned, reaction_number, depth,
                                    "BUY" if child_direction > 0 else "SELL", entry_side)
             passes, profile_reason, stat = self._qualifying_stat(key)
+            if not passes and (exploration_mode or _demo_exploration_enabled()):
+                # Sample unvalidated profiles only in DEMO to collect outcomes;
+                # never mark the model or profile as statistically validated.
+                passes = True
+                profile_reason = (
+                    "DEMO EXPLORATION ONLY: no validated historical edge for this exact profile; "
+                    "sampled for learning with structural/cost gates still enforced."
+                )
         context = {"parent_id": parent.get("event_id"), "parent_timeframe": ptf,
                    "parent_relation": relation,
                    "child_id": child.get("event_id"), "child_timeframe": tf,
@@ -293,7 +311,7 @@ class BaseReactionDecisionEngine:
             opposite_confirmed = opp.get("reversal_confirmed") is True
         except (KeyError, TypeError, ValueError):
             net_ev, net_rr, opposite_confirmed = -math.inf, 0.0, False
-        reverse_economics = opposite_confirmed and net_ev > 0 and net_rr >= self.min_reverse_net_rr
+        reverse_economics = opposite_confirmed and net_ev > 0 and net_rr > self.min_reverse_net_rr
         held_wave_lost_edge = active_position and current_trade and (not wave_valid or hold_ev is None or hold_ev <= 0)
         if held_wave_lost_edge and not (reverse_economics and passes):
             return {"status": "EXIT_PROPOSAL", "reason": "Held wave no longer passes structural/economic continuation gate.",

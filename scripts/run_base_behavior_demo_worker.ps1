@@ -20,6 +20,9 @@ if (-not $flagLine) { throw 'DEMO trading opt-in is missing from .env.production
 $demoFlag = $flagLine.Matches[0].Groups[1].Value.Trim().Trim('"').Trim("'").ToLowerInvariant()
 $env:YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED = $demoFlag
 $env:AUTONOMOUS_DEMO_TRADING_ENABLED = $demoFlag
+# Explicitly scope exploratory, unvalidated profile sampling to this DEMO-only worker.
+$env:YARTRADER_TRADING_MODE = 'DEMO'
+$env:YARTRADER_DEMO_EXPLORATION_MODE = 'true'
 $env:YARTRADER_ENV = 'production'
 $env:RG_ENV = 'production'
 $env:PYTHONUNBUFFERED = '1'

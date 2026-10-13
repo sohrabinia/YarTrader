@@ -30,6 +30,24 @@ class TestPendingOrderPlanner(unittest.TestCase):
         self.assertEqual(result.order_type, "SELL_STOP")
         self.assertLess(result.entry, self.quote["bid"])
 
+    def test_all_four_pending_order_types_are_selected_by_setup_and_direction(self):
+        buy_breakout = self.planner.plan({
+            "direction": "BUY", "setup_type": "BREAKOUT", "zone_low": 2001.0,
+            "zone_high": 2003.0, "invalidation": 1995.0, "target": 2015.0,
+            "base_width": 5.0, "confidence": 82, "expires_at": 5000,
+        }, self.quote, now=1000)
+        sell_retest = self.planner.plan({
+            "direction": "SELL", "setup_type": "RETEST", "zone_low": 2002.0,
+            "zone_high": 2004.0, "invalidation": 2010.0, "target": 1990.0,
+            "base_width": 5.0, "confidence": 82, "expires_at": 5000,
+        }, self.quote, now=1000)
+        self.assertEqual(buy_breakout.status, "PROPOSED")
+        self.assertEqual(buy_breakout.order_type, "BUY_STOP")
+        self.assertEqual(sell_retest.status, "PROPOSED")
+        self.assertEqual(sell_retest.order_type, "SELL_LIMIT")
+        self.assertIsNone(buy_breakout.take_profit)
+        self.assertIsNone(sell_retest.take_profit)
+
     def test_base_width_is_required_and_used_for_geometry(self):
         scenario = {"direction": "BUY", "setup_type": "RETEST", "zone_low": 1998.0,
                     "zone_high": 1999.0, "invalidation": 1995.0, "target": 2007.0,
@@ -63,6 +81,18 @@ class TestPendingOrderPlanner(unittest.TestCase):
                     "base_width": 5.0, "confidence": 80, "expires_at": 5000}
         # At the midpoint entry, estimated net reward equals net risk exactly.
         self.assertEqual(self.planner.plan(scenario, self.quote, now=1000).status, "WAIT")
+
+    def test_explicit_exploration_can_propose_without_minimum_rr_gate(self):
+        scenario = {"direction": "BUY", "setup_type": "RETEST", "zone_low": 1998.0,
+                    "zone_high": 1999.0, "invalidation": 1995.0, "target": 2002.4,
+                    "base_width": 5.0, "confidence": 80, "expires_at": 5000}
+        # Normal mode rejects this boundary case; isolated exploration mode records it.
+        self.assertEqual(self.planner.plan(scenario, self.quote, now=1000).status, "WAIT")
+        exploratory = PendingOrderPlanner(min_confidence=70, min_net_rr=1.0, enforce_min_net_rr=False)
+        result = exploratory.plan(scenario, self.quote, now=1000)
+        self.assertEqual(result.status, "PROPOSED")
+        self.assertIsNone(result.take_profit)
+        self.assertIsNotNone(result.net_reward_risk)
 
     def test_invalidated_opposite_or_expired_order_must_cancel(self):
         plan = {"expires_at": 2000}

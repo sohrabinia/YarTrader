@@ -15,6 +15,36 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
     def setUp(self):
         self.report_file = "reports/autonomous_demo_runtime_report.json"
 
+    def test_post_exit_tracker_records_price_path_after_sl_or_tp(self):
+        from tempfile import TemporaryDirectory
+        from pathlib import Path
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+        import time
+        from src.Execution.Services import autonomous_demo_trader as trader_module
+
+        now = int(time.time())
+        adapter = MagicMock()
+        adapter._mt5 = SimpleNamespace(
+            DEAL_ENTRY_IN=0, DEAL_ENTRY_OUT=1, DEAL_ENTRY_OUT_BY=3,
+            DEAL_REASON_SL=4, DEAL_REASON_TP=5, DEAL_TYPE_BUY=0, DEAL_TYPE_SELL=1,
+        )
+        adapter.get_history_deals.return_value = [
+            {"ticket": 10, "position_id": 99, "symbol": "XAUUSD", "magic": 100001,
+             "entry": 0, "type": 0, "reason": 3, "time": now - 300, "price": 1998.0, "profit": 0.0},
+            {"ticket": 11, "position_id": 99, "symbol": "XAUUSD", "magic": 100001,
+             "entry": 1, "type": 1, "reason": 4, "time": now - 30, "price": 1995.0, "profit": -30.0},
+        ]
+        trader = AutonomousDemoTrader(adapter=adapter)
+        with TemporaryDirectory() as folder, patch.object(trader_module, "_PROJECT_ROOT", Path(folder)):
+            trader._track_post_exit_market_path("XAUUSD", {"bid": 1996.0, "ask": 1996.2})
+            saved = json.loads((Path(folder) / "runtime_logs" / "post_exit_price_tracking.json").read_text())
+        self.assertIn("11", saved)
+        self.assertEqual(saved["11"]["exit_reason"], "STOP_LOSS")
+        self.assertEqual(saved["11"]["direction"], "BUY")
+        self.assertEqual(len(saved["11"]["observations"]), 1)
+        self.assertGreater(saved["11"]["max_favorable_move"], 0)
+
     def test_automatic_timeframe_selector(self):
         selector = AutomaticTimeframeSelector()
         candles_by_tf = {
@@ -124,6 +154,35 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(result["model_status"], "REACTION_MODEL_NOT_ACTIVATED")
 
 
+    @patch("src.Intelligence.Execution.strategy_orchestrator.StrategyOrchestrator.evaluate_all_strategies")
+    def test_executable_plan_separates_reward_estimate_from_broker_tp(self, evaluate):
+        from unittest.mock import MagicMock
+        evaluate.return_value = {
+            "symbol": "XAUUSD", "primary_timeframe": "M1", "candidates": [],
+            "best_candidate": {"strategy_name": "BASE_HIERARCHY", "direction": "BUY"},
+            "base_plan": {
+                "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
+                "entry": 1998.0, "stop_loss": 1995.0, "take_profit": 2007.0,
+                "net_reward_risk": 1.5,
+            },
+            "hierarchy": {"structure": {}, "order_plan": {"take_profit": 2007.0}},
+            "reaction_analysis": {"order_plan": {"take_profit": 2007.0}},
+            "model_status": "COSTED_REACTION_MODEL_LOADED", "summary": "qualified",
+        }
+        trader = AutonomousDemoTrader(adapter=MagicMock())
+        bars = [{"timestamp": 100, "open": 2000.0, "high": 2001.0, "low": 1999.0, "close": 2000.5}]
+        result = trader._evaluate_hierarchical_base_plan(
+            {"M1": bars}, {"time": 100, "bid": 2000.0, "ask": 2000.2}, symbol="XAUUSD"
+        )
+        self.assertEqual(result["status"], "ORDER_PROPOSAL")
+        self.assertIsNone(result["order_plan"]["take_profit"])
+        self.assertEqual(result["order_plan"]["reward_target_estimate"], 2007.0)
+        self.assertIsNone(result["base_plan"]["take_profit"])
+        self.assertIsNone(result["hierarchy"]["order_plan"]["take_profit"])
+        self.assertEqual(result["hierarchy"]["order_plan"]["reward_target_estimate"], 2007.0)
+        self.assertIsNone(result["reaction_analysis"]["order_plan"]["take_profit"])
+        self.assertEqual(result["reaction_analysis"]["order_plan"]["reward_target_estimate"], 2007.0)
+
     def test_stale_pending_trigger_is_blocked_before_broker_dispatch(self):
         """A crossed pending trigger must not be submitted as an unintended immediate entry."""
         from unittest.mock import MagicMock
@@ -134,8 +193,8 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             "status": "ORDER_PROPOSAL",
             "order_plan": {
                 "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
-                "entry": 2500.3, "stop_loss": 2490.3, "take_profit": 2520.3,
-                "expires_at": 2000,
+                "entry": 2500.3, "stop_loss": 2490.3, "take_profit": None,
+                "net_reward_risk": 1.5, "expires_at": 2000,
             },
         }
         result = trader._reconcile_base_pending_order(
@@ -144,6 +203,87 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         )
         self.assertEqual(result["status"], "BLOCKED")
         self.assertIn("trigger is no longer valid", result["reason"])
+        adapter.send_order_to_broker.assert_not_called()
+
+    def test_wait_cycle_does_not_cancel_existing_pending_order(self):
+        """A transient WAIT/no-new-signal cycle must retain a broker-accepted pending order."""
+        from unittest.mock import MagicMock
+        adapter = MagicMock()
+        adapter.get_active_orders.return_value = [{
+            "magic": 100001, "comment": "YarBase", "ticket": 778899,
+            "type": 2, "price_open": 1998.0, "sl": 1995.0, "tp": 0.0,
+            "time_expiration": 4000,
+        }]
+        trader = AutonomousDemoTrader(adapter=adapter)
+        result = trader._reconcile_base_pending_order(
+            "XAUUSD",
+            {"status": "WAIT", "reason": "No parent base this cycle"},
+            {"bid": 2000.0, "ask": 2000.2, "time": 1000},
+            {"balance": 100000.0, "equity": 100000.0},
+            {"digits": 2},
+        )
+        self.assertEqual(result["status"], "ALREADY_PENDING")
+        self.assertEqual(result["retained_pending_orders"], [778899])
+        self.assertEqual(result["cancelled_pending_orders"], [])
+        adapter.cancel_pending_order.assert_not_called()
+        adapter.send_order_to_broker.assert_not_called()
+
+    @patch.dict(os.environ, {
+        "YARTRADER_DEMO_EXPLORATION_MODE": "true",
+        "YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED": "true",
+        "YARTRADER_TRADING_MODE": "DEMO",
+        "LIVE_TRADING_ENABLED": "false",
+    })
+    def test_exploration_keeps_existing_order_even_when_new_proposal_differs(self):
+        from unittest.mock import MagicMock
+        adapter = MagicMock()
+        adapter._mt5.ORDER_TYPE_BUY_LIMIT = 2
+        adapter.get_active_orders.return_value = [{
+            "magic": 100001, "comment": "YarBase", "ticket": 55501, "type": 2,
+            "price_open": 1998.0, "sl": 1995.0, "tp": 0.0,
+            "time_expiration": 0,
+        }]
+        trader = AutonomousDemoTrader(adapter=adapter)
+        plan = {"status": "ORDER_PROPOSAL", "order_plan": {
+            "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
+            "entry": 1997.5, "stop_loss": 1994.5, "take_profit": None,
+            "net_reward_risk": 0.4, "expires_at": 5000,
+        }}
+        result = trader._reconcile_base_pending_order(
+            "XAUUSD", plan, {"bid": 2000.0, "ask": 2000.2, "time": 1000},
+            {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
+        )
+        self.assertEqual(result["status"], "ALREADY_PENDING")
+        self.assertEqual(result["retained_pending_orders"], [55501])
+        self.assertEqual(result["cancelled_pending_orders"], [])
+        adapter.cancel_pending_order.assert_not_called()
+        adapter.send_order_to_broker.assert_not_called()
+
+    def test_same_pending_order_without_preset_tp_is_reused(self):
+        """A valid pending entry with no broker TP remains working across polling cycles."""
+        from unittest.mock import MagicMock
+        adapter = MagicMock()
+        adapter._mt5.ORDER_TYPE_BUY_LIMIT = 2
+        adapter.get_active_orders.return_value = [{
+            "magic": 100001, "comment": "YarBase", "ticket": 12345, "type": 2,
+            "price_open": 1998.0, "sl": 1995.0, "tp": 0.0,
+            "time_expiration": 0,
+        }]
+        trader = AutonomousDemoTrader(adapter=adapter)
+        plan = {"status": "ORDER_PROPOSAL", "order_plan": {
+            "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
+            "entry": 1998.0, "stop_loss": 1995.0, "take_profit": None,
+            "net_reward_risk": 1.5, "expires_at": 5000,
+        }}
+        result = trader._reconcile_base_pending_order(
+            "XAUUSD", plan, {"bid": 2000.0, "ask": 2000.2, "time": 1000},
+            {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
+        )
+        self.assertEqual(result["status"], "ALREADY_PENDING")
+        self.assertEqual(result["ticket"], 12345)
+        self.assertGreater(result["entry_qualification_net_rr"], 1.0)
+        self.assertEqual(result["take_profit"], 0.0)
+        adapter.cancel_pending_order.assert_not_called()
         adapter.send_order_to_broker.assert_not_called()
 
 

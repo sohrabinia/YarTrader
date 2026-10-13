@@ -6,12 +6,14 @@ from production memories and include raw-data hashes and exact date boundaries.
 """
 from __future__ import annotations
 import argparse
+from bisect import bisect_right
 import hashlib
 import json
 import math
 import os
 import sys
 import uuid
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -76,6 +78,47 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
     if split < 150 or len(candles) - split < 100:
         raise RuntimeError(f"Insufficient bars for chronological train/holdout split: {len(candles)}")
     train, test = candles[:split], candles[split:]
+
+    # Load real broker history for the full Base hierarchy once. Each decision
+    # receives only bars whose close time is <= the decision cutoff (no look-ahead).
+    tf_seconds = {"M1": 60, "M5": 300, "M15": 900, "M30": 1800, "H1": 3600, "H4": 14400, "D1": 86400}
+    mtf_rows = {}
+    mtf_closed_epochs = {}
+    for tf, seconds in tf_seconds.items():
+        tf_path = provider._history_file(symbol, tf)
+        if not tf_path.exists():
+            continue
+        tf_raw = provider._read_hst(tf_path)
+        tf_raw = sorted({int(row["time"]): row for row in tf_raw}.values(), key=lambda row: int(row["time"]))
+        normalized = []
+        closed = []
+        for row in tf_raw:
+            stamp = int(row["time"])
+            normalized.append({
+                "timestamp": iso(stamp), "time": stamp,
+                "open": float(row["open"]), "high": float(row["high"]),
+                "low": float(row["low"]), "close": float(row["close"]),
+                "volume": float(row.get("tick_volume", row.get("volume", 0)) or 0),
+            })
+            closed.append(stamp + seconds)
+        mtf_rows[tf] = normalized
+        mtf_closed_epochs[tf] = closed
+    if not all(tf in mtf_rows and len(mtf_rows[tf]) >= 50 for tf in ("M1", "M5", "M15", "M30", "H1", "H4", "D1")):
+        missing = [tf for tf in tf_seconds if tf not in mtf_rows or len(mtf_rows[tf]) < 50]
+        raise RuntimeError(f"Insufficient real multi-timeframe HST history for Base hierarchy: {missing}")
+
+    def all_timeframe_provider(cutoff_time):
+        cutoff = cutoff_time if isinstance(cutoff_time, datetime) else datetime.fromisoformat(str(cutoff_time).replace("Z", "+00:00"))
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=timezone.utc)
+        cutoff_epoch = cutoff.timestamp()
+        result = {}
+        for tf, rows in mtf_rows.items():
+            count = bisect_right(mtf_closed_epochs[tf], cutoff_epoch)
+            if count >= 50:
+                result[tf] = rows[max(0, count - 500):count]
+        return result
+
     run_id = f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}_{symbol}_{uuid.uuid4().hex[:8]}"
     memory_dir = output_root / run_id / "isolated_brain_memory"
     memory_dir.mkdir(parents=True, exist_ok=False)
@@ -84,7 +127,8 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
 
     train_result = engine.run_backtest(
         symbol, timeframe, train, initial_balance=initial_balance,
-        start_index=50, context_window=500, learn_from_outcomes=True,
+        start_index=50, context_window=500, all_timeframe_candles_provider=all_timeframe_provider, learn_from_outcomes=True,
+        autonomous_exploration_mode=True,
     )
     trained_state = dict(train_result.get("state") or {})
     trained_balance = float(trained_state.get("balance", initial_balance))
@@ -101,11 +145,12 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
             "holdout_start_utc": iso(int(test[0]["time"])), "holdout_end_utc": iso(int(test[-1]["time"])),
             "total_bars": len(candles), "train_bars": len(train), "holdout_bars": len(test),
             "initial_balance_usd": initial_balance, "canonical_risk_pct": ProductionRiskPolicy.TARGET_RISK_PCT,
+            "daily_drawdown_limit_pct": None, "daily_drawdown_gate": "BYPASSED_IN_AUTONOMOUS_EXPLORATION", "exploration_mode": True,
             "train": metrics(train_trades, initial_balance, trained_balance),
             "holdout_learned_model_frozen": None, "holdout_untrained_baseline_frozen": None,
             "holdout_learning_updates": None, "holdout_learning_frozen": None,
             "train_learning_updates": int(trained_state.get("learning_updates_count", 0)),
-            "reason": "No trades were generated in the training segment. With clean memory, the Brain has no validated successful outcomes from which to derive stop/target parameters, while this backtest disables the Brain's internal virtual-trade simulator. This likely bootstrap deadlock makes a learned-vs-baseline performance claim impossible until the initial trade/outcome path is repaired.",
+            "reason": "No trades passed the real multi-timeframe Base hierarchy, M1 retest/rejection, structural destination, and net reward/risk gates in the training segment. This run is inconclusive; no synthetic trades or fallback strategy were injected.",
             "broker_orders_sent": 0, "created_at_utc": datetime.now(timezone.utc).isoformat(),
         }
     print(f"[{symbol}] training has outcomes; warming untrained baseline", flush=True)
@@ -118,7 +163,8 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
     )
     baseline_engine.run_backtest(
         symbol, timeframe, train, initial_balance=initial_balance,
-        start_index=50, context_window=500, learn_from_outcomes=False,
+        start_index=50, context_window=500, all_timeframe_candles_provider=all_timeframe_provider, learn_from_outcomes=False,
+        autonomous_exploration_mode=True,
     )
     trained_state = dict(train_result.get("state") or {})
     trained_balance = float(trained_state.get("balance", initial_balance))
@@ -137,7 +183,8 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
     test_result = engine.run_backtest(
         symbol, timeframe, candles, initial_balance=trained_balance,
         start_index=split, context_window=500, state=test_state,
-        learn_from_outcomes=False,
+        all_timeframe_candles_provider=all_timeframe_provider, learn_from_outcomes=False,
+        autonomous_exploration_mode=True,
     )
     baseline_test_state = {
         "balance": initial_balance, "equity": initial_balance, "open_position": None,
@@ -147,7 +194,8 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
     baseline_result = baseline_engine.run_backtest(
         symbol, timeframe, candles, initial_balance=initial_balance,
         start_index=split, context_window=500, state=baseline_test_state,
-        learn_from_outcomes=False,
+        all_timeframe_candles_provider=all_timeframe_provider, learn_from_outcomes=False,
+        autonomous_exploration_mode=True,
     )
     print(f"[{symbol}] holdout complete: learned_pnl={test_result.get('net_pnl')} baseline_pnl={baseline_result.get('net_pnl')}", flush=True)
     test_trades = test_result.get("closed_trades") or []
@@ -184,6 +232,7 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
         "holdout_bars": len(test),
         "initial_balance_usd": initial_balance,
         "canonical_risk_pct": ProductionRiskPolicy.TARGET_RISK_PCT,
+        "daily_drawdown_limit_pct": None, "daily_drawdown_gate": "BYPASSED_IN_AUTONOMOUS_EXPLORATION", "exploration_mode": True,
         "train": metrics(train_result.get("closed_trades") or [], initial_balance, trained_balance),
         "holdout_learned_model_frozen": metrics(test_trades, trained_balance, final_balance),
         "holdout_untrained_baseline_frozen": metrics(
@@ -229,6 +278,7 @@ def main() -> None:
         try:
             reports.append(run_symbol(symbol, args.timeframe.upper(), args.initial_balance, root, args.train_fraction))
         except Exception as exc:
+            traceback.print_exc()
             errors.append({"symbol": symbol, "error": f"{type(exc).__name__}: {exc}"})
     payload = {
         "schema": 1,

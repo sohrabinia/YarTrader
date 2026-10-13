@@ -6,6 +6,7 @@ import json
 import threading
 import uuid
 import hashlib
+import math
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Dict, Any, Optional
 from src.Research.Brain.models import MarketEvent, PatternMemory, ExperienceMemory, ConceptMemory
@@ -241,6 +242,38 @@ class MarketMemorySystem:
                 self._save_layer("events")
         return promoted_exps
 
+    @staticmethod
+    def _signature_similarity(sig1: Any, sig2: Any) -> float:
+        """Compare numeric feature vectors or categorical strategy signatures safely."""
+        if sig1 is None or sig2 is None:
+            return 0.0
+        if isinstance(sig1, (str, bytes)):
+            sig1 = [sig1]
+        if isinstance(sig2, (str, bytes)):
+            sig2 = [sig2]
+        if not isinstance(sig1, (list, tuple)) or not isinstance(sig2, (list, tuple)):
+            return 0.0
+        if not sig1 or len(sig1) != len(sig2):
+            return 0.0
+
+        # Preserve cosine similarity for genuine numeric vectors.
+        if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (*sig1, *sig2)):
+            a = [float(v) for v in sig1]
+            b = [float(v) for v in sig2]
+            if not all(math.isfinite(v) for v in (*a, *b)):
+                return 0.0
+            norm_a = math.sqrt(sum(v * v for v in a))
+            norm_b = math.sqrt(sum(v * v for v in b))
+            if norm_a <= 0.0 or norm_b <= 0.0:
+                return 0.0
+            return max(0.0, min(1.0, sum(x * y for x, y in zip(a, b)) / (norm_a * norm_b)))
+
+        # Strategy signatures are commonly categorical labels, not numbers.
+        # Positional agreement gives a stable, bounded similarity without multiplying strings.
+        matches = sum(str(a).strip().casefold() == str(b).strip().casefold()
+                      for a, b in zip(sig1, sig2))
+        return matches / len(sig1)
+
     def calculate_experience_weight(
         self,
         exp_id: str,
@@ -277,16 +310,9 @@ class MarketMemorySystem:
         # 3. Similarity Factor
         similarity_factor = 0.5
         if reference_signature and exp.situation_signature:
-            sig1 = exp.situation_signature
-            sig2 = reference_signature
-            if len(sig1) == len(sig2):
-                dot_product = sum(a * b for a, b in zip(sig1, sig2))
-                norm_a = sum(a * a for a in sig1) ** 0.5
-                norm_b = sum(b * b for b in sig2) ** 0.5
-                if norm_a > 0 and norm_b > 0:
-                    similarity_factor = dot_product / (norm_a * norm_b)
-                    # Bound between 0.0 and 1.0
-                    similarity_factor = max(0.0, min(1.0, similarity_factor))
+            similarity_factor = self._signature_similarity(
+                exp.situation_signature, reference_signature
+            )
 
         return age_factor + success_factor + similarity_factor
 
@@ -333,14 +359,10 @@ class MarketMemorySystem:
 
             for pat in patterns_list:
                 pat_sig = pat.sequence_signature
-                if len(pat_sig) == len(sig):
-                    dot_product = sum(a * b for a, b in zip(pat_sig, sig))
-                    norm_a = sum(a * a for a in pat_sig) ** 0.5
-                    norm_b = sum(b * b for b in sig) ** 0.5
-                    sim = (dot_product / (norm_a * norm_b)) if (norm_a > 0 and norm_b > 0) else 0.0
-                    if sim > best_similarity:
-                        best_similarity = sim
-                        matched_pattern = pat
+                sim = self._signature_similarity(pat_sig, sig)
+                if sim > best_similarity:
+                    best_similarity = sim
+                    matched_pattern = pat
 
             is_success = exp.outcome_result == "SUCCESS"
 
@@ -382,7 +404,11 @@ class MarketMemorySystem:
                     "timeframe": scope_timeframe,
                     "timeframe_signature": scope_tfs,
                     "context_id": scope_context_id,
-                    "signature": [round(float(v), 8) for v in sig],
+                    "signature": [
+                        round(float(v), 8) if isinstance(v, (int, float)) and not isinstance(v, bool)
+                        else str(v)
+                        for v in sig
+                    ],
                 }, sort_keys=True, separators=(",", ":"))
                 pid = f"pat-{hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]}"
                 new_pat = PatternMemory(

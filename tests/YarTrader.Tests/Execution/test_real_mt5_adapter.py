@@ -29,6 +29,33 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertIn("does not match authorized DEMO account", str(ctx.exception))
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_verify_safety_reconnects_after_session_bridge_drops(self, mock_verify):
+        stale_mt5 = MagicMock()
+        stale_mt5.account_info.side_effect = RuntimeError("bridge connection refused")
+        recovered_mt5 = MagicMock()
+        recovered_account = MagicMock()
+        recovered_account.login = 52961173
+        recovered_account.server = "Alpari-MT5-Demo"
+        recovered_account.trade_mode = 0
+        recovered_mt5.account_info.return_value = recovered_account
+
+        self.adapter._mt5 = stale_mt5
+        self.adapter._initialized = True
+        self.adapter._using_session_bridge = True
+
+        def reconnect():
+            self.adapter._mt5 = recovered_mt5
+            self.adapter._initialized = True
+            self.adapter._using_session_bridge = True
+            return True
+
+        with patch.object(self.adapter, "_try_import_and_init", side_effect=reconnect) as mock_reconnect:
+            self.assertTrue(self.adapter.verify_safety_and_account("DEMO"))
+
+        mock_reconnect.assert_called_once_with()
+        recovered_mt5.account_info.assert_called_once_with()
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_verify_safety_and_account_authorized(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_acc = MagicMock()
@@ -1387,6 +1414,43 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertIsNotNone(acc_dict)
         self.assertNotIn("margin_free", acc_dict)
         self.assertNotIn("free_margin", acc_dict)
+
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_clear_position_take_profit_preserves_protective_stop(self, mock_verify):
+        mt5 = MagicMock()
+        mt5.TRADE_ACTION_SLTP = 6
+        mt5.TRADE_RETCODE_DONE = 10009
+        account = MagicMock()
+        account.login = 52961173
+        account.server = "Alpari-MT5-Demo"
+        account.trade_mode = 0
+        mt5.account_info.return_value = account
+        position = MagicMock()
+        position.symbol = "XAUUSD"
+        position.sl = 1990.0
+        position.tp = 2050.0
+        mt5.positions_get.return_value = [position]
+        check = MagicMock()
+        check.retcode = 0
+        mt5.order_check.return_value = check
+        sent = MagicMock()
+        sent.retcode = 10009
+        sent.comment = "Done"
+        sent._asdict.return_value = {"retcode": 10009}
+        mt5.order_send.return_value = sent
+        self.adapter._mt5 = mt5
+        self.adapter._initialized = True
+
+        response = self.adapter.clear_position_take_profit(101)
+
+        self.assertEqual(response.Status, "Modified")
+        request = mt5.order_send.call_args.args[0]
+        self.assertEqual(request["action"], 6)
+        self.assertEqual(request["position"], 101)
+        self.assertEqual(request["sl"], 1990.0)
+        self.assertEqual(request["tp"], 0.0)
+        mock_verify.assert_called_once()
 
 
 if __name__ == "__main__":

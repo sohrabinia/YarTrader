@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
 import math
+import os
 import hashlib
 import json
 """Base-only analysis facade. Legacy indicator/zone/similarity engines are retired."""
@@ -22,7 +23,17 @@ class ExecutionIntelligenceCore:
 
     def __init__(self) -> None:
         # Portfolio risk remains a safety control, not a signal-generating strategy.
-        self.portfolio_engine = PortfolioRiskIntelligenceEngine()
+        # 60% is limited to explicitly tagged backtest processes.
+        backtest_mode = os.environ.get("YARTRADER_BACKTEST_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+        daily_dd_limit = 10.0
+        if backtest_mode:
+            try:
+                daily_dd_limit = float(os.environ.get("YARTRADER_BACKTEST_MAX_DAILY_DRAWDOWN_PCT", "60"))
+            except (TypeError, ValueError, OverflowError):
+                daily_dd_limit = 60.0
+            if not math.isfinite(daily_dd_limit) or not 0.0 < daily_dd_limit <= 100.0:
+                daily_dd_limit = 60.0
+        self.portfolio_engine = PortfolioRiskIntelligenceEngine(max_daily_drawdown_pct=daily_dd_limit)
 
         # No alternative strategy/indicator engines are instantiated here.
 

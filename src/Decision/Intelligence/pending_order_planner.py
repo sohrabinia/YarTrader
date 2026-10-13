@@ -34,9 +34,11 @@ class PendingOrderPlanner:
     """
 
     def __init__(self, min_confidence: float = 70.0, min_net_rr: float = ProductionRiskPolicy.MINIMUM_RR,
-                 max_spread_base_width_ratio: float = 0.12, entry_buffer_base_width_ratio: float = 0.05):
+                 max_spread_base_width_ratio: float = 0.12, entry_buffer_base_width_ratio: float = 0.05,
+                 enforce_min_net_rr: bool = True):
         self.min_confidence = float(min_confidence)
         self.min_net_rr = float(min_net_rr)
+        self.enforce_min_net_rr = bool(enforce_min_net_rr)
         self.max_spread_base_width_ratio = float(max_spread_base_width_ratio)
         self.entry_buffer_base_width_ratio = float(entry_buffer_base_width_ratio)
 
@@ -112,17 +114,21 @@ class PendingOrderPlanner:
         net_risk = risk + cost
         gross_rr = reward / risk if risk > 0 else 0.0
         net_rr = net_reward / net_risk if net_reward > 0 and net_risk > 0 else 0.0
-        if net_rr <= self.min_net_rr:
+        if self.enforce_min_net_rr and net_rr <= self.min_net_rr:
             return self._wait(direction, f"Net reward/risk ({net_rr:.4f}) must be strictly greater than {self.min_net_rr:.1f} after costs.", expires_at)
 
         return PendingOrderPlan(
             status="PROPOSED", order_type=order_type, direction=direction,
-            entry=round(entry, 5), stop_loss=round(invalidation, 5), take_profit=round(target, 5),
+            entry=round(entry, 5), stop_loss=round(invalidation, 5),
+            # Target is used only as a candidate-reward estimate for entry qualification.
+            # Never transmit a pre-set TP: position management exits only on a qualified
+            # opposite Base entry scenario (or the protective stop).
+            take_profit=None,
             gross_reward_risk=round(gross_rr, 4), net_reward_risk=round(net_rr, 4),
             expires_at=expiry,
             cancel_if=("zone invalidated, opposite structure confirmed, spread exceeds threshold, "
-                       "scenario expires, or target/stop geometry no longer passes revalidation"),
-            reason="Conditional order proposal only; broker placement requires a separate risk and execution gate.",
+                       "or scenario expires"),
+            reason="Conditional entry proposal; no broker TP is set. Exit is managed by opposite Base confirmation.",
         )
 
     @staticmethod

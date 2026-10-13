@@ -83,3 +83,32 @@ def test_experience_forgetting_and_confidence_decay(temp_memory_system):
     # Weight with perfect matching signature should be higher than non-matching signature
     w_no_match = mem_sys.calculate_experience_weight("exp-success", now, reference_signature=[-1.0, -1.0, -1.0])
     assert w_success > w_no_match
+
+
+def test_categorical_strategy_signatures_do_not_break_learning(temp_memory_system):
+    mem_sys = temp_memory_system
+    now = datetime.now()
+    exp = ExperienceMemory(
+        experience_id="exp-categorical",
+        symbol="EURUSD",
+        timeframe="H1",
+        timestamp=now,
+        situation_signature=["BASE_HIERARCHY", "CHILD_TF:M15", "DIRECTION:BUY"],
+        decision_action="BUY",
+        outcome_result="SUCCESS",
+        lesson_feedback="Exploration outcome",
+        max_favorable_excursion=1.0,
+        max_adverse_excursion=-0.2,
+        meta={"is_validated": True},
+    )
+    mem_sys.add_experience(exp)
+    weight = mem_sys.calculate_experience_weight(
+        "exp-categorical", now,
+        reference_signature=["BASE_HIERARCHY", "CHILD_TF:M15", "DIRECTION:BUY"],
+    )
+    assert weight > 0
+    assert mem_sys._signature_similarity(
+        ["BASE_HIERARCHY", "CHILD_TF:M15", "DIRECTION:BUY"],
+        ["BASE_HIERARCHY", "CHILD_TF:M5", "DIRECTION:BUY"],
+    ) == pytest.approx(2 / 3)
+    mem_sys.promote_experiences_to_patterns()
