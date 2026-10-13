@@ -120,9 +120,9 @@ class PendingOrderPlanner:
         return PendingOrderPlan(
             status="PROPOSED", order_type=order_type, direction=direction,
             entry=round(entry, 5), stop_loss=round(invalidation, 5),
-            # Every qualified order must carry a broker-side target so open profit
-            # can be realized even when no later reversal signal appears.
-            take_profit=round(target, 5),
+            # Target is only an analytical reward estimate; dynamic strategy exits
+            # determine when to close the position. Never pre-set a broker TP.
+            take_profit=None,
             gross_reward_risk=round(gross_rr, 4), net_reward_risk=round(net_rr, 4),
             expires_at=expiry,
             cancel_if=("zone invalidated, opposite structure confirmed, spread exceeds threshold, "

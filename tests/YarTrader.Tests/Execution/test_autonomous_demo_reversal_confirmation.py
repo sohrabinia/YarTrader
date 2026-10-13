@@ -53,31 +53,37 @@ class TestAutonomousDemoReversalConfirmation(unittest.TestCase):
         self.trader._evaluate_hierarchical_base_plan = MagicMock(return_value=plan)
         self.trader._log_event = MagicMock()
 
-    def test_pending_opposite_order_does_not_close_open_position(self):
+    def test_confirmed_opposite_setup_closes_open_position_without_waiting_for_reverse_fill(self):
         from unittest.mock import patch
         old_buy = {"ticket": 101, "type": 0, "volume": 0.01, "magic": 100001,
                    "comment": "YarBase", "time": 100}
         plan = {"status": "ORDER_PROPOSAL", "structure": {},
                 "order_plan": {"status": "PROPOSED", "direction": "SELL"}}
         self._configure_cycle([old_buy], plan)
-        self.trader._reconcile_base_pending_order = MagicMock(return_value={"status": "PENDING_PLACED"})
+        self.adapter.get_active_orders.return_value = []
+        self.adapter.get_positions.side_effect = [[old_buy], []]
+        close_response = MagicMock(Status="Executed", Retcode=10009, Comment="closed")
+        self.adapter.send_order_to_broker.return_value = close_response
         with patch("src.Execution.Services.autonomous_demo_trader._read_flag", return_value=True):
             result = self.trader.run_once("XAUUSD")
-        self.assertEqual(result["status"], "POSITION_HELD_WAITING_REVERSE_FILL")
-        self.adapter.send_order_to_broker.assert_not_called()
+        self.assertEqual(result["status"], "POSITION_CLOSED_BASE_EXIT")
+        request = self.adapter.send_order_to_broker.call_args.args[0]
+        self.assertEqual(request.OrderType, "CLOSE")
+        self.assertEqual(request.PositionTicket, 101)
 
-    def test_legacy_position_tp_is_preserved(self):
+    def test_legacy_position_tp_is_cleared_for_strategy_managed_exit(self):
         from unittest.mock import patch
         old_buy = {"ticket": 101, "type": 0, "volume": 0.01, "magic": 100001,
                    "comment": "YarBase", "time": 100, "sl": 1990.0, "tp": 2050.0}
         plan = {"status": "WAIT", "structure": {},
                 "order_plan": {"status": "WAIT", "direction": "WAIT"}}
         self._configure_cycle([old_buy], plan)
-        self.adapter.get_positions.return_value = [old_buy]
+        self.adapter.get_positions.side_effect = [[old_buy], [{**old_buy, "tp": 0.0}]]
+        self.adapter.clear_position_take_profit.return_value = MagicMock(Status="Modified", Retcode=10009)
         self.trader._reconcile_base_pending_order = MagicMock(return_value={"status": "WAIT"})
         with patch("src.Execution.Services.autonomous_demo_trader._read_flag", return_value=True):
             result = self.trader.run_once("XAUUSD")
-        self.adapter.clear_position_take_profit.assert_not_called()
+        self.adapter.clear_position_take_profit.assert_called_once_with(101)
         self.adapter.send_order_to_broker.assert_not_called()
         self.assertEqual(result["status"], "POSITION_HELD_BASE_STRUCTURE")
 

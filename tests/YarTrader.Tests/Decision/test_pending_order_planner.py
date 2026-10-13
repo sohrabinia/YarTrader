@@ -45,8 +45,8 @@ class TestPendingOrderPlanner(unittest.TestCase):
         self.assertEqual(buy_breakout.order_type, "BUY_STOP")
         self.assertEqual(sell_retest.status, "PROPOSED")
         self.assertEqual(sell_retest.order_type, "SELL_LIMIT")
-        self.assertEqual(buy_breakout.take_profit, 2015.0)
-        self.assertEqual(sell_retest.take_profit, 1990.0)
+        self.assertIsNone(buy_breakout.take_profit)
+        self.assertIsNone(sell_retest.take_profit)
 
     def test_base_width_is_required_and_used_for_geometry(self):
         scenario = {"direction": "BUY", "setup_type": "RETEST", "zone_low": 1998.0,
@@ -91,7 +91,7 @@ class TestPendingOrderPlanner(unittest.TestCase):
         exploratory = PendingOrderPlanner(min_confidence=70, min_net_rr=1.0, enforce_min_net_rr=False)
         result = exploratory.plan(scenario, self.quote, now=1000)
         self.assertEqual(result.status, "PROPOSED")
-        self.assertEqual(result.take_profit, scenario["target"])
+        self.assertIsNone(result.take_profit)
         self.assertIsNotNone(result.net_reward_risk)
 
     def test_invalidated_opposite_or_expired_order_must_cancel(self):

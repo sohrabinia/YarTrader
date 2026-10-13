@@ -330,7 +330,18 @@ class HierarchicalBaseBehaviorEngine:
                 target_candidates.append((float(e["base_low"])-entry, e))
             elif direction == "SELL" and float(e["base_high"]) < min(low, float(quote["bid"])):
                 target_candidates.append((entry-float(e["base_high"]), e))
-        invalidation = low-0.15*base_width if direction == "BUY" else high+0.15*base_width
+        # Invalidate the parent/child structural thesis, not an arbitrary fraction
+        # of a tiny child Base. A stop inside the parent structure is vulnerable to
+        # ordinary retests; use the outer confirmed boundary plus a spread buffer.
+        parent_low = float(parent["base_low"])
+        parent_high = float(parent["base_high"])
+        observed_spread = max(0.0, float(quote.get("ask", 0.0)) - float(quote.get("bid", 0.0)))
+        structure_buffer = max(2.0 * observed_spread, 1e-8)
+        invalidation = (
+            min(low, parent_low) - structure_buffer
+            if direction == "BUY"
+            else max(high, parent_high) + structure_buffer
+        )
         target_base = min(target_candidates, key=lambda x: x[0])[1] if target_candidates else None
         if target_base is not None:
             target = float(target_base.get("base_low") if direction == "BUY" else target_base.get("base_high"))

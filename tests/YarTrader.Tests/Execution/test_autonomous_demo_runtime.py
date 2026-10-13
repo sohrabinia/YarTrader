@@ -266,8 +266,8 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             "XAUUSD", plan, {"bid": 2000.0, "ask": 2000.2, "time": 1000},
             {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
         )
-        self.assertEqual(result["status"], "BLOCKED")
-        self.assertIn("broker-side TP", result["reason"])
+        self.assertEqual(result["status"], "ALREADY_PENDING")
+        self.assertEqual(result["retained_pending_orders"], [55501])
         adapter.cancel_pending_order.assert_not_called()
         adapter.send_order_to_broker.assert_not_called()
 
@@ -277,7 +277,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         "YARTRADER_TRADING_MODE": "DEMO",
         "LIVE_TRADING_ENABLED": "false",
     })
-    def test_new_pending_order_gets_atr_widened_stop_and_broker_tp(self):
+    def test_new_pending_order_has_no_preset_tp_and_uses_volatility_aware_stop(self):
         from unittest.mock import MagicMock
         adapter = MagicMock()
         adapter._mt5.ORDER_TYPE_BUY_LIMIT = 2
@@ -288,7 +288,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         trader = AutonomousDemoTrader(adapter=adapter)
         plan = {"status": "ORDER_PROPOSAL", "order_plan": {
             "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
-            "entry": 1998.0, "stop_loss": 1997.5, "take_profit": 2020.0,
+            "entry": 1998.0, "stop_loss": 1994.5, "take_profit": None,
             "net_reward_risk": 1.5, "expires_at": 5000,
         }}
         def bars(rng):
@@ -302,11 +302,11 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         )
         self.assertEqual(result["status"], "PENDING_PLACED")
         request = adapter.send_order_to_broker.call_args.args[0]
-        self.assertLessEqual(request.StopLoss, 1995.0)
-        self.assertEqual(request.TakeProfit, 2020.0)
+        self.assertEqual(request.StopLoss, 1994.5)
+        self.assertEqual(request.TakeProfit, 0.0)
 
-    def test_same_pending_order_without_preset_tp_is_blocked(self):
-        """A TP-free legacy order is never treated as a fully protected entry."""
+    def test_same_pending_order_without_preset_tp_is_reused(self):
+        """A TP-free pending order is retained for strategy-managed exits."""
         from unittest.mock import MagicMock
         adapter = MagicMock()
         adapter._mt5.ORDER_TYPE_BUY_LIMIT = 2
@@ -325,8 +325,8 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             "XAUUSD", plan, {"bid": 2000.0, "ask": 2000.2, "time": 1000},
             {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
         )
-        self.assertEqual(result["status"], "BLOCKED")
-        self.assertIn("broker-side TP", result["reason"])
+        self.assertEqual(result["status"], "ALREADY_PENDING")
+        self.assertEqual(result["ticket"], 12345)
         adapter.cancel_pending_order.assert_not_called()
         adapter.send_order_to_broker.assert_not_called()
 

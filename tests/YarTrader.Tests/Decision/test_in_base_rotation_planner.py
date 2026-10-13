@@ -12,7 +12,7 @@ class TestInBaseRotationPlanner(unittest.TestCase):
             "confirmation_time": 1000,
         }
 
-    def test_bullish_rejection_near_lower_edge_proposes_buy_with_tp(self):
+    def test_bullish_rejection_near_lower_edge_proposes_buy_without_preset_tp(self):
         result = StrategyOrchestrator._plan_in_base_rotation(
             self.child,
             [{"time": 1100, "open": 101.0, "high": 106.5, "low": 100.5, "close": 106.0}],
@@ -24,10 +24,10 @@ class TestInBaseRotationPlanner(unittest.TestCase):
         self.assertEqual(result["status"], "PROPOSED")
         self.assertEqual(result["setup_type"], "IN_BASE_ROTATION")
         self.assertEqual(result["direction"], "BUY")
-        self.assertGreater(result["take_profit"], result["entry"])
+        self.assertIsNone(result["take_profit"])
         self.assertGreater(result["net_reward_risk"], 1.0)
 
-    def test_bearish_rejection_near_upper_edge_proposes_sell_with_tp(self):
+    def test_bearish_rejection_near_upper_edge_proposes_sell_without_preset_tp(self):
         result = StrategyOrchestrator._plan_in_base_rotation(
             self.child,
             [{"time": 1100, "open": 109.0, "high": 109.5, "low": 104.0, "close": 104.5}],
@@ -38,7 +38,7 @@ class TestInBaseRotationPlanner(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["status"], "PROPOSED")
         self.assertEqual(result["direction"], "SELL")
-        self.assertLess(result["take_profit"], result["entry"])
+        self.assertIsNone(result["take_profit"])
         self.assertGreater(result["net_reward_risk"], 1.0)
 
     def test_outside_quote_still_proposes_retest_of_confirmed_base(self):
@@ -65,7 +65,7 @@ class TestInBaseRotationPlanner(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["direction"], "BUY")
         self.assertEqual(result["setup_type"], "IN_BASE_ROTATION")
-        self.assertGreater(result["take_profit"], result["entry"])
+        self.assertIsNone(result["take_profit"])
 
     def test_higher_timeframe_closed_candle_can_seed_sparse_history_exploration(self):
         result = StrategyOrchestrator._plan_in_base_rotation(

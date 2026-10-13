@@ -579,21 +579,20 @@ class AutonomousDemoTrader:
                     [1.5 * value if tf == "M5" else 0.75 * value for tf, value in atr_values]
                     + [2.0 * spread_now]
                 )
-                if direction == "BUY":
-                    stop = min(stop, entry - volatility_floor)
-                    if target <= entry or not math.isfinite(target):
-                        return {"status": "BLOCKED", "reason": "A valid broker-side take-profit target is required before entry."}
-                    adjusted_rr = (target - entry) / (entry - stop)
-                else:
-                    stop = max(stop, entry + volatility_floor)
-                    if target >= entry or not math.isfinite(target):
-                        return {"status": "BLOCKED", "reason": "A valid broker-side take-profit target is required before entry."}
-                    adjusted_rr = (entry - target) / (stop - entry)
-                if adjusted_rr < 1.5:
-                    return {"status": "BLOCKED", "reason": f"Volatility-aware stop reduces structural target reward/risk to {adjusted_rr:.2f}; skip instead of using a tight stop or an unrealistic target."}
+                structural_risk = entry - stop if direction == "BUY" else stop - entry
+                if structural_risk < volatility_floor:
+                    return {
+                        "status": "BLOCKED",
+                        "reason": (
+                            f"Strategy structural invalidation is too close for current closed-bar volatility "
+                            f"(risk distance {structural_risk:.5f}, required floor {volatility_floor:.5f}); "
+                            "no artificial stop was forced and no order was sent."
+                        ),
+                    }
+                # Keep the strategy's structural stop exactly where its thesis is
+                # invalidated. Volatility is a rejection guard, not an arbitrary SL generator.
                 plan["stop_loss"] = stop
-                plan["take_profit"] = target
-                plan["net_reward_risk"] = adjusted_rr
+                plan["take_profit"] = None
             expires = int(float(plan["expires_at"])) if plan.get("expires_at") is not None else None
             # DEMO exploration orders are GTC where the broker supports it; short
             # strategy-sample expiries were causing accepted orders to disappear
@@ -626,10 +625,6 @@ class AutonomousDemoTrader:
             }[order_type]
             if not trigger_is_valid:
                 raise ValueError(f"{order_type} trigger is no longer valid against the current broker quote.")
-            if (direction == "BUY" and not target > entry) or (direction == "SELL" and not target < entry):
-                raise ValueError("Pending order must have a valid broker-side TP beyond its entry.")
-            if target <= 0 or not math.isfinite(target):
-                raise ValueError("A valid broker-side take-profit target is required before entry.")
             if expires is not None and expires <= int(tick.get("time") or time.time()):
                 raise ValueError("Base pending order has expired.")
         except (KeyError, TypeError, ValueError, OverflowError) as exc:
@@ -643,15 +638,14 @@ class AutonomousDemoTrader:
             return {"status": "BLOCKED", "reason": "MT5 does not expose the requested pending-order type."}
         if demo_exploration_autonomy_enabled() and owned:
             # In exploration, a new candle/model proposal must not erase an accepted
-            # broker order. Retain it only if the broker confirms both SL and TP;
-            # never silently replace/cancel an unprotected legacy order.
+            # broker order. A protective SL is mandatory; TP is intentionally strategy-managed.
             tickets = []
             for order in owned:
                 ticket = int(self._field(order, "ticket", 0) or 0)
                 stop_value = float(self._field(order, "sl", 0.0) or 0.0)
                 target_value = float(self._field(order, "tp", 0.0) or 0.0)
-                if ticket <= 0 or stop_value <= 0 or target_value <= 10 ** (-int(symbol_info["digits"])):
-                    return {"status": "BLOCKED", "reason": "Existing DEMO exploration order lacks a ticket, protective SL, or broker-side TP; refusing unsafe silent replacement."}
+                if ticket <= 0 or stop_value <= 0:
+                    return {"status": "BLOCKED", "reason": "Existing DEMO exploration order lacks a ticket or protective SL; refusing unsafe silent replacement."}
                 tickets.append(ticket)
             return {
                 "status": "ALREADY_PENDING",
@@ -673,7 +667,7 @@ class AutonomousDemoTrader:
                     old_type == int(desired_type)
                     and abs(old_entry - entry) <= 10 ** (-digits)
                     and abs(old_stop - stop) <= 10 ** (-digits)
-                    and abs(old_target - target) <= 10 ** (-digits)
+                    and abs(old_target) <= 10 ** (-digits)
                     and (old_expiry == 0 or old_expiry > current_time)
                 )
             except (TypeError, ValueError, OverflowError):
@@ -681,7 +675,7 @@ class AutonomousDemoTrader:
             if same:
                 return {"status": "ALREADY_PENDING", "ticket": int(self._field(order, "ticket", 0)),
                         "order_type": order_type, "entry": old_entry,
-                        "take_profit": old_target, "entry_qualification_net_rr": round(net_rr, 4),
+                        "take_profit": None, "entry_qualification_net_rr": round(net_rr, 4),
                         "expires_at": old_expiry}
         # Remove obsolete orders before replacing them; never stack duplicate Base orders.
         for order in owned:
@@ -713,15 +707,15 @@ class AutonomousDemoTrader:
                 return {"status": "RISK_BLOCKED", "reason": sizing.get("reason"), "risk": sizing}
         request = OrderRequest(
             Symbol=symbol, OrderType=order_type, Volume=float(sizing["volume"]),
-            Price=round(entry, digits), StopLoss=round(stop, digits), TakeProfit=round(target, digits),
+            Price=round(entry, digits), StopLoss=round(stop, digits), TakeProfit=0.0,
             Comment="YarBase", Magic=100001, Expiration=expires,
         )
         response = self.adapter.send_order_to_broker(request)
         self._log_event({
             "event": "base_pending_order_submission", "symbol": symbol,
-            "order_type": order_type, "entry": entry, "stop_loss": stop, "take_profit": target,
+            "order_type": order_type, "entry": entry, "stop_loss": stop, "take_profit": None,
             "entry_qualification_net_rr": net_rr,
-            "exit_policy": "broker_side_take_profit_or_protective_stop; opposite_structure_remains_an_early_exit_signal",
+            "exit_policy": "strategy_managed_structural_exit; protective_SL_only; no_preset_TP",
             "expiration": expires, "risk": sizing, "broker_status": response.Status,
             "broker_order_id": response.OrderId, "broker_retcode": response.Retcode,
         })
@@ -926,7 +920,42 @@ class AutonomousDemoTrader:
                             "reason": "Open position is not identified as a YarTrader Base position; it will not be modified or closed.",
                             "base_plan": base_plan, "execution_enabled": False}
 
-                # Preserve broker-side SL/TP protection; never strip an accepted target.
+                # Strategy-managed exits must not be pre-empted by legacy broker TPs.
+                # Clear only TP on bot-owned positions; preserve their structural SL.
+                cleared_any_tp = False
+                for candidate in open_positions:
+                    candidate_ticket = int(self._field(candidate, "ticket", 0) or 0)
+                    candidate_magic = int(self._field(candidate, "magic", 0) or 0)
+                    candidate_comment = str(self._field(candidate, "comment", "") or "")
+                    candidate_tp = float(self._field(candidate, "tp", 0.0) or 0.0)
+                    if candidate_magic != 100001 or not candidate_comment.startswith("YarBase") or candidate_tp <= 0:
+                        continue
+                    clear_tp = getattr(self.adapter, "clear_position_take_profit", None)
+                    if not callable(clear_tp) or candidate_ticket <= 0:
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": "Cannot safely remove a legacy preset TP from a bot-owned position.",
+                                "base_plan": base_plan, "execution_enabled": False}
+                    clear_response = clear_tp(candidate_ticket)
+                    if clear_response.Status not in ("Modified", "NoChange") or int(clear_response.Retcode) not in (0, 10009):
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": f"Could not clear legacy TP for position {candidate_ticket}: {clear_response.Comment}",
+                                "base_plan": base_plan, "execution_enabled": False}
+                    self._log_event({"event": "strategy_managed_exit_tp_cleared", "symbol": symbol,
+                                     "ticket": candidate_ticket, "old_tp": candidate_tp})
+                    cleared_any_tp = True
+                if cleared_any_tp:
+                    refreshed_positions = self.adapter.get_positions(symbol=symbol)
+                    if refreshed_positions is None:
+                        return {"status": "BLOCKED", "symbol": symbol,
+                                "reason": "Broker position state unavailable after legacy TP removal.",
+                                "base_plan": base_plan, "execution_enabled": False}
+                    for candidate in refreshed_positions:
+                        if (int(self._field(candidate, "magic", 0) or 0) == 100001
+                                and str(self._field(candidate, "comment", "") or "").startswith("YarBase")
+                                and float(self._field(candidate, "tp", 0.0) or 0.0) > 0.0):
+                            return {"status": "BLOCKED", "symbol": symbol,
+                                    "reason": "Broker still reports a preset TP after the removal request.",
+                                    "base_plan": base_plan, "execution_enabled": False}
                 pos_type = int(self._field(position, "type", -1))
                 held_direction = "BUY" if pos_type == buy_type else ("SELL" if pos_type == sell_type else "UNKNOWN")
                 proposal_direction = str((base_plan.get("order_plan") or {}).get("direction", "")).upper()
@@ -949,10 +978,14 @@ class AutonomousDemoTrader:
                     and proposal_direction in ("BUY", "SELL") and proposal_direction != held_direction
                 )
                 if qualified_opposite:
-                    # A pending opposite order is only an intention, not an opposite
-                    # position. Keep the current position until the broker confirms that
-                    # a YarTrader-owned position in the opposite direction actually exists.
-                    if not opposite_positions:
+                    # A confirmed opposite strategy setup is itself an exit signal.
+                    # Do not wait for a reverse pending order to fill before protecting
+                    # already-earned profit; exit the old position first.
+                    if not opposite_positions and not (
+                        base_plan.get("status") == "ORDER_PROPOSAL"
+                        and proposal_direction in ("BUY", "SELL")
+                        and proposal_direction != held_direction
+                    ):
                         reverse_order_state = self._reconcile_base_pending_order(
                             symbol, base_plan, tick, account, symbol_info, per_tf=per_tf,
                         )
@@ -1008,8 +1041,8 @@ class AutonomousDemoTrader:
                     ))
                     self._log_event({"event": "base_position_exit", "symbol": symbol, "ticket": ticket,
                                      "held_direction": held_direction,
-                                     "exit_reason": "OPPOSITE_BASE_POSITION_CONFIRMED",
-                                     "reverse_position_confirmed": True,
+                                     "exit_reason": "OPPOSITE_BASE_SETUP_CONFIRMED",
+                                     "reverse_position_confirmed": bool(opposite_positions),
                                      "broker_status": close_response.Status, "retcode": close_response.Retcode})
                     success_codes = {0, 10009, int(getattr(self.adapter._mt5, "TRADE_RETCODE_DONE", 10009))}
                     if close_response.Status not in ("Placed", "Executed") or int(close_response.Retcode) not in success_codes:
@@ -1023,7 +1056,7 @@ class AutonomousDemoTrader:
                                 "reason": flat_check.get("reason"), "base_plan": base_plan,
                                 "close_response": close_response.__dict__, "execution_enabled": False}
                     return {"status": "POSITION_CLOSED_BASE_EXIT", "symbol": symbol,
-                            "reason": "Old position closed only after broker-confirmed execution of an opposite YarTrader position; broker-side TP/SL remain the primary protective exits.",
+                            "reason": "Strategy-confirmed opposite structural setup closed the old position; no preset TP is used.",
                             "base_plan": base_plan, "close_response": close_response.__dict__,
                             "flat_confirmation": flat_check, "execution_enabled": True}
                 order_state = self._reconcile_base_pending_order(
