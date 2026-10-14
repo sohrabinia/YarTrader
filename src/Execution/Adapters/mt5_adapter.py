@@ -299,6 +299,99 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         # Default fallback preference: FOK -> IOC
         return fok_code
 
+    @staticmethod
+    def _field_value(source: Any, name: str, default: Any = None) -> Any:
+        if isinstance(source, dict):
+            return source.get(name, default)
+        return getattr(source, name, default)
+
+    def _calculate_current_wallet_volume(
+        self, symbol: str, order_type: str, entry_price: float, stop_loss: Any, sym_info: Any,
+    ) -> Dict[str, Any]:
+        """Size every broker entry from a fresh wallet snapshot and broker PnL model.
+
+        Caller-supplied lots are advisory only. If the account, protective stop,
+        symbol contract, or broker PnL calculator is unavailable, reject the order.
+        """
+        import math
+        from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
+
+        mt5 = self._mt5
+        account = mt5.account_info() if mt5 is not None else None
+        if account is None:
+            raise ValidationException("Risk sizing blocked: live MT5 account snapshot is unavailable.")
+
+        def number(source: Any, key: str) -> float:
+            value = self._field_value(source, key)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+                raise ValidationException(f"Risk sizing blocked: current account/symbol field '{key}' is missing or invalid.")
+            return float(value)
+
+        balance = number(account, "balance")
+        equity = number(account, "equity")
+        free_margin = number(account, "margin_free") if self._field_value(account, "margin_free") is not None else number(account, "free_margin")
+        risk_basis = min(balance, equity)
+        if risk_basis <= 0 or free_margin < 0:
+            raise ValidationException("Risk sizing blocked: current balance, equity, or free margin is invalid.")
+        sl = number({"stop_loss": stop_loss}, "stop_loss")
+        entry = float(entry_price)
+        if not math.isfinite(entry) or entry <= 0 or sl <= 0 or entry == sl:
+            raise ValidationException("Risk sizing blocked: a valid entry price and protective stop-loss are mandatory.")
+
+        order_type = str(order_type).upper()
+        is_buy = order_type in ("BUY", "LONG", "BUY_LIMIT", "BUY_STOP")
+        is_sell = order_type in ("SELL", "SHORT", "SELL_LIMIT", "SELL_STOP")
+        if not (is_buy or is_sell):
+            raise ValidationException(f"Risk sizing blocked: unsupported entry direction '{order_type}'.")
+        if (is_buy and sl >= entry) or (is_sell and sl <= entry):
+            raise ValidationException("Risk sizing blocked: stop-loss is on the wrong side of entry.")
+        mt5_order_type = mt5.ORDER_TYPE_BUY if is_buy else mt5.ORDER_TYPE_SELL
+
+        volume_min = number(sym_info, "volume_min")
+        volume_max = number(sym_info, "volume_max")
+        volume_step = number(sym_info, "volume_step")
+        if volume_min <= 0 or volume_max < volume_min or volume_step <= 0:
+            raise ValidationException("Risk sizing blocked: broker volume limits are invalid.")
+        risk_budget = risk_basis * (float(ProductionRiskPolicy.TARGET_RISK_PCT) / 100.0)
+        min_profit = mt5.order_calc_profit(mt5_order_type, symbol, volume_min, entry, sl)
+        if min_profit is None or isinstance(min_profit, bool) or not math.isfinite(float(min_profit)):
+            raise ValidationException("Risk sizing blocked: broker cannot calculate minimum-lot stop-loss risk.")
+        min_risk = abs(float(min_profit))
+        if min_risk <= 0 or min_risk > risk_budget * 1.000001:
+            raise ValidationException(
+                f"Risk sizing blocked: broker minimum {volume_min:g} lot risks {min_risk:.4f}, "
+                f"above current wallet budget {risk_budget:.4f} (1%)."
+            )
+
+        risk_per_lot = min_risk / volume_min
+        raw_volume = risk_budget / risk_per_lot
+        volume = min(volume_max, math.floor((raw_volume + 1e-12) / volume_step) * volume_step)
+        step_text = f"{volume_step:.8f}".rstrip("0").rstrip(".")
+        volume_digits = len(step_text.split(".", 1)[1]) if "." in step_text else 0
+        volume = round(volume, volume_digits)
+        if volume < volume_min:
+            raise ValidationException("Risk sizing blocked: risk-based lot is below broker minimum; no minimum-lot override is allowed.")
+        selected_profit = mt5.order_calc_profit(mt5_order_type, symbol, volume, entry, sl)
+        if selected_profit is None or isinstance(selected_profit, bool) or not math.isfinite(float(selected_profit)):
+            raise ValidationException("Risk sizing blocked: broker cannot verify calculated position risk.")
+        estimated_risk = abs(float(selected_profit))
+        if estimated_risk > risk_budget * 1.000001:
+            raise ValidationException("Risk sizing blocked: calculated lot exceeds the current wallet risk budget.")
+        if hasattr(mt5, "order_calc_margin"):
+            margin_required = mt5.order_calc_margin(mt5_order_type, symbol, volume, entry)
+            if margin_required is not None and math.isfinite(float(margin_required)) and float(margin_required) > free_margin:
+                raise ValidationException("Risk sizing blocked: calculated lot exceeds current free margin.")
+
+        logger.info(
+            "LIVE_WALLET_RISK_SIZING symbol=%s side=%s balance=%.2f equity=%.2f risk_basis=%.2f "
+            "risk_budget=%.4f entry=%.8f sl=%.8f broker_min=%.8f selected_volume=%.8f estimated_risk=%.4f",
+            symbol, order_type, balance, equity, risk_basis, risk_budget, entry, sl,
+            volume_min, volume, estimated_risk,
+        )
+        return {"volume": volume, "balance": balance, "equity": equity,
+                "risk_basis": risk_basis, "risk_budget": risk_budget,
+                "estimated_risk": estimated_risk, "risk_pct": float(ProductionRiskPolicy.TARGET_RISK_PCT)}
+
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
         """
         Sends order to real MT5 terminal via mt5.order_send().
@@ -368,20 +461,33 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         else:
             raise ValidationException(f"Unsupported OrderType: '{request.OrderType}'")
 
-        # Validate minimum volume safe bounds
-        vol_min = getattr(sym_info, "volume_min", 0.0)
-        vol_step = getattr(sym_info, "volume_step", 0.0)
-        vol_max = getattr(sym_info, "volume_max", 100.0)
-        volume = max(vol_min, min(request.Volume, vol_max))
-        # Align to step
-        if vol_step > 0:
-            volume = round(round(volume / vol_step) * vol_step, 4)
-
-        # Extract authoritative decimal precision (digits) from live symbol contract
+        # Validate symbol precision before doing sizing calculations.
         raw_digits = getattr(sym_info, "digits", None) if not isinstance(sym_info, dict) else sym_info.get("digits")
         if raw_digits is None or isinstance(raw_digits, bool) or not isinstance(raw_digits, int) or raw_digits < 0:
             raise ValidationException(f"Symbol '{request.Symbol}' authoritative digits precision is missing or invalid.")
         digits = raw_digits
+
+        # Every broker entry is sized from the fresh account balance/equity and
+        # the broker's own stop-loss PnL model. Never promote a requested lot to
+        # broker minimum: if minimum risk exceeds budget, fail closed instead.
+        if order_type_str == "CLOSE":
+            volume = float(request.Volume)
+            if not math.isfinite(volume) or volume <= 0:
+                raise ValidationException("Close volume must be finite and positive.")
+        else:
+            sizing = self._calculate_current_wallet_volume(
+                symbol=request.Symbol,
+                order_type=order_type_str,
+                entry_price=float(price),
+                stop_loss=request.StopLoss,
+                sym_info=sym_info,
+            )
+            volume = float(sizing["volume"])
+            logger.info(
+                "ORDER_VOLUME_OVERRIDDEN symbol=%s requested_volume=%s risk_sized_volume=%s "
+                "risk_budget=%s estimated_risk=%s",
+                request.Symbol, request.Volume, volume, sizing["risk_budget"], sizing["estimated_risk"],
+            )
 
         # Sanitize comment and resolve filling mode
         sanitized_comment = self._sanitize_comment(request.Comment)

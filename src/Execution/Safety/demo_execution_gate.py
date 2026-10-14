@@ -185,15 +185,18 @@ class DemoExecutionGate:
             if (not all(math.isfinite(v) for v in (vol_min, vol_max, vol_step, req_volume))
                     or vol_min <= 0 or vol_max < vol_min or vol_step <= 0 or req_volume <= 0):
                 raise ValidationException("DemoExecutionGate Violation: Broker volume limits or requested volume are invalid.")
-            if req_volume < vol_min or req_volume > vol_max:
+            # Requested volume is advisory for the real MT5 adapter, which replaces
+            # it using a fresh wallet snapshot immediately before submission. Keep
+            # strict range validation for non-production/mock adapters.
+            if type(adapter_or_mt5).__name__ != "RealMT5BrokerAdapter" and (req_volume < vol_min or req_volume > vol_max):
                 raise ValidationException(f"DemoExecutionGate Violation: Volume {req_volume} out of bounds according to broker limits [{vol_min}, {vol_max}].")
 
         # Check 9: Dynamic SL/TP Side Validation (Dynamic Market Geometry)
 
-        # Enforce the unified 1.0% wallet-based risk ceiling at the final broker gate,
-        # regardless of which strategy/worker generated the order.
-        if (type(adapter_or_mt5).__name__ == "RealMT5BrokerAdapter" and order_type not in ("CLOSE", "EXIT")
-                and not demo_exploration_autonomy_enabled()):
+        # Verify that the broker's minimum lot is affordable against the current
+        # wallet. Requested volume is deliberately not used for this calculation:
+        # the final MT5 adapter computes the actual lot immediately before submit.
+        if type(adapter_or_mt5).__name__ == "RealMT5BrokerAdapter" and order_type not in ("CLOSE", "EXIT"):
             raw_price = getattr(request, "Price", None)
             raw_sl = getattr(request, "StopLoss", None)
             raw_balance = acc_info.get("balance") if isinstance(acc_info, dict) else None
@@ -203,32 +206,41 @@ class DemoExecutionGate:
                 balance_val = -1.0
             risk_basis = min(balance_val, equity_val) if math.isfinite(balance_val) and balance_val > 0 else -1.0
             mt5 = getattr(adapter_or_mt5, "_mt5", None)
+            if raw_price is None and order_type in ("BUY", "LONG", "SELL", "SHORT"):
+                tick = adapter_or_mt5.get_symbol_tick(symbol)
+                if isinstance(tick, dict):
+                    raw_price = tick.get("ask" if order_type in ("BUY", "LONG") else "bid")
+                elif tick is not None:
+                    raw_price = getattr(tick, "ask" if order_type in ("BUY", "LONG") else "bid", None)
             if (not isinstance(raw_price, (int, float)) or not isinstance(raw_sl, (int, float))
                     or isinstance(raw_price, bool) or isinstance(raw_sl, bool)
                     or not math.isfinite(float(raw_price)) or not math.isfinite(float(raw_sl))
                     or float(raw_price) <= 0 or float(raw_sl) <= 0
                     or risk_basis <= 0 or mt5 is None):
-                raise ValidationException("DemoExecutionGate Violation: Current wallet, price, stop-loss or MT5 profit calculator unavailable for 1.0% risk sizing.")
+                raise ValidationException("DemoExecutionGate Violation: Current wallet, entry price, stop-loss or MT5 profit calculator unavailable for risk sizing.")
             if order_type in ("BUY", "LONG") or order_type.startswith("BUY_"):
                 mt5_order_type = mt5.ORDER_TYPE_BUY
             elif order_type in ("SELL", "SHORT") or order_type.startswith("SELL_"):
                 mt5_order_type = mt5.ORDER_TYPE_SELL
             else:
                 raise ValidationException(f"DemoExecutionGate Violation: Unsupported order direction for risk sizing ({order_type}).")
+            volume_min = float(sym_info.get("volume_min") or 0.0) if isinstance(sym_info, dict) else 0.0
+            if volume_min <= 0:
+                raise ValidationException("DemoExecutionGate Violation: Broker minimum lot is unavailable for wallet risk sizing.")
             risk_budget = risk_basis * (ProductionRiskPolicy.TARGET_RISK_PCT / 100.0)
             broker_profit = mt5.order_calc_profit(
-                mt5_order_type, symbol, float(getattr(request, "Volume", 0.0)),
-                float(raw_price), float(raw_sl)
+                mt5_order_type, symbol, volume_min, float(raw_price), float(raw_sl)
             )
-            if broker_profit is None or not math.isfinite(float(broker_profit)):
-                raise ValidationException("DemoExecutionGate Violation: MT5 could not verify stop-loss risk; order rejected.")
-            estimated_risk = abs(float(broker_profit))
-            if estimated_risk > risk_budget * 1.000001:
+            if broker_profit is None or not isinstance(broker_profit, (int, float)) or not math.isfinite(float(broker_profit)):
+                raise ValidationException("DemoExecutionGate Violation: MT5 could not verify broker-minimum stop-loss risk; order rejected.")
+            minimum_risk = abs(float(broker_profit))
+            if minimum_risk > risk_budget * 1.000001:
                 raise ValidationException(
-                    f"DemoExecutionGate Violation: Requested broker-calculated order risk {estimated_risk:.4f} exceeds dynamic 1.0% wallet budget {risk_budget:.4f} USD."
+                    f"DemoExecutionGate Violation: Broker minimum lot risks {minimum_risk:.4f}, "
+                    f"above dynamic 1.0% wallet budget {risk_budget:.4f}; order rejected."
                 )
 
-        if hasattr(request, "Price") and request.Price > 0:
+        if isinstance(getattr(request, "Price", None), (int, float)) and not isinstance(request.Price, bool) and request.Price > 0:
             sl = getattr(request, "StopLoss", None)
             tp = getattr(request, "TakeProfit", None)
 

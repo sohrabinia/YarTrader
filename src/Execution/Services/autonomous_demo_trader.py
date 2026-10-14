@@ -886,25 +886,16 @@ class AutonomousDemoTrader:
             if response.Status != "Cancelled":
                 return {"status": "BLOCKED", "reason": f"Could not replace stale Base order {ticket}: {response.Comment}"}
 
-        if demo_exploration_autonomy_enabled():
-            # Research-only mode samples with broker minimum volume. Strategy-level
-            # percent-risk sizing is bypassed; broker volume bounds remain mandatory.
-            min_volume = float(symbol_info.get("volume_min") or 0.0)
-            volume_step = float(symbol_info.get("volume_step") or 0.0)
-            volume_max = float(symbol_info.get("volume_max") or 0.0)
-            if (not all(math.isfinite(v) for v in (min_volume, volume_step, volume_max))
-                    or min_volume <= 0 or volume_step <= 0 or volume_max < min_volume):
-                return {"status": "RISK_BLOCKED", "reason": "Broker minimum-volume metadata is invalid in DEMO exploration."}
-            sizing = {"allowed": True, "volume": min_volume, "risk_model": "DEMO_EXPLORATION_BROKER_MINIMUM_LOT",
-                      "risk_per_trade_pct": None, "note": "Percentage risk cap bypassed for DEMO exploration; minimum broker volume retained."}
-        else:
-            sizing = calculate_demo_volume_by_risk(
-                mt5, symbol, direction, entry, stop, symbol_info,
-                float(account.get("balance") or 0), float(account.get("equity") or 0),
-                float(ProductionRiskPolicy.TARGET_RISK_PCT),
-            )
-            if not sizing.get("allowed"):
-                return {"status": "RISK_BLOCKED", "reason": sizing.get("reason"), "risk": sizing}
+        # No exploration or strategy mode may bypass wallet-based risk sizing.
+        # Use the fresh account snapshot and broker-native PnL calculation for
+        # every new autonomous entry; reject when broker minimum exceeds budget.
+        sizing = calculate_demo_volume_by_risk(
+            mt5, symbol, direction, entry, stop, symbol_info,
+            float(account.get("balance") or 0), float(account.get("equity") or 0),
+            float(ProductionRiskPolicy.TARGET_RISK_PCT),
+        )
+        if not sizing.get("allowed"):
+            return {"status": "RISK_BLOCKED", "reason": sizing.get("reason"), "risk": sizing}
         request = OrderRequest(
             Symbol=symbol, OrderType=order_type, Volume=float(sizing["volume"]),
             Price=round(entry, digits), StopLoss=round(stop, digits), TakeProfit=0.0,
