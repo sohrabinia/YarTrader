@@ -142,6 +142,8 @@ class AutonomousDemoTrader:
     RISK_PER_TRADE_PCT = ProductionRiskPolicy.TARGET_RISK_PCT
     MAX_ENTRY_DRIFT_R = 0.35
     MAX_TICK_BAR_GAP_SECONDS = 300
+    MAX_STOP_ATR_MULTIPLE = 3.0
+    ESTIMATED_COMMISSION_PER_LOT_USD = 7.0
 
     def __init__(self, adapter: Optional[RealMT5BrokerAdapter] = None) -> None:
         self.adapter = adapter or RealMT5BrokerAdapter(auto_initialize=True)
@@ -661,6 +663,7 @@ class AutonomousDemoTrader:
             entry, stop = float(plan["entry"]), float(plan["stop_loss"])
             original_stop = stop
             target = float(plan.get("take_profit") or 0.0)
+            spread_now = max(0.0, float(tick.get("ask", 0.0)) - float(tick.get("bid", 0.0)))
             if per_tf is not None:
                 # Do not let a tiny M1/M5 Base define the entire stop distance.
                 # Use only completed bars and widen beyond both structure invalidation
@@ -687,7 +690,6 @@ class AutonomousDemoTrader:
                         atr_values.append((atr_tf, sum(true_ranges) / len(true_ranges)))
                 if not atr_values:
                     return {"status": "BLOCKED", "reason": "Cannot validate a volatility-aware protective stop without closed M5/M15 ATR data."}
-                spread_now = max(0.0, float(tick.get("ask", 0.0)) - float(tick.get("bid", 0.0)))
                 volatility_floor = max(
                     [1.5 * value if tf == "M5" else 0.75 * value for tf, value in atr_values]
                     + [2.0 * spread_now]
@@ -745,8 +747,21 @@ class AutonomousDemoTrader:
                                 "Base boundary clears the volatility floor; no artificial stop was forced."
                             ),
                         }
-                # A confirmed structural boundary is used; volatility is a minimum
-                # validity check, never an arbitrary distance used to invent an SL.
+                # Structural stops must be valid in both directions: not so tight
+                # that normal volatility hits them, and not so wide that a distant
+                # parent Base creates an oversized risk distance. If no confirmed
+                # structure fits the volatility envelope, reject instead of widening.
+                max_stop_distance = self.MAX_STOP_ATR_MULTIPLE * max(value for _, value in atr_values)
+                final_stop_distance = entry - stop if direction == "BUY" else stop - entry
+                if (not math.isfinite(final_stop_distance) or final_stop_distance <= 0
+                        or final_stop_distance > max_stop_distance):
+                    return {"status": "BLOCKED", "reason": (
+                        f"Structural stop is too wide for current volatility ({final_stop_distance:.5f} > "
+                        f"{max_stop_distance:.5f}, {self.MAX_STOP_ATR_MULTIPLE:.1f}x ATR); "
+                        "YarTrader refuses oversized-stop entries instead of moving the stop farther away."
+                    )}
+                # The stop remains the selected structural invalidation; ATR only
+                # bounds acceptable distance and never fabricates a stop price.
                 plan["stop_loss"] = stop
                 plan["take_profit"] = None
             expires = int(float(plan["expires_at"])) if plan.get("expires_at") is not None else None
@@ -763,25 +778,39 @@ class AutonomousDemoTrader:
             if (direction == "BUY" and not stop < entry) or (direction == "SELL" and not entry < stop):
                 raise ValueError("Pending order has invalid protective-stop geometry.")
             risk_distance = abs(entry - stop)
-            net_rr = float(plan.get("net_reward_risk") or 0.0)
             analytical_scenario = (base_plan.get("reaction_analysis") or {}).get("scenario") or {}
             if not analytical_scenario:
                 analytical_scenario = (base_plan.get("hierarchy") or {}).get("scenario") or {}
             try:
                 analytical_target = float(analytical_scenario.get("target"))
-                if math.isfinite(analytical_target) and analytical_target > 0:
-                    reward_distance = (analytical_target - entry if direction == "BUY" else entry - analytical_target)
-                    if reward_distance > 0 and risk_distance > 0:
-                        cost_allowance = spread_now
-                        gross_rr = reward_distance / risk_distance
-                        net_rr = max(0.0, reward_distance - cost_allowance) / (risk_distance + cost_allowance)
-                        plan["gross_reward_risk"] = round(gross_rr, 4)
-                        plan["net_reward_risk"] = round(net_rr, 4)
-            except (TypeError, ValueError, OverflowError):
-                pass
-            if (risk_distance <= 0 or not math.isfinite(net_rr)
-                    or (net_rr <= 1.0 and not demo_exploration_autonomy_enabled())):
-                raise ValueError("Candidate entry fails the net reward/risk > 1 qualification after costs.")
+                if not math.isfinite(analytical_target) or analytical_target <= 0:
+                    raise ValueError("A valid structural target is required for YarTrader's own net R:R check.")
+                reward_distance = (analytical_target - entry if direction == "BUY" else entry - analytical_target)
+                if reward_distance <= 0 or risk_distance <= 0:
+                    raise ValueError("Target must be on the profitable side of entry and stop distance must be positive.")
+                contract_size = float(symbol_info.get("trade_contract_size") or symbol_info.get("contract_size")
+                                      or ProfessionalRiskEngine().get_contract_size(symbol, entry))
+                if not math.isfinite(contract_size) or contract_size <= 0:
+                    raise ValueError("Broker contract size is unavailable for transaction-cost calculation.")
+                # YarTrader execution core owns this calculation. Use live spread,
+                # a conservative slippage allowance, and round-trip commission converted
+                # into price distance; never trust an upstream plan's precomputed R:R.
+                slippage_allowance = spread_now * 0.5
+                commission_allowance = (2.0 * self.ESTIMATED_COMMISSION_PER_LOT_USD) / contract_size
+                cost_allowance = spread_now + slippage_allowance + commission_allowance
+                gross_rr = reward_distance / risk_distance
+                net_rr = max(0.0, reward_distance - cost_allowance) / (risk_distance + cost_allowance)
+                plan["gross_reward_risk"] = round(gross_rr, 4)
+                plan["net_reward_risk"] = round(net_rr, 4)
+                plan["transaction_cost_allowance"] = round(cost_allowance, 8)
+                plan["rr_calculated_by"] = "YarTrader.execution_core"
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError(f"YarTrader cannot independently validate net R:R: {exc}") from exc
+            if (risk_distance <= 0 or not math.isfinite(net_rr) or net_rr <= self.MIN_RR):
+                raise ValueError(
+                    f"YarTrader blocks this order: net R:R {net_rr:.4f} must be strictly greater than "
+                    f"{self.MIN_RR:.1f} after spread, slippage, and commission."
+                )
             bid = float(tick.get("bid") or 0.0)
             ask = float(tick.get("ask") or 0.0)
             if not math.isfinite(bid) or not math.isfinite(ask) or bid <= 0.0 or ask < bid:

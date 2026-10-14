@@ -236,6 +236,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
                 "entry": 2500.3, "stop_loss": 2490.3, "take_profit": None,
                 "net_reward_risk": 1.5, "expires_at": 2000,
             },
+            "reaction_analysis": {"scenario": {"target": 2525.0}},
         }
         result = trader._reconcile_base_pending_order(
             "XAUUSD", plan, {"bid": 2500.0, "ask": 2500.2, "time": 1000},
@@ -288,7 +289,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
             "entry": 1997.5, "stop_loss": 1994.5, "take_profit": None,
             "net_reward_risk": 0.4, "expires_at": 5000,
-        }}
+        }, "reaction_analysis": {"scenario": {"target": 2005.0}}}
         result = trader._reconcile_base_pending_order(
             "XAUUSD", plan, {"bid": 2000.0, "ask": 2000.2, "time": 1000},
             {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
@@ -317,7 +318,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
             "entry": 1998.0, "stop_loss": 1994.5, "take_profit": None,
             "net_reward_risk": 1.5, "expires_at": 5000,
-        }}
+        }, "reaction_analysis": {"scenario": {"target": 2006.0}}}
         def bars(rng):
             return [{"timestamp": 100 + i * 30, "open": 2000.0, "high": 2000.0 + rng / 2,
                      "low": 2000.0 - rng / 2, "close": 2000.0} for i in range(20)]
@@ -372,12 +373,9 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             {"digits": 5, "volume_min": 0.01, "volume_step": 0.01, "volume_max": 100.0},
             per_tf={"M5": bars(0.0004), "M15": bars(0.0004)},
         )
-        self.assertEqual(result["status"], "PENDING_PLACED")
-        request = adapter.send_order_to_broker.call_args.args[0]
-        self.assertEqual(request.StopLoss, 1.12331)
-        self.assertEqual(request.TakeProfit, 0.0)
-        self.assertLessEqual(request.Price, request.StopLoss)
-        self.assertAlmostEqual(plan["order_plan"]["stop_loss"], 1.12025)
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertIn("too wide for current volatility", result["reason"])
+        adapter.send_order_to_broker.assert_not_called()
 
     def test_same_pending_order_without_preset_tp_is_reused(self):
         """A TP-free pending order is retained for strategy-managed exits."""
@@ -394,7 +392,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
             "entry": 1998.0, "stop_loss": 1995.0, "take_profit": None,
             "net_reward_risk": 1.5, "expires_at": 5000,
-        }}
+        }, "reaction_analysis": {"scenario": {"target": 2005.0}}}
         result = trader._reconcile_base_pending_order(
             "XAUUSD", plan, {"bid": 2000.0, "ask": 2000.2, "time": 1000},
             {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
