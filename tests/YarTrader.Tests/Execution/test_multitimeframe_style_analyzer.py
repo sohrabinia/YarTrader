@@ -24,7 +24,7 @@ class TestMultiTimeframeStyleAnalyzer(unittest.TestCase):
         results = MultiTimeframeStyleAnalyzer().evaluate(
             "EURUSD", frames, {"bid": 99.99, "ask": 100.01}, now
         )
-        self.assertEqual(set(results), {"RTM", "PRICE_ACTION"})
+        self.assertEqual(set(results), {"RTM", "PRICE_ACTION", "SCALP"})
         for name in ("RTM", "PRICE_ACTION"):
             self.assertEqual(results[name]["status"], "WAIT")
             self.assertFalse(results[name]["execution_enabled"])
@@ -52,7 +52,7 @@ class TestMultiTimeframeStyleAnalyzer(unittest.TestCase):
         results = MultiTimeframeStyleAnalyzer().evaluate(
             "XAUUSD", frames, {"bid": 1999.9, "ask": 2000.1}, now
         )
-        self.assertEqual(set(results), {"RTM", "PRICE_ACTION"})
+        self.assertEqual(set(results), {"RTM", "PRICE_ACTION", "SCALP"})
         self.assertTrue(all(item["status"] == "WAIT" for item in results.values()))
 
 

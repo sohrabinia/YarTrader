@@ -179,7 +179,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(result["status"], "WAIT")
         self.assertFalse(result["execution_enabled"])
         self.assertEqual(result["model_status"], "REACTION_MODEL_NOT_ACTIVATED")
-        self.assertEqual(set(result["strategy_results"]), {"BASE_HIERARCHY", "RTM", "PRICE_ACTION"})
+        self.assertEqual(set(result["strategy_results"]), {"BASE_HIERARCHY", "RTM", "PRICE_ACTION", "SCALP", "MARKET_BEHAVIOR"})
         self.assertEqual(result["execution_mode"], "INDEPENDENT_STRATEGIES_SHARED_RISK_GATE")
 
 

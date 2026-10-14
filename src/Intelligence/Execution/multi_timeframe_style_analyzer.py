@@ -136,7 +136,72 @@ class MultiTimeframeStyleAnalyzer:
         results: Dict[str, Dict[str, Any]] = {}
         for strategy in ("RTM", "PRICE_ACTION"):
             results[strategy] = self._evaluate_one(strategy, available, biases, quote, now, spread_allowance)
+        results["SCALP"] = self._evaluate_scalp(available, biases, quote, now, spread_allowance)
         return results
+
+    def _evaluate_scalp(self, bars: Mapping[str, List[Dict[str, float]]],
+                        biases: Mapping[str, int], quote: Mapping[str, float],
+                        now: float, spread_allowance: float) -> Dict[str, Any]:
+        """Short-horizon M1 break/retest scalp, confirmed by closed M5 structure."""
+        wait = {"strategy_name": "SCALP", "status": "WAIT", "direction": "WAIT",
+                "confidence": 0.0, "timeframe_analysis": dict(biases),
+                "execution_enabled": False, "order_plan": None,
+                "reason": "Scalp setup has not met its closed-bar and cost filters."}
+        m1, m5 = bars.get("M1", []), bars.get("M5", [])
+        if len(m1) < 35 or len(m5) < 12 or m1[-1]["time"] > now or m5[-1]["time"] > now:
+            wait["reason"] = "SCALP requires at least 35 closed M1 bars and 12 closed M5 bars."
+            return wait
+        bias = biases.get("M5", 0)
+        if not bias:
+            wait["reason"] = "SCALP waits for a confirmed M5 swing direction."
+            return wait
+        trs = []
+        for i in range(max(1, len(m1)-15), len(m1)):
+            b, prev = m1[i], m1[i-1]
+            trs.append(max(b["high"]-b["low"], abs(b["high"]-prev["close"]), abs(b["low"]-prev["close"])))
+        atr = sum(trs)/len(trs) if trs else 0.0
+        if not math.isfinite(atr) or atr <= 0:
+            wait["reason"] = "SCALP ATR is invalid; no entry proposed."
+            return wait
+        prior = m1[-12:-2]
+        last = m1[-1]
+        direction = bias
+        if direction > 0:
+            level = max(x["high"] for x in prior)
+            valid = last["close"] > level and last["low"] <= level + 0.20*atr
+            entry_zone = (level-0.05*atr, level+0.05*atr)
+            stop = min(min(x["low"] for x in m1[-5:]), entry_zone[0]) - 0.10*atr
+            entry = sum(entry_zone)/2
+            target = entry + 2.0*(entry-stop)
+            direction_name = "BUY"
+            quote_valid = entry < float(quote.get("ask", 0) or 0)
+        else:
+            level = min(x["low"] for x in prior)
+            valid = last["close"] < level and last["high"] >= level - 0.20*atr
+            entry_zone = (level-0.05*atr, level+0.05*atr)
+            stop = max(max(x["high"] for x in m1[-5:]), entry_zone[1]) + 0.10*atr
+            entry = sum(entry_zone)/2
+            target = entry - 2.0*(stop-entry)
+            direction_name = "SELL"
+            quote_valid = entry > float(quote.get("bid", 0) or 0)
+        if not valid or not quote_valid:
+            wait["reason"] = "SCALP requires a closed M1 breakout/retest aligned with M5; no chasing."
+            return wait
+        width = entry_zone[1]-entry_zone[0]
+        planner = PendingOrderPlanner(min_confidence=70.0, max_spread_base_width_ratio=0.20,
+                                      enforce_min_net_rr=True)
+        plan = planner.plan({"direction": direction_name, "setup_type": "RETEST",
+                             "zone_low": entry_zone[0], "zone_high": entry_zone[1],
+                             "entry_price": entry, "invalidation": stop, "target": target,
+                             "base_width": max(width, 0.1*atr), "confidence": 70.0,
+                             "expires_at": now + 10*60,
+                             "slippage_allowance": max(0.0, spread_allowance*0.25)}, quote, now)
+        wait.update({"direction": direction_name, "confidence": 70.0,
+                     "setup_timeframe": "M1", "trigger_timeframe": "M1",
+                     "order_plan": plan.to_dict(),
+                     "status": "ENTRY_PROPOSAL" if plan.status == "PROPOSED" else "WAIT",
+                     "reason": "SCALP closed-M1 breakout/retest aligned to M5 swing; structural stop and cost-adjusted RR validated."})
+        return wait
 
     def _evaluate_one(self, strategy: str, bars: Mapping[str, List[Dict[str, float]]],
                       biases: Mapping[str, int], quote: Mapping[str, float],

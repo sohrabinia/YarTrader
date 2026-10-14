@@ -147,6 +147,7 @@ class AutonomousDemoTrader:
         self.adapter = adapter or RealMT5BrokerAdapter(auto_initialize=True)
         self._last_attempt: Dict[str, str] = {}
         self._last_report: Dict[str, Any] = {}
+        self._last_learning_sync_epoch = 0
 
     @staticmethod
     def _field(row: Any, key: str, default: Any = None) -> Any:
@@ -262,17 +263,26 @@ class AutonomousDemoTrader:
                     spread_allowance=max(0.0, float(tick.get("ask", 0.0))-float(tick.get("bid", 0.0))),
                 )
                 strategy_results.update(styles)
+                from src.Intelligence.Execution.market_behavior_strategy import evaluate_market_behavior_strategy
+                market_behavior_result = evaluate_market_behavior_strategy(
+                    symbol=symbol, timeframe_candles=per_tf,
+                    quote={"bid": float(tick.get("bid", 0.0)), "ask": float(tick.get("ask", 0.0))},
+                    now=float(tick.get("time") or time.time()),
+                    spread_allowance=max(0.0, float(tick.get("ask", 0.0))-float(tick.get("bid", 0.0))),
+                )
+                strategy_results[str(market_behavior_result.get("strategy_name") or "MARKET_BEHAVIOR").upper()] = market_behavior_result
             except Exception as style_exc:
                 logger.exception("RTM/Price Action analysis failed closed: %s", style_exc)
                 strategy_results["RTM"] = {"strategy_name": "RTM", "status": "WAIT", "direction": "WAIT",
                                              "confidence": 0.0, "order_plan": None, "reason": "RTM analysis failed closed."}
                 strategy_results["PRICE_ACTION"] = {"strategy_name": "PRICE_ACTION", "status": "WAIT", "direction": "WAIT",
                                                      "confidence": 0.0, "order_plan": None, "reason": "Price Action analysis failed closed."}
+                strategy_results["MARKET_BEHAVIOR"] = {"strategy_name": "MARKET_BEHAVIOR", "status": "WAIT", "direction": "WAIT",
+                                                        "confidence": 0.0, "order_plan": None, "reason": "Market-behavior analysis failed closed."}
 
-            # No cross-strategy score/ranking layer: each strategy decides its own
-            # setup independently. The current per-symbol broker reconciler accepts
-            # one proposal per cycle, so simultaneous competing setups fail closed
-            # rather than one style silently overriding another.
+            # Keep each candidate independent. The selected plan is a compatibility
+            # view for single-slot mode; multi-strategy DEMO mode consumes all qualified
+            # proposals below and assigns one broker slot per strategy name.
             proposals = []
             for strategy_name, result in strategy_results.items():
                 order_plan = result.get("order_plan")
@@ -281,14 +291,12 @@ class AutonomousDemoTrader:
                         and str(order_plan.get("status", "")).upper() == "PROPOSED"
                         and str(result.get("direction", "")).upper() in ("BUY", "SELL")):
                     proposals.append((strategy_name, result, order_plan))
-            selected = proposals[0] if len(proposals) == 1 else None
+            selected = proposals[0] if proposals else None
             selected_name = selected[0] if selected else "NONE"
             selected_result = selected[1] if selected else {}
             selected_plan = selected[2] if selected else {
                 "status": "WAIT",
-                "reason": ("Multiple independent strategies produced simultaneous proposals; no cross-strategy ranking is used, so this cycle waits."
-                           if len(proposals) > 1 else
-                           "No strategy produced a fully qualified multi-timeframe proposal.")}
+                "reason": "No strategy produced a fully qualified multi-timeframe proposal."}
             return {
                 "status": "ORDER_PROPOSAL" if selected else "WAIT",
                 "reason": (selected_result.get("reason") if selected else selected_plan["reason"]),
@@ -329,7 +337,7 @@ class AutonomousDemoTrader:
         environment override. They remain in the codebase for research/backward
         compatibility, but cannot be used by this autonomous execution worker.
         """
-        return True
+        return False
 
     def _candidate_structural_trailing_stop(
         self, position: Any, candles: List[Dict[str, Any]], tick: Dict[str, Any],
@@ -405,6 +413,44 @@ class AutonomousDemoTrader:
         except OSError:
             logger.exception("Unable to persist autonomous DEMO trader event")
         logger.info("Autonomous DEMO trader: %s", event)
+
+    def _sync_strategy_learning(self, symbol: str, positions: List[Any], now_epoch: int) -> None:
+        """Persist broker-authoritative positions continuously and deal history idempotently."""
+        try:
+            from datetime import timedelta
+            from src.Learning.Services.autonomous_strategy_discovery import AutonomousStrategyDiscovery
+            now = datetime.now(timezone.utc)
+            store = AutonomousStrategyDiscovery(_PROJECT_ROOT / "storage" / "strategy_discovery" / symbol.upper())
+            # Snapshots run every cycle; full-history recovery runs once per worker start,
+            # then recent history is polled at most once per minute to limit MT5 load.
+            if now_epoch - self._last_learning_sync_epoch >= 60:
+                initial_recovery = self._last_learning_sync_epoch == 0
+                window_days = 365 if initial_recovery else 7
+                deals = self.adapter.get_history_deals(date_from=now - timedelta(days=window_days), date_to=now)
+                if deals is None:
+                    self._log_event({"event": "strategy_learning_sync_unavailable", "symbol": symbol,
+                                     "reason": "Broker deal history unavailable; no synthetic history written."})
+                else:
+                    history_result = store.sync_history(deals, self.adapter._mt5, symbol=symbol)
+                    self._last_learning_sync_epoch = now_epoch
+                    if history_result.get("new_deals_recorded", 0) or not store.report_path.exists():
+                        report = store.build_discovery_report()
+                    else:
+                        try:
+                            report = json.loads(store.report_path.read_text(encoding="utf-8"))
+                        except (OSError, ValueError):
+                            report = store.build_discovery_report()
+                    self._log_event({"event": "strategy_learning_sync", "symbol": symbol,
+                                     "new_deals_recorded": history_result.get("new_deals_recorded", 0),
+                                     "history_deals_seen": history_result.get("total_seen", 0),
+                                     "open_positions": len(positions),
+                                     "closed_position_count": report.get("closed_position_count", 0),
+                                     "discovery_cohorts": len(report.get("cohorts", [])),
+                                     "auto_promotion_enabled": report.get("auto_promotion_enabled", False)})
+            store.snapshot_positions(positions, now_utc=now.isoformat())
+        except Exception:
+            # Learning/audit failure must not interrupt protective position management.
+            logger.exception("Unable to synchronize autonomous strategy-learning evidence")
 
     def _track_post_exit_market_path(self, symbol: str, tick: Dict[str, Any]) -> None:
         """Observe price for 60 minutes after DEMO SL/TP exits and persist excursion feedback."""
@@ -579,10 +625,12 @@ class AutonomousDemoTrader:
         if orders is None:
             return {"status": "BLOCKED", "reason": "Broker pending-order state is unknown; refusing duplicate or new entry."}
         mt5 = self.adapter._mt5
+        strategy_name = str(base_plan.get("selected_strategy") or base_plan.get("decision_authority") or "BASE_HIERARCHY").upper()
+        strategy_comment = "YarBase" if strategy_name in ("BASE_HIERARCHY", "NONE", "") else f"YarBase:{strategy_name}"
         owned = [
             order for order in orders
             if int(self._field(order, "magic", 0) or 0) == 100001
-            and str(self._field(order, "comment", "") or "").startswith("YarBase")
+            and str(self._field(order, "comment", "") or "") == strategy_comment
         ]
         plan = base_plan.get("order_plan") or {}
         valid = base_plan.get("status") == "ORDER_PROPOSAL" and plan.get("status") == "PROPOSED"
@@ -645,6 +693,11 @@ class AutonomousDemoTrader:
                     + [2.0 * spread_now]
                 )
                 structural_risk = entry - stop if direction == "BUY" else stop - entry
+                if structural_risk < volatility_floor and strategy_name != "BASE_HIERARCHY":
+                    return {"status": "BLOCKED", "reason": (
+                        f"{strategy_name} structural stop is below the closed-bar volatility floor "
+                        f"({structural_risk:.5f} < {volatility_floor:.5f}); no other strategy's boundary may replace it."
+                    )}
                 if structural_risk < volatility_floor:
                     # The child Base's own edge can be too close for current volatility.
                     # In that case, select the nearest confirmed parent/intermediate Base
@@ -700,7 +753,7 @@ class AutonomousDemoTrader:
             # DEMO exploration orders are GTC where the broker supports it; short
             # strategy-sample expiries were causing accepted orders to disappear
             # before the learning cycle could observe fills.
-            if demo_exploration_autonomy_enabled():
+            if demo_exploration_autonomy_enabled() and strategy_name == "BASE_HIERARCHY":
                 expires = None
             digits = int(symbol_info["digits"])
             if direction not in ("BUY", "SELL") or order_type not in ("BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP"):
@@ -826,11 +879,11 @@ class AutonomousDemoTrader:
         request = OrderRequest(
             Symbol=symbol, OrderType=order_type, Volume=float(sizing["volume"]),
             Price=round(entry, digits), StopLoss=round(stop, digits), TakeProfit=0.0,
-            Comment="YarBase", Magic=100001, Expiration=expires,
+            Comment=strategy_comment, Magic=100001, Expiration=expires,
         )
         response = self.adapter.send_order_to_broker(request)
         self._log_event({
-            "event": "base_pending_order_submission", "symbol": symbol,
+            "event": "strategy_pending_order_submission", "symbol": symbol, "strategy": strategy_name,
             "order_type": order_type, "entry": entry, "stop_loss": stop, "take_profit": None,
             "entry_qualification_net_rr": net_rr,
             "exit_policy": "strategy_managed_structural_exit; protective_SL_only; no_preset_TP",
@@ -914,6 +967,7 @@ class AutonomousDemoTrader:
             elif len(positions) > 2:
                 return {"status": "BLOCKED", "symbol": symbol, "reason": "More than two positions exist while multi-position mode is disabled; manual reconciliation required."}
             open_positions = positions
+            self._sync_strategy_learning(symbol, open_positions, tick_time)
 
             # MT5 position 0 is the still-forming candle. Use it only for quote
             # freshness checks; strategy decisions must use fully closed candles.
@@ -929,6 +983,56 @@ class AutonomousDemoTrader:
             # A proposal is not an order: pending-order execution and Base-driven
             # position exits/re-entry management must use a dedicated broker manager.
             base_plan = self._evaluate_hierarchical_base_plan(per_tf, tick, symbol=symbol)
+            if allow_multiple_positions:
+                active_orders_for_slots = self.adapter.get_active_orders(symbol=symbol)
+                if active_orders_for_slots is None:
+                    return {"status": "BLOCKED", "symbol": symbol,
+                            "reason": "Cannot verify pending-order state before assigning strategy slots.",
+                            "execution_enabled": False}
+                def _slot_name(comment: str) -> str:
+                    return comment.split(":", 1)[1].upper() if ":" in comment else "BASE_HIERARCHY"
+                occupied_slots = {_slot_name(str(self._field(pos, "comment", "") or ""))
+                                  for pos in open_positions
+                                  if int(self._field(pos, "magic", 0) or 0) == 100001
+                                  and str(self._field(pos, "comment", "") or "").startswith("YarBase")}
+                occupied_slots.update(_slot_name(str(self._field(order, "comment", "") or ""))
+                                      for order in active_orders_for_slots
+                                      if int(self._field(order, "magic", 0) or 0) == 100001
+                                      and str(self._field(order, "comment", "") or "").startswith("YarBase"))
+                candidates = []
+                for name, result in (base_plan.get("strategy_results") or {}).items():
+                    plan = result.get("order_plan")
+                    if (result.get("status") == "ENTRY_PROPOSAL" and isinstance(plan, dict)
+                            and str(plan.get("status", "")).upper() == "PROPOSED"
+                            and str(result.get("direction", "")).upper() in ("BUY", "SELL")):
+                        candidates.append((name, result, plan))
+                selected = next((item for item in candidates if item[0] not in occupied_slots), None)
+                if selected is None:
+                    base_plan.update({"status": "WAIT", "reason": "No qualified strategy proposal has a free independent slot.",
+                                      "selected_strategy": "NONE", "decision_authority": "NONE",
+                                      "order_plan": {"status": "WAIT", "reason": "All current proposals are waiting or already have a slot."},
+                                      "execution_enabled": False})
+                else:
+                    selected_name, selected_result, selected_plan = selected
+                    base_plan.update({"status": "ORDER_PROPOSAL", "reason": selected_result.get("reason", "Qualified strategy proposal."),
+                                      "selected_strategy": selected_name, "decision_authority": selected_name,
+                                      "order_plan": selected_plan, "execution_enabled": False})
+                base_plan["occupied_strategy_slots"] = sorted(occupied_slots)
+                base_plan["available_strategy_proposals"] = [name for name, _, _ in candidates if name not in occupied_slots]
+            self._log_event({
+                "event": "strategy_candidate_audit",
+                "symbol": symbol,
+                "strategies": {name: {
+                    "status": result.get("status", "WAIT"),
+                    "direction": result.get("direction", "WAIT"),
+                    "confidence": result.get("confidence", 0.0),
+                    "reason": result.get("reason", ""),
+                    "execution_enabled": bool(result.get("execution_enabled", False)),
+                    "order_plan_status": (result.get("order_plan") or {}).get("status"),
+                } for name, result in (base_plan.get("strategy_results") or {}).items()},
+                "selected_strategy": base_plan.get("selected_strategy", "NONE"),
+                "strategy_proposals_count": base_plan.get("strategy_proposals_count", 0),
+            })
             self._log_event({
                 "event": "hierarchical_base_primary_decision",
                 "symbol": symbol,
@@ -966,6 +1070,80 @@ class AutonomousDemoTrader:
                         return {"status": "BLOCKED", "symbol": symbol,
                                 "reason": "Every managed position must have a valid ticket and protective stop loss in multi-position mode.",
                                 "execution_enabled": False}
+
+                    # Each strategy owns its own exit signal, protective stop, and audit trail.
+                    slot = existing_comment.split(":", 1)[1].upper() if ":" in existing_comment else "BASE_HIERARCHY"
+                    strategy_result = (base_plan.get("strategy_results") or {}).get(slot, {})
+                    position_type = int(self._field(existing, "type", -1))
+                    mt5_types = self.adapter._mt5
+                    buy_type = int(getattr(mt5_types, "POSITION_TYPE_BUY", 0))
+                    sell_type = int(getattr(mt5_types, "POSITION_TYPE_SELL", 1))
+                    held_direction = "BUY" if position_type == buy_type else ("SELL" if position_type == sell_type else "UNKNOWN")
+                    signal_direction = str(strategy_result.get("direction", "WAIT")).upper()
+                    if (strategy_result.get("status") == "ENTRY_PROPOSAL"
+                            and signal_direction in ("BUY", "SELL") and held_direction in ("BUY", "SELL")
+                            and signal_direction != held_direction):
+                        close_response = self.adapter.send_order_to_broker(OrderRequest(
+                            Symbol=symbol, OrderType="CLOSE",
+                            Volume=float(self._field(existing, "volume", 0.0) or 0.0),
+                            PositionTicket=existing_ticket, Comment=f"YarExit:{slot}", Magic=100001,
+                        ))
+                        success_codes = {0, 10009, int(getattr(mt5_types, "TRADE_RETCODE_DONE", 10009))}
+                        if close_response.Status not in ("Placed", "Executed") or int(close_response.Retcode) not in success_codes:
+                            return {"status": "EXIT_FAILED", "symbol": symbol, "strategy": slot,
+                                    "ticket": existing_ticket, "reason": close_response.Comment,
+                                    "execution_enabled": False}
+                        flat_check = self._confirm_position_flat(symbol, existing_ticket)
+                        self._log_event({"event": "strategy_position_exit", "symbol": symbol,
+                                         "strategy": slot, "ticket": existing_ticket,
+                                         "exit_reason": "OWN_STRATEGY_OPPOSITE_SETUP",
+                                         "held_direction": held_direction, "signal_direction": signal_direction,
+                                         "flat_confirmation": flat_check})
+                        if not flat_check.get("confirmed"):
+                            return {"status": "EXIT_NOT_CONFIRMED", "symbol": symbol,
+                                    "strategy": slot, "ticket": existing_ticket,
+                                    "reason": flat_check.get("reason"), "execution_enabled": False}
+                        return {"status": "STRATEGY_POSITION_CLOSED", "symbol": symbol,
+                                "strategy": slot, "ticket": existing_ticket,
+                                "reason": "The position was closed only after its own strategy confirmed an opposite setup.",
+                                "execution_enabled": True}
+
+                    # Strategy-managed exits do not use a fixed broker TP. Remove legacy TP
+                    # only from verified bot-owned positions and preserve broker SL protection.
+                    current_tp = float(self._field(existing, "tp", 0.0) or 0.0)
+                    if current_tp > 0:
+                        clear_tp = getattr(self.adapter, "clear_position_take_profit", None)
+                        if not callable(clear_tp):
+                            return {"status": "BLOCKED", "symbol": symbol, "strategy": slot,
+                                    "reason": "Cannot safely remove legacy TP for strategy-managed exits.",
+                                    "execution_enabled": False}
+                        clear_response = clear_tp(existing_ticket)
+                        if clear_response.Status not in ("Modified", "NoChange") or int(clear_response.Retcode) not in (0, 10009):
+                            return {"status": "BLOCKED", "symbol": symbol, "strategy": slot,
+                                    "reason": f"Could not clear legacy TP on position {existing_ticket}: {clear_response.Comment}",
+                                    "execution_enabled": False}
+                        self._log_event({"event": "strategy_managed_tp_cleared", "symbol": symbol,
+                                         "strategy": slot, "ticket": existing_ticket, "old_tp": current_tp})
+
+                    trailing_candidate = self._candidate_structural_trailing_stop(
+                        existing, per_tf.get("M5", []), tick, symbol_info
+                    )
+                    if trailing_candidate is not None:
+                        update_sl = getattr(self.adapter, "update_position_stop_loss", None)
+                        if not callable(update_sl):
+                            return {"status": "BLOCKED", "symbol": symbol, "strategy": slot,
+                                    "reason": "Structural trailing stop is indicated but broker SL modification is unavailable.",
+                                    "execution_enabled": False}
+                        update_response = update_sl(existing_ticket, trailing_candidate)
+                        if update_response.Status not in ("Modified", "NoChange") or int(update_response.Retcode) not in (0, 10009):
+                            return {"status": "BLOCKED", "symbol": symbol, "strategy": slot,
+                                    "reason": f"Could not update structural trailing SL for {existing_ticket}: {update_response.Comment}",
+                                    "execution_enabled": False}
+                        if update_response.Status == "Modified":
+                            self._log_event({"event": "strategy_structural_trailing_stop", "symbol": symbol,
+                                             "strategy": slot, "ticket": existing_ticket,
+                                             "old_sl": existing_sl, "new_sl": trailing_candidate,
+                                             "basis": "CONFIRMED_M5_SWING"})
                 if len(open_positions) >= max_positions:
                     return {"status": "MULTI_POSITION_LIMIT_REACHED", "symbol": symbol,
                             "reason": f"Configured limit of {max_positions} active positions per symbol reached; no additional entry submitted.",
