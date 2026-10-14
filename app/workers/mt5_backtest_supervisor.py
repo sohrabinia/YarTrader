@@ -65,9 +65,21 @@ def load_job():
 
 def checkpoint(job):
     if str(job.get("timeframe", "")).upper() == "MTF":
-        path = ROOT / "runtime_logs" / "backtest_learning" / "mtf_incremental" / job["symbol"].upper() / "checkpoint.json"
-    else:
-        path = ROOT / "runtime_logs" / "backtest_learning" / "mt5_incremental" / f"{job['symbol'].upper()}_{job['timeframe'].upper()}" / "checkpoint.json"
+        # The MTF worker stores a checkpoint per primary timeframe and writes a
+        # consolidated summary; there is no symbol-level checkpoint.json.
+        path = ROOT / "runtime_logs" / "backtest_learning" / "mtf_incremental" / job["symbol"].upper() / "summary.json"
+        if not path.exists():
+            return None
+        try:
+            payload = _read_json(path)
+            windows = payload.get("timeframe_windows") or {}
+            if windows and all(str(item.get("status", "")).upper() == "COMPLETED" for item in windows.values()):
+                return {"status": "COMPLETED", "timeframe_windows": windows}
+            return {"status": "RUNNING", "timeframe_windows": windows}
+        except Exception as exc:
+            log(f"CHECKPOINT_READ_ERROR {type(exc).__name__}: {exc}")
+            return None
+    path = ROOT / "runtime_logs" / "backtest_learning" / "mt5_incremental" / f"{job['symbol'].upper()}_{job['timeframe'].upper()}" / "checkpoint.json"
     if not path.exists():
         return None
     try:

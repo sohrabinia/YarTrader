@@ -169,8 +169,9 @@ def run(symbol, years, initial_balance, sleep_sec, max_chunks=0):
                 atomic_json(checkpoint_path, final)
             atomic_json(base / primary_tf / "final_result.json", final)
             summaries[primary_tf] = final
-            if max_chunks:
-                break
+            # With max_chunks set, cap each timeframe to one chunk per supervisor
+            # pass, but still visit every timeframe so summary.json reflects the
+            # complete MTF job rather than only MN1/W1/etc. on alternating passes.
         atomic_json(base / "summary.json", {"schema": SCHEMA, "symbol": symbol, "generated_at": now.isoformat(), "timeframe_windows": summaries})
         return summaries
     finally:

@@ -363,15 +363,15 @@ async def lifespan_context(app: FastAPI):
                 start_autonomous_demo_trader,
             )
             if _demo_auto_trading_enabled():
-                # The service-hosted worker is DEMO-only by design. Enable explicit
-                # exploration so unvalidated Base profiles can collect outcomes while
-                # the live-trading kill switch and broker/account guards remain intact.
+                # The service-hosted worker is DEMO-only. Keep exploration mode
+                # explicitly opt-in so ordinary DEMO risk gates (including daily-loss
+                # limits and required take-profit validation) remain active by default.
                 os.environ["YARTRADER_TRADING_MODE"] = "DEMO"
-                os.environ["YARTRADER_DEMO_EXPLORATION_MODE"] = "true"
                 os.environ["YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED"] = "true"
                 os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "true"
+                exploration_enabled = os.environ.get("YARTRADER_DEMO_EXPLORATION_MODE", "false").strip().lower() in {"1", "true", "yes", "on"}
                 start_autonomous_demo_trader()
-                log_event("INFO", "autonomous_demo_trader_worker_started", mode="DEMO_EXPLORATION")
+                log_event("INFO", "autonomous_demo_trader_worker_started", mode="DEMO_EXPLORATION" if exploration_enabled else "DEMO_GUARDED")
     except Exception as e:
         log_event("ERROR", f"Non-blocking exception during FastAPI lifespan startup: {str(e)}", traceback=traceback.format_exc())
 
