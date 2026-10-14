@@ -26,6 +26,18 @@ class TestMT5SessionBridge(unittest.TestCase):
         self.assertEqual(orders[0].symbol, "XAUUSD")
         client.call.assert_called_once_with("orders_get", symbol="XAUUSD")
 
+    def test_proxy_forwards_order_calc_margin_as_rpc_method(self):
+        client = MagicMock()
+        client.call.return_value = 12.34
+        proxy = MT5BridgeProxy(client)
+
+        result = proxy.order_calc_margin(0, "XAUUSD", 0.01, 4100.0)
+
+        self.assertEqual(result, 12.34)
+        client.call.assert_called_once_with(
+            "order_calc_margin", order_type=0, symbol="XAUUSD", volume=0.01, price=4100.0
+        )
+
     def test_proxy_forwards_rates_and_serializes_dates(self):
         client = MagicMock()
         client.call.return_value = []
