@@ -476,23 +476,39 @@ class StrategyOrchestrator:
                 trigger_found = True
                 trigger_direction = "SELL"
 
-        # 2. Structural Alignment Check: Child trigger direction must align with HTF parent context
-        # Prevents selling into HTF discount support or buying into HTF premium resistance
-        if trigger_found:
+        # Extract actual parent and child base structural price boundaries if present
+        parent_high = float(struct_rel.get("parent_high", 0.0))
+        parent_low = float(struct_rel.get("parent_low", 0.0))
+        active_child = fractal.get("active_base", {})
+        child_high = float(active_child.get("High", current_price + 10 * pip_factor)) if active_child else current_price + 10 * pip_factor
+        child_low = float(active_child.get("Low", current_price - 10 * pip_factor)) if active_child else current_price - 10 * pip_factor
+
+        # Require trigger to be near child base boundary (within 15% buffer of child range)
+        child_range = max(pip_factor * 5, child_high - child_low)
+        at_child_boundary = (abs(current_price - child_high) <= child_range * 0.25) or (abs(current_price - child_low) <= child_range * 0.25) or (child_low <= current_price <= child_high)
+
+        # 2. Structural Alignment Check: Derive SL, TP, and Risk/Reward strictly from structural boundaries
+        if trigger_found and at_child_boundary:
             if trigger_direction == "SELL" and parent_loc != "PARENT_DISCOUNT_LOWER_ZONE":
                 direction = "SELL"
-                sl = current_price + (25 * pip_factor)
-                tp = current_price - (60 * pip_factor)  # ~1:2.4 R/R
-                confidence = 82.0 if rel_type == "STRICT_CONTAINMENT" else 68.0
-                reasoning.append(f"FRACTAL: Bearish trigger confirmed at {parent_loc} inside Parent {parent_type} ({rel_type}).")
+                sl = max(child_high, current_price + 5 * pip_factor) + (2 * pip_factor)
+                # Target is lower parent boundary or 2.0x risk distance
+                target_bound = parent_low if parent_low > 0 and parent_low < current_price else current_price - (2.0 * abs(sl - current_price))
+                tp = min(target_bound, current_price - (1.5 * abs(sl - current_price)))
+                confidence = float(fractal.get("Confidence", 65.0))
+                reasoning.append(f"FRACTAL: Bearish trigger confirmed near child base boundary [{child_low:.2f}-{child_high:.2f}] at {parent_loc} inside Parent {parent_type} ({rel_type}).")
             elif trigger_direction == "BUY" and parent_loc != "PARENT_PREMIUM_UPPER_ZONE":
                 direction = "BUY"
-                sl = current_price - (25 * pip_factor)
-                tp = current_price + (60 * pip_factor)  # ~1:2.4 R/R
-                confidence = 82.0 if rel_type == "STRICT_CONTAINMENT" else 68.0
-                reasoning.append(f"FRACTAL: Bullish trigger confirmed at {parent_loc} inside Parent {parent_type} ({rel_type}).")
+                sl = min(child_low, current_price - 5 * pip_factor) - (2 * pip_factor)
+                # Target is upper parent boundary or 2.0x risk distance
+                target_bound = parent_high if parent_high > current_price else current_price + (2.0 * abs(current_price - sl))
+                tp = max(target_bound, current_price + (1.5 * abs(current_price - sl)))
+                confidence = float(fractal.get("Confidence", 65.0))
+                reasoning.append(f"FRACTAL: Bullish trigger confirmed near child base boundary [{child_low:.2f}-{child_high:.2f}] at {parent_loc} inside Parent {parent_type} ({rel_type}).")
             else:
                 reasoning.append(f"FRACTAL: Trigger rejected. {trigger_direction} trigger conflicts with HTF parent location ({parent_loc}).")
+        elif trigger_found and not at_child_boundary:
+            reasoning.append(f"FRACTAL: Trigger rejected. Local trigger occurred away from active child base boundary [{child_low:.2f}-{child_high:.2f}].")
 
         if direction == "WAIT" and not reasoning:
             reasoning.append("FRACTAL: No causal lower-timeframe trigger bar or parent-child alignment.")
