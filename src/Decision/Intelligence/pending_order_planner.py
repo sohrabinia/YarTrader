@@ -120,14 +120,14 @@ class PendingOrderPlanner:
         return PendingOrderPlan(
             status="PROPOSED", order_type=order_type, direction=direction,
             entry=round(entry, 5), stop_loss=round(invalidation, 5),
-            # Target is only an analytical reward estimate; dynamic strategy exits
-            # determine when to close the position. Never pre-set a broker TP.
-            take_profit=None,
+            # The execution core requires a validated broker-side initial TP.
+            # It may extend this target later, but must not silently discard it.
+            take_profit=round(target, 5),
             gross_reward_risk=round(gross_rr, 4), net_reward_risk=round(net_rr, 4),
             expires_at=expiry,
             cancel_if=("zone invalidated, opposite structure confirmed, spread exceeds threshold, "
                        "or scenario expires"),
-            reason="Conditional entry proposal with structural broker-side SL; exits are strategy-managed and no preset TP is sent.",
+            reason="Conditional entry proposal with structural broker-side SL and validated initial TP; strategy management may extend TP when a fresh structural target improves it.",
         )
 
     @staticmethod

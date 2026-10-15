@@ -30,6 +30,95 @@ def iso(ts: int) -> str:
     return datetime.fromtimestamp(int(ts), timezone.utc).isoformat()
 
 
+def _append_backtest_journal_events(
+    trades: list[dict], *, run_id: str, symbol: str, decision_timeframe: str,
+    cohort: str, data_file: str,
+) -> int:
+    """Persist each simulated closed trade to the shared append-only journal."""
+    if not trades:
+        return 0
+    journal_path = ROOT / "runtime_logs" / "trade_journal_events_v2.jsonl"
+    journal_path.parent.mkdir(parents=True, exist_ok=True)
+    written = 0
+    with journal_path.open("a", encoding="utf-8") as handle:
+        for trade in trades:
+            def parse_time(value):
+                if isinstance(value, (int, float)):
+                    return datetime.fromtimestamp(float(value), timezone.utc)
+                parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+                return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+
+            try:
+                entry_dt = parse_time(trade.get("entry_time"))
+                exit_dt = parse_time(trade.get("exit_time"))
+            except (TypeError, ValueError, OverflowError, OSError):
+                # Never fabricate timestamps for a trade whose source timestamps are missing.
+                entry_dt = exit_dt = None
+            event = {
+                "event": "backtest_trade_closed",
+                "trade_type": "BACKTEST",
+                "backtest_run_id": run_id,
+                "backtest_cohort": cohort,
+                "trade_id": trade.get("trade_id"),
+                "symbol": str(trade.get("symbol") or symbol).upper(),
+                "strategy_style": str(trade.get("strategy") or "UNKNOWN").upper(),
+                "direction": trade.get("direction"),
+                "decision_timeframe": decision_timeframe.upper(),
+                "setup_timeframe": str(trade.get("setup_timeframe") or "UNKNOWN").upper(),
+                "entry_timeframe": decision_timeframe.upper(),
+                "execution_timeframe": decision_timeframe.upper(),
+                "context_timeframes": (
+                    trade.get("market_context", {}).get("timeframes_considered", [])
+                    if isinstance(trade.get("market_context"), dict) else []
+                ),
+                "entry_price": trade.get("entry"),
+                "exit_price": trade.get("exit_price"),
+                "stop_loss": trade.get("stop_loss"),
+                "take_profit": trade.get("take_profit"),
+                "exit_reason": trade.get("exit_reason"),
+                "result": trade.get("outcome"),
+                "pnl_net_usd": trade.get("pnl"),
+                "r_multiple": trade.get("r_multiple"),
+                "mfe": trade.get("mfe"),
+                "mae": trade.get("mae"),
+                "confidence": trade.get("confidence"),
+                "reasoning": trade.get("reasoning") or [],
+                "market_context": trade.get("market_context") or {},
+                "data_source": "LOCAL_MT4_BROKER_HST_REAL_HISTORY",
+                "data_file": data_file,
+                "synthetic_data": False,
+                "broker_orders_sent": 0,
+                "entry_time_utc": entry_dt.isoformat() if entry_dt else None,
+                "exit_time_utc": exit_dt.isoformat() if exit_dt else None,
+                "entry_weekday": entry_dt.strftime("%A") if entry_dt else None,
+                "entry_day_of_month": entry_dt.day if entry_dt else None,
+                "entry_month": entry_dt.month if entry_dt else None,
+                "entry_year": entry_dt.year if entry_dt else None,
+                "entry_session_utc": (
+                    "ASIA" if entry_dt.hour * 60 + entry_dt.minute < 420 else
+                    "LONDON" if entry_dt.hour * 60 + entry_dt.minute < 720 else
+                    "NEW_YORK_OVERLAP" if entry_dt.hour * 60 + entry_dt.minute < 960 else
+                    "NEW_YORK" if entry_dt.hour * 60 + entry_dt.minute < 1260 else
+                    "LATE_US_OR_ROLLOVER"
+                ) if entry_dt else None,
+                "post_trade_conclusion": (
+                    f"Backtest outcome={trade.get('outcome')}; net PnL after the simulator's configured "
+                    f"friction={trade.get('pnl')}; cohort={cohort}. This is a simulated result, not a broker fill."
+                ),
+                "post_trade_review_status": "PENDING_RESEARCH_REVIEW",
+                "alternative_entry_analysis": (
+                    "Not evaluated automatically. Replay candidate entry locations and stop placement "
+                    "against the recorded setup; do not infer improvement without a cost-aware replay."
+                ),
+                "journaled_at_utc": datetime.now(timezone.utc).isoformat(),
+            }
+            handle.write(json.dumps(event, ensure_ascii=False, default=str, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+            written += 1
+    return written
+
+
 def metrics(trades: list[dict], initial: float, final: float) -> dict:
     pnls = [float(t.get("pnl", 0.0)) for t in trades]
     wins = [p for p in pnls if p > 0]
@@ -133,7 +222,11 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
     trained_state = dict(train_result.get("state") or {})
     trained_balance = float(trained_state.get("balance", initial_balance))
     train_trades = train_result.get("closed_trades") or []
-    print(f"[{symbol}] training complete: trades={len(train_trades)} pnl={train_result.get('net_pnl')}; checking bootstrap viability", flush=True)
+    train_journal_events = _append_backtest_journal_events(
+        train_trades, run_id=run_id, symbol=symbol, decision_timeframe=timeframe,
+        cohort="TRAIN_LEARNED", data_file=str(source_path),
+    )
+    print(f"[{symbol}] training complete: trades={len(train_trades)} journaled={train_journal_events} pnl={train_result.get('net_pnl')}; checking bootstrap viability", flush=True)
     if not train_trades:
         return {
             "run_id": run_id, "symbol": symbol.upper(), "timeframe": timeframe.upper(),
@@ -200,6 +293,14 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
     print(f"[{symbol}] holdout complete: learned_pnl={test_result.get('net_pnl')} baseline_pnl={baseline_result.get('net_pnl')}", flush=True)
     test_trades = test_result.get("closed_trades") or []
     baseline_trades = baseline_result.get("closed_trades") or []
+    learned_holdout_journal_events = _append_backtest_journal_events(
+        test_trades, run_id=run_id, symbol=symbol, decision_timeframe=timeframe,
+        cohort="HOLDOUT_LEARNED_FROZEN", data_file=str(source_path),
+    )
+    baseline_holdout_journal_events = _append_backtest_journal_events(
+        baseline_trades, run_id=run_id, symbol=symbol, decision_timeframe=timeframe,
+        cohort="HOLDOUT_UNTRAINED_BASELINE", data_file=str(source_path),
+    )
     frozen_learning_updates = sum(
         1 for t in test_trades
         if (t.get("learning_update") or {}).get("status") != "FROZEN_EVALUATION_NO_LEARNING"
@@ -213,6 +314,7 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
     sample_adequate = len(test_trades) >= 30 and len(baseline_trades) >= 30
     return {
         "run_id": run_id,
+        "journal_events_written": train_journal_events + learned_holdout_journal_events + baseline_holdout_journal_events,
         "status": "COMPLETED" if sample_adequate and frozen_learning_updates == 0 and baseline_learning_updates == 0 else "INCONCLUSIVE_SMALL_SAMPLE_OR_LEARNING_LEAK",
         "evaluation_conclusive": sample_adequate and frozen_learning_updates == 0 and baseline_learning_updates == 0,
         "symbol": symbol.upper(),

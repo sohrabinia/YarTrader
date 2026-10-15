@@ -712,6 +712,67 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                              SubmittedAt=datetime.now(timezone.utc), Retcode=result_code,
                              Comment=str(_value(result, "comment", "no response") if result is not None else "SL update returned None"))
 
+    def update_position_take_profit(self, ticket: int, take_profit: float) -> OrderResponse:
+        """Extend a bot-owned DEMO position's TP without weakening its existing SL."""
+        self.verify_safety_and_account(operation_type="DEMO")
+        mt5 = self._mt5
+        if mt5 is None or not self._initialized:
+            raise ValidationException("MT5 is not initialized; cannot update position TP.")
+        ticket = int(ticket)
+        if (not isinstance(take_profit, (int, float)) or isinstance(take_profit, bool)
+                or not math.isfinite(float(take_profit)) or float(take_profit) <= 0.0):
+            raise ValidationException("New take-profit must be a finite positive price.")
+        positions = mt5.positions_get(ticket=ticket)
+        if not positions:
+            return OrderResponse(OrderId=str(ticket), Symbol="", Status="Failed",
+                                 SubmittedAt=datetime.now(timezone.utc), Retcode=-1,
+                                 Comment=f"Position {ticket} was not found; TP was not modified.")
+        position = positions[0]
+        def _field_value(obj: Any, name: str, default: Any = None) -> Any:
+            return obj.get(name, default) if isinstance(obj, dict) else getattr(obj, name, default)
+        symbol = str(_field_value(position, "symbol", ""))
+        stop_loss = float(_field_value(position, "sl", 0.0) or 0.0)
+        current_tp = float(_field_value(position, "tp", 0.0) or 0.0)
+        position_type = int(_field_value(position, "type", -1))
+        buy_type = int(getattr(mt5, "POSITION_TYPE_BUY", 0))
+        sell_type = int(getattr(mt5, "POSITION_TYPE_SELL", 1))
+        new_tp = float(take_profit)
+        if position_type == buy_type:
+            improves = current_tp <= 0.0 or new_tp > current_tp
+        elif position_type == sell_type:
+            improves = current_tp <= 0.0 or new_tp < current_tp
+        else:
+            improves = False
+        if not improves:
+            return OrderResponse(OrderId=str(ticket), Symbol=symbol, Status="NoChange",
+                                 SubmittedAt=datetime.now(timezone.utc), Retcode=0,
+                                 Comment="TP update would not extend the existing target in the profitable direction.")
+        if (position_type == buy_type and new_tp <= float(_field_value(position, "price_open", 0.0) or 0.0)) or \
+                (position_type == sell_type and new_tp >= float(_field_value(position, "price_open", 0.0) or 0.0)):
+            return OrderResponse(OrderId=str(ticket), Symbol=symbol, Status="Failed",
+                                 SubmittedAt=datetime.now(timezone.utc), Retcode=-1,
+                                 Comment="New TP is not on the profitable side of the position entry.")
+        action = getattr(mt5, "TRADE_ACTION_SLTP", None)
+        if action is None:
+            return OrderResponse(OrderId=str(ticket), Symbol=symbol, Status="Failed",
+                                 SubmittedAt=datetime.now(timezone.utc), Retcode=-1,
+                                 Comment="MT5 does not expose TRADE_ACTION_SLTP.")
+        request = {"action": action, "symbol": symbol, "position": ticket,
+                   "sl": stop_loss, "tp": new_tp}
+        checked = mt5.order_check(request)
+        code = int(_field_value(checked, "retcode", -1) if checked is not None else -1)
+        if checked is None or code not in (0, 10009):
+            return OrderResponse(OrderId=str(ticket), Symbol=symbol, Status="Failed",
+                                 SubmittedAt=datetime.now(timezone.utc), Retcode=code,
+                                 Comment=f"TP-extension order_check failed: {_field_value(checked, 'comment', 'no response')}")
+        result = mt5.order_send(request)
+        result_code = int(_field_value(result, "retcode", -1) if result is not None else -1)
+        success_codes = {0, 10009, int(getattr(mt5, "TRADE_RETCODE_DONE", 10009))}
+        return OrderResponse(OrderId=str(ticket), Symbol=symbol,
+                             Status="Modified" if result is not None and result_code in success_codes else "Failed",
+                             SubmittedAt=datetime.now(timezone.utc), Retcode=result_code,
+                             Comment=str(_field_value(result, "comment", "no response") if result is not None else "TP update returned None"))
+
     def clear_position_take_profit(self, ticket: int) -> OrderResponse:
         """Clear a preset TP on an existing position while preserving its protective SL.
 

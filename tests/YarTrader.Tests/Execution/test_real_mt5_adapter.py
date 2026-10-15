@@ -1724,5 +1724,71 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_verify.assert_called_once()
 
 
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_update_position_take_profit_extends_target_and_preserves_sl(self, mock_verify):
+        mt5 = MagicMock()
+        mt5.TRADE_ACTION_SLTP = 6
+        mt5.TRADE_RETCODE_DONE = 10009
+        mt5.POSITION_TYPE_BUY = 0
+        mt5.POSITION_TYPE_SELL = 1
+        account = MagicMock()
+        account.login = 52961173
+        account.server = "Alpari-MT5-Demo"
+        account.trade_mode = 0
+        mt5.account_info.return_value = account
+        position = MagicMock()
+        position.symbol = "EURUSD"
+        position.sl = 1.0800
+        position.tp = 1.0950
+        position.type = 0
+        position.price_open = 1.0900
+        mt5.positions_get.return_value = [position]
+        check = MagicMock()
+        check.retcode = 0
+        mt5.order_check.return_value = check
+        sent = MagicMock()
+        sent.retcode = 10009
+        sent.comment = "Done"
+        sent._asdict.return_value = {"retcode": 10009}
+        mt5.order_send.return_value = sent
+        self.adapter._mt5 = mt5
+        self.adapter._initialized = True
+
+        response = self.adapter.update_position_take_profit(101, 1.1000)
+
+        self.assertEqual(response.Status, "Modified")
+        request = mt5.order_send.call_args.args[0]
+        self.assertEqual(request["position"], 101)
+        self.assertEqual(request["sl"], 1.0800)
+        self.assertEqual(request["tp"], 1.1000)
+        mock_verify.assert_called_once()
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_update_position_take_profit_does_not_pull_target_closer(self, mock_verify):
+        mt5 = MagicMock()
+        mt5.POSITION_TYPE_BUY = 0
+        mt5.POSITION_TYPE_SELL = 1
+        account = MagicMock()
+        account.login = 52961173
+        account.server = "Alpari-MT5-Demo"
+        account.trade_mode = 0
+        mt5.account_info.return_value = account
+        position = MagicMock()
+        position.symbol = "EURUSD"
+        position.sl = 1.0800
+        position.tp = 1.1000
+        position.type = 0
+        position.price_open = 1.0900
+        mt5.positions_get.return_value = [position]
+        self.adapter._mt5 = mt5
+        self.adapter._initialized = True
+
+        response = self.adapter.update_position_take_profit(101, 1.0950)
+
+        self.assertEqual(response.Status, "NoChange")
+        mt5.order_send.assert_not_called()
+        mock_verify.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

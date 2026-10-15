@@ -16,7 +16,7 @@ from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
 logger = logging.getLogger("DailyLossKillSwitch")
 
 
-def calculate_yartrader_daily_pnl(adapter: Any, now_utc: Optional[datetime] = None, magic: int = 143056) -> Dict[str, Any]:
+def calculate_yartrader_daily_pnl(adapter: Any, now_utc: Optional[datetime] = None, magic: int = 100001) -> Dict[str, Any]:
     """Return current-session PnL from YarTrader-owned trades only.
 
     External balance/credit operations and manual trades are excluded. Open YarTrader
@@ -78,7 +78,8 @@ def calculate_yartrader_daily_pnl(adapter: Any, now_utc: Optional[datetime] = No
         except (TypeError, ValueError):
             item_magic = 0
         comment = str(item.get("comment") or "").lower()
-        return item_magic == int(magic) or comment.startswith("yartrader") or "yartrader" in comment
+        # 100001 is the active autonomous DEMO trader magic; 143056 is retained for legacy bot trades.
+        return item_magic in {int(magic), 100001, 143056} or comment.startswith("yartrader") or "yartrader" in comment
 
     owned_ids = set()
     for deal in deals:
@@ -87,7 +88,9 @@ def calculate_yartrader_daily_pnl(adapter: Any, now_utc: Optional[datetime] = No
             if pos_id not in (None, 0, "0"):
                 owned_ids.add(str(pos_id))
 
-    session_start_epoch = int(session_start_utc.timestamp())
+    # Preserve the broker-server offset when filtering daily deals; otherwise trades
+    # near the session boundary can be omitted from the bot's daily PnL.
+    session_start_epoch = int(session_start_utc.timestamp() + broker_offset)
     owned_deals = []
     realized = 0.0
     for deal in deals:
@@ -124,7 +127,7 @@ def calculate_yartrader_daily_pnl(adapter: Any, now_utc: Optional[datetime] = No
         "total_pnl": round(total, 2),
         "owned_deal_count": len(owned_deals),
         "owned_open_positions": owned_open_count,
-        "source": "MT5_MAGIC_143056_OR_YARTRADER_COMMENT",
+        "source": "MT5_MAGIC_100001_OR_143056_OR_YARTRADER_COMMENT",
     }
 
 

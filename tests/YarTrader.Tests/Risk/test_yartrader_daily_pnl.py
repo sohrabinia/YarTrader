@@ -60,6 +60,40 @@ class TestYarTraderOnlyDailyPnl(unittest.TestCase):
         self.assertAlmostEqual(result["total_pnl"], -6.7, places=2)
         self.assertEqual(result["owned_open_positions"], 1)
 
+    def test_active_autonomous_magic_100001_loss_is_counted(self):
+        now = datetime(2026, 10, 9, 12, 0, tzinfo=timezone.utc)
+        entry_time = int((now - timedelta(minutes=20)).timestamp())
+        exit_time = int((now - timedelta(minutes=5)).timestamp())
+        adapter = MagicMock()
+        adapter._initialized = True
+        adapter._mt5.history_deals_get.return_value = [
+            {
+                "time": entry_time, "type": 0, "entry": 0, "position_id": 707,
+                "magic": 100001, "comment": "BASE_HIERARCHY", "profit": 0,
+                "commission": -1.0, "swap": 0, "fee": 0,
+            },
+            {
+                "time": exit_time, "type": 1, "entry": 1, "position_id": 707,
+                "magic": 0, "comment": "", "profit": -69.0,
+                "commission": 0, "swap": 0, "fee": 0,
+            },
+        ]
+        adapter._mt5.last_error.return_value = (1, "Success")
+        adapter.get_positions.return_value = []
+
+        with tempfile.TemporaryDirectory() as temp:
+            guard = DailyLossKillSwitch(persistence_path=temp + "\\kill.json")
+            previous = DailyLossKillSwitch._instance
+            DailyLossKillSwitch._instance = guard
+            try:
+                result = calculate_yartrader_daily_pnl(adapter, now_utc=now)
+            finally:
+                DailyLossKillSwitch._instance = previous
+
+        self.assertEqual(result["owned_deal_count"], 2)
+        self.assertAlmostEqual(result["realized_pnl"], -70.0, places=2)
+        self.assertAlmostEqual(result["total_pnl"], -70.0, places=2)
+
     def test_daily_drawdown_uses_current_wallet_equity_not_old_baseline(self):
         with tempfile.TemporaryDirectory() as temp:
             guard = DailyLossKillSwitch(persistence_path=temp + "\\kill.json")

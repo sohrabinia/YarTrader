@@ -252,8 +252,8 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(blocked["status"], "WAIT")
         self.assertEqual(blocked["order_plan"]["status"], "WAIT")
 
-    def test_stale_pending_trigger_becomes_direct_market_deal(self):
-        """Pending trigger price is ignored; qualified entries execute at the current quote."""
+    def test_stale_entry_plan_is_rejected_instead_of_chasing_market(self):
+        """A market entry materially beyond the intended structural level must wait."""
         from unittest.mock import MagicMock
         adapter = MagicMock()
         adapter._mt5.ORDER_TYPE_BUY = 0
@@ -264,7 +264,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         trader = AutonomousDemoTrader(adapter=adapter)
         plan = {"status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY", "order_plan": {
             "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
-            "entry": 2500.3, "stop_loss": 2490.3, "take_profit": None,
+            "entry": 2480.0, "stop_loss": 2470.0, "take_profit": None,
             "net_reward_risk": 1.5, "expires_at": 2000,
         }, "reaction_analysis": {"scenario": {"target": 2525.0}}}
         result = trader._reconcile_base_pending_order(
@@ -272,12 +272,38 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             {"balance": 100000.0, "equity": 100000.0},
             {"digits": 2, "volume_min": 0.01, "volume_step": 0.01, "volume_max": 10.0, "trade_contract_size": 100.0},
         )
+        self.assertEqual(result["status"], "WAIT")
+        self.assertIn("moved 2.02R", result["reason"])
+        adapter.send_order_to_broker.assert_not_called()
+
+    def test_research_target_is_used_when_reaction_scenario_target_is_missing(self):
+        """A strategy's research target may supply analysis, but still passes execution-owned R:R checks."""
+        from unittest.mock import MagicMock
+        adapter = MagicMock()
+        adapter._mt5.ORDER_TYPE_BUY = 0
+        adapter._mt5.ORDER_TYPE_SELL = 1
+        adapter._mt5.order_calc_profit.side_effect = lambda typ, sym, vol, entry, stop: -abs(entry - stop) * vol * 100
+        adapter.get_active_orders.return_value = []
+        adapter.send_order_to_broker.return_value = MagicMock(Status="Placed", OrderId="321", DealTicket="654", Comment="filled")
+        trader = AutonomousDemoTrader(adapter=adapter)
+        plan = {
+            "status": "ORDER_PROPOSAL", "selected_strategy": "BASE_ENGULF_REVERSAL",
+            "order_plan": {"status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
+                           "entry": 2500.1, "stop_loss": 2490.3, "take_profit": None,
+                           "net_reward_risk": 1.5, "expires_at": 2000},
+            "reaction_analysis": {"scenario": {"target": None}},
+            "strategy_results": {"BASE_ENGULF_REVERSAL": {"research_target": 2525.0}},
+        }
+        result = trader._reconcile_base_pending_order(
+            "XAUUSD", plan, {"bid": 2500.0, "ask": 2500.2, "time": 1000},
+            {"balance": 100000.0, "equity": 100000.0},
+            {"digits": 2, "volume_min": 0.01, "volume_step": 0.01, "volume_max": 10.0, "trade_contract_size": 100.0},
+        )
         self.assertEqual(result["status"], "MARKET_OPENED")
+        adapter.send_order_to_broker.assert_called_once()
         request = adapter.send_order_to_broker.call_args.args[0]
         self.assertEqual(request.OrderType, "BUY")
-        self.assertEqual(request.Price, 2500.2)
-        self.assertNotIn("LIMIT", request.OrderType)
-        self.assertNotIn("STOP", request.OrderType)
+        self.assertEqual(request.TakeProfit, 2525.0)  # validated analytical target is protected broker-side
 
     def test_wait_cycle_cancels_legacy_yartrader_pending_order(self):
         """Legacy bot-owned pending entries are removed after the market-entry migration."""
@@ -310,7 +336,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         trader = AutonomousDemoTrader(adapter=adapter)
         plan = {"status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY", "order_plan": {
             "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
-            "entry": 1997.5, "stop_loss": 1994.5, "take_profit": None,
+            "entry": 1999.5, "stop_loss": 1994.5, "take_profit": None,
             "net_reward_risk": 0.4, "expires_at": 5000,
         }, "reaction_analysis": {"scenario": {"target": 2012.0}}}
         def bars(rng):
@@ -328,7 +354,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(request.OrderType, "BUY")
         self.assertEqual(request.Price, 2000.2)
 
-    def test_new_market_entry_has_no_preset_tp_and_uses_volatility_aware_stop(self):
+    def test_new_market_entry_sets_validated_broker_tp_and_volatility_aware_stop(self):
         from unittest.mock import MagicMock
         adapter = MagicMock()
         adapter._mt5.ORDER_TYPE_BUY = 0
@@ -339,7 +365,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         trader = AutonomousDemoTrader(adapter=adapter)
         plan = {"status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY", "order_plan": {
             "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
-            "entry": 1998.0, "stop_loss": 1994.5, "take_profit": None,
+            "entry": 1999.5, "stop_loss": 1994.5, "take_profit": None,
             "net_reward_risk": 1.5, "expires_at": 5000,
         }, "reaction_analysis": {"scenario": {"target": 2012.0}}}
         def bars(rng):
@@ -356,7 +382,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(request.OrderType, "BUY")
         self.assertEqual(request.Price, 2000.2)
         self.assertEqual(request.StopLoss, 1994.5)
-        self.assertEqual(request.TakeProfit, 0.0)
+        self.assertEqual(request.TakeProfit, 2012.0)
 
     def test_too_close_child_stop_promotes_to_nearest_parent_boundary(self):
         from unittest.mock import MagicMock
@@ -371,7 +397,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             "status": "ORDER_PROPOSAL",
             "order_plan": {
                 "status": "PROPOSED", "direction": "SELL", "order_type": "SELL_LIMIT",
-                "entry": 1.1202, "stop_loss": 1.12025, "take_profit": None,
+                "entry": 1.12012, "stop_loss": 1.12025, "take_profit": None,
                 "gross_reward_risk": 24.0, "net_reward_risk": 16.0, "expires_at": 5000,
             },
             "structure": {"hierarchy_chain": [
@@ -409,7 +435,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         trader = AutonomousDemoTrader(adapter=adapter)
         plan = {"status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY", "order_plan": {
             "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
-            "entry": 1998.0, "stop_loss": 1995.0, "take_profit": None,
+            "entry": 1999.5, "stop_loss": 1995.0, "take_profit": None,
             "net_reward_risk": 1.5, "expires_at": 5000,
         }, "reaction_analysis": {"scenario": {"target": 2012.0}}}
         result = trader._reconcile_base_pending_order(

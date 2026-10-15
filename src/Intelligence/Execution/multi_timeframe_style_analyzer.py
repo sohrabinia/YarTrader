@@ -79,6 +79,33 @@ def _candle_trigger(bars: List[Dict[str, float]]) -> int:
     return 0
 
 
+def _compression_break_trigger(bars: List[Dict[str, float]]) -> int:
+    """Detect a closed-bar break after two overlapping candles.
+
+    This captures early micro-structure release at a level; overlap alone is
+    not a trade signal. The newest completed candle must close beyond both
+    overlapping candles with a directional body.
+    """
+    if len(bars) < 3:
+        return 0
+    first, second, release = bars[-3], bars[-2], bars[-1]
+    first_range = float(first["high"]) - float(first["low"])
+    second_range = float(second["high"]) - float(second["low"])
+    release_range = float(release["high"]) - float(release["low"])
+    if min(first_range, second_range, release_range) <= 0:
+        return 0
+    overlap = min(first["high"], second["high"]) - max(first["low"], second["low"])
+    overlap_ratio = overlap / min(first_range, second_range)
+    body = abs(float(release["close"]) - float(release["open"]))
+    if overlap_ratio < 0.35 or body < 0.30 * release_range:
+        return 0
+    if release["close"] < release["open"] and release["close"] < min(first["low"], second["low"]):
+        return -1
+    if release["close"] > release["open"] and release["close"] > max(first["high"], second["high"]):
+        return 1
+    return 0
+
+
 def _rtm_zone(bars: List[Dict[str, float]]) -> Optional[Dict[str, Any]]:
     """Find the latest compact 2-5 candle base followed by decisive displacement."""
     if len(bars) < 20:
@@ -230,7 +257,10 @@ class MultiTimeframeStyleAnalyzer:
     """Evaluate RTM and Price Action independently across available timeframes."""
     STRATEGIES = ("BASE_HIERARCHY", "RTM", "PRICE_ACTION", "BASE_ENGULF_REVERSAL")
     CONTEXT_TFS = ("MN1", "W1", "D1", "H4", "H1")
-    SETUP_TFS = ("M30", "M15", "M5")
+    # Prefer the actionable child timeframe first; higher frames remain context filters.
+    # The previous M30-first lookup always selected M30 when data existed, silently
+    # preventing the RTM/Price-Action engine from evaluating M5/M15 setups.
+    SETUP_TFS = ("M5", "M15", "M30")
     TRIGGER_TFS = ("M1", "M5")
     BASE_TFS = ("MN1", "W1", "D1", "H4", "H1", "M30", "M15", "M5", "M1")
 
@@ -297,9 +327,9 @@ class MultiTimeframeStyleAnalyzer:
             else:
                 item.update({"confidence": 0.0, "status": "WAIT", "reason": detected.get("reason", "")})
             timeframe_results[tf] = item
-        # Prefer the highest timeframe with a valid proposal; each timeframe is
-        # still recorded separately so research can compare all Base scales.
-        selected = next((timeframe_results[tf] for tf in self.BASE_TFS
+        # Select the smallest timeframe with a valid setup so the model can enter
+        # at the earliest confirmed fractal scale; retain all timeframe diagnostics.
+        selected = next((timeframe_results[tf] for tf in reversed(self.BASE_TFS)
                          if timeframe_results[tf]["status"] == "ENTRY_PROPOSAL"), None)
         if selected:
             return {**selected, "strategy_name": "BASE_ENGULF_REVERSAL",
@@ -382,12 +412,40 @@ class MultiTimeframeStyleAnalyzer:
     def _evaluate_one(self, strategy: str, bars: Mapping[str, List[Dict[str, float]]],
                       biases: Mapping[str, int], quote: Mapping[str, float],
                       now: float, spread_allowance: float) -> Dict[str, Any]:
+        """Evaluate every setup scale, preferring the earliest qualified child-timeframe entry."""
+        diagnostics = []
+        for setup_tf in self.SETUP_TFS:
+            if len(bars.get(setup_tf, [])) < 30:
+                continue
+            result = self._evaluate_one_at_setup_tf(
+                strategy, bars, biases, quote, now, spread_allowance, setup_tf_override=setup_tf
+            )
+            diagnostics.append(result)
+        if diagnostics:
+            # Evaluate every available setup scale, then prefer the smallest timeframe
+            # with a valid proposal. Larger-frame evidence remains in diagnostics.
+            selected = next((item for item in diagnostics
+                             if item.get("status") == "ENTRY_PROPOSAL"), diagnostics[0])
+            selected["timeframe_diagnostics"] = [
+                {"timeframe": item.get("setup_timeframe"), "status": item.get("status"),
+                 "reason": item.get("reason")} for item in diagnostics
+            ]
+            return selected
+        return self._evaluate_one_at_setup_tf(
+            strategy, bars, biases, quote, now, spread_allowance, setup_tf_override=None
+        )
+
+    def _evaluate_one_at_setup_tf(self, strategy: str, bars: Mapping[str, List[Dict[str, float]]],
+                                  biases: Mapping[str, int], quote: Mapping[str, float],
+                                  now: float, spread_allowance: float,
+                                  setup_tf_override: Optional[str] = None) -> Dict[str, Any]:
         wait = {"strategy_name": strategy, "status": "WAIT", "direction": "WAIT",
                 "confidence": 0.0, "timeframe_analysis": dict(biases),
                 "execution_enabled": False, "order_plan": None, "reason": ""}
         context = [biases.get(tf, 0) for tf in self.CONTEXT_TFS if biases.get(tf, 0)]
         context_available = sum(1 for tf in self.CONTEXT_TFS if len(bars.get(tf, [])) >= 12)
-        setup_tf = next((tf for tf in self.SETUP_TFS if len(bars.get(tf, [])) >= 30), None)
+        setup_tf = setup_tf_override or next((tf for tf in self.SETUP_TFS if len(bars.get(tf, [])) >= 30), None)
+        wait["setup_timeframe"] = setup_tf
         trigger_tf = next((tf for tf in self.TRIGGER_TFS if len(bars.get(tf, [])) >= 3), None)
         if context_available < 2 or len(context) < 1 or not setup_tf or not trigger_tf:
             wait["reason"] = "Multi-timeframe setup requires at least two macro/context frames, a directional context bias, a setup frame, and a lower-timeframe trigger frame."
@@ -398,6 +456,12 @@ class MultiTimeframeStyleAnalyzer:
             wait["reason"] = "Future candle detected; evaluation rejected."
             return wait
         trigger = _candle_trigger(trigger_bars)
+        # A two-candle overlap at a pre-identified structure is a compression
+        # phase, not an entry by itself. Accept the first closed M1/M5 candle
+        # that decisively releases from that overlap, even without an engulfing
+        # candle or pin bar.
+        if trigger == 0:
+            trigger = _compression_break_trigger(trigger_bars)
         if strategy == "RTM":
             zone = _rtm_zone(setup_bars)
             if not zone:

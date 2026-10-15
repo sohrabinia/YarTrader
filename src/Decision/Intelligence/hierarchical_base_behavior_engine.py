@@ -146,7 +146,46 @@ class HierarchicalBaseBehaviorEngine:
         if not children:
             return {"status": "WAIT", "reason": "No confirmed M15/M5 child base.",
                     "order_plan": self.planner.plan({}, quote, now).to_dict()}
-        child = children[-1]
+        # Prefer the newest child that actually has a causal higher-timeframe
+        # parent. A newer orphan child must not hide an older still-valid MTF setup.
+        # This only changes candidate selection; it does not relax parent geometry,
+        # M1 trigger, reaction-model, spread, stop-loss, or net-R:R gates.
+        def _has_parent_context(candidate: Mapping[str, Any]) -> bool:
+            candidate_tf = str(candidate.get("timeframe", ""))
+            candidate_start = int(candidate.get("base_start_time", 0))
+            candidate_end = int(candidate.get("base_end_time", 0))
+            candidate_confirm = int(candidate.get("confirmation_time", 0))
+            candidate_low = float(candidate.get("base_low", -math.inf))
+            candidate_high = float(candidate.get("base_high", math.inf))
+            candidate_mid = float(candidate.get("base_mid", (candidate_low + candidate_high) / 2))
+            candidate_direction = int(candidate.get("exit_direction", 0))
+            if candidate_direction not in (-1, 1):
+                return False
+            for possible_parent in events:
+                parent_tf_candidate = str(possible_parent.get("timeframe", ""))
+                if _tf_rank(parent_tf_candidate) >= _tf_rank(candidate_tf):
+                    continue
+                parent_confirm = int(possible_parent.get("confirmation_time", 0))
+                if parent_confirm > candidate_confirm:
+                    continue
+                if candidate_confirm - parent_confirm > 24 * TIMEFRAME_SECONDS.get(parent_tf_candidate, 60):
+                    continue
+                parent_low = float(possible_parent.get("base_low", -math.inf))
+                parent_high = float(possible_parent.get("base_high", math.inf))
+                parent_mid = float(possible_parent.get("base_mid", (parent_low + parent_high) / 2))
+                starts_before = int(possible_parent.get("base_start_time", 0)) <= candidate_start
+                contains_time = int(possible_parent.get("base_end_time", 0)) >= candidate_end
+                contains_price = parent_low <= candidate_low and parent_high >= candidate_high
+                if starts_before and contains_time and contains_price:
+                    return True
+                overlaps_zone = candidate_low <= parent_high and candidate_high >= parent_low
+                directional_corridor = candidate_mid >= parent_mid if candidate_direction > 0 else candidate_mid <= parent_mid
+                if starts_before and (overlaps_zone or directional_corridor):
+                    return True
+            return False
+
+        contextual_children = [candidate for candidate in children if _has_parent_context(candidate)]
+        child = contextual_children[-1] if contextual_children else children[-1]
         # Production requires a fresh child Base. DEMO/backtest exploration may
         # reuse a previously confirmed zone, but only if a fresh causal M1 trigger
         # and structural SL/TP with net R:R > 1 are still present.

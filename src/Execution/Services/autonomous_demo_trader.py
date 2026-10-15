@@ -413,14 +413,90 @@ class AutonomousDemoTrader:
         return None
 
     def _log_event(self, event: Dict[str, Any]) -> None:
-        event["timestamp_utc"] = datetime.now(timezone.utc).isoformat()
+        # Append-only forensic journal: each decision/order/management/close event
+        # gets UTC calendar/session metadata and is written independently of snapshots.
+        now = datetime.now(timezone.utc)
+        event = dict(event)
+        event.setdefault("timestamp_utc", now.isoformat())
+        event.setdefault("trade_type", "DEMO")
+        event.setdefault("strategy_style", event.get("selected_strategy") or event.get("strategy") or "BASE_HIERARCHY")
+        base_plan = event.get("base_plan") if isinstance(event.get("base_plan"), dict) else {}
+        hierarchy = base_plan.get("hierarchy") if isinstance(base_plan.get("hierarchy"), dict) else {}
+        structure = (
+            event.get("hierarchy_structure") if isinstance(event.get("hierarchy_structure"), dict)
+            else event.get("structure") if isinstance(event.get("structure"), dict)
+            else base_plan.get("structure") if isinstance(base_plan.get("structure"), dict)
+            else hierarchy.get("structure") if isinstance(hierarchy.get("structure"), dict)
+            else {}
+        )
+        event.setdefault(
+            "decision_timeframe",
+            event.get("primary_timeframe") or ("MULTI_TIMEFRAME" if structure else event.get("timeframe") or "UNKNOWN")
+        )
+        event.setdefault("setup_timeframe", event.get("setup_tf") or structure.get("child_timeframe") or "UNKNOWN")
+        event.setdefault(
+            "entry_timeframe",
+            event.get("trigger_timeframe") or structure.get("micro_timeframe") or "UNKNOWN"
+        )
+        event.setdefault(
+            "execution_timeframe",
+            event.get("execution_tf") or structure.get("micro_timeframe") or "UNKNOWN"
+        )
+        event.setdefault(
+            "context_timeframes",
+            structure.get("hierarchy_timeframes_considered") or event.get("timeframes_used") or []
+        )
+        event.setdefault("weekday_utc", now.strftime("%A"))
+        event.setdefault("day_of_month", now.day)
+        event.setdefault("month", now.month)
+        event.setdefault("year", now.year)
+        minute = now.hour * 60 + now.minute
+        event.setdefault("session_utc", (
+            "ASIA" if minute < 7 * 60 else
+            "LONDON" if minute < 12 * 60 else
+            "NEW_YORK_OVERLAP" if minute < 16 * 60 else
+            "NEW_YORK" if minute < 21 * 60 else "LATE_US_OR_ROLLOVER"
+        ))
+        # Entry calendar metadata must follow broker-confirmed entry time, not close/review time.
+        entry_timestamp = event.get("opened_at_utc") or event.get("entry_time_utc") or event.get("open_time")
+        if entry_timestamp:
+            try:
+                entry_dt = datetime.fromisoformat(str(entry_timestamp).replace("Z", "+00:00"))
+                if entry_dt.tzinfo is None:
+                    entry_dt = entry_dt.replace(tzinfo=timezone.utc)
+                entry_dt = entry_dt.astimezone(timezone.utc)
+                event.setdefault("entry_time_utc", entry_dt.isoformat())
+                event.setdefault("entry_weekday", entry_dt.strftime("%A"))
+                event.setdefault("entry_day_of_month", entry_dt.day)
+                event.setdefault("entry_month", entry_dt.month)
+                event.setdefault("entry_year", entry_dt.year)
+                entry_minute = entry_dt.hour * 60 + entry_dt.minute
+                event.setdefault("entry_session_utc", (
+                    "ASIA" if entry_minute < 420 else "LONDON" if entry_minute < 720 else
+                    "NEW_YORK_OVERLAP" if entry_minute < 960 else
+                    "NEW_YORK" if entry_minute < 1260 else "LATE_US_OR_ROLLOVER"
+                ))
+            except (TypeError, ValueError, OverflowError):
+                event.setdefault("entry_calendar_metadata_status", "INVALID_ENTRY_TIMESTAMP")
+        # Tests use mock adapters; never let test fixtures contaminate real runtime journals.
+        if (getattr(self, "adapter", None) is not None
+                and type(self.adapter) is not RealMT5BrokerAdapter
+                and _PROJECT_ROOT == Path(__file__).resolve().parents[3]):
+            logger.info("Autonomous DEMO trader test event (not persisted to production logs): %s", event)
+            return
         try:
             folder = _PROJECT_ROOT / "runtime_logs"
             folder.mkdir(parents=True, exist_ok=True)
-            with (folder / "autonomous_demo_trader.jsonl").open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
+            payload = json.dumps(event, ensure_ascii=False, default=str, sort_keys=True) + "\n"
+            # Preserve the existing runtime stream and a dedicated journal stream.
+            for filename in ("autonomous_demo_trader.jsonl", "trade_journal_events_v2.jsonl"):
+                with (folder / filename).open("a", encoding="utf-8") as handle:
+                    handle.write(payload)
+                    handle.flush()
+                    os.fsync(handle.fileno())
         except OSError:
-            logger.exception("Unable to persist autonomous DEMO trader event")
+            # Do not hide audit persistence failures; they must be visible in logs.
+            logger.exception("Unable to persist autonomous DEMO trader event/journal")
         logger.info("Autonomous DEMO trader: %s", event)
 
     def _trade_review_file(self) -> Path:
@@ -457,7 +533,7 @@ class AutonomousDemoTrader:
 
     @staticmethod
     def _planned_target(base_plan: Dict[str, Any]) -> float:
-        """Return the analyzed target even when strategy-managed exits omit broker TP."""
+        """Return the best positive target supplied by the current strategy analysis."""
         plan = base_plan.get("order_plan") or {}
         reaction = base_plan.get("reaction_analysis") or {}
         hierarchy = base_plan.get("hierarchy") or {}
@@ -471,6 +547,7 @@ class AutonomousDemoTrader:
             (hierarchy.get("order_plan") or {}).get("take_profit"),
             (strategy.get("order_plan") or {}).get("take_profit"),
             strategy.get("target"),
+            strategy.get("research_target"),
             (strategy.get("market_behavior") or {}).get("target_price"),
         )
         for value in candidates:
@@ -573,7 +650,9 @@ class AutonomousDemoTrader:
                         "initial_take_profit": float(self._field(pos, "tp", 0.0) or 0.0),
                         "volume": float(self._field(pos, "volume", 0.0) or 0.0),
                         "opened_epoch": int(self._field(pos, "time", 0) or now.timestamp()),
-                        "opened_at_utc": now.isoformat(), "max_favorable_excursion": 0.0,
+                        "opened_at_utc": datetime.fromtimestamp(
+                            int(self._field(pos, "time", 0) or now.timestamp()), timezone.utc
+                        ).isoformat(), "max_favorable_excursion": 0.0,
                         "max_adverse_excursion": 0.0, "analysis_reviews": [],
                         "setup_signature": submitted.get("signature") or (analysis_signature if analysis.get("status") == "ORDER_PROPOSAL" else ""),
                         "setup_snapshot": submitted or ({
@@ -588,11 +667,25 @@ class AutonomousDemoTrader:
                         } if analysis.get("status") == "ORDER_PROPOSAL" else {}),
                     }
                     tracked[key] = record
-                    self._log_event({"event": "trade_review_started", "symbol": symbol.upper(),
-                                     "position_id": identifier, "ticket": ticket, "direction": direction,
-                                     "entry_price": entry, "initial_stop_loss": record["initial_stop_loss"],
-                                     "initial_take_profit": record["initial_take_profit"],
-                                     "setup_signature": record["setup_signature"]})
+                    snapshot = record.get("setup_snapshot") or {}
+                    structure = snapshot.get("structure") or {}
+                    self._log_event({
+                        "event": "trade_review_started", "symbol": symbol.upper(),
+                        "position_id": identifier, "ticket": ticket, "direction": direction,
+                        "entry_price": entry, "initial_stop_loss": record["initial_stop_loss"],
+                        "initial_take_profit": record["initial_take_profit"], "volume": record["volume"],
+                        "opened_at_utc": record["opened_at_utc"],
+                        "strategy_style": record.get("strategy") or snapshot.get("strategy") or "BASE_HIERARCHY",
+                        "decision_timeframe": "MULTI_TIMEFRAME",
+                        "setup_timeframe": structure.get("child_timeframe") or structure.get("selected_child_timeframe") or "UNKNOWN",
+                        "entry_timeframe": snapshot.get("entry_timeframe") or "M1",
+                        "execution_timeframe": "M1",
+                        "context_timeframes": structure.get("hierarchy_timeframes_considered") or snapshot.get("context_timeframes") or ["H4", "H1", "M15", "M5", "M1"],
+                        "setup_signature": record["setup_signature"],
+                        "setup_description": snapshot.get("analysis_reason") or snapshot.get("reason") or "",
+                        "hierarchy_structure": structure, "setup_snapshot": snapshot,
+                        "data_source": "MT5_DEMO_BROKER",
+                    })
                 record["last_price"] = current
                 record["last_seen_at_utc"] = now.isoformat()
                 record["current_stop_loss"] = float(self._field(pos, "sl", 0.0) or 0.0)
@@ -600,9 +693,27 @@ class AutonomousDemoTrader:
                 record["max_favorable_excursion"] = max(float(record.get("max_favorable_excursion", 0.0)), move, 0.0)
                 record["max_adverse_excursion"] = max(float(record.get("max_adverse_excursion", 0.0)), -move, 0.0)
                 if analysis:
+                    current_style = str(analysis.get("selected_strategy") or analysis.get("decision_authority") or record.get("strategy") or "BASE_HIERARCHY").upper()
+                    previous_reviews = record.get("analysis_reviews") or []
+                    previous_style = str(
+                        record.get("last_reviewed_strategy")
+                        or (previous_reviews[-1].get("strategy") if previous_reviews else "")
+                        or ""
+                    ).upper()
+                    if previous_style and current_style and current_style != previous_style:
+                        transition = {
+                            "timestamp_utc": now.isoformat(), "position_id": identifier,
+                            "symbol": symbol.upper(), "from_style": previous_style, "to_style": current_style,
+                            "reason": str(analysis.get("reason") or "Strategy authority changed during open trade")[:600],
+                            "risk_revalidation_required": True,
+                            "entry_style_remains_immutable": True,
+                        }
+                        record.setdefault("style_transitions", []).append(transition)
+                        self._log_event({"event": "trade_style_transition", **transition})
+                    record["last_reviewed_strategy"] = current_style
                     review = {
                         "timestamp_utc": now.isoformat(), "setup_signature": analysis_signature,
-                        "status": analysis.get("status"), "strategy": analysis.get("selected_strategy") or analysis.get("decision_authority"),
+                        "status": analysis.get("status"), "strategy": current_style,
                         "reason": str(analysis.get("reason") or "")[:600],
                         "direction": str((analysis.get("order_plan") or {}).get("direction") or "WAIT"),
                         "entry": (analysis.get("order_plan") or {}).get("entry"),
@@ -672,8 +783,11 @@ class AutonomousDemoTrader:
                         continue
                     entry_price = float(record.get("entry_price") or self._field(entry_deal, "price", 0.0) or 0.0)
                     exit_price = float(self._field(exit_deal, "price", 0.0) or 0.0)
-                    pnl = sum(float(self._field(d, "profit", 0.0) or 0.0) + float(self._field(d, "commission", 0.0) or 0.0)
-                              + float(self._field(d, "swap", 0.0) or 0.0) + float(self._field(d, "fee", 0.0) or 0.0) for d in history)
+                    gross_pnl = sum(float(self._field(d, "profit", 0.0) or 0.0) for d in history)
+                    commission_total = sum(float(self._field(d, "commission", 0.0) or 0.0) for d in history)
+                    swap_total = sum(float(self._field(d, "swap", 0.0) or 0.0) for d in history)
+                    fee_total = sum(float(self._field(d, "fee", 0.0) or 0.0) for d in history)
+                    pnl = gross_pnl + commission_total + swap_total + fee_total
                     reasons = {int(self._field(d, "reason", -1) or -1) for d in exits}
                     exit_reason = "STOP_LOSS" if reason_sl in reasons else ("TAKE_PROFIT" if reason_tp in reasons else "STRATEGY_OR_MANUAL_EXIT")
                     submitted = record.get("setup_snapshot") or state["last_submitted_setup_by_symbol"].get(symbol.upper(), {})
@@ -701,14 +815,58 @@ class AutonomousDemoTrader:
                         )
                         if not isinstance(learning_result, dict) or learning_result.get("source") != "DEMO":
                             raise RuntimeError("Brain Learning Bridge did not confirm durable DEMO outcome processing.")
-                        self._log_event({"event": "trade_outcome_learned", "symbol": symbol.upper(),
-                                         "position_id": int(position_id), "direction": direction, "exit_reason": exit_reason,
-                                         "entry_price": entry_price, "exit_price": exit_price, "pnl": pnl,
-                                         "initial_stop_loss": record.get("initial_stop_loss"),
-                                         "initial_take_profit": record.get("initial_take_profit"),
-                                         "mfe": record.get("max_favorable_excursion", 0.0),
-                                         "mae": record.get("max_adverse_excursion", 0.0),
-                                         "learning_result": learning_result})
+                        self._log_event({
+                            "event": "trade_outcome_learned", "symbol": symbol.upper(),
+                            "position_id": int(position_id), "direction": direction, "exit_reason": exit_reason,
+                            "entry_price": entry_price, "exit_price": exit_price,
+                            "pnl_gross": gross_pnl, "pnl_net_including_costs": pnl,
+                            "costs": {
+                                "commission": commission_total, "swap": swap_total, "fees": fee_total,
+                                "cost_total": commission_total + swap_total + fee_total,
+                                "source": "MT5_DEAL_HISTORY",
+                            },
+                            "result": "WIN" if pnl > 0.5 else ("LOSS" if pnl < -0.5 else "BREAKEVEN"),
+                            "post_trade_conclusion": (
+                                f"Broker-confirmed close: {exit_reason}; net PnL including recorded costs={pnl:.2f}; "
+                                f"MFE={float(record.get('max_favorable_excursion', 0.0) or 0.0):.5f}; "
+                                f"MAE={float(record.get('max_adverse_excursion', 0.0) or 0.0):.5f}. "
+                                "This is an outcome summary, not proof the strategy has positive expectancy."
+                            ),
+                            "post_trade_review_status": "PENDING_RESEARCH_REVIEW",
+                            "alternative_entry_analysis": {
+                                "status": "PENDING_REPLAY",
+                                "hypothesis": (
+                                    "If selected-base boundaries are present, replay entry at 20% into the base "
+                                    "and a stop beyond the far base boundary plus a volatility buffer."
+                                ),
+                                "required_checks": [
+                                    "compare fill probability and missed-entry rate",
+                                    "recalculate stop distance, position size, and net R multiple",
+                                    "include spread, commission, slippage, and broker stop constraints",
+                                    "validate on chronological out-of-sample data before changing execution",
+                                ],
+                            },
+                            "initial_stop_loss": record.get("initial_stop_loss"),
+                            "initial_take_profit": record.get("initial_take_profit"),
+                            "opened_at_utc": record.get("opened_at_utc") or datetime.fromtimestamp(
+                                int(self._field(entry_deal, "time", now.timestamp()) or now.timestamp()), timezone.utc
+                            ).isoformat(),
+                            "closed_at_utc": datetime.fromtimestamp(
+                                int(self._field(exit_deal, "time", now.timestamp()) or now.timestamp()), timezone.utc
+                            ).isoformat(),
+                            "strategy_style": record.get("strategy") or submitted.get("strategy") or "BASE_HIERARCHY",
+                            "decision_timeframe": "MULTI_TIMEFRAME",
+                            "setup_timeframe": (submitted.get("structure") or {}).get("child_timeframe") or "UNKNOWN",
+                            "entry_timeframe": submitted.get("entry_timeframe") or "M1",
+                            "execution_timeframe": "M1",
+                            "context_timeframes": (submitted.get("structure") or {}).get("hierarchy_timeframes_considered") or submitted.get("context_timeframes") or ["H4", "H1", "M15", "M5", "M1"],
+                            "setup_description": submitted.get("analysis_reason") or "",
+                            "setup_snapshot": submitted,
+                            "mfe": record.get("max_favorable_excursion", 0.0),
+                            "mae": record.get("max_adverse_excursion", 0.0),
+                            "learning_result": learning_result,
+                            "data_source": "MT5_DEAL_HISTORY",
+                        })
                     except Exception as learning_exc:
                         # Keep the broker-confirmed close eligible for retry on the next
                         # reconciliation cycle. Never mark a failed learning write processed.
@@ -757,13 +915,10 @@ class AutonomousDemoTrader:
                 else:
                     history_result = store.sync_history(deals, self.adapter._mt5, symbol=symbol)
                     self._last_learning_sync_epoch = now_epoch
-                    if history_result.get("new_deals_recorded", 0) or not store.report_path.exists():
-                        report = store.build_discovery_report()
-                    else:
-                        try:
-                            report = json.loads(store.report_path.read_text(encoding="utf-8"))
-                        except (OSError, ValueError):
-                            report = store.build_discovery_report()
+                    # Rebuild from opening-deal ownership on every history sync.
+                    # Older reports may have mixed manual account trades into bot learning;
+                    # keeping a stale report when no new deal arrives would preserve that bug.
+                    report = store.build_discovery_report()
                     self._log_event({"event": "strategy_learning_sync", "symbol": symbol,
                                      "new_deals_recorded": history_result.get("new_deals_recorded", 0),
                                      "history_deals_seen": history_result.get("total_seen", 0),
@@ -1069,11 +1224,55 @@ class AutonomousDemoTrader:
             ask = float(tick.get("ask") or 0.0)
             if not math.isfinite(bid) or not math.isfinite(ask) or bid <= 0.0 or ask < bid:
                 raise ValueError("Current broker quote is invalid; market entry blocked.")
-            # Treat the strategy's pending trigger as an analysis hint only. Execute
-            # at the currently executable quote and recompute R:R and risk from it.
-            entry = ask if direction == "BUY" else bid
-            order_type = direction
+            planned_entry = float(plan.get("entry") or 0.0)
             stop = float(plan["stop_loss"])
+            if not math.isfinite(planned_entry) or planned_entry <= 0.0:
+                raise ValueError("Strategy proposal has no valid planned entry price.")
+            # A limit/stop trigger on the wrong side of the live quote is already
+            # crossed. Do not reinterpret that invalid pending setup as a market deal.
+            crossed_trigger = (
+                (planned_order_type == "BUY_LIMIT" and planned_entry >= ask)
+                or (planned_order_type == "SELL_LIMIT" and planned_entry <= bid)
+                or (planned_order_type == "BUY_STOP" and planned_entry <= ask)
+                or (planned_order_type == "SELL_STOP" and planned_entry >= bid)
+            )
+            if crossed_trigger:
+                self._log_event({
+                    "event": "entry_rejected_crossed_trigger", "symbol": symbol,
+                    "strategy": strategy_name, "planned_order_type": planned_order_type,
+                    "planned_entry": planned_entry, "bid": bid, "ask": ask,
+                    "reason": "The conditional entry level has already crossed the executable quote; wait for a newly evaluated setup.",
+                })
+                return {"status": "WAIT", "reason": (
+                    f"{planned_order_type} trigger {planned_entry} is already crossed by the current quote; "
+                    "no market order was sent."
+                )}
+            planned_risk_distance = abs(planned_entry - stop)
+            if not math.isfinite(planned_risk_distance) or planned_risk_distance <= 0.0:
+                raise ValueError("Strategy proposal has no valid planned entry-to-stop distance.")
+            tick_time = int(tick.get("time") or 0)
+            expires_at = plan.get("expires_at")
+            if expires_at is not None and tick_time > 0 and tick_time >= int(expires_at):
+                return {"status": "WAIT", "reason": "Entry proposal expired before execution; no stale order was sent."}
+            # This worker currently uses market deals rather than broker pending orders.
+            # Therefore never replace the strategy's planned level with a materially
+            # worse quote: reject stale setups instead of chasing the completed move.
+            entry = ask if direction == "BUY" else bid
+            entry_drift_r = abs(entry - planned_entry) / planned_risk_distance
+            if entry_drift_r > self.MAX_ENTRY_DRIFT_R:
+                self._log_event({
+                    "event": "entry_rejected_excessive_drift", "symbol": symbol,
+                    "strategy": strategy_name, "direction": direction,
+                    "planned_entry": planned_entry, "current_entry": entry,
+                    "planned_stop_loss": stop, "entry_drift_r": round(entry_drift_r, 4),
+                    "maximum_entry_drift_r": self.MAX_ENTRY_DRIFT_R,
+                    "reason": "Price moved too far from the planned structural entry; wait for a fresh setup instead of chasing.",
+                })
+                return {"status": "WAIT", "reason": (
+                    f"Price moved {entry_drift_r:.2f}R from the planned entry; "
+                    f"maximum allowed drift is {self.MAX_ENTRY_DRIFT_R:.2f}R. Wait for a fresh setup; no chase entry sent."
+                ), "entry_drift_r": round(entry_drift_r, 4)}
+            order_type = direction
             original_stop = stop
             target = float(plan.get("take_profit") or 0.0)
             spread_now = max(0.0, float(tick.get("ask", 0.0)) - float(tick.get("bid", 0.0)))
@@ -1176,7 +1375,6 @@ class AutonomousDemoTrader:
                 # The stop remains the selected structural invalidation; ATR only
                 # bounds acceptable distance and never fabricates a stop price.
                 plan["stop_loss"] = stop
-                plan["take_profit"] = None
             expires = None
             digits = int(symbol_info["digits"])
             if direction not in ("BUY", "SELL") or planned_order_type not in ("BUY_LIMIT", "SELL_LIMIT", "BUY_STOP", "SELL_STOP", "BUY", "SELL"):
@@ -1190,9 +1388,16 @@ class AutonomousDemoTrader:
             if not analytical_scenario:
                 analytical_scenario = (base_plan.get("hierarchy") or {}).get("scenario") or {}
             try:
-                analytical_target = float(analytical_scenario.get("target"))
+                target_value = analytical_scenario.get("target")
+                if target_value is None:
+                    # Some independent strategies publish a validated research target
+                    # in strategy_results rather than reaction_analysis.scenario.
+                    # Use it only as an analytical candidate; the execution core still
+                    # checks direction, costs, net R:R, and position risk below.
+                    target_value = self._planned_target(base_plan)
+                analytical_target = float(target_value)
                 if not math.isfinite(analytical_target) or analytical_target <= 0:
-                    raise ValueError("A valid structural target is required for YarTrader's own net R:R check.")
+                    raise ValueError("A valid structural or strategy-analysis target is required for YarTrader's own net R:R check.")
                 reward_distance = (analytical_target - entry if direction == "BUY" else entry - analytical_target)
                 if reward_distance <= 0 or risk_distance <= 0:
                     raise ValueError("Target must be on the profitable side of entry and stop distance must be positive.")
@@ -1219,6 +1424,11 @@ class AutonomousDemoTrader:
                     f"YarTrader blocks this order: net R:R {net_rr:.4f} must be strictly greater than "
                     f"{self.MIN_RR:.1f} after spread, slippage, and commission."
                 )
+            # Every new DEMO entry must carry a broker-side protective TP as well
+            # as the structural SL. The analytical target is accepted only after
+            # direction, costs, and net reward/risk have been validated above.
+            target = analytical_target
+            plan["take_profit"] = target
         except (KeyError, TypeError, ValueError, OverflowError) as exc:
             return {"status": "BLOCKED", "reason": f"Invalid Base pending order plan: {exc}"}
 
@@ -1244,25 +1454,34 @@ class AutonomousDemoTrader:
             strategy_names, strategy_name, float(ProductionRiskPolicy.TARGET_RISK_PCT)
         )
         allocated_risk_pct = float(allocation["risk_pct"])
-        sizing = calculate_demo_volume_by_risk(
-            mt5, symbol, direction, entry, stop, symbol_info,
-            float(account.get("balance") or 0), float(account.get("equity") or 0),
-            allocated_risk_pct, allow_portfolio_allocation=True,
-        )
+        try:
+            sizing = calculate_demo_volume_by_risk(
+                mt5, symbol, direction, entry, stop, symbol_info,
+                float(account.get("balance") or 0), float(account.get("equity") or 0),
+                allocated_risk_pct, allow_portfolio_allocation=True,
+            )
+        except (ValidationException, ValueError, TypeError, KeyError) as exc:
+            self._log_event({
+                "event": "entry_blocked_invalid_risk_sizing_facts", "symbol": symbol,
+                "strategy": strategy_name, "direction": direction,
+                "planned_entry": planned_entry, "current_entry": entry, "stop_loss": stop,
+                "reason": str(exc),
+            })
+            return {"status": "RISK_BLOCKED", "reason": f"Risk sizing could not be verified: {exc}"}
         sizing["strategy_allocation"] = allocation
         if not sizing.get("allowed"):
             return {"status": "RISK_BLOCKED", "reason": sizing.get("reason"), "risk": sizing}
         request = OrderRequest(
             Symbol=symbol, OrderType=order_type, Volume=float(sizing["volume"]),
-            Price=round(entry, digits), StopLoss=round(stop, digits), TakeProfit=0.0,
+            Price=round(entry, digits), StopLoss=round(stop, digits), TakeProfit=round(target, digits),
             Comment=strategy_comment, Magic=100001, Expiration=expires, RiskPct=allocated_risk_pct,
         )
         response = self.adapter.send_order_to_broker(request)
         self._log_event({
             "event": "strategy_market_deal_submission", "symbol": symbol, "strategy": strategy_name,
-            "order_type": order_type, "entry": entry, "stop_loss": stop, "take_profit": None,
+            "order_type": order_type, "entry": entry, "stop_loss": stop, "take_profit": round(target, digits),
             "entry_qualification_net_rr": net_rr,
-            "exit_policy": "strategy_managed_structural_exit; protective_SL_only; no_preset_TP",
+            "exit_policy": "broker_protective_initial_TP_with_strategy_managed_target_extension",
             "expiration": expires, "risk": sizing, "broker_status": response.Status,
             "broker_order_id": response.OrderId, "broker_retcode": response.Retcode,
         })
@@ -1518,22 +1737,9 @@ class AutonomousDemoTrader:
                                 "reason": "The position was closed only after its own strategy confirmed an opposite setup.",
                                 "execution_enabled": True}
 
-                    # Strategy-managed exits do not use a fixed broker TP. Remove legacy TP
-                    # only from verified bot-owned positions and preserve broker SL protection.
-                    current_tp = float(self._field(existing, "tp", 0.0) or 0.0)
-                    if current_tp > 0:
-                        clear_tp = getattr(self.adapter, "clear_position_take_profit", None)
-                        if not callable(clear_tp):
-                            return {"status": "BLOCKED", "symbol": symbol, "strategy": slot,
-                                    "reason": "Cannot safely remove legacy TP for strategy-managed exits.",
-                                    "execution_enabled": False}
-                        clear_response = clear_tp(existing_ticket)
-                        if clear_response.Status not in ("Modified", "NoChange") or int(clear_response.Retcode) not in (0, 10009):
-                            return {"status": "BLOCKED", "symbol": symbol, "strategy": slot,
-                                    "reason": f"Could not clear legacy TP on position {existing_ticket}: {clear_response.Comment}",
-                                    "execution_enabled": False}
-                        self._log_event({"event": "strategy_managed_tp_cleared", "symbol": symbol,
-                                         "strategy": slot, "ticket": existing_ticket, "old_tp": current_tp})
+                    # Broker-side TP is a fail-safe, not a competing exit policy.
+                    # Keep any existing target in place; only validated target-extension
+                    # logic may move it farther into profit, never clear it here.
 
                     trailing_candidate = self._candidate_structural_trailing_stop(
                         existing, per_tf.get("M5", []), tick, symbol_info
@@ -1626,45 +1832,57 @@ class AutonomousDemoTrader:
                             "reason": "Open position is not identified as a YarTrader Base position; it will not be modified or closed.",
                             "base_plan": base_plan, "execution_enabled": False}
 
-                # Strategy-managed exits must not be pre-empted by legacy broker TPs.
-                # Clear only TP on bot-owned positions; preserve their structural SL.
-                cleared_any_tp = False
+                # Keep the initial broker-side TP as protection. Extend it only when
+                # the freshly analyzed target is farther in the profitable direction;
+                # never initialize/change TP on a pre-existing position with no TP here.
+                target_plan_direction = str((base_plan.get("order_plan") or {}).get("direction", "")).upper()
+                candidate_target = (
+                    self._planned_target(base_plan)
+                    if base_plan.get("status") == "ORDER_PROPOSAL" and target_plan_direction in ("BUY", "SELL")
+                    else 0.0
+                )
                 for candidate in open_positions:
                     candidate_ticket = int(self._field(candidate, "ticket", 0) or 0)
                     candidate_magic = int(self._field(candidate, "magic", 0) or 0)
                     candidate_comment = str(self._field(candidate, "comment", "") or "")
                     candidate_tp = float(self._field(candidate, "tp", 0.0) or 0.0)
-                    if candidate_magic != 100001 or not candidate_comment.startswith("YarBase") or candidate_tp <= 0:
+                    candidate_type = int(self._field(candidate, "type", -1))
+                    candidate_entry = float(self._field(candidate, "price_open", 0.0) or 0.0)
+                    buy_type = int(getattr(self.adapter._mt5, "POSITION_TYPE_BUY", 0))
+                    sell_type = int(getattr(self.adapter._mt5, "POSITION_TYPE_SELL", 1))
+                    if (candidate_magic != 100001 or not candidate_comment.startswith("YarBase")
+                            or candidate_ticket <= 0 or candidate_tp <= 0 or candidate_target <= 0):
                         continue
-                    clear_tp = getattr(self.adapter, "clear_position_take_profit", None)
-                    if not callable(clear_tp) or candidate_ticket <= 0:
+                    extends_target = (
+                        target_plan_direction == "BUY" and candidate_type == buy_type
+                        and candidate_target > candidate_tp and candidate_target > candidate_entry
+                        and candidate_target > ask
+                    ) or (
+                        target_plan_direction == "SELL" and candidate_type == sell_type
+                        and candidate_target < candidate_tp and 0 < candidate_target < candidate_entry
+                        and candidate_target < bid
+                    )
+                    if not extends_target:
+                        continue
+                    update_tp = getattr(self.adapter, "update_position_take_profit", None)
+                    if not callable(update_tp):
                         return {"status": "BLOCKED", "symbol": symbol,
-                                "reason": "Cannot safely remove a legacy preset TP from a bot-owned position.",
+                                "reason": "A farther structural target is indicated but broker TP modification is unavailable.",
                                 "base_plan": base_plan, "execution_enabled": False}
-                    clear_response = clear_tp(candidate_ticket)
-                    if clear_response.Status not in ("Modified", "NoChange") or int(clear_response.Retcode) not in (0, 10009):
+                    update_response = update_tp(candidate_ticket, candidate_target)
+                    if update_response.Status not in ("Modified", "NoChange") or int(update_response.Retcode) not in (0, 10009):
                         return {"status": "BLOCKED", "symbol": symbol,
-                                "reason": f"Could not clear legacy TP for position {candidate_ticket}: {clear_response.Comment}",
+                                "reason": f"Could not extend broker TP for position {candidate_ticket}: {update_response.Comment}",
                                 "base_plan": base_plan, "execution_enabled": False}
-                    self._log_event({"event": "strategy_managed_exit_tp_cleared", "symbol": symbol,
-                                     "ticket": candidate_ticket, "old_tp": candidate_tp})
-                    cleared_any_tp = True
-                if cleared_any_tp:
-                    refreshed_positions = self.adapter.get_positions(symbol=symbol)
-                    if refreshed_positions is None:
-                        return {"status": "BLOCKED", "symbol": symbol,
-                                "reason": "Broker position state unavailable after legacy TP removal.",
-                                "base_plan": base_plan, "execution_enabled": False}
-                    for candidate in refreshed_positions:
-                        if (int(self._field(candidate, "magic", 0) or 0) == 100001
-                                and str(self._field(candidate, "comment", "") or "").startswith("YarBase")
-                                and float(self._field(candidate, "tp", 0.0) or 0.0) > 0.0):
-                            return {"status": "BLOCKED", "symbol": symbol,
-                                    "reason": "Broker still reports a preset TP after the removal request.",
-                                    "base_plan": base_plan, "execution_enabled": False}
+                    if update_response.Status == "Modified":
+                        self._log_event({"event": "strategy_take_profit_extended", "symbol": symbol,
+                                         "ticket": candidate_ticket, "old_tp": candidate_tp,
+                                         "new_tp": candidate_target,
+                                         "basis": "FRESH_VALIDATED_STRATEGY_TARGET",
+                                         "protective_sl_preserved": float(self._field(candidate, "sl", 0.0) or 0.0)})
                 # Strategy-managed profit protection: tighten the broker SL only
-                # behind a confirmed M5 swing that has formed after entry. No preset
-                # TP or fixed-pip trailing distance is introduced.
+                # behind a confirmed M5 swing that has formed after entry. Keep the
+                # broker TP as a fail-safe; target extension is handled separately.
                 trailing_candidate = self._candidate_structural_trailing_stop(
                     position, per_tf.get("M5", []), tick, symbol_info,
                 )

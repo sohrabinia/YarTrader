@@ -4625,6 +4625,7 @@ def get_demo_account_status():
     from collections import defaultdict
     from datetime import datetime, timedelta
     from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
+    from src.Risk.Services.daily_loss_kill_switch import calculate_yartrader_daily_pnl
 
     try:
         adapter = RealMT5BrokerAdapter(auto_initialize=True)
@@ -4644,6 +4645,9 @@ def get_demo_account_status():
         positions = adapter.get_positions()
         if positions is None:
             raise RuntimeError("Open-position state is unknown; report fails closed.")
+        # Report YarTrader-owned DEMO PnL separately from account-wide results.
+        # This uses broker deal magic/comment ownership and excludes cash operations.
+        yartrader_daily_pnl = calculate_yartrader_daily_pnl(adapter)
 
         now = datetime.now()
         window_start = now - timedelta(days=30)
@@ -4678,7 +4682,7 @@ def get_demo_account_status():
                 "net_pnl": sum(_deal_pnl(row) for row in rows),
                 "last_time": max(int(row.get("time") or 0) for row in rows),
                 "yartrader_associated": any(
-                    str(row.get("magic")) == "143056"
+                    str(row.get("magic")) in {"100001", "143056"}
                     or "YarTrader" in str(row.get("comment") or "")
                     for row in rows
                 ),
@@ -4716,7 +4720,7 @@ def get_demo_account_status():
         cash_operations = [deal for deal in deals if str(deal.get("type")) not in {"0", "1"}]
         bot_deals = [
             deal for deal in deals
-            if str(deal.get("magic")) == "143056"
+            if str(deal.get("magic")) in {"100001", "143056"}
             or "YarTrader" in str(deal.get("comment") or "")
         ]
         bot_positions = [item for item in closed_positions if item["yartrader_associated"]]
@@ -4755,13 +4759,14 @@ def get_demo_account_status():
             "history_window_days": 30,
             "account_history": _summarize(closed_positions),
             "yartrader_associated_history": _summarize(bot_positions),
+            "yartrader_daily_pnl": yartrader_daily_pnl,
             "deposit_events": len(deposits),
             "deposit_total": round(sum(_deal_pnl(deal) for deal in deposits), 2),
             "cash_operations_net": cash_operations_net,
             "net_change_including_cash_operations": net_change_including_cash_operations,
             "latest_yartrader_deal_time": datetime.fromtimestamp(latest_bot_time).isoformat() if latest_bot_time else None,
             "data_provenance": "LIVE_MT5_DEMO_ACCOUNT_AND_BROKER_HISTORY",
-            "note": "Account-wide results include other magic numbers/strategies; YarTrader-associated positions are identified by magic 143056 or a YarTrader comment.",
+            "note": "Account-wide results are separate from YarTrader-owned results. YarTrader PnL uses DEMO broker deals/positions tagged with magic 100001 or legacy 143056 or a YarTrader comment; deposits, withdrawals and other account cash operations are excluded from bot PnL.",
         }
     except Exception as exc:
         logger.warning("Unable to verify MT5 DEMO account status: %s", exc)

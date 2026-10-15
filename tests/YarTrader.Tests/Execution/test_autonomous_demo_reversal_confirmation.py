@@ -71,7 +71,7 @@ class TestAutonomousDemoReversalConfirmation(unittest.TestCase):
         self.assertEqual(request.OrderType, "CLOSE")
         self.assertEqual(request.PositionTicket, 101)
 
-    def test_legacy_position_tp_is_cleared_for_strategy_managed_exit(self):
+    def test_legacy_position_tp_is_preserved_as_broker_side_protection(self):
         from unittest.mock import patch
         old_buy = {"ticket": 101, "type": 0, "volume": 0.01, "magic": 100001,
                    "comment": "YarBase", "time": 100, "sl": 1990.0, "tp": 2050.0}
@@ -83,7 +83,8 @@ class TestAutonomousDemoReversalConfirmation(unittest.TestCase):
         self.trader._reconcile_base_pending_order = MagicMock(return_value={"status": "WAIT"})
         with patch("src.Execution.Services.autonomous_demo_trader._read_flag", return_value=True):
             result = self.trader.run_once("XAUUSD")
-        self.adapter.clear_position_take_profit.assert_called_once_with(101)
+        self.adapter.clear_position_take_profit.assert_not_called()
+        self.adapter.update_position_take_profit.assert_not_called()
         self.adapter.send_order_to_broker.assert_not_called()
         self.assertEqual(result["status"], "POSITION_HELD_BASE_STRUCTURE")
 

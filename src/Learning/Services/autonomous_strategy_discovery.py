@@ -26,6 +26,16 @@ class AutonomousStrategyDiscovery:
         except (KeyError, TypeError, IndexError, ValueError):
             return getattr(row, key, default)
 
+    @classmethod
+    def _is_yartrader_entry(cls, deal: Any) -> bool:
+        """Identify bot ownership from the opening deal, never from a close deal alone."""
+        try:
+            magic = int(cls._value(deal, "magic", 0) or 0)
+        except (TypeError, ValueError, OverflowError):
+            magic = 0
+        comment = str(cls._value(deal, "comment", "") or "").strip().lower()
+        return magic in {100001, 143056} or comment.startswith("yarbase") or "yartrader" in comment
+
     def _existing_deal_ids(self) -> set[str]:
         ids: set[str] = set()
         if not self.deals_path.exists():
@@ -50,7 +60,24 @@ class AutonomousStrategyDiscovery:
         entry_out = int(getattr(mt5, "DEAL_ENTRY_OUT", 1))
         entry_out_by = int(getattr(mt5, "DEAL_ENTRY_OUT_BY", 3))
         rows = list(deals or [])
+        # Recent history windows may contain a close without its opening deal.
+        # Recover opening-deal ownership from the append-only audit before classifying
+        # new closes; otherwise personal/manual trades can be learned as bot trades.
         entries: Dict[int, Any] = {}
+        if self.deals_path.exists():
+            try:
+                with self.deals_path.open("r", encoding="utf-8") as stream:
+                    for line in stream:
+                        try:
+                            event = json.loads(line)
+                            if int(event.get("entry_kind", -1)) == entry_in:
+                                position_id = int(event.get("position_id", 0) or 0)
+                                if position_id > 0:
+                                    entries[position_id] = event
+                        except (ValueError, TypeError):
+                            continue
+            except OSError:
+                pass
         for deal in rows:
             try:
                 if int(self._value(deal, "entry", -1)) == entry_in:
@@ -70,7 +97,13 @@ class AutonomousStrategyDiscovery:
                 entry_kind = int(self._value(deal, "entry", -1))
                 position_id = int(self._value(deal, "position_id", 0) or 0)
                 entry_deal = entries.get(position_id)
-                entry_comment = str(self._value(entry_deal, "comment", "") or "") if entry_deal else ""
+                # Only the opening deal establishes ownership. Exit deals often have
+                # magic=0 and an empty comment, so filtering each deal independently
+                # would either lose bot exits or absorb unrelated manual trades.
+                if not entry_deal or not self._is_yartrader_entry(entry_deal):
+                    continue
+                entry_comment = str(self._value(entry_deal, "comment", "") or "")
+                entry_magic = int(self._value(entry_deal, "magic", 0) or 0)
                 strategy = entry_comment.split(":", 1)[1].upper() if ":" in entry_comment else "BASE_HIERARCHY"
                 pnl = sum(float(self._value(deal, k, 0.0) or 0.0) for k in ("profit", "commission", "swap", "fee"))
                 if not math.isfinite(pnl):
@@ -79,6 +112,9 @@ class AutonomousStrategyDiscovery:
                     "event": "BROKER_DEAL", "deal_ticket": ticket, "position_id": position_id,
                     "order_ticket": int(self._value(deal, "order", 0) or 0), "symbol": deal_symbol,
                     "strategy": strategy, "entry_kind": entry_kind,
+                    "magic": int(self._value(deal, "magic", 0) or 0),
+                    "entry_magic": entry_magic,
+                    "entry_comment": entry_comment,
                     "is_close_deal": entry_kind in (entry_out, entry_out_by),
                     "entry_deal_ticket": int(self._value(entry_deal, "ticket", 0) or 0) if entry_deal else None,
                     "entry_price": float(self._value(entry_deal, "price", 0.0) or 0.0) if entry_deal else None,
@@ -139,8 +175,39 @@ class AutonomousStrategyDiscovery:
                     events = [json.loads(line) for line in stream if line.strip()]
             except (OSError, ValueError):
                 events = []
-        closed_deals = [e for e in events if e.get("is_close_deal")
-                        and isinstance(e.get("net_pnl"), (int, float))]
+        # Rebuild ownership from opening deals so legacy reports containing manual
+        # account trades are filtered too; do not trust a close deal's blank comment.
+        entry_by_position: Dict[tuple[str, int], Dict[str, Any]] = {}
+        for event in events:
+            try:
+                if int(event.get("entry_kind", -1)) == 0:
+                    key = (str(event.get("symbol", "UNKNOWN")).upper(),
+                           int(event.get("position_id", 0) or 0))
+                    if key[1] > 0:
+                        entry_by_position[key] = event
+            except (TypeError, ValueError, OverflowError):
+                continue
+        closed_deals = []
+        for event in events:
+            if not (event.get("is_close_deal")
+                    and isinstance(event.get("net_pnl"), (int, float))):
+                continue
+            try:
+                key = (str(event.get("symbol", "UNKNOWN")).upper(),
+                       int(event.get("position_id", 0) or 0))
+            except (TypeError, ValueError, OverflowError):
+                continue
+            opening = entry_by_position.get(key)
+            if not opening or not self._is_yartrader_entry(opening):
+                continue
+            # Use the strategy captured on the opening deal, not a close deal's
+            # fallback label, which may have been written before ownership filtering.
+            event = dict(event)
+            event["strategy"] = opening.get("strategy") or (
+                str(opening.get("comment", "")).split(":", 1)[1].upper()
+                if ":" in str(opening.get("comment", "")) else "BASE_HIERARCHY"
+            )
+            closed_deals.append(event)
         by_position: Dict[str, List[Dict[str, Any]]] = {}
         for event in closed_deals:
             key = f"{event.get('symbol','UNKNOWN')}|{event.get('strategy','UNKNOWN')}|{event.get('position_id',0)}"

@@ -31,6 +31,67 @@ class TestMultiTimeframeStyleAnalyzer(unittest.TestCase):
             self.assertIsNone(results[name]["order_plan"])
             self.assertIn("context", results[name]["reason"].lower())
 
+    def test_rtm_scans_all_setup_timeframes_and_uses_m15_when_m5_has_no_setup(self):
+        from unittest.mock import patch
+        frames = {
+            "MN1": self._flat_bars(start=1_700_000_000, step=60),
+            "W1": self._flat_bars(start=1_700_001_000, step=60),
+            "D1": self._flat_bars(start=1_700_002_000, step=60),
+            "H4": self._flat_bars(start=1_700_003_000, step=60),
+            "H1": self._flat_bars(start=1_700_004_000, step=60),
+            "M30": self._flat_bars(start=1_700_005_000, step=60),
+            "M15": self._flat_bars(start=1_700_006_000, step=60),
+            "M5": self._flat_bars(start=1_700_007_000, step=60),
+            "M1": self._flat_bars(start=1_700_008_000, step=60),
+        }
+        m5_start = frames["M5"][0]["timestamp"]
+
+        def zone_for_frame(bars):
+            if bars[0]["time"] == float(m5_start):
+                return None
+            return {"direction": 1, "low": 99.0, "high": 100.0, "width": 1.0,
+                    "departure_index": 40, "zone_time": bars[-3]["time"],
+                    "revisit_time": bars[-1]["time"]}
+
+        with (
+            patch("src.Intelligence.Execution.multi_timeframe_style_analyzer._swing_bias", return_value=1),
+            patch("src.Intelligence.Execution.multi_timeframe_style_analyzer._candle_trigger", return_value=1),
+            patch("src.Intelligence.Execution.multi_timeframe_style_analyzer._rtm_zone", side_effect=zone_for_frame),
+        ):
+            results = MultiTimeframeStyleAnalyzer().evaluate(
+                "EURUSD", frames, {"bid": 99.59, "ask": 99.60},
+                now=1_800_000_000, spread_allowance=0.01,
+            )
+
+        rtm = results["RTM"]
+        self.assertEqual(rtm["status"], "ENTRY_PROPOSAL")
+        self.assertEqual(rtm["setup_timeframe"], "M15")
+        self.assertEqual(
+            [item["timeframe"] for item in rtm["timeframe_diagnostics"]],
+            ["M5", "M15", "M30"],
+        )
+        self.assertEqual(
+            [item["status"] for item in rtm["timeframe_diagnostics"]],
+            ["WAIT", "ENTRY_PROPOSAL", "ENTRY_PROPOSAL"],
+        )
+
+    def test_two_candle_overlap_then_break_is_early_closed_bar_trigger(self):
+        from src.Intelligence.Execution.multi_timeframe_style_analyzer import _compression_break_trigger
+        bearish = [
+            {"time": 0, "open": 105, "high": 106, "low": 103, "close": 104},
+            {"time": 1, "open": 104.2, "high": 105.2, "low": 102.8, "close": 103.5},
+            {"time": 2, "open": 103.0, "high": 103.2, "low": 100.5, "close": 101.0},
+        ]
+        bullish = [
+            {"time": 0, "open": 100, "high": 102, "low": 99, "close": 101},
+            {"time": 1, "open": 100.8, "high": 102.2, "low": 100, "close": 101.5},
+            {"time": 2, "open": 102.3, "high": 104.5, "low": 102.1, "close": 104.0},
+        ]
+        self.assertEqual(_compression_break_trigger(bearish), -1)
+        self.assertEqual(_compression_break_trigger(bullish), 1)
+        # Overlap without a confirmed release must never trigger by itself.
+        self.assertEqual(_compression_break_trigger(bearish[:2]), 0)
+
     def test_directional_engulfing_trigger_uses_closed_candle_geometry(self):
         bullish = [
             {"time": 0, "open": 101, "high": 102, "low": 100, "close": 101.5},
