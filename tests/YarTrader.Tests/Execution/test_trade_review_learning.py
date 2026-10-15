@@ -127,3 +127,62 @@ def test_setup_signature_changes_when_analytical_target_changes():
     assert trader._planned_target(plan) == 112.0
     plan["reaction_analysis"]["scenario"]["target"] = 115.0
     assert trader._setup_signature("XAUUSD", plan) != first
+
+
+def test_failed_outcome_learning_is_not_marked_processed_and_retries(tmp_path):
+    now = int(time.time())
+    adapter = MagicMock()
+    adapter._mt5 = SimpleNamespace(DEAL_TYPE_BUY=0, DEAL_TYPE_SELL=1, DEAL_ENTRY_IN=0,
+                                   DEAL_ENTRY_OUT=1, DEAL_ENTRY_OUT_BY=3,
+                                   DEAL_REASON_SL=4, DEAL_REASON_TP=5)
+    entry = {"ticket": 100, "order": 100, "position_id": 200, "symbol": "XAUUSD", "magic": 100001,
+             "entry": 0, "type": 0, "reason": 0, "time": now-120, "price": 100.0, "profit": 0.0}
+    exit_deal = {"ticket": 101, "position_id": 200, "symbol": "XAUUSD", "magic": 100001,
+                 "entry": 1, "type": 1, "reason": 4, "time": now-60, "price": 95.0, "profit": -5.0}
+    adapter.get_history_deals.return_value = [entry, exit_deal]
+    trader = AutonomousDemoTrader(adapter=adapter)
+    with patch.object(trader_module, "_PROJECT_ROOT", tmp_path), patch("src.Research.Brain.learning_bridge.BrainLearningBridge") as bridge:
+        state = trader._load_trade_review_state()
+        state["last_submitted_setup_by_symbol"]["XAUUSD"] = {
+            "signature": "sig-1", "symbol": "XAUUSD", "strategy": "BASE_HIERARCHY",
+            "direction": "BUY", "entry": 100.0, "stop_loss": 95.0,
+            "take_profit": 110.0, "deal_ticket": "100", "order_id": "100",
+        }
+        trader._save_trade_review_state(state)
+        bridge.return_value.record_demo_outcome.side_effect = [
+            RuntimeError("temporary brain storage failure"),
+            {"source": "DEMO", "outcome": "FAILURE"},
+        ]
+        trader._sync_trade_review("XAUUSD", [], {"bid": 95.0, "ask": 95.2}, _base_plan())
+        after_failure = json.loads((tmp_path / "runtime_logs" / "autonomous_trade_review_state.json").read_text())
+        assert "200" not in after_failure["processed_position_ids"]
+        trader._sync_trade_review("XAUUSD", [], {"bid": 95.0, "ask": 95.2}, _base_plan())
+        after_retry = json.loads((tmp_path / "runtime_logs" / "autonomous_trade_review_state.json").read_text())
+    assert bridge.return_value.record_demo_outcome.call_count == 2
+    assert after_retry["processed_position_ids"]["200"]["learning_status"] == "CONFIRMED"
+
+
+def test_legacy_one_sample_post_exit_record_is_not_accepted_as_complete(tmp_path):
+    now = int(time.time())
+    adapter = MagicMock()
+    adapter._mt5 = SimpleNamespace(DEAL_TYPE_BUY=0, DEAL_TYPE_SELL=1, DEAL_ENTRY_IN=0,
+                                   DEAL_ENTRY_OUT=1, DEAL_ENTRY_OUT_BY=3,
+                                   DEAL_REASON_SL=4, DEAL_REASON_TP=5)
+    adapter.get_history_deals.return_value = []
+    trader = AutonomousDemoTrader(adapter=adapter)
+    legacy = {
+        "deal_ticket": 101, "position_id": 200, "symbol": "XAUUSD", "direction": "BUY",
+        "exit_reason": "STOP_LOSS", "exit_time": now-7200, "exit_price": 100.0,
+        "observations": [{"time_utc": datetime.fromtimestamp(now-7100, timezone.utc).isoformat(),
+                          "bid": 99.0, "ask": 99.2, "mid": 99.1, "move_in_trade_direction": -0.9}],
+        "max_favorable_move": 0.0, "max_adverse_move": -0.9, "tracking_complete": True,
+    }
+    with patch.object(trader_module, "_PROJECT_ROOT", tmp_path):
+        path = tmp_path / "runtime_logs" / "post_exit_price_tracking.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({"101": legacy}), encoding="utf-8")
+        trader._track_post_exit_market_path("XAUUSD", {"bid": 99.0, "ask": 99.2})
+        saved = json.loads(path.read_text(encoding="utf-8"))["101"]
+    assert saved["tracking_complete"] is True
+    assert saved["tracking_status"] == "INSUFFICIENT_SAMPLES"
+    assert len(saved["observations"]) < 6

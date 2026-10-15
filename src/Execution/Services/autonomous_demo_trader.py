@@ -699,6 +699,8 @@ class AutonomousDemoTrader:
                                 "gross_and_cost_adjusted_pnl": pnl,
                             },
                         )
+                        if not isinstance(learning_result, dict) or learning_result.get("source") != "DEMO":
+                            raise RuntimeError("Brain Learning Bridge did not confirm durable DEMO outcome processing.")
                         self._log_event({"event": "trade_outcome_learned", "symbol": symbol.upper(),
                                          "position_id": int(position_id), "direction": direction, "exit_reason": exit_reason,
                                          "entry_price": entry_price, "exit_price": exit_price, "pnl": pnl,
@@ -707,11 +709,20 @@ class AutonomousDemoTrader:
                                          "mfe": record.get("max_favorable_excursion", 0.0),
                                          "mae": record.get("max_adverse_excursion", 0.0),
                                          "learning_result": learning_result})
-                    except Exception:
-                        logger.exception("Broker-confirmed outcome learning failed for position %s", position_id)
+                    except Exception as learning_exc:
+                        # Keep the broker-confirmed close eligible for retry on the next
+                        # reconciliation cycle. Never mark a failed learning write processed.
+                        self._log_event({
+                            "event": "trade_outcome_learning_failed", "symbol": symbol.upper(),
+                            "position_id": int(position_id), "decision_id": decision_id,
+                            "error": str(learning_exc)[:1000], "retryable": True,
+                        })
+                        logger.exception("Broker-confirmed outcome learning failed for position %s; will retry", position_id)
+                        continue
                     state["processed_position_ids"][position_id] = {
                         "symbol": symbol.upper(), "exit_reason": exit_reason, "pnl": pnl,
                         "exit_price": exit_price, "closed_at_utc": now.isoformat(),
+                        "learning_status": "CONFIRMED", "decision_id": decision_id,
                     }
                     if signature:
                         state["last_closed_setup_by_symbol"][symbol.upper()] = {
@@ -782,6 +793,26 @@ class AutonomousDemoTrader:
                 state = {}
             if not isinstance(state, dict):
                 state = {}
+            # Migrate legacy records that were marked complete without the current
+            # sample-count, coverage, and gap checks. They must be reclassified rather
+            # than silently trusted as valid post-exit evidence.
+            for legacy in state.values():
+                if not isinstance(legacy, dict):
+                    continue
+                observations = legacy.get("observations", [])
+                sample_count = int(legacy.get("observation_count_total", len(observations) if isinstance(observations, list) else 0) or 0)
+                status = str(legacy.get("tracking_status", "")).upper()
+                if legacy.get("tracking_complete") and (not status or (status == "COMPLETE" and sample_count < 6)):
+                    legacy["tracking_complete"] = False
+                    legacy["tracking_status"] = "LEGACY_UNVERIFIED"
+                    legacy["legacy_completion_reclassified_at_utc"] = now.isoformat()
+                    self._log_event({
+                        "event": "post_exit_price_tracking_legacy_reclassified",
+                        "symbol": str(legacy.get("symbol", symbol)).upper(),
+                        "deal_ticket": legacy.get("deal_ticket"),
+                        "previous_observation_count": sample_count,
+                        "reason": "Legacy completion did not prove sufficient one-hour sample coverage.",
+                    })
             mt5 = self.adapter._mt5
             entry_in = int(getattr(mt5, "DEAL_ENTRY_IN", 0))
             entry_out = int(getattr(mt5, "DEAL_ENTRY_OUT", 1))
