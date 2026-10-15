@@ -518,20 +518,24 @@ class GoldFractalIntelligenceEngine:
                 elif sc_upper == "W1": hierarchy["Weekly"] = entry
                 elif sc_upper == "D1": hierarchy["Daily"] = entry
 
-        # Identify Macro HTF Parent Base (Monthly -> Weekly -> Daily hierarchy)
-        parent_base = (
-            hierarchy.get("MN1", {}).get("active_base") or
-            hierarchy.get("Monthly", {}).get("active_base") or
-            hierarchy.get("W1", {}).get("active_base") or
-            hierarchy.get("Weekly", {}).get("active_base") or
-            hierarchy.get("D1", {}).get("active_base") or
-            hierarchy.get("Daily", {}).get("active_base")
-        )
-
         child_base = hierarchy.get(dominant_scale, {}).get("active_base")
-        structural_rel = self.determine_structural_relationship(child_base, parent_base) if child_base and parent_base else {
-            "relationship": "NO_PARENT_BASE", "containment_pct": 0.0, "location_in_parent": "NEUTRAL"
-        }
+
+        # Select true HTF Parent Base ONLY if child base is spatially overlapping or contained within it
+        parent_base = None
+        structural_rel = {"relationship": "NO_PARENT_BASE", "containment_pct": 0.0, "location_in_parent": "NEUTRAL"}
+
+        if child_base:
+            htf_keys = ["MN1", "Monthly", "W1", "Weekly", "D1", "Daily"]
+            for htf in htf_keys:
+                if htf == dominant_scale or htf.upper() == dominant_scale.upper():
+                    continue
+                cand_parent = hierarchy.get(htf, {}).get("active_base")
+                if cand_parent:
+                    rel_check = self.determine_structural_relationship(child_base, cand_parent)
+                    if rel_check["relationship"] in ["STRICT_CONTAINMENT", "OVERLAPPING_BOUNDARY"]:
+                        parent_base = cand_parent
+                        structural_rel = rel_check
+                        break
 
         return {
             "symbol": self.symbol,

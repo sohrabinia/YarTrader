@@ -124,27 +124,38 @@ class TestGoldFractalIntelligenceEngine:
         from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
         orchestrator = StrategyOrchestrator()
 
-        # Test with strict containment and bullish trigger
-        fractal_ctx = {
+        # Test fail-closed on invalid/missing relationship
+        invalid_ctx = {
             "Dominant_Scale": "H1",
+            "structural_relationship": {"relationship": "NO_RELATIONSHIP"}
+        }
+        res_inv = orchestrator.evaluate_all_strategies(
+            symbol="XAUUSD", primary_timeframe="H1", candles=sample_candles, fractal=invalid_ctx
+        )
+        cand_inv = next(c for c in res_inv["candidates"] if c["strategy_name"] == "FRACTAL")
+        assert cand_inv["direction"] == "WAIT"
+        assert "Invalid or missing parent-child relationship" in cand_inv["reasoning"][0]
+
+        # Test valid strict containment with active child base and trigger
+        valid_ctx = {
+            "Dominant_Scale": "H1",
+            "Confidence": 75.0,
+            "active_base": {"High": 2357.0, "Low": 2345.0},
             "structural_relationship": {
                 "relationship": "STRICT_CONTAINMENT",
                 "location_in_parent": "PARENT_EQUILIBRIUM_CENTER",
-                "parent_type": "Bullish Base"
+                "parent_high": 2400.0,
+                "parent_low": 2300.0
             }
         }
-        res = orchestrator.evaluate_all_strategies(
-            symbol="XAUUSD",
-            primary_timeframe="H1",
-            candles=sample_candles,
-            fractal=fractal_ctx
+        res_val = orchestrator.evaluate_all_strategies(
+            symbol="XAUUSD", primary_timeframe="H1", candles=sample_candles, fractal=valid_ctx
         )
-        assert "candidates" in res
-        fractal_cand = next(c for c in res["candidates"] if c["strategy_name"] == "FRACTAL")
-        assert fractal_cand["direction"] in ["BUY", "WAIT"]
-        if fractal_cand["direction"] == "BUY":
-            assert fractal_cand["confidence"] >= 65.0
-            assert fractal_cand["risk_reward"] >= 1.5
+        cand_val = next(c for c in res_val["candidates"] if c["strategy_name"] == "FRACTAL")
+        assert cand_val["direction"] in ["BUY", "SELL", "WAIT"]
+        if cand_val["direction"] != "WAIT":
+            assert cand_val["stop_loss"] in [2345.0, 2357.0]
+            assert cand_val["take_profit"] in [2300.0, 2400.0]
 
     def test_live_trading_hard_isolation(self):
         from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
