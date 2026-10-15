@@ -43,7 +43,8 @@ class StrategyOrchestrator:
             "DAY_TRADING",
             "JUMP",
             "PRICE_ACTION_RTM",
-            "FRACTAL"
+            "FRACTAL",
+            "BASE_ENGULF_REVERSAL"
         ]
 
     def evaluate_all_strategies(
@@ -122,6 +123,12 @@ class StrategyOrchestrator:
             symbol, primary_timeframe, candles, similarity, fractal, current_price, pip_factor
         )
         candidates.append(fractal_cand)
+
+        # 7. BASE_ENGULF_REVERSAL (Engulfing Candlestick & Base Reversals)
+        engulf_cand = self._evaluate_base_engulf_reversal(
+            symbol, primary_timeframe, candles, zones, current_price, pip_factor
+        )
+        candidates.append(engulf_cand)
 
         # Filter valid BUY / SELL candidates meeting minimum R/R >= 1.5
         active_candidates = [
@@ -428,6 +435,74 @@ class StrategyOrchestrator:
             market_context={"timeframe": tf, "fvgs_found": len(fvgs)},
             invalidation_level=round(sl, 4),
             holding_period="30-180 mins"
+        )
+
+    def _evaluate_base_engulf_reversal(
+        self,
+        symbol: str,
+        tf: str,
+        candles: List[Dict[str, Any]],
+        zones: Dict[str, Any],
+        current_price: float,
+        pip_factor: float
+    ) -> StrategyCandidate:
+        """BASE_ENGULF_REVERSAL: Detects bullish and bearish engulfing reversal patterns at base/swing boundaries."""
+        direction = "WAIT"
+        sl = 0.0
+        tp = 0.0
+        confidence = 0.0
+        reasoning = []
+
+        if len(candles) >= 2:
+            prev_candle = candles[-2]
+            curr_candle = candles[-1]
+
+            prev_open, prev_close = float(prev_candle["open"]), float(prev_candle["close"])
+            curr_open, curr_close = float(curr_candle["open"]), float(curr_candle["close"])
+            prev_high, prev_low = float(prev_candle["high"]), float(prev_candle["low"])
+            curr_high, curr_low = float(curr_candle["high"]), float(curr_candle["low"])
+
+            prev_body = abs(prev_close - prev_open)
+            curr_body = abs(curr_close - curr_open)
+
+            # Bullish Engulfing: Previous candle is bearish, current is bullish engulfing previous body/range
+            if prev_close < prev_open and curr_close > curr_open:
+                if curr_close > prev_open and curr_open <= prev_close and curr_body >= prev_body:
+                    direction = "BUY"
+                    sl = min(prev_low, curr_low) - (15 * pip_factor)
+                    tp = current_price + ((current_price - sl) * 2.2)
+                    confidence = 76.0
+                    reasoning.append("BASE_ENGULF_REVERSAL: Bullish engulfing pattern detected at base structure low.")
+
+            # Bearish Engulfing: Previous candle is bullish, current is bearish engulfing previous body/range
+            elif prev_close > prev_open and curr_close < curr_open:
+                if curr_close < prev_open and curr_open >= prev_close and curr_body >= prev_body:
+                    direction = "SELL"
+                    sl = max(prev_high, curr_high) + (15 * pip_factor)
+                    tp = current_price - ((sl - current_price) * 2.2)
+                    confidence = 76.0
+                    reasoning.append("BASE_ENGULF_REVERSAL: Bearish engulfing pattern detected at base structure high.")
+
+        risk_dist = abs(current_price - sl)
+        reward_dist = abs(tp - current_price)
+        rr = round(reward_dist / risk_dist, 2) if risk_dist > 0 else 0.0
+
+        return StrategyCandidate(
+            strategy_id=f"STRAT-ENGULF-{uuid.uuid4().hex[:6]}",
+            strategy_name="BASE_ENGULF_REVERSAL",
+            symbol=symbol,
+            timeframe=tf,
+            direction=direction,
+            entry=round(current_price, 4) if direction != "WAIT" else 0.0,
+            stop_loss=round(sl, 4) if direction != "WAIT" else 0.0,
+            take_profit=round(tp, 4) if direction != "WAIT" else 0.0,
+            risk_reward=rr,
+            confidence=confidence,
+            reasoning=reasoning if reasoning else ["BASE_ENGULF_REVERSAL: No valid engulfing reversal pattern at base level."],
+            market_context={"timeframe": tf},
+            invalidation_level=round(sl, 4),
+            holding_period="30-120 mins",
+            is_reversal=True
         )
 
     def _evaluate_fractal(

@@ -19,8 +19,8 @@ class TestStrategyOrchestrator(unittest.TestCase):
             for i in range(20)
         ]
 
-    def test_evaluate_all_6_strategies(self):
-        """Verifies all 6 strategy profiles are evaluated independently."""
+    def test_evaluate_all_strategies_including_base_engulf_reversal(self):
+        """Verifies all supported strategy profiles including BASE_ENGULF_REVERSAL are evaluated independently."""
         res = self.orchestrator.evaluate_all_strategies(
             symbol="XAUUSD",
             primary_timeframe="M5",
@@ -28,12 +28,50 @@ class TestStrategyOrchestrator(unittest.TestCase):
         )
         self.assertEqual(res["symbol"], "XAUUSD")
         self.assertEqual(res["primary_timeframe"], "M5")
-        self.assertEqual(len(res["candidates"]), 6)
+        self.assertEqual(len(res["candidates"]), 7)
 
         strategy_names = [c["strategy_name"] for c in res["candidates"]]
-        expected = ["FAST_SCALP", "SCALP", "DAY_TRADING", "JUMP", "PRICE_ACTION_RTM", "FRACTAL"]
+        expected = ["FAST_SCALP", "SCALP", "DAY_TRADING", "JUMP", "PRICE_ACTION_RTM", "FRACTAL", "BASE_ENGULF_REVERSAL"]
         for exp in expected:
             self.assertIn(exp, strategy_names)
+
+    def test_base_engulf_reversal_bullish_and_bearish(self):
+        """Verifies BASE_ENGULF_REVERSAL correctly evaluates bullish and bearish engulfing candlestick setups."""
+        # Bullish Engulfing setup candles
+        bullish_candles = [
+            {"open": 2000.0, "high": 2002.0, "low": 1980.0, "close": 1985.0, "volume": 100}, # Bearish candle
+            {"open": 1983.0, "high": 2008.0, "low": 1982.0, "close": 2005.0, "volume": 120}  # Bullish engulfing candle
+        ]
+        cand_bull = self.orchestrator._evaluate_base_engulf_reversal(
+            symbol="XAUUSD",
+            tf="M15",
+            candles=bullish_candles,
+            zones={},
+            current_price=2005.0,
+            pip_factor=0.1
+        )
+        self.assertEqual(cand_bull.direction, "BUY")
+        self.assertEqual(cand_bull.strategy_name, "BASE_ENGULF_REVERSAL")
+        self.assertTrue(cand_bull.is_reversal)
+        self.assertGreater(cand_bull.risk_reward, 1.5)
+
+        # Bearish Engulfing setup candles
+        bearish_candles = [
+            {"open": 1985.0, "high": 2002.0, "low": 1983.0, "close": 2000.0, "volume": 100}, # Bullish candle
+            {"open": 2002.0, "high": 2005.0, "low": 1978.0, "close": 1980.0, "volume": 120}  # Bearish engulfing candle
+        ]
+        cand_bear = self.orchestrator._evaluate_base_engulf_reversal(
+            symbol="XAUUSD",
+            tf="M15",
+            candles=bearish_candles,
+            zones={},
+            current_price=1980.0,
+            pip_factor=0.1
+        )
+        self.assertEqual(cand_bear.direction, "SELL")
+        self.assertEqual(cand_bear.strategy_name, "BASE_ENGULF_REVERSAL")
+        self.assertTrue(cand_bear.is_reversal)
+        self.assertGreater(cand_bear.risk_reward, 1.5)
 
     def test_fvg_boundary_safety_bullish_and_bearish(self):
         """

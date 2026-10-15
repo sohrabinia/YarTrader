@@ -46,23 +46,27 @@ def run_queue(years=10, initial_balance=10000.0, sleep_sec=0.5, max_symbols=0):
         except (OSError, ValueError):
             existing=None
     completed = existing.get("completed_symbols", []) if existing and existing.get("symbols")==symbols and existing.get("years")==years else []
+    failed = existing.get("failed_symbols", []) if existing and existing.get("symbols")==symbols and existing.get("years")==years else []
     state={"schema":1,"status":"WAITING_FOR_SIGNAL","years":years,"symbols":symbols,
-           "completed_symbols":completed,"current_symbol":None}
+           "completed_symbols":completed,"failed_symbols":failed,"current_symbol":None}
     save_state(state)
     bridge = _wait_for_signal_bridge()
     state["status"]="RUNNING"; save_state(state)
     worker=ROOT/"app"/"workers"/"historical_symbol_worker.py"
     for index,symbol in enumerate(symbols):
-        if symbol in completed:
+        if symbol in completed or symbol in failed:
             continue
         state["current_index"]=index; state["current_symbol"]=symbol; save_state(state)
         cmd=[sys.executable,str(worker),"--symbol",symbol,"--years",str(years),
              "--initial-balance",str(initial_balance),"--sleep",str(sleep_sec)]
         rc=subprocess.run(cmd,cwd=str(ROOT),check=False).returncode
         if rc!=0:
-            state.update(status="FAILED",failed_symbol=symbol)
+            if symbol not in state["failed_symbols"]:
+                state["failed_symbols"].append(symbol)
+            state["current_symbol"]=None
             save_state(state)
-            raise RuntimeError(f"Historical learning stopped at {symbol}; next symbol blocked.")
+            print(f"[WARNING] Historical learning failed for {symbol} (exit code {rc}); skipping symbol to continue queue.")
+            continue
         state["completed_symbols"].append(symbol); state["current_symbol"]=None; save_state(state)
     state["status"]="COMPLETED"; save_state(state); return state
 
