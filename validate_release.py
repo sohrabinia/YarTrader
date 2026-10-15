@@ -190,7 +190,23 @@ class ReleaseValidationPlatform:
         except Exception:
             pytest_cmd = ["pytest"]
 
-        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"]
+        partition_idx_env = os.getenv("VALIDATION_PARTITION_INDEX")
+        if partition_idx_env is not None and partition_idx_env.isdigit():
+            partition_idx = int(partition_idx_env)
+            total_partitions = 16
+            # Discover test files
+            test_files = []
+            for root_dir, _, files in os.walk("tests"):
+                for f in files:
+                    if f.startswith("test_") and f.endswith(".py"):
+                        test_files.append(os.path.join(root_dir, f))
+            test_files.sort()
+            assigned_files = [tf for idx, tf in enumerate(test_files) if idx % total_partitions == partition_idx]
+            self.log(f"Partition {partition_idx}/{total_partitions}: running {len(assigned_files)} of {len(test_files)} total test files.")
+            cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"] + assigned_files
+        else:
+            cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"]
+
         self.log(f"Running automated tests command: {' '.join(cmd_args)}")
 
         try:

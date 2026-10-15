@@ -453,6 +453,25 @@ class StrategyOrchestrator:
         confidence = 0.0
         reasoning = []
 
+        obs = zones.get("order_blocks", []) if isinstance(zones, dict) else []
+        fvgs = zones.get("fair_value_gaps", []) if isinstance(zones, dict) else []
+
+        # Check proximity to a demand / bullish base or supply / bearish base structure
+        near_demand_base = any(ob.get("type") == "BULLISH_OB" and ob.get("bottom", 0) - (20 * pip_factor) <= current_price <= ob.get("top", 0) + (20 * pip_factor) for ob in obs) or \
+                           any(fvg.get("type") == "BULLISH_FVG" and fvg.get("bottom", 0) - (20 * pip_factor) <= current_price <= fvg.get("top", 0) + (20 * pip_factor) for fvg in fvgs)
+        near_supply_base = any(ob.get("type") == "BEARISH_OB" and ob.get("bottom", 0) - (20 * pip_factor) <= current_price <= ob.get("top", 0) + (20 * pip_factor) for ob in obs) or \
+                           any(fvg.get("type") == "BEARISH_FVG" and fvg.get("bottom", 0) - (20 * pip_factor) <= current_price <= fvg.get("top", 0) + (20 * pip_factor) for fvg in fvgs)
+
+        # Fallback to swing low/high boundary if no explicit zones dictionary provided
+        if not near_demand_base and len(candles) >= 5:
+            recent_lows = [float(c["low"]) for c in candles[-5:]]
+            if current_price <= min(recent_lows) + (15 * pip_factor):
+                near_demand_base = True
+        if not near_supply_base and len(candles) >= 5:
+            recent_highs = [float(c["high"]) for c in candles[-5:]]
+            if current_price >= max(recent_highs) - (15 * pip_factor):
+                near_supply_base = True
+
         if len(candles) >= 2:
             prev_candle = candles[-2]
             curr_candle = candles[-1]
@@ -465,8 +484,8 @@ class StrategyOrchestrator:
             prev_body = abs(prev_close - prev_open)
             curr_body = abs(curr_close - curr_open)
 
-            # Bullish Engulfing: Previous candle is bearish, current is bullish engulfing previous body/range
-            if prev_close < prev_open and curr_close > curr_open:
+            # Bullish Engulfing at Demand/Support Base
+            if prev_close < prev_open and curr_close > curr_open and near_demand_base:
                 if curr_close > prev_open and curr_open <= prev_close and curr_body >= prev_body:
                     direction = "BUY"
                     sl = min(prev_low, curr_low) - (15 * pip_factor)
@@ -474,8 +493,8 @@ class StrategyOrchestrator:
                     confidence = 76.0
                     reasoning.append("BASE_ENGULF_REVERSAL: Bullish engulfing pattern detected at base structure low.")
 
-            # Bearish Engulfing: Previous candle is bullish, current is bearish engulfing previous body/range
-            elif prev_close > prev_open and curr_close < curr_open:
+            # Bearish Engulfing at Supply/Resistance Base
+            elif prev_close > prev_open and curr_close < curr_open and near_supply_base:
                 if curr_close < prev_open and curr_open >= prev_close and curr_body >= prev_body:
                     direction = "SELL"
                     sl = max(prev_high, curr_high) + (15 * pip_factor)
@@ -483,9 +502,12 @@ class StrategyOrchestrator:
                     confidence = 76.0
                     reasoning.append("BASE_ENGULF_REVERSAL: Bearish engulfing pattern detected at base structure high.")
 
-        risk_dist = abs(current_price - sl)
-        reward_dist = abs(tp - current_price)
-        rr = round(reward_dist / risk_dist, 2) if risk_dist > 0 else 0.0
+        if direction != "WAIT":
+            risk_dist = abs(current_price - sl)
+            reward_dist = abs(tp - current_price)
+            rr = round(reward_dist / risk_dist, 2) if risk_dist > 0 else 0.0
+        else:
+            rr = 0.0
 
         return StrategyCandidate(
             strategy_id=f"STRAT-ENGULF-{uuid.uuid4().hex[:6]}",

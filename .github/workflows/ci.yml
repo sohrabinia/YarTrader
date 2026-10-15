@@ -15,8 +15,12 @@ on:
 
 jobs:
   validate-and-test:
-    name: Production Validation Workflow
+    name: Production Validation Workflow (Partition ${{ matrix.partition }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
     steps:
       - name: Checkout Code Repository
@@ -34,6 +38,8 @@ jobs:
           pip install -r requirements.txt
 
       - name: Execute Autonomous Validation Runner
+        env:
+          VALIDATION_PARTITION_INDEX: ${{ matrix.partition }}
         run: |
           python validate_release.py
 

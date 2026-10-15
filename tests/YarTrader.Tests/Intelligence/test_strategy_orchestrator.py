@@ -37,16 +37,17 @@ class TestStrategyOrchestrator(unittest.TestCase):
 
     def test_base_engulf_reversal_bullish_and_bearish(self):
         """Verifies BASE_ENGULF_REVERSAL correctly evaluates bullish and bearish engulfing candlestick setups."""
-        # Bullish Engulfing setup candles
+        # Bullish Engulfing setup candles at demand zone
         bullish_candles = [
             {"open": 2000.0, "high": 2002.0, "low": 1980.0, "close": 1985.0, "volume": 100}, # Bearish candle
             {"open": 1983.0, "high": 2008.0, "low": 1982.0, "close": 2005.0, "volume": 120}  # Bullish engulfing candle
         ]
+        zones_bullish = {"order_blocks": [{"type": "BULLISH_OB", "bottom": 1980.0, "top": 2010.0}]}
         cand_bull = self.orchestrator._evaluate_base_engulf_reversal(
             symbol="XAUUSD",
             tf="M15",
             candles=bullish_candles,
-            zones={},
+            zones=zones_bullish,
             current_price=2005.0,
             pip_factor=0.1
         )
@@ -55,16 +56,17 @@ class TestStrategyOrchestrator(unittest.TestCase):
         self.assertTrue(cand_bull.is_reversal)
         self.assertGreater(cand_bull.risk_reward, 1.5)
 
-        # Bearish Engulfing setup candles
+        # Bearish Engulfing setup candles at supply zone
         bearish_candles = [
             {"open": 1985.0, "high": 2002.0, "low": 1983.0, "close": 2000.0, "volume": 100}, # Bullish candle
             {"open": 2002.0, "high": 2005.0, "low": 1978.0, "close": 1980.0, "volume": 120}  # Bearish engulfing candle
         ]
+        zones_bearish = {"order_blocks": [{"type": "BEARISH_OB", "bottom": 1975.0, "top": 1990.0}]}
         cand_bear = self.orchestrator._evaluate_base_engulf_reversal(
             symbol="XAUUSD",
             tf="M15",
             candles=bearish_candles,
-            zones={},
+            zones=zones_bearish,
             current_price=1980.0,
             pip_factor=0.1
         )
