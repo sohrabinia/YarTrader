@@ -440,16 +440,66 @@ class StrategyOrchestrator:
         current_price: float,
         pip_factor: float
     ) -> StrategyCandidate:
-        """FRACTAL: Pattern Memory Similarity & Multiscale Self-Similarity (Explicitly Disabled due to Insufficient Evidence)."""
-        best_match = similarity.get("best_match")
-        sim_score = similarity.get("average_similarity_score", 0.0)
-
-        # FRACTAL strategy is explicitly disabled fail-closed when insufficient pattern memory direction evidence exists
+        """FRACTAL: Pattern Memory & Multi-Scale Parent-Child Base Structure Evaluation."""
         direction = "WAIT"
         sl = 0.0
         tp = 0.0
         confidence = 0.0
-        reasoning = ["FRACTAL strategy explicitly disabled: insufficient pattern memory evidence."]
+        reasoning = []
+
+        # Extract multi-timeframe fractal context if provided
+        dom_scale = fractal.get("Dominant_Scale", tf)
+        target_zone = fractal.get("Target_Zone", {})
+        struct_rel = fractal.get("structural_relationship", {})
+        rel_type = struct_rel.get("relationship", "NO_RELATIONSHIP")
+        parent_loc = struct_rel.get("location_in_parent", "NEUTRAL")
+        parent_type = struct_rel.get("parent_type", "Neutral Base")
+
+        # 1. Require causal lower-timeframe trigger bar (price action rejection or momentum at child base boundary)
+        trigger_found = False
+        trigger_direction = "NONE"
+
+        if len(candles) >= 3:
+            prev_c = candles[-2]
+            curr_c = candles[-1]
+            o_p, c_p = float(curr_c.get("open", curr_c.get("Open", 0.0))), float(curr_c.get("close", curr_c.get("Close", 0.0)))
+            h_p, l_p = float(curr_c.get("high", curr_c.get("High", 0.0))), float(curr_c.get("low", curr_c.get("Low", 0.0)))
+            body_size = abs(c_p - o_p)
+            total_range = max(1e-6, h_p - l_p)
+
+            # Bullish pinbar / rejection
+            if (c_p > o_p and (o_p - l_p) >= 1.5 * body_size) or (c_p > float(prev_c.get("high", prev_c.get("High", 0.0)))):
+                trigger_found = True
+                trigger_direction = "BUY"
+            # Bearish pinbar / rejection
+            elif (c_p < o_p and (h_p - o_p) >= 1.5 * body_size) or (c_p < float(prev_c.get("low", prev_c.get("Low", 0.0)))):
+                trigger_found = True
+                trigger_direction = "SELL"
+
+        # 2. Structural Alignment Check: Child trigger direction must align with HTF parent context
+        # Prevents selling into HTF discount support or buying into HTF premium resistance
+        if trigger_found:
+            if trigger_direction == "SELL" and parent_loc != "PARENT_DISCOUNT_LOWER_ZONE":
+                direction = "SELL"
+                sl = current_price + (25 * pip_factor)
+                tp = current_price - (60 * pip_factor)  # ~1:2.4 R/R
+                confidence = 82.0 if rel_type == "STRICT_CONTAINMENT" else 68.0
+                reasoning.append(f"FRACTAL: Bearish trigger confirmed at {parent_loc} inside Parent {parent_type} ({rel_type}).")
+            elif trigger_direction == "BUY" and parent_loc != "PARENT_PREMIUM_UPPER_ZONE":
+                direction = "BUY"
+                sl = current_price - (25 * pip_factor)
+                tp = current_price + (60 * pip_factor)  # ~1:2.4 R/R
+                confidence = 82.0 if rel_type == "STRICT_CONTAINMENT" else 68.0
+                reasoning.append(f"FRACTAL: Bullish trigger confirmed at {parent_loc} inside Parent {parent_type} ({rel_type}).")
+            else:
+                reasoning.append(f"FRACTAL: Trigger rejected. {trigger_direction} trigger conflicts with HTF parent location ({parent_loc}).")
+
+        if direction == "WAIT" and not reasoning:
+            reasoning.append("FRACTAL: No causal lower-timeframe trigger bar or parent-child alignment.")
+
+        risk_dist = abs(current_price - sl) if direction != "WAIT" else 0.0
+        reward_dist = abs(tp - current_price) if direction != "WAIT" else 0.0
+        rr = round(reward_dist / max(1e-6, risk_dist), 2) if direction != "WAIT" else 0.0
 
         return StrategyCandidate(
             strategy_id=f"STRAT-FRACTAL-{uuid.uuid4().hex[:6]}",
@@ -457,13 +507,13 @@ class StrategyOrchestrator:
             symbol=symbol,
             timeframe=tf,
             direction=direction,
-            entry=0.0,
-            stop_loss=0.0,
-            take_profit=0.0,
-            risk_reward=0.0,
-            confidence=0.0,
+            entry=round(current_price, 4) if direction != "WAIT" else 0.0,
+            stop_loss=round(sl, 4) if direction != "WAIT" else 0.0,
+            take_profit=round(tp, 4) if direction != "WAIT" else 0.0,
+            risk_reward=rr,
+            confidence=confidence,
             reasoning=reasoning,
-            market_context={"timeframe": tf, "similarity_score": sim_score, "best_match": best_match},
-            invalidation_level=0.0,
+            market_context={"timeframe": tf, "parent_location": parent_loc, "relationship": rel_type, "trigger": trigger_direction},
+            invalidation_level=round(sl, 4) if direction != "WAIT" else 0.0,
             holding_period="1-4 hours"
         )

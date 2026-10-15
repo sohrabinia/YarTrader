@@ -112,6 +112,40 @@ class TestGoldFractalIntelligenceEngine:
         assert p2_4m[0]["open"] == sample_candles[0]["open"]
         assert p2_4m[0]["high"] == max(c["high"] for c in sample_candles[:4])
 
+    def test_determine_structural_relationship(self, engine):
+        child_base = {"High": 2350.0, "Low": 2340.0, "Type": "Bullish Base"}
+        parent_base = {"High": 2400.0, "Low": 2300.0, "Type": "Bullish Base"}
+        res = engine.determine_structural_relationship(child_base, parent_base)
+        assert res["relationship"] == "STRICT_CONTAINMENT"
+        assert res["containment_pct"] == 100.0
+        assert res["location_in_parent"] in ["PARENT_EQUILIBRIUM_CENTER", "PARENT_DISCOUNT_LOWER_ZONE", "PARENT_PREMIUM_UPPER_ZONE"]
+
+    def test_strategy_orchestrator_fractal_evaluation(self, sample_candles):
+        from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
+        orchestrator = StrategyOrchestrator()
+
+        # Test with strict containment and bullish trigger
+        fractal_ctx = {
+            "Dominant_Scale": "H1",
+            "structural_relationship": {
+                "relationship": "STRICT_CONTAINMENT",
+                "location_in_parent": "PARENT_EQUILIBRIUM_CENTER",
+                "parent_type": "Bullish Base"
+            }
+        }
+        res = orchestrator.evaluate_all_strategies(
+            symbol="XAUUSD",
+            primary_timeframe="H1",
+            candles=sample_candles,
+            fractal=fractal_ctx
+        )
+        assert "candidates" in res
+        fractal_cand = next(c for c in res["candidates"] if c["strategy_name"] == "FRACTAL")
+        assert fractal_cand["direction"] in ["BUY", "WAIT"]
+        if fractal_cand["direction"] == "BUY":
+            assert fractal_cand["confidence"] >= 65.0
+            assert fractal_cand["risk_reward"] >= 1.5
+
     def test_live_trading_hard_isolation(self):
         from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
         assert os.environ.get("LIVE_TRADING_ENABLED", "False").lower() in ("false", "0")

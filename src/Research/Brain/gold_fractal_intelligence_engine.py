@@ -407,6 +407,60 @@ class GoldFractalIntelligenceEngine:
     # ---------------------------------------------------------
     # 4. MULTI-SCALE FRACTAL MAPPING & ACTIVE SCALE DETECTION
     # ---------------------------------------------------------
+    def determine_structural_relationship(
+        self,
+        child_base: Dict[str, Any],
+        parent_base: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Determines the explicit spatial and structural relationship between a child base and a HTF parent base:
+        - STRICT_CONTAINMENT: Child High/Low fully inside Parent High/Low
+        - OVERLAPPING_BOUNDARY: Child overlaps Parent boundary (partial containment)
+        - OUTSIDE_PARENT: Child is outside Parent structure
+        """
+        if not child_base or not parent_base:
+            return {"relationship": "NO_RELATIONSHIP", "containment_pct": 0.0, "location_in_parent": "UNKNOWN"}
+
+        ch_h = float(child_base.get("High", 0.0))
+        ch_l = float(child_base.get("Low", 0.0))
+        pa_h = float(parent_base.get("High", 0.0))
+        pa_l = float(parent_base.get("Low", 0.0))
+        pa_range = max(1e-6, pa_h - pa_l)
+
+        # Containment percentage
+        overlap_h = min(ch_h, pa_h)
+        overlap_l = max(ch_l, pa_l)
+        overlap_range = max(0.0, overlap_h - overlap_l)
+        child_range = max(1e-6, ch_h - ch_l)
+        containment_pct = round((overlap_range / child_range) * 100.0, 2)
+
+        # Location relative to parent midpoint and boundaries
+        pa_mid = (pa_h + pa_l) / 2.0
+        ch_mid = (ch_h + ch_l) / 2.0
+
+        if containment_pct >= 95.0:
+            rel = "STRICT_CONTAINMENT"
+        elif containment_pct > 20.0:
+            rel = "OVERLAPPING_BOUNDARY"
+        else:
+            rel = "OUTSIDE_PARENT"
+
+        if ch_mid >= pa_mid + (0.3 * pa_range):
+            loc = "PARENT_PREMIUM_UPPER_ZONE"
+        elif ch_mid <= pa_mid - (0.3 * pa_range):
+            loc = "PARENT_DISCOUNT_LOWER_ZONE"
+        else:
+            loc = "PARENT_EQUILIBRIUM_CENTER"
+
+        return {
+            "relationship": rel,
+            "containment_pct": containment_pct,
+            "location_in_parent": loc,
+            "parent_high": pa_h,
+            "parent_low": pa_l,
+            "parent_type": parent_base.get("Type", "Neutral Base")
+        }
+
     def map_multi_timeframe_fractals(
         self,
         timeframe_candles: Dict[str, List[Dict[str, Any]]],
@@ -464,12 +518,29 @@ class GoldFractalIntelligenceEngine:
                 elif sc_upper == "W1": hierarchy["Weekly"] = entry
                 elif sc_upper == "D1": hierarchy["Daily"] = entry
 
+        # Identify Macro HTF Parent Base (Monthly -> Weekly -> Daily hierarchy)
+        parent_base = (
+            hierarchy.get("MN1", {}).get("active_base") or
+            hierarchy.get("Monthly", {}).get("active_base") or
+            hierarchy.get("W1", {}).get("active_base") or
+            hierarchy.get("Weekly", {}).get("active_base") or
+            hierarchy.get("D1", {}).get("active_base") or
+            hierarchy.get("Daily", {}).get("active_base")
+        )
+
+        child_base = hierarchy.get(dominant_scale, {}).get("active_base")
+        structural_rel = self.determine_structural_relationship(child_base, parent_base) if child_base and parent_base else {
+            "relationship": "NO_PARENT_BASE", "containment_pct": 0.0, "location_in_parent": "NEUTRAL"
+        }
+
         return {
             "symbol": self.symbol,
             "scale_family": scale_family,
             "hierarchy_tree": hierarchy,
             "dominant_scale": dominant_scale,
             "active_bases_count": len(active_bases_by_tf),
+            "parent_base": parent_base,
+            "structural_relationship": structural_rel,
             "controlling_context": {
                 sc: hierarchy.get(sc, {}).get("status", "EXPANSION_PHASE")
                 for sc in scale_list[:3]
