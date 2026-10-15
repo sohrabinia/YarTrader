@@ -13,23 +13,23 @@ _worker_lock_handle = None
 
 
 def acquire_single_worker_lock() -> bool:
+    """Use a cross-session OS file lock; unlike a Global mutex it needs no special ACL."""
     global _worker_lock_handle
     if os.name != "nt":
         return True
-    import ctypes
-
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
-    kernel32.CreateMutexW.restype = ctypes.c_void_p
-    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
-    ctypes.set_last_error(0)
-    handle = kernel32.CreateMutexW(None, True, r"Global\YarTrader_BaseBehaviorDemoWorker")
-    if not handle:
-        raise OSError(
-            f"Could not create DEMO worker singleton mutex (WinError {ctypes.get_last_error()})."
-        )
-    if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
-        kernel32.CloseHandle(handle)
+    import msvcrt
+    lock_path = ROOT / "runtime_logs" / "base_behavior_runtime" / ".demo_worker.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_path.open("a+b")
+    handle.seek(0, os.SEEK_END)
+    if handle.tell() == 0:
+        handle.write(b"0")
+        handle.flush()
+    handle.seek(0)
+    try:
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+    except OSError:
+        handle.close()
         return False
     _worker_lock_handle = handle
     return True

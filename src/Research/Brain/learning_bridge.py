@@ -122,14 +122,25 @@ class BrainLearningBridge:
 
         final_result = "SUCCESS" if pnl > 0 else ("FAILURE" if pnl < 0 else "NEUTRAL")
         confidence = float((prediction or {}).get("confidence", 0.5))
-        stop_loss = float((prediction or {}).get("stop_loss", entry_price))
-        take_profit = float((prediction or {}).get("take_profit", exit_price))
+        outcome_context = dict(context or {})
+        stop_value = (prediction or {}).get("stop_loss")
+        if stop_value is None:
+            stop_value = outcome_context.get("stop_loss")
+        if stop_value is None:
+            stop_value = entry_price
+        target_value = (prediction or {}).get("take_profit")
+        if target_value is None:
+            target_value = outcome_context.get("take_profit")
+        if target_value is None:
+            target_value = exit_price
+        stop_loss = float(stop_value)
+        take_profit = float(target_value)
 
         simulated = SimulatedDecision(
             timestamp=datetime.now(), symbol=symbol.upper(), price=float(entry_price),
             decision_action=direction.upper(), confidence=confidence,
             reason="DEMO outcome evaluation through canonical Brain Learning Bridge",
-            context={"timeframe": timeframe.upper(), "source": "DEMO", "decision_id": decision_id, **(context or {})},
+            context={"timeframe": timeframe.upper(), "source": "DEMO", "decision_id": decision_id, **outcome_context},
         )
         judge_eval = self.judge.evaluate_decision_outcome(
             simulated, prediction or {},

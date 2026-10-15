@@ -2,7 +2,7 @@ import unittest
 import tempfile
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from app.workers.mt5_mtf_backtest_worker import closed_context_provider, MTF_TIMEFRAMES, MAX_HISTORY_YEARS
+from app.workers.mt5_mtf_backtest_worker import closed_context_provider, MTF_TIMEFRAMES, MAX_HISTORY_YEARS, validate_or_migrate_checkpoint, SCHEMA
 from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
 
 class TestMt5MtfBacktest(unittest.TestCase):
@@ -11,6 +11,24 @@ class TestMt5MtfBacktest(unittest.TestCase):
 
     def test_history_is_capped_at_ten_years_not_fixed_per_timeframe(self):
         self.assertEqual(MAX_HISTORY_YEARS, 10)
+
+    def test_legacy_completed_checkpoint_migrates_and_resumes_without_reprocessing_history(self):
+        end = datetime(2026, 10, 15, 6, 51, 59, tzinfo=timezone.utc)
+        legacy = {
+            "status": "COMPLETED", "symbol": "EURUSD", "timeframe": "MN1",
+            "max_history_years": 10, "actual_history_start": "2016-10-01T00:00:00+00:00",
+            "actual_history_end": end.isoformat(), "processed_bars": 120,
+            "state": {"balance": 9000.0, "total_trades": 10, "open_position": None},
+        }
+        migrated, did_migrate = validate_or_migrate_checkpoint(
+            legacy, "EURUSD", "MN1", end-timedelta(days=3650), end+timedelta(minutes=45)
+        )
+        self.assertTrue(did_migrate)
+        self.assertEqual(migrated["schema"], SCHEMA)
+        self.assertEqual(migrated["status"], "RUNNING")
+        self.assertEqual(migrated["next_start"], end.isoformat())
+        self.assertEqual(migrated["processed_bars"], 120)
+        self.assertEqual(migrated["state"]["balance"], 9000.0)
 
     def test_alignment_uses_same_decision_timestamp_across_timeframes(self):
         series = {

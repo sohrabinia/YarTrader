@@ -20,14 +20,16 @@ if (-not $flagLine) { throw 'DEMO trading opt-in is missing from .env.production
 $demoFlag = $flagLine.Matches[0].Groups[1].Value.Trim().Trim('"').Trim("'").ToLowerInvariant()
 $env:YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED = $demoFlag
 $env:AUTONOMOUS_DEMO_TRADING_ENABLED = $demoFlag
-# Explicitly scope exploratory, unvalidated profile sampling to this DEMO-only worker.
+# Keep exploration opt-in separate from ordinary guarded DEMO trading.
+$explorationLine = Select-String -Path (Join-Path $root '.env.production') -Pattern '^YARTRADER_DEMO_EXPLORATION_MODE=(.*)$' | Select-Object -First 1
+$explorationFlag = if ($explorationLine) { $explorationLine.Matches[0].Groups[1].Value.Trim().Trim('"').Trim("'").ToLowerInvariant() } else { 'false' }
 $env:YARTRADER_TRADING_MODE = 'DEMO'
-$env:YARTRADER_DEMO_EXPLORATION_MODE = 'true'
+$env:YARTRADER_DEMO_EXPLORATION_MODE = $explorationFlag
 $env:YARTRADER_ENV = 'production'
 $env:RG_ENV = 'production'
 $env:PYTHONUNBUFFERED = '1'
 
-Add-Content -Path $log -Value (([Environment]::NewLine) + '=== Base DEMO worker started ' + (Get-Date -Format o) + '; enabled=' + $demoFlag + ' ===')
+Add-Content -Path $log -Value (([Environment]::NewLine) + '=== Base DEMO worker started ' + (Get-Date -Format o) + '; enabled=' + $demoFlag + '; exploration=' + $explorationFlag + ' ===')
 $python = Join-Path $root '.venv\Scripts\python.exe'
 $script = Join-Path $root 'scripts\run_base_behavior_demo_worker.py'
 $proc = Start-Process -FilePath $python -ArgumentList @('-u', $script) -WorkingDirectory $root -PassThru -Wait -RedirectStandardOutput $stdout -RedirectStandardError $stderr

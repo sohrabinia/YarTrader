@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
 from bisect import bisect_right
+from pathlib import Path
 import math
 import uuid
 import os
@@ -32,6 +33,31 @@ class BacktestAndLearningEngine:
         self.learning_interval_bars = max(1, int(learning_interval_bars))
         self.live_brains: Dict[tuple, Any] = {}
         self.judge = JudgeBrain()
+        self._base_engulf_observation_path = Path(self.storage_dir) / "base_engulf_reversal_observations.jsonl"
+        self._base_engulf_observation_keys = set()
+        self._base_engulf_labeled_keys = set()
+        self._base_engulf_forward_labeled_keys = set()
+        self._base_engulf_pending_observations = {}
+        if self._base_engulf_observation_path.exists():
+            try:
+                for line in self._base_engulf_observation_path.read_text(encoding="utf-8-sig").splitlines():
+                    row = json.loads(line)
+                    if row.get("observation_key"):
+                        key = str(row["observation_key"])
+                        if row.get("record_type") == "OUTCOME_LABEL":
+                            self._base_engulf_labeled_keys.add(key)
+                        elif row.get("record_type") == "FORWARD_OUTCOME_LABEL":
+                            self._base_engulf_forward_labeled_keys.add(key)
+                        else:
+                            self._base_engulf_observation_keys.add(key)
+                            if (row.get("label_status") == "PENDING_FORWARD_OUTCOME"
+                                    and row.get("observation_time") is not None
+                                    and row.get("observation_close") is not None
+                                    and (row.get("base") or {}).get("width") is not None):
+                                self._base_engulf_pending_observations[key] = row
+            except (OSError, ValueError, TypeError):
+                # Corrupt research history must not prevent ordinary backtesting.
+                pass
 
     def get_market_memory(self, symbol: str) -> MarketMemorySystem:
         """Sequential multi-market knowledge isolation: separate memory per market symbol."""
@@ -46,8 +72,164 @@ class BacktestAndLearningEngine:
         from src.Research.Brain.live_brain import LiveAnalysisBrain
         key = (symbol.upper(), timeframe.upper())
         if key not in self.live_brains:
-            self.live_brains[key] = LiveAnalysisBrain(symbol.upper(), timeframe.upper(), memory_system=self.get_market_memory(symbol))
+            self.live_brains[key] = LiveAnalysisBrain(
+                symbol.upper(), timeframe.upper(), memory_system=self.get_market_memory(symbol)
+            )
         return self.live_brains[key]
+
+    def _record_base_engulf_observations(self, symbol: str, strategy_result: Dict[str, Any],
+                                         decision_time: Any, timeframe_candles: Optional[Dict[str, Any]] = None,
+                                         now_epoch: Optional[float] = None) -> None:
+        """Persist unique Base states and label their forward reversal outcomes causally."""
+        for tf, item in (strategy_result.get("timeframe_results") or {}).items():
+            base = item.get("base")
+            if not isinstance(base, dict):
+                continue
+            engulfed = item.get("engulfed") is True
+            event_time = item.get("engulf_time") if engulfed else None
+            key = "|".join((str(symbol).upper(), str(tf).upper(), str(base.get("start_time")),
+                            str(base.get("end_time")), str(event_time if event_time is not None else "NOT_ENGULFED_YET")))
+            if key in self._base_engulf_observation_keys:
+                continue
+            row = {
+                "observation_key": key, "symbol": str(symbol).upper(), "timeframe": str(tf).upper(),
+                "decision_time": str(decision_time), "observation_time": item.get("observation_time"),
+                "observation_close": item.get("observation_close"), "base": base,
+                "trend_direction": item.get("trend_direction"),
+                "departure_time": item.get("departure_time"),
+                "engulfed": engulfed, "engulf_time": event_time,
+                "direction": item.get("direction", "WAIT"),
+                "status": item.get("status", "WAIT"), "reason": item.get("reason", ""),
+                "label_status": "PENDING_FORWARD_OUTCOME",
+                "note": "Observation only; future bars are not used until the fixed horizon has elapsed.",
+            }
+            try:
+                self._base_engulf_observation_path.parent.mkdir(parents=True, exist_ok=True)
+                with self._base_engulf_observation_path.open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+                self._base_engulf_observation_keys.add(key)
+                self._base_engulf_pending_observations[key] = row
+            except OSError:
+                continue
+        if timeframe_candles and now_epoch is not None:
+            self._label_base_engulf_forward_outcomes(str(symbol).upper(), timeframe_candles, float(now_epoch))
+
+    def _label_base_engulf_forward_outcomes(self, symbol: str, timeframe_candles: Dict[str, Any],
+                                            now_epoch: float, horizon_bars: int = 10) -> None:
+        """Compare engulfed and not-yet-engulfed Base snapshots using a fixed 10-bar horizon.
+
+        These are OHLC research labels, not broker-costed labels and not eligible for
+        the validated net-R reaction model. Same-bar stop/target collisions are ambiguous.
+        """
+        seconds = {"M1":60,"M5":300,"M15":900,"M30":1800,"H1":3600,
+                   "H4":14400,"D1":86400,"W1":604800,"MN1":31*86400}
+        for key, row in list(self._base_engulf_pending_observations.items()):
+            if str(row.get("symbol", "")).upper() != symbol or key in self._base_engulf_forward_labeled_keys:
+                continue
+            tf = str(row.get("timeframe", "")).upper()
+            if tf not in seconds:
+                continue
+            try:
+                obs_time = float(row["observation_time"])
+                entry = float(row["observation_close"])
+                width = float((row.get("base") or {}).get("width"))
+                trend = int(row.get("trend_direction", 0))
+            except (TypeError, ValueError, KeyError):
+                continue
+            if width <= 0 or trend not in (-1, 1):
+                continue
+            duration = seconds[tf]
+            # observation_time is the signal candle's open time; its close is known
+            # one timeframe later, followed by exactly horizon_bars completed candles.
+            horizon_end = obs_time + (horizon_bars + 1) * duration
+            if now_epoch < horizon_end:
+                continue
+            raw_bars = timeframe_candles.get(tf) or []
+            future = []
+            for candle in raw_bars:
+                try:
+                    stamp = candle.get("timestamp", candle.get("time"))
+                    if isinstance(stamp, str):
+                        stamp = datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+                    stamp = float(stamp)
+                    if obs_time < stamp <= obs_time + horizon_bars*duration and stamp + duration <= now_epoch:
+                        future.append({"time":stamp,"high":float(candle["high"]),"low":float(candle["low"])})
+                except (TypeError, ValueError, KeyError, OverflowError):
+                    continue
+            future.sort(key=lambda x:x["time"])
+            if len(future) < horizon_bars:
+                continue
+            future = future[:horizon_bars]
+            direction = "SELL" if trend > 0 else "BUY"
+            stop = entry + width if direction == "SELL" else entry - width
+            target = entry - 2*width if direction == "SELL" else entry + 2*width
+            first_transition = "horizon_expired"
+            for candle in future:
+                stop_hit = candle["high"] >= stop if direction == "SELL" else candle["low"] <= stop
+                target_hit = candle["low"] <= target if direction == "SELL" else candle["high"] >= target
+                if stop_hit and target_hit:
+                    first_transition = "ambiguous_same_bar"
+                    break
+                if target_hit:
+                    first_transition = "reversal_target_first"
+                    break
+                if stop_hit:
+                    first_transition = "reversal_stop_first"
+                    break
+            if direction == "SELL":
+                mfe = max(0.0, entry-min(x["low"] for x in future))/width
+                mae = max(0.0, max(x["high"] for x in future)-entry)/width
+            else:
+                mfe = max(0.0, max(x["high"] for x in future)-entry)/width
+                mae = max(0.0, entry-min(x["low"] for x in future))/width
+            label = {
+                "record_type":"FORWARD_OUTCOME_LABEL", "observation_key":key,
+                "symbol":symbol, "timeframe":tf, "engulfed":row.get("engulfed") is True,
+                "direction":direction, "label_status":"LABELED",
+                "outcome_source":"historical_ohlc_barrier_simulation",
+                "label_horizon_bars":horizon_bars, "first_transition":first_transition,
+                "favorable_excursion_base_widths":round(mfe,4),
+                "adverse_excursion_base_widths":round(mae,4),
+                "entry_reference":entry, "base_width":width,
+                "note":"Research-only OHLC label; spread, commission, slippage and broker execution are not included.",
+            }
+            try:
+                with self._base_engulf_observation_path.open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(label, ensure_ascii=False, default=str) + "\n")
+                self._base_engulf_forward_labeled_keys.add(key)
+                self._base_engulf_pending_observations.pop(key, None)
+            except OSError:
+                continue
+
+    def _record_base_engulf_outcome(self, closed_trade: Dict[str, Any]) -> None:
+        """Attach the actual chronological backtest result to its Base-engulf event."""
+        if str(closed_trade.get("strategy", "")).upper() != "BASE_ENGULF_REVERSAL":
+            return
+        key = str(closed_trade.get("base_engulf_observation_key") or "")
+        if not key or key in self._base_engulf_labeled_keys:
+            return
+        row = {
+            "record_type": "OUTCOME_LABEL", "observation_key": key,
+            "symbol": str(closed_trade.get("symbol", "")).upper(),
+            "timeframe": str(closed_trade.get("setup_timeframe") or closed_trade.get("timeframe", "")).upper(),
+            "strategy": "BASE_ENGULF_REVERSAL", "label_status": "LABELED",
+            "outcome_source": "historical_execution_simulation",
+            "outcome": closed_trade.get("outcome"), "exit_reason": closed_trade.get("exit_reason"),
+            "entry_time": closed_trade.get("entry_time"), "exit_time": closed_trade.get("exit_time"),
+            "entry": closed_trade.get("entry"), "exit_price": closed_trade.get("exit_price"),
+            "stop_loss": closed_trade.get("stop_loss"), "take_profit": closed_trade.get("take_profit"),
+            "pnl": closed_trade.get("pnl"), "r_multiple": closed_trade.get("r_multiple"),
+            "mfe": closed_trade.get("mfe"), "mae": closed_trade.get("mae"),
+            "note": "Backtest outcome label; costs and stop-first bar simulation are applied by the backtest engine.",
+        }
+        try:
+            self._base_engulf_observation_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._base_engulf_observation_path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+            self._base_engulf_labeled_keys.add(key)
+        except OSError:
+            # Research persistence failure must not affect the backtest result.
+            return
 
     def build_mt5_multitimeframe_provider(
         self, symbol: str, primary_timeframe: str, start_time: datetime,
@@ -393,6 +575,7 @@ class BacktestAndLearningEngine:
                     open_position["pnl"] = round(trade_pnl, 2)
                     open_position["r_multiple"] = r_multiple
                     open_position["outcome"] = outcome
+                    self._record_base_engulf_outcome(open_position)
 
                     # Evaluation-only segments must not update memory from held-out outcomes.
                     if learn_from_outcomes:
@@ -433,8 +616,61 @@ class BacktestAndLearningEngine:
                 exploration_mode=bool(autonomous_exploration_mode),
             )
             latest_brain_report = base_report
+            # Backtest the independent Base-engulf reversal hypothesis on the same
+            # causally closed multi-timeframe candles. A valid engulf proposal takes
+            # precedence for this bar so its trades are explicitly attributed to the
+            # new strategy rather than silently blended into BASE_HIERARCHY results.
+            engulf_candidate = {}
+            if decision_due:
+                try:
+                    from src.Intelligence.Execution.multi_timeframe_style_analyzer import MultiTimeframeStyleAnalyzer
+                    style_frames = dict(mtf_context or {})
+                    style_frames[str(timeframe).upper()] = history_candles
+                    style_now = decision_dt.timestamp() if decision_dt is not None else datetime.fromisoformat(str(decision_time_value).replace("Z", "+00:00")).timestamp()
+                    px = float(current_price)
+                    pip_factor = 0.1 if "XAU" in symbol.upper() else (1.0 if "BTC" in symbol.upper() else 0.0001)
+                    spread_abs = pip_factor
+                    style_result = MultiTimeframeStyleAnalyzer().evaluate(
+                        symbol=symbol, timeframe_candles=style_frames,
+                        quote={"bid": max(1e-12, px-spread_abs/2), "ask": px+spread_abs/2},
+                        now=float(style_now), spread_allowance=spread_abs,
+                    ).get("BASE_ENGULF_REVERSAL", {})
+                    self._record_base_engulf_observations(symbol, style_result, decision_time_value,
+                                                          timeframe_candles=style_frames, now_epoch=float(style_now))
+                    style_plan = style_result.get("order_plan") or {}
+                    if (style_result.get("status") == "ENTRY_PROPOSAL"
+                            and style_plan.get("status") == "PROPOSED"
+                            and style_plan.get("direction") in ("BUY", "SELL")
+                            and style_plan.get("entry") is not None
+                            and style_plan.get("stop_loss") is not None
+                            and style_result.get("research_target") is not None):
+                        selected_base = style_result.get("base") or {}
+                        selected_tf = str(style_result.get("timeframe") or style_result.get("setup_timeframe") or "").upper()
+                        selected_event_time = style_result.get("engulf_time")
+                        observation_key = "|".join((str(symbol).upper(), selected_tf,
+                            str(selected_base.get("start_time")), str(selected_base.get("end_time")),
+                            str(selected_event_time if selected_event_time is not None else "NOT_ENGULFED_YET")))
+                        engulf_candidate = {
+                            "strategy_name": "BASE_ENGULF_REVERSAL",
+                            "strategy_id": "BASE_ENGULF_REVERSAL",
+                            "base_engulf_observation_key": observation_key,
+                            "setup_timeframe": selected_tf,
+                            "direction": style_plan["direction"],
+                            "entry": float(style_plan["entry"]),
+                            "stop_loss": float(style_plan["stop_loss"]),
+                            "take_profit": float(style_result["research_target"]),
+                            "risk_reward": float(style_result.get("research_reward_risk", 2.0)),
+                            "confidence": float(style_result.get("confidence", 72.0)),
+                            "reasoning": [style_result.get("reason", "Base engulf reversal research signal")],
+                            "market_context": {"strategy": "BASE_ENGULF_REVERSAL",
+                                               "base_engulf_reversal": style_result},
+                        }
+                except Exception:
+                    # A secondary research strategy must never abort the canonical
+                    # backtest or fabricate a candidate when its analysis fails.
+                    engulf_candidate = {}
             if not open_position and decision_due and (not daily_halted or autonomous_exploration_mode):
-                candidate = base_report.get("best_candidate") or {}
+                candidate = engulf_candidate or (base_report.get("best_candidate") or {})
                 action = str(candidate.get("direction", "WAIT")).upper()
                 params = {
                     "entry": candidate.get("entry"),
@@ -451,8 +687,8 @@ class BacktestAndLearningEngine:
                     "context": market_context,
                     "matched_pattern_ids": [],
                     "sequence_signature": [
-                        "BASE_HIERARCHY",
-                        f"CHILD_TF:{base_structure.get('child_timeframe', 'UNKNOWN')}",
+                        str(candidate.get("strategy_name") or "BASE_HIERARCHY"),
+                        f"CHILD_TF:{base_structure.get('child_timeframe', candidate.get('setup_timeframe', 'UNKNOWN'))}",
                         f"PARENT_TF:{base_structure.get('parent_timeframe', 'UNKNOWN')}",
                         f"RELATION:{base_structure.get('parent_relation', 'UNKNOWN')}",
                         f"PROFILE:{base_structure.get('profile_key', 'UNKNOWN')}",
@@ -467,7 +703,9 @@ class BacktestAndLearningEngine:
                         "trade_id": f"BT-{symbol.upper()}-{timeframe.upper()}-{str(bar_time).replace(":", "").replace("+", "p").replace("-", "")}-{action}",
                         "symbol": symbol.upper(),
                         "timeframe": timeframe,
-                        "strategy": "BASE_HIERARCHY",
+                        "strategy": str(candidate.get("strategy_name") or "BASE_HIERARCHY").upper(),
+                        "base_engulf_observation_key": candidate.get("base_engulf_observation_key"),
+                        "setup_timeframe": candidate.get("setup_timeframe", timeframe),
                         "direction": action,
                         "entry": float(params.get("entry", current_price)),
                         "stop_loss": float(params.get("stop_loss", 0.0)),

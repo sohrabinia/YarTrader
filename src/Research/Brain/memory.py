@@ -484,9 +484,10 @@ class MarketMemorySystem:
             for pid, pat in list(self.patterns.items()):
                 total = pat.occurrences_count
                 if total >= min_samples:
-                    # Calculate consistency: e.g. how unidirectional is the outcome?
-                    max_flow = max(pat.continuation_count, pat.reversal_count)
-                    consistency = max_flow / total if total > 0 else 0.0
+                    # Promote only positively validated patterns, not merely repeatable outcomes.
+                    # A setup that loses every time is consistently bad and must not become
+                    # an approved concept used to guide future trading.
+                    consistency = pat.continuation_count / total if total > 0 else 0.0
 
                     # Calculate average Judge-vetted accuracy across outcomes
                     vetted_accuracies = [out.get("judge_vetted_accuracy", 1.0) for out in pat.outcomes]

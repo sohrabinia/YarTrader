@@ -169,6 +169,38 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertNotEqual(sent_request["volume"], req.Volume)
         self.assertGreaterEqual(mock_mt5.account_info.call_count, 2)  # safety check + fresh sizing snapshot
 
+    def test_wallet_sizing_honors_lower_strategy_risk_share(self):
+        mock_mt5 = MagicMock()
+        mock_mt5.ORDER_TYPE_BUY = 0
+        mock_mt5.account_info.return_value = MagicMock(
+            balance=1000000.0, equity=1000000.0, margin_free=1000000.0
+        )
+        mock_mt5.order_calc_profit.side_effect = (
+            lambda order_type, symbol, volume, entry, stop_loss:
+            -abs(float(entry) - float(stop_loss)) * 100.0 * float(volume)
+        )
+        mock_mt5.order_calc_margin.return_value = 0.0
+        sym_info = MagicMock(volume_min=0.01, volume_max=100.0, volume_step=0.01)
+        self.adapter._mt5 = mock_mt5
+        result = self.adapter._calculate_current_wallet_volume(
+            "XAUUSD", "BUY", 2300.0, 2290.0, sym_info, risk_pct=0.2
+        )
+        self.assertAlmostEqual(result["risk_budget"], 2000.0, places=2)
+        self.assertAlmostEqual(result["risk_pct"], 0.2, places=6)
+        self.assertLess(result["volume"], 100.0)
+
+    def test_wallet_sizing_rejects_strategy_share_above_global_ceiling(self):
+        mock_mt5 = MagicMock()
+        mock_mt5.account_info.return_value = MagicMock(
+            balance=1000000.0, equity=1000000.0, margin_free=1000000.0
+        )
+        self.adapter._mt5 = mock_mt5
+        sym_info = MagicMock(volume_min=0.01, volume_max=100.0, volume_step=0.01)
+        with self.assertRaisesRegex(ValidationException, "global 1% ceiling"):
+            self.adapter._calculate_current_wallet_volume(
+                "XAUUSD", "BUY", 2300.0, 2290.0, sym_info, risk_pct=1.01
+            )
+
     def test_live_wallet_sizing_blocks_when_broker_minimum_exceeds_budget(self):
         mock_mt5 = MagicMock()
         mock_mt5.ORDER_TYPE_BUY = 0

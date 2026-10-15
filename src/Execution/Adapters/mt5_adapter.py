@@ -307,6 +307,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
 
     def _calculate_current_wallet_volume(
         self, symbol: str, order_type: str, entry_price: float, stop_loss: Any, sym_info: Any,
+        risk_pct: Any = None,
     ) -> Dict[str, Any]:
         """Size every broker entry from a fresh wallet snapshot and broker PnL model.
 
@@ -330,6 +331,11 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         balance = number(account, "balance")
         equity = number(account, "equity")
         free_margin = number(account, "margin_free") if self._field_value(account, "margin_free") is not None else number(account, "free_margin")
+        configured_risk_pct = float(ProductionRiskPolicy.TARGET_RISK_PCT) if risk_pct is None else risk_pct
+        if (isinstance(configured_risk_pct, bool) or not isinstance(configured_risk_pct, (int, float))
+                or not math.isfinite(float(configured_risk_pct)) or not 0.0 < float(configured_risk_pct) <= float(ProductionRiskPolicy.TARGET_RISK_PCT)):
+            raise ValidationException("Risk sizing blocked: requested strategy risk share must be positive and at or below the global 1% ceiling.")
+        configured_risk_pct = float(configured_risk_pct)
         risk_basis = min(balance, equity)
         if risk_basis <= 0 or free_margin < 0:
             raise ValidationException("Risk sizing blocked: current balance, equity, or free margin is invalid.")
@@ -352,7 +358,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         volume_step = number(sym_info, "volume_step")
         if volume_min <= 0 or volume_max < volume_min or volume_step <= 0:
             raise ValidationException("Risk sizing blocked: broker volume limits are invalid.")
-        risk_budget = risk_basis * (float(ProductionRiskPolicy.TARGET_RISK_PCT) / 100.0)
+        risk_budget = risk_basis * (configured_risk_pct / 100.0)
         min_profit = mt5.order_calc_profit(mt5_order_type, symbol, volume_min, entry, sl)
         if min_profit is None or isinstance(min_profit, bool) or not math.isfinite(float(min_profit)):
             raise ValidationException("Risk sizing blocked: broker cannot calculate minimum-lot stop-loss risk.")
@@ -360,7 +366,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         if min_risk <= 0 or min_risk > risk_budget * 1.000001:
             raise ValidationException(
                 f"Risk sizing blocked: broker minimum {volume_min:g} lot risks {min_risk:.4f}, "
-                f"above current wallet budget {risk_budget:.4f} (1%)."
+                f"above current wallet budget {risk_budget:.4f} ({configured_risk_pct:.4f}%)."
             )
 
         risk_per_lot = min_risk / volume_min
@@ -390,7 +396,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         )
         return {"volume": volume, "balance": balance, "equity": equity,
                 "risk_basis": risk_basis, "risk_budget": risk_budget,
-                "estimated_risk": estimated_risk, "risk_pct": float(ProductionRiskPolicy.TARGET_RISK_PCT)}
+                "estimated_risk": estimated_risk, "risk_pct": configured_risk_pct}
 
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
         """
@@ -481,6 +487,7 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 entry_price=float(price),
                 stop_loss=request.StopLoss,
                 sym_info=sym_info,
+                risk_pct=getattr(request, "RiskPct", None),
             )
             volume = float(sizing["volume"])
             logger.info(

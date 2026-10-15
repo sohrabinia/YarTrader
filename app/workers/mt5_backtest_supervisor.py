@@ -17,18 +17,23 @@ LOG_BACKUP_COUNT = 3
 _SUPERVISOR_MUTEX_HANDLE = None
 
 def _acquire_singleton() -> bool:
+    """Use a cross-session OS file lock so multiple Windows sessions cannot duplicate supervisors."""
     global _SUPERVISOR_MUTEX_HANDLE
-    import ctypes
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_wchar_p]
-    kernel32.CreateMutexW.restype = ctypes.c_void_p
-    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
-    ctypes.set_last_error(0)
-    handle = kernel32.CreateMutexW(None, True, r"Local\YarTraderMT5BacktestSupervisor")
-    if not handle:
-        raise OSError(f"Could not create backtest supervisor mutex (WinError {ctypes.get_last_error()}).")
-    if ctypes.get_last_error() == 183:
-        kernel32.CloseHandle(handle)
+    if os.name != "nt":
+        return True
+    import msvcrt
+    lock_path = ROOT / "runtime_logs" / "backtest_learning" / ".supervisor.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_path.open("a+b")
+    handle.seek(0, os.SEEK_END)
+    if handle.tell() == 0:
+        handle.write(b"0")
+        handle.flush()
+    handle.seek(0)
+    try:
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+    except OSError:
+        handle.close()
         return False
     _SUPERVISOR_MUTEX_HANDLE = handle
     return True
