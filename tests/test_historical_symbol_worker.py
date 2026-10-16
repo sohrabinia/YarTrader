@@ -10,13 +10,13 @@ def test_history_requests_are_capped_for_constrained_host():
 def test_missing_timeframe_is_skipped_without_aborting_other_history(monkeypatch):
     class FakeBridge:
         def heartbeat(self):
-            return {"login": worker.SIGNAL_LOGIN, "server": worker.SIGNAL_SERVER, "is_demo": False}
+            return {"login": worker.DEMO_LOGIN, "server": worker.DEMO_SERVER, "is_demo": True, "terminal_path": r"C:\MT4Demo"}
 
     class FakeProvider:
         pass
 
     class FakeAcquisition:
-        def __init__(self, bridge, provider):
+        def __init__(self, bridge, provider=None):
             self.bridge = bridge
             self.provider = provider
 
@@ -33,7 +33,7 @@ def test_missing_timeframe_is_skipped_without_aborting_other_history(monkeypatch
                 "future_data_injected": False,
             }
 
-    monkeypatch.setattr(worker, "find_signal_bridge", lambda: FakeBridge())
+    monkeypatch.setattr(worker, "find_demo_bridge", lambda: FakeBridge())
     monkeypatch.setattr(worker, "MT4HistoricalDataProvider", FakeProvider)
     monkeypatch.setattr(worker, "MT4HistoryAcquisition", FakeAcquisition)
 

@@ -20,6 +20,10 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
     """
 
     def setUp(self):
+        from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+        switch = DailyLossKillSwitch.get_instance()
+        session_key, _, _ = switch.get_session_key_and_window(datetime.now(timezone.utc))
+        self.assertTrue(switch.set_session_baseline(10000.0, session_key))
         # Keep legacy exclusivity cases deterministic despite production .env opt-in.
         env_patch = patch.dict("os.environ", {"YARTRADER_DEMO_ALLOW_MULTIPLE_POSITIONS": "false"})
         env_patch.start()

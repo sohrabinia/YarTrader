@@ -48,3 +48,45 @@ class TestMT4HistoricalProviderMissingFiles(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_history_acquisition_binds_hst_reads_to_demo_terminal_data_path(tmp_path):
+    from src.Application.Backtesting.mt4_history_acquisition import MT4HistoryAcquisition
+
+    class DemoBridge:
+        def heartbeat(self):
+            return {
+                "login": "252031952", "server": "Alpari-Pro.ECN-Demo",
+                "is_demo": True, "terminal_path": str(tmp_path),
+            }
+
+    acquisition = MT4HistoryAcquisition(DemoBridge())
+    assert acquisition.provider.data_root.resolve() == tmp_path.resolve()
+    assert acquisition.demo_data_root == tmp_path.resolve()
+
+
+def test_history_acquisition_rejects_signal_account_and_signal_hst_root(tmp_path):
+    import pytest
+    from src.Application.Backtesting.mt4_history_acquisition import MT4HistoryAcquisition
+    from src.Data.Providers.MT4.historical import MT4HistoricalDataProvider
+
+    class SignalBridge:
+        def heartbeat(self):
+            return {
+                "login": "143056202", "server": "Alpari-Pro.ECN",
+                "is_demo": False, "terminal_path": str(tmp_path / "signal"),
+            }
+
+    with pytest.raises(RuntimeError, match="authorized DEMO"):
+        MT4HistoryAcquisition(SignalBridge())
+
+    class DemoBridge:
+        def heartbeat(self):
+            return {
+                "login": "252031952", "server": "Alpari-Pro.ECN-Demo",
+                "is_demo": True, "terminal_path": str(tmp_path / "demo"),
+            }
+
+    signal_provider = MT4HistoricalDataProvider(data_root=str(tmp_path / "signal"))
+    with pytest.raises(RuntimeError, match="HST root is not the authorized DEMO"):
+        MT4HistoryAcquisition(DemoBridge(), signal_provider)

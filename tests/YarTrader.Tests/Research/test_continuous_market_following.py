@@ -71,6 +71,10 @@ def test_trade_efficiency_metrics_calculation():
 
 
 def test_dynamic_risk_and_execution_gate_verification():
+    from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+    switch = DailyLossKillSwitch.get_instance()
+    session_key, _, _ = switch.get_session_key_and_window(datetime.now(timezone.utc))
+    assert switch.set_session_baseline(10000.0, session_key)
     risk_engine = ProfessionalRiskEngine()
     adapter = DummyAdapter()
 

@@ -288,10 +288,22 @@ class DailyLossKillSwitch:
                 except (ValueError, TypeError):
                     pass
             if not valid_supplied_base:
-                self.baseline_equity = eq_val
+                # Never reset the drawdown denominator to the current equity on an unknown session.
+                self.baseline_equity = None
 
             self.kill_switch_active = False
             self._save_persistence()
+
+        if self.baseline_equity is None or not math.isfinite(self.baseline_equity) or self.baseline_equity <= 0:
+            self.kill_switch_active = True
+            self._save_persistence()
+            return False, "KILL_SWITCH_BASELINE_UNAVAILABLE", {
+                "session_date": self.current_session_key,
+                "baseline_equity": None,
+                "current_equity": eq_val,
+                "loss_pct": None,
+                "kill_switch_active": True,
+            }
 
         if bot_daily_pnl is not None:
             if isinstance(bot_daily_pnl, bool) or not isinstance(bot_daily_pnl, (int, float)) or not math.isfinite(float(bot_daily_pnl)):

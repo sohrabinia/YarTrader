@@ -63,6 +63,13 @@ def load_symbols():
             result.append(symbol)
     if not result:
         raise RuntimeError("Historical learning queue is empty.")
+    allowed = {"XAUUSD", "EURUSD"}
+    disallowed = sorted(set(result) - allowed)
+    if disallowed:
+        raise ValueError(
+            "Historical learning is restricted to authorized DEMO symbols XAUUSD/EURUSD; "
+            f"rejected: {disallowed}"
+        )
     if "XAUUSD" in result:
         result = ["XAUUSD", *[symbol for symbol in result if symbol != "XAUUSD"]]
     return result
@@ -314,15 +321,15 @@ def _try_acquire_windows_lock(path: Path):
     return lock
 
 
-def _wait_for_signal_bridge(poll_sec=5.0):
+def _wait_for_demo_bridge(poll_sec=5.0):
     while True:
         for common_dir in glob.glob(r"C:\Users\*\AppData\Roaming\MetaQuotes\Terminal\Common\Files"):
             bridge = MT4FileBridge(common_dir=common_dir)
             hb = bridge.heartbeat()
-            # Authorized Signal terminal is read-only for this worker; no order operations.
-            if (hb and str(hb.get("login", "")) == "143056202"
-                    and hb.get("server") == "Alpari-Pro.ECN"
-                    and hb.get("is_demo") is False):
+            # Historical acquisition is restricted to the authorized DEMO account.
+            if (hb and str(hb.get("login", "")) == "252031952"
+                    and hb.get("server") == "Alpari-Pro.ECN-Demo"
+                    and hb.get("is_demo") is True):
                 return bridge
         time.sleep(poll_sec)
 
@@ -348,7 +355,7 @@ def run_queue(years=10, initial_balance=10000.0, sleep_sec=0.5, max_symbols=0,
                     "status", "attempts", "last_error", "last_attempt_at",
                     "next_retry_at", "failure_classification")}
                 item.update(_new_symbol_state())
-    state.update(schema=SCHEMA_VERSION, status="WAITING_FOR_SIGNAL",
+    state.update(schema=SCHEMA_VERSION, status="WAITING_FOR_DEMO",
                  years=years, symbols=symbols, current_symbol=None, current_index=None)
     save_state(state, state_path)
 
@@ -374,7 +381,7 @@ def run_queue(years=10, initial_balance=10000.0, sleep_sec=0.5, max_symbols=0,
         save_state(state, state_path)
         return state
 
-    _wait_for_signal_bridge()
+    _wait_for_demo_bridge()
     worker = ROOT / "app" / "workers" / "historical_symbol_worker.py"
     for index, symbol in enumerate(symbols):
         item = state["symbol_states"][symbol]
