@@ -1324,7 +1324,21 @@ class AutonomousDemoTrader:
         if not math.isfinite(equity) or equity <= 0:
             return {"allowed": False, "reason": "KILL_SWITCH_ERROR", "meta": {}}
         pnl = calculate_yartrader_daily_pnl(self.adapter, now_utc=risk_now)
-        allowed, reason, meta = DailyLossKillSwitch.get_instance().evaluate_daily_loss(
+        risk_switch = DailyLossKillSwitch.get_instance()
+        session_key, _, _ = risk_switch.get_session_key_and_window(risk_now)
+        # A fresh process or a new session must establish a baseline before the
+        # fail-closed evaluator can approve entries. When dynamic bot PnL is used,
+        # the persisted baseline is intentionally omitted; safely rehydrate it on
+        # restart only if the kill switch is not already active. Never clear an
+        # active daily-loss lock to make a trade possible.
+        if risk_switch.current_session_key != session_key:
+            risk_switch.update_session_state(equity, dt=risk_now)
+        elif (risk_switch.baseline_equity is None
+              or not math.isfinite(float(risk_switch.baseline_equity or 0.0))
+              or float(risk_switch.baseline_equity or 0.0) <= 0.0):
+            if not risk_switch.kill_switch_active:
+                risk_switch.set_session_baseline(equity, session_key)
+        allowed, reason, meta = risk_switch.evaluate_daily_loss(
             equity, now_utc=risk_now, bot_daily_pnl=pnl["total_pnl"]
         )
         meta.update({

@@ -189,3 +189,29 @@ class TestBusinessCatalogSystem:
         response = client.get("/api/admin/business/catalog", headers={"Authorization": f"Bearer {admin_token}"})
         assert response.status_code == 200
         assert len(response.json()) >= 7
+
+
+def test_purchase_does_not_claim_payment_completed():
+    from fastapi.testclient import TestClient
+    from src.Application.Services.web_dashboard import app
+    from src.Application.Dashboard.business_catalog_manager import BusinessCatalogManager
+
+    client = TestClient(app)
+    manager = BusinessCatalogManager()
+    product = manager.get_product("pro")
+    original = dict(product)
+    try:
+        product["status"] = "ACTIVE"
+        product["visible"] = True
+        product["purchasable"] = True
+        product["price"] = max(1, float(product.get("price", 1)))
+        manager.save_product(product)
+        response = client.post("/api/public/business/purchase", json={
+            "product_id": "pro", "email": "checkout-test@yartrader.app"
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "CHECKOUT_READY"
+        assert "no payment" in data["message"].lower()
+    finally:
+        manager.save_product(original)

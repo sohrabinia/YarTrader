@@ -96,3 +96,10 @@ def test_cross_process_puts_do_not_lose_index_entries(tmp_path: Path):
             f"process-artifact-{i}".encode() for i in range(32)
             if hashlib.sha256(f"process-artifact-{i}".encode()).hexdigest() == artifact_id
         )
+
+
+def test_invalid_artifact_id_cannot_escape_store_root(tmp_path: Path):
+    store = YarTraderArtifactStore(tmp_path)
+    for artifact_id in ("../outside", "..\\..\\outside", "a" * 63, "z" * 64):
+        with pytest.raises(ValueError, match="Invalid artifact digest"):
+            store.get(artifact_id)

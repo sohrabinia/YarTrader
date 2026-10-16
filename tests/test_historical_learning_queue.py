@@ -4,8 +4,14 @@ from app.workers import historical_learning_queue as queue
 
 
 def test_primary_symbol_override_is_respected_and_xauusd_is_prioritized(monkeypatch):
-    monkeypatch.setenv("YARTRADER_HISTORICAL_LEARNING_SYMBOLS", "EURUSD, XAUUSD, GBPUSD")
-    assert queue.load_symbols() == ["XAUUSD", "EURUSD", "GBPUSD"]
+    monkeypatch.setenv("YARTRADER_HISTORICAL_LEARNING_SYMBOLS", "EURUSD, XAUUSD")
+    assert queue.load_symbols() == ["XAUUSD", "EURUSD"]
+
+
+def test_symbol_override_cannot_expand_authorized_demo_universe(monkeypatch):
+    monkeypatch.setenv("YARTRADER_HISTORICAL_LEARNING_SYMBOLS", "XAUUSD, GBPUSD")
+    with pytest.raises(ValueError, match="restricted to authorized DEMO symbols"):
+        queue.load_symbols()
 
 
 def test_empty_symbol_override_falls_back_to_config(monkeypatch):
@@ -16,23 +22,23 @@ def test_empty_symbol_override_falls_back_to_config(monkeypatch):
     assert queue.load_symbols() == ["XAUUSD", "EURUSD"]
 
 
-def test_history_queue_accepts_only_authorized_read_only_signal_heartbeat(monkeypatch):
-    signal = {"login": "143056202", "server": "Alpari-Pro.ECN", "is_demo": False}
+def test_history_queue_accepts_only_authorized_demo_heartbeat(monkeypatch):
+    demo = {"login": "252031952", "server": "Alpari-Pro.ECN-Demo", "is_demo": True}
     monkeypatch.setattr(queue.glob, "glob", lambda pattern: ["common-files"])
-    monkeypatch.setattr(queue, "MT4FileBridge", lambda common_dir=None: type("Bridge", (), {"heartbeat": lambda self: signal})())
-    bridge = queue._wait_for_signal_bridge(poll_sec=0)
+    monkeypatch.setattr(queue, "MT4FileBridge", lambda common_dir=None: type("Bridge", (), {"heartbeat": lambda self: demo})())
+    bridge = queue._wait_for_demo_bridge(poll_sec=0)
     assert bridge is not None
 
 
-def test_history_queue_rejects_demo_or_wrong_server_heartbeat(monkeypatch):
-    invalid = {"login": "252031952", "server": "Alpari-Pro.ECN-Demo", "is_demo": True}
+def test_history_queue_rejects_signal_or_wrong_server_heartbeat(monkeypatch):
+    invalid = {"login": "143056202", "server": "Alpari-Pro.ECN", "is_demo": False}
     monkeypatch.setattr(queue.glob, "glob", lambda pattern: ["common-files"])
     monkeypatch.setattr(queue, "MT4FileBridge", lambda common_dir=None: type("Bridge", (), {"heartbeat": lambda self: invalid})())
     def stop_waiting(_seconds):
-        raise TimeoutError("no authorized signal heartbeat")
+        raise TimeoutError("no authorized DEMO heartbeat")
     monkeypatch.setattr(queue.time, "sleep", stop_waiting)
-    with pytest.raises(TimeoutError, match="no authorized signal heartbeat"):
-        queue._wait_for_signal_bridge(poll_sec=0)
+    with pytest.raises(TimeoutError, match="no authorized DEMO heartbeat"):
+        queue._wait_for_demo_bridge(poll_sec=0)
 
 
 import json
@@ -48,7 +54,7 @@ def _fake_worker_success(*args, **kwargs):
 def _configure_queue_run(monkeypatch, tmp_path, symbols):
     monkeypatch.setattr(queue, "ROOT", tmp_path)
     monkeypatch.setattr(queue, "load_symbols", lambda: list(symbols))
-    monkeypatch.setattr(queue, "_wait_for_signal_bridge", lambda: object())
+    monkeypatch.setattr(queue, "_wait_for_demo_bridge", lambda: object())
     monkeypatch.setattr(queue.time, "sleep", lambda _seconds: None)
     return tmp_path / "runtime_logs" / "backtest_learning" / "historical_queue_state.json"
 

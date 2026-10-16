@@ -792,14 +792,41 @@ function MainApp() {
     try {
       const devops = await apiService.get('/api/devops/status');
       setDevopsStatus(devops);
+    } catch (err) {
+      setDevopsStatus({
+        service_status: 'UNKNOWN',
+        runtime_health: 'UNKNOWN',
+        mt5_status: 'UNKNOWN',
+        data_state: 'UNAVAILABLE',
+      });
+    }
+
+    try {
       const dMetrics = await apiService.get('/api/devops/metrics');
       setDevopsMetrics(dMetrics);
-      const valHistory = await apiService.get('/api/validation/history');
-      setValidationHistory(valHistory);
-      const valStatus = await apiService.get('/api/validation/status');
-      setValidationStatus(valStatus);
     } catch (err) {
-      console.error(err);
+      setDevopsMetrics({
+        pipeline_latency_ms: null,
+        api_response_ms: null,
+        memory_used_mb: null,
+        thread_count: null,
+        active_connections: null,
+        data_state: 'UNAVAILABLE',
+      });
+    }
+
+    try {
+      const valHistory = await apiService.get('/api/validation/history');
+      setValidationHistory(Array.isArray(valHistory) ? valHistory : []);
+    } catch (err) {
+      setValidationHistory([]);
+    }
+
+    try {
+      const valStatus = await apiService.get('/api/validation/status');
+      setValidationStatus(valStatus || { status: 'UNKNOWN', is_running: false });
+    } catch (err) {
+      setValidationStatus({ status: 'UNKNOWN', is_running: false });
     }
   };
 

@@ -10,10 +10,27 @@ from pathlib import Path
 
 from src.Data.Providers.MT4.historical import MT4HistoricalDataProvider
 
+DEMO_LOGIN = "252031952"
+DEMO_SERVER = "Alpari-Pro.ECN-Demo"
+
 class MT4HistoryAcquisition:
     def __init__(self, bridge, provider=None):
         self.bridge = bridge
-        self.provider = provider or MT4HistoricalDataProvider()
+        heartbeat = bridge.heartbeat() if bridge is not None else None
+        if not heartbeat or str(heartbeat.get("login", "")) != DEMO_LOGIN or heartbeat.get("server") != DEMO_SERVER or heartbeat.get("is_demo") is not True:
+            raise RuntimeError("MT4 history acquisition requires the authorized DEMO account/server.")
+        terminal_data_path = str(heartbeat.get("terminal_path") or "").strip()
+        if not terminal_data_path:
+            raise RuntimeError("MT4 DEMO heartbeat is missing its terminal data path.")
+        demo_root = Path(terminal_data_path).resolve()
+        if provider is None:
+            provider = MT4HistoricalDataProvider(data_root=str(demo_root))
+        else:
+            provider_root = getattr(provider, "data_root", None)
+            if provider_root is None or Path(provider_root).resolve() != demo_root:
+                raise RuntimeError("Refusing MT4 history provider whose HST root is not the authorized DEMO terminal.")
+        self.provider = provider
+        self.demo_data_root = demo_root
 
     def acquire(self, symbol: str, timeframe: str, bars: int, allow_partial: bool = False) -> dict:
         symbol, timeframe = symbol.upper(), timeframe.upper()

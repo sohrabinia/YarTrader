@@ -13,6 +13,7 @@ import gzip
 import hashlib
 import json
 import os
+import re
 import struct
 import threading
 import time
@@ -127,6 +128,8 @@ class YarTraderArtifactStore:
         self.objects.mkdir(parents=True, exist_ok=True)
 
     def _object_path(self, digest: str) -> Path:
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise ValueError("Invalid artifact digest")
         return self.objects / digest[:2] / f"{digest}.yarz"
 
     def put(

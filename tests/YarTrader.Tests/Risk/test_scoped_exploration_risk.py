@@ -21,6 +21,9 @@ class TestScopedExplorationRisk(unittest.TestCase):
         }
         with patch.dict(os.environ, env, clear=True):
             switch = DailyLossKillSwitch(persistence_path=tempfile.mktemp(suffix=".json"))
+            from datetime import datetime, timezone
+            session_key, _, _ = switch.get_session_key_and_window(datetime.now(timezone.utc))
+            self.assertTrue(switch.set_session_baseline(1000.0, session_key))
             self.assertEqual(switch.effective_max_daily_loss_pct(), 10.0)
             allowed, reason, meta = switch.evaluate_daily_loss(1000.0, bot_daily_pnl=-99.0)
             self.assertTrue(allowed)
