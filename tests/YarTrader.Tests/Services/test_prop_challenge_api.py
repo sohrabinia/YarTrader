@@ -24,7 +24,7 @@ class TestPropChallengeAPI(unittest.TestCase):
             "account_number": "FTMO-99214",
             "account_size": 100000.0,
             "target_profit_pct": 10.0,
-            "daily_loss_limit_pct": 5.0,
+            "daily_loss_limit_pct": 5.0,  # legacy client input must not override the canonical 10% policy
             "max_drawdown_pct": 10.0,
             "risk_per_trade_pct": 1.0,
             "max_exposure_pct": 3.0,
@@ -39,6 +39,8 @@ class TestPropChallengeAPI(unittest.TestCase):
         post_data = post_res.json()
         self.assertEqual(post_data["status"], "Success")
         self.assertTrue(post_data["config"]["is_configured"])
+        self.assertEqual(post_data["config"]["daily_loss_limit_pct"], 10.0)
+        self.assertEqual(post_data["config"]["risk_per_trade_pct"], 1.0)
 
         get_res = self.client.get("/api/prop/challenge?equity=98000&daily_pl=-1000")
         self.assertEqual(get_res.status_code, 200)
@@ -47,7 +49,7 @@ class TestPropChallengeAPI(unittest.TestCase):
         self.assertIn(status_data["status"], ["CHALLENGE_READY", "NORMAL", "CAUTION", "DAILY_LIMIT_NEAR", "DRAWDOWN_NEAR", "TRADING_HALTED"])
         self.assertIsNotNone(status_data["metrics"])
         self.assertEqual(status_data["metrics"]["account_size"], 100000.0)
-        self.assertEqual(status_data["metrics"]["remaining_daily_loss"], 4000.0)
+        self.assertEqual(status_data["metrics"]["remaining_daily_loss"], 9000.0)
         self.assertEqual(status_data["metrics"]["remaining_drawdown"], 8000.0)
 
 if __name__ == "__main__":

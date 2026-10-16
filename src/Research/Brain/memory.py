@@ -6,6 +6,7 @@ import json
 import threading
 import uuid
 import hashlib
+import math
 from datetime import datetime
 from typing import TYPE_CHECKING, List, Dict, Any, Optional
 from src.Research.Brain.models import MarketEvent, PatternMemory, ExperienceMemory, ConceptMemory
@@ -28,10 +29,22 @@ class MarketMemorySystem:
         self._storage_dir = storage_dir or os.path.join("runtime_logs", "brain_memory")
         os.makedirs(self._storage_dir, exist_ok=True)
         if artifact_store is None:
-            from src.Application.Deployment.storage import YarTraderStorageManager
-            artifact_store = YarTraderStorageManager.get_manager().get_artifact_store()
+            if storage_dir:
+                # Isolated backtests/tests must not flood the global production artifact store.
+                from src.Application.Deployment.artifact_store import YarTraderArtifactStore
+                artifact_store = YarTraderArtifactStore(os.path.join(self._storage_dir, "artifacts"))
+            else:
+                from src.Application.Deployment.storage import YarTraderStorageManager
+                artifact_store = YarTraderStorageManager.get_manager().get_artifact_store()
         self._artifact_store = artifact_store
         self._artifact_manifest_path = os.path.join(self._storage_dir, "artifact_manifest.json")
+        try:
+            self._artifact_snapshot_every = max(
+                1, int(os.getenv("YARTRADER_ARTIFACT_SNAPSHOT_EVERY", "100"))
+            )
+        except (TypeError, ValueError):
+            self._artifact_snapshot_every = 100
+        self._artifact_save_counts: Dict[str, int] = {}
         self._lock = threading.Lock()
         self._event_keys = set()
         self._event_pending = 0
@@ -100,6 +113,13 @@ class MarketMemorySystem:
                 self._save_layer("events")
                 self._event_pending = 0
 
+    def flush_artifact_snapshots(self) -> None:
+        """Persist one final recovery snapshot for every memory layer."""
+        with self._lock:
+            for layer in ("events", "experiences", "patterns", "concepts"):
+                self._save_layer(layer, force_artifact=True)
+            self._event_pending = 0
+
     def add_experience(self, exp: ExperienceMemory) -> None:
         """Stores an experience record in Experience Memory."""
         with self._lock:
@@ -164,30 +184,47 @@ class MarketMemorySystem:
             signature = list(evt.meta.get("sequence_signature") or [])
             if not signature:
                 signature = [evt.price_change, float(evt.duration_candles), evt.reaction_magnitude]
+            # A market reaction is an observation, not proof that a trading decision
+            # succeeded or failed. Only preserve a label when the event explicitly
+            # carries a decision, prediction, and resolved outcome together.
             base_action = "BUY" if evt.meta.get("direction") == "upward" else "SELL"
             is_continuation = evt.reaction_type == "extension"
-            predicted_action = base_action if is_continuation else ("SELL" if base_action == "BUY" else "BUY")
             favorable_excursion = abs(evt.price_change) if is_continuation else abs(evt.reaction_magnitude)
             adverse_excursion = abs(evt.reaction_magnitude) if is_continuation else abs(evt.price_change)
+            raw_decision = str(evt.meta.get("decision_action", "")).upper()
+            raw_prediction = str(evt.meta.get("predicted_action", "")).upper()
+            raw_outcome = str(evt.meta.get("outcome_result", "")).upper()
+            has_resolved_decision = (
+                raw_decision in {"BUY", "SELL", "WAIT"}
+                and raw_prediction in {"BUY", "SELL"}
+                and raw_outcome in {"SUCCESS", "FAILURE", "NEUTRAL", "BREAKEVEN"}
+            )
             exp_id = f"exp-{uuid.uuid4().hex[:8]}"
-
+            observed_event_only = not has_resolved_decision
             exp = ExperienceMemory(
                 experience_id=exp_id,
                 symbol=evt.symbol,
                 timeframe=evt.timeframe,
                 timestamp=evt.end_time,
                 situation_signature=signature,
-                decision_action="BUY" if evt.price_change > 0 else "SELL",
-                outcome_result="SUCCESS" if evt.reaction_type == "extension" else "FAILURE",
-                lesson_feedback=f"Promoted from raw event with reaction: {evt.reaction_type}",
-                max_favorable_excursion=abs(evt.price_change),
-                max_adverse_excursion=-abs(evt.reaction_magnitude),
+                decision_action=raw_decision if has_resolved_decision else "WAIT",
+                outcome_result=raw_outcome if has_resolved_decision else "UNLABELED",
+                lesson_feedback=(
+                    f"Resolved decision outcome from raw event: {raw_outcome}"
+                    if has_resolved_decision
+                    else f"Observed market reaction '{evt.reaction_type}'; no resolved trading decision outcome is available."
+                ),
+                max_favorable_excursion=favorable_excursion,
+                max_adverse_excursion=-adverse_excursion,
                 meta={
                     "raw_event_start": evt.start_time.isoformat(),
                     "pattern_symbol": evt.symbol.upper(),
                     "pattern_timeframe": evt.timeframe.upper(),
                     "timeframe_signature": [evt.timeframe.upper()],
-                    "predicted_action": predicted_action,
+                    "predicted_action": raw_prediction if has_resolved_decision else None,
+                    "observed_direction": base_action,
+                    "observed_reaction_type": evt.reaction_type,
+                    "is_observed_event_only": observed_event_only,
                     "favorable_excursion": favorable_excursion,
                     "adverse_excursion": adverse_excursion,
                 }
@@ -204,6 +241,38 @@ class MarketMemorySystem:
             with self._lock:
                 self._save_layer("events")
         return promoted_exps
+
+    @staticmethod
+    def _signature_similarity(sig1: Any, sig2: Any) -> float:
+        """Compare numeric feature vectors or categorical strategy signatures safely."""
+        if sig1 is None or sig2 is None:
+            return 0.0
+        if isinstance(sig1, (str, bytes)):
+            sig1 = [sig1]
+        if isinstance(sig2, (str, bytes)):
+            sig2 = [sig2]
+        if not isinstance(sig1, (list, tuple)) or not isinstance(sig2, (list, tuple)):
+            return 0.0
+        if not sig1 or len(sig1) != len(sig2):
+            return 0.0
+
+        # Preserve cosine similarity for genuine numeric vectors.
+        if all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (*sig1, *sig2)):
+            a = [float(v) for v in sig1]
+            b = [float(v) for v in sig2]
+            if not all(math.isfinite(v) for v in (*a, *b)):
+                return 0.0
+            norm_a = math.sqrt(sum(v * v for v in a))
+            norm_b = math.sqrt(sum(v * v for v in b))
+            if norm_a <= 0.0 or norm_b <= 0.0:
+                return 0.0
+            return max(0.0, min(1.0, sum(x * y for x, y in zip(a, b)) / (norm_a * norm_b)))
+
+        # Strategy signatures are commonly categorical labels, not numbers.
+        # Positional agreement gives a stable, bounded similarity without multiplying strings.
+        matches = sum(str(a).strip().casefold() == str(b).strip().casefold()
+                      for a, b in zip(sig1, sig2))
+        return matches / len(sig1)
 
     def calculate_experience_weight(
         self,
@@ -241,16 +310,9 @@ class MarketMemorySystem:
         # 3. Similarity Factor
         similarity_factor = 0.5
         if reference_signature and exp.situation_signature:
-            sig1 = exp.situation_signature
-            sig2 = reference_signature
-            if len(sig1) == len(sig2):
-                dot_product = sum(a * b for a, b in zip(sig1, sig2))
-                norm_a = sum(a * a for a in sig1) ** 0.5
-                norm_b = sum(b * b for b in sig2) ** 0.5
-                if norm_a > 0 and norm_b > 0:
-                    similarity_factor = dot_product / (norm_a * norm_b)
-                    # Bound between 0.0 and 1.0
-                    similarity_factor = max(0.0, min(1.0, similarity_factor))
+            similarity_factor = self._signature_similarity(
+                exp.situation_signature, reference_signature
+            )
 
         return age_factor + success_factor + similarity_factor
 
@@ -266,6 +328,7 @@ class MarketMemorySystem:
             validated_exps = [
                 exp for exp in self.experiences.values()
                 if (exp.meta.get("is_validated") is True or exp.outcome_result in ["SUCCESS", "FAILURE"])
+                and not exp.meta.get("is_observed_event_only", False)
                 and not exp.meta.get("is_lucky_win", False)
                 and not exp.meta.get("is_promoted_to_pattern", False)
             ]
@@ -296,14 +359,10 @@ class MarketMemorySystem:
 
             for pat in patterns_list:
                 pat_sig = pat.sequence_signature
-                if len(pat_sig) == len(sig):
-                    dot_product = sum(a * b for a, b in zip(pat_sig, sig))
-                    norm_a = sum(a * a for a in pat_sig) ** 0.5
-                    norm_b = sum(b * b for b in sig) ** 0.5
-                    sim = (dot_product / (norm_a * norm_b)) if (norm_a > 0 and norm_b > 0) else 0.0
-                    if sim > best_similarity:
-                        best_similarity = sim
-                        matched_pattern = pat
+                sim = self._signature_similarity(pat_sig, sig)
+                if sim > best_similarity:
+                    best_similarity = sim
+                    matched_pattern = pat
 
             is_success = exp.outcome_result == "SUCCESS"
 
@@ -345,7 +404,11 @@ class MarketMemorySystem:
                     "timeframe": scope_timeframe,
                     "timeframe_signature": scope_tfs,
                     "context_id": scope_context_id,
-                    "signature": [round(float(v), 8) for v in sig],
+                    "signature": [
+                        round(float(v), 8) if isinstance(v, (int, float)) and not isinstance(v, bool)
+                        else str(v)
+                        for v in sig
+                    ],
                 }, sort_keys=True, separators=(",", ":"))
                 pid = f"pat-{hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]}"
                 new_pat = PatternMemory(
@@ -421,9 +484,10 @@ class MarketMemorySystem:
             for pid, pat in list(self.patterns.items()):
                 total = pat.occurrences_count
                 if total >= min_samples:
-                    # Calculate consistency: e.g. how unidirectional is the outcome?
-                    max_flow = max(pat.continuation_count, pat.reversal_count)
-                    consistency = max_flow / total if total > 0 else 0.0
+                    # Promote only positively validated patterns, not merely repeatable outcomes.
+                    # A setup that loses every time is consistently bad and must not become
+                    # an approved concept used to guide future trading.
+                    consistency = pat.continuation_count / total if total > 0 else 0.0
 
                     # Calculate average Judge-vetted accuracy across outcomes
                     vetted_accuracies = [out.get("judge_vetted_accuracy", 1.0) for out in pat.outcomes]
@@ -588,10 +652,11 @@ class MarketMemorySystem:
     def _get_path(self, layer: str) -> str:
         return os.path.join(self._storage_dir, f"{layer}_memory.json")
 
-    def _save_layer(self, layer: str) -> None:
-        """Serializes and saves a memory layer atomically using the temp-swap pattern with JSON-validation check."""
+    def _save_layer(self, layer: str, *, force_artifact: bool = False) -> None:
+        """Persist the JSON mirror each time and checkpoint compressed artifacts sparingly."""
         filepath = self._get_path(layer)
-        temp_filepath = filepath + ".tmp"
+        temp_filepath = f"{filepath}.{os.getpid()}.{threading.get_ident()}.tmp"
+        tmp_manifest_path: Optional[str] = None
 
         try:
             if layer == "events":
@@ -612,11 +677,18 @@ class MarketMemorySystem:
             with open(temp_filepath, "r", encoding="utf-8") as f:
                 json.load(f)
 
-            # Atomic swap
+            # Atomic swap: this JSON mirror remains the durable, per-update source of truth.
             os.replace(temp_filepath, filepath)
 
-            # Persist the serialized layer in the universal artifact store.
-            # Legacy JSON remains as a compatibility mirror until migration is complete.
+            # The artifact store is a recovery checkpoint, not a per-mutation journal.
+            # Persisting every full memory snapshot created tens of thousands of redundant
+            # multi-megabyte objects and filled C:. Keep an initial snapshot, then checkpoint
+            # every N saves; explicit flushes force a final snapshot.
+            count = self._artifact_save_counts.get(layer, 0) + 1
+            self._artifact_save_counts[layer] = count
+            if not force_artifact and count != 1 and count % self._artifact_snapshot_every != 0:
+                return
+
             artifact = self._artifact_store.put(
                 json.dumps(data, indent=4).encode("utf-8"),
                 media_type="application/json",
@@ -629,21 +701,24 @@ class MarketMemorySystem:
             )
             manifest = self._load_artifact_manifest()
             manifest[layer] = artifact["id"]
-            tmp_manifest = self._artifact_manifest_path + ".tmp"
-            with open(tmp_manifest, "w", encoding="utf-8") as manifest_file:
+            tmp_manifest_path = (
+                f"{self._artifact_manifest_path}.{os.getpid()}.{threading.get_ident()}.tmp"
+            )
+            with open(tmp_manifest_path, "w", encoding="utf-8") as manifest_file:
                 json.dump(
                     manifest,
                     manifest_file,
                     ensure_ascii=False,
                     separators=(",", ":"),
                 )
-            os.replace(tmp_manifest, self._artifact_manifest_path)
+            os.replace(tmp_manifest_path, self._artifact_manifest_path)
         except Exception:
-            if os.path.exists(temp_filepath):
-                try:
-                    os.remove(temp_filepath)
-                except OSError:
-                    pass
+            for temp_path in (temp_filepath, tmp_manifest_path):
+                if temp_path and os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except OSError:
+                        pass
 
     def _load_artifact_manifest(self) -> Dict[str, str]:
         if not os.path.exists(self._artifact_manifest_path):

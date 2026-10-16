@@ -1,13 +1,13 @@
 """
-Phase B Reversal Handoff & Risk Engine Extensions for YarTrader V1.2.
-Provides Fast Scalp / Scalp reversal candidate evaluation on position close,
-and cost-adjusted effective break-even calculation.
+Base-hierarchy reversal handoff and risk checks.
+Only a previously confirmed Base structure with an explicit destination Base may qualify.
 """
 
 from typing import Dict, Any, Optional
+import math
 from dataclasses import dataclass
 
-from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, PositionSizingResult
+from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, PositionSizingResult, ProductionRiskPolicy
 
 @dataclass
 class ReversalCandidateResult:
@@ -19,8 +19,8 @@ class ReversalCandidateResult:
 
 class ReversalHandoffManager:
     """
-    Evaluates whether a closed position's exit level constitutes a valid
-    opposite-direction reversal entry candidate for Fast Scalp / Scalp styles.
+    Evaluates a possible opposite-direction handoff only when the canonical
+    Base hierarchy and destination Base are explicitly supplied.
     """
 
     def __init__(self, risk_engine: Optional[ProfessionalRiskEngine] = None):
@@ -37,28 +37,60 @@ class ReversalHandoffManager:
         estimated_slippage_pip: float = 0.5
     ) -> ReversalCandidateResult:
         """
-        When a Fast Scalp / Scalp position reaches its structural exit and closes,
-        evaluates if the exit level is a candidate opposite-direction entry.
-        Does NOT auto-execute; must pass RTM, Price Action, Fractal, spread, liquidity,
-        and risk validation.
+        No legacy trading styles or alternate strategy confirmations are accepted.
+        This method never submits orders.
         """
-        trading_style = closed_position.get("trading_style", "FAST_SCALP").upper()
-        if trading_style not in ["FAST_SCALP", "SCALP"]:
+        trading_style = closed_position.get("trading_style", "BASE_HIERARCHY").upper()
+        if trading_style != "BASE_HIERARCHY":
             return ReversalCandidateResult(
                 is_candidate=False,
                 reversal_direction="WAIT",
                 reversal_price=0.0,
-                reason=f"Trading style '{trading_style}' does not support reversal handoff (FAST_SCALP/SCALP only)."
+                reason="Only BASE_HIERARCHY is supported; legacy trading styles are disabled."
             )
 
         exit_reason = closed_position.get("exit_reason", "").upper()
-        if "STRUCTURAL_TARGET" not in exit_reason and "TAKE_PROFIT" not in exit_reason and "BASE_NODE" not in exit_reason:
+        structural_completion = any(token in exit_reason for token in (
+            "STRUCTURAL_TARGET", "TAKE_PROFIT", "BASE_NODE"
+        ))
+        economic_wave_exit = exit_reason in {
+            "ECONOMIC_WAVE_EXHAUSTION", "WAVE_REVERSAL_CONFIRMED",
+            "STRUCTURAL_INVALIDATION", "TRAILING_STOP_REVERSAL"
+        }
+        if not (structural_completion or economic_wave_exit):
             return ReversalCandidateResult(
                 is_candidate=False,
                 reversal_direction="WAIT",
                 reversal_price=0.0,
-                reason=f"Exit reason '{exit_reason}' is not a valid structural target completion."
+                reason=f"Exit reason '{exit_reason}' is not eligible for reversal handoff."
             )
+
+        if economic_wave_exit:
+            reversal_confirmed = market_structure.get("reversal_confirmed") is True
+            net_ev = market_structure.get("net_expected_value_r")
+            net_rr = market_structure.get("net_reward_risk")
+            try:
+                economically_viable = (
+                    net_ev is not None and float(net_ev) > 0.0
+                    and net_rr is not None and float(net_rr) >= 1.2
+                )
+            except (TypeError, ValueError):
+                economically_viable = False
+            if not reversal_confirmed or not economically_viable:
+                return ReversalCandidateResult(
+                    is_candidate=False,
+                    reversal_direction="WAIT",
+                    reversal_price=0.0,
+                    reason=(
+                        "Economic reversal rejected: require confirmed opposite structure, "
+                        "positive net expected value after costs, and net reward/risk >= 1.2."
+                    ),
+                    risk_evaluation={
+                        "reversal_confirmed": reversal_confirmed,
+                        "net_expected_value_r": net_ev,
+                        "net_reward_risk": net_rr,
+                    }
+                )
 
         symbol = closed_position.get("symbol", "XAUUSD")
         closed_direction = closed_position.get("direction", "BUY").upper()
@@ -73,18 +105,24 @@ class ReversalHandoffManager:
                 reason="Invalid exit price on closed position."
             )
 
-        # Check market structure confirmation
-        has_rtm_zone = market_structure.get("has_rtm_zone", False)
-        has_fractal_base = market_structure.get("has_fractal_base", False)
-        spread_acceptable = spread_pip <= 3.0
-
-        if not (has_rtm_zone or has_fractal_base):
+        # Require canonical Base evidence and a destination Base already identified
+        # from closed data. No RTM/Fractal/FVG or fixed-pip fallback is permitted.
+        try:
+            base_width = float(market_structure["base_width"])
+            target_base_price = float(market_structure["target_base_price"])
+            base_confirmed = market_structure.get("base_hierarchy_confirmed") is True
+        except (KeyError, TypeError, ValueError, OverflowError):
+            base_width, target_base_price, base_confirmed = 0.0, 0.0, False
+        target_is_ahead = (target_base_price > exit_price if reversal_direction == "BUY"
+                           else 0.0 < target_base_price < exit_price)
+        if not base_confirmed or not math.isfinite(base_width) or base_width <= 0 or not target_is_ahead:
             return ReversalCandidateResult(
                 is_candidate=False,
-                reversal_direction=reversal_direction,
+                reversal_direction="WAIT",
                 reversal_price=exit_price,
-                reason="Reversal level lacks RTM zone or Fractal Base structural confirmation."
+                reason="Base-only handoff requires confirmed Base hierarchy, positive Base width, and a valid destination Base."
             )
+        spread_acceptable = spread_pip <= 3.0
 
         if not spread_acceptable:
             return ReversalCandidateResult(
@@ -94,17 +132,14 @@ class ReversalHandoffManager:
                 reason=f"Spread ({spread_pip} pips) too wide for reversal scalp entry."
             )
 
-        # Calculate potential reversal SL / TP distances
-        pip_size = self.risk_engine.get_pip_size(symbol)
-        sl_distance = market_structure.get("suggested_sl_pips", 20) * pip_size
-        tp_distance = market_structure.get("suggested_tp_pips", 100) * pip_size  # Aiming 1:5 R/R
+        # Derive invalidation from this Base's width and target the explicit next Base.
+        sl_distance = 0.15 * base_width
+        rev_tp = target_base_price
 
         if reversal_direction == "BUY":
             rev_sl = exit_price - sl_distance
-            rev_tp = exit_price + tp_distance
         else:
             rev_sl = exit_price + sl_distance
-            rev_tp = exit_price - tp_distance
 
         risk_eval = self.risk_engine.evaluate_trade_risk(
             symbol=symbol,
@@ -113,7 +148,7 @@ class ReversalHandoffManager:
             stop_loss=rev_sl,
             take_profit=rev_tp,
             account_balance=account_equity,
-            risk_percentage=2.0,
+            risk_percentage=ProductionRiskPolicy.TARGET_RISK_PCT,
             spread_pip=spread_pip,
             commission_per_lot=commission_per_lot,
             estimated_slippage_pip=estimated_slippage_pip,

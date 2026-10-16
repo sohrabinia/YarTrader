@@ -16,6 +16,7 @@ def test_service_host_initialization():
 def test_service_host_duplicate_startup_prevention():
     config = ProductionConfig()
     config.workers_research = False
+    config.workers_intelligence = False
     host = YarTraderServiceHost(config=config)
 
     mock_server = MagicMock()
@@ -48,6 +49,7 @@ def test_service_host_socket_readiness_probe_failure():
 def test_service_host_port_binding_failure():
     config = ProductionConfig()
     config.workers_research = False
+    config.workers_intelligence = False
     config.api_host = "127.0.0.1"
     config.api_port = 59998
     host = YarTraderServiceHost(config=config)
@@ -79,6 +81,7 @@ def test_service_host_port_binding_failure():
 def test_service_host_shutdown_and_restart():
     config = ProductionConfig()
     config.workers_research = False
+    config.workers_intelligence = False
     host = YarTraderServiceHost(config=config)
 
     mock_server = MagicMock()
@@ -107,6 +110,7 @@ def test_service_host_truthfulness_rule():
     """Verifies that is_running=True (service state) does NOT automatically imply fastapi_ready=True."""
     config = ProductionConfig()
     config.workers_research = False
+    config.workers_intelligence = False
     host = YarTraderServiceHost(config=config)
 
     # Server started is False

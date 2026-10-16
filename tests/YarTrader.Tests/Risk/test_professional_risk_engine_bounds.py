@@ -1,8 +1,8 @@
 import pytest
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
 
-def test_risk_pct_2_percent_valid():
-    """Verifies that 2.0% risk is valid under ProfessionalRiskEngine."""
+def test_risk_pct_1_percent_valid():
+    """Verifies that 1.0% risk is valid under ProfessionalRiskEngine."""
     engine = ProfessionalRiskEngine()
     res = engine.evaluate_equity_risk_and_position_size(
         symbol="XAUUSD",
@@ -11,16 +11,36 @@ def test_risk_pct_2_percent_valid():
         stop_loss=1995.0,
         account_equity=10000.0,
         free_margin=10000.0,
-        risk_pct=2.0,
+        risk_pct=1.0,
         volume_min=0.01,
         volume_max=100.0,
         volume_step=0.01
     )
     assert res.is_valid is True
-    assert res.risk_budget_usd == 200.0  # 2.0% of $10,000.00 = $200.00
+    assert res.risk_budget_usd == 100.0  # 1.0% of $10,000.00 = $100.00
 
-def test_risk_pct_2_01_rejected():
-    """Verifies that requests exceeding 2.0% risk ceiling (e.g. 2.01%) are rejected."""
+def test_eurusd_position_sizing_uses_standard_fx_contract_multiplier():
+    engine = ProfessionalRiskEngine()
+    result = engine.evaluate_equity_risk_and_position_size(
+        symbol="EURUSD",
+        direction="BUY",
+        entry_price=1.1000,
+        stop_loss=1.0990,
+        account_equity=10000.0,
+        free_margin=10000.0,
+        risk_pct=1.0,
+        volume_min=0.01,
+        volume_max=100.0,
+        volume_step=0.01,
+    )
+    assert result.is_valid is True
+    assert result.risk_budget_usd == 100.0
+    assert 0.75 <= result.volume_lots <= 0.85
+    assert result.margin_required_usd < 10000.0
+
+
+def test_risk_pct_above_one_percent_rejected():
+    """Verifies that requests exceeding 1.0% risk ceiling (e.g. 1.01%) are rejected."""
     engine = ProfessionalRiskEngine()
     res = engine.evaluate_equity_risk_and_position_size(
         symbol="XAUUSD",
@@ -29,7 +49,7 @@ def test_risk_pct_2_01_rejected():
         stop_loss=1995.0,
         account_equity=10000.0,
         free_margin=10000.0,
-        risk_pct=2.01,
+        risk_pct=1.01,
         volume_min=0.01,
         volume_max=100.0,
         volume_step=0.01

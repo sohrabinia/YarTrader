@@ -111,6 +111,9 @@ def test_order_check_fail_closed():
     adapter._initialized = True
 
     mock_mt5 = MagicMock()
+    mock_mt5.account_info.return_value = MagicMock(balance=100000.0, equity=100000.0, margin_free=100000.0)
+    mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * 100.0 * float(volume)
+    mock_mt5.order_calc_margin.return_value = 0.0
     mock_mt5.TRADE_RETCODE_DONE = 10009
     mock_mt5.TRADE_RETCODE_PLACED = 10008
     mock_mt5.symbol_info.return_value = MagicMock(visible=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2)
@@ -125,7 +128,7 @@ def test_order_check_fail_closed():
     adapter._mt5 = mock_mt5
     adapter.verify_safety_and_account = MagicMock(return_value=True)
 
-    req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2600.5)
+    req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2600.5, StopLoss=2590.5)
     resp = adapter.send_order_to_broker(req)
 
     assert resp.Status == "Failed"
@@ -147,6 +150,9 @@ def test_comment_sanitization():
 def test_resolve_filling_mode():
     adapter = RealMT5BrokerAdapter(auto_initialize=False)
     mock_mt5 = MagicMock()
+    mock_mt5.account_info.return_value = MagicMock(balance=100000.0, equity=100000.0, margin_free=100000.0)
+    mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * 100.0 * float(volume)
+    mock_mt5.order_calc_margin.return_value = 0.0
     mock_mt5.ORDER_FILLING_FOK = 0
     mock_mt5.ORDER_FILLING_IOC = 1
     mock_mt5.ORDER_FILLING_RETURN = 2
@@ -167,6 +173,9 @@ def test_order_check_success_allows_order_send():
     adapter._initialized = True
 
     mock_mt5 = MagicMock()
+    mock_mt5.account_info.return_value = MagicMock(balance=100000.0, equity=100000.0, margin_free=100000.0)
+    mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * 100.0 * float(volume)
+    mock_mt5.order_calc_margin.return_value = 0.0
     mock_mt5.symbol_info.return_value = MagicMock(visible=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2)
     mock_mt5.symbol_info_tick.return_value = MagicMock(bid=2600.0, ask=2600.5)
 
@@ -186,7 +195,7 @@ def test_order_check_success_allows_order_send():
     adapter._mt5 = mock_mt5
     adapter.verify_safety_and_account = MagicMock(return_value=True)
 
-    req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2600.5)
+    req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2600.5, StopLoss=2590.5)
     resp = adapter.send_order_to_broker(req)
 
     assert resp.Status == "Placed"

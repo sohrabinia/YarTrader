@@ -73,10 +73,10 @@ class ExecutableTradingContract:
     account_equity: float
     free_margin: float
     execution_timeframe: str = "M5"
-    trading_style: str = "FAST_SCALP"  # "FAST_SCALP", "SCALP", "DAY_TRADING"
+    trading_style: str = "BASE_HIERARCHY"
     campaign_id: Optional[str] = None
     leg_id: Optional[str] = None
-    risk_pct: float = 2.0
+    risk_pct: float = 1.0
     is_add_on: bool = False
     reason_codes: List[str] = field(default_factory=list)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -88,7 +88,7 @@ class ExecutableTradingContract:
         if self.execution_timeframe.upper() != "M5":
             rejection_reasons.append(f"Execution timeframe '{self.execution_timeframe}' violates primary M5 contract.")
 
-        allowed_styles = ["FAST_SCALP", "SCALP", "DAY_TRADING"]
+        allowed_styles = ["BASE_HIERARCHY"]
         if self.trading_style.upper() not in allowed_styles:
             rejection_reasons.append(f"Trading style '{self.trading_style}' is forbidden. Allowed: {allowed_styles}.")
 
@@ -98,8 +98,8 @@ class ExecutableTradingContract:
         if self.account_equity <= 0:
             rejection_reasons.append("Account equity must be greater than zero.")
 
-        if self.volume_lots < 0.01:
-            rejection_reasons.append(f"Volume lots {self.volume_lots} below minimum bound 0.01.")
+        if self.volume_lots <= 0.0:
+            rejection_reasons.append(f"Volume lots {self.volume_lots} must be positive.")
 
         if self.direction.upper() == "BUY":
             if self.stop_loss >= self.entry_price:
@@ -176,7 +176,7 @@ class AutonomousTradingDecision:
             entry=float(d.get("entry", 0.0)),
             stop_loss=float(d.get("stop_loss", 0.0)),
             take_profit=float(d.get("take_profit", 0.0)),
-            volume=float(d.get("volume", 0.01)),
+            volume=float(d.get("volume", 0.0)),
             risk_reward=float(d.get("risk_reward", 0.0)),
             confidence=float(d.get("confidence", 0.0)),
             reasoning=d.get("reasoning", []),

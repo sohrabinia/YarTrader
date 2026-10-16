@@ -180,3 +180,12 @@ trader-terminal/dist/
 
 validation/mt5_native_demo/
 reports/
+
+
+# Runtime-only artifacts must not accumulate in Git history.
+storage/Logs/
+storage/Runtime/
+storage/Temp/
+storage/pytest_*.log
+storage/*.chr.bak
+storage/Data/artifacts/

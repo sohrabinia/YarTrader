@@ -5,6 +5,7 @@ import inspect
 import types
 import unittest
 import traceback
+import tempfile
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
 import pytest
@@ -167,7 +168,7 @@ class TestIndicatorForensicGuard(unittest.TestCase):
     def test_forbidden_indicator_execution_guard(self):
         """
         Drives the canonical live production decision path through actual ResearchWorker._run_loop() entrypoint
-        (ResearchWorker._run_loop -> ResearchRuntime -> PrimitiveMarketResearchEngine -> ExecutionIntelligenceCore -> ExecutionIntelligencePlanner)
+        (ResearchWorker._run_loop -> ResearchRuntime -> PrimitiveMarketResearchEngine -> Base hierarchy/reaction model)
         under controlled deterministic fixtures and asserts zero forbidden indicator execution.
         """
         indicator_counts = {
@@ -193,9 +194,15 @@ class TestIndicatorForensicGuard(unittest.TestCase):
                 raise AssertionError(err_msg)
             return mock_func
 
+        # Keep runtime evidence and learned memory isolated from production stores.
+        memory_tempdir = tempfile.TemporaryDirectory(prefix="yartrader-forensic-test-")
+        from src.Research.Brain.memory import MarketMemorySystem
+        test_memory = MarketMemorySystem(storage_dir=memory_tempdir.name)
+
         # Comprehensive Inventory of Indicator Implementations across Repository
         patches = [
             patch.object(analysis_pipeline.TechnicalAnalysisEngine, "analyze", side_effect=indicator_interceptor("TechnicalAnalysisEngine.analyze")),
+            patch("src.Research.Brain.live_brain.MarketMemorySystem", return_value=test_memory),
         ]
 
         if hasattr(analysis_pipeline, "MomentumAnalysisEngine"):
@@ -226,6 +233,7 @@ class TestIndicatorForensicGuard(unittest.TestCase):
                 provider=provider,
                 symbol="XAUUSD",
                 timeframe="H1",
+                evidence_dir=os.path.join(memory_tempdir.name, "evidence"),
                 provider_name="ControlledOfflineFixture"
             )
 
@@ -236,9 +244,10 @@ class TestIndicatorForensicGuard(unittest.TestCase):
                 worker.is_running = True
                 original_run_once = runtime.run_once
                 def run_once_and_stop():
-                    res = original_run_once()
-                    worker.is_running = False
-                    return res
+                    try:
+                        return original_run_once()
+                    finally:
+                        worker.is_running = False
 
                 runtime.run_once = run_once_and_stop
                 worker._run_loop()
@@ -277,6 +286,7 @@ class TestIndicatorForensicGuard(unittest.TestCase):
             for p in patches:
                 p.stop()
             cleanup()
+            memory_tempdir.cleanup()
 
 
 @pytest.mark.forensic_guard
@@ -322,7 +332,11 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
                 return MagicMock(Status="OK", OrderId=12345, Retcode=10009)
             return mock_exec
 
-        patches = []
+        memory_tempdir = tempfile.TemporaryDirectory(prefix="yartrader-forensic-brain-test-")
+        from src.Research.Brain.memory import MarketMemorySystem
+        test_memory = MarketMemorySystem(storage_dir=memory_tempdir.name)
+
+        patches = [patch("src.Research.Brain.live_brain.MarketMemorySystem", return_value=test_memory)]
         from src.Execution.Services.demo_execution_engine import DemoExecutionEngine
         from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
 
@@ -340,7 +354,11 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
             # 1. Exercise Live Canonical Production Decision Path via ResearchWorker._run_loop() Entrypoint
             worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
             provider = ControlledDataProvider(base_price=2000.0, count=100)
-            runtime = ResearchRuntime(provider=provider, symbol="XAUUSD", timeframe="H1", provider_name="ControlledOfflineFixture")
+            runtime = ResearchRuntime(
+                provider=provider, symbol="XAUUSD", timeframe="H1",
+                evidence_dir=os.path.join(memory_tempdir.name, "evidence"),
+                provider_name="ControlledOfflineFixture"
+            )
 
             with patch.object(worker, "_get_or_create_runtime", return_value=runtime), \
                  patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Forex", "ControlledOfflineFixture")]):
@@ -348,9 +366,10 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
                 worker.is_running = True
                 original_run_once = runtime.run_once
                 def run_once_and_stop():
-                    res = original_run_once()
-                    worker.is_running = False
-                    return res
+                    try:
+                        return original_run_once()
+                    finally:
+                        worker.is_running = False
 
                 runtime.run_once = run_once_and_stop
                 worker._run_loop()
@@ -416,7 +435,10 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
                 )
                 obs_list.append(obs)
 
-            replay_loop = CognitiveReplayLoop(symbol="XAUUSD", timeframe="H1", observations=obs_list)
+            replay_loop = CognitiveReplayLoop(
+                symbol="XAUUSD", timeframe="H1", observations=obs_list,
+                memory_system=test_memory,
+            )
             episodes = replay_loop.execute_replay_session(steps_count=10, scale="hours")
 
             replay_violations = len(boundary_violations) - replay_start_violations
@@ -450,3 +472,4 @@ class TestBrainExecutionAuthorityGuard(unittest.TestCase):
             for p in patches:
                 p.stop()
             cleanup()
+            memory_tempdir.cleanup()

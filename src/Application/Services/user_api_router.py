@@ -1,4 +1,8 @@
 import os
+import json
+import re
+import time
+import math
 from fastapi import APIRouter, HTTPException, Header, Depends, Query
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
@@ -34,7 +38,13 @@ def get_user_session_and_enforce_tier(authorization: Optional[str] = Header(None
     # Fetch active symbol limit
     from src.Market.Universe.symbol_registry import SymbolRegistry
     registry = SymbolRegistry.get_instance()
-    symbol_count = len(registry.get_all_registered())
+    # Tier limits apply to symbols enabled for current research/execution,
+    # not the full 30-symbol catalog. Counting every registered symbol blocked
+    # FREE users even though only two symbols are currently enabled.
+    symbol_count = sum(
+        1 for info in registry.get_all_registered().values()
+        if bool(info.get("active", info.get("enabled", False)))
+    )
 
     # Map target timeframe
     timeframe = "H1"
@@ -60,31 +70,122 @@ def get_user_session_and_enforce_tier(authorization: Optional[str] = Header(None
 
 def _snapshot_signals(market: Optional[str] = None, horizon: Optional[str] = None) -> List[Dict[str, Any]]:
     """Build customer-facing signals from persisted ResearchRuntime snapshots only."""
-    snapshot_dir = "runtime_logs/research_snapshots"
+    from src.Application.Deployment.storage import YarTraderStorageManager, is_research_snapshot_fresh
+    snapshot_dir = YarTraderStorageManager.get_manager().get_research_snapshots_dir()
     if not os.path.exists(snapshot_dir): return []
     market_symbols = {"gold":{"XAUUSD"},"bitcoin":{"BTCUSD"},"euro":{"EURUSD"},"pound":{"GBPUSD"}}
     horizon_map = {"micro":{"M1"},"short":{"M5","M15","H1"},"medium":{"H4","D1"},"macro":{"W1","MN1"}}
     allowed_symbols = market_symbols.get((market or "").lower()) if market else None
     allowed_tfs = horizon_map.get((horizon or "").lower()) if horizon else None
     try:
-        files=[os.path.join(snapshot_dir,f) for f in os.listdir(snapshot_dir) if f.endswith(".json")]
+        max_age_by_timeframe = {
+            "M1": 5 * 60, "M5": 15 * 60, "M15": 45 * 60, "M30": 90 * 60,
+            "H1": 3 * 3600, "H4": 12 * 3600, "D1": 3 * 86400,
+            "W1": 14 * 86400, "MN1": 45 * 86400,
+        }
+        now_epoch = time.time()
+        files = []
+        for name in os.listdir(snapshot_dir):
+            if not name.endswith(".json"):
+                continue
+            match = re.match(r"rpt-([A-Z0-9]+)-([A-Z0-9]+)-snapshot_", name)
+            if match:
+                file_symbol, file_timeframe = match.group(1), match.group(2)
+                if allowed_symbols and file_symbol not in allowed_symbols:
+                    continue
+                if allowed_tfs and file_timeframe not in allowed_tfs:
+                    continue
+                path = os.path.join(snapshot_dir, name)
+                try:
+                    if now_epoch - os.path.getmtime(path) > max_age_by_timeframe.get(file_timeframe, 3 * 3600):
+                        continue
+                except OSError:
+                    continue
+                files.append(path)
+            else:
+                files.append(os.path.join(snapshot_dir, name))
         files.sort(key=lambda path: os.path.getmtime(path), reverse=True)
-    except OSError: return []
-    latest_by_key={}
+    except OSError:
+        return []
+    latest_by_key = {}
+    processed_keys = set()
     for path in files:
         try:
-            with open(path,"r",encoding="utf-8") as fh: data=json.load(fh)
-            symbol=str(data.get("symbol") or data.get("asset") or "").upper()
-            timeframe=str(data.get("timeframe") or "H1").upper()
-            if allowed_symbols and symbol not in allowed_symbols: continue
-            if allowed_tfs and timeframe not in allowed_tfs: continue
-            decision=(data.get("findings",{}) or {}).get("autonomous_decision",{}) or {}
-            action=str(decision.get("action","WAIT")).upper()
-            if action not in {"BUY","SELL"}: continue
-            key=(symbol,timeframe)
-            if key in latest_by_key: continue
-            latest_by_key[key]={"signal_id":decision.get("decision_id") or data.get("report_id") or f"research-{symbol}-{timeframe}","symbol":symbol,"direction":action,"entry_zone":decision.get("entry_price"),"invalidation_level":decision.get("stop_loss"),"target_zone":decision.get("take_profit"),"confidence":decision.get("confidence",0),"reason":decision.get("reasoning",[]),"status":"ACTIVE","timeframe":timeframe,"timestamp":data.get("timestamp") or data.get("created_at"),"evidence_state":"REAL_RESEARCH_SNAPSHOT"}
-        except (OSError,ValueError,TypeError,json.JSONDecodeError): continue
+            with open(path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if not is_research_snapshot_fresh(data):
+                continue
+            symbol = str(data.get("symbol") or data.get("asset") or "").upper()
+            timeframe = str(data.get("timeframe") or "H1").upper()
+            if allowed_symbols and symbol not in allowed_symbols:
+                continue
+            if allowed_tfs and timeframe not in allowed_tfs:
+                continue
+            key = (symbol, timeframe)
+            if key in processed_keys:
+                continue
+            # The newest fresh snapshot wins even when its decision is WAIT; never resurrect an older signal.
+            processed_keys.add(key)
+            findings = data.get("findings", {}) or {}
+            decision = findings.get("autonomous_decision", {}) or {}
+            intel_summary = findings.get("intel_summary", {}) or {}
+            decision_evidence = decision.get("evidence", {}) or {}
+            # Old snapshots may contain Brain-only or legacy-planner proposals. They
+            # are not valid trading signals: require explicit agreement from the
+            # authoritative Base-only decision and its summary, otherwise fail closed.
+            if (
+                decision_evidence.get("decision_authority") != "BASE_HIERARCHY"
+                or intel_summary.get("decision_authority") != "BASE_HIERARCHY"
+            ):
+                continue
+            base_candidate_available = bool(intel_summary.get("candidate_available"))
+            action = str(decision.get("action", "WAIT")).upper()
+            if action not in {"BUY", "SELL"}:
+                continue
+            entry = decision.get("entry", decision.get("entry_price"))
+            stop_loss = decision.get("stop_loss")
+            take_profit = decision.get("take_profit")
+            confidence = float(decision.get("confidence", 0.0) or 0.0)
+            reason = decision.get("reasoning", []) or []
+            rr = float(decision.get("risk_reward", 0.0) or 0.0)
+            valid_levels = all(
+                value is not None and math.isfinite(float(value)) and float(value) > 0.0
+                for value in (entry, stop_loss, take_profit)
+            ) and (
+                (action == "BUY" and float(stop_loss) < float(entry) < float(take_profit))
+                or (action == "SELL" and float(take_profit) < float(entry) < float(stop_loss))
+            )
+            if not base_candidate_available:
+                status = "BLOCKED"
+                confidence = 0.0
+                reason = list(reason) + ["Blocked: the Base hierarchy summary does not contain an approved candidate."]
+            else:
+                status = "ACTIVE" if valid_levels and confidence >= 50.0 and rr > 1.0 else "CANDIDATE"
+                if status == "CANDIDATE":
+                    reason = list(reason) + ["Candidate only: Base-model risk parameters or strictly-greater-than-1.0 risk/reward did not pass validation."]
+
+            latest_by_key[key] = {
+                "signal_id": decision.get("decision_id") or data.get("report_id") or f"research-{symbol}-{timeframe}",
+                "symbol": symbol,
+                "direction": action,
+                "entry_zone": entry,
+                "invalidation_level": stop_loss,
+                "target_zone": take_profit,
+                "confidence": confidence,
+                "reason": reason,
+                "status": status,
+                "decision_authority": "BASE_HIERARCHY",
+                "execution_action": str(decision.get("action", "WAIT")).upper(),
+                "timeframe": timeframe,
+                "timestamp": data.get("timestamp") or data.get("created_at"),
+                "evidence_state": {
+                    "ACTIVE": "REAL_RESEARCH_SNAPSHOT",
+                    "CANDIDATE": "REAL_RESEARCH_SNAPSHOT_CANDIDATE",
+                    "BLOCKED": "REAL_RESEARCH_SNAPSHOT_BLOCKED",
+                }.get(status, "REAL_RESEARCH_SNAPSHOT_BLOCKED"),
+            }
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            continue
     return list(latest_by_key.values())
 
 @router.get("/signals")

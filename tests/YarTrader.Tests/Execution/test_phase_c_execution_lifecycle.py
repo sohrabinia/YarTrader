@@ -19,7 +19,7 @@ class TestPhaseCExecutionLifecycle:
             account_equity=10000.0,
             free_margin=5000.0,
             execution_timeframe="M5",
-            trading_style="FAST_SCALP"
+            trading_style="BASE_HIERARCHY"
         )
         res = contract.validate_contract_rules()
         assert res["is_valid"] is True
@@ -37,7 +37,7 @@ class TestPhaseCExecutionLifecycle:
             account_equity=10000.0,
             free_margin=5000.0,
             execution_timeframe="M15",  # Invalid execution timeframe
-            trading_style="SCALP"
+            trading_style="BASE_HIERARCHY"
         )
         res = contract.validate_contract_rules()
         assert res["is_valid"] is False
@@ -52,7 +52,7 @@ class TestPhaseCExecutionLifecycle:
         assert res30["rejection_reason"] == "EARLY_EXIT_BLOCKED_MIN_HOLD_120S"
 
         # Exit attempt at 60 seconds -> REJECTED
-        res60 = manager.evaluate_exit_permission(holding_duration_seconds=60.0, exit_reason="STOP_LOSS")
+        res60 = manager.evaluate_exit_permission(holding_duration_seconds=60.0, exit_reason="TAKE_PROFIT")
         assert res60["allowed"] is False
         assert res60["rejection_reason"] == "EARLY_EXIT_BLOCKED_MIN_HOLD_120S"
 
@@ -80,10 +80,35 @@ class TestPhaseCExecutionLifecycle:
         assert res_forced["allowed"] is True
         assert res_forced["exit_type"] == "FORCED_SAFETY_EXIT"
 
+    def test_protective_stop_and_confirmed_wave_exit_bypass_legacy_hold_floor(self):
+        manager = SessionExecutionManager()
+        stop = manager.evaluate_exit_permission(holding_duration_seconds=5.0, exit_reason="STOP_LOSS")
+        assert stop["allowed"] is True
+        assert stop["exit_type"] == "PROTECTIVE_EXIT"
+
+        unconfirmed = manager.evaluate_exit_permission(
+            holding_duration_seconds=30.0, exit_reason="ECONOMIC_WAVE_EXHAUSTION"
+        )
+        assert unconfirmed["allowed"] is False
+
+        confirmed = manager.evaluate_exit_permission(
+            holding_duration_seconds=30.0, exit_reason="ECONOMIC_WAVE_EXHAUSTION",
+            wave_exit_confirmed=True
+        )
+        assert confirmed["allowed"] is True
+        assert confirmed["exit_type"] == "CONFIRMED_WAVE_EXIT"
+
+        reversal = manager.evaluate_exit_permission(
+            holding_duration_seconds=30.0, exit_reason="REVERSAL_EXIT",
+            economic_reversal_confirmed=True
+        )
+        assert reversal["allowed"] is True
+        assert reversal["exit_type"] == "CONFIRMED_WAVE_EXIT"
+
     def test_all_normal_exit_paths_rejected_before_120_seconds(self):
         manager = SessionExecutionManager()
         normal_exit_paths = [
-            "TAKE_PROFIT", "STOP_LOSS", "MANUAL_CLOSE", "API_CLOSE",
+            "TAKE_PROFIT", "MANUAL_CLOSE", "API_CLOSE",
             "ADMIN_CLOSE", "REVERSAL_EXIT", "CAMPAIGN_EXIT", "WORKER_EXIT",
             "SIGNAL_EXIT", "STRUCTURAL_INVALIDATION"
         ]
@@ -107,12 +132,12 @@ class TestPhaseCExecutionLifecycle:
         manager = SessionExecutionManager()
 
         # Remaining session time <= 121s -> REJECTED
-        res_121s = manager.evaluate_entry_permission(trading_style="SCALP", remaining_session_seconds=121.0)
+        res_121s = manager.evaluate_entry_permission(trading_style="BASE_HIERARCHY", remaining_session_seconds=121.0)
         assert res_121s["allowed"] is False
         assert res_121s["rejection_reason"] == "INSUFFICIENT_REMAINING_SESSION_TIME"
 
         # Remaining session time = 122s -> ALLOWED
-        res_122s = manager.evaluate_entry_permission(trading_style="SCALP", remaining_session_seconds=122.0)
+        res_122s = manager.evaluate_entry_permission(trading_style="BASE_HIERARCHY", remaining_session_seconds=122.0)
         assert res_122s["allowed"] is True
 
     def test_forbidden_trading_style_rejection(self):
@@ -127,9 +152,9 @@ class TestPhaseCExecutionLifecycle:
         res_overnight = manager.evaluate_entry_permission(trading_style="OVERNIGHT", remaining_session_seconds=3600.0)
         assert res_overnight["allowed"] is False
 
-        # FAST_SCALP -> ALLOWED
-        res_scalp = manager.evaluate_entry_permission(trading_style="FAST_SCALP", remaining_session_seconds=3600.0)
-        assert res_scalp["allowed"] is True
+        # BASE_HIERARCHY -> ALLOWED
+        res_base = manager.evaluate_entry_permission(trading_style="BASE_HIERARCHY", remaining_session_seconds=3600.0)
+        assert res_base["allowed"] is True
 
     def test_eod_flatten_safety_invariant(self):
         manager = SessionExecutionManager()

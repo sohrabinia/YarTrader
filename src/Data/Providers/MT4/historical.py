@@ -21,8 +21,27 @@ class MT4HistoricalDataProvider(IDataProvider):
         "H4": 240, "D1": 1440, "W1": 10080, "MN1": 43200,
     }
 
+    @staticmethod
+    def _machine_data_root() -> str:
+        """Read the explicitly configured machine-wide MT4 root when a long-lived
+        service process has an environment block that predates the setting."""
+        import os
+        if os.name != "nt":
+            return ""
+        try:
+            import winreg
+            with winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment",
+            ) as key:
+                value, _ = winreg.QueryValueEx(key, "YARTRADER_MT4_DATA_ROOT")
+            return os.path.expandvars(str(value)) if value else ""
+        except (ImportError, OSError):
+            return ""
+
     def __init__(self, data_root: str | None = None):
-        root = data_root or __import__("os").getenv("YARTRADER_MT4_DATA_ROOT", "")
+        import os
+        root = data_root or os.getenv("YARTRADER_MT4_DATA_ROOT", "") or self._machine_data_root()
         if root:
             self.data_root = Path(root)
         elif Path(r"C:\MT4Signal\history").exists():
@@ -33,7 +52,7 @@ class MT4HistoricalDataProvider(IDataProvider):
             candidates = list(Path(r"C:\Users").glob(r"*\AppData\Roaming\MetaQuotes\Terminal\*"))
             self.data_root = next(
                 (p for p in candidates if (p / "history").exists() and (p / "MQL4").exists()),
-                Path(),
+                Path(r"C:\__yartrader_mt4_data_unconfigured__"),
             )
 
     @property
@@ -42,11 +61,14 @@ class MT4HistoricalDataProvider(IDataProvider):
 
     def _history_file(self, symbol: str, timeframe: str) -> Path:
         minutes = self.TIMEFRAME_MINUTES.get(str(timeframe).upper())
-        if minutes is None:
-            return Path()
         root = self.data_root / "history"
+        if minutes is None:
+            # Never use Path() as a missing-file sentinel: it resolves to the
+            # current directory and can be mistaken for a valid HST file.
+            return root / "__unsupported_timeframe__.hst"
+        expected = root / f"{symbol.upper()}{minutes}.hst"
         matches = list(root.glob(f"**/{symbol.upper()}{minutes}.hst"))
-        return matches[0] if matches else Path()
+        return matches[0] if matches else expected
 
     def _supported_symbols(self) -> List[str]:
         root = self.data_root / "history"

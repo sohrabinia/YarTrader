@@ -1,28 +1,17 @@
 from typing import List, Dict, Any, Optional
+import math
 import os
+import hashlib
 import json
+"""Base-only analysis facade. Legacy indicator/zone/similarity engines are retired."""
 
-from src.Intelligence.Execution.narrative import MarketNarrativeEngine
-from src.Intelligence.Execution.liquidity import LiquidityIntelligenceEngine
-from src.Intelligence.Execution.zones import InstitutionalZoneEngine
-from src.Intelligence.Execution.alignment import MultiTimeframeAlignmentEngine
-from src.Intelligence.Execution.similarity import PatternSimilarityIntelligenceEngine
 from src.Intelligence.Execution.portfolio import PortfolioRiskIntelligenceEngine
-from src.Intelligence.Execution.execution_planner import ExecutionIntelligencePlanner
 
 class ExecutionIntelligenceCore:
     """
-    Unified Orchestration Hub coordinating:
-    - Market Narrative Engine
-    - Liquidity Intelligence Engine
-    - Institutional Zone Engine
-    - Multi-Timeframe Structural Alignment
-    - Pattern Similarity Intelligence
-    - Explainable Execution Planning
-    - Portfolio Risk Intelligence
-
-    Adheres strictly to the Shared Cognitive Intelligence Core rule (no separate per-symbol/TF models).
-    Serves 300 independent research contexts with complete memory/state isolation.
+    Every analysis request delegates only to the hierarchical Base/re-entry reaction
+    engine. Old indicator, momentum, FVG, order-block, liquidity-sweep, fractal and
+    similarity engines are not loaded and cannot produce a signal.
     """
     _instance: Optional["ExecutionIntelligenceCore"] = None
 
@@ -33,13 +22,20 @@ class ExecutionIntelligenceCore:
         return cls._instance
 
     def __init__(self) -> None:
-        self.narrative_engine = MarketNarrativeEngine()
-        self.liquidity_engine = LiquidityIntelligenceEngine()
-        self.zone_engine = InstitutionalZoneEngine()
-        self.alignment_engine = MultiTimeframeAlignmentEngine()
-        self.similarity_engine = PatternSimilarityIntelligenceEngine()
-        self.portfolio_engine = PortfolioRiskIntelligenceEngine()
-        self.planner = ExecutionIntelligencePlanner()
+        # Portfolio risk remains a safety control, not a signal-generating strategy.
+        # 60% is limited to explicitly tagged backtest processes.
+        backtest_mode = os.environ.get("YARTRADER_BACKTEST_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+        daily_dd_limit = 10.0
+        if backtest_mode:
+            try:
+                daily_dd_limit = float(os.environ.get("YARTRADER_BACKTEST_MAX_DAILY_DRAWDOWN_PCT", "60"))
+            except (TypeError, ValueError, OverflowError):
+                daily_dd_limit = 60.0
+            if not math.isfinite(daily_dd_limit) or not 0.0 < daily_dd_limit <= 100.0:
+                daily_dd_limit = 60.0
+        self.portfolio_engine = PortfolioRiskIntelligenceEngine(max_daily_drawdown_pct=daily_dd_limit)
+
+        # No alternative strategy/indicator engines are instantiated here.
 
         # In-memory registry of isolated context states to prevent cross-contamination
         # Keys are (symbol, timeframe) tuples
@@ -73,134 +69,156 @@ class ExecutionIntelligenceCore:
         lang: str = "fa",
         newborn_brain_report: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
+        """Evaluate the sole canonical Base hierarchy strategy.
+
+        Old narrative, liquidity-sweep, order-block, FVG, fractal and similarity
+        engines are not instantiated or consulted. Their response fields remain
+        empty only for API compatibility; they cannot influence the Base plan.
         """
-        Executes the entire execution intelligence pipeline sequentially for a single research context.
-        Uses pure mathematical structure mapping; strictly no mock indicators are used.
-        """
+        del lang, newborn_brain_report
+        context_payload = json.dumps(candles or [], sort_keys=True, separators=(",", ":"), default=str)
+        context_digest = hashlib.sha256(context_payload.encode("utf-8")).hexdigest()[:16]
+        context_identity = f"{symbol.upper()}::{timeframe.upper()}::{context_digest}"
+        try:
+            if not isinstance(active_portfolio_trades, (list, type(None))):
+                raise ValueError("active portfolio trades must be a list")
+            balance = float(virtual_balance)
+            if not math.isfinite(balance) or balance <= 0.0:
+                raise ValueError("virtual balance must be finite and positive")
+            portfolio_risk = self.portfolio_engine.calculate_portfolio_risk(
+                active_portfolio_trades or [], virtual_balance=balance
+            )
+            if not isinstance(portfolio_risk, dict) or not isinstance(portfolio_risk.get("approved"), bool):
+                raise ValueError("portfolio risk result is invalid")
+        except Exception:
+            portfolio_risk = {
+                "approved": False,
+                "violations": ["Portfolio risk evaluation unavailable; execution blocked."],
+                "summary": "Portfolio risk unavailable; execution blocked.",
+            }
         state = self.get_context_state(symbol, timeframe)
         if not candles:
-            return state
-
-        # Compute SHA256 provenance hash & unique decision cycle ID strictly from OHLC candle price data
-        import hashlib
-        import uuid
-        candle_count = len(candles)
-        latest_ts = str(candles[-1].get("time", candles[-1].get("timestamp", "")))
-        # OHLC summary vector hash computed strictly from price values to detect identical data
-        ohlc_summary = f"{symbol.upper()}:{candle_count}:" + "|".join([
-            f"{c.get('open')},{c.get('high')},{c.get('low')},{c.get('close')}" for c in candles
-        ])
-        ctx_hash = f"ctx-{hashlib.sha256(ohlc_summary.encode('utf-8')).hexdigest()[:16]}"
-        cycle_id = f"cycle-{symbol.upper()}-{timeframe.upper()}-{uuid.uuid4().hex[:8]}"
-
-
-        # 1. Market Narrative
-        narrative_res = self.narrative_engine.analyze_narrative(candles)
-        narrative_res["data_source"] = "MT5_XAUUSD_M1_RATES"
-        narrative_res["data_mode"] = "REAL"
-        narrative_res["candle_count"] = candle_count
-        narrative_res["latest_candle_timestamp"] = latest_ts
-        narrative_res["context_identity"] = ctx_hash
-        narrative_res["decision_cycle_id"] = cycle_id
-        state["narrative"] = narrative_res
-
-        # 2. Liquidity Mapping
-        liquidity_res = self.liquidity_engine.analyze_liquidity(candles, narrative_res.get("swings", []))
-        state["liquidity"] = liquidity_res
-
-        # 3. Institutional Zones
-        zones_res = self.zone_engine.analyze_zones(candles, narrative_res.get("swings", []))
-        state["zones"] = zones_res
-
-        # 4. Multi-Timeframe Alignment
-        alignment_narratives = {timeframe: narrative_res}
-        if all_timeframe_candles:
-            for tf, tf_candles in all_timeframe_candles.items():
-                if tf.upper() != timeframe.upper():
-                    tf_narrative = self.narrative_engine.analyze_narrative(tf_candles)
-                    alignment_narratives[tf] = tf_narrative
-
-        alignment_res = self.alignment_engine.align_structures(symbol, alignment_narratives)
-        state["alignment"] = alignment_res
-
-        # 5. Pattern Similarity & Unified Fractal Analysis
-        # Current structural signature: last 4 swing heights
-        swings = narrative_res.get("swings", [])
-        sig = [s["price"] for s in swings[-4:]] if len(swings) >= 4 else [float(c["close"]) for c in candles[-4:]]
-
-        # Load historical patterns from database/memory
-        historical_patterns = self._load_historical_pattern_memory()
-        similarity_res = self.similarity_engine.find_similar_structures(sig, historical_patterns)
-        state["similarity"] = similarity_res
-
-        # Unified Primitive Structure & Memory State (Indicator-Free)
-        state["fractal"] = {
-            "symbol": symbol.upper(),
-            "primary_timeframe": timeframe.upper(),
-            "fractal_status": "PRIMITIVE_STRUCTURE_ONLY",
-            "evidence_state": "NO_INDICATORS"
-        }
-
-        # 6. Portfolio Risk evaluation
-        active_trades = active_portfolio_trades or []
-        portfolio_res = self.portfolio_engine.calculate_portfolio_risk(active_trades, virtual_balance)
-
-        # 6b. Legacy strategy profiles are diagnostic-only and never participate in
-        # the executable decision path. Preserve an explicit disabled record for audit/UI
-        # consumers while the Brain remains the sole market-strategy authority.
-        strategy_eval_res = {
-            "candidates": [{
-                "strategy_name": "FRACTAL",
-                "direction": "WAIT",
+            blocked = not portfolio_risk["approved"]
+            empty_plan = {
+                "action": "AVOID" if blocked else "WAIT",
+                "decision": "AVOID" if blocked else "WAIT",
+                "strategy": "BASE_HIERARCHY",
+                "status": "BLOCKED_BY_PORTFOLIO_RISK" if blocked else "WAIT",
+                "reason": ("; ".join(portfolio_risk.get("violations") or []) if blocked
+                           else "No real candles; Base-only analysis unavailable."),
+                "decision_authority": "BASE_HIERARCHY_ONLY",
+                "decision_source": "BASE_HIERARCHY_ONLY",
+                "context_identity": context_identity,
+                "entry": 0.0 if blocked else None,
+                "stop_loss": 0.0 if blocked else None,
+                "take_profit": 0.0 if blocked else None,
                 "confidence": 0.0,
-                "reasoning": ["FRACTAL strategy explicitly disabled: insufficient pattern memory evidence."]
-            }],
-            "authority": "BRAIN_ONLY",
-            "execution_authority": False
-        }
+            }
+            return {
+                "symbol": symbol.upper(), "timeframe": timeframe.upper(),
+                "narrative": {}, "liquidity": {"status": "DISABLED_NON_BASE"},
+                "zones": {"status": "DISABLED_NON_BASE", "order_blocks": [], "fair_value_gaps": []},
+                "alignment": {"alignment": "UNAVAILABLE", "decision_authority": "BASE_HIERARCHY_ONLY"},
+                "similarity": {
+                    "status": "DISABLED_NON_BASE", "evidence_state": "INSUFFICIENT_EVIDENCE",
+                    "average_similarity_score": 0.0, "similar_pattern_found": False, "best_match": None,
+                },
+                "fractal": {"status": "DISABLED_NON_BASE", "evidence_state": "BASE_ONLY"},
+                "strategy_evaluation": {"candidates": [], "authority": "BASE_HIERARCHY_ONLY"},
+                "portfolio_risk": portfolio_risk,
+                "plan": empty_plan,
+                "base_analysis": {"best_candidate": None, "summary": "No real candles; no signal."},
+            }
 
-        # 7. Generate advisory plan recommendation
-        current_price = float(candles[-1]["close"])
-        plan_res = self.planner.generate_execution_plan(
+        from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
+        tf_candles = dict(all_timeframe_candles or {})
+        tf_candles.setdefault(timeframe, candles)
+        base_result = StrategyOrchestrator().evaluate_all_strategies(
             symbol=symbol,
-            timeframe=timeframe,
-            narrative=narrative_res,
-            liquidity=liquidity_res,
-            zones=zones_res,
-            alignment=alignment_res,
-            similarity=similarity_res,
-            portfolio_risk=portfolio_res,
-            current_price=current_price,
-            strategy_eval=None,
-            lang=lang,
-            newborn_brain_report=newborn_brain_report
+            primary_timeframe=timeframe,
+            candles=candles,
+            all_timeframe_candles=tf_candles,
         )
-        state["plan"] = plan_res["plan"]
+        candidate = base_result.get("best_candidate")
+        raw_plan = base_result.get("base_plan") or {}
+        if candidate:
+            plan = {
+                "action": str(candidate.get("direction", "WAIT")),
+                "decision": str(candidate.get("direction", "WAIT")),
+                "strategy": "BASE_HIERARCHY",
+                "status": "PROPOSED",
+                "entry": candidate.get("entry"),
+                "stop_loss": candidate.get("stop_loss"),
+                "take_profit": candidate.get("take_profit"),
+                "risk_reward": candidate.get("risk_reward", 0.0),
+                "confidence": candidate.get("confidence", 0.0),
+                "reason": "; ".join(candidate.get("reasoning") or []),
+                "decision_authority": "BASE_HIERARCHY_ONLY",
+                "decision_source": "BASE_HIERARCHY_ONLY",
+                "context_identity": context_identity,
+                "source": "hierarchical_base_behavior_plus_costed_reaction",
+            }
+        else:
+            plan = {
+                "action": "WAIT", "decision": "WAIT", "strategy": "BASE_HIERARCHY",
+                "status": "WAIT", "entry": None, "stop_loss": None, "take_profit": None,
+                "risk_reward": 0.0, "confidence": 0.0,
+                "reason": str(raw_plan.get("reason") or base_result.get("summary") or
+                              "No validated Base-reaction setup; no alternative strategy is permitted."),
+                "decision_authority": "BASE_HIERARCHY_ONLY",
+                "decision_source": "BASE_HIERARCHY_ONLY",
+                "context_identity": context_identity,
+                "source": "hierarchical_base_behavior_plus_costed_reaction",
+            }
+
+        if not portfolio_risk["approved"]:
+            violations = portfolio_risk.get("violations") or ["Portfolio risk gate rejected the plan."]
+            plan.update({
+                "action": "AVOID", "decision": "AVOID", "status": "BLOCKED_BY_PORTFOLIO_RISK",
+                "entry": 0.0, "stop_loss": 0.0, "take_profit": 0.0,
+                "risk_reward": 0.0, "confidence": 0.0,
+                "reason": "; ".join(str(v) for v in violations),
+            })
+
+        hierarchy = base_result.get("hierarchy") or {}
+        structure = hierarchy.get("structure") or {}
+        state["narrative"] = {
+            "decision_authority": "BASE_HIERARCHY_ONLY",
+            "summary": base_result.get("summary"),
+            "base_hierarchy": hierarchy,
+        }
+        state["liquidity"] = {"status": "DISABLED_NON_BASE", "resting_bsl": [],
+                              "resting_ssl": [], "equal_highs": [], "equal_lows": [],
+                              "sweeps": [], "latest_sweep": None, "voids": []}
+        state["zones"] = {"status": "DISABLED_NON_BASE", "order_blocks": [],
+                          "fair_value_gaps": [], "breaker_blocks": [],
+                          "premium_zone": {}, "discount_zone": {}, "equilibrium": 0.0}
+        state["alignment"] = {
+            "alignment": structure.get("parent_child_alignment", "UNAVAILABLE"),
+            "decision_authority": "BASE_HIERARCHY_ONLY",
+            "parent_timeframe": structure.get("parent_timeframe"),
+            "child_timeframe": structure.get("child_timeframe"),
+        }
+        state["similarity"] = {
+            "status": "DISABLED_NON_BASE", "evidence_state": "INSUFFICIENT_EVIDENCE",
+            "average_similarity_score": 0.0, "similar_pattern_found": False, "best_match": None,
+        }
+        state["fractal"] = {"status": "DISABLED_NON_BASE", "evidence_state": "BASE_ONLY"}
+        state["plan"] = plan
         from datetime import datetime
         state["last_updated"] = datetime.now().isoformat()
-
-        # Combine results
         return {
-            "symbol": symbol.upper(),
-            "timeframe": timeframe.upper(),
-            "narrative": narrative_res,
-            "liquidity": liquidity_res,
-            "zones": zones_res,
-            "alignment": alignment_res,
-            "similarity": similarity_res,
-            "fractal": state.get("fractal", {}),
-            "strategy_evaluation": strategy_eval_res,
-            "portfolio_risk": portfolio_res,
-            "plan": plan_res["plan"]
+            "symbol": symbol.upper(), "timeframe": timeframe.upper(),
+            "narrative": state["narrative"], "liquidity": state["liquidity"],
+            "zones": state["zones"], "alignment": state["alignment"],
+            "similarity": state["similarity"], "fractal": state["fractal"],
+            "strategy_evaluation": {
+                "candidates": list(base_result.get("candidates") or []),
+                "authority": "BASE_HIERARCHY_ONLY",
+                "execution_authority": True,
+                "decision_source": "hierarchical_base_behavior_plus_costed_reaction",
+                "summary": base_result.get("summary", "Base-only strategy."),
+            },
+            "portfolio_risk": portfolio_risk,
+            "plan": plan, "base_analysis": base_result,
         }
-
-    def _load_historical_pattern_memory(self) -> List[Dict[str, Any]]:
-        """Helper to load historical pattern definitions safely."""
-        patterns_path = "runtime_logs/pattern_outcomes.json"
-        if os.path.exists(patterns_path):
-            try:
-                with open(patterns_path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return []

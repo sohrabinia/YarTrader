@@ -1,10 +1,10 @@
-from datetime import datetime
+import os
+from datetime import datetime, timedelta
 from typing import List, Any, Dict, Optional
 from src.Research.MarketAnalysis.Interfaces.interfaces import IMarketAnalyzer, IResearchEngine
 from src.Research.MarketAnalysis.Models.models import MarketObservation, MarketInsight, ResearchRequest, ResearchResult
 from src.Data.MarketData.Models.models import MarketDataPoint, MarketDataRequest
 from src.Data.MarketData.Interfaces.interfaces import IMarketDataProvider
-from src.Research.Features.pipeline import FeaturePipeline
 from src.Infrastructure.exceptions import ValidationException
 
 
@@ -98,9 +98,11 @@ class ResearchHistory:
 
 class PrimitiveMarketResearchEngine(IResearchEngine):
     """
-    Indicator-Independent Research Engine for the 30-Instrument Market Universe.
-    Consumes primitive broker market facts and ExecutionIntelligenceCore context evaluation
-    WITHOUT invoking technical indicators (NO ATR, NO RSI, NO MA, NO TechnicalAnalysisEngine).
+    Indicator-independent market observation and learning engine.
+
+    Research/Brain output is retained for learning and explanation only. The sole
+    source of an actionable trading proposal is the canonical Base hierarchy plus
+    costed re-entry reaction model; missing/invalid evidence fails closed to WAIT.
     """
 
     def __init__(
@@ -115,10 +117,17 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
         else:
             self._base_engine = base_engine
         self._live_brains: Dict[tuple, Any] = {}
+        self._last_processed_candle_timestamps: Dict[tuple, datetime] = {}
 
     @property
     def data_provider(self) -> IMarketDataProvider:
         return self._data_provider
+
+    @staticmethod
+    def _timestamp_order(value: Any) -> float:
+        if isinstance(value, datetime):
+            return value.timestamp()
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
 
     def analyze_market(self, request: ResearchRequest, market_data_response=None) -> ResearchResult:
         """
@@ -161,91 +170,121 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
         cycle_id = f"cyc-{request.Asset.upper()}-{timeframe.upper()}-{int(time.time())}"
         decision_id = f"DEC-{request.Asset.upper()}-{timeframe.upper()}-{int(time.time())}"
 
-        # Check if newborn_brain_report is already provided in request context or compute via LiveAnalysisBrain
-        newborn_report_dict = request.Context.get("newborn_brain_report")
-        if not newborn_report_dict:
-            try:
-                from src.Research.Brain.live_brain import LiveAnalysisBrain
-                brain_key = (request.Asset.upper(), timeframe.upper())
-                newborn_brain = self._live_brains.get(brain_key)
-                if newborn_brain is None:
-                    newborn_brain = LiveAnalysisBrain(request.Asset, timeframe)
-                    self._live_brains[brain_key] = newborn_brain
-                newborn_report = None
-                for dp in data_points:
-                    raw_candle_dict = {
-                        "timestamp": dp.Timestamp.isoformat() if isinstance(dp.Timestamp, datetime) else str(dp.Timestamp),
-                        "open": float(dp.Open),
-                        "high": float(dp.High),
-                        "low": float(dp.Low),
-                        "close": float(dp.Close),
-                        "volume": float(dp.Volume)
-                    }
-                    newborn_report = newborn_brain.process_live_candle(raw_candle_dict)
-                if newborn_report:
-                    newborn_report_dict = newborn_report.to_dict()
-                else:
-                    newborn_report_dict = {
-                        "brain_available": False,
-                        "suggested_virtual_action": "WAIT",
-                        "brain_error": "No candle processed by LiveAnalysisBrain"
-                    }
-            except Exception as be_err:
-                newborn_report_dict = {
-                    "brain_available": False,
-                    "suggested_virtual_action": "WAIT",
-                    "brain_error": f"LiveAnalysisBrain exception: {type(be_err).__name__}: {str(be_err)}"[:200]
-                }
+        # The parallel discovery Brain and its virtual-trade hypotheses are retired
+        # from active analysis. Only the canonical Base hierarchy may describe a setup.
+        newborn_report_dict = {
+            "symbol": request.Asset,
+            "brain_available": False,
+            "status": "DISABLED_NON_BASE",
+            "decision_authority": "BASE_HIERARCHY_ONLY",
+            "execution_enabled": False,
+        }
 
+        # Canonical decision authority: Base hierarchy + costed re-entry reaction only.
+        # Parallel Brain hypotheses are not consumed by active Base-only analysis.
         try:
-            from src.Intelligence.Execution.core import ExecutionIntelligenceCore
+            from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
             from src.Decision.Models.models import AutonomousTradingDecision
 
-            intel_core = ExecutionIntelligenceCore.get_instance()
-            intel_res = intel_core.evaluate_context(
+            raw_mtf = (request.Context or {}).get("base_candles_by_timeframe", {})
+            all_tf_candles = {
+                str(tf).upper(): [bar for bar in bars if isinstance(bar, dict)]
+                for tf, bars in raw_mtf.items()
+                if isinstance(bars, list)
+            } if isinstance(raw_mtf, dict) else {}
+            if not all_tf_candles.get(timeframe):
+                all_tf_candles[timeframe] = candles_dicts
+            base_report = StrategyOrchestrator().evaluate_all_strategies(
                 symbol=request.Asset,
-                timeframe=timeframe,
+                primary_timeframe=timeframe,
                 candles=candles_dicts,
-                newborn_brain_report=newborn_report_dict
+                all_timeframe_candles=all_tf_candles,
             )
-
-            plan = intel_res.get("plan", {})
-            action = str(plan.get("action", "WAIT")).upper()
-            if action not in ["BUY", "SELL", "WAIT", "AVOID"]:
+            base_candidate = base_report.get("best_candidate")
+            base_plan = base_report.get("base_plan") or {}
+            action = str((base_candidate or {}).get("direction", "WAIT")).upper()
+            if action not in ("BUY", "SELL"):
                 action = "WAIT"
+                base_candidate = None
 
+            entry = float((base_candidate or {}).get("entry", 0.0) or 0.0)
+            stop_loss = float((base_candidate or {}).get("stop_loss", 0.0) or 0.0)
+            take_profit = float((base_candidate or {}).get("take_profit", 0.0) or 0.0)
+            risk_reward = float((base_candidate or {}).get("risk_reward", 0.0) or 0.0)
+            confidence = float((base_candidate or {}).get("confidence", 0.0) or 0.0)
+            candidate_reasoning = (base_candidate or {}).get("reasoning")
+            if isinstance(candidate_reasoning, str):
+                candidate_reasoning = [candidate_reasoning]
+            if not candidate_reasoning:
+                candidate_reasoning = [
+                    str(base_report.get("summary") or base_plan.get("reason") or
+                        "No validated Base hierarchy and costed-reaction proposal; waiting for sufficient evidence.")
+                ]
+
+            intel_res = {
+                "source": "BASE_HIERARCHY",
+                "decision_authority": "BASE_HIERARCHY",
+                "model_status": base_report.get("model_status", "UNKNOWN"),
+                "summary": base_report.get("summary"),
+                "base_plan": base_plan,
+                "hierarchy": base_report.get("hierarchy", {}),
+                "reaction_analysis": base_report.get("reaction_analysis", {}),
+                "candidate_available": bool(base_candidate),
+            }
             auto_decision = AutonomousTradingDecision(
                 decision_id=decision_id,
                 cycle_id=cycle_id,
                 action=action,
                 symbol=request.Asset,
                 timeframe=timeframe,
-                entry=float(plan.get("entry", 0.0)),
-                stop_loss=float(plan.get("stop_loss", 0.0)),
-                take_profit=float(plan.get("take_profit", 0.0)),
-                volume=0.01,
-                risk_reward=float(plan.get("risk_reward", 0.0)),
-                confidence=float(plan.get("confidence", 0.0)),
-                reasoning=plan.get("reasoning", ["Indicator-independent primitive evaluation"]),
+                entry=entry,
+                stop_loss=stop_loss,
+                take_profit=take_profit,
+                volume=0.0,
+                risk_reward=risk_reward,
+                confidence=confidence if action in ("BUY", "SELL") else 0.0,
+                reasoning=candidate_reasoning,
                 evidence={
-                    "narrative": intel_res.get("narrative", {}),
-                    "liquidity": intel_res.get("liquidity", {}),
-                    "zones": intel_res.get("zones", {}),
-                    "alignment": intel_res.get("alignment", {}),
-                    "latest_price": candles_dicts[-1]["close"]
+                    "decision_authority": "BASE_HIERARCHY",
+                    "base_model_status": intel_res["model_status"],
+                    "base_plan": base_plan,
+                    "hierarchy": intel_res["hierarchy"],
+                    "reaction_analysis": intel_res["reaction_analysis"],
+                    "latest_price": candles_dicts[-1]["close"],
                 },
-                risk_status="APPROVED" if action in ["BUY", "SELL"] else "CHECKED",
-                execution_status="PENDING" if action in ["BUY", "SELL"] else "SKIPPED",
-                configuration_version="1.2.0",
-                timestamp=datetime.now().isoformat()
+                risk_status="PENDING" if action in ("BUY", "SELL") else "CHECKED",
+                execution_status="PENDING" if action in ("BUY", "SELL") else "SKIPPED",
+                configuration_version="base-hierarchy-1.0",
+                timestamp=datetime.now().isoformat(),
             )
             auto_dec_dict = auto_decision.to_dict()
-        except Exception:
-            intel_res = {}
+        except Exception as base_error:
+            # Any Base-model failure blocks the signal; there is no legacy fallback.
+            intel_res = {
+                "source": "BASE_HIERARCHY",
+                "decision_authority": "BASE_HIERARCHY",
+                "model_status": "BASE_ANALYSIS_FAILED",
+                "error_type": type(base_error).__name__,
+                "candidate_available": False,
+            }
             auto_dec_dict = {
+                "decision_id": decision_id,
+                "cycle_id": cycle_id,
                 "action": "WAIT",
+                "symbol": request.Asset,
+                "timeframe": timeframe,
+                "entry": 0.0,
+                "stop_loss": 0.0,
+                "take_profit": 0.0,
+                "volume": 0.0,
+                "risk_reward": 0.0,
                 "confidence": 0.0,
-                "reasoning": ["Default primitive evaluation"]
+                "reasoning": ["Base-only analysis failed; no fallback strategy is permitted."],
+                "evidence": {"decision_authority": "BASE_HIERARCHY", "base_model_status": "BASE_ANALYSIS_FAILED"},
+                "risk_status": "CHECKED",
+                "execution_status": "SKIPPED",
+                "configuration_version": "base-hierarchy-1.0",
+                "timestamp": datetime.now().isoformat(),
             }
 
         primitive_observation = {
@@ -257,6 +296,47 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
             "volume": float(sum(dp.Volume for dp in data_points)),
             "bar_count": len(data_points),
             "timestamp": latest_dp.Timestamp.isoformat() if hasattr(latest_dp.Timestamp, "isoformat") else str(latest_dp.Timestamp)
+        }
+
+        decision_action = str(auto_dec_dict.get("action", "WAIT")).upper()
+        decision_evidence = auto_dec_dict.get("evidence") if isinstance(auto_dec_dict.get("evidence"), dict) else {}
+        base_candidate_available = bool(intel_res.get("candidate_available"))
+        try:
+            risk_parameters_available = all(
+                float(auto_dec_dict.get(key) or 0.0) > 0.0
+                for key in ("entry", "stop_loss", "take_profit")
+            )
+        except (TypeError, ValueError):
+            risk_parameters_available = False
+
+        # Learning/Brain hypotheses are descriptive only. They cannot upgrade WAIT,
+        # supply a fallback direction, or raise execution confidence.
+        if (decision_action in ("BUY", "SELL") and base_candidate_available
+                and decision_evidence.get("decision_authority") == "BASE_HIERARCHY"
+                and risk_parameters_available):
+            smart_bias = decision_action
+            smart_confidence = float(auto_dec_dict.get("confidence", 0.0) or 0.0)
+            signal_status = "ACTIVE"
+        else:
+            smart_bias = "Neutral"
+            smart_confidence = 0.0
+            signal_status = "WAIT"
+            decision_action = "WAIT"
+
+        smart_interpretation = {
+            "confidence": smart_confidence,
+            "bias": smart_bias,
+            "reasoning": auto_dec_dict.get("reasoning", []),
+            "execution_action": decision_action,
+            "signal_status": signal_status,
+            "risk_parameters_available": bool(risk_parameters_available),
+            "decision_authority": "BASE_HIERARCHY",
+            "base_model_status": intel_res.get("model_status", "UNKNOWN"),
+            "candidate_reason": None if signal_status == "ACTIVE" else (
+                intel_res.get("summary") or
+                (intel_res.get("reaction_analysis") or {}).get("reason") or
+                "No validated Base-only entry proposal; learning hypotheses cannot authorize a trade."
+            ),
         }
 
         findings = {
@@ -274,12 +354,13 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
                 "mode": "primitive_indicator_free"
             },
             "primitive_observation": primitive_observation,
+            "observation_summary": primitive_observation,
             "autonomous_decision": auto_dec_dict,
             "intel_summary": intel_res,
             "newborn_brain_report": newborn_report_dict,
             "pipeline_outputs": {
                 "technical_analysis": {"candles": candles_dicts, "bar_count": len(candles_dicts)},
-                "smart_interpretation": {"confidence": float(auto_dec_dict.get("confidence", 50.0)), "bias": "Neutral"}
+                "smart_interpretation": smart_interpretation
             }
         }
 
@@ -293,227 +374,27 @@ class PrimitiveMarketResearchEngine(IResearchEngine):
         )
 
 
-class FeatureExtractionResearchEngine(IResearchEngine):
-    """
-    Decorator/Adapter implementing IResearchEngine that orchestrates feature extraction
-    from market data before delegating to an underlying research engine.
+class FeatureExtractionResearchEngine(PrimitiveMarketResearchEngine):
+    """Backward-compatible alias for the indicator-free, Base-only research engine.
+
+    The legacy name remains temporarily importable for callers being migrated, but
+    it does not instantiate FeaturePipeline or run technical/trend/momentum/
+    volatility/regime indicators. Actionable decisions still come only from the
+    hierarchical Base + costed reaction model; all other hypotheses are telemetry.
     """
 
     def __init__(
         self,
         data_provider: IMarketDataProvider,
         base_engine: Optional[IResearchEngine] = None,
-        feature_pipeline: Optional[FeaturePipeline] = None
+        feature_pipeline=None,
     ) -> None:
-        self._data_provider = data_provider
-        if base_engine is None:
-            from src.Research.Engine.services import ResearchEngine
-            self._base_engine = ResearchEngine()
-        else:
-            self._base_engine = base_engine
-        self._feature_pipeline = feature_pipeline or FeaturePipeline()
-        # Keep one Brain instance per symbol/timeframe across research cycles.
-        # This preserves pending hypotheses/simulated positions while isolating assets.
-        self._live_brains: Dict[tuple, Any] = {}
+        # Accept the former argument for source compatibility, but deliberately
+        # do not construct, store, or execute a feature/indicator pipeline.
+        del feature_pipeline
+        super().__init__(data_provider=data_provider, base_engine=base_engine)
 
     @property
-    def data_provider(self) -> IMarketDataProvider:
-        return self._data_provider
-
-    @property
-    def base_engine(self) -> IResearchEngine:
-        return self._base_engine
-
-    @property
-    def feature_pipeline(self) -> FeaturePipeline:
-        return self._feature_pipeline
-
-    def _get_live_brain(self, asset: str, timeframe: str):
-        """Return the persistent Brain instance for one isolated symbol/timeframe."""
-        from src.Research.Brain.live_brain import LiveAnalysisBrain
-        brain_key = (asset.upper(), timeframe.upper())
-        newborn_brain = self._live_brains.get(brain_key)
-        if newborn_brain is None:
-            newborn_brain = LiveAnalysisBrain(asset, timeframe)
-            self._live_brains[brain_key] = newborn_brain
-        return newborn_brain
-
-    def analyze_market(self, request: ResearchRequest, market_data_response=None) -> ResearchResult:
-        """
-        Executes feature calculations on the caller-supplied market data when provided.
-        This preserves the selected universe provider (for example Crypto) end-to-end
-        instead of silently re-fetching the same symbol through MT5.
-        """
-        # 1. Fetch market data points from provider
-        timeframe = request.Context.get("timeframe", "H1")
-        data_req = MarketDataRequest(
-            Asset=request.Asset,
-            StartTime=request.StartTime,
-            EndTime=request.EndTime,
-            Timeframe=timeframe
-        )
-
-        try:
-            if market_data_response is None:
-                market_data_response = self._data_provider.retrieve_market_data(data_req)
-        except Exception as e:
-            raise ValidationException(
-                f"Validation Error: Failed to fetch market data for feature extraction: {str(e)}"
-            ) from e
-
-        # Feed real candles explicitly into the six dedicated pipeline/analytical engines
-        from src.Research.analysis_pipeline import (
-            TechnicalAnalysisEngine,
-            FeatureEngineeringLayer,
-            MarketRegimeDetection,
-            TrendAnalysis,
-            VolatilityAnalysis,
-            MomentumAnalysis
-        )
-
-        # A. Technical Analysis Engine
-        tech_engine = TechnicalAnalysisEngine()
-        tech_results = tech_engine.analyze(market_data_response.DataPoints)
-
-        # B. Feature Engineering Layer
-        feat_layer = FeatureEngineeringLayer(pipeline=self._feature_pipeline)
-        feature_set = feat_layer.process(market_data_response.DataPoints)
-
-        # C. Trend Analysis
-        trend_analysis = TrendAnalysis()
-        trend_results = trend_analysis.analyze(market_data_response.DataPoints, feature_set)
-
-        # D. Volatility Analysis
-        vol_analysis = VolatilityAnalysis()
-        vol_results = vol_analysis.analyze(market_data_response.DataPoints, feature_set)
-
-        # E. Momentum Analysis
-        mom_analysis = MomentumAnalysis()
-        mom_results = mom_analysis.analyze(market_data_response.DataPoints, feature_set)
-
-        # F. Market Regime Detection
-        regime_detector = MarketRegimeDetection()
-        regime_results = regime_detector.detect(market_data_response.DataPoints, feature_set)
-
-        # G. Smart Interpretation Engine (combines results to generate qualitative bias & confidence)
-        from src.Research.analysis_pipeline import SmartInterpretationEngine
-        interpretation_engine = SmartInterpretationEngine()
-        smart_results = interpretation_engine.interpret(
-            candles=market_data_response.DataPoints,
-            tech=tech_results,
-            trend=trend_results,
-            vol=vol_results,
-            mom=mom_results,
-            regime=regime_results
-        )
-
-        # 3. Create MarketObservation from MarketFeatureSet
-        observations_map = {name: fval.Value for name, fval in feature_set.Features.items()}
-        market_observation = MarketObservation(
-            Asset=request.Asset,
-            Timestamp=datetime.now(),
-            Observations=observations_map,
-            Source="FeatureExtractionResearchEngine"
-        )
-
-        # 4. Enforce base engine execution with enriched context
-        enriched_context = dict(request.Context)
-        enriched_context["market_feature_set"] = feature_set
-        enriched_context["extracted_features"] = {
-            name: {
-                "value": fval.Value,
-                "timestamp": fval.Timestamp.isoformat(),
-                "metadata": fval.Metadata
-            }
-            for name, fval in feature_set.Features.items()
-        }
-        enriched_context["observation"] = {
-            "asset": market_observation.Asset,
-            "observations": market_observation.Observations,
-            "source": market_observation.Source
-        }
-        # Inject explicit pipeline results into enriched context
-        enriched_context["technical_analysis"] = tech_results
-        enriched_context["trend_analysis"] = trend_results
-        enriched_context["volatility_analysis"] = vol_results
-        enriched_context["momentum_analysis"] = mom_results
-        enriched_context["market_regime"] = regime_results
-        enriched_context["smart_interpretation"] = smart_results
-
-        enriched_request = ResearchRequest(
-            Asset=request.Asset,
-            StartTime=request.StartTime,
-            EndTime=request.EndTime,
-            Context=enriched_context
-        )
-
-        # H. Newborn Market Discovery Brain v1 Integration
-        newborn_brain = self._get_live_brain(request.Asset, timeframe)
-        newborn_report = None
-        for dp in market_data_response.DataPoints:
-            raw_candle_dict = {
-                "timestamp": dp.Timestamp.isoformat() if isinstance(dp.Timestamp, datetime) else str(dp.Timestamp),
-                "open": dp.Open,
-                "high": dp.High,
-                "low": dp.Low,
-                "close": dp.Close,
-                "volume": dp.Volume
-            }
-            newborn_report = newborn_brain.process_live_candle(raw_candle_dict)
-
-        base_result = self._base_engine.analyze_market(enriched_request)
-
-        # 5. Enrich findings with features and observations
-        enriched_findings = dict(base_result.Findings)
-        enriched_findings["feature_set"] = {
-            "asset_id": feature_set.AssetId,
-            "start_time": feature_set.StartTime.isoformat(),
-            "end_time": feature_set.EndTime.isoformat(),
-            "features_count": len(feature_set.Features)
-        }
-        enriched_findings["observation_summary"] = market_observation.Observations
-
-        # Expose final compiled pipeline outputs in the findings dict
-        enriched_findings["pipeline_outputs"] = {
-            "technical_analysis": tech_results,
-            "trend_analysis": trend_results,
-            "volatility_analysis": vol_results,
-            "momentum_analysis": mom_results,
-            "market_regime": regime_results,
-            "smart_interpretation": smart_results
-        }
-
-        # Embed Newborn Market Discovery Brain v1 report if generated
-        if newborn_report:
-            enriched_findings["newborn_brain_report"] = newborn_report.to_dict()
-
-        # I. Fractal Behavior Analysis Engine Integration
-        try:
-            from src.Infrastructure.DI.container import container_instance
-            from src.Research.MarketAnalysis.Interfaces.interfaces import IFractalEngine
-            fractal_engine = container_instance.resolve(IFractalEngine)
-        except Exception:
-            from src.Research.Brain.fractal_engine import FractalEngine
-            fractal_engine = FractalEngine()
-
-        try:
-            candles_by_tf = {timeframe: market_data_response.DataPoints}
-            fractal_res = fractal_engine.analyze_fractals(
-                symbol=request.Asset,
-                primary_timeframe=timeframe,
-                candles_by_tf=candles_by_tf
-            )
-            enriched_findings["fractal_analysis"] = fractal_res
-            enriched_findings["pipeline_outputs"]["fractal_analysis"] = fractal_res
-        except Exception as fe_err:
-            enriched_findings["fractal_analysis_error"] = str(fe_err)
-
-        # Dynamically set the confidence score from smart interpretation (converted back to fraction [0, 1])
-        conf_score = float(smart_results.get("confidence", 50.0)) / 100.0
-
-        return ResearchResult(
-            Request=request,
-            Findings=enriched_findings,
-            ConfidenceScore=conf_score,
-            CreatedAt=datetime.now()
-        )
+    def feature_pipeline(self):
+        """Legacy compatibility property; no feature/indicator pipeline is active."""
+        return None

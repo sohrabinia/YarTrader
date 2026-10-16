@@ -35,13 +35,14 @@ class TestLiveDecisionIndicatorFree(unittest.TestCase):
         self.assertIsNone(sim.get("best_match"))
         self.assertEqual(sim.get("evidence_state"), "INSUFFICIENT_EVIDENCE")
 
-        # Confirm FRACTAL strategy is explicitly disabled in strategy evaluation
+        # Only the hierarchical Base engine is allowed to produce actionable decisions.
         strat_eval = res.get("strategy_evaluation", {})
-        fractal_cand = next((c for c in strat_eval.get("candidates", []) if c.get("strategy_name") == "FRACTAL"), None)
-        self.assertIsNotNone(fractal_cand)
-        self.assertEqual(fractal_cand["direction"], "WAIT")
-        self.assertEqual(fractal_cand["confidence"], 0.0)
-        self.assertIn("FRACTAL strategy explicitly disabled: insufficient pattern memory evidence.", fractal_cand["reasoning"])
+        self.assertEqual(strat_eval.get("authority"), "BASE_HIERARCHY_ONLY")
+        self.assertTrue(strat_eval.get("execution_authority"))
+        self.assertTrue(all(c.get("strategy_name") == "BASE_HIERARCHY"
+                            for c in strat_eval.get("candidates", [])))
+        self.assertEqual(res["plan"]["strategy"], "BASE_HIERARCHY")
+        self.assertEqual(res["plan"]["action"], "WAIT")
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,7 +26,7 @@
 * **Customer Auth**: Exclusive Google OIDC (`/fa/login`, `/en/login`, etc.). Legacy customer password endpoints removed.
 * **Admin Auth**: `/admin/operator` route & `/api/admin/operator` proxy with `Authorization: Bearer <token>`.
 * **Execution Boundary**: XAUUSD Gold Backtest & Native MT5 DEMO Execution strictly (`LIVE_TRADING_ENABLED = False`).
-* **Risk Limit**: 2.0% max account equity risk budget per trade, 8.0% Daily Loss Protection Kill-Switch (01:35 Iran local time baseline).
+* **Risk Limit**: YarTrader-calculated position size using the canonical 1.0% per-trade risk budget, 10.0% Daily Loss Protection Kill-Switch (01:35 Iran local time baseline).
 
 ---
 

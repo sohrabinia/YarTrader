@@ -6,10 +6,10 @@ class TestMultiLevelRiskAndReversal(unittest.TestCase):
     """
     Phase 5 & Phase 6 Deterministic Risk & Reversal Tests.
     Proves:
-    - 0.5% max risk per trade limit.
+    - 1.0% target risk per trade limit.
     - 3.0% strategy exposure ceiling.
     - 10.0% max daily equity drawdown circuit breaker (halts new trade generation).
-    - FAST_SCALP / SCALP post-close opposite direction evaluation (prohibiting blind reversal).
+    - Base-hierarchy-only post-close handoff requires explicit destination Base evidence.
     """
 
     def setUp(self) -> None:
@@ -21,7 +21,7 @@ class TestMultiLevelRiskAndReversal(unittest.TestCase):
         self.reversal_manager = ReversalHandoffManager()
 
     def test_single_trade_risk_limit_0_5_percent(self):
-        """Verifies single trade risk exceeding 0.5% equity is rejected."""
+        """Verifies single trade risk exceeding 1.0% equity is rejected."""
         active_trades = [
             {"symbol": "XAUUSD", "status": "RUNNING", "entry": 2000.0, "stop": 1990.0, "volume": 0.01, "risk_pct": 0.8}
         ]
@@ -54,36 +54,29 @@ class TestMultiLevelRiskAndReversal(unittest.TestCase):
         self.assertFalse(res["approved"])
         self.assertTrue(any("Trading halted" in v for v in res["violations"]))
 
-    def test_fast_scalp_and_scalp_reversal_requires_market_structure(self):
-        """
-        Verifies post-close FAST_SCALP/SCALP reversal requires fresh market structure validation.
-        Prohibits blind reversal if RTM zone or Fractal Base is missing.
-        """
+    def test_base_hierarchy_reversal_requires_confirmed_destination_base(self):
+        """A reversal is permitted only with explicit Base hierarchy evidence."""
         closed_trade_buy = {
             "symbol": "XAUUSD",
-            "trading_style": "FAST_SCALP",
+            "trading_style": "BASE_HIERARCHY",
             "direction": "BUY",
             "exit_reason": "TAKE_PROFIT_HIT",
             "exit_price": 2020.0
         }
 
-        # Case A: Blind reversal without market structure confirmation -> REJECTED
-        market_structure_blind = {"has_rtm_zone": False, "has_fractal_base": False}
         res_blind = self.reversal_manager.evaluate_reversal_candidate(
             closed_position=closed_trade_buy,
-            market_structure=market_structure_blind,
+            market_structure={},
             account_equity=10000.0,
             free_margin=9000.0
         )
         self.assertFalse(res_blind.is_candidate)
-        self.assertIn("lacks RTM zone or Fractal Base structural confirmation", res_blind.reason)
+        self.assertIn("Base-only handoff requires confirmed Base hierarchy", res_blind.reason)
 
-        # Case B: Validated reversal with RTM supply zone -> ACCEPTED for SHORT
         market_structure_valid = {
-            "has_rtm_zone": True,
-            "has_fractal_base": True,
-            "suggested_sl_pips": 20,
-            "suggested_tp_pips": 60,
+            "base_hierarchy_confirmed": True,
+            "base_width": 5.0,
+            "target_base_price": 2010.0,
             "win_probability": 0.60
         }
         res_valid = self.reversal_manager.evaluate_reversal_candidate(

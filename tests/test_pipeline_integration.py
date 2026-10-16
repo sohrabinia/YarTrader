@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta
 from src.Application.Pipeline import (
     IntelligencePipeline,
@@ -178,6 +179,34 @@ class TestPipelineIntegration(unittest.TestCase):
             unsafe_pipeline.execute(context)
         self.assertIn("strictly restricted to simulation mode only", str(ctx.exception))
 
+    def test_qualified_base_candidate_builds_signal_after_risk_gate(self):
+        """A qualified Base proposal reaches the shared payload only after risk approval."""
+        now = datetime.now()
+        context = PipelineContext(
+            StartTime=now, Asset="XAUUSD", Timeframe="H1",
+            TargetRiskProfile=RiskProfile("Low", 1.0, 0.90),
+        )
+        candidate = {
+            "strategy_id": "BASE-XAUUSD-H1-1", "strategy_name": "BASE_HIERARCHY",
+            "symbol": "XAUUSD", "timeframe": "H1", "direction": "BUY",
+            "entry": 2500.0, "stop_loss": 2490.0, "take_profit": 2520.0,
+            "risk_reward": 2.0, "confidence": 75.0, "reasoning": ["Validated Base reaction"],
+        }
+        base_report = {
+            "best_candidate": candidate,
+            "base_plan": {"status": "PROPOSED", "direction": "BUY", "entry": 2500.0,
+                          "stop_loss": 2490.0, "take_profit": 2520.0, "reason": "Validated Base reaction"},
+            "hierarchy": {}, "reaction_analysis": {}, "model_status": "ACTIVE_VALIDATED",
+            "summary": "Validated hierarchical Base reaction.",
+        }
+        with patch("src.Intelligence.Execution.strategy_orchestrator.StrategyOrchestrator.evaluate_all_strategies", return_value=base_report):
+            result = self.pipeline.execute(context)
+        decision = result.Research.Findings["autonomous_decision"]
+        self.assertEqual(decision["action"], "BUY")
+        self.assertEqual(decision["entry"], 2500.0)
+        self.assertFalse(decision["execution_enabled"])
+        self.assertEqual(decision["evidence"]["decision_authority"], "BASE_HIERARCHY")
+
     def test_pipeline_unidirectional_data_flow(self):
         """Verify end-to-end data flow and correct propagation across all modules."""
         now = datetime.now()
@@ -201,34 +230,29 @@ class TestPipelineIntegration(unittest.TestCase):
             now - timedelta(days=self.config.LookbackDays)
         )
 
-        # 2. Verify Research receives data
-        self.assertIsNotNone(self.research_engine.received_request)
-        self.assertEqual(self.research_engine.received_request.Asset, "BTCUSD")
-        self.assertEqual(self.research_engine.received_request.Context.get("bars_count"), 1)
+        # 2. Legacy research engines are not invoked by the Base-only pipeline.
+        self.assertIsNone(self.research_engine.received_request)
+        self.assertTrue(result.Research.Findings["indicator_independent"])
+        self.assertEqual(result.Research.Findings["decision_authority"], "BASE_HIERARCHY")
 
-        # 3. Verify Strategy evaluation receives research output
-        self.assertIsNotNone(self.strategy_evaluator.received_candidate)
-        self.assertEqual(self.strategy_evaluator.received_candidate.Name, "Pipeline Momentum Concept")
-        self.assertEqual(
-            self.strategy_evaluator.received_candidate.ResearchContext.get("status"),
-            "completed"
-        )
-        self.assertEqual(
-            self.strategy_evaluator.received_candidate.ResearchContext.get("bars_count"),
-            1
-        )
+        # 3. Only the canonical Base hierarchy may create a candidate. The injected
+        # legacy evaluator is intentionally not called, and one bar is insufficient.
+        self.assertIsNone(self.strategy_evaluator.received_candidate)
+        self.assertEqual(result.Strategy.StrategyId, "BASE_HIERARCHY")
+        self.assertEqual(result.Strategy.Score.OverallScore, 0.0)
+        self.assertFalse(result.Research.Findings.get("base_candidate_available"))
 
-        # 4. Verify Risk receives evaluation
+        # 4. Risk receives zero proposed exposure while Base evidence is absent.
         self.assertIsNotNone(self.risk_engine.received_weights)
         self.assertIn("BTCUSD", self.risk_engine.received_weights)
-        self.assertEqual(self.risk_engine.received_weights["BTCUSD"], 0.85)
+        self.assertEqual(self.risk_engine.received_weights["BTCUSD"], 0.0)
         self.assertEqual(self.risk_engine.received_profile, profile)
 
-        # 5. Verify Decision engine produces DecisionResult
+        # 5. Decision engine cannot turn missing Base evidence into a trade.
         self.assertIsNotNone(self.decision_engine.received_context)
-        self.assertEqual(self.decision_engine.received_context.StrategyId, "cand-BTCUSD")
-        self.assertEqual(self.decision_engine.received_context.AssetWeights["BTCUSD"], 0.85)
-        self.assertEqual(result.Decision.State, DecisionState.APPROVED)
+        self.assertEqual(self.decision_engine.received_context.StrategyId, "BASE_HIERARCHY")
+        self.assertEqual(self.decision_engine.received_context.AssetWeights["BTCUSD"], 0.0)
+        self.assertEqual(result.Decision.State, DecisionState.NO_ACTION)
 
         # 6. Verify Learning receives feedback
         self.assertIsNotNone(self.learning_engine.received_feedback)
@@ -238,7 +262,7 @@ class TestPipelineIntegration(unittest.TestCase):
         # 7. Check final PipelineResult
         self.assertEqual(result.Context, context)
         self.assertEqual(result.MarketData.Request.Asset, "BTCUSD")
-        self.assertEqual(result.Research.ConfidenceScore, 0.88)
-        self.assertEqual(result.Strategy.Score.OverallScore, 0.85)
+        self.assertEqual(result.Research.ConfidenceScore, 0.0)
+        self.assertEqual(result.Strategy.Score.OverallScore, 0.0)
         self.assertTrue(result.Risk.IsApproved)
         self.assertEqual(result.Feedback, self.learning_engine.received_feedback)

@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timedelta
@@ -68,8 +69,19 @@ class TestGate2UniverseAndIndicatorFree(unittest.TestCase):
     def setUp(self):
         SymbolRegistry._instance = None
         self.registry = SymbolRegistry.get_instance()
+        # Keep runtime Brain learning isolated from the production memory corpus.
+        self._memory_tempdir = tempfile.TemporaryDirectory(prefix="yartrader-gate2-memory-")
+        from src.Research.Brain.memory import MarketMemorySystem
+        self._test_memory = MarketMemorySystem(storage_dir=self._memory_tempdir.name)
+        self._memory_patch = patch(
+            "src.Research.Brain.live_brain.MarketMemorySystem",
+            return_value=self._test_memory,
+        )
+        self._memory_patch.start()
 
     def tearDown(self):
+        self._memory_patch.stop()
+        self._memory_tempdir.cleanup()
         SymbolRegistry._instance = None
         if os.path.exists("runtime_logs/symbols_registry.json"):
             try:
@@ -84,8 +96,19 @@ class TestGate2UniverseAndIndicatorFree(unittest.TestCase):
         self.assertEqual(len(registered), 30)
         self.assertEqual(registered, CANONICAL_30_SYMBOLS)
 
-    # Case B: Duplicate symbol key rejection in parse_market_universe_yaml
-    def test_case_b_duplicate_symbol_key_rejection(self):
+    # Case B: Rollout remains limited to gold and euro until the 30-symbol expansion is approved.
+    def test_case_b_active_rollout_is_gold_and_euro_only(self):
+        registered = self.registry.get_all_registered()
+        active = {symbol for symbol, info in registered.items() if info.get("active")}
+        self.assertEqual(active, {"XAUUSD", "EURUSD"})
+        self.assertEqual(self.registry.max_symbols, 2)
+        matrix = self.registry.get_active_matrix()
+        self.assertEqual({row[0] for row in matrix}, active)
+        self.assertEqual(len(matrix), 8)
+        self.assertEqual({row[1] for row in matrix}, {"M15", "H1", "H4", "D1"})
+
+    # Case C: Duplicate symbol key rejection in parse_market_universe_yaml
+    def test_case_c_duplicate_symbol_key_rejection(self):
         duplicate_yaml = """
 market_universe:
   Commodities:
@@ -159,36 +182,13 @@ market_universe:
         self.assertIn("GBPUSD", researched_symbols)
         self.assertIn("XAUUSD", researched_symbols)
 
-    # Case F: DEMO execution boundary rejects non-XAUUSD symbols
-    def test_case_f_demo_execution_boundary_xauusd_only(self):
-        worker = ResearchWorker()
-        provider = ControlledDataProvider()
-
-        executed_dispatches = []
-
-        def mock_execute_demo_decision(*args, **kwargs):
-            executed_dispatches.append(kwargs.get("symbol"))
-            return MagicMock(Status="Placed")
-
-        worker.demo_engine = MagicMock()
-        worker.demo_engine.execute_demo_decision = mock_execute_demo_decision
-
-        matrix = [("EURUSD", "H1", "Forex", "MT5")]
-        runtime = ResearchRuntime(provider=provider, symbol="EURUSD", timeframe="H1", provider_name="ControlledOfflineFixture")
-
-        with patch.object(worker, "_get_or_create_runtime", return_value=runtime), \
-             patch.object(worker, "_get_active_matrix", return_value=matrix), \
-             patch("app.workers.research_worker.is_autonomous_demo_enabled", return_value=True):
-
-            worker.is_running = True
-            def stop_loop(*args):
-                worker.is_running = False
-
-            with patch("time.sleep", side_effect=stop_loop):
-                worker._run_loop()
-
-        # EURUSD execution MUST NOT be dispatched
-        self.assertNotIn("EURUSD", executed_dispatches)
+    # Case F: ResearchWorker is strictly read-only; the Base executor is the only order path.
+    def test_case_f_research_worker_has_no_broker_dispatch_path(self):
+        import inspect
+        source = inspect.getsource(ResearchWorker)
+        self.assertNotIn("execute_demo_decision", source)
+        self.assertNotIn("send_order_to_broker", source)
+        self.assertNotIn("_validate_and_size_decision", source)
 
     # Case G: Zero forbidden indicator execution starting from ResearchWorker._run_loop()
     def test_case_g_indicator_forensic_zero_calls(self):
@@ -204,214 +204,69 @@ market_universe:
             self.assertNotIn(f"calc_{ind.lower()}", source)
 
     # Cases I, J: Single Core and Planner evaluation per cycle starting at _run_loop()
-    def test_cases_i_j_single_evaluation_per_cycle(self):
-        worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
-        provider = ControlledDataProvider()
-        runtime = ResearchRuntime(provider=provider, symbol="XAUUSD", timeframe="H1", provider_name="ControlledOfflineFixture")
-
-        core_calls = 0
-        planner_calls = 0
-
-        from src.Research.Brain.live_brain import LiveAnalysisBrain
+    def test_cases_i_j_single_base_evaluation_and_no_legacy_planner(self):
+        import inspect
+        from src.Research.MarketAnalysis.Services.services import PrimitiveMarketResearchEngine
         from src.Intelligence.Execution.core import ExecutionIntelligenceCore
+        source = inspect.getsource(PrimitiveMarketResearchEngine.analyze_market)
+        self.assertEqual(source.count("evaluate_all_strategies("), 1)
+        self.assertNotIn("planner.generate_execution_plan", source)
+        self.assertFalse(hasattr(ExecutionIntelligenceCore.get_instance(), "planner"))
 
-        intel_core = ExecutionIntelligenceCore.get_instance()
-
-        orig_eval_ctx = intel_core.evaluate_context
-        def tracked_core(*args, **kwargs):
-            nonlocal core_calls
-            core_calls += 1
-            return orig_eval_ctx(*args, **kwargs)
-
-        orig_plan = intel_core.planner.generate_execution_plan
-        def tracked_planner(*args, **kwargs):
-            nonlocal planner_calls
-            planner_calls += 1
-            return orig_plan(*args, **kwargs)
-
-        with patch.object(intel_core, "evaluate_context", side_effect=tracked_core), \
-             patch.object(intel_core.planner, "generate_execution_plan", side_effect=tracked_planner), \
-             patch.object(worker, "_get_or_create_runtime", return_value=runtime), \
-             patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Commodities", "ControlledOfflineFixture")]):
-
-            worker.is_running = True
-            orig_run_once = runtime.run_once
-            def run_once_and_stop():
-                res = orig_run_once()
-                worker.is_running = False
-                return res
-
-            runtime.run_once = run_once_and_stop
-            worker._run_loop()
-
-        self.assertEqual(core_calls, 1, f"Expected exactly 1 Core evaluation per cycle, got {core_calls}")
-        self.assertEqual(planner_calls, 1, f"Expected exactly 1 Planner evaluation per cycle, got {planner_calls}")
-
-    # Case K: Brain BUY + contradictory BEARISH structure -> BUY
-    def test_case_k_brain_buy_overrides_bearish_structure(self):
+    def test_case_k_brain_buy_cannot_create_a_base_signal(self):
         from src.Intelligence.Execution.execution_planner import ExecutionIntelligencePlanner
         planner = ExecutionIntelligencePlanner()
-
         res = planner.generate_execution_plan(
-            symbol="XAUUSD",
-            timeframe="H1",
-            narrative={"trend": "BEARISH", "state": "COMPRESSION"},
-            liquidity={},
-            zones={},
-            alignment={"alignment": "BEARISH_CONTINUATION", "confidence": 95.0},
-            similarity={},
-            portfolio_risk={"approved": True},
-            current_price=2000.0,
-            newborn_brain_report={"brain_available": True, "suggested_virtual_action": "BUY"}
+            symbol="XAUUSD", timeframe="H1", narrative={"trend": "BEARISH"},
+            liquidity={}, zones={}, alignment={"alignment": "BEARISH"},
+            similarity={}, portfolio_risk={"approved": True}, current_price=2000.0,
+            newborn_brain_report={"brain_available": True, "active_hypotheses": [
+                {"suggested_virtual_action": "BUY", "hypothesis_confidence": 99.0}
+            ]},
         )
+        self.assertEqual(res["plan"]["action"], "WAIT")
+        self.assertEqual(res["plan"]["decision_source"], "BASE_HIERARCHY_ONLY")
 
-        plan = res["plan"]
-        self.assertEqual(plan["action"], "BUY")
-        self.assertEqual(plan["entry"], 2000.0)
-
-    # Case L: Brain SELL + contradictory BULLISH structure -> SELL
-    def test_case_l_brain_sell_overrides_bullish_structure(self):
+    def test_case_l_brain_sell_cannot_create_a_base_signal(self):
         from src.Intelligence.Execution.execution_planner import ExecutionIntelligencePlanner
         planner = ExecutionIntelligencePlanner()
-
         res = planner.generate_execution_plan(
-            symbol="XAUUSD",
-            timeframe="H1",
-            narrative={"trend": "BULLISH", "state": "RANGE"},
-            liquidity={},
-            zones={},
-            alignment={"alignment": "BULLISH_CONTINUATION", "confidence": 95.0},
-            similarity={},
-            portfolio_risk={"approved": True},
-            current_price=2000.0,
-            newborn_brain_report={"brain_available": True, "suggested_virtual_action": "SELL"}
+            symbol="XAUUSD", timeframe="H1", narrative={"trend": "BULLISH"},
+            liquidity={}, zones={}, alignment={"alignment": "BULLISH"},
+            similarity={}, portfolio_risk={"approved": True}, current_price=2000.0,
+            newborn_brain_report={"brain_available": True, "active_hypotheses": [
+                {"suggested_virtual_action": "SELL", "hypothesis_confidence": 99.0}
+            ]},
         )
+        self.assertEqual(res["plan"]["action"], "WAIT")
+        self.assertEqual(res["plan"]["decision_source"], "BASE_HIERARCHY_ONLY")
 
-        plan = res["plan"]
-        self.assertEqual(plan["action"], "SELL")
-        self.assertEqual(plan["entry"], 2000.0)
-
-    # Case M, N: Brain WAIT -> WAIT, Brain AVOID -> AVOID
-    def test_cases_m_n_brain_wait_and_avoid(self):
+    def test_cases_m_n_brain_wait_and_avoid_are_non_authoritative(self):
         from src.Intelligence.Execution.execution_planner import ExecutionIntelligencePlanner
         planner = ExecutionIntelligencePlanner()
+        for action in ("WAIT", "AVOID", "BUY", "SELL"):
+            res = planner.generate_execution_plan(
+                symbol="XAUUSD", timeframe="H1", narrative={}, liquidity={}, zones={},
+                alignment={}, similarity={}, portfolio_risk={"approved": True},
+                current_price=2000.0,
+                newborn_brain_report={"brain_available": True, "suggested_virtual_action": action},
+            )
+            self.assertEqual(res["plan"]["action"], "WAIT")
+            self.assertEqual(res["plan"]["decision_source"], "BASE_HIERARCHY_ONLY")
 
-        res_wait = planner.generate_execution_plan(
-            symbol="XAUUSD", timeframe="H1", narrative={}, liquidity={}, zones={}, alignment={}, similarity={},
-            portfolio_risk={"approved": True}, current_price=2000.0,
-            newborn_brain_report={"brain_available": True, "suggested_virtual_action": "WAIT"}
-        )
-        self.assertEqual(res_wait["plan"]["action"], "WAIT")
+    def test_case_p_parallel_brain_is_removed_from_active_research(self):
+        import inspect
+        from src.Research.MarketAnalysis.Services.services import PrimitiveMarketResearchEngine
+        source = inspect.getsource(PrimitiveMarketResearchEngine.analyze_market)
+        self.assertNotIn("LiveAnalysisBrain", source)
+        self.assertIn("DISABLED_NON_BASE", source)
 
-        res_avoid = planner.generate_execution_plan(
-            symbol="XAUUSD", timeframe="H1", narrative={}, liquidity={}, zones={}, alignment={}, similarity={},
-            portfolio_risk={"approved": True}, current_price=2000.0,
-            newborn_brain_report={"brain_available": True, "suggested_virtual_action": "AVOID"}
-        )
-        self.assertEqual(res_avoid["plan"]["action"], "AVOID")
-
-    # Case P: End-to-End Brain Action Causality starting at ResearchWorker._run_loop()
-    def test_case_p_end_to_end_brain_causality_from_run_loop(self):
-        from src.Research.Brain.live_brain import LiveAnalysisBrain
-
-        for target_action in ["BUY", "SELL", "WAIT", "AVOID"]:
-            worker = ResearchWorker(symbol="XAUUSD", timeframe="H1")
-            provider = ControlledDataProvider()
-            runtime = ResearchRuntime(provider=provider, symbol="XAUUSD", timeframe="H1", provider_name="ControlledOfflineFixture")
-
-            mock_brain_report = MagicMock()
-            mock_brain_report.to_dict.return_value = {
-                "symbol": "XAUUSD",
-                "brain_available": True,
-                "suggested_virtual_action": target_action
-            }
-
-            with patch.object(LiveAnalysisBrain, "process_live_candle", return_value=mock_brain_report), \
-                 patch.object(worker, "_get_or_create_runtime", return_value=runtime), \
-                 patch.object(worker, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Commodities", "ControlledOfflineFixture")]):
-
-                worker.is_running = True
-                orig_run_once = runtime.run_once
-                def run_once_and_stop():
-                    res = orig_run_once()
-                    worker.is_running = False
-                    return res
-
-                runtime.run_once = run_once_and_stop
-                worker._run_loop()
-
-                res = runtime.history[0]
-                auto_dec = res.Findings.get("autonomous_decision", {})
-                self.assertEqual(auto_dec.get("action"), target_action, f"End-to-end causality failed for action {target_action}")
-
-    # Case Q & R: Contradiction test & StrategyOrchestrator isolation from _run_loop()
-    def test_cases_q_r_strategy_orchestrator_contradiction_isolation_from_run_loop(self):
+    # Cases Q/R: There is one supported strategy and no alternative evaluator.
+    def test_cases_q_r_only_base_hierarchy_is_supported(self):
         from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
-        from src.Research.Brain.live_brain import LiveAnalysisBrain
-
-        # Contradiction Scenario 1: StrategyOrchestrator suggests BUY, but Brain suggests SELL
-        mock_buy_candidate = {
-            "symbol": "XAUUSD",
-            "primary_timeframe": "H1",
-            "best_candidate": {"direction": "BUY", "confidence": 95.0, "risk_reward": 2.5},
-            "summary": "Mock BUY candidate"
-        }
-
-        # Contradiction Scenario 2: StrategyOrchestrator suggests SELL, but Brain suggests BUY
-        mock_sell_candidate = {
-            "symbol": "XAUUSD",
-            "primary_timeframe": "H1",
-            "best_candidate": {"direction": "SELL", "confidence": 95.0, "risk_reward": 2.5},
-            "summary": "Mock SELL candidate"
-        }
-
-        # Test Contradiction 1: StrategyOrchestrator=BUY vs Brain=SELL -> Result must be SELL
-        worker1 = ResearchWorker(symbol="XAUUSD", timeframe="H1")
-        runtime1 = ResearchRuntime(provider=ControlledDataProvider(), symbol="XAUUSD", timeframe="H1", provider_name="ControlledOfflineFixture")
-
-        report_sell = MagicMock()
-        report_sell.to_dict.return_value = {"symbol": "XAUUSD", "brain_available": True, "suggested_virtual_action": "SELL"}
-
-        with patch.object(StrategyOrchestrator, "evaluate_all_strategies", return_value=mock_buy_candidate), \
-             patch.object(LiveAnalysisBrain, "process_live_candle", return_value=report_sell), \
-             patch.object(worker1, "_get_or_create_runtime", return_value=runtime1), \
-             patch.object(worker1, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Commodities", "ControlledOfflineFixture")]):
-
-            worker1.is_running = True
-            orig_run1 = runtime1.run_once
-            def run_once_stop1():
-                res = orig_run1()
-                worker1.is_running = False
-                return res
-            runtime1.run_once = run_once_stop1
-            worker1._run_loop()
-
-            auto_dec1 = runtime1.history[0].Findings.get("autonomous_decision", {})
-            self.assertEqual(auto_dec1.get("action"), "SELL")
-
-        # Test Contradiction 2: StrategyOrchestrator=SELL vs Brain=BUY -> Result must be BUY
-        worker2 = ResearchWorker(symbol="XAUUSD", timeframe="H1")
-        runtime2 = ResearchRuntime(provider=ControlledDataProvider(), symbol="XAUUSD", timeframe="H1", provider_name="ControlledOfflineFixture")
-
-        report_buy = MagicMock()
-        report_buy.to_dict.return_value = {"symbol": "XAUUSD", "brain_available": True, "suggested_virtual_action": "BUY"}
-
-        with patch.object(StrategyOrchestrator, "evaluate_all_strategies", return_value=mock_sell_candidate), \
-             patch.object(LiveAnalysisBrain, "process_live_candle", return_value=report_buy), \
-             patch.object(worker2, "_get_or_create_runtime", return_value=runtime2), \
-             patch.object(worker2, "_get_active_matrix", return_value=[("XAUUSD", "H1", "Commodities", "ControlledOfflineFixture")]):
-
-            worker2.is_running = True
-            orig_run2 = runtime2.run_once
-            def run_once_stop2():
-                res = orig_run2()
-                worker2.is_running = False
-                return res
-            runtime2.run_once = run_once_stop2
-            worker2._run_loop()
-
-            auto_dec2 = runtime2.history[0].Findings.get("autonomous_decision", {})
-            self.assertEqual(auto_dec2.get("action"), "BUY")
+        orchestrator = StrategyOrchestrator()
+        self.assertEqual(orchestrator.supported_strategies, ["BASE_HIERARCHY"])
+        self.assertFalse(hasattr(orchestrator, "_evaluate_price_action_rtm"))
 
     # Case S: Shadow trading boundary isolation
     def test_case_s_shadow_trading_boundary_isolation(self):

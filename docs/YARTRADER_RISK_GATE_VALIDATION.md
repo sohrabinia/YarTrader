@@ -1,6 +1,8 @@
 # YarTrader V1.1 Risk Gate Validation Report
 
-## Risk Approval Gate Standard Rules
+> Historical V1.1 evidence archive. Its former R:R >= 1.50 threshold is superseded and is not the current trading policy. Current canonical policy: YarTrader derives SL/TP and position volume, net R:R must be strictly greater than 1.0 after estimated costs, and daily drawdown is capped at 10%.
+
+## Historical Risk Approval Gate Rules (Superseded)
 The `DecisionEngine` (`src/Decision/Intelligence/engine.py`) enforces strict, fail-closed risk criteria before approving any trade:
 
 1. **Win Probability:** MUST be `>= 50%` (`Win Probability >= 0.50`)

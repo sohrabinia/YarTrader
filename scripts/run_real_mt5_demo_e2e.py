@@ -175,7 +175,7 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
 
     if matched_pos:
         actual_symbol = str(matched_pos.get("symbol"))
-        actual_volume = float(matched_pos.get("volume", 0.01))
+        actual_volume = float(matched_pos.get("volume"))
         actual_pos_ticket = str(matched_pos.get("ticket"))
         actual_open_price = float(matched_pos.get("price_open", 0.0))
 
@@ -200,8 +200,12 @@ def run_e2e_verification(auto_confirm: bool = False, target_symbol: str = "BITCO
         bid = tick.get("bid")
         add_evidence("Current Market Data", "PROVEN", f"Real {actual_symbol} tick: Bid={bid}, Ask={ask}")
 
-        vol_min = sym_info.get("volume_min", 0.01)
-        actual_volume = vol_min
+        vol_min = sym_info.get("volume_min")
+        if not isinstance(vol_min, (int, float)) or vol_min <= 0:
+            add_evidence("Risk-Based Volume", "FAILED", "Broker-reported minimum volume is unavailable; refusing to assume a lot size.")
+            return print_final_verdict(evidence_table, "FINAL GATE ? BLOCKED", evidence_dir)
+        add_evidence("Risk-Based Volume", "BLOCKED", "Legacy E2E path has no strategy-derived SL/TP and therefore cannot safely size a new position at 1% risk.")
+        return print_final_verdict(evidence_table, "FINAL GATE ? BLOCKED", evidence_dir)
 
         # Submit DEMO order
         order_req = OrderRequest(

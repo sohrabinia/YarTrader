@@ -5,6 +5,7 @@ from datetime import datetime, time, date, timedelta, timezone
 import hashlib
 import json
 import logging
+import math
 
 logger = logging.getLogger("MarketSessionEngine")
 
@@ -256,7 +257,8 @@ class MarketSessionEngine:
         distance_to_tp: Optional[float] = None,
         current_volatility_atr: Optional[float] = None,
         historical_mfe_speed: float = 1.0,
-        current_time: Optional[datetime] = None
+        current_time: Optional[datetime] = None,
+        current_equity: Optional[float] = None
     ) -> MarketSessionValidationResult:
         """
         Performs the complete unified Pre-Entry Session & Calendar Feasibility Gate.
@@ -318,23 +320,42 @@ class MarketSessionEngine:
                 message=f"Trade rejected: Remaining session time ({rem_seconds:.1f}s) <= 121s cutoff threshold."
             )
 
-        # Evaluate Daily 8% Loss Kill-Switch & Iran Session Boundary Gate
+        # Evaluate Daily 10% Loss Kill-Switch & Iran Session Boundary Gate.
+        # Never substitute a configured/demo starting balance for authoritative broker equity:
+        # doing so can persist a false daily baseline and either block or permit orders incorrectly.
+        if (
+            current_equity is None
+            or isinstance(current_equity, bool)
+            or not isinstance(current_equity, (int, float))
+            or not math.isfinite(float(current_equity))
+            or float(current_equity) <= 0.0
+        ):
+            return MarketSessionValidationResult(
+                allowed=False,
+                rejection_reason="ACCOUNT_EQUITY_UNAVAILABLE",
+                market_state=state,
+                active_interval=active_interval,
+                remaining_session_seconds=rem_seconds,
+                source_authority=source_auth,
+                message="Trade rejected: authoritative broker equity is required for daily-loss protection (Fail-Closed)."
+            )
+
         try:
             from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
             kill_switch = DailyLossKillSwitch.get_instance()
-            # Default to account equity baseline if current equity not explicitly passed
-            current_equity = kwargs.get("current_equity", 10000.0) if "kwargs" in locals() else 10000.0
-            ks_eval = kill_switch.evaluate_entry_allowed(current_equity=current_equity, dt=now)
-
-            if not ks_eval["allowed"]:
+            # This calendar gate has no broker-history adapter. It checks only the
+            # session-transition window; the final DemoExecutionGate calculates current
+            # YarTrader-only realized + floating PnL from MT5 immediately before order send.
+            _, session_open, session_transition = kill_switch.get_session_key_and_window(now)
+            if session_transition or not session_open:
                 return MarketSessionValidationResult(
                     allowed=False,
-                    rejection_reason=ks_eval["reason"] or "DAILY_LOSS_LIMIT_REACHED",
+                    rejection_reason="SESSION_TRANSITION_WINDOW",
                     market_state=state,
                     active_interval=active_interval,
                     remaining_session_seconds=rem_seconds,
                     source_authority=source_auth,
-                    message=ks_eval["message"]
+                    message="Trade rejected during the daily risk/session transition window."
                 )
         except Exception as ks_err:
             logger.error(f"[MarketSessionEngine] DailyLossKillSwitch evaluation error: {ks_err}")

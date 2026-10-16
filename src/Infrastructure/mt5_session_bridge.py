@@ -172,13 +172,33 @@ class MT5BridgeProxy:
                                 start=start, count=count)
 
     def positions_get(self, **kwargs: Any) -> Any:
-        return [_DictObject(x) for x in (self.client.call("positions_get", **kwargs) or [])]
+        result = self.client.call("positions_get", **kwargs)
+        return None if result is None else [_DictObject(x) for x in result]
+
+    def orders_get(self, **kwargs: Any) -> Any:
+        result = self.client.call("orders_get", **kwargs)
+        return None if result is None else [_DictObject(x) for x in result]
 
     def history_orders_get(self, **kwargs: Any) -> Any:
-        return [_DictObject(x) for x in (self.client.call("history_orders_get", **kwargs) or [])]
+        result = self.client.call("history_orders_get", **kwargs)
+        return None if result is None else [_DictObject(x) for x in result]
 
     def history_deals_get(self, **kwargs: Any) -> Any:
-        return [_DictObject(x) for x in (self.client.call("history_deals_get", **kwargs) or [])]
+        result = self.client.call("history_deals_get", **kwargs)
+        return None if result is None else [_DictObject(x) for x in result]
+
+    def order_calc_profit(self, order_type: int, symbol: str, volume: float, price_open: float, price_close: float) -> Any:
+        return self.client.call(
+            "order_calc_profit", order_type=order_type, symbol=symbol,
+            volume=volume, price_open=price_open, price_close=price_close
+        )
+
+    def order_calc_margin(self, order_type: int, symbol: str, volume: float, price: float) -> Any:
+        """Forward the native margin estimator instead of serializing its function object as a string."""
+        return self.client.call(
+            "order_calc_margin", order_type=order_type, symbol=symbol,
+            volume=volume, price=price
+        )
 
     def order_check(self, request: Dict[str, Any]) -> Any:
         result = self.client.call("order_check", request=request)
@@ -289,7 +309,7 @@ class MT5SessionAgent(ThreadingHTTPServer):
 
         if method in {"terminal_info", "account_info", "symbols_get", "symbol_info", "symbol_info_tick",
                       "copy_rates_range", "copy_rates_from", "copy_rates_from_pos", "positions_get",
-                      "history_orders_get", "history_deals_get"}:
+                      "orders_get", "history_orders_get", "history_deals_get", "order_calc_profit", "order_calc_margin"}:
             self._account_guard()
             fn = getattr(self.mt5, method)
             if method == "symbol_info":
@@ -343,7 +363,15 @@ class MT5SessionAgent(ThreadingHTTPServer):
                 if converted.get("date_from") is not None and converted.get("date_to") is not None:
                     return fn(converted["date_from"], converted["date_to"])
                 return fn()
-            return fn(**params)
+            if method == "order_calc_profit":
+                return fn(
+                    params["order_type"], params["symbol"], params["volume"],
+                    params["price_open"], params["price_close"]
+                )
+            if method == "order_calc_margin":
+                return fn(
+                    params["order_type"], params["symbol"], params["volume"], params["price"]
+                )
             return fn(**params)
 
         if method == "symbol_select":

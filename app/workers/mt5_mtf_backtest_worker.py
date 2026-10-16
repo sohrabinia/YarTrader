@@ -23,6 +23,7 @@ CONTEXT_BARS = 500
 DECISION_INTERVAL_MINUTES = 15
 ROOT = Path("runtime_logs") / "backtest_learning" / "mtf_incremental"
 LOCK = ROOT / "mtf_backtest.lock"
+_LOCK_HANDLE = None
 
 def atomic_json(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -31,6 +32,28 @@ def atomic_json(path, payload):
     os.replace(tmp, path)
 def parse_time(value):
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+def validate_or_migrate_checkpoint(checkpoint, symbol, timeframe, fallback_start, current_end):
+    """Resume schema-1 checkpoints and safely migrate legacy completed checkpoints."""
+    if not checkpoint:
+        return None, False
+    if checkpoint.get("symbol") != symbol or checkpoint.get("timeframe") != timeframe:
+        raise RuntimeError(f"Checkpoint mismatch for {symbol}/{timeframe}")
+    if checkpoint.get("schema") == SCHEMA:
+        return checkpoint, False
+    legacy_end = checkpoint.get("actual_history_end") or checkpoint.get("history_end")
+    if checkpoint.get("status") == "COMPLETED" and isinstance(checkpoint.get("state"), dict) and legacy_end:
+        migrated = {
+            "schema": SCHEMA, "status": "RUNNING", "symbol": symbol, "timeframe": timeframe,
+            "max_history_years": int(checkpoint.get("max_history_years", MAX_HISTORY_YEARS)),
+            "history_start": checkpoint.get("actual_history_start") or checkpoint.get("history_start") or fallback_start.isoformat(),
+            "history_end": str(legacy_end), "next_start": str(legacy_end),
+            "processed_chunks": max(1, int(checkpoint.get("processed_chunks", 1) or 1)),
+            "processed_bars": max(0, int(checkpoint.get("processed_bars", 0) or 0)),
+            "state": checkpoint["state"],
+        }
+        return migrated, True
+    raise RuntimeError(f"Checkpoint mismatch for {symbol}/{timeframe}; cannot safely migrate legacy checkpoint")
 
 def tf_map(mt5):
     return {"M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5,
@@ -47,19 +70,50 @@ def candles_from_rates(rates):
     } for r in rates]
 
 def acquire_lock():
+    """Acquire an OS-released cross-session lock; stale lock files never block work."""
+    global _LOCK_HANDLE
     ROOT.mkdir(parents=True, exist_ok=True)
+    handle = LOCK.open("a+b")
+    handle.seek(0, os.SEEK_END)
+    if handle.tell() == 0:
+        handle.write(b"0")
+        handle.flush()
+    handle.seek(0)
     try:
-        with LOCK.open("x", encoding="utf-8") as h:
-            h.write(str(os.getpid()))
-        return True
-    except FileExistsError:
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (OSError, ImportError):
+        handle.close()
         return False
+    _LOCK_HANDLE = handle
+    handle.seek(0)
+    handle.truncate()
+    handle.write(str(os.getpid()).encode("ascii"))
+    handle.flush()
+    return True
 
 def release_lock():
+    global _LOCK_HANDLE
+    if _LOCK_HANDLE is None:
+        return
     try:
-        LOCK.unlink()
-    except FileNotFoundError:
+        if os.name == "nt":
+            import msvcrt
+            _LOCK_HANDLE.seek(0)
+            msvcrt.locking(_LOCK_HANDLE.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(_LOCK_HANDLE.fileno(), fcntl.LOCK_UN)
+    except (OSError, ImportError):
         pass
+    try:
+        _LOCK_HANDLE.close()
+    finally:
+        _LOCK_HANDLE = None
 TIMEFRAME_DURATION = {
     "M1": timedelta(minutes=1), "M5": timedelta(minutes=5),
     "M15": timedelta(minutes=15), "M30": timedelta(minutes=30),
@@ -118,9 +172,13 @@ def run(symbol, years, initial_balance, sleep_sec, max_chunks=0):
             target_start = probe["target_start"]
             checkpoint_path = base / primary_tf / "checkpoint.json"
             checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-            checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8-sig")) if checkpoint_path.exists() else None
-            if checkpoint and (checkpoint.get("schema") != SCHEMA or checkpoint.get("symbol") != symbol or checkpoint.get("timeframe") != primary_tf):
-                raise RuntimeError(f"Checkpoint mismatch for {symbol}/{primary_tf}")
+            raw_checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8-sig")) if checkpoint_path.exists() else None
+            checkpoint, migrated_checkpoint = validate_or_migrate_checkpoint(
+                raw_checkpoint, symbol, primary_tf, tf_start, now
+            )
+            if migrated_checkpoint:
+                atomic_json(checkpoint_path, checkpoint)
+                print(f"CHECKPOINT_MIGRATED {symbol}/{primary_tf} from legacy completed schema", flush=True)
             next_start = parse_time(checkpoint["next_start"]) if checkpoint else tf_start
             state = checkpoint.get("state") if checkpoint else None
             processed_chunks = int(checkpoint.get("processed_chunks", 0)) if checkpoint else 0
@@ -169,8 +227,9 @@ def run(symbol, years, initial_balance, sleep_sec, max_chunks=0):
                 atomic_json(checkpoint_path, final)
             atomic_json(base / primary_tf / "final_result.json", final)
             summaries[primary_tf] = final
-            if max_chunks:
-                break
+            # With max_chunks set, cap each timeframe to one chunk per supervisor
+            # pass, but still visit every timeframe so summary.json reflects the
+            # complete MTF job rather than only MN1/W1/etc. on alternating passes.
         atomic_json(base / "summary.json", {"schema": SCHEMA, "symbol": symbol, "generated_at": now.isoformat(), "timeframe_windows": summaries})
         return summaries
     finally:

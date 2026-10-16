@@ -334,12 +334,16 @@ class TestHistoricalDataAdapter(unittest.TestCase):
         self.assertEqual(result.MarketData.DataPoints[0].close, 102.0)
         self.assertEqual(result.MarketData.DataPoints[0].asset_id, "AAPL")
 
-        # Verify downstream spy receipt
-        self.assertEqual(research_engine.received_request.Asset, "AAPL")
-        self.assertEqual(research_engine.received_request.Context.get("bars_count"), 3)
-        self.assertEqual(strategy_evaluator.received_candidate.Name, "Pipeline Momentum Concept")
+        # The adapter's real bars flow into the canonical Base-only pipeline; legacy
+        # research/evaluator objects are retained only for constructor compatibility.
+        self.assertIsNone(research_engine.received_request)
+        self.assertIsNone(strategy_evaluator.received_candidate)
+        self.assertTrue(result.Research.Findings["indicator_independent"])
+        self.assertEqual(result.Research.Findings["decision_authority"], "BASE_HIERARCHY")
         self.assertIn("AAPL", risk_engine.received_weights)
-        self.assertEqual(decision_engine.received_context.StrategyId, "cand-AAPL")
+        self.assertEqual(risk_engine.received_weights["AAPL"], 0.0)
+        self.assertEqual(decision_engine.received_context.StrategyId, "BASE_HIERARCHY")
+        self.assertEqual(result.Research.Findings["autonomous_decision"]["action"], "WAIT")
         self.assertEqual(learning_engine.received_feedback.ActualOutcomeMetric, 0.08)
 
     def test_safety_verification(self):

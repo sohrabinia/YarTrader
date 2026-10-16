@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional
+import math
 
 class MultiTimeframeAlignmentEngine:
     """
@@ -136,15 +137,27 @@ class MultiTimeframeAlignmentEngine:
 
         decision_action = "BUY" if m15_trend == "BULLISH" else "SELL"
 
-        pip_size = 0.10 if "XAU" in symbol.upper() else 0.0001
-        multiplier = 150 if "XAU" in symbol.upper() else 200
-
-        if decision_action == "BUY":
-            stop_loss = current_price - (multiplier * pip_size)
-            take_profit = current_price + (multiplier * 2 * pip_size)
-        else:
-            stop_loss = current_price + (multiplier * pip_size)
-            take_profit = current_price - (multiplier * 2 * pip_size)
+        # Legacy alignment is not a trade-level authority: never invent fixed-pip SL/TP.
+        stop_loss = m15_narr.get("stop_loss", m15_narr.get("invalidation_level"))
+        take_profit = m15_narr.get("take_profit", m15_narr.get("target_price"))
+        try:
+            stop_loss, take_profit = float(stop_loss), float(take_profit)
+        except (TypeError, ValueError):
+            return {"decision_action": "WAIT", "reason": "No structural stop and target were supplied; fixed-distance fallback is disabled.",
+                    "confidence": round(final_confidence, 2), "setup_present": True,
+                    "trigger_confirmed": True, "stop_loss": None, "take_profit": None}
+        if not all(math.isfinite(v) and v > 0 for v in (current_price, stop_loss, take_profit)):
+            return {"decision_action": "WAIT", "reason": "Structural trade levels are invalid.",
+                    "confidence": round(final_confidence, 2), "setup_present": True,
+                    "trigger_confirmed": True, "stop_loss": None, "take_profit": None}
+        risk_distance = abs(current_price - stop_loss)
+        reward_distance = abs(take_profit - current_price)
+        correct_geometry = ((decision_action == "BUY" and stop_loss < current_price < take_profit)
+                            or (decision_action == "SELL" and take_profit < current_price < stop_loss))
+        if not correct_geometry or risk_distance <= 0 or reward_distance / risk_distance <= 1.0:
+            return {"decision_action": "WAIT", "reason": "Structural levels must have valid geometry and reward/risk strictly greater than 1.0.",
+                    "confidence": round(final_confidence, 2), "setup_present": True,
+                    "trigger_confirmed": True, "stop_loss": None, "take_profit": None}
 
         reason = f"M15 Setup ({m15_setup}) with M5 Execution Trigger ({m5_trend}) confirmed."
         if congruence_count < total_htf:

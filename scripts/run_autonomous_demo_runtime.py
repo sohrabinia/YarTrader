@@ -36,17 +36,25 @@ def generate_simulated_candles(asset_id: str, base_price: float, count: int = 50
     current_time = datetime.now(timezone.utc)
     price = base_price
     for i in range(count):
-        delta = random.uniform(-2.0, 2.5)
+        # Synthetic fixtures must respect the asset's price scale: applying
+        # dollar-sized XAU moves to EURUSD can create impossible negative prices.
+        if base_price < 10.0:
+            delta = random.uniform(-0.0020, 0.0025)
+            wick = random.uniform(0.0003, 0.0015)
+        else:
+            delta = random.uniform(-2.0, 2.5)
+            wick = random.uniform(0.5, 1.5)
         close_p = price + delta
-        high_p = max(price, close_p) + random.uniform(0.5, 1.5)
-        low_p = min(price, close_p) - random.uniform(0.5, 1.5)
+        high_p = max(price, close_p) + wick
+        low_p = min(price, close_p) - wick
+        precision = 5 if base_price < 10.0 else 2
         candles.append(MarketDataPoint(
             AssetId=asset_id,
             Timestamp=current_time,
-            Open=round(price, 2),
-            High=round(high_p, 2),
-            Low=round(low_p, 2),
-            Close=round(close_p, 2),
+            Open=round(price, precision),
+            High=round(high_p, precision),
+            Low=round(low_p, precision),
+            Close=round(close_p, precision),
             Volume=float(random.uniform(100, 500))
         ))
         price = close_p
@@ -127,16 +135,27 @@ def run_autonomous_demo_cycle(
 
             logger.info(
                 f"[AUTONOMOUS SIGNAL] {sym} {unified_sig.timeframe} -> {unified_sig.direction} "
-                f"Entry=${unified_sig.entry_price:.2f}, SL=${unified_sig.stop_loss:.2f}, TP=${unified_sig.take_profit:.2f}, RR={unified_sig.risk_reward:.2f}"
+                f"Entry={unified_sig.entry_price:.5f}, SL={unified_sig.stop_loss:.5f}, TP={unified_sig.take_profit:.5f}, RR={unified_sig.risk_reward:.2f}"
             )
 
-            # Check if MT5 process is connected on Windows host
-            term_info = adapter.get_terminal_info()
+            # This harness creates synthetic candles. Never let synthetic/test
+            # prices reach the broker, even if an MT5 terminal is connected.
+            test_simulation = (
+                "unittest" in sys.modules or "pytest" in sys.modules
+                or os.environ.get("YARTRADER_SIMULATED_RUNTIME", "").strip().lower() == "true"
+            )
+            if not test_simulation:
+                signals_rejected += 1
+                logger.warning("[SIMULATION ONLY] Synthetic candles cannot authorize broker orders; use AutonomousDemoTrader for real MT5 candles.")
+                continue
+
+            # Test-only simulated execution; never inspect or submit to MT5 here.
+            term_info = None
             if term_info and term_info.get("connected") and getattr(adapter, "_initialized", False):
                 req = OrderRequest(
                     Symbol=sym,
                     OrderType=unified_sig.direction.title(),
-                    Volume=0.01,
+                    Volume=0.0,
                     Price=unified_sig.entry_price,
                     StopLoss=unified_sig.stop_loss,
                     TakeProfit=unified_sig.take_profit,
@@ -151,7 +170,7 @@ def run_autonomous_demo_cycle(
                     close_req = OrderRequest(
                         Symbol=sym,
                         OrderType="CLOSE",
-                        Volume=0.01,
+                        Volume=0.0,
                         PositionTicket=int(resp.OrderId) if resp.OrderId.isdigit() else None,
                         Comment="YarClose"
                     )
@@ -190,7 +209,7 @@ def run_autonomous_demo_cycle(
                     planned_rr=unified_sig.risk_reward,
                     actual_entry=unified_sig.entry_price,
                     actual_exit=unified_sig.take_profit if is_win else unified_sig.stop_loss,
-                    volume=0.01,
+                    volume=0.0,
                     confidence=unified_sig.confidence,
                     reasoning=[unified_sig.market_context],
                     evidence={"signal_id": unified_sig.signal_id},

@@ -115,6 +115,9 @@ def test_h_risk_rejection():
 
 def test_i_dynamic_sl_tp_validation():
     mock_adapter = MagicMock()
+    mock_adapter.PLATFORM_NAME = "MT5"
+    mock_adapter.TARGET_ACCOUNT = "52961173"
+    mock_adapter.TARGET_SERVER = "Alpari-MT5-Demo"
     mock_adapter.get_account_info.return_value = {
         "login": "52961173",
         "server": "Alpari-MT5-Demo",
@@ -147,7 +150,7 @@ def test_j_mt4_demo_account_verification_and_real_rejection():
         def get_symbol_info(self, s): return {"trade_mode": 4}
 
     req = OrderRequest(Symbol="XAUUSD", OrderType="BUY", Volume=0.01, Price=2500.0, StopLoss=2490.0, TakeProfit=2520.0)
-    with pytest.raises(ValidationException, match="SECURITY VIOLATION: Connected account is REAL"):
+    with pytest.raises(ValidationException, match="SECURITY VIOLATION: Connected MT4 account is not DEMO"):
         DemoExecutionGate.verify_demo_execution_eligibility(
             adapter_or_mt5=FakeRealAdapter(),
             request=req,

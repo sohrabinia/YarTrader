@@ -48,8 +48,19 @@ class HypothesisEngine:
         continuation_pct = outcome_agg["continuation_pct"]
         reversal_pct = outcome_agg["reversal_pct"]
         current_action = outcome_agg.get("current_structure_action", "BUY")
+        evidence_status = str(outcome_agg.get("evidence_status", "NO_OUTCOME_LABELS"))
+        blocked_direction = None
+        blocked_direction_confidence = 0.0
 
-        if continuation_pct > 55.0:
+        if evidence_status in {"FAILURE_ONLY", "LOW_SUCCESS_RATE"}:
+            # Directional consensus from failed historical predictions is not a validated trading signal.
+            expected_direction = "WAIT"
+            confidence = 0.0
+            candidate = str(outcome_agg.get("raw_directional_action", "WAIT")).upper()
+            if candidate in {"BUY", "SELL"}:
+                blocked_direction = candidate
+                blocked_direction_confidence = float(outcome_agg.get("raw_directional_confidence", 0.0) or 0.0)
+        elif continuation_pct > 55.0:
             expected_direction = current_action
             confidence = continuation_pct
         elif reversal_pct > 55.0:
@@ -93,5 +104,12 @@ class HypothesisEngine:
                 "total_matches_count": len(matches),
                 "outcome_agg": outcome_agg,
                 "context_id": context_id,
+                "evidence_status": evidence_status,
+                "blocked_direction": blocked_direction,
+                "blocked_direction_confidence": blocked_direction_confidence,
+                "blocked_reason": (
+                    "Historical matched outcomes are failure-only or below a 50% success rate; execution is blocked."
+                    if blocked_direction else None
+                ),
             }
         )

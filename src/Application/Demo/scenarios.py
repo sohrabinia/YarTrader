@@ -63,7 +63,7 @@ def create_trend_continuation_scenario(asset: str = "EURUSD") -> DemoScenario:
     return DemoScenario(
         scenario_id="demo-trend-continuation",
         name="Trend Continuation Scenario",
-        description="Demonstrates strong bullish momentum with high liquidity and low volatility. Expected result: APPROVED.",
+        description="Demonstrates strong bullish momentum with high liquidity and low volatility. Approval requires validated Base hierarchy and costed-reaction evidence; otherwise the safe result is NoAction.",
         asset=asset,
         timeframe="H1",
         price_data=price_data,

@@ -12,9 +12,47 @@ JOB = ROOT / "runtime_logs" / "backtest_learning" / "active_job.json"
 LOG = ROOT / "runtime_logs" / "backtest_learning" / "supervisor.log"
 WORKER = ROOT / "app" / "workers" / "mt5_backtest_worker.py"
 MTF_WORKER = ROOT / "app" / "workers" / "mt5_mtf_backtest_worker.py"
+LOG_MAX_BYTES = 5 * 1024 * 1024
+LOG_BACKUP_COUNT = 3
+_SUPERVISOR_MUTEX_HANDLE = None
+
+def _acquire_singleton() -> bool:
+    """Use a cross-session OS file lock so multiple Windows sessions cannot duplicate supervisors."""
+    global _SUPERVISOR_MUTEX_HANDLE
+    if os.name != "nt":
+        return True
+    import msvcrt
+    lock_path = ROOT / "runtime_logs" / "backtest_learning" / ".supervisor.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    handle = lock_path.open("a+b")
+    handle.seek(0, os.SEEK_END)
+    if handle.tell() == 0:
+        handle.write(b"0")
+        handle.flush()
+    handle.seek(0)
+    try:
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+    except OSError:
+        handle.close()
+        return False
+    _SUPERVISOR_MUTEX_HANDLE = handle
+    return True
+
+def _rotate_log_if_needed():
+    """Bound supervisor log growth while retaining the three most recent files."""
+    if not LOG.exists() or LOG.stat().st_size < LOG_MAX_BYTES:
+        return
+    oldest = LOG.with_name(f"{LOG.name}.{LOG_BACKUP_COUNT}")
+    oldest.unlink(missing_ok=True)
+    for index in range(LOG_BACKUP_COUNT - 1, 0, -1):
+        source = LOG.with_name(f"{LOG.name}.{index}")
+        if source.exists():
+            source.replace(LOG.with_name(f"{LOG.name}.{index + 1}"))
+    LOG.replace(LOG.with_name(f"{LOG.name}.1"))
 
 def log(message):
     LOG.parent.mkdir(parents=True, exist_ok=True)
+    _rotate_log_if_needed()
     with LOG.open("a", encoding="utf-8") as handle:
         handle.write(f"[{time.strftime('%Y-%m-%dT%H:%M:%S')}] {message}\n")
 
@@ -32,9 +70,21 @@ def load_job():
 
 def checkpoint(job):
     if str(job.get("timeframe", "")).upper() == "MTF":
-        path = ROOT / "runtime_logs" / "backtest_learning" / "mtf_incremental" / job["symbol"].upper() / "checkpoint.json"
-    else:
-        path = ROOT / "runtime_logs" / "backtest_learning" / "mt5_incremental" / f"{job['symbol'].upper()}_{job['timeframe'].upper()}" / "checkpoint.json"
+        # The MTF worker stores a checkpoint per primary timeframe and writes a
+        # consolidated summary; there is no symbol-level checkpoint.json.
+        path = ROOT / "runtime_logs" / "backtest_learning" / "mtf_incremental" / job["symbol"].upper() / "summary.json"
+        if not path.exists():
+            return None
+        try:
+            payload = _read_json(path)
+            windows = payload.get("timeframe_windows") or {}
+            if windows and all(str(item.get("status", "")).upper() == "COMPLETED" for item in windows.values()):
+                return {"status": "COMPLETED", "timeframe_windows": windows}
+            return {"status": "RUNNING", "timeframe_windows": windows}
+        except Exception as exc:
+            log(f"CHECKPOINT_READ_ERROR {type(exc).__name__}: {exc}")
+            return None
+    path = ROOT / "runtime_logs" / "backtest_learning" / "mt5_incremental" / f"{job['symbol'].upper()}_{job['timeframe'].upper()}" / "checkpoint.json"
     if not path.exists():
         return None
     try:
@@ -100,4 +150,7 @@ def run_forever():
         time.sleep(max(2.0, sleep_sec))
 
 if __name__ == "__main__":
+    if not _acquire_singleton():
+        print("Another MT5 backtest supervisor already owns the singleton mutex; exiting.", flush=True)
+        raise SystemExit(0)
     run_forever()

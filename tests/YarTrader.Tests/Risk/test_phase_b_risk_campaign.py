@@ -15,8 +15,8 @@ class TestPhaseBRiskCampaign:
     def manager(self, risk_engine):
         return CampaignLifecycleManager(risk_engine=risk_engine)
 
-    def test_2_percent_initial_risk_equity_sizing(self, risk_engine):
-        # Test 2% Equity Risk calculation
+    def test_1_percent_initial_risk_equity_sizing(self, risk_engine):
+        # Test 1% Equity Risk calculation
         res = risk_engine.evaluate_equity_risk_and_position_size(
             symbol="XAUUSD",
             direction="BUY",
@@ -24,14 +24,15 @@ class TestPhaseBRiskCampaign:
             stop_loss=1990.0,
             account_equity=10000.0,
             free_margin=5000.0,
-            risk_pct=2.0,
+            risk_pct=1.0,
             leverage=100.0,
+            volume_min=0.01, volume_max=100.0, volume_step=0.01,
             spread_pip=1.0,
             commission_per_lot=7.0,
             estimated_slippage_pip=0.5
         )
         assert res.is_valid is True
-        assert res.risk_budget_usd == 200.0  # 2% of $10,000
+        assert res.risk_budget_usd == 100.0  # 1% of $10,000
         assert res.volume_lots > 0
         assert res.margin_required_usd < 5000.0
         assert res.effective_be_price > 2000.0  # Must cover friction for BUY
@@ -73,7 +74,7 @@ class TestPhaseBRiskCampaign:
             stop_loss=1990.0,
             take_profit=2050.0,
             account_equity=10000.0,
-            free_margin=5000.0
+            free_margin=5000.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
         assert created["success"] is True
         campaign = created["campaign"]
@@ -86,7 +87,7 @@ class TestPhaseBRiskCampaign:
             new_setup_valid=True,
             current_market_price=2001.0,  # Below effective BE
             account_equity=10000.0,
-            free_margin=4500.0
+            free_margin=4500.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
         assert add_on["success"] is False
         assert "not effective risk-free" in add_on["rejection_reason"]
@@ -100,7 +101,7 @@ class TestPhaseBRiskCampaign:
             stop_loss=1990.0,
             take_profit=2050.0,
             account_equity=10000.0,
-            free_margin=5000.0
+            free_margin=5000.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
         campaign = created["campaign"]
         leg1 = campaign.legs[0]
@@ -116,7 +117,7 @@ class TestPhaseBRiskCampaign:
             new_setup_valid=True,
             current_market_price=2015.0,  # Above effective BE
             account_equity=10000.0,
-            free_margin=4500.0
+            free_margin=4500.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
         assert add_on["success"] is True
         assert len(campaign.legs) == 2
@@ -130,7 +131,7 @@ class TestPhaseBRiskCampaign:
             stop_loss=1990.0,
             take_profit=2050.0,
             account_equity=10000.0,
-            free_margin=5000.0
+            free_margin=5000.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
         campaign = created["campaign"]
 
@@ -152,7 +153,7 @@ class TestPhaseBRiskCampaign:
             new_setup_valid=True,
             current_market_price=2055.0,
             account_equity=10000.0,
-            free_margin=4500.0
+            free_margin=4500.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
         assert add_on["success"] is False
         assert "Campaign status is SETTLED" in add_on["rejection_reason"]
@@ -166,7 +167,8 @@ class TestPhaseBRiskCampaign:
             stop_loss=1999.0,  # Very tight SL -> Huge lot size requirement
             account_equity=100000.0,
             free_margin=50.0,  # Tiny free margin
-            risk_pct=2.0,
+            volume_min=0.01, volume_max=100.0, volume_step=0.01,
+            risk_pct=1.0,
             leverage=10.0
         )
         assert res.is_valid is False
@@ -180,7 +182,7 @@ class TestPhaseBRiskCampaign:
             stop_loss=1990.0,
             take_profit=2050.0,
             account_equity=10000.0,
-            free_margin=5000.0
+            free_margin=5000.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
         manager.create_campaign(
             symbol="EURUSD",
@@ -189,7 +191,7 @@ class TestPhaseBRiskCampaign:
             stop_loss=1.0850,
             take_profit=1.0700,
             account_equity=10000.0,
-            free_margin=5000.0
+            free_margin=5000.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
 
         assert len(manager.active_campaigns) == 2

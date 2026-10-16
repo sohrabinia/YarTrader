@@ -116,12 +116,11 @@ class TestHierarchicalM5M15Trading(unittest.TestCase):
             timeframe_narratives=timeframe_narratives_counter_trend,
             current_price=2420.0
         )
-        self.assertEqual(res_counter_trend["decision_action"], "BUY")
+        # Trend alignment alone cannot manufacture fixed-distance SL/TP levels.
+        self.assertEqual(res_counter_trend["decision_action"], "WAIT")
         self.assertTrue(res_counter_trend["setup_present"])
         self.assertTrue(res_counter_trend["trigger_confirmed"])
-        # Base confidence is 75. Applying 3 counter-trend multipliers (0.70 each) degrades confidence to 75 * 0.7 * 0.7 * 0.7 = ~25.7%
-        self.assertLess(res_counter_trend["confidence"], 30.0)
-        self.assertIn("Counter-trend macro timeframes degraded overall confidence", res_counter_trend["reason"])
+        self.assertIn("No structural stop and target were supplied", res_counter_trend["reason"])
 
     def test_pattern_outcomes_logging(self) -> None:
         """

@@ -99,12 +99,22 @@ class PatternDiscoveryEngine:
                 "similar_situations_found": 0,
                 "continuation_pct": 0.0,
                 "reversal_pct": 0.0,
+                "successful_outcomes": 0,
+                "failed_outcomes": 0,
+                "unlabeled_outcomes": 0,
+                "outcome_success_rate_pct": None,
+                "evidence_status": "NO_MATCHES",
+                "raw_directional_action": "WAIT",
+                "raw_directional_confidence": 0.0,
                 "outcome_summary": "No historical matches found.",
             }
 
         total_occurrences = 0
         total_continuation = 0.0
         total_reversal = 0.0
+        successful_outcomes = 0
+        failed_outcomes = 0
+        unlabeled_outcomes = 0
         current_action = (
             "BUY"
             if (current_signature and current_signature[-1] >= 0)
@@ -115,13 +125,29 @@ class PatternDiscoveryEngine:
             weight = max(0.0, score)
             total_occurrences += pat.occurrences_count
             detailed = [o for o in pat.outcomes if o.get("predicted_action")]
-            if detailed:
-                for outcome in detailed:
-                    if str(outcome.get("predicted_action")).upper() == current_action:
+            for outcome in detailed:
+                predicted_action = str(outcome.get("predicted_action", "")).upper()
+                result = str(outcome.get("outcome", "")).upper()
+                if result in {"SUCCESS", "FAILURE"}:
+                    if result == "SUCCESS":
+                        successful_outcomes += 1
+                    else:
+                        failed_outcomes += 1
+                    prediction_correct = result == "SUCCESS"
+                    prediction_matches_current = predicted_action == current_action
+                    # A successful prediction supports its action; a failed prediction supports the opposite.
+                    supports_continuation = prediction_matches_current == prediction_correct
+                    if supports_continuation:
                         total_continuation += weight
                     else:
                         total_reversal += weight
-            else:
+                else:
+                    unlabeled_outcomes += 1
+                    if predicted_action == current_action:
+                        total_continuation += weight
+                    else:
+                        total_reversal += weight
+            if not detailed:
                 total_continuation += pat.continuation_count * weight
                 total_reversal += pat.reversal_count * weight
 
@@ -136,16 +162,34 @@ class PatternDiscoveryEngine:
             if sum_outcomes > 0
             else 50.0
         )
+        labeled_total = successful_outcomes + failed_outcomes
+        success_rate_pct = round(successful_outcomes / labeled_total * 100.0, 2) if labeled_total else None
+        if labeled_total == 0:
+            evidence_status = "NO_OUTCOME_LABELS"
+        elif successful_outcomes == 0:
+            evidence_status = "FAILURE_ONLY"
+        elif success_rate_pct < 50.0:
+            evidence_status = "LOW_SUCCESS_RATE"
+        else:
+            evidence_status = "VALIDATED_OUTCOMES"
+        raw_direction = current_action if continuation_pct > reversal_pct else ("SELL" if current_action == "BUY" else "BUY") if reversal_pct > continuation_pct else "WAIT"
+        raw_direction_confidence = round(max(continuation_pct, reversal_pct), 2)
         return {
             "similar_situations_found": len(matches),
             "total_occurrences_cataloged": total_occurrences,
             "current_structure_action": current_action,
             "continuation_pct": round(continuation_pct, 2),
             "reversal_pct": round(reversal_pct, 2),
+            "successful_outcomes": successful_outcomes,
+            "failed_outcomes": failed_outcomes,
+            "unlabeled_outcomes": unlabeled_outcomes,
+            "outcome_success_rate_pct": success_rate_pct,
+            "evidence_status": evidence_status,
+            "raw_directional_action": raw_direction,
+            "raw_directional_confidence": raw_direction_confidence,
             "outcome_summary": (
-                f"Found {len(matches)} similar patterns with "
-                f"{continuation_pct:.1f}% continuation vs "
-                f"{reversal_pct:.1f}% reversal likelihood."
+                f"Found {len(matches)} similar patterns: {continuation_pct:.1f}% continuation vs "
+                f"{reversal_pct:.1f}% reversal; labeled outcomes {successful_outcomes} success / {failed_outcomes} failure."
             ),
         }
 

@@ -31,6 +31,7 @@ from src.Research.Brain.wavelet_engine import WaveletEngine
 from src.Research.Brain.target_probability_engine import TargetProbabilityEngine
 from src.Research.Brain.multi_timeframe_state import MultiTimeframeStateBuilder, FractalMarketState
 from src.Research.Brain.range_regime_engine import RangeRegimeEngine
+from src.Research.Brain.multiscale_range_behavior_engine import MultiscaleRangeBehaviorEngine
 from src.Research.RL.ppo_agent import PPOAgent
 from src.Research.RL.environment import FractalMarketEnv
 
@@ -61,6 +62,7 @@ class FractalEngine(IFractalEngine):
         self.wavelet_engine = wavelet_engine or WaveletEngine()
         self.target_prob_engine = target_prob_engine or TargetProbabilityEngine()
         self.range_regime_engine = RangeRegimeEngine()
+        self.multiscale_range_behavior_engine = MultiscaleRangeBehaviorEngine()
         self.state_builder = MultiTimeframeStateBuilder()
         self.ppo_agent = ppo_agent or PPOAgent()
         logger.info("[FractalEngine] Hybrid Fractal + Math + Deep RL Engine initialized cleanly.")
@@ -146,9 +148,21 @@ class FractalEngine(IFractalEngine):
                 except ValueError as val_err:
                     logger.warning(f"[FractalEngine] Invalid candle skipped: {val_err}")
                     continue
+            # Normalize chronology before computing ranges, signatures, or containment.
+            obs_list.sort(key=lambda item: item.timestamp)
             tf_observations[tf.upper()] = obs_list
 
         containment_map = perception.map_fractal_relationships(tf_observations)
+        # Compare all supplied timeframes in one normalized behavior space. This is
+        # descriptive research output, not a validated directional forecast.
+        multiscale_range_behavior = self.multiscale_range_behavior_engine.analyze({
+            tf: [
+                {"open": o.open_price, "high": o.high, "low": o.low,
+                 "close": o.close_price, "timestamp": o.timestamp.isoformat()}
+                for o in observations
+            ]
+            for tf, observations in tf_observations.items()
+        })
 
         # Primary observations
         primary_obs = tf_observations.get(primary_tf_upper) or []
@@ -162,6 +176,7 @@ class FractalEngine(IFractalEngine):
                 "fractal_status": "INSUFFICIENT_DATA",
                 "evidence_state": "NO_EVIDENCE",
                 "containment_mapping": containment_map,
+                "multiscale_range_behavior": multiscale_range_behavior,
                 "matching_pattern_record": None,
                 "similarity_analysis": self.similarity_engine._empty_similarity(),
                 "hurst_analysis": None,
@@ -318,6 +333,7 @@ class FractalEngine(IFractalEngine):
             "fractal_status": "ACTIVE",
             "evidence_state": matching_pattern_record["evidence_state"],
             "containment_mapping": containment_map,
+            "multiscale_range_behavior": multiscale_range_behavior,
             "matching_pattern_record": matching_pattern_record,
             "similarity_analysis": similarity_res,
             "hurst_analysis": primary_rep.get("hurst_analysis"),

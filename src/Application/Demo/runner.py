@@ -5,16 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from src.Data.MarketData.Interfaces.interfaces import IMarketDataProvider
 from src.Data.MarketData.Models.models import MarketDataRequest, MarketDataResponse, MarketDataPoint
-from src.Research.Features.pipeline import FeaturePipeline
-from src.Research.Engine.services import (
-    ResearchEngine,
-    ObservationAnalyzer,
-    PatternDetector,
-    InsightGenerator,
-    ResearchReportBuilder
-)
 from src.Research.MarketAnalysis.Models.models import ResearchRequest, ResearchResult
-from src.Strategy.Evaluation.evaluation import StrategyEvaluator
 from src.Strategy.Models.models import StrategyCandidate, StrategyEvaluation
 from src.Risk.Services.services import RiskAnalyzer
 from src.Risk.Models.models import RiskProfile, RiskAssessment
@@ -42,22 +33,11 @@ class DemoMarketDataProvider(IMarketDataProvider):
         self._price_data = price_data
 
     def retrieve_market_data(self, request: MarketDataRequest) -> MarketDataResponse:
-        # If no points are available, return a standard fallback point
+        # No synthetic fallback prices: absent scenario data means no analysis/trade.
         if not self._price_data:
-            fallback = [
-                MarketDataPoint(
-                    AssetId=request.Asset,
-                    Timestamp=request.StartTime,
-                    Open=1.1000,
-                    High=1.1050,
-                    Low=1.0950,
-                    Close=1.1010,
-                    Volume=50000.0
-                )
-            ]
             return MarketDataResponse(
                 Request=request,
-                DataPoints=fallback,
+                DataPoints=[],
                 RetrievedAt=datetime.now()
             )
         return MarketDataResponse(
@@ -71,9 +51,7 @@ class DemoScenarioRunner(IDemoScenarioRunner):
     """Orchestrates end-to-end continuous intelligence demo scenario execution."""
 
     def __init__(self) -> None:
-        self.feature_pipeline = FeaturePipeline()
-        self.research_engine = ResearchEngine()
-        self.strategy_evaluator = StrategyEvaluator()
+        # Demo decisions are sourced exclusively from the canonical Base hierarchy.
         self.risk_analyzer = RiskAnalyzer()
         self.decision_engine = AdvancedDecisionEngine()
         self.compliance_checker = ComplianceChecker()
@@ -93,6 +71,8 @@ class DemoScenarioRunner(IDemoScenarioRunner):
         decision_report: Optional[DecisionIntelligenceReport] = None
         compliance_audit: Optional[Any] = None
         explainable_report: Optional[ExplainableIntelligenceReport] = None
+        base_only_report: Optional[Dict[str, Any]] = None
+        base_only_candidate: Optional[Dict[str, Any]] = None
 
         # ----------------------------------------------------
         # STAGE 1: Input Ingestion
@@ -128,26 +108,34 @@ class DemoScenarioRunner(IDemoScenarioRunner):
             step_results.append(DemoStepResult("Input", "FAILED", None, dur, str(e)))
 
         # ----------------------------------------------------
-        # STAGE 2: Feature Extraction
+        # STAGE 2: Raw Price Structure (indicator-free)
         # ----------------------------------------------------
         if success and market_data_resp:
             st_time = time.perf_counter()
             try:
-                feature_set = self.feature_pipeline.execute(market_data_resp.DataPoints)
+                # Preserve raw OHLC facts only. No feature pipeline or indicator calculation.
+                points = market_data_resp.DataPoints
+                feature_set = {
+                    "asset": scenario.asset,
+                    "timeframe": scenario.timeframe,
+                    "bar_count": len(points),
+                    "latest_price": float(points[-1].Close),
+                    "window_high": max(float(point.High) for point in points),
+                    "window_low": min(float(point.Low) for point in points),
+                }
                 dur = (time.perf_counter() - st_time) * 1000.0
-                extracted = {name: fval.Value for name, fval in feature_set.Features.items()}
                 step_results.append(
                     DemoStepResult(
-                        step_name="Feature Extraction",
+                        step_name="Price Structure",
                         status="SUCCESS",
-                        payload={"extracted_features": extracted, "count": len(extracted)},
+                        payload={"price_facts": feature_set, "indicator_count": 0},
                         duration_ms=dur
                     )
                 )
             except Exception as e:
                 success = False
                 dur = (time.perf_counter() - st_time) * 1000.0
-                step_results.append(DemoStepResult("Feature Extraction", "FAILED", None, dur, str(e)))
+                step_results.append(DemoStepResult("Price Structure", "FAILED", None, dur, str(e)))
 
         # ----------------------------------------------------
         # STAGE 3: Research Intelligence
@@ -155,26 +143,43 @@ class DemoScenarioRunner(IDemoScenarioRunner):
         if success and feature_set:
             st_time = time.perf_counter()
             try:
-                # Custom overrides depending on scenario parameters
-                context = {"market_feature_set": feature_set}
+                # Research stage records raw facts only; Base-only decision evaluation
+                # happens in the next stage and is the sole source of trade candidates.
                 res_req = ResearchRequest(
                     Asset=scenario.asset,
                     StartTime=lookback_start,
                     EndTime=start_time,
-                    Context=context
+                    Context={"timeframe": scenario.timeframe, "price_facts": feature_set}
                 )
-                research_res = self.research_engine.analyze_market(res_req)
+                research_res = ResearchResult(
+                    Request=res_req,
+                    Findings={
+                        "asset_id": scenario.asset,
+                        "status": "completed",
+                        "indicator_independent": True,
+                        "primitive_observation": dict(feature_set or {}),
+                        "findings": [],
+                        "observations": [],
+                        "insights": [],
+                        "patterns": [],
+                        "observations_count": 1 if feature_set else 0,
+                        "patterns_count": 0,
+                        "insights_count": 0,
+                    },
+                    ConfidenceScore=0.0,
+                    CreatedAt=datetime.now(),
+                )
                 dur = (time.perf_counter() - st_time) * 1000.0
                 step_results.append(
                     DemoStepResult(
-                        step_name="Research",
+                        step_name="Base-only Research",
                         status="SUCCESS",
                         payload={
-                            "findings": research_res.Findings.get("findings", []),
-                            "observations_count": research_res.Findings.get("observations_count", 0),
-                            "patterns_count": research_res.Findings.get("patterns_count", 0),
-                            "insights_count": research_res.Findings.get("insights_count", 0),
-                            "confidence_score": research_res.ConfidenceScore
+                            "price_facts": research_res.Findings["primitive_observation"],
+                            "observations_count": research_res.Findings["observations_count"],
+                            "patterns_count": 0,
+                            "insights_count": 0,
+                            "decision_authority": "BASE_HIERARCHY",
                         },
                         duration_ms=dur
                     )
@@ -190,16 +195,65 @@ class DemoScenarioRunner(IDemoScenarioRunner):
         if success and research_res:
             st_time = time.perf_counter()
             try:
-                candidate = StrategyCandidate(
-                    Id=f"cand-{scenario.asset}",
-                    Name=f"Demo Momentum Strategy for {scenario.asset}",
-                    Description="Momentum candidate under passive demo execution.",
-                    ResearchContext=research_res.Findings,
-                    CreatedAt=datetime.now(),
-                    EvaluationStatus="Pending"
+                # A generic research/strategy score is not sufficient to approve a
+                # trading decision. Only the canonical Base hierarchy may provide
+                # an actionable candidate; insufficient history or model evidence
+                # must fail closed to NoAction.
+                base_candles = [
+                    {
+                        "timestamp": point.Timestamp.isoformat() if hasattr(point.Timestamp, "isoformat") else str(point.Timestamp),
+                        "open": float(point.Open),
+                        "high": float(point.High),
+                        "low": float(point.Low),
+                        "close": float(point.Close),
+                        "volume": float(point.Volume),
+                    }
+                    for point in (market_data_resp.DataPoints if market_data_resp else [])
+                ]
+                try:
+                    from src.Intelligence.Execution.strategy_orchestrator import StrategyOrchestrator
+                    base_only_report = StrategyOrchestrator().evaluate_all_strategies(
+                        symbol=scenario.asset,
+                        primary_timeframe=scenario.timeframe,
+                        candles=base_candles,
+                        all_timeframe_candles={scenario.timeframe: base_candles},
+                    )
+                    base_only_candidate = base_only_report.get("best_candidate")
+                except Exception as base_error:
+                    # Diagnostics are recorded, but a failure in the authoritative
+                    # Base-only gate can never fall back to a legacy strategy.
+                    base_only_report = {"model_status": "BASE_ONLY_ANALYSIS_FAILED", "error_type": type(base_error).__name__}
+                    base_only_candidate = None
+
+                # The generic legacy strategy evaluator is intentionally bypassed.
+                # A Base hierarchy proposal is the only source of strategy evidence.
+                from src.Strategy.Models.models import StrategyScore
+                base_confidence = (
+                    max(0.0, min(1.0, float(base_only_candidate.get("confidence", 0.0)) / 100.0))
+                    if isinstance(base_only_candidate, dict) else 0.0
                 )
-                # If Low Liquidity, we can lower the compatibility scores
-                strategy_eval = self.strategy_evaluator.evaluate(candidate)
+                base_score = base_confidence if base_only_candidate else 0.0
+                candidate = StrategyCandidate(
+                    Id=f"base-{scenario.asset}",
+                    Name=f"Hierarchical Base Reaction for {scenario.asset}",
+                    Description="Only the canonical hierarchical Base/reaction model can propose a trade.",
+                    ResearchContext={"base_report": base_only_report, "base_candidate": base_only_candidate},
+                    CreatedAt=datetime.now(),
+                    EvaluationStatus="Validated" if base_only_candidate else "NoAction"
+                )
+                strategy_eval = StrategyEvaluation(
+                    StrategyId="BASE_HIERARCHY",
+                    Score=StrategyScore(
+                        OverallScore=base_score,
+                        Confidence=base_score,
+                        Criteria={"BASE_HIERARCHY_EVIDENCE": base_score},
+                    ),
+                    EvaluationNotes=(
+                        "Validated Base-only proposal." if base_only_candidate
+                        else "No validated Base-only proposal; no legacy strategy fallback."
+                    ),
+                    EvaluatedAt=datetime.now(),
+                )
 
                 # Induce Conflict: override strategy overall score if conflicting signals scenario is active
                 if scenario.parameters.get("induce_conflict"):
@@ -226,7 +280,9 @@ class DemoScenarioRunner(IDemoScenarioRunner):
                             "strategy_id": strategy_eval.StrategyId,
                             "overall_score": strategy_eval.Score.OverallScore,
                             "confidence": strategy_eval.Score.Confidence,
-                            "evaluation_notes": strategy_eval.EvaluationNotes
+                            "evaluation_notes": strategy_eval.EvaluationNotes,
+                            "base_model_status": (base_only_report or {}).get("model_status", "UNKNOWN"),
+                            "base_candidate_available": bool(base_only_candidate)
                         },
                         duration_ms=dur
                     )
@@ -242,9 +298,15 @@ class DemoScenarioRunner(IDemoScenarioRunner):
         if success and strategy_eval:
             st_time = time.perf_counter()
             try:
-                proposed_weights = {scenario.asset: strategy_eval.Score.OverallScore}
-                # Setup risk profile based on scenario
-                if scenario.parameters.get("restrict_risk") or scenario.parameters.get("scenario_type") == "HighVolatility":
+                # Risk allocation is derived from the Base-only evidence score.
+                # The explicit HighVolatility safety scenario tests the restrictive
+                # exposure gate; it does not create a trading direction or setup.
+                scenario_type = scenario.parameters.get("scenario_type")
+                proposed_weight = strategy_eval.Score.OverallScore
+                if scenario_type == "HighVolatility":
+                    proposed_weight = max(proposed_weight, 0.50)
+                proposed_weights = {scenario.asset: proposed_weight}
+                if scenario.parameters.get("restrict_risk") or scenario_type == "HighVolatility":
                     profile = RiskProfile("Low", 0.30, 0.15)  # Restrictive limit
                 else:
                     profile = RiskProfile("Moderate", 1.0, 0.90)  # Safe limit
@@ -315,21 +377,28 @@ class DemoScenarioRunner(IDemoScenarioRunner):
 
                 decision_report = self.decision_engine.evaluate_intelligence_context(intel_context)
 
-                # Post-process state override based on conflict analyzer and scenario type
+                # Explicit safety scenarios remain risk gates. Otherwise, absent
+                # Base evidence always means NoAction; generic conflict signals cannot
+                # promote a non-Base strategy or override the Base-only authority.
                 state_override = None
-                if decision_report.ConflictAnalysis.ConflictDetected:
-                    state_override = "ReviewRequired"
-                if scenario.parameters.get("scenario_type") == "LowLiquidity":
-                    state_override = "ReviewRequired"
-                if scenario.parameters.get("scenario_type") == "TrendReversal":
-                    if decision_report.State != "Rejected":
-                        state_override = "ReviewRequired"
-                if scenario.parameters.get("scenario_type") == "HighVolatility":
+                scenario_type = scenario.parameters.get("scenario_type")
+                if scenario_type == "HighVolatility":
                     state_override = "Rejected"
+                elif scenario_type == "LowLiquidity":
+                    state_override = "ReviewRequired"
+                elif scenario_type == "TrendReversal" and decision_report.State != "Rejected":
+                    state_override = "ReviewRequired"
+                elif not base_only_candidate:
+                    state_override = "NoAction"
+                elif decision_report.ConflictAnalysis.ConflictDetected:
+                    state_override = "ReviewRequired"
 
                 if state_override:
                     from dataclasses import replace
-                    decision_report = replace(decision_report, State=state_override)
+                    replacements = {"State": state_override}
+                    if state_override == "NoAction":
+                        replacements["Confidence"] = 0.0
+                    decision_report = replace(decision_report, **replacements)
 
                 dur = (time.perf_counter() - st_time) * 1000.0
                 step_results.append(

@@ -50,14 +50,14 @@ export default function PublicLandingView({ t, setRoute, appVersion = "7.0", lan
             <span>🌐</span> وضعیت زنده هوش بازار (Market Intelligence)
           </h2>
           <span className="text-xs font-semibold px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full border border-emerald-500/20">
-            MT5 STREAMING
+            BROKER DATA FEED
           </span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <MetricCard title="بازارهای فعال (Active Markets)" value="30 Symbol Pairs" change="Live Feed" trend="up" subtitle="XAUUSD, BTCUSD, EURUSD" />
+          <MetricCard title={t ? t("pub_markets_title") : "Supported Market Symbols"} value="30" change="Canonical Registry" trend="neutral" subtitle="Enabled symbols depend on broker readiness" />
           <MetricCard title="سیگنال‌های هوش معرفتی" value="Multi-Horizon" change="Micro to Macro" trend="neutral" subtitle="بدون اندیکاتور متأخر" />
           <MetricCard title="مدل ساختار بازار" value="Price Action & RTM" change="Canonical V2" trend="neutral" subtitle="تایم‌فریم‌های M1 تا W1" />
-          <MetricCard title="حساب‌های معاملاتی" value="DEMO Connected" change="MT5 Account" trend="up" subtitle="ارزیابی زنده بدون ریسک" />
+          <MetricCard title="حساب‌های معاملاتی" value="DEMO only" change="Live trading disabled" trend="neutral" subtitle="Broker readiness checked at runtime" />
         </div>
       </section>
 

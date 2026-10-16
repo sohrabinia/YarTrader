@@ -76,7 +76,7 @@ class OrderLifecycleManager:
                 "rejection_reason": f"UNSUPPORTED_ORDER_TYPE_{type_upper}"
             }
 
-        if volume_lots < 0.01:
+        if volume_lots <= 0.0:
             return {
                 "success": False,
                 "order_state": None,

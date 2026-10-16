@@ -16,7 +16,7 @@ from src.Infrastructure.exceptions import ValidationException
 
 
 class DummyRequest:
-    def __init__(self, symbol="XAUUSD", order_type="BUY", price=2500.0, sl=2497.5, tp=2506.0, strategy="FAST_SCALP", volume=0.1):
+    def __init__(self, symbol="XAUUSD", order_type="BUY", price=2500.0, sl=2497.5, tp=2506.0, strategy="BASE_HIERARCHY", volume=0.1):
         self.Symbol = symbol
         self.OrderType = order_type
         self.Price = price
@@ -32,7 +32,7 @@ class DummyAdapter:
     def get_terminal_info(self):
         return {"trade_allowed": True}
     def get_symbol_info(self, symbol):
-        return {"trade_mode": 4, "volume_min": 0.01, "volume_max": 100.0}
+        return {"trade_mode": 4, "volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01}
     def get_positions(self, symbol=None):
         return []
 

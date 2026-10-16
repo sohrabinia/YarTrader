@@ -145,60 +145,14 @@ def run_forward_observation(auto_confirm: bool = True):
     deals_data = []
 
     if is_real_terminal_connected:
-        tick = adapter.get_symbol_tick("XAUUSD")
-        ask = tick.get("ask", 2350.80) if tick else 2350.80
-
-        order_req = OrderRequest(
-            Symbol="XAUUSD",
-            OrderType="Buy",
-            Volume=0.01,
-            TargetWeight=0.01,
-            Price=ask,
-            Deviation=20,
-            Comment="YarTrader MT5 Forward Observation"
-        )
-        order_resp = adapter.send_order_to_broker(order_req)
-
+        # This legacy observation path has no strategy-derived SL/TP and no
+        # authoritative 1% risk-sized volume. It must never submit an order.
         orders_data.append({
-            "order_ticket": order_resp.OrderId,
-            "deal_ticket": order_resp.DealTicket,
-            "symbol": order_resp.Symbol,
-            "status": order_resp.Status,
-            "retcode": order_resp.Retcode,
-            "comment": order_resp.Comment,
-            "price": order_resp.Price,
-            "volume": order_resp.Volume,
-            "submitted_at": order_resp.SubmittedAt.isoformat()
+            "symbol": "XAUUSD",
+            "status": "BLOCKED",
+            "reason": "Legacy observation path lacks protective SL/TP and broker-calculated 1% risk sizing; no order submitted.",
+            "submitted_at": datetime.now(timezone.utc).isoformat(),
         })
-
-        if order_resp.Status == "Placed" and order_resp.OrderId not in ["0", None]:
-            # Query position
-            open_positions = adapter.get_positions(symbol="XAUUSD")
-            matched_pos = open_positions[0] if open_positions else {
-                "ticket": order_resp.OrderId,
-                "symbol": "XAUUSD",
-                "volume": 0.01,
-                "profit": 12.0
-            }
-            positions_data.append(matched_pos)
-
-            # Close position to complete lifecycle
-            close_req = OrderRequest(
-                Symbol="XAUUSD",
-                OrderType="CLOSE",
-                Volume=0.01,
-                PositionTicket=int(order_resp.OrderId),
-                Comment="YarTrader Forward Observation Close"
-            )
-            close_resp = adapter.send_order_to_broker(close_req)
-
-            deals = adapter.get_history_deals(position=int(order_resp.OrderId))
-            deals_data.extend(deals if deals else [
-                {"ticket": "789012", "position": order_resp.OrderId, "profit": 12.0, "commission": -0.10, "swap": 0.0}
-            ])
-
-            # Learning update
-            fractal_memory.record_outcome("PAT_LIQUIDITY_SWEEP_REVERSAL", is_win=True)
     else:
         # Sandbox Harness Demonstration Execution Proof
         mock_order_ticket = "123456"
@@ -211,14 +165,14 @@ def run_forward_observation(auto_confirm: bool = True):
             "retcode": 10009,
             "comment": "YarTrader Harness Execution Proof",
             "price": 2350.80,
-            "volume": 0.01,
+            "volume": 0.0,
             "submitted_at": datetime.now(timezone.utc).isoformat()
         })
         positions_data.append({
             "ticket": mock_order_ticket,
             "symbol": "XAUUSD",
             "type": 0,
-            "volume": 0.01,
+            "volume": 0.0,
             "price_open": 2350.80,
             "price_current": 2362.46,
             "profit": 12.00,

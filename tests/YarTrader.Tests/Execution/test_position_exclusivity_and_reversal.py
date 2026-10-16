@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone
 
 from src.Execution.Safety.demo_execution_gate import DemoExecutionGate
@@ -20,7 +20,15 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
     """
 
     def setUp(self):
+        # Keep legacy exclusivity cases deterministic despite production .env opt-in.
+        env_patch = patch.dict("os.environ", {"YARTRADER_DEMO_ALLOW_MULTIPLE_POSITIONS": "false"})
+        env_patch.start()
+        self.addCleanup(env_patch.stop)
         self.mock_adapter = MagicMock()
+        self.mock_adapter.PLATFORM_NAME = "MT5"
+        self.mock_adapter.TARGET_ACCOUNT = "52961173"
+        self.mock_adapter.TARGET_SERVER = "Alpari-MT5-Demo"
+        self.mock_adapter.close_order = None
         # Mock account info and terminal info for DemoExecutionGate
         self.mock_adapter.get_account_info.return_value = {
             "login": "52961173",
@@ -35,7 +43,8 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
         self.mock_adapter.get_symbol_info.return_value = {
             "trade_mode": 4,
             "volume_min": 0.01,
-            "volume_max": 100.0
+            "volume_max": 100.0,
+            "volume_step": 0.01,
         }
 
     def test_normal_buy_when_flat(self):
@@ -100,6 +109,58 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
             DemoExecutionGate.verify_demo_execution_eligibility(self.mock_adapter, buy_req, demo_mode_flag=True)
 
         self.assertIn("Position Exclusivity Guard", str(ctx.exception))
+
+    @patch.dict("os.environ", {
+        "YARTRADER_DEMO_ALLOW_MULTIPLE_POSITIONS": "true",
+        "YARTRADER_DEMO_MAX_POSITIONS_PER_SYMBOL": "3",
+    })
+    def test_multiple_same_direction_positions_allowed_below_limit(self):
+        self.mock_adapter.get_positions.return_value = [
+            {"ticket": 1001, "symbol": "XAUUSD", "type": 0, "volume": 0.01}
+        ]
+        req = OrderRequest(
+            Symbol="XAUUSD", OrderType="BUY", Volume=0.01,
+            Price=2000.0, StopLoss=1990.0, TakeProfit=2020.0
+        )
+        self.assertTrue(DemoExecutionGate.verify_demo_execution_eligibility(
+            self.mock_adapter, req, demo_mode_flag=True
+        ))
+
+    @patch.dict("os.environ", {
+        "YARTRADER_DEMO_ALLOW_MULTIPLE_POSITIONS": "true",
+        "YARTRADER_DEMO_MAX_POSITIONS_PER_SYMBOL": "3",
+    })
+    def test_opposite_direction_positions_allowed_below_limit(self):
+        self.mock_adapter.get_positions.return_value = [
+            {"ticket": 1002, "symbol": "XAUUSD", "type": 1, "volume": 0.01}
+        ]
+        req = OrderRequest(
+            Symbol="XAUUSD", OrderType="BUY", Volume=0.01,
+            Price=2000.0, StopLoss=1990.0, TakeProfit=2020.0
+        )
+        self.assertTrue(DemoExecutionGate.verify_demo_execution_eligibility(
+            self.mock_adapter, req, demo_mode_flag=True
+        ))
+
+    @patch.dict("os.environ", {
+        "YARTRADER_DEMO_ALLOW_MULTIPLE_POSITIONS": "true",
+        "YARTRADER_DEMO_MAX_POSITIONS_PER_SYMBOL": "3",
+    })
+    def test_multiple_position_limit_blocks_fourth_entry(self):
+        self.mock_adapter.get_positions.return_value = [
+            {"ticket": 1001, "symbol": "XAUUSD", "type": 0, "volume": 0.01},
+            {"ticket": 1002, "symbol": "XAUUSD", "type": 1, "volume": 0.01},
+            {"ticket": 1003, "symbol": "XAUUSD", "type": 0, "volume": 0.01},
+        ]
+        req = OrderRequest(
+            Symbol="XAUUSD", OrderType="SELL", Volume=0.01,
+            Price=2000.0, StopLoss=2010.0, TakeProfit=1980.0
+        )
+        with self.assertRaises(ValidationException) as ctx:
+            DemoExecutionGate.verify_demo_execution_eligibility(
+                self.mock_adapter, req, demo_mode_flag=True
+            )
+        self.assertIn("configured limit is 3", str(ctx.exception))
 
     def test_valid_sequential_reversal_lifecycle(self):
         """Test 5: Valid BUY -> CLOSE BUY -> CONFIRM CLOSED -> REASSESS -> SELL allowed."""
@@ -268,29 +329,19 @@ class TestPositionExclusivityAndReversal(unittest.TestCase):
         self.assertEqual(rev_tp, 1985.0)
         self.assertNotEqual(rev_price, auto_dec["entry"])
 
-    def test_same_cycle_multi_strategy_candidate_single_execution(self):
-        """Test 11: FAST_SCALP BUY + SCALP SELL in same cycle -> Exactly 1 candidate selected."""
+    def test_legacy_multi_strategy_candidates_are_disabled_in_base_only_mode(self):
+        """Non-Base strategy inputs cannot create a signal without Base evidence."""
         orchestrator = StrategyOrchestrator()
         candles = [
-            {"open": 2000.0, "high": 2005.0, "low": 1995.0, "close": 2002.0}
-            for _ in range(10)
+            {"timestamp": i * 300, "open": 2000.0, "high": 2005.0, "low": 1995.0, "close": 2002.0}
+            for i in range(10)
         ]
         liquidity = {"latest_sweep": {"type": "SELL_SIDE_LIQUIDITY_SWEEP"}}
         zones = {"order_blocks": [{"type": "BEARISH_OB", "top": 2010.0, "bottom": 2002.0}]}
-
         eval_res = orchestrator.evaluate_all_strategies(
-            symbol="XAUUSD",
-            primary_timeframe="M5",
-            candles=candles,
-            liquidity=liquidity,
-            zones=zones
+            symbol="XAUUSD", primary_timeframe="M5", candles=candles,
+            liquidity=liquidity, zones=zones
         )
-
-        self.assertGreaterEqual(eval_res["active_candidates_count"], 1)
-        best = eval_res["best_candidate"]
-        self.assertIsNotNone(best)
-        self.assertIn(best["direction"], ["BUY", "SELL"])
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self.assertEqual(eval_res["active_candidates_count"], 0)
+        self.assertIsNone(eval_res["best_candidate"])
+        self.assertIn("no fallback strategy is available", eval_res["summary"])

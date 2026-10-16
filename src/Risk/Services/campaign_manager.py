@@ -3,13 +3,13 @@ from datetime import datetime, timezone
 import uuid
 
 from src.Risk.Models.campaign import CampaignLeg, TradeCampaign
-from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, ProductionRiskPolicy
 
 class CampaignLifecycleManager:
     """
     Campaign Lifecycle Manager for YarTrader Master Roadmap Phase B.
     Orchestrates:
-    1. Initial 2% Equity Leg entry creation.
+    1. Initial 1% Equity Leg entry creation.
     2. Effective Risk-Free tracking (including spread, commission, slippage).
     3. 1% Add-On eligibility checks and leg creation ONLY after previous legs become effective risk-free.
     4. Base / Node campaign settlement upon reaching structural target nodes.
@@ -35,10 +35,13 @@ class CampaignLifecycleManager:
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,
         contract_size: float = 100.0,
-        leverage: float = 100.0
+        leverage: float = 100.0,
+        volume_min: float = 0.0,
+        volume_max: float = 0.0,
+        volume_step: float = 0.0
     ) -> Dict[str, Any]:
         """
-        Creates an initial 2% Equity TradeCampaign with Leg 1.
+        Creates an initial 1% Equity TradeCampaign with Leg 1.
         """
         sizing = self.risk_engine.evaluate_equity_risk_and_position_size(
             symbol=symbol,
@@ -47,12 +50,15 @@ class CampaignLifecycleManager:
             stop_loss=stop_loss,
             account_equity=account_equity,
             free_margin=free_margin,
-            risk_pct=2.0,  # Mandatory 2% initial risk
+            risk_pct=ProductionRiskPolicy.TARGET_RISK_PCT,  # Unified per-trade risk
             leverage=leverage,
             spread_pip=spread_pip,
             commission_per_lot=commission_per_lot,
             estimated_slippage_pip=estimated_slippage_pip,
-            contract_size=contract_size
+            contract_size=contract_size,
+            volume_min=volume_min,
+            volume_max=volume_max,
+            volume_step=volume_step
         )
 
         if not sizing.is_valid:
@@ -74,7 +80,7 @@ class CampaignLifecycleManager:
             stop_loss=stop_loss,
             take_profit=take_profit,
             volume_lots=sizing.volume_lots,
-            risk_pct=2.0,
+            risk_pct=ProductionRiskPolicy.TARGET_RISK_PCT,
             risk_amount_usd=sizing.risk_budget_usd,
             margin_required_usd=sizing.margin_required_usd,
             effective_be_price=sizing.effective_be_price,
@@ -91,7 +97,7 @@ class CampaignLifecycleManager:
             status="ACTIVE",
             legs=[initial_leg],
             total_current_risk_usd=sizing.risk_budget_usd,
-            max_risk_pct=2.0
+            max_risk_pct=1.0
         )
 
         self.active_campaigns[campaign_id] = campaign
@@ -116,7 +122,10 @@ class CampaignLifecycleManager:
         commission_per_lot: float = 7.0,
         estimated_slippage_pip: float = 0.5,
         contract_size: float = 100.0,
-        leverage: float = 100.0
+        leverage: float = 100.0,
+        volume_min: float = 0.0,
+        volume_max: float = 0.0,
+        volume_step: float = 0.0
     ) -> Dict[str, Any]:
         """
         Attempts to add a 1% Equity Add-On leg to an active campaign.
@@ -140,7 +149,10 @@ class CampaignLifecycleManager:
             commission_per_lot=commission_per_lot,
             estimated_slippage_pip=estimated_slippage_pip,
             leverage=leverage,
-            contract_size=contract_size
+            contract_size=contract_size,
+            volume_min=volume_min,
+            volume_max=volume_max,
+            volume_step=volume_step
         )
 
         if not eligibility["add_on_allowed"]:
@@ -162,7 +174,7 @@ class CampaignLifecycleManager:
             stop_loss=campaign.legs[0].stop_loss,  # Share protected stop or new trailing stop
             take_profit=new_take_profit,
             volume_lots=sizing.volume_lots,
-            risk_pct=1.0,  # 1% add-on
+            risk_pct=ProductionRiskPolicy.TARGET_RISK_PCT,  # 1% add-on
             risk_amount_usd=sizing.risk_budget_usd,
             margin_required_usd=sizing.margin_required_usd,
             effective_be_price=sizing.effective_be_price,

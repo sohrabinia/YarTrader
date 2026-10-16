@@ -14,7 +14,7 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
     1. Multi-timeframe synthesis across all standard horizons (M1, M5, M15, H1, H4, D1, W1, MN1).
     2. Same-direction re-entries (consecutive BUY -> BUY and SELL -> SELL).
     3. Dynamic trend transitions (BUY -> SELL and SELL -> BUY on genuine state shifts).
-    4. Independent 0.5% max risk per trade calculation based on account equity.
+    4. Independent 1.0% max risk per trade calculation based on account equity.
     5. Legacy strategy isolation (confirming strategy identity is Multi-Timeframe Continuous Market Intelligence).
     6. Hard-locked fail-closed safety boundary (LIVE_TRADING_ENABLED = False).
     """
@@ -62,23 +62,26 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         self.assertEqual(res["timeframe"], "H1")
         self.assertIn("plan", res)
         self.assertIn(res["plan"]["action"], ["BUY", "SELL", "WAIT", "AVOID"])
-        self.assertEqual(res["plan"]["strategy"], "Multi-Timeframe Continuous Market Intelligence")
+        self.assertEqual(res["plan"]["strategy"], "BASE_HIERARCHY")
+        self.assertEqual(res["plan"]["decision_authority"], "BASE_HIERARCHY_ONLY")
 
     def test_02_same_direction_buy_reentry(self):
         """Proves consecutive BUY -> BUY re-entries when Brain proposes BUY and market structure remains bullish."""
-        brain_buy = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
+        brain_buy = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2290.0, "take_profit": 2320.0, "risk_reward": 2.0}}]}
         c1 = self._generate_mock_candles(base_price=2300.0, trend="BULLISH")
         res1 = self.core.evaluate_context("XAUUSD", "H1", c1, newborn_brain_report=brain_buy)
 
         c2 = self._generate_mock_candles(base_price=2310.0, trend="BULLISH")
         res2 = self.core.evaluate_context("XAUUSD", "H1", c2, newborn_brain_report=brain_buy)
 
-        self.assertEqual(res1["plan"]["action"], "BUY")
-        self.assertEqual(res2["plan"]["action"], "BUY")
+        # A Brain hypothesis cannot bypass the Base hierarchy or missing costed reaction evidence.
+        self.assertEqual(res1["plan"]["action"], "WAIT")
+        self.assertEqual(res2["plan"]["action"], "WAIT")
+        self.assertEqual(res1["plan"]["decision_source"], "BASE_HIERARCHY_ONLY")
 
     def test_03_same_direction_sell_reentry(self):
         """Proves consecutive SELL -> SELL re-entries when Brain proposes SELL and market structure remains bearish."""
-        brain_sell = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
+        brain_sell = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2310.0, "take_profit": 2280.0, "risk_reward": 2.0}}]}
         all_tf_bearish = {
             tf: self._generate_mock_candles(base_price=2300.0, trend="BEARISH")
             for tf in ["M15", "H4", "D1"]
@@ -89,12 +92,13 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         c2 = self._generate_mock_candles(base_price=2290.0, trend="BEARISH")
         res2 = self.core.evaluate_context("XAUUSD", "H1", c2, all_timeframe_candles=all_tf_bearish, newborn_brain_report=brain_sell)
 
-        self.assertEqual(res1["plan"]["action"], "SELL")
-        self.assertEqual(res2["plan"]["action"], "SELL")
+        self.assertEqual(res1["plan"]["action"], "WAIT")
+        self.assertEqual(res2["plan"]["action"], "WAIT")
+        self.assertEqual(res1["plan"]["decision_source"], "BASE_HIERARCHY_ONLY")
 
     def test_04_dynamic_buy_to_sell_transition(self):
         """Proves dynamic BUY -> SELL transition when Brain proposal aligns with market structure shift."""
-        brain_buy = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY"}]}
+        brain_buy = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "BUY", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2290.0, "take_profit": 2320.0, "risk_reward": 2.0}}]}
         all_tf_bullish = {
             tf: self._generate_mock_candles(base_price=2300.0, trend="BULLISH")
             for tf in ["M15", "H4", "D1"]
@@ -102,7 +106,7 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         c_bullish = self._generate_mock_candles(base_price=2300.0, trend="BULLISH")
         res_buy = self.core.evaluate_context("XAUUSD", "H1", c_bullish, all_timeframe_candles=all_tf_bullish, newborn_brain_report=brain_buy)
 
-        brain_sell = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL"}]}
+        brain_sell = {"brain_available": True, "active_hypotheses": [{"suggested_virtual_action": "SELL", "hypothesis_confidence": 80.0, "trade_parameters": {"entry": 2300.0, "stop_loss": 2310.0, "take_profit": 2280.0, "risk_reward": 2.0}}]}
         all_tf_bearish = {
             tf: self._generate_mock_candles(base_price=2320.0, trend="BEARISH")
             for tf in ["M15", "H4", "D1"]
@@ -110,11 +114,13 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
         c_bearish = self._generate_mock_candles(base_price=2320.0, trend="BEARISH")
         res_sell = self.core.evaluate_context("XAUUSD", "H1", c_bearish, all_timeframe_candles=all_tf_bearish, newborn_brain_report=brain_sell)
 
-        self.assertEqual(res_buy["plan"]["action"], "BUY")
-        self.assertEqual(res_sell["plan"]["action"], "SELL")
+        self.assertEqual(res_buy["plan"]["action"], "WAIT")
+        self.assertEqual(res_sell["plan"]["action"], "WAIT")
+        self.assertEqual(res_buy["plan"]["decision_authority"], "BASE_HIERARCHY_ONLY")
+        self.assertEqual(res_sell["plan"]["decision_authority"], "BASE_HIERARCHY_ONLY")
 
-    def test_05_independent_0_5_percent_max_risk_budget(self):
-        """Proves 0.5% account equity risk calculation in risk engine."""
+    def test_05_independent_one_percent_max_risk_budget(self):
+        """Proves 1.0% account equity risk calculation in risk engine."""
         account_equity = 100000.0 # $100,000 equity
         sizing_res = self.risk_engine.evaluate_equity_risk_and_position_size(
             symbol="XAUUSD",
@@ -123,22 +129,21 @@ class TestTrueMTFBrainRuntime(unittest.TestCase):
             stop_loss=2297.0, # $3.00 SL distance
             account_equity=account_equity,
             free_margin=100000.0,
-            risk_pct=0.5
+            risk_pct=1.0, volume_min=0.01, volume_max=100.0, volume_step=0.01
         )
-        expected_budget = account_equity * 0.005 # $500.00
+        expected_budget = account_equity * 0.01 # $1,000.00
 
         self.assertTrue(sizing_res.is_valid)
         self.assertAlmostEqual(sizing_res.risk_budget_usd, expected_budget, places=2)
         self.assertGreater(sizing_res.volume_lots, 0.0)
 
-    def test_06_legacy_strategy_isolation(self):
-        """Proves legacy strategy identities (e.g. PRICE_ACTION_RTM, FAST_SCALP) are isolated."""
+    def test_06_base_hierarchy_is_the_only_decision_authority(self):
         c = self._generate_mock_candles(trend="BULLISH")
         plan = self.core.evaluate_context("XAUUSD", "H1", c)["plan"]
 
-        self.assertNotEqual(plan["strategy"], "PRICE_ACTION_RTM")
-        self.assertNotEqual(plan["strategy"], "FAST_SCALP")
-        self.assertEqual(plan["strategy"], "Multi-Timeframe Continuous Market Intelligence")
+        self.assertEqual(plan["strategy"], "BASE_HIERARCHY")
+        self.assertEqual(plan["decision_authority"], "BASE_HIERARCHY_ONLY")
+        self.assertEqual(plan["action"], "WAIT")
 
     def test_07_fail_closed_safety_gate(self):
         """Proves live broker order execution remains fail-closed."""

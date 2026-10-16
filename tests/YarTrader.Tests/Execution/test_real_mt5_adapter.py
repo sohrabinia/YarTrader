@@ -16,9 +16,15 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
     def test_verify_safety_and_account_unauthorized_account(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_acc = MagicMock()
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 99999999  # Unauthorized account
         mock_acc.server = "Alpari-MT5-Demo"
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         self.adapter._mt5 = mock_mt5
         self.adapter._initialized = True
@@ -29,13 +35,46 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertIn("does not match authorized DEMO account", str(ctx.exception))
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_verify_safety_reconnects_after_session_bridge_drops(self, mock_verify):
+        stale_mt5 = MagicMock()
+        stale_mt5.account_info.side_effect = RuntimeError("bridge connection refused")
+        recovered_mt5 = MagicMock()
+        recovered_account = MagicMock()
+        recovered_account.login = 52961173
+        recovered_account.server = "Alpari-MT5-Demo"
+        recovered_account.trade_mode = 0
+        recovered_mt5.account_info.return_value = recovered_account
+
+        self.adapter._mt5 = stale_mt5
+        self.adapter._initialized = True
+        self.adapter._using_session_bridge = True
+
+        def reconnect():
+            self.adapter._mt5 = recovered_mt5
+            self.adapter._initialized = True
+            self.adapter._using_session_bridge = True
+            return True
+
+        with patch.object(self.adapter, "_try_import_and_init", side_effect=reconnect) as mock_reconnect:
+            self.assertTrue(self.adapter.verify_safety_and_account("DEMO"))
+
+        mock_reconnect.assert_called_once_with()
+        recovered_mt5.account_info.assert_called_once_with()
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_verify_safety_and_account_authorized(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_acc = MagicMock()
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         self.adapter._mt5 = mock_mt5
         self.adapter._initialized = True
@@ -59,10 +98,24 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.TRADE_RETCODE_DONE = 10009
 
         mock_acc = MagicMock()
+
+        mock_acc.balance = 10000.0
+
+        mock_acc.equity = 10000.0
+
+        mock_acc.margin_free = 10000.0
+
+        mock_acc.free_margin = 10000.0
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -98,7 +151,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
             Symbol="XAUUSD",
             OrderType="Buy",
             Volume=0.01,
-            TargetWeight=0.01
+            TargetWeight=0.01,
+            StopLoss=2290.8,
         )
 
         resp = self.adapter.send_order_to_broker(req)
@@ -108,6 +162,61 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertEqual(resp.DealTicket, "987654321")
         self.assertEqual(resp.Price, 2300.80)
         self.assertEqual(resp.Retcode, 10009)
+        # The caller requested 0.01, but a fresh $1M wallet and $10 stop
+        # risk produce a risk-sized order instead of a hardcoded minimum lot.
+        sent_request = mock_mt5.order_send.call_args[0][0]
+        self.assertAlmostEqual(sent_request["volume"], 10.0, places=6)
+        self.assertNotEqual(sent_request["volume"], req.Volume)
+        self.assertGreaterEqual(mock_mt5.account_info.call_count, 2)  # safety check + fresh sizing snapshot
+
+    def test_wallet_sizing_honors_lower_strategy_risk_share(self):
+        mock_mt5 = MagicMock()
+        mock_mt5.ORDER_TYPE_BUY = 0
+        mock_mt5.account_info.return_value = MagicMock(
+            balance=1000000.0, equity=1000000.0, margin_free=1000000.0
+        )
+        mock_mt5.order_calc_profit.side_effect = (
+            lambda order_type, symbol, volume, entry, stop_loss:
+            -abs(float(entry) - float(stop_loss)) * 100.0 * float(volume)
+        )
+        mock_mt5.order_calc_margin.return_value = 0.0
+        sym_info = MagicMock(volume_min=0.01, volume_max=100.0, volume_step=0.01)
+        self.adapter._mt5 = mock_mt5
+        result = self.adapter._calculate_current_wallet_volume(
+            "XAUUSD", "BUY", 2300.0, 2290.0, sym_info, risk_pct=0.2
+        )
+        self.assertAlmostEqual(result["risk_budget"], 2000.0, places=2)
+        self.assertAlmostEqual(result["risk_pct"], 0.2, places=6)
+        self.assertLess(result["volume"], 100.0)
+
+    def test_wallet_sizing_rejects_strategy_share_above_global_ceiling(self):
+        mock_mt5 = MagicMock()
+        mock_mt5.account_info.return_value = MagicMock(
+            balance=1000000.0, equity=1000000.0, margin_free=1000000.0
+        )
+        self.adapter._mt5 = mock_mt5
+        sym_info = MagicMock(volume_min=0.01, volume_max=100.0, volume_step=0.01)
+        with self.assertRaisesRegex(ValidationException, "global 1% ceiling"):
+            self.adapter._calculate_current_wallet_volume(
+                "XAUUSD", "BUY", 2300.0, 2290.0, sym_info, risk_pct=1.01
+            )
+
+    def test_live_wallet_sizing_blocks_when_broker_minimum_exceeds_budget(self):
+        mock_mt5 = MagicMock()
+        mock_mt5.ORDER_TYPE_BUY = 0
+        mock_mt5.account_info.return_value = MagicMock(
+            balance=500.0, equity=500.0, margin_free=500.0
+        )
+        mock_mt5.order_calc_profit.side_effect = (
+            lambda order_type, symbol, volume, entry, stop_loss:
+            -abs(float(entry) - float(stop_loss)) * 100.0 * float(volume)
+        )
+        sym_info = MagicMock(volume_min=0.01, volume_max=100.0, volume_step=0.01)
+        self.adapter._mt5 = mock_mt5
+        with self.assertRaisesRegex(ValidationException, "above current wallet budget"):
+            self.adapter._calculate_current_wallet_volume(
+                "XAUUSD", "BUY", 2300.0, 2290.0, sym_info
+            )
 
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_get_positions_mapping(self, mock_verify):
@@ -155,10 +264,24 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.TRADE_RETCODE_DONE = 10009
 
         mock_acc = MagicMock()
+
+        mock_acc.balance = 10000.0
+
+        mock_acc.equity = 10000.0
+
+        mock_acc.margin_free = 10000.0
+
+        mock_acc.free_margin = 10000.0
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -224,10 +347,24 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.TRADE_RETCODE_DONE = 10009
 
         mock_acc = MagicMock()
+
+        mock_acc.balance = 10000.0
+
+        mock_acc.equity = 10000.0
+
+        mock_acc.margin_free = 10000.0
+
+        mock_acc.free_margin = 10000.0
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -285,10 +422,16 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
     def test_order_check_blocks_10030(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_acc = MagicMock()
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -316,7 +459,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         req = OrderRequest(
             Symbol="BITCOIN",
             OrderType="Buy",
-            Volume=0.01
+            Volume=0.01,
+            StopLoss=64050.0,
         )
 
         resp = self.adapter.send_order_to_broker(req)
@@ -329,10 +473,16 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
     def test_invalid_filling_blocks_order_send(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_acc = MagicMock()
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -360,7 +510,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         req = OrderRequest(
             Symbol="BITCOIN",
             OrderType="Buy",
-            Volume=0.01
+            Volume=0.01,
+            StopLoss=64050.0,
         )
 
         resp = self.adapter.send_order_to_broker(req)
@@ -373,10 +524,16 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
     def test_authorized_demo_account_only(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_acc = MagicMock()
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         self.adapter._mt5 = mock_mt5
         self.adapter._initialized = True
@@ -388,10 +545,16 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
     def test_order_check_invalid_retcode_10013_fails_closed(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_acc = MagicMock()
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -420,7 +583,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
             Symbol="XAUUSD",
             OrderType="Buy",
             Volume=0.01,
-            TargetWeight=0.01
+            TargetWeight=0.01,
+            StopLoss=2290.8,
         )
 
         resp = self.adapter.send_order_to_broker(req)
@@ -441,10 +605,24 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.TRADE_RETCODE_DONE = 10009
 
         mock_acc = MagicMock()
+
+        mock_acc.balance = 10000.0
+
+        mock_acc.equity = 10000.0
+
+        mock_acc.margin_free = 10000.0
+
+        mock_acc.free_margin = 10000.0
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -508,10 +686,24 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.ORDER_FILLING_IOC = 1
 
         mock_acc = MagicMock()
+
+        mock_acc.balance = 10000.0
+
+        mock_acc.equity = 10000.0
+
+        mock_acc.margin_free = 10000.0
+
+        mock_acc.free_margin = 10000.0
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -547,7 +739,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         req = OrderRequest(
             Symbol="XAUUSD",
             OrderType="Buy",
-            Volume=0.01
+            Volume=0.01,
+            StopLoss=2290.8,
         )
 
         self.adapter.send_order_to_broker(req)
@@ -559,10 +752,16 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
     def test_order_check_none_blocks_send(self, mock_verify):
         mock_mt5 = MagicMock()
         mock_acc = MagicMock()
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -586,7 +785,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         req = OrderRequest(
             Symbol="XAUUSD",
             OrderType="Buy",
-            Volume=0.01
+            Volume=0.01,
+            StopLoss=2290.8,
         )
 
         resp = self.adapter.send_order_to_broker(req)
@@ -608,10 +808,24 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.TRADE_RETCODE_DONE = 10009
 
         mock_acc = MagicMock()
+
+        mock_acc.balance = 10000.0
+
+        mock_acc.equity = 10000.0
+
+        mock_acc.margin_free = 10000.0
+
+        mock_acc.free_margin = 10000.0
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -680,10 +894,24 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.ORDER_FILLING_RETURN = 2
 
         mock_acc = MagicMock()
+
+        mock_acc.balance = 10000.0
+
+        mock_acc.equity = 10000.0
+
+        mock_acc.margin_free = 10000.0
+
+        mock_acc.free_margin = 10000.0
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -711,12 +939,16 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         req = OrderRequest(
             Symbol="XAUUSD",
             OrderType="Buy",
-            Volume=0.01
+            Volume=0.01,
+            StopLoss=2290.8,
         )
 
         resp = self.adapter.send_order_to_broker(req)
 
         self.assertEqual(resp.Status, "Failed")
+        self.assertEqual(resp.Retcode, 10030)
+        self.assertEqual(resp.RawResponse["retcode"], 10030)
+        self.assertEqual(resp.RawResponse["trade_req"]["symbol"], "XAUUSD")
         self.assertEqual(mock_mt5.order_check.call_count, 3)
         mock_mt5.order_send.assert_not_called()
 
@@ -731,10 +963,24 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         mock_mt5.TRADE_RETCODE_DONE = 10009
 
         mock_acc = MagicMock()
+
+        mock_acc.balance = 10000.0
+
+        mock_acc.equity = 10000.0
+
+        mock_acc.margin_free = 10000.0
+
+        mock_acc.free_margin = 10000.0
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc.login = 52961173
         mock_acc.server = "Alpari-MT5-Demo"
         mock_acc.trade_mode = 0
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
 
         mock_sym = MagicMock()
         mock_sym.visible = True
@@ -907,12 +1153,18 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
 
         mock_mt5 = MagicMock()
         mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
 
         # XAUUSD symbol contract with digits = 2
         mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2, filling_mode=2)
         mock_tick = MagicMock(bid=2500.50, ask=2500.60)
 
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
         mock_mt5.symbol_info.return_value = mock_sym
         mock_mt5.symbol_info_tick.return_value = mock_tick
         mock_mt5.ORDER_TYPE_BUY = 0
@@ -966,12 +1218,18 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
 
         mock_mt5 = MagicMock()
         mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
 
         # Symbol contract with digits = 3
         mock_sym_3 = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=3, filling_mode=2)
         mock_tick_3 = MagicMock(bid=160.123, ask=160.125)
 
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
         mock_mt5.symbol_info.return_value = mock_sym_3
         mock_mt5.symbol_info_tick.return_value = mock_tick_3
         mock_mt5.ORDER_TYPE_BUY = 0
@@ -1023,10 +1281,16 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
 
         mock_mt5 = MagicMock()
         mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2, filling_mode=2)
         mock_tick = MagicMock(bid=2500.50, ask=2500.60)
 
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
         mock_mt5.symbol_info.return_value = mock_sym
         mock_mt5.symbol_info_tick.return_value = mock_tick
         mock_mt5.ORDER_TYPE_SELL = 1
@@ -1078,11 +1342,17 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
 
         mock_mt5 = MagicMock()
         mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2, filling_mode=2)
         mock_tick = MagicMock(bid=2500.50, ask=2500.60)
         mock_pos = MagicMock(ticket=123456, type=0) # POSITION_TYPE_BUY
 
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
         mock_mt5.symbol_info.return_value = mock_sym
         mock_mt5.symbol_info_tick.return_value = mock_tick
         mock_mt5.positions_get.return_value = [mock_pos]
@@ -1143,12 +1413,18 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
 
         mock_mt5 = MagicMock()
         mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
 
         # Symbol contract with trade_stops_level = 50 points ($0.50 for XAUUSD point=0.01)
         mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=2, point=0.01, trade_stops_level=50, filling_mode=2)
         mock_tick = MagicMock(bid=2500.50, ask=2500.60)
 
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
         mock_mt5.symbol_info.return_value = mock_sym
         mock_mt5.symbol_info_tick.return_value = mock_tick
         mock_mt5.ORDER_TYPE_BUY = 0
@@ -1180,9 +1456,15 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
 
         mock_mt5 = MagicMock()
         mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_tick = MagicMock(bid=2500.50, ask=2500.60)
 
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
         mock_mt5.symbol_info_tick.return_value = mock_tick
         adapter._mt5 = mock_mt5
 
@@ -1202,7 +1484,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
                 OrderType="BUY",
                 Volume=0.01,
                 Price=2500.1234,
-                Comment="Fail Closed Test"
+                Comment="Fail Closed Test",
+                StopLoss=2490.1234,
             )
 
             with self.assertRaises(ValidationException, msg=f"Failed to fail closed for digits={inv_digits}") as ctx:
@@ -1220,12 +1503,18 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
 
         mock_mt5 = MagicMock()
         mock_acc = MagicMock(login=52961173, server="Alpari-MT5-Demo", trade_mode=0)
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
 
         # Symbol contract with digits = 0 (e.g. BTCUSD or JP225)
         mock_sym = MagicMock(visible=True, select=True, volume_min=0.01, volume_step=0.01, volume_max=100.0, digits=0, filling_mode=2)
         mock_tick = MagicMock(bid=50000.0, ask=50001.0)
 
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
         mock_mt5.symbol_info.return_value = mock_sym
         mock_mt5.symbol_info_tick.return_value = mock_tick
         mock_mt5.ORDER_TYPE_BUY = 0
@@ -1301,6 +1590,10 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
 
         mock_mt5 = MagicMock()
         mock_acc = MagicMock()
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc._asdict.return_value = {
             "login": 52961173,
             "server": "Alpari-MT5-Demo",
@@ -1313,6 +1606,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
             "leverage": 100
         }
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
         adapter._mt5 = mock_mt5
 
         acc_dict = adapter.get_account_info()
@@ -1369,6 +1664,10 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
 
         mock_mt5 = MagicMock()
         mock_acc = MagicMock(spec=["_asdict"])
+        mock_acc.balance = 1000000.0
+        mock_acc.equity = 1000000.0
+        mock_acc.margin_free = 1000000.0
+        mock_acc.free_margin = 1000000.0
         mock_acc._asdict.return_value = {
             "login": 52961173,
             "server": "Alpari-MT5-Demo",
@@ -1377,6 +1676,8 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
             "balance": 10000.0,
         }
         mock_mt5.account_info.return_value = mock_acc
+        mock_mt5.order_calc_profit.side_effect = lambda order_type, symbol, volume, entry, stop_loss: -abs(float(entry) - float(stop_loss)) * (100000.0 if symbol.upper() in {"EURJPY", "EURUSD"} else 100.0) * float(volume)
+        mock_mt5.order_calc_margin.return_value = 0.0
         adapter._mt5 = mock_mt5
 
         acc_dict = adapter.get_account_info()
@@ -1384,6 +1685,109 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
         self.assertIsNotNone(acc_dict)
         self.assertNotIn("margin_free", acc_dict)
         self.assertNotIn("free_margin", acc_dict)
+
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_clear_position_take_profit_preserves_protective_stop(self, mock_verify):
+        mt5 = MagicMock()
+        mt5.TRADE_ACTION_SLTP = 6
+        mt5.TRADE_RETCODE_DONE = 10009
+        account = MagicMock()
+        account.login = 52961173
+        account.server = "Alpari-MT5-Demo"
+        account.trade_mode = 0
+        mt5.account_info.return_value = account
+        position = MagicMock()
+        position.symbol = "XAUUSD"
+        position.sl = 1990.0
+        position.tp = 2050.0
+        mt5.positions_get.return_value = [position]
+        check = MagicMock()
+        check.retcode = 0
+        mt5.order_check.return_value = check
+        sent = MagicMock()
+        sent.retcode = 10009
+        sent.comment = "Done"
+        sent._asdict.return_value = {"retcode": 10009}
+        mt5.order_send.return_value = sent
+        self.adapter._mt5 = mt5
+        self.adapter._initialized = True
+
+        response = self.adapter.clear_position_take_profit(101)
+
+        self.assertEqual(response.Status, "Modified")
+        request = mt5.order_send.call_args.args[0]
+        self.assertEqual(request["action"], 6)
+        self.assertEqual(request["position"], 101)
+        self.assertEqual(request["sl"], 1990.0)
+        self.assertEqual(request["tp"], 0.0)
+        mock_verify.assert_called_once()
+
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_update_position_take_profit_extends_target_and_preserves_sl(self, mock_verify):
+        mt5 = MagicMock()
+        mt5.TRADE_ACTION_SLTP = 6
+        mt5.TRADE_RETCODE_DONE = 10009
+        mt5.POSITION_TYPE_BUY = 0
+        mt5.POSITION_TYPE_SELL = 1
+        account = MagicMock()
+        account.login = 52961173
+        account.server = "Alpari-MT5-Demo"
+        account.trade_mode = 0
+        mt5.account_info.return_value = account
+        position = MagicMock()
+        position.symbol = "EURUSD"
+        position.sl = 1.0800
+        position.tp = 1.0950
+        position.type = 0
+        position.price_open = 1.0900
+        mt5.positions_get.return_value = [position]
+        check = MagicMock()
+        check.retcode = 0
+        mt5.order_check.return_value = check
+        sent = MagicMock()
+        sent.retcode = 10009
+        sent.comment = "Done"
+        sent._asdict.return_value = {"retcode": 10009}
+        mt5.order_send.return_value = sent
+        self.adapter._mt5 = mt5
+        self.adapter._initialized = True
+
+        response = self.adapter.update_position_take_profit(101, 1.1000)
+
+        self.assertEqual(response.Status, "Modified")
+        request = mt5.order_send.call_args.args[0]
+        self.assertEqual(request["position"], 101)
+        self.assertEqual(request["sl"], 1.0800)
+        self.assertEqual(request["tp"], 1.1000)
+        mock_verify.assert_called_once()
+
+    @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
+    def test_update_position_take_profit_does_not_pull_target_closer(self, mock_verify):
+        mt5 = MagicMock()
+        mt5.POSITION_TYPE_BUY = 0
+        mt5.POSITION_TYPE_SELL = 1
+        account = MagicMock()
+        account.login = 52961173
+        account.server = "Alpari-MT5-Demo"
+        account.trade_mode = 0
+        mt5.account_info.return_value = account
+        position = MagicMock()
+        position.symbol = "EURUSD"
+        position.sl = 1.0800
+        position.tp = 1.1000
+        position.type = 0
+        position.price_open = 1.0900
+        mt5.positions_get.return_value = [position]
+        self.adapter._mt5 = mt5
+        self.adapter._initialized = True
+
+        response = self.adapter.update_position_take_profit(101, 1.0950)
+
+        self.assertEqual(response.Status, "NoChange")
+        mt5.order_send.assert_not_called()
+        mock_verify.assert_called_once()
 
 
 if __name__ == "__main__":

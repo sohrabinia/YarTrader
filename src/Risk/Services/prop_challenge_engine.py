@@ -2,7 +2,7 @@ import os
 import json
 import threading
 from typing import Dict, Any, Optional
-from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, ProductionRiskPolicy
 
 DISCLAIMER_TEXT = (
     "The YarTrader Prop Firm Challenge Plan provides objective risk control monitoring and compliance gates. "
@@ -28,9 +28,9 @@ class PropChallengeEngine:
             "account_number": "",
             "account_size": 100000.0,
             "target_profit_pct": 10.0,
-            "daily_loss_limit_pct": 5.0,
+            "daily_loss_limit_pct": ProductionRiskPolicy.MAX_DAILY_LOSS_PCT,
             "max_drawdown_pct": 10.0,
-            "risk_per_trade_pct": 1.0,
+            "risk_per_trade_pct": ProductionRiskPolicy.TARGET_RISK_PCT,
             "max_exposure_pct": 3.0,
             "max_concurrent_positions": 3,
             "session_rules": "ALLOW_ALL_SESSIONS",
@@ -47,6 +47,9 @@ class PropChallengeEngine:
                         cfg = json.load(f)
                         defaults = self._get_default_config()
                         defaults.update(cfg)
+                        # Enforce one canonical daily drawdown ceiling; old persisted values cannot override it.
+                        defaults["daily_loss_limit_pct"] = ProductionRiskPolicy.MAX_DAILY_LOSS_PCT
+                        defaults["risk_per_trade_pct"] = ProductionRiskPolicy.TARGET_RISK_PCT
                         return defaults
                 except Exception:
                     pass
@@ -56,8 +59,10 @@ class PropChallengeEngine:
         with self.lock:
             current = self.load_config()
             for k, v in config_data.items():
-                if k in current:
+                if k in current and k not in {"daily_loss_limit_pct", "risk_per_trade_pct"}:
                     current[k] = v
+            current["daily_loss_limit_pct"] = ProductionRiskPolicy.MAX_DAILY_LOSS_PCT
+            current["risk_per_trade_pct"] = ProductionRiskPolicy.TARGET_RISK_PCT
             current["is_configured"] = True
             tmp_file = self.config_filepath + ".tmp"
             with open(tmp_file, "w", encoding="utf-8") as f:
@@ -79,7 +84,7 @@ class PropChallengeEngine:
                 }
 
             account_size = float(cfg["account_size"])
-            daily_loss_limit_pct = float(cfg["daily_loss_limit_pct"])
+            daily_loss_limit_pct = ProductionRiskPolicy.MAX_DAILY_LOSS_PCT
             max_drawdown_pct = float(cfg["max_drawdown_pct"])
             target_profit_pct = float(cfg.get("target_profit_pct", 10.0))
 

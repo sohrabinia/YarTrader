@@ -66,8 +66,8 @@ from app.workers.intelligence_worker import IntelligenceWorker
 from pathlib import Path
 from src.Application.Runtime.runtime_state import central_runtime_state
 
-# Import existing FastAPI app
-from src.Application.Services.web_dashboard import app as fastapi_app
+# Import the FastAPI app and the canonical in-process Brain memory instance.
+from src.Application.Services.web_dashboard import app as fastapi_app, global_memory_system
 
 # Dual Mode: Check if we are running as a Windows Service
 try:
@@ -96,7 +96,7 @@ class YarTraderServiceHost:
             symbol=self.config.mt5_symbol,
             timeframe=self.config.mt5_timeframe
         )
-        self.intelligence_worker = IntelligenceWorker()
+        self.intelligence_worker = IntelligenceWorker(memory_system=global_memory_system)
 
     def start(self) -> None:
         """Starts all background processes, API, and worker threads."""
@@ -114,8 +114,12 @@ class YarTraderServiceHost:
                 log_service_message("Workers Started — Research Worker")
                 self.research_worker.start()
 
-            # Continuous IntelligenceWorker is deprecated and removed from orchestration.
-            log_service_message("Workers Started — Intelligence Worker (DEPRECATED/SKIPPED)")
+            if self.config.workers_intelligence:
+                log_service_message("Workers Started — Intelligence Worker (persisted Brain learning)")
+                self.intelligence_worker.start()
+            else:
+                central_runtime_state.update_state("intelligence_status", "Stopped")
+                log_service_message("Intelligence Worker Disabled by configuration")
 
             # ShadowWorker is DEPRECATED and REMOVED repository-wide (SHADOW = ZERO).
             log_service_message("Workers Started — Shadow Worker (DEPRECATED/REMOVED - SHADOW = ZERO)")
@@ -124,28 +128,36 @@ class YarTraderServiceHost:
             self.last_error = f"Worker startup exception: {str(e)}"
             log_service_message(f"Exception during worker startup: {str(e)}")
 
-        # 2. Start autonomous historical-learning queue. It waits fail-closed
-        # for the authorized read-only MT4 Signal heartbeat before doing work.
-        try:
-            self.historical_learning_stop.clear()
-            queue_script = Path(project_root) / "app" / "workers" / "historical_learning_queue.py"
+        # 2. Historical learning is opt-in and uses only the authorized read-only MT4 SIGNAL bridge.
+        # It requests historical bars; it never submits MT4 orders. Symbol count is capped by default
+        # so the research and DEMO workers remain responsive on the constrained host.
+        if os.getenv("YARTRADER_HISTORICAL_LEARNING_QUEUE_ENABLED", "").strip().lower() == "true":
+            try:
+                self.historical_learning_stop.clear()
+                queue_script = Path(project_root) / "app" / "workers" / "historical_learning_queue.py"
+                queue_years = os.getenv("YARTRADER_HISTORICAL_LEARNING_YEARS", "10").strip() or "10"
+                # Default to one symbol on the constrained production host; set 0 to process the full configured list.
+                queue_max_symbols = os.getenv("YARTRADER_HISTORICAL_LEARNING_MAX_SYMBOLS", "1").strip() or "1"
 
-            def _run_historical_learning():
-                try:
-                    log_service_message("Historical Learning Queue Started — waiting for MT4 Signal bridge")
-                    subprocess.run([sys.executable, str(queue_script), "--years", "10"],
-                                   cwd=project_root, check=False)
-                except Exception as e:
-                    log_service_message(f"Historical Learning Queue Exception: {e}")
+                def _run_historical_learning():
+                    try:
+                        log_service_message("Historical Learning Queue explicitly enabled; starting read-only broker-history learning")
+                        subprocess.run([sys.executable, str(queue_script), "--years", queue_years,
+                                        "--max-symbols", queue_max_symbols],
+                                       cwd=project_root, check=False)
+                    except Exception as e:
+                        log_service_message(f"Historical Learning Queue Exception: {e}")
 
-            self.historical_learning_thread = threading.Thread(
-                target=_run_historical_learning,
-                daemon=True,
-                name="HistoricalLearningQueue"
-            )
-            self.historical_learning_thread.start()
-        except Exception as e:
-            log_service_message(f"Historical Learning Queue startup exception: {e}")
+                self.historical_learning_thread = threading.Thread(
+                    target=_run_historical_learning,
+                    daemon=True,
+                    name="HistoricalLearningQueue"
+                )
+                self.historical_learning_thread.start()
+            except Exception as e:
+                log_service_message(f"Historical Learning Queue startup exception: {e}")
+        else:
+            log_service_message("Historical Learning Queue not started; explicit enable flag is absent")
 
         # 3. Start Uvicorn FastAPI Server on background thread
         try:
@@ -248,7 +260,8 @@ class YarTraderServiceHost:
         self.historical_learning_stop.set()
         try:
             self.research_worker.stop()
-            central_runtime_state.update_state("shadow_status", "Stopped")
+            self.intelligence_worker.stop()
+            central_runtime_state.update_state("shadow_status", "Disabled")
         except Exception as e:
             log_service_message(f"Exception during worker shutdown: {str(e)}")
 

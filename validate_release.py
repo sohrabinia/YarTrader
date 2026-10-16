@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TradeYar AI — Production Acceptance, Autonomous Validation & Quality Assurance Platform
+TradeYar AI â€” Production Acceptance, Autonomous Validation & Quality Assurance Platform
 
 This script serves as the official validation and release entry point for non-programmers.
 It automates the complete production verification workflow:
@@ -28,6 +28,7 @@ import traceback
 import math
 import ast
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Tuple, Set
 
 from src.Application.Deployment.storage import YarTraderStorageManager
@@ -179,112 +180,292 @@ class ReleaseValidationPlatform:
         return results
 
     def run_automated_tests(self) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        """Part 6: Complete Automatic Test Discovery & Part 2/18: Failure investigation & RCA"""
-        self.log("Starting automatic test discovery and execution...")
+        """Run deterministic, non-overlapping test partitions for bounded CI jobs.
+
+        CI sets VALIDATION_PARTITION_INDEX to run one partition per matrix job.
+        Local release validation without that variable executes every partition.
+        """
+        self.log("Starting deterministic partitioned test execution...")
         start_time = time.perf_counter()
 
-        # Run pytest programmatically via subprocess to capture output precisely
+        partitions = [
+            ("Gate 1 Suite", ["tests/YarTrader.Tests/Gate1"]),
+            ("Gate 2 Suite", ["tests/YarTrader.Tests/Gate2"]),
+            ("Forensic Safety Suite", ["tests/YarTrader.Tests/Forensic"]),
+            ("Risk Subsystem", ["tests/YarTrader.Tests/Risk"]),
+            ("Agents, Growth & Collaboration", [
+                "tests/YarTrader.Tests/Agents", "tests/YarTrader.Tests/Growth",
+                "tests/YarTrader.Tests/Collaboration",
+            ]),
+            ("Dashboard, Communication & Conversation", [
+                "tests/YarTrader.Tests/Dashboard", "tests/YarTrader.Tests/Communication",
+                "tests/YarTrader.Tests/Conversation",
+            ]),
+            ("Data, Timeframes, Providers, Monitoring & Universe", [
+                "tests/YarTrader.Tests/Data", "tests/YarTrader.Tests/Timeframes",
+                "tests/YarTrader.Tests/Providers", "tests/YarTrader.Tests/Monitoring",
+                "tests/YarTrader.Tests/Universe",
+            ]),
+            ("Execution, Bridge & Demo", [
+                "tests/YarTrader.Tests/Execution", "tests/YarTrader.Tests/Bridge",
+                "tests/YarTrader.Tests/Demo",
+            ]),
+            ("Learning, Memory & Context", [
+                "tests/YarTrader.Tests/Learning", "tests/YarTrader.Tests/Memory",
+                "tests/YarTrader.Tests/Context",
+            ]),
+            ("Backtesting Subsystem", ["tests/YarTrader.Tests/Backtesting"]),
+            ("Audit, SDDL, Compliance & Explainability", [
+                "tests/YarTrader.Tests/Audit", "tests/YarTrader.Tests/SDDL",
+                "tests/YarTrader.Tests/Compliance", "tests/YarTrader.Tests/Explainability",
+            ]),
+            ("Pipeline, Infrastructure & Deployment", [
+                "tests/YarTrader.Tests/Pipeline", "tests/YarTrader.Tests/Infrastructure",
+                "tests/YarTrader.Tests/Deployment",
+            ]),
+            ("Brain & Research", [
+                "tests/YarTrader.Tests/Brain", "tests/YarTrader.Tests/Research",
+            ]),
+            ("Integration, Services, Shadow & Supervisor", [
+                "tests/YarTrader.Tests/Integration", "tests/YarTrader.Tests/Services",
+                "tests/YarTrader.Tests/Shadow", "tests/YarTrader.Tests/Supervisor",
+            ]),
+            ("Architecture, Intelligence, Knowledge, Orchestration & Decision", [
+                "tests/YarTrader.Tests/Architecture", "tests/YarTrader.Tests/Intelligence",
+                "tests/YarTrader.Tests/Knowledge", "tests/YarTrader.Tests/Orchestration",
+                "tests/YarTrader.Tests/Decision",
+            ]),
+            ("Runtime & Validation", [
+                "tests/YarTrader.Tests/Runtime", "tests/YarTrader.Tests/Validation",
+            ]),
+            ("Remaining General Tests", ["tests/runtime"]),
+        ]
+
+        # Every test file must belong to exactly one partition. Any newly added
+        # suite not yet assigned above is collected by the final partition so
+        # coverage cannot silently shrink when the repository grows.
+        all_test_files = sorted(
+            path.as_posix()
+            for path in Path("tests").rglob("test_*.py")
+            if path.is_file()
+        )
+        assigned = set()
+        for index, (_, paths) in enumerate(partitions):
+            if index == len(partitions) - 1:
+                continue
+            for root in paths:
+                root_path = Path(root)
+                if root_path.is_dir():
+                    assigned.update(
+                        candidate.as_posix()
+                        for candidate in root_path.rglob("test_*.py")
+                        if candidate.is_file()
+                    )
+                elif root_path.is_file() and root_path.name.startswith("test_"):
+                    assigned.add(root_path.as_posix())
+
+        general_paths = list(partitions[-1][1])
+        general_paths.extend(
+            file_path for file_path in all_test_files if file_path not in assigned and not file_path.startswith("tests/runtime/")
+        )
+        partitions[-1] = (partitions[-1][0], list(dict.fromkeys(general_paths)))
+
+        raw_index = os.getenv("VALIDATION_PARTITION_INDEX")
+        if raw_index is None or not raw_index.strip():
+            active_partitions = list(enumerate(partitions))
+            self.log("No VALIDATION_PARTITION_INDEX set; running all partitions locally.")
+        else:
+            try:
+                partition_index = int(raw_index)
+            except ValueError:
+                partition_index = -1
+            if not 0 <= partition_index < len(partitions):
+                message = (
+                    f"Invalid VALIDATION_PARTITION_INDEX={raw_index!r}; "
+                    f"expected an integer from 0 to {len(partitions) - 1}."
+                )
+                self.log(message, "ERROR")
+                self.failed_count += 1
+                return ({
+                    "total": 1, "passed": 0, "failed": 1, "skipped": 0,
+                    "warnings": 0, "duration_sec": round(time.perf_counter() - start_time, 2),
+                    "status": "FAILED",
+                }, [])
+            active_partitions = [(partition_index, partitions[partition_index])]
+            self.log(
+                f"Running CI partition {partition_index}: "
+                f"{partitions[partition_index][0]}"
+            )
+
         try:
-            subprocess.run([self.python_exec, "-m", "pytest", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            subprocess.run(
+                [self.python_exec, "-m", "pytest", "--version"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True,
+            )
             pytest_cmd = [self.python_exec, "-m", "pytest"]
         except Exception:
             pytest_cmd = ["pytest"]
 
-        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"]
-        self.log(f"Running automated tests command: {' '.join(cmd_args)}")
+        total_passed = total_failed = total_skipped = total_warnings = 0
+        failures_list: List[Dict[str, Any]] = []
+        parsed_any = False
 
-        try:
-            env = dict(os.environ)
-            env["PYTHONPATH"] = "."
-            res = subprocess.run(cmd_args, capture_output=True, text=True, timeout=900, env=env)
-            stdout = res.stdout
-            stderr = res.stderr
-            return_code = res.returncode
-        except Exception as e:
-            self.log(f"Test run execution failed: {str(e)}", "ERROR")
-            stdout = ""
-            stderr = str(e)
-            return_code = -1
+        for partition_index, (partition_name, paths) in active_partitions:
+            partition_failure_start = len(failures_list)
+            valid_paths = [item for item in paths if Path(item).exists()]
+            if not valid_paths:
+                self.log(
+                    f"Partition {partition_index} [{partition_name}] has no test paths.",
+                    "ERROR",
+                )
+                total_failed += 1
+                continue
+
+            cmd_args = pytest_cmd + valid_paths + ["--tb=short", "-p", "no:warnings"]
+            self.log(
+                f"Executing partition {partition_index} [{partition_name}]: "
+                f"{' '.join(cmd_args)}"
+            )
+            try:
+                env = dict(os.environ)
+                env["PYTHONPATH"] = "."
+                result = subprocess.run(
+                    cmd_args, capture_output=True, text=True, timeout=400, env=env,
+                )
+                stdout = result.stdout or ""
+                stderr = result.stderr or ""
+                return_code = result.returncode
+            except subprocess.TimeoutExpired as exc:
+                stdout = exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+                stderr = exc.stderr.decode(errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+                return_code = -1
+                stderr += "\nTimed out after 400 seconds."
+            except Exception as exc:
+                stdout, stderr, return_code = "", str(exc), -1
+
+            if stdout.strip():
+                self.logs_collected.extend(stdout.splitlines()[-120:])
+            if stderr.strip():
+                self.log(
+                    f"Partition {partition_index} stderr: {stderr[-4000:]}",
+                    "ERROR" if return_code != 0 else "WARNING",
+                )
+
+            summary_line = next(
+                (
+                    line.strip()
+                    for line in reversed(stdout.splitlines())
+                    if line.strip().startswith("===")
+                    and any(token in line for token in ("passed", "failed", "skipped", "error"))
+                ),
+                None,
+            )
+            p_passed = p_failed = p_skipped = p_warnings = 0
+            summary_found = summary_line is not None
+            if summary_line:
+                parsed_any = True
+                summary = summary_line.strip("= !")
+                for token in summary.split(","):
+                    token = token.strip()
+                    pieces = token.split()
+                    if not pieces or not pieces[0].isdigit():
+                        continue
+                    count = int(pieces[0])
+                    if "passed" in token:
+                        p_passed = count
+                    elif "failed" in token or "error" in token:
+                        p_failed += count
+                    elif "skipped" in token:
+                        p_skipped = count
+                    elif "warning" in token:
+                        p_warnings = count
+
+            if not summary_found:
+                self.log(
+                    f"Partition {partition_index} [{partition_name}] produced no parseable "
+                    f"pytest summary (exit={return_code}). Output tail: "
+                    f"{stdout[-3000:]} {stderr[-2000:]}",
+                    "ERROR",
+                )
+                p_failed += 1
+            elif return_code != 0 and p_failed == 0:
+                self.log(
+                    f"Partition {partition_index} [{partition_name}] exited {return_code} "
+                    "despite no reported test failures.",
+                    "ERROR",
+                )
+                p_failed += 1
+
+            total_passed += p_passed
+            total_failed += p_failed
+            total_skipped += p_skipped
+            total_warnings += p_warnings
+
+            if p_failed:
+                self.log(
+                    f"Partition {partition_index} [{partition_name}] had {p_failed} failures.",
+                    "WARNING",
+                )
+                in_failure_block = False
+                current_fail_test = ""
+                current_traceback = []
+                for line in stdout.splitlines():
+                    if line.startswith("____") and line.endswith("____"):
+                        if current_fail_test:
+                            failures_list.append(
+                                self._analyze_failure(current_fail_test, "\n".join(current_traceback))
+                            )
+                        current_fail_test = line.replace("_", "").strip()
+                        current_traceback = []
+                        in_failure_block = True
+                    elif line.startswith("====") and in_failure_block:
+                        if current_fail_test:
+                            failures_list.append(
+                                self._analyze_failure(current_fail_test, "\n".join(current_traceback))
+                            )
+                        in_failure_block = False
+                        current_fail_test = ""
+                    elif in_failure_block:
+                        current_traceback.append(line)
+                if current_fail_test:
+                    failures_list.append(
+                        self._analyze_failure(current_fail_test, "\n".join(current_traceback))
+                    )
+                for failure in failures_list[partition_failure_start:]:
+                    details = str(failure.get("traceback", "")).strip().replace("\n", " | ")
+                    self.log(
+                        f"Failed test [{partition_index}]: {failure.get('test', 'unknown')}: {details[-1200:]}",
+                        "ERROR",
+                    )
+                if len(failures_list) == partition_failure_start:
+                    self.log(
+                        f"Partition {partition_index} reported {p_failed} test failure(s); pytest summary was parsed but no failure block was recognized.",
+                        "ERROR",
+                    )
 
         elapsed = time.perf_counter() - start_time
-        self.log(f"Test execution completed in {round(elapsed, 2)} seconds.")
+        total_tests = total_passed + total_failed + total_skipped
+        if not parsed_any:
+            self.log(
+                "No parseable pytest summary was produced; validation fails closed.",
+                "CRITICAL",
+            )
+            total_failed = max(total_failed, 1)
+            total_tests = max(total_tests, 1)
 
-        total_tests = 0
-        passed = 0
-        failed = 0
-        skipped = 0
-        warnings = 0
-
-        failures_list = []
-
-        lines = stdout.splitlines()
-        summary_line = ""
-        for line in lines:
-            if "passed in" in line or "failed" in line or "skipped" in line:
-                if line.startswith("===") or line.startswith("!!!"):
-                    summary_line = line
-                    break
-
-        if summary_line:
-            tokens = summary_line.replace("=", "").replace("!", "").strip().split(",")
-            for token in tokens:
-                token = token.strip()
-                if "passed" in token:
-                    passed = int(token.split()[0])
-                elif "failed" in token:
-                    failed = int(token.split()[0])
-                elif "skipped" in token:
-                    skipped = int(token.split()[0])
-                elif "warnings" in token:
-                    warnings = int(token.split()[0])
-
-            total_tests = passed + failed + skipped
-        else:
-            if return_code == 0:
-                passed = 1280
-                total_tests = 1280
-            else:
-                failed = 1
-                total_tests = 1
-
-        if failed > 0:
-            self.log(f"Detected {failed} test failures! Initiating automatic root cause investigation...", "WARNING")
-            in_failure_block = False
-            current_fail_test = ""
-            current_traceback = []
-
-            for line in lines:
-                if line.startswith("____") and line.endswith("____"):
-                    if current_fail_test:
-                        failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
-                    current_fail_test = line.replace("_", "").strip()
-                    current_traceback = []
-                    in_failure_block = True
-                elif line.startswith("====") and in_failure_block:
-                    if current_fail_test:
-                        failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
-                    in_failure_block = False
-                    current_fail_test = ""
-                elif in_failure_block:
-                    current_traceback.append(line)
-
-            if current_fail_test:
-                failures_list.append(self._analyze_failure(current_fail_test, "\n".join(current_traceback)))
-
-        self.passed_count = passed
-        self.failed_count = failed
-        self.warning_count += warnings
-
+        self.log(f"Completed {len(active_partitions)} partition(s) in {elapsed:.2f}s.")
+        self.passed_count = total_passed
+        self.failed_count = total_failed
+        self.warning_count += total_warnings
         test_results = {
             "total": total_tests,
-            "passed": passed,
-            "failed": failed,
-            "skipped": skipped,
-            "warnings": warnings,
+            "passed": total_passed,
+            "failed": total_failed,
+            "skipped": total_skipped,
+            "warnings": total_warnings,
             "duration_sec": round(elapsed, 2),
-            "status": "PASSED" if failed == 0 else "FAILED"
+            "status": "PASSED" if total_failed == 0 and parsed_any else "FAILED",
         }
-
         return test_results, failures_list
 
     def _analyze_failure(self, test_name: str, traceback_str: str) -> Dict[str, Any]:
@@ -589,8 +770,8 @@ class ReleaseValidationPlatform:
         self.log(f" - HTML: {html_path}")
 
     def _compile_markdown(self, data: Dict[str, Any], failures: List[Dict[str, Any]], reg: Dict[str, Any]) -> str:
-        status_emoji = "✅" if data["readiness_status"] == "Production Ready" else "❌"
-        md = f"""# TradeYar AI — Release Verification Acceptance Report
+        status_emoji = "âœ…" if data["readiness_status"] == "Production Ready" else "âŒ"
+        md = f"""# TradeYar AI â€” Release Verification Acceptance Report
 
 ## Overall Status: {data['readiness_status']} {status_emoji}
 - **Timestamp:** {data['timestamp']}
@@ -656,7 +837,7 @@ class ReleaseValidationPlatform:
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TradeYar AI — Release Acceptance Report</title>
+    <title>TradeYar AI â€” Release Acceptance Report</title>
     <style>
         body {{
             font-family: 'Segoe UI', Arial, sans-serif;

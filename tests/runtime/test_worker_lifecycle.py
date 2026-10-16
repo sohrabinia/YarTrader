@@ -32,7 +32,8 @@ class TestWorkerLifecycle(unittest.TestCase):
         worker = IntelligenceWorker(interval_sec=1.0)
         worker.start()
         self.assertTrue(worker.is_running)
-        self.assertIn(central_runtime_state.get_key("intelligence_status"), ["Running", "Recovering"])
+        # The worker publishes Starting synchronously; the first persisted-memory cycle may take longer than the caller.
+        self.assertIn(central_runtime_state.get_key("intelligence_status"), ["Starting", "Running", "Recovering"])
 
         worker.stop()
         self.assertFalse(worker.is_running)

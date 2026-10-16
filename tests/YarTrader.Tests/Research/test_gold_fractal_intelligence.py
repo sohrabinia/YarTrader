@@ -112,6 +112,48 @@ class TestGoldFractalIntelligenceEngine:
         assert p2_4m[0]["open"] == sample_candles[0]["open"]
         assert p2_4m[0]["high"] == max(c["high"] for c in sample_candles[:4])
 
+    def test_determine_structural_relationship(self, engine):
+        child_base = {"High": 2350.0, "Low": 2340.0, "Type": "Bullish Base"}
+        parent_base = {"High": 2400.0, "Low": 2300.0, "Type": "Bullish Base"}
+        res = engine.determine_structural_relationship(child_base, parent_base)
+        assert res["relationship"] == "STRICT_CONTAINMENT"
+        assert res["containment_pct"] == 100.0
+        assert res["location_in_parent"] in ["PARENT_EQUILIBRIUM_CENTER", "PARENT_DISCOUNT_LOWER_ZONE", "PARENT_PREMIUM_UPPER_ZONE"]
+
+    def test_structural_relationship_rejects_invalid_geometry(self, engine):
+        res = engine.determine_structural_relationship(
+            {"High": 2340.0, "Low": 2350.0},
+            {"High": 2400.0, "Low": 2300.0},
+        )
+        assert res["relationship"] == "INVALID_GEOMETRY"
+
+    def test_parent_selection_uses_only_strictly_higher_timeframes(self, engine, monkeypatch):
+        base_by_tf = {
+            "MN1": {"Base_ID": "MN", "Timeframe": "MN1", "High": 2400.0, "Low": 2300.0,
+                    "Range": 100.0, "Volatility": 1.0, "Type": "Bullish Base", "Duration": 10,
+                    "Internal_Behavior": {"state": "Balanced", "directional_pressure": 0.2}},
+            "W1": {"Base_ID": "W1", "Timeframe": "W1", "High": 2370.0, "Low": 2340.0,
+                   "Range": 30.0, "Volatility": 5.0, "Type": "Bullish Base", "Duration": 10,
+                   "Internal_Behavior": {"state": "Balanced", "directional_pressure": 0.3}},
+            "D1": {"Base_ID": "D1", "Timeframe": "D1", "High": 2360.0, "Low": 2345.0,
+                   "Range": 15.0, "Volatility": 2.0, "Type": "Bullish Base", "Duration": 10,
+                   "Internal_Behavior": {"state": "Balanced", "directional_pressure": 0.1}},
+        }
+        monkeypatch.setattr(engine, "detect_base_structures", lambda tf, candles: [base_by_tf[tf]] if tf in base_by_tf else [])
+        candles = {tf: [{"open": 2350.0, "high": 2360.0, "low": 2340.0, "close": 2355.0}] for tf in ("MN1", "W1", "D1", "H4", "H1", "M15", "M5", "M1")}
+        result = engine.map_multi_timeframe_fractals(candles)
+        assert result["dominant_scale"] == "W1"
+        assert result["parent_base"]["Timeframe"] == "MN1"
+
+    def test_active_fractal_report_does_not_invent_missing_market_data(self, engine):
+        report = engine.generate_active_fractal_report({"MN1": [], "W1": [], "D1": [], "H4": []})
+        assert report["status"] == "INSUFFICIENT_STRUCTURE"
+        assert report["Confidence"] == 0.0
+        assert report["Target_Zone"] is None
+        assert report["Latest_Price"] is None
+        assert report["Chart_Markings"]["BASE"] is None
+        assert "2350" not in repr(report)
+
     def test_live_trading_hard_isolation(self):
         from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
         assert os.environ.get("LIVE_TRADING_ENABLED", "False").lower() in ("false", "0")
@@ -122,13 +164,13 @@ class TestGoldFractalIntelligenceEngine:
         res1 = client.get("/api/fractal/gold/summary?symbol=XAUUSD")
         assert res1.status_code == 200
         data1 = res1.json()
-        assert data1["status"] == "SUCCESS"
+        assert data1["status"] == "BASE_ONLY"
         assert data1["symbol"] == "XAUUSD"
 
         res2 = client.get("/api/fractal/gold/structures?symbol=XAUUSD&timeframe=H1&direction=Bullish")
         assert res2.status_code == 200
         data2 = res2.json()
-        assert data2["status"] == "SUCCESS"
+        assert data2["status"] == "BASE_ONLY"
 
         res3 = client.get("/api/fractal/gold/hierarchy?symbol=XAUUSD")
         assert res3.status_code == 200

@@ -1,6 +1,7 @@
 """Shared bridge from Backtest/Research/Signal/DEMO outcomes into the canonical Brain memory loop."""
 
 import json
+import math
 import os
 import uuid
 from datetime import datetime
@@ -13,17 +14,26 @@ from src.Research.Brain.models import ExperienceMemory, SimulatedDecision
 
 
 class BrainLearningBridge:
-    """Single persistence-backed bridge for cross-mode learning."""
+    """Persistence-backed bridge with strict per-symbol learning isolation."""
 
     def __init__(self, storage_dir: Optional[str] = None) -> None:
-        self.memory = MarketMemorySystem(storage_dir=storage_dir)
+        self.storage_dir = os.path.abspath(storage_dir or os.path.join("runtime_logs", "brain_memory"))
+        self.memories: Dict[str, MarketMemorySystem] = {}
+        self.active_learners: Dict[str, ActiveLearningEngine] = {}
         self.judge = JudgeBrain()
-        self.active_learning = ActiveLearningEngine()
-        self._pending_path = os.path.join(
-            storage_dir or os.path.join("runtime_logs", "brain_memory"),
-            "pending_signals.json",
-        )
+        self._pending_path = os.path.join(self.storage_dir, "pending_signals.json")
         os.makedirs(os.path.dirname(self._pending_path), exist_ok=True)
+
+    def get_market_memory(self, symbol: str) -> MarketMemorySystem:
+        """Return durable memory scoped to one normalized market symbol."""
+        key = str(symbol).strip().upper()
+        if not key or any(ch in key for ch in ("/", "\\", "..")):
+            raise ValueError("A valid symbol is required for isolated learning memory.")
+        if key not in self.memories:
+            self.memories[key] = MarketMemorySystem(
+                storage_dir=os.path.join(self.storage_dir, f"symbol_{key}")
+            )
+        return self.memories[key]
 
     def _load_pending(self) -> Dict[str, Dict[str, Any]]:
         try:
@@ -51,8 +61,22 @@ class BrainLearningBridge:
         confidence: float,
         context: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Persist an actionable Signal prediction until its outcome is known."""
+        """Persist only geometrically valid, finite actionable predictions."""
         if direction not in {"BUY", "SELL"}:
+            return
+        try:
+            entry = float(entry_price)
+            stop = float(stop_loss)
+            target = float(take_profit)
+            conf = float(confidence)
+        except (TypeError, ValueError, OverflowError):
+            return
+        if (not all(math.isfinite(v) for v in (entry, stop, target, conf))
+                or min(entry, stop, target) <= 0 or not 0.0 <= conf <= 1.0):
+            return
+        if direction == "BUY" and not stop < entry < target:
+            return
+        if direction == "SELL" and not target < entry < stop:
             return
         pending = self._load_pending()
         pending[signal_id] = {
@@ -84,19 +108,39 @@ class BrainLearningBridge:
     ) -> Dict[str, Any]:
         """Evaluate a completed DEMO outcome through JudgeBrain and promote it."""
         pending = self._load_pending()
-        prediction = pending.pop(decision_id, None)
+        prediction = pending.get(decision_id)
+        # Do not consume or learn from a signal under a different symbol.
+        if prediction and str(prediction.get("symbol", "")).upper() != str(symbol).upper():
+            raise ValueError(
+                f"Signal symbol mismatch for {decision_id}: "
+                f"expected {prediction.get('symbol')}, received {symbol}"
+            )
+        pending.pop(decision_id, None)
         self._save_pending(pending)
+        memory = self.get_market_memory(symbol)
+        active_learning = self.active_learners.setdefault(str(symbol).upper(), ActiveLearningEngine())
 
         final_result = "SUCCESS" if pnl > 0 else ("FAILURE" if pnl < 0 else "NEUTRAL")
         confidence = float((prediction or {}).get("confidence", 0.5))
-        stop_loss = float((prediction or {}).get("stop_loss", entry_price))
-        take_profit = float((prediction or {}).get("take_profit", exit_price))
+        outcome_context = dict(context or {})
+        stop_value = (prediction or {}).get("stop_loss")
+        if stop_value is None:
+            stop_value = outcome_context.get("stop_loss")
+        if stop_value is None:
+            stop_value = entry_price
+        target_value = (prediction or {}).get("take_profit")
+        if target_value is None:
+            target_value = outcome_context.get("take_profit")
+        if target_value is None:
+            target_value = exit_price
+        stop_loss = float(stop_value)
+        take_profit = float(target_value)
 
         simulated = SimulatedDecision(
             timestamp=datetime.now(), symbol=symbol.upper(), price=float(entry_price),
             decision_action=direction.upper(), confidence=confidence,
             reason="DEMO outcome evaluation through canonical Brain Learning Bridge",
-            context={"timeframe": timeframe.upper(), "source": "DEMO", "decision_id": decision_id, **(context or {})},
+            context={"timeframe": timeframe.upper(), "source": "DEMO", "decision_id": decision_id, **outcome_context},
         )
         judge_eval = self.judge.evaluate_decision_outcome(
             simulated, prediction or {},
@@ -118,13 +162,15 @@ class BrainLearningBridge:
                 "judge_accuracy": judge_eval.get("decision_quality_score", 1.0),
             },
         )
-        self.memory.add_experience(exp)
-        promoted = self.memory.promote_experiences_to_patterns()
-        priorities = self.active_learning.analyze_weaknesses_and_set_priorities(self.memory.get_patterns())
-        consolidated = self.memory.consolidate_patterns_to_concepts(min_samples=4, min_validation_score=0.70)
+        memory.add_experience(exp)
+        promoted = memory.promote_experiences_to_patterns()
+        priorities = active_learning.analyze_weaknesses_and_set_priorities(memory.get_patterns())
+        consolidated = memory.consolidate_patterns_to_concepts(min_samples=4, min_validation_score=0.70)
         return {
             "source": "DEMO", "decision_id": decision_id, "outcome": final_result,
             "judge": judge_eval, "promoted_patterns": len(promoted),
             "active_learning_priorities": priorities[:10], "concepts_consolidated": len(consolidated),
-            "memory": self.memory.get_learning_statistics(),
+            "symbol": str(symbol).upper(),
+            "memory_scope": os.path.basename(memory._storage_dir),
+            "memory": memory.get_learning_statistics(),
         }

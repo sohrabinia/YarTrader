@@ -90,7 +90,7 @@ def make_test_engine_run(i):
         self.assertEqual(result.total_intervals_processed, 2)
         self.assertTrue(result.compliance_audit_passed)
         self.assertGreater(len(result.reports_history), 0)
-        self.assertEqual(result.reports_history[0].State, DecisionState.APPROVED)
+        self.assertEqual(result.reports_history[0].State, DecisionState.NO_ACTION)
     return test
 
 def make_test_metrics_evaluator(i):

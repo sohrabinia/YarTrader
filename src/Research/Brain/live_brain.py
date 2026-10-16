@@ -12,6 +12,7 @@ from src.Research.Brain.hypothesis import HypothesisEngine
 from src.Research.Brain.judge import JudgeBrain
 from src.Research.Brain.active_learning import ActiveLearningEngine
 from src.Research.Brain.brain_context import build_brain_context, GLOBAL_CONTEXT_CACHE
+from src.Risk.Services.professional_risk_engine import ProductionRiskPolicy
 
 class LiveAnalysisBrain:
     """
@@ -131,12 +132,18 @@ class LiveAnalysisBrain:
             self.memory_system.add_event(event)
 
         # 4. Extract the raw signature and formulate the canonical Brain hypothesis.
+        # The same explicit timeframe scope must govern both evidence matching and
+        # hypothesis formation; otherwise unrelated cached timeframes can suppress
+        # valid same-timeframe learned stop/target parameters.
         sig = self.discovery_engine.extract_signature(sequence.observations)
+        pattern_timeframe_signature = sorted({
+            str(tf).upper() for tf in (timeframe_signature or effective_timeframes)
+        })
         matched = self.discovery_engine.find_matches(
             sig, self.memory_system.get_patterns(),
             symbol=self.symbol,
             timeframe=self.timeframe,
-            timeframe_signature=effective_timeframes,
+            timeframe_signature=pattern_timeframe_signature,
             context_id=context_id,
         )
         outcome_agg = self.discovery_engine.aggregate_outcomes(matched, sig)
@@ -145,7 +152,7 @@ class LiveAnalysisBrain:
             historical_patterns=self.memory_system.get_patterns(),
             symbol=self.symbol,
             timeframe=self.timeframe,
-            timeframe_signature=timeframe_signature or list(tf_history.keys()),
+            timeframe_signature=pattern_timeframe_signature,
             context_id=context_id,
         )
         decision = hypothesis.expected_direction
@@ -215,6 +222,13 @@ class LiveAnalysisBrain:
                     "reversal_likelihood": outcome_agg["reversal_pct"],
                     "suggested_virtual_action": decision,
                     "hypothesis_confidence": float(hypothesis.confidence),
+                    "evidence_status": hypothesis.meta.get("evidence_status", outcome_agg.get("evidence_status", "NO_OUTCOME_LABELS")),
+                    "blocked_direction": hypothesis.meta.get("blocked_direction"),
+                    "blocked_direction_confidence": float(hypothesis.meta.get("blocked_direction_confidence", 0.0) or 0.0),
+                    "blocked_reason": hypothesis.meta.get("blocked_reason"),
+                    "successful_outcomes": int(outcome_agg.get("successful_outcomes", 0) or 0),
+                    "failed_outcomes": int(outcome_agg.get("failed_outcomes", 0) or 0),
+                    "outcome_success_rate_pct": outcome_agg.get("outcome_success_rate_pct"),
                     "trade_parameters": trade_parameters,
                     "timeframe_signature": sorted({str(tf).upper() for tf in (timeframe_signature or list(tf_history.keys()) or [self.timeframe])}),
                     "context_id": context_id,
@@ -244,6 +258,9 @@ class LiveAnalysisBrain:
         samples = []
         for pattern, similarity in matches:
             for outcome in pattern.outcomes:
+                # Only validated successful outcomes may define executable stop/target parameters.
+                if str(outcome.get("outcome", "")).upper() != "SUCCESS":
+                    continue
                 fav = float(outcome.get("favorable_excursion", 0.0) or 0.0)
                 adv = float(outcome.get("adverse_excursion", 0.0) or 0.0)
                 if fav > 0.0 and adv > 0.0:
@@ -259,7 +276,7 @@ class LiveAnalysisBrain:
         if favorable <= 0.0 or adverse <= 0.0:
             return {}
         rr = favorable / adverse
-        if rr < 1.5:
+        if rr <= ProductionRiskPolicy.MINIMUM_RR:
             return {}
         if hypothesis.expected_direction == "BUY":
             stop_loss = current_price - adverse

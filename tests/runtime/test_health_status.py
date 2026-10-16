@@ -24,7 +24,19 @@ class TestHealthStatus(unittest.TestCase):
             "shadow_status": "Disabled"
         })
 
-        with patch.dict("src.Application.Services.web_dashboard.research_tracker", {"mt5_status": "CONNECTED", "worker_status": "RUNNING"}):
+        with patch.dict("src.Application.Services.web_dashboard.research_tracker", {"mt5_status": "CONNECTED", "worker_status": "RUNNING"}), \
+             patch("src.Execution.Adapters.mt5_adapter.RealMT5BrokerAdapter") as adapter_cls:
+            adapter = adapter_cls.return_value
+            adapter._initialized = True
+            adapter.TARGET_ACCOUNT = "TEST-DEMO-ACCOUNT"
+            adapter.TARGET_SERVER = "TEST-DEMO-SERVER"
+            adapter.get_account_info.return_value = {
+                "login": "TEST-DEMO-ACCOUNT", "server": "TEST-DEMO-SERVER", "trade_mode": 0,
+            }
+            adapter.get_terminal_info.return_value = {
+                "connected": True, "trade_allowed": True, "tradeapi_disabled": False,
+            }
+            adapter.verify_safety_and_account.return_value = True
             health = get_production_health()
             self.assertIn(health["status"], ["Healthy", "healthy"])
             self.assertTrue(health["service"] == "TradeYar-AI" or health["service"] == "YarTrader")
@@ -53,7 +65,8 @@ class TestHealthStatus(unittest.TestCase):
             global_research_runtime.provider.delegate,
             "get_connection_health",
             return_value=type("Health", (), {"connected": False})(),
-        ):
+        ), patch("src.Execution.Adapters.mt5_adapter.RealMT5BrokerAdapter") as adapter_cls:
+            adapter_cls.return_value._initialized = False
             health = get_production_health()
             self.assertIn(health["status"], ["Healthy", "healthy"])
             self.assertEqual(health["mt5"], "Disconnected")

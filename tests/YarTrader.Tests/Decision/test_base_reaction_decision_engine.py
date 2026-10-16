@@ -1,0 +1,150 @@
+import unittest
+
+from src.Decision.Intelligence.base_reaction_decision_engine import BaseReactionDecisionEngine
+
+
+def ev(eid, tf, typ, direction, confirm, low, high):
+    return {"event_id": eid, "timeframe": tf, "base_type": typ, "exit_direction": direction,
+            "confirmation_time": confirm, "base_low": low, "base_high": high}
+
+
+class BaseReactionDecisionEngineTests(unittest.TestCase):
+    def setUp(self):
+        self.engine = BaseReactionDecisionEngine(min_samples=2, min_win_rate=0.5, min_mean_net_r=0.01)
+        self.parent = ev("h1", "H1", "RBR", 1, 100, 98, 105)
+        self.child = ev("m15", "M15", "RBR", 1, 200, 99, 100)
+        self.micro = ev("m1", "M1", "RBR", 1, 900, 100.1, 100.2)
+        self.reaction = {"base_id": "m15", "reaction_number": 1, "penetration_fraction": 0.2}
+        self.setup = {"timeframe": "M15", "base_type": "RBR", "parent_relation": "NESTED",
+                      "setup_type": "RETEST", "zone_low": 99.0, "zone_high": 100.0,
+                      "invalidation": 98.5, "target": 104.0, "base_width": 1.0,
+                      "confidence": 85, "expires_at": 5000}
+        self.quote = {"bid": 100.5, "ask": 100.6}
+        key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.2, "BUY")
+        self.engine.load_stats({"version": 1, "detector_version": "base_geometry_price_only_v2",
+                               "model_schema_version": "base_only_directional_net_r_v3", "groups": {key: {"samples": 30, "win_rate": 0.75,
+                               "mean_net_r": 0.2, "standard_error": 0.08, "mean_net_r_standard_error": 0.02}}})
+
+    def evaluate(self, **kwargs):
+        args = {"setup": self.setup, "quote": self.quote, "now": 1000,
+                "parent": self.parent, "child": self.child, "micro": self.micro,
+                "reaction": self.reaction}
+        args.update(kwargs)
+        return self.engine.evaluate(**args)
+
+    def test_entry_proposal_requires_parent_child_micro_and_same_base_reaction(self):
+        result = self.evaluate()
+        self.assertEqual(result["status"], "ENTRY_PROPOSAL")
+        self.assertEqual(result["structure"]["penetration_bin"], "EDGE")
+        self.assertFalse(result["execution_enabled"])
+
+    def test_selects_best_qualified_depth_and_uses_that_limit_price(self):
+        outer = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.375, "BUY")
+        edge = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.125, "BUY")
+        self.engine.load_stats({"version": 1, "detector_version": "base_geometry_price_only_v2",
+                               "model_schema_version": "base_only_directional_net_r_v3", "groups": {
+            edge: {"samples": 50, "win_rate": 0.60, "mean_net_r": 0.12, "standard_error": 0.07, "mean_net_r_standard_error": 0.02},
+            outer: {"samples": 50, "win_rate": 0.65, "mean_net_r": 0.30, "standard_error": 0.07, "mean_net_r_standard_error": 0.03},
+        }})
+        result = self.evaluate()
+        self.assertEqual(result["status"], "ENTRY_PROPOSAL")
+        self.assertEqual(result["structure"]["penetration_bin"], "OUTER")
+        self.assertAlmostEqual(result["order_plan"]["entry"], 99.625)
+
+    def test_entry_side_is_part_of_the_learned_base_reaction_profile(self):
+        above = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True,
+                                        1, 0.75, "BUY", "FROM_ABOVE")
+        below = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True,
+                                        1, 0.75, "BUY", "FROM_BELOW")
+        self.assertNotEqual(above, below)
+
+    def test_far_edge_uses_the_same_entry_depth_that_was_trained(self):
+        key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.75, "BUY")
+        self.engine.load_stats({"version": 1, "detector_version": "base_geometry_price_only_v2",
+                               "model_schema_version": "base_only_directional_net_r_v3", "groups": {key: {
+            "samples": 50, "win_rate": 0.65, "mean_net_r": 0.30,
+            "standard_error": 0.07, "mean_net_r_standard_error": 0.02}}})
+        result = self.evaluate(reaction={**self.reaction, "penetration_fraction": 0.75})
+        self.assertEqual(result["status"], "ENTRY_PROPOSAL")
+        self.assertEqual(result["structure"]["penetration_bin"], "FAR_EDGE")
+        self.assertAlmostEqual(result["order_plan"]["entry"], 99.25)
+
+    def test_revisit_number_is_binned_without_erasing_side_or_depth(self):
+        first = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True,
+                                        1, 0.2, "BUY", "FROM_ABOVE")
+        second = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True,
+                                         2, 0.2, "BUY", "FROM_ABOVE")
+        third = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True,
+                                        3, 0.2, "BUY", "FROM_ABOVE")
+        ninth = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True,
+                                        9, 0.2, "BUY", "FROM_ABOVE")
+        deeper = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True,
+                                         3, 0.8, "BUY", "FROM_ABOVE")
+        other_side = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True,
+                                             3, 0.2, "BUY", "FROM_BELOW")
+        self.assertNotEqual(first, second)
+        self.assertEqual(third, ninth)
+        self.assertNotEqual(third, deeper)
+        self.assertNotEqual(third, other_side)
+
+    def test_model_without_mean_net_r_uncertainty_is_rejected(self):
+        key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", True, 1, 0.125, "BUY")
+        with self.assertRaises(ValueError):
+            self.engine.load_stats({"version": 1, "detector_version": "base_geometry_price_only_v2",
+                               "model_schema_version": "base_only_directional_net_r_v3", "groups": {key: {
+                "samples": 50, "win_rate": 0.7, "mean_net_r": 0.2, "standard_error": 0.05}}})
+
+    def test_missing_micro_or_mismatched_reaction_fails_closed(self):
+        self.assertEqual(self.evaluate(micro=None)["status"], "WAIT")
+        self.assertEqual(self.evaluate(reaction={**self.reaction, "base_id": "other"})["status"], "WAIT")
+
+    def test_future_parent_fails_closed_but_opposed_parent_uses_its_own_learned_profile(self):
+        self.assertEqual(self.evaluate(parent={**self.parent, "confirmation_time": 300})["status"], "WAIT")
+        opposed_key = self.engine.profile_key("M15", "RBR", "H1", "NESTED", False, 1, 0.2, "BUY")
+        self.engine.load_stats({"version": 1, "detector_version": "base_geometry_price_only_v2",
+                               "model_schema_version": "base_only_directional_net_r_v3", "groups": {opposed_key: {
+            "samples": 30, "win_rate": 0.75, "mean_net_r": 0.2,
+            "standard_error": 0.08, "mean_net_r_standard_error": 0.02}}})
+        result = self.evaluate(parent={**self.parent, "exit_direction": -1})
+        self.assertEqual(result["status"], "ENTRY_PROPOSAL")
+        self.assertFalse(result["execution_enabled"])
+        self.assertEqual(result["structure"]["profile_key"], opposed_key)
+
+    def test_exit_proposal_when_held_wave_loses_economic_edge(self):
+        result = self.evaluate(active_position={"direction": "SELL"},
+                               current_trade={"hold_net_expected_value_r": -0.1,
+                                              "wave_structure_valid": True})
+        self.assertEqual(result["status"], "EXIT_PROPOSAL")
+        self.assertTrue(result["close_current_first"])
+        self.assertFalse(result["execution_enabled"])
+
+    def test_reverse_requires_lost_current_edge_and_positive_net_opposite_economics(self):
+        result = self.evaluate(active_position={"direction": "SELL"},
+                               current_trade={"hold_net_expected_value_r": -0.1,
+                                              "wave_structure_valid": False},
+                               opposite_setup={"reversal_confirmed": True,
+                                               "net_expected_value_r": 0.2,
+                                               "net_reward_risk": 1.4})
+        self.assertEqual(result["status"], "REVERSE_PROPOSAL")
+        self.assertTrue(result["close_current_first"])
+        self.assertGreater(result["net_expected_value_r"], 0)
+
+    def test_never_reverse_when_opposite_economics_fail(self):
+        result = self.evaluate(active_position={"direction": "SELL"},
+                               current_trade={"hold_net_expected_value_r": -0.1,
+                                              "wave_structure_valid": False},
+                               opposite_setup={"reversal_confirmed": True,
+                                               "net_expected_value_r": -0.2,
+                                               "net_reward_risk": 1.4})
+        self.assertEqual(result["status"], "EXIT_PROPOSAL")
+
+    def test_learning_rejects_unpriced_descriptive_excursions(self):
+        report = self.engine.learn([{"timeframe": "M15", "base_type": "RBR",
+            "parent_timeframe": "H1", "parent_relation": "NESTED", "parent_aligned": True,
+            "reaction_number": 1, "penetration_fraction": 0.2, "label_end_time": 900,
+            "label_horizon_bars": 10, "first_transition": "continuation_barrier", "net_R": 2.0}], as_of=1000)
+        self.assertEqual(report["eligible_labels"], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

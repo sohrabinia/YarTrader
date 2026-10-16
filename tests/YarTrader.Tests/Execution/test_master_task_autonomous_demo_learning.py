@@ -1,6 +1,10 @@
 import pytest
 import os
+import json
 from datetime import datetime
+from unittest.mock import patch
+import src.Execution.Services.autonomous_demo_trader as demo_trader_module
+import scripts.run_honest_walk_forward_backtest as backtest_module
 from src.Decision.Models.models import AutonomousTradingDecision
 from src.Execution.Services.trade_journal import TradeJournalManager, TradeJournalRecord
 from src.Learning.Services.post_trade_analysis import OutcomeAnalyzer, EvidenceBasedAdaptationEngine
@@ -72,15 +76,126 @@ def test_trade_journal_persistence(tmp_path):
         duration=60.0,
         market_regime="BULLISH_TREND",
         result="TARGET_HIT",
-        configuration_version="1.2.0"
+        configuration_version="1.2.0",
+        trade_type="DEMO",
+        strategy_style="BASE_HIERARCHY",
+        decision_timeframe="H4",
+        entry_timeframe="M5",
+        context_timeframes=["H4", "M15", "M5", "M1"],
+        data_source="MT5_DEMO_BROKER",
     )
 
     mgr.add_record(rec)
     assert len(mgr.get_all_records()) == 1
+    saved = mgr.get_all_records()[0]
+    assert saved.trade_type == "DEMO"
+    assert saved.entry_weekday == "Saturday"
+    assert saved.entry_day_of_month == 22
+    assert saved.entry_month == 8
+    assert saved.entry_year == 2026
+    assert saved.entry_session == "ASIA"
+    assert saved.context_timeframes == ["H4", "M15", "M5", "M1"]
+    assert saved.style_transitions == []
+
+    mgr.append_event({
+        "event": "trade_review_started", "trade_type": "DEMO", "symbol": "XAUUSD",
+        "strategy_style": "BASE_HIERARCHY", "decision_timeframe": "H4",
+        "entry_timeframe": "M5", "context_timeframes": ["H4", "M15", "M5", "M1"],
+    })
+    event_lines = open(mgr.events_file, encoding="utf-8").read().splitlines()
+    assert len(event_lines) == 2  # record creation + explicit lifecycle event
+    event = json.loads(event_lines[-1])
+    assert event["trade_type"] == "DEMO"
+    assert event["strategy_style"] == "BASE_HIERARCHY"
+    assert event["decision_timeframe"] == "H4"
+    assert event["entry_timeframe"] == "M5"
+    assert event["weekday_utc"]
+    assert event["session_utc"]
+
+    updated = TradeJournalRecord.from_dict({**saved.to_dict(), "conclusion": "Review the M5 entry zone."})
+    mgr.update_record(updated)
+    event_lines = open(mgr.events_file, encoding="utf-8").read().splitlines()
+    update_event = json.loads(event_lines[-1])
+    assert len(event_lines) == 3
+    assert update_event["event"] == "trade_record_updated"
+    assert "conclusion" in update_event["changed_fields"]
+    assert update_event["previous_record"]["conclusion"] == ""
 
     mgr_reload = TradeJournalManager(journal_file=journal_file)
     assert len(mgr_reload.get_all_records()) == 1
     assert mgr_reload.get_all_records()[0].trade_id == "TR-001"
+    assert mgr_reload.get_all_records()[0].strategy_style == "BASE_HIERARCHY"
+    assert mgr_reload.get_all_records()[0].entry_timeframe == "M5"
+    assert mgr_reload.get_all_records()[0].decision_timeframe == "H4"
+    assert mgr_reload.get_all_records()[0].conclusion == "Review the M5 entry zone."
+
+
+def test_corrupt_journal_fails_closed_without_treating_it_as_empty(tmp_path):
+    journal_file = tmp_path / "trade_journal.json"
+    journal_file.write_text("{broken json", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="could not be loaded safely"):
+        TradeJournalManager(journal_file=str(journal_file))
+    assert journal_file.read_text(encoding="utf-8") == "{broken json"
+
+
+def test_autonomous_demo_event_is_durably_written_to_both_journal_streams(tmp_path):
+    trader = demo_trader_module.AutonomousDemoTrader.__new__(demo_trader_module.AutonomousDemoTrader)
+    with patch.object(demo_trader_module, "_PROJECT_ROOT", tmp_path):
+        trader._log_event({
+            "event": "trade_review_started", "symbol": "XAUUSD",
+            "trade_type": "DEMO", "strategy_style": "BASE_HIERARCHY",
+            "decision_timeframe": "MULTI_TIMEFRAME",
+            "hierarchy_structure": {
+                "child_timeframe": "M5", "micro_timeframe": "M1",
+                "hierarchy_timeframes_considered": ["H4", "H1", "M15", "M5", "M1"],
+            },
+        })
+    runtime_path = tmp_path / "runtime_logs" / "autonomous_demo_trader.jsonl"
+    journal_path = tmp_path / "runtime_logs" / "trade_journal_events_v2.jsonl"
+    assert runtime_path.exists() and journal_path.exists()
+    runtime_event = json.loads(runtime_path.read_text(encoding="utf-8").splitlines()[-1])
+    journal_event = json.loads(journal_path.read_text(encoding="utf-8").splitlines()[-1])
+    assert runtime_event == journal_event
+    assert journal_event["trade_type"] == "DEMO"
+    assert journal_event["strategy_style"] == "BASE_HIERARCHY"
+    assert journal_event["decision_timeframe"] == "MULTI_TIMEFRAME"
+    assert journal_event["setup_timeframe"] == "M5"
+    assert journal_event["entry_timeframe"] == "M1"
+    assert journal_event["execution_timeframe"] == "M1"
+    assert journal_event["context_timeframes"] == ["H4", "H1", "M15", "M5", "M1"]
+    assert journal_event["session_utc"]
+    assert journal_event["weekday_utc"]
+
+
+def test_backtest_closed_trade_is_saved_with_backtest_type_and_calendar(tmp_path):
+    with patch.object(backtest_module, "ROOT", tmp_path):
+        written = backtest_module._append_backtest_journal_events(
+            [{
+                "trade_id": "BT-XAU-M1-001", "symbol": "XAUUSD", "strategy": "BASE_HIERARCHY",
+                "direction": "SELL", "setup_timeframe": "M5", "entry": 2500.0,
+                "exit_price": 2490.0, "stop_loss": 2510.0, "take_profit": 2480.0,
+                "exit_reason": "STOP_LOSS_HIT", "outcome": "LOSS", "pnl": -12.0,
+                "r_multiple": -1.0, "mfe": 8.0, "mae": -10.0, "confidence": 75.0,
+                "entry_time": "2026-10-15T08:00:00+00:00",
+                "exit_time": "2026-10-15T08:05:00+00:00",
+                "reasoning": ["Base retest"], "market_context": {"timeframes_considered": ["H4", "M5", "M1"]},
+            }],
+            run_id="BT-TEST-RUN", symbol="XAUUSD", decision_timeframe="H1",
+            cohort="HOLDOUT_LEARNED_FROZEN", data_file="fixture.hst",
+        )
+    assert written == 1
+    event_path = tmp_path / "runtime_logs" / "trade_journal_events_v2.jsonl"
+    event = json.loads(event_path.read_text(encoding="utf-8").splitlines()[0])
+    assert event["trade_type"] == "BACKTEST"
+    assert event["strategy_style"] == "BASE_HIERARCHY"
+    assert event["decision_timeframe"] == "H1"
+    assert event["setup_timeframe"] == "M5"
+    assert event["entry_timeframe"] == "H1"
+    assert event["execution_timeframe"] == "H1"
+    assert event["entry_weekday"] == "Thursday"
+    assert event["entry_session_utc"] == "LONDON"
+    assert event["post_trade_review_status"] == "PENDING_RESEARCH_REVIEW"
+    assert event["broker_orders_sent"] == 0
 
 
 def test_outcome_analyzer_classification():

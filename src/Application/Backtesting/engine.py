@@ -80,6 +80,12 @@ class IntelligenceBacktestEngine:
                 if kw in str(k).lower() or kw in str(v).lower():
                     raise ValidationException(f"Safety Violation: Backtest scenario parameters contain forbidden keyword '{kw}'.")
 
+        requested_strategy = str(scenario.parameters.get("strategy_type", "BASE_HIERARCHY")).strip().upper()
+        if requested_strategy != "BASE_HIERARCHY":
+            raise ValidationException(
+                f"Unsupported strategy_type '{requested_strategy}'. Only BASE_HIERARCHY is permitted; legacy strategies were removed."
+            )
+
         reports: List[DecisionIntelligenceReport] = []
         current_time = scenario.start_time
         interval_minutes = scenario.parameters.get("interval_minutes", 60)
@@ -96,9 +102,8 @@ class IntelligenceBacktestEngine:
 
         # Loop through intervals sequentially
         total_intervals = 0
-        latest_close = 1.1000 if "JPY" not in symbol else 145.0
-        if "XAU" in symbol:
-            latest_close = 2300.0
+        # No synthetic fallback prices: absent broker history means no PnL/trades.
+        latest_close = 0.0
 
         while current_time < scenario.end_time:
             total_intervals += 1
@@ -107,49 +112,19 @@ class IntelligenceBacktestEngine:
             req = ExternalDataRequest(
                 symbol=symbol,
                 timeframe=scenario.timeframe,
-                start_time=current_time - timedelta(hours=2),
+                start_time=current_time - timedelta(minutes=max(1, int(interval_minutes)) * 250),
                 end_time=current_time,
                 parameters={"scenario": "VALID", "data_source": "MT4"}
             )
             normalized_records, data_report = self.connector.retrieve_and_process(req)
 
             if normalized_records:
-                latest_close = normalized_records[-1].close
-
-            # Introduce a realistic SRE chronological price fluctuation to simulate real market motion
-            import math
-            fluctuation_pct = 0.005 * math.sin(total_intervals * 0.6)
-            latest_close = latest_close * (1.0 + fluctuation_pct)
+                latest_close = normalized_records[-1].close_price
 
             # 2. Ingest into Agent Ecosystem
             agent_ctx = AgentContextBuilder.create_with_market_data(symbol, scenario.timeframe)
-            if normalized_records:
-                # Add sample records to data
-                agent_ctx = agent_ctx.enrich(
-                    "system",
-                    "ResearchReport",
-                    {
-                        "findings": ["Bullish trend checked during backtest."],
-                        "features": {"trend_strength": 0.85}
-                    }
-                )
-                agent_ctx = agent_ctx.enrich(
-                    "system",
-                    "StrategyEvaluation",
-                    {
-                        "strategy_id": "strat-momentum",
-                        "score": {"OverallScore": 0.85, "Confidence": 0.90}
-                    }
-                )
-                agent_ctx = agent_ctx.enrich(
-                    "system",
-                    "RiskAssessment",
-                    {
-                        "IsApproved": True,
-                        "RiskProfileName": "Moderate",
-                        "PortfolioRiskMetrics": {"annualized_volatility": 0.12, "max_drawdown": 0.05}
-                    }
-                )
+            # Historical OHLC is the only market evidence. No fabricated
+            # momentum score, trend assertion, or synthetic risk approval is injected.
 
             # Orchestrate agents
             enriched_agent_ctx = self.supervisor.orchestrate(agent_ctx)
@@ -198,48 +173,10 @@ class IntelligenceBacktestEngine:
                     balance += active_trade["p_and_l"]
                     active_trade = None
 
-            # If no active trade, scan decision report to open position
-            if not active_trade and report.State == DecisionState.APPROVED:
-                # Determine buy/sell direction based on scenario strategy_type parameter
-                strategy_type = scenario.parameters.get("strategy_type", "Momentum")
-
-                # Check actual pricing direction to generate momentum or mean reversion
-                price_trend_bullish = True
-                if len(normalized_records) >= 3:
-                    price_trend_bullish = latest_close > normalized_records[-3].close
-
-                if strategy_type == "Momentum":
-                    direction = "BUY" if price_trend_bullish else "SELL"
-                elif strategy_type == "MeanReversion":
-                    direction = "SELL" if price_trend_bullish else "BUY"
-                else:
-                    direction = "BUY"
-
-                # Define SL and TP distances (tighter distances to simulate active trades closing)
-                if direction == "BUY":
-                    sl = latest_close * 0.9985
-                    tp = latest_close * 1.0015
-                else:
-                    sl = latest_close * 1.0015
-                    tp = latest_close * 0.9985
-
-                active_trade = {
-                    "trade_id": f"bt-trade-{uuid.uuid4().hex[:6]}",
-                    "mode": "BACKTEST",
-                    "symbol": symbol,
-                    "timeframe": scenario.timeframe,
-                    "direction": direction,
-                    "entry_price": latest_close,
-                    "sl": round(sl, 4),
-                    "tp": round(tp, 4),
-                    "status": "OPEN",
-                    "entry_time": current_time.isoformat(),
-                    "volume": 1.0,
-                    "p_and_l": 0.0,
-                    "exit_price": None,
-                    "exit_time": None
-                }
-                trades.append(active_trade)
+            # This legacy intelligence simulator has no trade authority. A generic
+            # DecisionState approval must never create a position. The canonical
+            # chronological Base-only backtest is the only source of performance trades.
+            # No Momentum, MeanReversion, default BUY, or synthetic-price fallback exists.
 
             # Record running equity curve point
             floating_pnl = active_trade["p_and_l"] if active_trade else 0.0
@@ -323,7 +260,9 @@ class IntelligenceBacktestEngine:
             "worst_trade_pnl": worst_trade_pnl,
             "maximum_drawdown_usd": round(max_dd, 2),
             "maximum_drawdown_pct": max_dd_pct,
-            "average_holding_time_minutes": interval_minutes * 1.5,
+            "average_holding_time_minutes": 0.0,
+            "decision_authority": "BASE_HIERARCHY",
+            "trade_simulation_mode": "DISABLED_LEGACY_ENGINE",
             "equity_curve": equity_curve,
             "trade_list": trades
         })
