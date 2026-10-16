@@ -117,3 +117,91 @@ def test_submission_outcome_journals_final_broker_order_prices_not_original_plan
     assert outcome["take_profit"] == 102.0
     assert outcome["execution_details"]["volume"] == 0.03
     assert outcome["execution_details"]["broker_retcode"] == 10009
+
+
+def test_pending_order_matching_tolerates_small_quote_noise_without_churn():
+    from src.Execution.Services.autonomous_demo_trader import _pending_order_matches_current_plan
+
+    order = {"type": 2, "price_open": 2300.00, "sl": 2290.00, "tp": 2320.00}
+    matches, entry_tolerance, protection_tolerance, target_tolerance = _pending_order_matches_current_plan(
+        order, expected_type=2, entry=2300.08, stop=2290.02, target=2320.02,
+        point=0.01, spread=0.03,
+    )
+    assert matches is True
+    assert entry_tolerance >= 0.23
+    assert protection_tolerance >= 0.045
+    assert target_tolerance >= 4.9
+
+
+def test_pending_order_target_noise_does_not_trigger_cancel_replace():
+    from src.Execution.Services.autonomous_demo_trader import _pending_order_matches_current_plan
+
+    # Same entry and protective stop, with a small structural target adjustment.
+    # Retaining the existing valid TP avoids cancelling/re-creating the order each cycle.
+    order = {"type": 3, "price_open": 4184.67, "sl": 4192.48, "tp": 4170.48}
+    matches, _, _, target_tolerance = _pending_order_matches_current_plan(
+        order, expected_type=3, entry=4184.67, stop=4192.48, target=4170.09,
+        point=0.01, spread=0.04, direction="SELL",
+    )
+    assert target_tolerance >= 3.9
+    assert matches is True
+
+
+def test_pending_order_matching_detects_material_structural_change():
+    from src.Execution.Services.autonomous_demo_trader import _pending_order_matches_current_plan
+
+    order = {"type": 2, "price_open": 2300.00, "sl": 2290.00, "tp": 2320.00}
+    matches, _, _, _ = _pending_order_matches_current_plan(
+        order, expected_type=2, entry=2302.00, stop=2290.00, target=2320.00,
+        point=0.01, spread=0.03,
+    )
+    assert matches is False
+
+
+def test_existing_sell_order_with_safer_stop_and_target_is_kept_when_plan_moves_slightly():
+    from src.Execution.Services.autonomous_demo_trader import _pending_order_matches_current_plan
+
+    order = {"type": 3, "price_open": 4184.67, "sl": 4192.48, "tp": 4168.70}
+    matches, _, stop_tolerance, target_tolerance = _pending_order_matches_current_plan(
+        order, expected_type=3, entry=4184.666, stop=4192.7419, target=4165.85,
+        point=0.01, spread=0.04, direction="SELL",
+    )
+    assert stop_tolerance >= 0.26
+    assert target_tolerance >= 2.85
+    assert matches is True
+
+
+def test_pending_order_with_less_protective_stop_is_not_kept_on_wide_tolerance():
+    from src.Execution.Services.autonomous_demo_trader import _pending_order_matches_current_plan
+
+    order = {"type": 3, "price_open": 4184.67, "sl": 4192.90, "tp": 4168.70}
+    matches, _, stop_tolerance, _ = _pending_order_matches_current_plan(
+        order, expected_type=3, entry=4184.666, stop=4192.7419, target=4165.85,
+        point=0.01, spread=0.04, direction="SELL",
+    )
+    assert stop_tolerance < 0.26
+    assert matches is False
+
+
+def test_strategy_comments_survive_mt5_sanitization_and_legacy_truncation():
+    from src.Execution.Services.autonomous_demo_trader import (
+        _legacy_strategy_comment_matches, _strategy_broker_comment,
+    )
+
+    assert _strategy_broker_comment("RTM") == "YarBaseRTM"
+    assert _strategy_broker_comment("BASE_ENGULF_REVERSAL") == "YarBaseENGULF"
+    assert len(_strategy_broker_comment("BASE_ENGULF_REVERSAL")) <= 15
+    assert _legacy_strategy_comment_matches("YarBaseBASE_ENG", "BASE_ENGULF_REVERSAL")
+    assert not _legacy_strategy_comment_matches("YarBaseRTM", "BASE_ENGULF_REVERSAL")
+
+
+def test_pending_order_keeps_conservative_target_within_one_risk_distance():
+    from src.Execution.Services.autonomous_demo_trader import _pending_order_matches_current_plan
+
+    order = {"type": 3, "price_open": 1.12443, "sl": 1.12512, "tp": 1.12250}
+    matches, _, _, target_tolerance = _pending_order_matches_current_plan(
+        order, expected_type=3, entry=1.12443, stop=1.125124,
+        target=1.12204, point=0.00001, spread=0.00002, direction="SELL",
+    )
+    assert target_tolerance >= 0.00069
+    assert matches is True

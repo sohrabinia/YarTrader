@@ -115,3 +115,29 @@ def test_entry_execution_reconciliation_always_journals_final_outcome():
     assert outcome["execution_details"]["risk"]["minimum_lot_risk_usd"] == 7.0
     assert outcome["structure"]["child_base_id"] == "c1"
     assert outcome["historical_structure_analysis"]["status"] == "OK"
+
+
+def test_existing_broker_pending_order_is_journaled_as_confirmed_not_new_submission():
+    trader = AutonomousDemoTrader.__new__(AutonomousDemoTrader)
+    events = []
+    trader._log_event = events.append
+    trader._reconcile_base_pending_order_impl = lambda *args, **kwargs: {
+        "status": "PENDING_ORDER_ACTIVE", "ticket": 987654,
+        "order_type": "SELL_LIMIT", "entry": 2300.0,
+        "reason": "Broker snapshot confirms existing order remains active.",
+    }
+    plan = {
+        "status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY",
+        "order_plan": {"direction": "SELL", "order_type": "SELL_LIMIT", "entry": 2300.0,
+                        "stop_loss": 2310.0, "take_profit": 2280.0},
+    }
+    result = trader._reconcile_base_pending_order(
+        "XAUUSD", plan, {"bid": 2301.0, "ask": 2301.2}, {}, {}, per_tf=None
+    )
+    assert result["status"] == "PENDING_ORDER_ACTIVE"
+    event = events[-1]
+    assert event["event"] == "entry_execution_outcome"
+    assert event["broker_ticket"] == 987654
+    assert event["broker_status"] == "Active"
+    assert event["broker_confirmed"] is True
+    assert event["execution_enabled"] is True

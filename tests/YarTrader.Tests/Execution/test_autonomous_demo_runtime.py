@@ -425,7 +425,10 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         adapter = MagicMock()
         adapter.get_active_orders.return_value = [{"magic": 100001, "comment": "YarBase", "ticket": 778899,
                                                    "type": 2, "price_open": 1998.0, "sl": 1995.0, "tp": 0.0}]
-        adapter.cancel_pending_order.return_value = MagicMock(Status="Cancelled", Comment="removed")
+        def cancel_and_refresh(*args, **kwargs):
+            adapter.get_active_orders.return_value = []
+            return MagicMock(Status="Cancelled", Comment="removed")
+        adapter.cancel_pending_order.side_effect = cancel_and_refresh
         trader = AutonomousDemoTrader(adapter=adapter)
         result = trader._reconcile_base_pending_order(
             "XAUUSD", {"status": "WAIT", "reason": "No parent base this cycle"},
@@ -449,7 +452,10 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         adapter._mt5.order_calc_profit.side_effect = lambda typ, sym, vol, entry, stop: -abs(entry - stop) * vol * 100
         adapter.get_active_orders.return_value = [{"magic": 100001, "comment": "YarBase", "ticket": 55501,
                                                    "type": 2, "price_open": 1998.0, "sl": 1995.0, "tp": 0.0}]
-        adapter.cancel_pending_order.return_value = MagicMock(Status="Cancelled", Comment="removed")
+        def cancel_and_refresh(*args, **kwargs):
+            adapter.get_active_orders.return_value = []
+            return MagicMock(Status="Cancelled", Comment="removed")
+        adapter.cancel_pending_order.side_effect = cancel_and_refresh
         adapter.send_order_to_broker.return_value = MagicMock(Status="Placed", OrderId="987", DealTicket="654", Comment="filled")
         trader = AutonomousDemoTrader(adapter=adapter)
         plan = {"status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY", "order_plan": {
@@ -551,7 +557,10 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         adapter._mt5.order_calc_profit.side_effect = lambda typ, sym, vol, entry, stop: -abs(entry - stop) * vol * 100
         adapter.get_active_orders.return_value = [{"magic": 100001, "comment": "YarBase", "ticket": 12345,
                                                    "type": 2, "price_open": 1998.0, "sl": 1995.0, "tp": 0.0}]
-        adapter.cancel_pending_order.return_value = MagicMock(Status="Cancelled", Comment="removed")
+        def cancel_and_refresh(*args, **kwargs):
+            adapter.get_active_orders.return_value = []
+            return MagicMock(Status="Cancelled", Comment="removed")
+        adapter.cancel_pending_order.side_effect = cancel_and_refresh
         adapter.send_order_to_broker.return_value = MagicMock(Status="Placed", OrderId="54321", DealTicket="67890", Comment="filled")
         trader = AutonomousDemoTrader(adapter=adapter)
         plan = {"status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY", "order_plan": {
@@ -608,3 +617,26 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(decision_events[-1]["decision_mode"], "MARKET_AFTER_CONFIRMED_ZONE_REACTION")
         self.assertTrue(decision_events[-1]["reaction_confirmed"])
         self.assertFalse(decision_events[-1]["broker_confirmed"])
+
+
+def test_explicit_structural_invalidation_cancels_finite_expiry_pending_order():
+    from unittest.mock import MagicMock
+    adapter = MagicMock()
+    adapter.get_active_orders.return_value = [{
+        "magic": 100001, "comment": "YarBaseRTM", "ticket": 778900,
+        "type": 2, "price_open": 1.1240, "sl": 1.1230, "tp": 1.1260,
+        "time_expiration": 5000,
+    }]
+    def cancel_and_refresh(*args, **kwargs):
+        adapter.get_active_orders.return_value = []
+        return MagicMock(Status="Cancelled", Comment="removed after structural invalidation")
+    adapter.cancel_pending_order.side_effect = cancel_and_refresh
+    trader = AutonomousDemoTrader(adapter=adapter)
+    result = trader._reconcile_base_pending_order(
+        "EURUSD", {"status": "WAIT", "reason": "Higher-timeframe structure opposes the RTM zone-departure direction."},
+        {"bid": 1.1240, "ask": 1.1241, "time": 1000},
+        {"balance": 10000.0, "equity": 10000.0}, {"digits": 5, "point": 0.00001},
+    )
+    assert result["status"] == "WAIT"
+    adapter.cancel_pending_order.assert_called_once_with(778900)
+    assert adapter.cancel_pending_order.call_count == 1

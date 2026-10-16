@@ -5,6 +5,7 @@ broker data produces a qualified strategy candidate and all safety gates pass.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -71,6 +72,100 @@ def _read_flag() -> bool:
             if value is not None:
                 break
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _pending_order_matches_current_plan(
+    order: Any, expected_type: int, entry: float, stop: float, target: float,
+    point: float, spread: float = 0.0, direction: str = "BUY",
+) -> tuple[bool, float, float, float]:
+    """Compare an active pending order with the current plan using price-aware tolerances.
+
+    A fraction of one broker point was too strict and could trigger cancel/re-submit
+    churn from harmless quote/rounding noise. Material structural changes still
+    require a separately risk-validated replacement.
+    """
+    def value(name: str, default: Any = None) -> Any:
+        return order.get(name, default) if isinstance(order, dict) else getattr(order, name, default)
+    entry_tolerance = max(float(point) * 10.0, max(0.0, float(spread)) * 3.0, abs(float(entry)) * 0.0001)
+    risk_distance = abs(float(entry) - float(stop))
+    tight_stop_tolerance = max(float(point) * 3.0, abs(float(stop)) * 0.00002)
+    direction_upper = str(direction or "").strip().upper()
+    try:
+        order_sl_for_tolerance = float(value("sl", 0.0) or 0.0)
+        existing_stop_is_safer = (
+            direction_upper == "BUY" and order_sl_for_tolerance >= float(stop)
+        ) or (
+            direction_upper == "SELL" and order_sl_for_tolerance <= float(stop)
+        )
+    except (TypeError, ValueError, OverflowError):
+        existing_stop_is_safer = False
+    protection_tolerance = (
+        max(tight_stop_tolerance, float(point) * 10.0, max(0.0, float(spread)) * 3.0,
+            abs(float(stop)) * 0.0001, risk_distance * 0.05)
+        if existing_stop_is_safer else tight_stop_tolerance
+    )
+    try:
+        order_entry_for_tolerance = float(value("price_open", 0.0) or 0.0)
+        order_tp_for_tolerance = float(value("tp", 0.0) or 0.0)
+        existing_target_valid = (
+            direction_upper == "BUY" and order_tp_for_tolerance > order_entry_for_tolerance
+        ) or (
+            direction_upper == "SELL" and 0.0 < order_tp_for_tolerance < order_entry_for_tolerance
+        )
+    except (TypeError, ValueError, OverflowError):
+        existing_target_valid = False
+    target_tolerance = (
+        max(float(point) * 10.0, max(0.0, float(spread)) * 3.0,
+            abs(float(target)) * 0.0001, risk_distance)
+        if existing_target_valid else tight_stop_tolerance
+    )
+    try:
+        order_entry = float(value("price_open", 0.0) or 0.0)
+        order_sl = float(value("sl", 0.0) or 0.0)
+        order_tp = float(value("tp", 0.0) or 0.0)
+        order_type = int(value("type", -1) if value("type", -1) is not None else -1)
+        matches = (
+            order_type == int(expected_type) and order_entry > 0.0 and order_sl > 0.0 and order_tp > 0.0
+            and abs(order_entry - float(entry)) <= entry_tolerance
+            and abs(order_sl - float(stop)) <= protection_tolerance
+            and abs(order_tp - float(target)) <= target_tolerance
+        )
+        return matches, entry_tolerance, protection_tolerance, target_tolerance
+    except (TypeError, ValueError, OverflowError):
+        return False, entry_tolerance, protection_tolerance, target_tolerance
+
+
+def _strategy_broker_comment(strategy_name: str) -> str:
+    """Return a stable unique MT5 comment that survives broker sanitization/truncation."""
+    name = str(strategy_name or "BASE_HIERARCHY").strip().upper()
+    readable = {
+        "BASE_HIERARCHY": "YarBase",
+        "NONE": "YarBase",
+        "RTM": "YarBaseRTM",
+        "TREND": "YarBaseTREND",
+        "RANGE": "YarBaseRANGE",
+        "BASE_ENGULF_REVERSAL": "YarBaseENGULF",
+        "PRICE_ACTION": "YarBasePRICE",
+        "BREAKOUT": "YarBaseBRKOUT",
+        "MEAN_REVERSION": "YarBaseMEANREV",
+        "MOMENTUM": "YarBaseMOMENT",
+    }
+    if name in readable:
+        return readable[name]
+    slug = "".join(ch for ch in name if ch.isalnum())
+    digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:4].upper()
+    return ("YarBase" + (slug[:4] or "STR") + digest)[:15]
+
+
+def _legacy_strategy_comment_matches(comment: str, strategy_name: str) -> bool:
+    """Recognize broker-truncated comments written by older YarTrader versions."""
+    value = str(comment or "").strip().upper()
+    name = str(strategy_name or "").strip().upper()
+    if name == "BASE_ENGULF_REVERSAL":
+        return value.startswith("YARBASEBASE_ENG")
+    if name == "PRICE_ACTION":
+        return value.startswith("YARBASEPRICE")
+    return False
 
 
 def _acquire_symbol_execution_lock(symbol: str) -> tuple[Optional[int], Path]:
@@ -513,6 +608,18 @@ class AutonomousDemoTrader:
         event.setdefault("timestamp_utc", now.isoformat())
         event.setdefault("trade_type", "DEMO")
         event.setdefault("strategy_style", event.get("selected_strategy") or event.get("strategy") or "BASE_HIERARCHY")
+        event_name = str(event.get("event", ""))
+        review_decision = str(event.get("review_decision", ""))
+        event_status = str(event.get("status", "")).upper()
+        compact_context = (
+            event_name == "pending_order_review_cycle"
+            or (event_name == "pending_order_review" and review_decision in {
+                "KEEP_EXISTING", "KEEP_EXISTING_WITHIN_RISK_BUDGET",
+                "KEEP_UNTIL_EXPIRY_NO_QUALIFIED_REPLACEMENT",
+                "KEEP_EXISTING_RISK_BLOCKED_REPLACEMENT",
+            })
+            or (event_name == "entry_execution_outcome" and event_status in {"WAIT", "PENDING_ORDER_ACTIVE"})
+        )
         base_plan = event.get("base_plan") if isinstance(event.get("base_plan"), dict) else {}
         hierarchy = base_plan.get("hierarchy") if isinstance(base_plan.get("hierarchy"), dict) else {}
         structure = (
@@ -531,23 +638,35 @@ class AutonomousDemoTrader:
             if isinstance(hierarchy.get("historical_structure_analysis"), dict)
             else {}
         )
-        # Carry the latest observed structure context through order/position/close
-        # events for the same symbol, so the lifecycle journal can be joined later.
-        if not historical_structure or historical_structure.get("status") != "OK":
-            cache = getattr(self, "_journal_structure_context_by_symbol", {})
-            inherited = cache.get(str(event.get("symbol", "UNKNOWN")).upper(), {})
-            if inherited:
-                historical_structure = inherited.get("analysis", {})
-                event.setdefault("structure_context_inherited", True)
-                event.setdefault("structure_context_source_timestamp_utc", inherited.get("timestamp_utc"))
+        cache = getattr(self, "_journal_structure_context_by_symbol", {})
+        symbol_key = str(event.get("symbol", "UNKNOWN")).upper()
+        inherited = cache.get(symbol_key, {})
+        # Frequent keep/review outcomes reference the last full structural snapshot
+        # instead of duplicating every timeframe/level in every 30-second cycle.
+        # Full structure remains attached to primary decisions and actual order events.
+        if compact_context:
+            if not historical_structure or historical_structure.get("status") != "OK":
+                historical_structure = inherited.get("analysis", {}) if inherited else {}
+            event.pop("base_plan", None)
+            event.pop("historical_structure_analysis", None)
+            event.pop("structural_levels", None)
+            event.pop("structural_hierarchy", None)
+            event.pop("level_reaction_evidence", None)
+            event.pop("structure", None)
+            event.setdefault("structure_context_inherited", bool(inherited))
+            event.setdefault("structure_context_source_timestamp_utc", inherited.get("timestamp_utc"))
         else:
-            cache = getattr(self, "_journal_structure_context_by_symbol", {})
-            cache[str(event.get("symbol", "UNKNOWN")).upper()] = {
-                "analysis": historical_structure,
-                "timestamp_utc": event.get("timestamp_utc"),
-            }
-            self._journal_structure_context_by_symbol = cache
-            event.setdefault("structure_context_inherited", False)
+            # Carry the latest observed structure context through important order,
+            # position and close events so the lifecycle journal can be joined later.
+            if not historical_structure or historical_structure.get("status") != "OK":
+                if inherited:
+                    historical_structure = inherited.get("analysis", {})
+                    event.setdefault("structure_context_inherited", True)
+                    event.setdefault("structure_context_source_timestamp_utc", inherited.get("timestamp_utc"))
+            else:
+                cache[symbol_key] = {"analysis": historical_structure, "timestamp_utc": event.get("timestamp_utc")}
+                self._journal_structure_context_by_symbol = cache
+                event.setdefault("structure_context_inherited", False)
         tf_research = historical_structure.get("timeframes", {}) if isinstance(historical_structure, dict) else {}
         flattened_levels = []
         reaction_summary_by_tf = {}
@@ -561,11 +680,25 @@ class AutonomousDemoTrader:
         event.setdefault("journal_schema_version", 2)
         event.setdefault("structure_research_schema_version", 1)
         event.setdefault("structural_research_status", historical_structure.get("status", "NOT_ATTACHED"))
-        event.setdefault("historical_structure_analysis", historical_structure)
-        event.setdefault("structural_levels", flattened_levels)
-        event.setdefault("structural_hierarchy", structure)
-        event.setdefault("level_reaction_evidence", reaction_summary_by_tf)
-        event.setdefault("entry_level_context", historical_structure.get("current_price_context", {}))
+        if compact_context:
+            event.setdefault("structural_level_count", len(flattened_levels))
+            event.setdefault("level_reaction_evidence_summary", {
+                tf_name: {key: summary.get(key) for key in ("touches", "rejections", "breakouts", "visits") if key in summary}
+                for tf_name, summary in reaction_summary_by_tf.items() if isinstance(summary, dict)
+            })
+            event.setdefault("entry_level_context", historical_structure.get("current_price_context", {}))
+            event.setdefault("structural_hierarchy_summary", {
+                key: structure.get(key) for key in (
+                    "parent_base_id", "child_base_id", "parent_timeframe", "child_timeframe",
+                    "selected_child_timeframe", "micro_timeframe", "direction", "zone_low", "zone_high",
+                ) if key in structure
+            })
+        else:
+            event.setdefault("historical_structure_analysis", historical_structure)
+            event.setdefault("structural_levels", flattened_levels)
+            event.setdefault("structural_hierarchy", structure)
+            event.setdefault("level_reaction_evidence", reaction_summary_by_tf)
+            event.setdefault("entry_level_context", historical_structure.get("current_price_context", {}))
         # This remains empty until an observed outcome is available; never fabricate a
         # breakout/rejection label from a planned order or an unconfirmed touch.
         event.setdefault("breakout_rejection_outcome", event.get("level_outcome") or {})
@@ -1582,9 +1715,17 @@ class AutonomousDemoTrader:
                 logger.exception("Could not remove DEMO execution lock for %s", symbol)
         status = str(outcome.get("status", "UNKNOWN")).upper()
         broker_status = outcome.get("broker_status")
-        broker_confirmed = broker_status == "Placed" and status in {
+        broker_ticket = outcome.get("ticket")
+        submission_confirmed = broker_status == "Placed" and status in {
             "PENDING_ORDER_SUBMITTED", "MARKET_OPENED", "MARKET_SUBMITTED"
         }
+        # PENDING_ORDER_ACTIVE is returned only after this cycle finds and
+        # validates the order in the broker's current pending-order snapshot.
+        # It is not a new submission, but it is a broker-confirmed live order.
+        existing_order_confirmed = status == "PENDING_ORDER_ACTIVE" and bool(broker_ticket)
+        broker_confirmed = submission_confirmed or existing_order_confirmed
+        if existing_order_confirmed and not broker_status:
+            broker_status = "Active"
         self._log_event({
             "event": "entry_execution_outcome", "symbol": symbol,
             "strategy": base_plan.get("selected_strategy") or base_plan.get("decision_authority") or "BASE_HIERARCHY",
@@ -1622,7 +1763,7 @@ class AutonomousDemoTrader:
             return {"status": "BLOCKED", "reason": "Broker order state is unknown; refusing duplicate or new entry."}
         mt5 = self.adapter._mt5
         strategy_name = str(base_plan.get("selected_strategy") or base_plan.get("decision_authority") or "BASE_HIERARCHY").upper()
-        strategy_comment = "YarBase" if strategy_name in ("BASE_HIERARCHY", "NONE", "") else f"YarBase:{strategy_name}"
+        strategy_comment = _strategy_broker_comment(strategy_name)
         owned = [
             order for order in orders
             if int(self._field(order, "magic", 0) or 0) == 100001
@@ -1669,19 +1810,60 @@ class AutonomousDemoTrader:
                     "cancelled_existing_pending_orders": cancelled, "execution_enabled": False}
         valid = base_plan.get("status") == "ORDER_PROPOSAL" and plan.get("status") == "PROPOSED"
         if not valid:
-            # Keep only broker-side orders that have a finite expiration. Cancel old
-            # GTC legacy orders so they cannot create an unreviewed future entry.
+            # Review every existing order even when the strategy has no fresh
+            # proposal. Finite-expiry orders are retained only until their broker
+            # expiry; unbounded legacy orders are removed and cancellation is
+            # verified before the next cycle can consider a replacement.
             cancelled = []
             for order in owned:
                 expiration = int(self._field(order, "time_expiration", 0) or self._field(order, "expiration", 0) or 0)
-                if expiration > 0:
-                    continue
                 ticket = int(self._field(order, "ticket", 0) or 0)
                 if ticket <= 0:
-                    return {"status": "BLOCKED", "reason": "YarTrader-owned legacy pending order has no valid ticket."}
+                    self._log_event({"event": "pending_order_review", "symbol": symbol,
+                                     "review_decision": "BLOCK_UNKNOWN_TICKET",
+                                     "reason": "Owned pending order has no valid ticket; no order mutation attempted."})
+                    return {"status": "BLOCKED", "reason": "YarTrader-owned pending order has no valid ticket."}
+                review_reason = str(base_plan.get("reason") or "No qualified entry proposal.")
+                reason_lower = review_reason.lower()
+                invalidation_terms = (
+                    "opposes", "opposite structure", "structural invalidation", "zone invalidated",
+                    "setup invalidated", "no longer valid", "scenario expired", "setup expired",
+                    "direction conflict", "contradicts the current structure",
+                )
+                explicitly_invalidated = any(term in reason_lower for term in invalidation_terms)
+                if expiration > 0 and not explicitly_invalidated:
+                    self._log_event({
+                        "event": "pending_order_review", "symbol": symbol, "ticket": ticket,
+                        "review_decision": "KEEP_UNTIL_EXPIRY_NO_QUALIFIED_REPLACEMENT",
+                        "expiration_epoch": expiration, "broker_entry": self._field(order, "price_open", None),
+                        "broker_stop_loss": self._field(order, "sl", None),
+                        "broker_take_profit": self._field(order, "tp", None),
+                        "reason": review_reason,
+                    })
+                    continue
+                cancel_decision = "CANCEL_INVALIDATED_PENDING_ORDER" if explicitly_invalidated else "CANCEL_UNBOUNDED_LEGACY_ORDER"
+                self._log_event({"event": "pending_order_review", "symbol": symbol, "ticket": ticket,
+                                 "review_decision": cancel_decision,
+                                 "reason": review_reason if explicitly_invalidated else
+                                           "Order has no broker-side expiry and current strategy has no qualified proposal."})
                 response = self.adapter.cancel_pending_order(ticket)
                 if getattr(response, "Status", "") != "Cancelled":
+                    self._log_event({"event": "pending_order_cancel_result", "symbol": symbol,
+                                     "ticket": ticket, "broker_status": getattr(response, "Status", "UNKNOWN"),
+                                     "broker_confirmed": False, "replacement_submitted": False,
+                                     "reason": "Legacy order cancellation was not confirmed."})
                     return {"status": "BLOCKED", "reason": f"Could not cancel legacy YarTrader pending order {ticket}: {getattr(response, 'Comment', '')}"}
+                refreshed = self.adapter.get_active_orders(symbol)
+                if refreshed is None or any(int(self._field(o, "ticket", 0) or 0) == ticket for o in refreshed):
+                    self._log_event({"event": "pending_order_cancel_result", "symbol": symbol,
+                                     "ticket": ticket, "broker_status": getattr(response, "Status", "Cancelled"),
+                                     "broker_confirmed": False, "replacement_submitted": False,
+                                     "reason": "Cancel response received but active broker state did not verify removal."})
+                    return {"status": "BLOCKED", "reason": f"Legacy pending order {ticket} cancellation could not be verified."}
+                self._log_event({"event": "pending_order_cancel_result", "symbol": symbol,
+                                 "ticket": ticket, "broker_status": getattr(response, "Status", "Cancelled"),
+                                 "broker_confirmed": True, "replacement_submitted": False,
+                                 "reason": "Legacy order cancellation verified by refreshed broker state."})
                 cancelled.append(ticket)
             return {"status": "WAIT", "reason": base_plan.get("reason", "No qualified entry proposal."),
                     "cancelled_legacy_pending_orders": cancelled}
@@ -2048,33 +2230,91 @@ class AutonomousDemoTrader:
 
         # Reconcile only this strategy's own pending order. Keep other strategy
         # slots independent; never cancel a different strategy's valid setup.
-        strategy_owned = [order for order in owned
-                          if str(self._field(order, "comment", "") or "") == strategy_comment]
+        strategy_owned = [
+            order for order in owned
+            if str(self._field(order, "comment", "") or "").strip() == strategy_comment
+            or _legacy_strategy_comment_matches(
+                str(self._field(order, "comment", "") or ""), strategy_name
+            )
+        ]
         if pending_order:
             expected_type = getattr(mt5, f"ORDER_TYPE_{planned_order_type}", None)
             point = float(symbol_info.get("point") or 0.0)
             if point <= 0 or expected_type is None:
                 return {"status": "BLOCKED", "reason": "Broker point size or pending order type is unavailable for duplicate-safe order reconciliation."}
+            bid = float((tick or {}).get("bid") or 0.0)
+            ask = float((tick or {}).get("ask") or 0.0)
+            spread = max(0.0, ask - bid) if bid > 0 and ask > 0 else 0.0
             for order in strategy_owned:
-                same = (
-                    int(self._field(order, "type", -1) or -1) == int(expected_type)
-                    and abs(float(self._field(order, "price_open", 0.0) or 0.0) - entry) <= point * 0.5
-                    and abs(float(self._field(order, "sl", 0.0) or 0.0) - stop) <= point * 0.5
-                    and abs(float(self._field(order, "tp", 0.0) or 0.0) - target) <= point * 0.5
+                same, entry_tolerance, protection_tolerance, target_tolerance = _pending_order_matches_current_plan(
+                    order, int(expected_type), entry, stop, target, point, spread, direction=direction
                 )
+                order_entry = float(self._field(order, "price_open", 0.0) or 0.0)
+                order_sl = float(self._field(order, "sl", 0.0) or 0.0)
+                order_tp = float(self._field(order, "tp", 0.0) or 0.0)
                 if same:
+                    ticket = int(self._field(order, "ticket", 0) or 0)
+                    self._log_event({
+                        "event": "pending_order_review", "symbol": symbol,
+                        "strategy": strategy_name, "ticket": ticket,
+                        "review_decision": "KEEP_EXISTING",
+                        "broker_entry": order_entry, "proposed_entry": entry,
+                        "broker_stop_loss": order_sl, "proposed_stop_loss": stop,
+                        "broker_take_profit": order_tp, "proposed_take_profit": target,
+                        "entry_tolerance": entry_tolerance,
+                        "stop_tolerance": protection_tolerance,
+                        "target_tolerance": target_tolerance,
+                        "reason": "Existing broker order still matches the current setup within risk-aware price tolerance; no cancel/re-submit churn.",
+                        "structure": base_plan.get("structure") or (base_plan.get("hierarchy") or {}).get("structure") or {},
+                        "entry_level_context": base_plan.get("entry_level_context") or {},
+                    })
+                    redundant_cancelled = []
+                    for duplicate in strategy_owned:
+                        duplicate_ticket = int(self._field(duplicate, "ticket", 0) or 0)
+                        if duplicate_ticket <= 0 or duplicate_ticket == ticket:
+                            continue
+                        self._log_event({
+                            "event": "pending_order_review", "symbol": symbol,
+                            "strategy": strategy_name, "ticket": duplicate_ticket,
+                            "kept_ticket": ticket, "review_decision": "CANCEL_REDUNDANT_SAME_STRATEGY_ORDER",
+                            "reason": "One strategy may reserve only one broker-side pending-order slot; keeping the order that matches the current setup.",
+                        })
+                        cancel_result = self.adapter.cancel_pending_order(duplicate_ticket)
+                        if getattr(cancel_result, "Status", "") != "Cancelled":
+                            self._log_event({
+                                "event": "pending_order_cancel_result", "symbol": symbol,
+                                "strategy": strategy_name, "ticket": duplicate_ticket,
+                                "broker_status": getattr(cancel_result, "Status", "UNKNOWN"),
+                                "broker_confirmed": False, "replacement_submitted": False,
+                                "reason": "Redundant same-strategy order could not be cancelled; no additional order submitted.",
+                            })
+                            return {"status": "BLOCKED", "reason": f"Could not cancel redundant same-strategy pending order {duplicate_ticket}."}
+                        refreshed = self.adapter.get_active_orders(symbol)
+                        if refreshed is None or any(int(self._field(o, "ticket", 0) or 0) == duplicate_ticket for o in refreshed):
+                            self._log_event({
+                                "event": "pending_order_cancel_result", "symbol": symbol,
+                                "strategy": strategy_name, "ticket": duplicate_ticket,
+                                "broker_status": getattr(cancel_result, "Status", "Cancelled"),
+                                "broker_confirmed": False, "replacement_submitted": False,
+                                "reason": "Cancel response received but broker state did not verify duplicate removal.",
+                            })
+                            return {"status": "BLOCKED", "reason": f"Redundant pending order {duplicate_ticket} cancellation could not be verified."}
+                        self._log_event({
+                            "event": "pending_order_cancel_result", "symbol": symbol,
+                            "strategy": strategy_name, "ticket": duplicate_ticket,
+                            "broker_status": getattr(cancel_result, "Status", "Cancelled"),
+                            "broker_confirmed": True, "replacement_submitted": False,
+                            "reason": f"Redundant same-strategy order removed; matching order {ticket} retained.",
+                        })
+                        redundant_cancelled.append(duplicate_ticket)
                     return {"status": "PENDING_ORDER_ACTIVE", "symbol": symbol,
-                            "ticket": int(self._field(order, "ticket", 0) or 0),
-                            "order_type": planned_order_type, "entry": entry,
-                            "stop_loss": stop, "take_profit": target,
-                            "reason": "Matching broker-side pending order already exists; duplicate submission suppressed."}
-        for order in strategy_owned:
-            ticket = int(self._field(order, "ticket", 0) or 0)
-            if ticket <= 0:
-                return {"status": "BLOCKED", "reason": "YarTrader-owned pending order has no valid ticket."}
-            response = self.adapter.cancel_pending_order(ticket)
-            if getattr(response, "Status", "") != "Cancelled":
-                return {"status": "BLOCKED", "reason": f"Could not replace prior strategy pending order {ticket}: {getattr(response, 'Comment', '')}"}
+                            "ticket": ticket, "order_type": planned_order_type,
+                            "entry": order_entry, "stop_loss": order_sl, "take_profit": order_tp,
+                            "cancelled_redundant_tickets": redundant_cancelled,
+                            "reason": "Existing broker-side pending order remains valid within the current structural price tolerance; duplicate submission suppressed."}
+        # Do not cancel a current order yet. First validate the replacement's
+        # volume/risk budget; otherwise a rejected replacement would erase a
+        # still-valid broker-side order and the next cycle could churn again.
 
         # No exploration or strategy mode may bypass wallet-based risk sizing.
         # Use the fresh account snapshot and broker-native PnL calculation for
@@ -2106,7 +2346,140 @@ class AutonomousDemoTrader:
             return {"status": "RISK_BLOCKED", "reason": f"Risk sizing could not be verified: {exc}"}
         sizing["strategy_allocation"] = allocation
         if not sizing.get("allowed"):
+            self._log_event({
+                "event": "pending_order_review", "symbol": symbol,
+                "strategy": strategy_name,
+                "review_decision": "KEEP_EXISTING_RISK_BLOCKED_REPLACEMENT",
+                "existing_tickets": [int(self._field(o, "ticket", 0) or 0) for o in strategy_owned],
+                "reason": sizing.get("reason") or "Replacement sizing failed; existing order was not cancelled.",
+                "risk": sizing,
+                "structure": base_plan.get("structure") or (base_plan.get("hierarchy") or {}).get("structure") or {},
+                "entry_level_context": base_plan.get("entry_level_context") or {},
+            })
             return {"status": "RISK_BLOCKED", "reason": sizing.get("reason"), "risk": sizing}
+
+        # If an existing order differs only by a small stop/target recalculation,
+        # keep it when its actual broker-calculated loss remains within this cycle's
+        # allocated dollar-risk budget. This prevents harmless candle-to-candle
+        # rounding drift from repeatedly cancelling and re-creating a valid order.
+        if pending_order and strategy_owned:
+            point_for_review = float(symbol_info.get("point") or 0.0)
+            bid_for_review = float((tick or {}).get("bid") or 0.0)
+            ask_for_review = float((tick or {}).get("ask") or 0.0)
+            spread_for_review = max(0.0, ask_for_review - bid_for_review)
+            entry_tol_for_review = max(point_for_review * 10.0, spread_for_review * 3.0, abs(entry) * 0.0001)
+            planned_risk_distance = abs(entry - stop)
+            stop_tol_for_review = max(point_for_review * 20.0, planned_risk_distance * 0.10, abs(stop) * 0.0001)
+            expected_pending_type = getattr(mt5, f"ORDER_TYPE_{planned_order_type}", None)
+            risk_order_type = getattr(mt5, f"ORDER_TYPE_{direction}", None)
+            risk_budget = float(sizing.get("risk_budget_usd") or 0.0)
+            for existing_order in strategy_owned:
+                try:
+                    existing_ticket = int(self._field(existing_order, "ticket", 0) or 0)
+                    existing_type = int(self._field(existing_order, "type", -1))
+                    existing_entry = float(self._field(existing_order, "price_open", 0.0) or 0.0)
+                    existing_sl = float(self._field(existing_order, "sl", 0.0) or 0.0)
+                    existing_tp = float(self._field(existing_order, "tp", 0.0) or 0.0)
+                    existing_volume = float(self._field(
+                        existing_order, "volume_current", self._field(existing_order, "volume_initial", 0.0)
+                    ) or 0.0)
+                    target_is_valid = (
+                        direction == "BUY" and existing_tp > existing_entry
+                    ) or (direction == "SELL" and 0.0 < existing_tp < existing_entry)
+                    target_within_review = abs(existing_tp - target) <= max(
+                        point_for_review * 10.0, spread_for_review * 3.0,
+                        abs(target) * 0.0001, planned_risk_distance,
+                    )
+                    stop_within_review = abs(existing_sl - stop) <= stop_tol_for_review
+                    entry_within_review = abs(existing_entry - entry) <= entry_tol_for_review
+                    if not (existing_ticket > 0 and existing_type == int(expected_pending_type)
+                            and existing_volume > 0 and existing_entry > 0 and existing_sl > 0 and existing_tp > 0
+                            and target_is_valid and target_within_review
+                            and stop_within_review and entry_within_review
+                            and risk_budget > 0 and risk_order_type is not None):
+                        continue
+                    current_loss = mt5.order_calc_profit(
+                        int(risk_order_type), symbol, existing_volume, existing_entry, existing_sl
+                    )
+                    if current_loss is None or not math.isfinite(float(current_loss)):
+                        continue
+                    current_risk_usd = abs(float(current_loss))
+                    if current_risk_usd > risk_budget + 1e-6:
+                        continue
+                    self._log_event({
+                        "event": "pending_order_review", "symbol": symbol,
+                        "strategy": strategy_name, "ticket": existing_ticket,
+                        "review_decision": "KEEP_EXISTING_WITHIN_RISK_BUDGET",
+                        "broker_entry": existing_entry, "proposed_entry": entry,
+                        "broker_stop_loss": existing_sl, "proposed_stop_loss": stop,
+                        "broker_take_profit": existing_tp, "proposed_take_profit": target,
+                        "actual_broker_risk_usd": current_risk_usd,
+                        "allocated_risk_budget_usd": risk_budget,
+                        "stop_review_tolerance": stop_tol_for_review,
+                        "target_review_tolerance": max(point_for_review * 10.0, spread_for_review * 3.0,
+                                                        abs(target) * 0.0001, planned_risk_distance),
+                        "reason": "Existing order's actual broker-calculated loss remains within the allocated risk budget; retaining it avoids cancel/re-submit churn.",
+                        "structure": base_plan.get("structure") or (base_plan.get("hierarchy") or {}).get("structure") or {},
+                        "entry_level_context": base_plan.get("entry_level_context") or {},
+                    })
+                    return {"status": "PENDING_ORDER_ACTIVE", "symbol": symbol,
+                            "ticket": existing_ticket, "order_type": planned_order_type,
+                            "entry": existing_entry, "stop_loss": existing_sl, "take_profit": existing_tp,
+                            "actual_broker_risk_usd": current_risk_usd, "risk_budget_usd": risk_budget,
+                            "reason": "Existing pending order remains within the current structural review tolerances and allocated dollar-risk budget."}
+                except (TypeError, ValueError, OverflowError, AttributeError):
+                    continue
+
+        # Replace only after the candidate has passed structural, RR and risk
+        # sizing gates. Confirm each cancellation and refresh broker state before
+        # sending the replacement; never submit into an unknown order state.
+        replaced_tickets: List[int] = []
+        for order in strategy_owned:
+            ticket = int(self._field(order, "ticket", 0) or 0)
+            if ticket <= 0:
+                return {"status": "BLOCKED", "reason": "YarTrader-owned pending order has no valid ticket; replacement was not sent."}
+            self._log_event({
+                "event": "pending_order_review", "symbol": symbol,
+                "strategy": strategy_name, "ticket": ticket,
+                "review_decision": "REPLACE_AFTER_VALIDATED_CANDIDATE",
+                "broker_entry": float(self._field(order, "price_open", 0.0) or 0.0),
+                "proposed_entry": entry, "broker_stop_loss": float(self._field(order, "sl", 0.0) or 0.0),
+                "proposed_stop_loss": stop, "broker_take_profit": float(self._field(order, "tp", 0.0) or 0.0),
+                "proposed_take_profit": target, "risk": sizing,
+                "reason": "Current candidate passed risk sizing and materially differs from the existing pending order.",
+                "base_plan": base_plan,
+            })
+            response = self.adapter.cancel_pending_order(ticket)
+            if getattr(response, "Status", "") != "Cancelled":
+                self._log_event({
+                    "event": "pending_order_cancel_result", "symbol": symbol,
+                    "strategy": strategy_name, "ticket": ticket,
+                    "broker_status": getattr(response, "Status", "UNKNOWN"),
+                    "broker_comment": getattr(response, "Comment", ""),
+                    "broker_confirmed": False, "replacement_submitted": False,
+                    "reason": "Broker did not confirm cancellation; replacement blocked.",
+                })
+                return {"status": "BLOCKED", "reason": f"Could not replace prior strategy pending order {ticket}: {getattr(response, 'Comment', '')}"}
+            refreshed = self.adapter.get_active_orders(symbol)
+            if refreshed is None or any(int(self._field(o, "ticket", 0) or 0) == ticket for o in refreshed):
+                self._log_event({
+                    "event": "pending_order_cancel_result", "symbol": symbol,
+                    "strategy": strategy_name, "ticket": ticket,
+                    "broker_status": getattr(response, "Status", "Cancelled"),
+                    "broker_confirmed": False, "replacement_submitted": False,
+                    "reason": "Cancellation response was received but refreshed broker state is unknown or still contains the order.",
+                })
+                return {"status": "BLOCKED", "reason": f"Pending order {ticket} cancellation could not be verified; replacement blocked."}
+            self._log_event({
+                "event": "pending_order_cancel_result", "symbol": symbol,
+                "strategy": strategy_name, "ticket": ticket,
+                "broker_status": getattr(response, "Status", "Cancelled"),
+                "broker_comment": getattr(response, "Comment", ""),
+                "broker_confirmed": True, "replacement_submitted": False,
+                "reason": "Order cancellation verified by refreshed broker state; replacement may now be submitted.",
+            })
+            replaced_tickets.append(ticket)
+
         request = OrderRequest(
             Symbol=symbol, OrderType=order_type, Volume=float(sizing["volume"]),
             Price=round(entry, digits), StopLoss=round(stop, digits), TakeProfit=round(target, digits),
@@ -2139,7 +2512,19 @@ class AutonomousDemoTrader:
             "broker_status": response.Status, "broker_comment": getattr(response, "Comment", ""),
             "broker_order_id": response.OrderId, "broker_deal_ticket": deal_ticket,
             "broker_retcode": response.Retcode,
+            "replaces_broker_tickets": replaced_tickets,
         })
+        if replaced_tickets:
+            self._log_event({
+                "event": "pending_order_replacement_completed", "symbol": symbol,
+                "strategy": strategy_name, "replaced_tickets": replaced_tickets,
+                "new_broker_order_id": response.OrderId,
+                "broker_status": response.Status, "broker_retcode": response.Retcode,
+                "broker_confirmed": response.Status == "Placed",
+                "replacement_status": "REPLACED" if response.Status == "Placed" else "REPLACEMENT_FAILED",
+                "reason": getattr(response, "Comment", ""),
+                "base_plan": base_plan,
+            })
         if response.Status == "Placed" and not pending_order:
             self._remember_submitted_setup(symbol, base_plan, plan, response)
         if response.Status != "Placed":
@@ -2288,11 +2673,19 @@ class AutonomousDemoTrader:
                 active_orders_for_slots = dedupe["orders"]
                 def _slot_name(comment: str) -> str:
                     normalized = str(comment or "").strip().upper()
+                    # Match broker-safe canonical comments against this cycle's
+                    # actual strategy names before attempting legacy comment parsing.
+                    for candidate_name in (base_plan.get("strategy_results") or {}):
+                        if _strategy_broker_comment(candidate_name).upper() == normalized:
+                            return candidate_name
+                    # Recover the long names written by older versions whose MT5
+                    # comment was truncated to 15 characters by the broker adapter.
+                    if normalized.startswith("YARBASEBASE_ENG") or normalized == "YARBASEENGULF":
+                        return "BASE_ENGULF_REVERSAL"
+                    if normalized.startswith("YARBASEPRICE"):
+                        return "PRICE_ACTION"
                     if ":" in normalized:
                         return normalized.split(":", 1)[1].strip() or "BASE_HIERARCHY"
-                    # Broker comments are stored as YarBaseRTM/YarBasePRICE_ACTION
-                    # (without a colon), so treating every such order as BASE_HIERARCHY
-                    # made independent styles appear free and encouraged duplicates.
                     if normalized == "YARBASE":
                         return "BASE_HIERARCHY"
                     if normalized.startswith("YARBASE"):
@@ -2319,6 +2712,55 @@ class AutonomousDemoTrader:
                             and str(result.get("direction", "")).upper() in ("BUY", "SELL")):
                         candidates.append((name, result, plan))
                 selected = next((item for item in candidates if item[0] not in occupied_slots), None)
+
+                # Review every existing bot-owned pending order against its own
+                # strategy's freshly computed result before deciding whether the
+                # portfolio has room for a new slot. Capacity-full must not freeze
+                # pending orders in an unreviewed state.
+                reviewed_strategy_slots = set()
+                for existing_order in bot_pending_orders:
+                    existing_slot = _slot_name(str(self._field(existing_order, "comment", "") or ""))
+                    if existing_slot in reviewed_strategy_slots:
+                        continue
+                    reviewed_strategy_slots.add(existing_slot)
+                    existing_ticket = int(self._field(existing_order, "ticket", 0) or 0)
+                    existing_result = (base_plan.get("strategy_results") or {}).get(existing_slot, {})
+                    existing_plan = existing_result.get("order_plan")
+                    review_plan = dict(base_plan)
+                    if (existing_result.get("status") == "ENTRY_PROPOSAL"
+                            and isinstance(existing_plan, dict)
+                            and str(existing_plan.get("status", "")).upper() == "PROPOSED"
+                            and str(existing_result.get("direction", "")).upper() in ("BUY", "SELL")):
+                        review_plan.update({
+                            "status": "ORDER_PROPOSAL", "selected_strategy": existing_slot,
+                            "decision_authority": existing_slot, "order_plan": existing_plan,
+                            "reason": existing_result.get("reason", "Revalidating existing pending order."),
+                        })
+                    else:
+                        review_plan.update({
+                            "status": "WAIT", "selected_strategy": existing_slot,
+                            "decision_authority": existing_slot,
+                            "order_plan": {"status": "WAIT"},
+                            "reason": existing_result.get("reason") or
+                                      "Current strategy has no fresh qualified replacement; keep finite-expiry order under review.",
+                        })
+                    review_plan["max_demo_slots"] = configured_max_positions
+                    review_plan["reserved_demo_slots"] = total_reserved_slots
+                    review_plan["occupied_strategy_slots"] = sorted(occupied_slots)
+                    self._log_event({
+                        "event": "pending_order_review_cycle", "symbol": symbol,
+                        "ticket": existing_ticket, "strategy": existing_slot,
+                        "strategy_signal_status": existing_result.get("status", "WAIT"),
+                        "strategy_signal_direction": existing_result.get("direction", "WAIT"),
+                        "capacity_full": total_reserved_slots >= configured_max_positions,
+                        "reason": "Rechecking existing pending order against fresh closed-candle strategy evidence before allocating any new slot.",
+                        "structure": review_plan.get("structure") or (review_plan.get("hierarchy") or {}).get("structure") or {},
+                        "entry_level_context": review_plan.get("entry_level_context") or {},
+                    })
+                    self._reconcile_base_pending_order(
+                        symbol, review_plan, tick, account, symbol_info, per_tf=per_tf
+                    )
+
                 if total_reserved_slots >= configured_max_positions:
                     base_plan.update({"status": "WAIT",
                                       "reason": f"DEMO capacity reached: {total_reserved_slots} open/pending YarTrader slots reserve the configured limit of {configured_max_positions}.",
@@ -2356,7 +2798,27 @@ class AutonomousDemoTrader:
             self._log_event({
                 "event": "hierarchical_base_primary_decision",
                 "symbol": symbol,
-                "base_plan": base_plan,
+                "base_plan_summary": {
+                    "status": base_plan.get("status"),
+                    "reason": base_plan.get("reason"),
+                    "selected_strategy": base_plan.get("selected_strategy"),
+                    "decision_authority": base_plan.get("decision_authority"),
+                    "confidence": base_plan.get("confidence"),
+                    "order_plan": base_plan.get("order_plan") or {},
+                    "strategy_results": {
+                        name: {
+                            "status": result.get("status"),
+                            "direction": result.get("direction"),
+                            "reason": result.get("reason"),
+                            "order_plan": result.get("order_plan") or {},
+                        }
+                        for name, result in (base_plan.get("strategy_results") or {}).items()
+                        if isinstance(result, dict)
+                    },
+                },
+                "structure": base_plan.get("structure") or (base_plan.get("hierarchy") or {}).get("structure") or {},
+                "historical_structure_analysis": base_plan.get("historical_structure_analysis") or (base_plan.get("hierarchy") or {}).get("historical_structure_analysis") or {},
+                "entry_level_context": base_plan.get("entry_level_context") or {},
                 "open_positions": len(open_positions),
                 "execution_enabled": False,
             })
