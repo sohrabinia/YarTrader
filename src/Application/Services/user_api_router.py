@@ -25,10 +25,13 @@ def get_user_session_and_enforce_tier(authorization: Optional[str] = Header(None
     if not authorization:
         if is_production:
             raise HTTPException(status_code=401, detail="Authentication token required: Authorization header is missing.")
-        # Dev/sandbox mode fallback
+        # Dev/sandbox mode fallback applies only when no identity header was sent.
         return {"email": "guest@yartrader.app", "role": "USER", "tier": "FREE"}
-
-    token = authorization.replace("Bearer ", "").strip()
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid Authorization header scheme. Expected 'Bearer <token>'.")
+    token = authorization[7:].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Empty Bearer token provided.")
     session = global_auth_service.validate_session(token)
     if not session:
         raise HTTPException(status_code=401, detail="Invalid or expired session token.")
@@ -341,7 +344,8 @@ def reply_to_ticket(ticket_id: str, payload: ReplyTicketPayload, session: Dict[s
             is_admin=False
         )
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        status = 403 if "Unauthorized" in str(e) else 400
+        raise HTTPException(status_code=status, detail=str(e))
 
 
 # ==============================================================================

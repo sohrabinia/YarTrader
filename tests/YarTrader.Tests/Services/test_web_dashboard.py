@@ -114,31 +114,38 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         resp = self.client.get("/v1/dashboard/overview")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        self.assertEqual(data["system_health"], "Healthy")
+        self.assertIn(data["system_health"], ("UNKNOWN", "HEALTHY"))
+        self.assertIsNone(data["apes_boundary_passed"])
 
     def test_get_monitoring_alerts(self):
         """Verifies active diagnostic logs and alerts."""
         resp = self.client.get("/v1/monitoring")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        self.assertEqual(data["telemetry_state"], "ONLINE")
+        self.assertEqual(data["telemetry_state"], "UNKNOWN")
+        self.assertIsNone(data["active_alerts"])
+        self.assertEqual(data["diagnostic_logs"], [])
 
     def test_get_telemetry_metrics(self):
         """Verifies latency and resource telemetry metrics."""
         resp = self.client.get("/v1/metrics")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        self.assertIn("pipeline_latency_ms", data)
+        self.assertIsNone(data["pipeline_latency_ms"])
+        self.assertIsNone(data["api_response_ms"])
+        self.assertGreaterEqual(data["thread_count"], 1)
 
     def test_execute_runtime_control(self):
-        """Verifies start, stop, pause, resume controllers."""
+        """Commands require ADMIN and a registered controller; no false success."""
+        from src.Application.Dashboard.auth_service import global_auth_service
+        admin_token = global_auth_service.create_session({"email": "control-admin@yartrader.app", "role": "ADMIN"})
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        self.assertEqual(self.client.post("/api/control", json={"command": "stop"}).status_code, 401)
         for cmd in ["start", "stop", "pause", "resume"]:
-            resp = self.client.post("/api/control", json={"command": cmd})
-            self.assertEqual(resp.status_code, 200)
-            self.assertEqual(resp.json()["status"], "Berry" if False else "Success")
-
-        # invalid command
-        resp_err = self.client.post("/api/control", json={"command": "invalid_cmd"})
+            resp = self.client.post("/api/control", json={"command": cmd}, headers=headers)
+            self.assertEqual(resp.status_code, 503)
+            self.assertIn("no runtime controller", resp.json()["detail"].lower())
+        resp_err = self.client.post("/api/control", json={"command": "invalid_cmd"}, headers=headers)
         self.assertEqual(resp_err.status_code, 400)
 
     def test_list_symbol_administration(self):
@@ -146,16 +153,20 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         resp = self.client.get("/api/symbols")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
-        self.assertIn("EURUSD", data["administered_symbols"])
+        self.assertIn(data["operating_parameters"]["data_state"], ("LIVE_REGISTRY", "UNAVAILABLE"))
+        self.assertIsInstance(data["administered_symbols"], list)
 
     def test_transition_operating_mode(self):
-        """Verifies operating mode transition handlers."""
+        """Mode changes require ADMIN and a controller acknowledgement."""
+        from src.Application.Dashboard.auth_service import global_auth_service
+        admin_token = global_auth_service.create_session({"email": "mode-admin@yartrader.app", "role": "ADMIN"})
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        self.assertEqual(self.client.post("/api/mode", json={"mode": "Demo"}).status_code, 401)
         for mode in ["Research", "Backtest", "Demo", "Signal", "Prop"]:
-            resp = self.client.post("/api/mode", json={"mode": mode})
-            self.assertEqual(resp.status_code, 200)
-            self.assertEqual(resp.json()["transitioned_to_mode"], mode)
-
-        resp_err = self.client.post("/api/mode", json={"mode": "LiveActiveTrading"})
+            resp = self.client.post("/api/mode", json={"mode": mode}, headers=headers)
+            self.assertEqual(resp.status_code, 503)
+            self.assertIn("no runtime controller", resp.json()["detail"].lower())
+        resp_err = self.client.post("/api/mode", json={"mode": "LiveActiveTrading"}, headers=headers)
         self.assertEqual(resp_err.status_code, 400)
 
     def test_trigger_backtesting_job_uses_base_only_and_real_history(self):
@@ -197,10 +208,13 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         self.assertTrue(callable(base_backtest.call_args.kwargs["all_timeframe_candles_provider"]))
 
     def test_trigger_emergency_stop(self):
-        """Verifies immediate emergency protective stop halts."""
-        resp = self.client.post("/api/risk/emergency_stop")
-        self.assertEqual(resp.status_code, 200)
-        self.assertTrue(resp.json()["emergency_stop_triggered"])
+        """Emergency stop is admin-only and never claims a halt without a controller."""
+        from src.Application.Dashboard.auth_service import global_auth_service
+        admin_token = global_auth_service.create_session({"email": "halt-admin@yartrader.app", "role": "ADMIN"})
+        self.assertEqual(self.client.post("/api/risk/emergency_stop").status_code, 401)
+        resp = self.client.post("/api/risk/emergency_stop", headers={"Authorization": f"Bearer {admin_token}"})
+        self.assertEqual(resp.status_code, 503)
+        self.assertIn("no runtime controller", resp.json()["detail"].lower())
 
     def test_get_scorecard(self):
         """Verifies production readiness scorecards."""

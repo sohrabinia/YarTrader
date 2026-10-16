@@ -82,8 +82,9 @@ class TestSREOperational(unittest.TestCase):
         resp_overview = self.client.get("/v1/dashboard/overview")
         self.assertEqual(resp_overview.status_code, 200)
         data = resp_overview.json()
-        self.assertEqual(data["active_operating_mode"], "Descriptive-Analytical Sandbox")
-        self.assertTrue(data["apes_boundary_passed"])
+        self.assertIn(data["active_operating_mode"], ("UNKNOWN", "DEVELOPMENT", "PRODUCTION", "RESEARCH", "DEMO", "SIGNAL", "PROP", "BACKTEST"))
+        self.assertIsNone(data["apes_boundary_passed"])
+        self.assertEqual(data["data_state"], "RUNTIME_OBSERVATION_ONLY")
 
     def test_cognitive_dashboard_endpoints(self):
         """Verifies that passive cognitive query and explainability endpoints are active."""

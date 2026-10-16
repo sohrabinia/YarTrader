@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app
 
@@ -54,7 +54,9 @@ def test_admin_content_creation():
             "content": "Full article content"
         }
     }
-    res = client.post("/api/admin/content", json=payload)
+    from src.Application.Dashboard.auth_service import global_auth_service
+    admin_token = global_auth_service.create_session({"email": "content-admin@yartrader.app", "role": "ADMIN"})
+    res = client.post("/api/admin/content", json=payload, headers={"Authorization": f"Bearer {admin_token}"})
     assert res.status_code == 200
     assert res.json()["status"] == "Success"
 
@@ -91,3 +93,42 @@ def test_user_ticket_lifecycle():
     res_admin_status = client.post(f"/api/admin/tickets/{ticket_id}/status", json={"status": "RESOLVED"}, headers={"Authorization": f"Bearer {admin_token}"})
     assert res_admin_status.status_code == 200
     assert res_admin_status.json()["status"] == "RESOLVED"
+
+
+def test_legacy_ticket_routes_require_auth_and_use_session_identity():
+    from src.Application.Dashboard.auth_service import global_auth_service
+    from src.Application.Dashboard.ticket_manager import TicketManager
+
+    # Production mode denies anonymous access; the request cannot choose an arbitrary email.
+    import os
+    from unittest.mock import patch
+    with patch.dict(os.environ, {"YARTRADER_ENV": "production"}):
+        assert client.get("/api/user/tickets").status_code == 401
+        assert client.get("/api/user/tickets", headers={"Authorization": "Basic bad-token"}).status_code == 401
+        assert client.post("/api/user/tickets", json={
+            "subject": "unauthenticated", "category": "Support", "priority": "LOW", "message": "should be blocked"
+        }).status_code == 401
+        assert client.get("/api/admin/tickets").status_code == 401
+        assert client.post("/api/admin/content", json={"domain": "blog", "item": {"title": "no auth"}}).status_code == 401
+
+    user_email = "ticket-owner@yartrader.app"
+    user_token = global_auth_service.create_session({"email": user_email, "role": "USER"})
+    headers = {"Authorization": f"Bearer {user_token}"}
+    created = client.post("/api/user/tickets?email=victim@yartrader.app", json={
+        "subject": "private ticket", "category": "Support", "priority": "LOW", "message": "my issue"
+    }, headers=headers)
+    assert created.status_code == 200, created.text
+    ticket_id = created.json()["ticket_id"]
+    listed = client.get("/api/user/tickets?email=victim@yartrader.app", headers=headers)
+    assert listed.status_code == 200
+    assert all(ticket["email"] == user_email for ticket in listed.json())
+
+    manager = TicketManager()
+    other = manager.create_ticket("other-owner@yartrader.app", "other ticket", "Support", "LOW", "private")
+    forbidden = client.post(f"/api/user/tickets/{other['ticket_id']}/reply", json={"message": "intrusion"}, headers=headers)
+    assert forbidden.status_code in (400, 403)
+
+    admin_token = global_auth_service.create_session({"email": "ticket-admin@yartrader.app", "role": "ADMIN"})
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    admin_list = client.get("/api/admin/tickets", headers=admin_headers)
+    assert admin_list.status_code == 200

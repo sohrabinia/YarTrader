@@ -167,6 +167,23 @@ def check_admin_guard(req_or_tok: Any = None, session_token: Optional[str] = Non
 
     return session
 
+
+def check_user_guard(request: Request):
+    """Authenticate a user from a Bearer session; caller-supplied email/query tokens are never trusted."""
+    from app.core.logging import log_security
+    if any(param in request.query_params for param in ("token", "session_token", "authorization")):
+        log_security("AUTHORIZATION_DENIED", reason="Query string token parameter rejected")
+        raise HTTPException(status_code=401, detail="Query string token parameters are forbidden; use a Bearer header.")
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer ") or not auth_header[7:].strip():
+        log_security("AUTHORIZATION_DENIED", reason="Missing or malformed Bearer session")
+        raise HTTPException(status_code=401, detail="A valid Bearer session token is required.")
+    session = global_auth_service.validate_session(auth_header[7:].strip())
+    if not session:
+        log_security("AUTHORIZATION_DENIED", reason="Invalid or expired user session")
+        raise HTTPException(status_code=401, detail="Invalid or expired session token.")
+    return session
+
 research_tracker = {
     "last_analysis_time": None,
     "last_candle_time": None,
@@ -4206,12 +4223,17 @@ def get_shadow_trading_metrics():
 
 @app.get("/v1/dashboard/overview")
 def get_dashboard_overview():
-    """Aggregated diagnostics overview endpoint."""
+    """Return observed state only; unknown readiness is not represented as healthy."""
+    mode = (os.environ.get("YARTRADER_TRADING_MODE") or os.environ.get("YARTRADER_ENV") or "UNKNOWN").strip().upper()
+    worker_state = str(research_tracker.get("worker_status", "UNKNOWN")).upper()
+    mt5_state = str(research_tracker.get("mt5_status", "UNKNOWN")).upper()
+    health = "HEALTHY" if worker_state == "RUNNING" and mt5_state == "CONNECTED" else "UNKNOWN"
     return {
-        "system_health": "Healthy",
-        "active_operating_mode": "Descriptive-Analytical Sandbox",
-        "last_validated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "apes_boundary_passed": True
+        "system_health": health,
+        "active_operating_mode": mode,
+        "last_validated": None,
+        "apes_boundary_passed": None,
+        "data_state": "RUNTIME_OBSERVATION_ONLY"
     }
 
 
@@ -4224,63 +4246,77 @@ def get_dashboard_cognitive():
 
 @app.get("/v1/monitoring")
 def get_monitoring_alerts():
-    """Monitoring and diagnostic alerts endpoint."""
+    """Telemetry is explicitly unknown until a real monitoring source is wired."""
     return {
-        "active_alerts": [],
-        "telemetry_state": "ONLINE",
-        "diagnostic_logs": [
-            "No alerts detected",
-            "Simulated rates mapping buffer verified healthy"
-        ]
+        "active_alerts": None,
+        "telemetry_state": "UNKNOWN",
+        "diagnostic_logs": [],
+        "data_state": "MONITORING_NOT_CONFIGURED"
     }
 
 
 @app.get("/v1/metrics")
 def get_telemetry_metrics():
-    """Telemetry performance metrics API."""
+    """Never fabricate latency or memory figures when no instrumentation is registered."""
     return {
-        "pipeline_latency_ms": 12.45,
-        "api_response_ms": 4.12,
-        "memory_used_mb": 145.4,
-        "thread_count": threading.active_count()
+        "pipeline_latency_ms": None,
+        "api_response_ms": None,
+        "memory_used_mb": None,
+        "thread_count": threading.active_count(),
+        "data_state": "LATENCY_AND_MEMORY_UNINSTRUMENTED"
     }
 
 
 @app.post("/api/control")
-def execute_runtime_control(command: Dict[str, Any]):
-    """Accepts run control commands (start, stop, pause, resume)."""
+def execute_runtime_control(command: Dict[str, Any], request: Request):
+    """Dispatch an admin-only command through an explicitly registered runtime controller."""
+    check_admin_guard(request)
     cmd = command.get("command")
-    if cmd not in ["start", "stop", "pause", "resume"]:
+    if cmd not in ("start", "stop", "pause", "resume"):
         raise HTTPException(status_code=400, detail="Invalid operating command.")
-    return {"status": "Success", "message": f"Runtime command '{cmd}' executed."}
+    controller = getattr(app.state, "runtime_controller", None)
+    method = getattr(controller, cmd, None) if controller is not None else None
+    if not callable(method):
+        raise HTTPException(status_code=503, detail="Runtime command was not executed: no runtime controller is registered.")
+    try:
+        result = method()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Runtime controller failed to execute '{cmd}': {exc}")
+    if result is False or (isinstance(result, dict) and result.get("success") is False):
+        raise HTTPException(status_code=503, detail=f"Runtime controller did not confirm '{cmd}'.")
+    return {"status": "Success", "command": cmd, "result": result}
 
 
 @app.get("/api/symbols")
 def list_symbol_administration():
-    """Retrieves administrative analytical symbol configuration lists."""
-    return {
-        "administered_symbols": ["EURUSD", "GBPUSD", "XAUUSD", "BTCUSD"],
-        "operating_parameters": {
-            "rate_mode": "Simulated Buffer Sequences",
-            "unidirectional_flow_guaranteed": True
-        }
-    }
+    """Return the configured symbol registry, not a fabricated hard-coded list."""
+    try:
+        from src.Market.Universe.symbol_registry import SymbolRegistry
+        symbols = sorted({str(symbol).upper() for symbol in SymbolRegistry.get_instance().get_all_registered() if str(symbol).strip()})
+        return {"administered_symbols": symbols, "operating_parameters": {"source": "SymbolRegistry", "data_state": "LIVE_REGISTRY"}}
+    except Exception:
+        return {"administered_symbols": [], "operating_parameters": {"source": "SymbolRegistry", "data_state": "UNAVAILABLE"}}
 
 
 @app.post("/api/mode")
-def transition_operating_mode(payload: Dict[str, Any]):
-    """Validates the canonical learning-cycle modes; Shadow is retired and LIVE is never selectable."""
+def transition_operating_mode(payload: Dict[str, Any], request: Request):
+    """An admin-only mode change is successful only when a runtime controller confirms it."""
+    check_admin_guard(request)
     target_mode = str(payload.get("mode", "")).strip().title()
     allowed_modes = {"Research", "Backtest", "Demo", "Signal", "Prop"}
     if target_mode not in allowed_modes:
         raise HTTPException(status_code=400, detail="Invalid or retired system transition mode requested.")
-    return {
-        "status": "Success",
-        "transitioned_to_mode": target_mode,
-        "learning_cycle": ["Research", "Backtest", "Demo", "Signal", "Prop"],
-        "live_trading": "DISABLED",
-        "shadow": "RETIRED"
-    }
+    controller = getattr(app.state, "runtime_controller", None)
+    method = (getattr(controller, "set_mode", None) or getattr(controller, "transition_mode", None)) if controller is not None else None
+    if not callable(method):
+        raise HTTPException(status_code=503, detail="Mode transition was not executed: no runtime controller is registered.")
+    try:
+        result = method(target_mode)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Runtime controller failed to set mode: {exc}")
+    if result is False or (isinstance(result, dict) and result.get("success") is False):
+        raise HTTPException(status_code=503, detail="Runtime controller did not confirm the mode transition.")
+    return {"status": "Success", "transitioned_to_mode": target_mode, "result": result, "live_trading": "DISABLED", "shadow": "RETIRED"}
 
 
 @app.post("/api/backtest/run")
@@ -4780,13 +4816,20 @@ def get_shadow_report():
 
 
 @app.post("/api/risk/emergency_stop")
-def trigger_emergency_stop():
-    """Immediate emergency stop halt operation."""
-    return {
-        "emergency_stop_triggered": True,
-        "status": "HALTED",
-        "message": "Emergency protective stop active. System isolation guaranteed."
-    }
+def trigger_emergency_stop(request: Request):
+    """Admin-only emergency halt request; success requires a registered runtime controller."""
+    check_admin_guard(request)
+    controller = getattr(app.state, "runtime_controller", None)
+    method = (getattr(controller, "emergency_stop", None) or getattr(controller, "emergency_halt", None)) if controller is not None else None
+    if not callable(method):
+        raise HTTPException(status_code=503, detail="Emergency stop was not executed: no runtime controller is registered.")
+    try:
+        result = method()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Runtime controller failed to halt workers: {exc}")
+    if result is False or (isinstance(result, dict) and result.get("success") is False):
+        raise HTTPException(status_code=503, detail="Runtime controller did not confirm the emergency halt.")
+    return {"emergency_stop_triggered": True, "status": "HALTED", "result": result}
 
 
 @app.get("/api/production-readiness")
@@ -4867,16 +4910,17 @@ def get_scorecard():
 @app.get("/api/system/frontend-status")
 def get_system_frontend_status():
     """Exposes frontend build diagnostics status to the dashboard client and runtime gate."""
-    react_index = "trader-terminal/dist/index.html"
-    build_status = "available" if os.path.exists(react_index) else "unavailable"
-    assets_status = "available" if os.path.exists("trader-terminal/dist/assets") else "unavailable"
+    react_index = REPO_ROOT / "trader-terminal" / "dist" / "index.html"
+    assets_path = REPO_ROOT / "trader-terminal" / "dist" / "assets"
+    build_status = "available" if react_index.is_file() else "unavailable"
+    assets_status = "available" if assets_path.is_dir() else "unavailable"
     return {
-        "frontend": "online",
+        "frontend": "online" if build_status == "available" else "unavailable",
         "backend": "online",
         "api": "connected",
         "build": build_status,
         "assets": assets_status,
-        "mode": "production"
+        "mode": (os.environ.get("YARTRADER_ENV") or "UNKNOWN").upper()
     }
 
 
@@ -5220,8 +5264,9 @@ class AdminContentPayload(BaseModel):
 
 
 @app.post("/api/admin/content")
-def admin_manage_content(payload: AdminContentPayload):
-    """SRE Admin content publishing endpoint."""
+def admin_manage_content(payload: AdminContentPayload, request: Request):
+    """Admin content publishing requires a valid ADMIN Bearer session."""
+    check_admin_guard(request)
     if payload.domain not in ("blog", "news", "faq", "guide"):
         raise HTTPException(status_code=400, detail="Invalid content domain.")
     created = global_content_manager.add_content_item(payload.domain, payload.item)
@@ -5240,45 +5285,40 @@ class ReplyTicketPayload(BaseModel):
 
 
 @app.get("/api/user/tickets")
-def list_user_tickets(email: str = "trader@yartrader.app", page: int = 1, limit: int = 10):
-    """Retrieves user support tickets."""
-    return global_ticket_manager.list_user_tickets(email=email, page=page, limit=limit)
+def list_user_tickets(request: Request, page: int = 1, limit: int = 10):
+    session = check_user_guard(request)
+    return global_ticket_manager.list_user_tickets(email=session["email"], page=page, limit=limit)
 
 
 @app.post("/api/user/tickets")
-def create_user_ticket(payload: CreateTicketPayload, email: str = "trader@yartrader.app"):
-    """Creates a new support ticket."""
+def create_user_ticket(payload: CreateTicketPayload, request: Request):
+    session = check_user_guard(request)
     try:
         ticket = global_ticket_manager.create_ticket(
-            email=email,
-            subject=payload.subject,
-            category=payload.category,
-            priority=payload.priority,
-            message=payload.message
+            email=session["email"], subject=payload.subject, category=payload.category,
+            priority=payload.priority, message=payload.message
         )
         return {"status": "Success", "ticket": ticket}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.post("/api/user/tickets/{ticket_id}/reply")
-def reply_user_ticket(ticket_id: str, payload: ReplyTicketPayload, email: str = "trader@yartrader.app", is_admin: bool = False):
-    """Replies to an existing support ticket."""
+def reply_user_ticket(ticket_id: str, payload: ReplyTicketPayload, request: Request):
+    session = check_user_guard(request)
     try:
         updated = global_ticket_manager.add_reply(
-            ticket_id=ticket_id,
-            email=email,
-            message=payload.message,
-            is_admin=is_admin
+            ticket_id=ticket_id, email=session["email"], message=payload.message,
+            is_admin=session.get("role") == "ADMIN"
         )
         return {"status": "Success", "ticket": updated}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as exc:
+        raise HTTPException(status_code=403 if "Unauthorized" in str(exc) else 400, detail=str(exc))
 
 
 @app.get("/api/admin/tickets")
-def admin_list_all_tickets(page: int = 1, limit: int = 20):
-    """Lists all support tickets for administrative response."""
+def admin_list_all_tickets(request: Request, page: int = 1, limit: int = 20):
+    check_admin_guard(request)
     return global_ticket_manager.list_all_tickets_admin(page=page, limit=limit)
 
 
@@ -5288,13 +5328,13 @@ class AdminTicketStatusPayload(BaseModel):
 
 
 @app.post("/api/admin/tickets/{ticket_id}/status")
-def admin_update_ticket_status(ticket_id: str, payload: AdminTicketStatusPayload):
-    """Updates ticket status/priority for administrative operations."""
+def admin_update_ticket_status(ticket_id: str, payload: AdminTicketStatusPayload, request: Request):
+    check_admin_guard(request)
     try:
         updated = global_ticket_manager.update_status(ticket_id=ticket_id, status=payload.status, priority=payload.priority)
         return {"status": "Success", "ticket": updated}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 class ChatPrompt(BaseModel):
