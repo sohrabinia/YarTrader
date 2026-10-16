@@ -6,12 +6,13 @@ It never submits orders.
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import json
 import math
 import os
+import sqlite3
 
 from src.Decision.Intelligence.hierarchical_base_behavior_engine import HierarchicalBaseBehaviorEngine
 from src.Decision.Intelligence.base_reaction_decision_engine import BaseReactionDecisionEngine
@@ -19,6 +20,9 @@ from src.Decision.Intelligence.pending_order_planner import PendingOrderPlanner
 from src.Research.Brain.multitimeframe_base_transition_engine import TIMEFRAME_SECONDS
 from src.Research.Brain.multitimeframe_base_transition_engine import detect_base_departures
 from src.Intelligence.Execution.historical_structure_research import analyze_historical_structure_levels
+from src.Intelligence.Execution.structural_behavior_mining import (
+    mine_structural_behaviors, persist_and_aggregate_structural_behaviors,
+)
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -232,10 +236,84 @@ class StrategyOrchestrator:
         pip_factor = 0.1 if "XAU" in symbol.upper() else (1.0 if "BTC" in symbol.upper() else 0.0001)
         spread = max(0.0, float(spread_pip)) * pip_factor
         quote = {"bid": price - spread / 2, "ask": price + spread / 2}
-        hierarchy = engine.analyze(events_by_tf, quote, now=float(latest_epoch), exploration_mode=demo_exploration)
-        # Attach causal swing levels and measured historical reactions to the same
-        # context consumed by the Base/reaction decision path and its diagnostics.
+        # Mine causal parent-zone visits and their lower-timeframe Base context. This
+        # is relational evidence, not a candle-shape classifier or a trade-performance claim.
+        structural_behavior_raw = mine_structural_behaviors(
+            events_by_tf, bars_by_tf, now=int(latest_epoch), horizon_bars=20, min_pattern_samples=3,
+        )
+        try:
+            structural_behavior = persist_and_aggregate_structural_behaviors(
+                structural_behavior_raw,
+                str(_PROJECT_ROOT / "runtime_logs" / model_dir / "structural_behavior_memory.sqlite3"),
+                min_pattern_samples=3,
+            )
+            structural_behavior_persistence = "SAVED_TO_DEDUPLICATED_MEMORY"
+        except (OSError, TypeError, ValueError, sqlite3.Error, json.JSONDecodeError):
+            # Fail closed without allowing a large research window to inflate the
+            # user-facing response when durable persistence is unavailable.
+            structural_behavior = dict(structural_behavior_raw)
+            structural_behavior["samples"] = list(structural_behavior_raw.get("samples", []))[-2000:]
+            structural_behavior_persistence = "MEMORY_WRITE_FAILED"
+        # The decision engine receives the historical relation evidence before it
+        # builds the final context; the evidence remains diagnostic until validated.
+        hierarchy = engine.analyze(
+            events_by_tf, quote, now=float(latest_epoch), exploration_mode=demo_exploration,
+            structural_behavior_analysis=structural_behavior,
+        )
+        hierarchy["structural_behavior_persistence"] = structural_behavior_persistence
+        hierarchy["structural_behavior_analysis"] = structural_behavior
+        # Attach the evidence to the same response used by strategy diagnostics.
         hierarchy["historical_structure_analysis"] = historical_structure
+        structure_context = hierarchy.get("structure") or {}
+        parent_tf = structure_context.get("parent_timeframe")
+        child_tf = structure_context.get("child_timeframe")
+        parent_direction = structure_context.get("parent_direction")
+        parent_id = structure_context.get("parent_base_id")
+        parent_event = next((event for group in events_by_tf.values() for event in group
+                             if str(event.get("event_id")) == str(parent_id)), None)
+        current_price = (float(quote["bid"]) + float(quote["ask"])) / 2.0
+        current_zone_segment = None
+        if parent_event:
+            p_low, p_high = float(parent_event["base_low"]), float(parent_event["base_high"])
+            if p_low <= current_price <= p_high and p_high > p_low:
+                fraction = (current_price - p_low) / (p_high - p_low)
+                current_zone_segment = "LOWER" if fraction < 1/3 else "UPPER" if fraction > 2/3 else "MIDDLE"
+        now_hour = datetime.fromtimestamp(int(latest_epoch), timezone.utc).hour if latest_epoch else 0
+        current_session = ("ASIA" if now_hour < 7 else "LONDON" if now_hour < 12 else
+                           "NEW_YORK" if now_hour < 16 else "NEW_YORK_LATE" if now_hour < 21 else "ROLLOVER")
+        relevant = [m for m in structural_behavior.get("motifs", [])
+                    if m.get("parent_timeframe") == parent_tf
+                    and m.get("child_timeframe") == child_tf
+                    and (parent_direction is None or m.get("parent_direction") == parent_direction)
+                    and (current_zone_segment is None or m.get("zone_segment") == current_zone_segment)
+                    and m.get("session_utc") == current_session]
+        hierarchy["structural_behavior_relevant_evidence"] = {
+            "current_session_utc": current_session,
+            "current_parent_zone_segment": current_zone_segment,
+            "matched_motifs": relevant[:12],
+            "interpretation": "Historical relational evidence for review only; not yet a validated trade gate.",
+        }
+        # Persist the latest research snapshot atomically for audit/review. This is
+        # separate from the validated directional model and cannot activate trading.
+        try:
+            research_dir = _PROJECT_ROOT / "runtime_logs" / model_dir
+            research_dir.mkdir(parents=True, exist_ok=True)
+            research_path = research_dir / "structural_behavior_research_latest.json"
+            existing_as_of = None
+            if research_path.exists():
+                try:
+                    existing_as_of = json.loads(research_path.read_text(encoding="utf-8")).get("as_of")
+                except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                    existing_as_of = None
+            if existing_as_of != structural_behavior.get("as_of"):
+                temp_path = research_path.with_suffix(".json.tmp")
+                temp_path.write_text(json.dumps(structural_behavior, ensure_ascii=False, allow_nan=False), encoding="utf-8")
+                temp_path.replace(research_path)
+        except (OSError, TypeError, ValueError):
+            # Research output remains available in the response even if snapshot persistence fails.
+            hierarchy["structural_behavior_snapshot_persistence"] = "WRITE_FAILED"
+        else:
+            hierarchy["structural_behavior_snapshot_persistence"] = "SAVED_OR_UNCHANGED"
         if demo_exploration:
             # DEMO/backtest-only trigger fallback: derive an explicit exploratory M1
             # trigger from a real closed candle that touches the selected child Base
@@ -294,7 +372,8 @@ class StrategyOrchestrator:
                     }
                     events_by_tf.setdefault("M1", []).append(trigger)
                     hierarchy = engine.analyze(
-                        events_by_tf, quote, now=float(latest_epoch), exploration_mode=True
+                        events_by_tf, quote, now=float(latest_epoch), exploration_mode=True,
+                        structural_behavior_analysis=structural_behavior,
                     )
                     break
         reaction_engine = BaseReactionDecisionEngine(
