@@ -114,6 +114,10 @@ def test_h_risk_rejection():
 
 
 def test_i_dynamic_sl_tp_validation():
+    from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+    switch = DailyLossKillSwitch.get_instance()
+    session_key, _, _ = switch.get_session_key_and_window(datetime.now(timezone.utc))
+    assert switch.set_session_baseline(10000.0, session_key)
     mock_adapter = MagicMock()
     mock_adapter.PLATFORM_NAME = "MT5"
     mock_adapter.TARGET_ACCOUNT = "52961173"
