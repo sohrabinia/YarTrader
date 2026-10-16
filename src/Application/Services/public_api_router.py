@@ -134,8 +134,8 @@ def initiate_purchase(payload: PurchasePayload):
     cents = int(prod["price"] * 100)
 
     return {
-        "status": "Success",
-        "message": f"Checkout path verified successfully for product '{prod['name']}'.",
+        "status": "CHECKOUT_READY",
+        "message": f"Product '{prod['name']}' passed catalog validation; no payment or subscription transaction has been created.",
         "product_id": prod["id"],
         "price_cents": cents,
         "price": prod["price"],

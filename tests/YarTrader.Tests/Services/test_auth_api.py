@@ -206,6 +206,30 @@ class TestSaaSAuthAPI(unittest.TestCase):
         self.assertEqual(google_user_item["name"], "Google Test User")
         self.assertIn("google", google_user_item["social_providers"])
 
+
+    def test_expired_session_fails_closed(self) -> None:
+        from datetime import datetime, timedelta, timezone
+        user = {"email": f"expired-{uuid.uuid4().hex[:8]}@yartrader.app", "role": "USER"}
+        token = global_auth_service.create_session(user)
+        global_auth_service.active_sessions[token]["expires_at"] = (
+            datetime.now(timezone.utc) - timedelta(seconds=1)
+        ).isoformat()
+        self.assertIsNone(global_auth_service.validate_session(token))
+        self.assertNotIn(token, global_auth_service.active_sessions)
+
+    def test_active_session_listing_never_exposes_bearer_token(self) -> None:
+        import tempfile
+        from pathlib import Path
+        from src.Application.Dashboard.device_tracker import DeviceTracker
+        with tempfile.TemporaryDirectory() as td:
+            tracker = DeviceTracker(str(Path(td) / "sessions.json"))
+            token = "tkn-secret-test-token"
+            tracker.record_session(token, "privacy-test@yartrader.app", "pytest", "127.0.0.1")
+            sessions = tracker.list_active_sessions("privacy-test@yartrader.app")
+            self.assertEqual(len(sessions), 1)
+            self.assertNotIn("token", sessions[0])
+            self.assertNotIn(token, repr(sessions))
+
     def test_session_durability_across_process_restart(self) -> None:
         """Verifies that a customer session token remains valid across AuthService restart/re-instantiation."""
         from src.Application.Dashboard.auth_service import AuthService
