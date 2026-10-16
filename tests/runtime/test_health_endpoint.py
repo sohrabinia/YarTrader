@@ -18,8 +18,21 @@ class TestHealthEndpoint(unittest.TestCase):
         research_tracker["mt5_status"] = "CONNECTED"
         research_tracker["worker_status"] = "RUNNING"
 
+
         with patch.object(global_research_runtime.provider.delegate, "get_connection_health",
-                          return_value=SimpleNamespace(connected=True)):
+                          return_value=SimpleNamespace(connected=True)), \
+             patch("src.Execution.Adapters.mt5_adapter.RealMT5BrokerAdapter") as adapter_cls:
+            adapter = adapter_cls.return_value
+            adapter._initialized = True
+            adapter.TARGET_ACCOUNT = "TEST-DEMO-ACCOUNT"
+            adapter.TARGET_SERVER = "TEST-DEMO-SERVER"
+            adapter.get_account_info.return_value = {
+                "login": "TEST-DEMO-ACCOUNT", "server": "TEST-DEMO-SERVER", "trade_mode": 0,
+            }
+            adapter.get_terminal_info.return_value = {
+                "connected": True, "trade_allowed": True, "tradeapi_disabled": False,
+            }
+            adapter.verify_safety_and_account.return_value = True
             response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
 
