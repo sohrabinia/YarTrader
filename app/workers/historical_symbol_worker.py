@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from src.Application.Backtesting.historical_dataset import TIMEFRAMES, run_staged_backtest
 from src.Application.Backtesting.mt4_history_acquisition import MT4HistoryAcquisition
-from src.Data.Providers.MT4.historical import MT4HistoricalDataProvider
+from src.Data.Providers.MT4.historical import MT4HistoricalDataProvider  # compatibility for worker test injection; acquisition binds the DEMO root
 from src.Execution.Adapters.mt4_file_bridge import MT4FileBridge
 
 DEMO_LOGIN = "252031952"
@@ -45,8 +45,7 @@ def acquire_all(symbol: str, max_years: float) -> tuple[list[dict], float]:
             "Historical acquisition requires the authorized MT4 DEMO terminal "
             f"for {symbol}; no order operations are permitted."
         )
-    provider = MT4HistoricalDataProvider()
-    acquisition = MT4HistoryAcquisition(bridge, provider)
+    acquisition = MT4HistoryAcquisition(bridge)
     manifests = []
     for tf in TIMEFRAMES:
         try:

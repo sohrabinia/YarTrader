@@ -10,13 +10,13 @@ def test_history_requests_are_capped_for_constrained_host():
 def test_missing_timeframe_is_skipped_without_aborting_other_history(monkeypatch):
     class FakeBridge:
         def heartbeat(self):
-            return {"login": worker.DEMO_LOGIN, "server": worker.DEMO_SERVER, "is_demo": True}
+            return {"login": worker.DEMO_LOGIN, "server": worker.DEMO_SERVER, "is_demo": True, "terminal_path": r"C:\MT4Demo"}
 
     class FakeProvider:
         pass
 
     class FakeAcquisition:
-        def __init__(self, bridge, provider):
+        def __init__(self, bridge, provider=None):
             self.bridge = bridge
             self.provider = provider
 
