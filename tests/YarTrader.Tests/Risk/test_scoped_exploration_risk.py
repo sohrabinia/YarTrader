@@ -22,6 +22,9 @@ class TestScopedExplorationRisk(unittest.TestCase):
         with patch.dict(os.environ, env, clear=True):
             switch = DailyLossKillSwitch(persistence_path=tempfile.mktemp(suffix=".json"))
             self.assertEqual(switch.effective_max_daily_loss_pct(), 60.0)
+            from datetime import datetime, timezone
+            session_key, _, _ = switch.get_session_key_and_window(datetime.now(timezone.utc))
+            self.assertTrue(switch.set_session_baseline(1000.0, session_key))
             allowed, reason, meta = switch.evaluate_daily_loss(
                 1000.0, bot_daily_pnl=-550.0
             )
@@ -38,6 +41,9 @@ class TestScopedExplorationRisk(unittest.TestCase):
         }
         with patch.dict(os.environ, env, clear=True):
             switch = DailyLossKillSwitch(persistence_path=tempfile.mktemp(suffix=".json"))
+            from datetime import datetime, timezone
+            session_key, _, _ = switch.get_session_key_and_window(datetime.now(timezone.utc))
+            self.assertTrue(switch.set_session_baseline(1000.0, session_key))
             allowed, reason, meta = switch.evaluate_daily_loss(1000.0, bot_daily_pnl=-600.0)
             self.assertFalse(allowed)
             self.assertEqual(reason, "DAILY_LOSS_LIMIT_REACHED")

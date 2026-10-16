@@ -18,6 +18,10 @@ class TestDemoExecutionGateSafety(unittest.TestCase):
     """
 
     def setUp(self):
+        from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+        switch = DailyLossKillSwitch.get_instance()
+        session_key, _, _ = switch.get_session_key_and_window(datetime.now(timezone.utc))
+        self.assertTrue(switch.set_session_baseline(10000.0, session_key))
         self.original_env = os.environ.get("AUTONOMOUS_DEMO_TRADING_ENABLED")
         os.environ["AUTONOMOUS_DEMO_TRADING_ENABLED"] = "true"
         self.mock_adapter = MagicMock()
@@ -391,6 +395,10 @@ class TestAutonomousDemoExecutionGate(unittest.TestCase):
     """
 
     def setUp(self):
+        from src.Risk.Services.daily_loss_kill_switch import DailyLossKillSwitch
+        switch = DailyLossKillSwitch.get_instance()
+        session_key, _, _ = switch.get_session_key_and_window(datetime.now(timezone.utc))
+        self.assertTrue(switch.set_session_baseline(10000.0, session_key))
         self.original_env = os.environ.get("AUTONOMOUS_DEMO_TRADING_ENABLED")
 
     def tearDown(self):
