@@ -551,10 +551,14 @@ class StrategyOrchestrator:
                 reward_dist = abs(current_price - tp)
                 rr = reward_dist / max(1e-6, risk_dist)
 
-                if sl > current_price and tp < current_price and rr >= 1.0:
-                    direction = "SELL"
-                    confidence = float(fractal.get("Confidence", 70.0))
-                    reasoning.append(f"FRACTAL: Bearish trigger confirmed at child boundary [{child_low:.2f}-{child_high:.2f}] inside Parent ({rel_type}).")
+                if parent_low > 0.0 and sl > current_price and tp < current_price and rr >= 1.0:
+                    conf_val = float(fractal.get("Confidence", 0.0))
+                    if conf_val > 0.0:
+                        direction = "SELL"
+                        confidence = conf_val
+                        reasoning.append(f"FRACTAL: Bearish trigger confirmed at child boundary [{child_low:.2f}-{child_high:.2f}] inside Parent ({rel_type}).")
+                    else:
+                        reasoning.append("FRACTAL: Setup rejected due to missing dynamic model confidence.")
                 else:
                     reasoning.append(f"FRACTAL: Setup rejected due to invalid structural boundaries or RR < 1.0 (RR={rr:.2f}).")
             elif trigger_direction == "BUY" and parent_loc != "PARENT_PREMIUM_UPPER_ZONE":
@@ -564,10 +568,14 @@ class StrategyOrchestrator:
                 reward_dist = abs(tp - current_price)
                 rr = reward_dist / max(1e-6, risk_dist)
 
-                if sl < current_price and tp > current_price and rr >= 1.0:
-                    direction = "BUY"
-                    confidence = float(fractal.get("Confidence", 70.0))
-                    reasoning.append(f"FRACTAL: Bullish trigger confirmed at child boundary [{child_low:.2f}-{child_high:.2f}] inside Parent ({rel_type}).")
+                if parent_high > 0.0 and sl < current_price and tp > current_price and rr >= 1.0:
+                    conf_val = float(fractal.get("Confidence", 0.0))
+                    if conf_val > 0.0:
+                        direction = "BUY"
+                        confidence = conf_val
+                        reasoning.append(f"FRACTAL: Bullish trigger confirmed at child boundary [{child_low:.2f}-{child_high:.2f}] inside Parent ({rel_type}).")
+                    else:
+                        reasoning.append("FRACTAL: Setup rejected due to missing dynamic model confidence.")
                 else:
                     reasoning.append(f"FRACTAL: Setup rejected due to invalid structural boundaries or RR < 1.0 (RR={rr:.2f}).")
             else:

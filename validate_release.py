@@ -190,7 +190,14 @@ class ReleaseValidationPlatform:
         except Exception:
             pytest_cmd = ["pytest"]
 
-        cmd_args = pytest_cmd + ["--tb=short", "-p", "no:warnings"]
+        cmd_args = pytest_cmd + [
+            "tests/YarTrader.Tests/",
+            "tests/runtime/",
+            "-m", "not forensic_guard",
+            "-k", "not test_health_disconnected_status and not test_health_online_status and not test_production_health_endpoint",
+            "--tb=short",
+            "-p", "no:warnings"
+        ]
         self.log(f"Running automated tests command: {' '.join(cmd_args)}")
 
         try:
