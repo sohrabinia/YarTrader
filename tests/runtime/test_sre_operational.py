@@ -67,15 +67,16 @@ class TestSREOperational(unittest.TestCase):
         self.assertEqual(resp_status.status_code, 200)
         data_status = resp_status.json()
         self.assertEqual(data_status["service_status"], "RUNNING")
-        self.assertIn("runtime_health", data_status)
+        self.assertEqual(data_status["runtime_health"], "UNKNOWN")
         self.assertIn("error_summary", data_status)
 
         resp_metrics = self.client.get("/api/devops/metrics")
         self.assertEqual(resp_metrics.status_code, 200)
         data_metrics = resp_metrics.json()
-        self.assertIn("pipeline_latency_ms", data_metrics)
-        self.assertIn("api_response_ms", data_metrics)
+        self.assertIsNone(data_metrics["pipeline_latency_ms"])
+        self.assertIsNone(data_metrics["api_response_ms"])
         self.assertIn("memory_used_mb", data_metrics)
+        self.assertEqual(data_metrics["data_state"], "LATENCY_AND_CONNECTIONS_UNINSTRUMENTED")
 
     def test_unidirectional_and_read_only_compliance(self):
         """Ensures that the API remains descriptive, analytical and strictly non-trading."""

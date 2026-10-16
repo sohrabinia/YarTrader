@@ -4006,10 +4006,23 @@ def get_devops_status():
         except Exception:
             pass
 
+    controller = getattr(app.state, "runtime_controller", None)
+    runtime_health = "UNKNOWN"
+    if controller is not None:
+        health_probe = getattr(controller, "get_health", None)
+        if callable(health_probe):
+            try:
+                observed = health_probe()
+                if isinstance(observed, dict):
+                    runtime_health = str(observed.get("status", "UNKNOWN")).upper()
+                elif isinstance(observed, str):
+                    runtime_health = observed.upper()
+            except Exception:
+                runtime_health = "UNKNOWN"
     return {
         "service_status": "RUNNING",
-        "runtime_health": "Healthy",
-        "mt5_status": "Connected" if research_tracker["mt5_status"] == "CONNECTED" else "Disconnected",
+        "runtime_health": runtime_health,
+        "mt5_status": "Connected" if research_tracker.get("mt5_status") == "CONNECTED" else "Disconnected",
         "worker_status": state.get("worker_status", "Stopped"),
         "research_worker": state.get("research_status", "Stopped"),
         "intelligence_worker": state.get("intelligence_status", "Stopped"),
@@ -4025,20 +4038,20 @@ def get_devops_status():
 @app.get("/api/devops/metrics")
 def get_devops_metrics():
     """API Contract interface for YarTrader.DevOps to fetch performance metrics."""
-    # Read virtual memory if possible, otherwise use standard python process metrics
-    import sys
+    memory_used_mb = None
     try:
-        import resource
-        mem_bytes = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
-    except (ImportError, AttributeError):
-        mem_bytes = 145.4 * 1024 * 1024 # robust fallback representation in bytes
+        import psutil
+        memory_used_mb = round(psutil.Process().memory_info().rss / (1024 * 1024), 2)
+    except Exception:
+        pass
 
     return {
-        "pipeline_latency_ms": 12.45,
-        "api_response_ms": 4.12,
-        "memory_used_mb": round(mem_bytes / (1024 * 1024), 2),
+        "pipeline_latency_ms": None,
+        "api_response_ms": None,
+        "memory_used_mb": memory_used_mb,
         "thread_count": threading.active_count(),
-        "active_connections": 1,
+        "active_connections": None,
+        "data_state": "LATENCY_AND_CONNECTIONS_UNINSTRUMENTED",
         "timestamp": datetime.now().isoformat()
     }
 
@@ -4059,18 +4072,33 @@ def get_runtime_status():
     if platform.system() == "Windows" and mt5_connected:
         simulated_fallback = False
 
-    # Distinguish process service availability vs production trading readiness
+    # The API process being alive does not prove a runtime controller or scheduler is active.
+    controller = getattr(app.state, "runtime_controller", None)
+    if controller is None:
+        return {
+            "runtime_status": "UNKNOWN",
+            "service_status": "SERVICE_READY",
+            "production_ready": False,
+            "lifecycle_state": "UNKNOWN",
+            "scheduler_enabled": None,
+            "polling_loop_delay_ms": None,
+            "simulated_fallback_active": simulated_fallback,
+            "data_state": "NO_RUNTIME_CONTROLLER_REGISTERED",
+        }
     scorecard = get_scorecard()
-    prod_ready = (scorecard.get("status") == "Production Ready")
-
+    prod_ready = scorecard.get("status") == "Production Ready"
+    lifecycle = getattr(controller, "lifecycle_state", "UNKNOWN")
+    scheduler_enabled = getattr(controller, "scheduler_enabled", None)
+    polling_delay = getattr(controller, "polling_loop_delay_ms", None)
     return {
         "runtime_status": "Ready" if prod_ready else "SERVICE_READY_DEGRADED",
         "service_status": "SERVICE_READY",
-        "production_ready": prod_ready,
-        "lifecycle_state": "Active",
-        "scheduler_enabled": True,
-        "polling_loop_delay_ms": 100.0,
-        "simulated_fallback_active": simulated_fallback
+        "production_ready": bool(prod_ready),
+        "lifecycle_state": str(lifecycle),
+        "scheduler_enabled": scheduler_enabled,
+        "polling_loop_delay_ms": polling_delay,
+        "simulated_fallback_active": simulated_fallback,
+        "data_state": "REGISTERED_RUNTIME_CONTROLLER",
     }
 
 

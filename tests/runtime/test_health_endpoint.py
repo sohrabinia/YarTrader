@@ -53,7 +53,7 @@ class TestHealthEndpoint(unittest.TestCase):
 
         data = response.json()
         self.assertEqual(data["service_status"], "RUNNING")
-        self.assertEqual(data["runtime_health"], "Healthy")
+        self.assertEqual(data["runtime_health"], "UNKNOWN")
         self.assertIn("mt5_status", data)
         self.assertIn("worker_status", data)
         self.assertIn("error_summary", data)
@@ -64,10 +64,11 @@ class TestHealthEndpoint(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
         data = response.json()
-        self.assertIn("pipeline_latency_ms", data)
-        self.assertIn("api_response_ms", data)
+        self.assertIsNone(data["pipeline_latency_ms"])
+        self.assertIsNone(data["api_response_ms"])
         self.assertIn("memory_used_mb", data)
-        self.assertIn("thread_count", data)
+        self.assertGreaterEqual(data["thread_count"], 1)
+        self.assertEqual(data["data_state"], "LATENCY_AND_CONNECTIONS_UNINSTRUMENTED")
 
     def test_health_live_endpoint(self):
         """Verifies calling /health/live returns process liveness status."""

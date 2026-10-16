@@ -107,7 +107,9 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         data = resp.json()
         self.assertIn("runtime_status", data)
         self.assertEqual(data["service_status"], "SERVICE_READY")
-        self.assertIn("production_ready", data)
+        self.assertFalse(data["production_ready"])
+        self.assertEqual(data["runtime_status"], "UNKNOWN")
+        self.assertEqual(data["data_state"], "NO_RUNTIME_CONTROLLER_REGISTERED")
 
     def test_get_dashboard_overview(self):
         """Verifies overview aggregated diagnostics API."""
