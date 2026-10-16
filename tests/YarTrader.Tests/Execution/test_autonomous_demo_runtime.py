@@ -619,8 +619,11 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertFalse(decision_events[-1]["broker_confirmed"])
 
 
-def test_explicit_structural_invalidation_cancels_finite_expiry_pending_order():
+def test_explicit_structural_invalidation_cancels_finite_expiry_pending_order(monkeypatch):
     from unittest.mock import MagicMock
+    import src.Execution.Services.autonomous_demo_trader as module
+    # Exercise execution-enabled reconciliation explicitly; CI must not depend on local .env.production.
+    monkeypatch.setattr(module, "_read_flag", lambda: True)
     adapter = MagicMock()
     adapter.get_active_orders.return_value = [{
         "magic": 100001, "comment": "YarBaseRTM", "ticket": 778900,
