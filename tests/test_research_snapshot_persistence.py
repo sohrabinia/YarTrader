@@ -231,8 +231,8 @@ def test_demo_sizing_blocks_crossed_pending_trigger(monkeypatch):
         "XAUUSD", plan, {"bid": 2500.0, "ask": 2500.2, "time": now},
         {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
     )
-    assert result["status"] == "BLOCKED"
-    assert "trigger is no longer valid" in result["reason"]
+    assert result["status"] == "WAIT"
+    assert "already crossed" in result["reason"]
     adapter.send_order_to_broker.assert_not_called()
 
 
