@@ -59,7 +59,8 @@ def test_open_position_is_reviewed_and_closed_outcome_reaches_brain_once(tmp_pat
     assert saved_closed["last_closed_setup_by_symbol"]["XAUUSD"]["signature"]
 
 
-def test_identical_setup_is_blocked_after_closed_trade(tmp_path):
+def test_identical_setup_is_blocked_after_closed_trade(tmp_path, monkeypatch):
+    monkeypatch.setenv("YARTRADER_DEMO_ORDER_SUBMISSION_ENABLED", "true")
     adapter = MagicMock()
     adapter.get_active_orders.return_value = []
     adapter._mt5 = SimpleNamespace()
