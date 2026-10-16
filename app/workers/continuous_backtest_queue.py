@@ -56,6 +56,22 @@ def summary_complete(symbol: str) -> bool:
     windows = payload.get("timeframe_windows") or {}
     return bool(windows) and all(str(x.get("status", "")).upper() == "COMPLETED" for x in windows.values())
 
+def archive_summary(symbol: str) -> None:
+    """Preserve the prior consolidated result before a fresh/resumed run replaces it."""
+    source = SUMMARY_ROOT / symbol / "summary.json"
+    if not source.exists():
+        return
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    archive_dir = ROOT / "runtime_logs" / "backtest_learning" / "summary_history" / symbol
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    destination = archive_dir / f"summary_{stamp}.json"
+    suffix = 1
+    while destination.exists():
+        destination = archive_dir / f"summary_{stamp}_{suffix}.json"
+        suffix += 1
+    source.replace(destination)
+    log(f"SUMMARY_ARCHIVED {symbol} path={destination.relative_to(ROOT)}")
+
 def _acquire_lock():
     global _LOCK
     import msvcrt
@@ -80,7 +96,17 @@ def run_forever():
     current = state.get("current_symbol")
     started = float(state.get("started_epoch", 0) or 0)
     log(f"QUEUE_STARTED symbols={len(items)} timeframes=MTF years=10")
+    last_heartbeat = 0.0
     while True:
+        if time.time() - last_heartbeat >= 60:
+            write_json(STATE, {
+                "status": "RUNNING" if current in items else "IDLE",
+                "symbols_count": len(items), "next_index": index,
+                "current_symbol": current, "started_epoch": started,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            })
+            log(f"QUEUE_HEARTBEAT current={current or 'NONE'} next_index={index}/{len(items)}")
+            last_heartbeat = time.time()
         if current not in items:
             existing_job = read_json(JOB, {}) or {}
             if existing_job.get("enabled", False):
@@ -101,11 +127,11 @@ def run_forever():
             else:
                 current = items[index]
                 started = time.time()
-                summary = SUMMARY_ROOT / current / "summary.json"
-                summary.unlink(missing_ok=True)  # preserve per-timeframe checkpoints for incremental continuation
+                # Keep prior consolidated research results; archive before a fresh run.
+                archive_summary(current)
                 write_json(JOB, {"symbol": current, "timeframe": "MTF", "years": 10,
                                  "initial_balance": 10000.0, "sleep": 0.5,
-                                 "chunk_timeout_sec": 900, "enabled": True})
+                                 "chunk_timeout_sec": 3600, "enabled": True})
                 write_json(STATE, {"status": "RUNNING", "symbols_count": len(items), "next_index": index,
                                    "current_symbol": current, "started_epoch": started,
                                    "updated_at": datetime.now(timezone.utc).isoformat()})
@@ -122,8 +148,7 @@ def run_forever():
                 continue
             if not job.get("enabled", False):
                 # A restarted queue resumes incomplete work instead of waiting for the timeout.
-                summary_path = SUMMARY_ROOT / current / "summary.json"
-                summary_path.unlink(missing_ok=True)
+                archive_summary(current)
                 job["enabled"] = True
                 write_json(JOB, job)
                 log(f"SYMBOL_RESUMED {current}")

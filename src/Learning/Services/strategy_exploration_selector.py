@@ -1,6 +1,8 @@
 """Evidence-aware DEMO-only strategy exploration and style discovery selector."""
 from __future__ import annotations
 import json
+import os
+import threading
 from pathlib import Path
 from typing import Iterable, Any
 
@@ -63,7 +65,7 @@ def choose_demo_strategy(candidates: Iterable[str], symbol: str, storage_root: s
                   "observed_closed_positions_by_strategy": samples,
                   "research_only_scores": {k: {"expectancy": v[0], "profit_factor": v[1]} for k, v in research_scores.items()}})
     root.mkdir(parents=True, exist_ok=True)
-    tmp = state_path.with_suffix(".json.tmp")
+    tmp = state_path.with_name(f"{state_path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     tmp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(state_path)
     return {"selected_strategy": selected, "reason": reason,

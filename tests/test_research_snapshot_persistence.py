@@ -213,6 +213,7 @@ def test_demo_sizing_uses_broker_authoritative_stop_risk(monkeypatch):
 
 
 def test_demo_sizing_blocks_crossed_pending_trigger(monkeypatch):
+    monkeypatch.setenv("YARTRADER_DEMO_ORDER_SUBMISSION_ENABLED", "true")
     from src.Execution.Services.autonomous_demo_trader import AutonomousDemoTrader
 
     adapter = MagicMock()
@@ -228,11 +229,11 @@ def test_demo_sizing_blocks_crossed_pending_trigger(monkeypatch):
         },
     }
     result = trader._reconcile_base_pending_order(
-        "XAUUSD", plan, {"bid": 2500.0, "ask": 2500.2, "time": now},
+        "XAUUSD", plan, {"bid": 2495.8, "ask": 2496.0, "time": now},
         {"balance": 100000.0, "equity": 100000.0}, {"digits": 2},
     )
     assert result["status"] == "WAIT"
-    assert "already crossed" in result["reason"]
+    assert "crossed too far" in result["reason"]
     adapter.send_order_to_broker.assert_not_called()
 
 

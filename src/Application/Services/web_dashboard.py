@@ -679,7 +679,7 @@ def _base_only_execution_report(symbol: str, timeframe: str, candles: List[Dict[
 def _load_base_timeframe_candles(symbol: str) -> Dict[str, List[Dict[str, Any]]]:
     """Load real multi-timeframe bars; one unavailable timeframe must not trigger a fallback strategy."""
     bars: Dict[str, List[Dict[str, Any]]] = {}
-    for tf in ("D1", "H4", "H1", "M15", "M5", "M1"):
+    for tf in ("MN1", "W1", "D1", "H4", "H1", "M15", "M5", "M1"):
         try:
             bars[tf] = resolve_candles_for_context(symbol, tf) or []
         except Exception:
@@ -728,26 +728,34 @@ def get_structure_map(symbol: Optional[str] = "XAUUSD", timeframe: Optional[str]
     symbol = (symbol or "XAUUSD").upper()
     timeframe = (timeframe or "H1").upper()
     core = ExecutionIntelligenceCore.get_instance()
-    candles = resolve_candles_for_context(symbol, timeframe)
+    all_tf = _load_base_timeframe_candles(symbol)
+    candles = all_tf.get(timeframe) or resolve_candles_for_context(symbol, timeframe)
     if not candles:
         return {
             "symbol": symbol, "timeframe": timeframe,
             "status": "UNAVAILABLE", "decision_authority": "BASE_HIERARCHY_ONLY",
             "swings": [], "structure_nodes": [], "order_blocks": [], "fair_value_gaps": [],
+            "historical_structure_analysis": {},
         }
-    res = core.evaluate_context(symbol, timeframe, candles)
+    res = core.evaluate_context(symbol, timeframe, candles, all_timeframe_candles=all_tf)
     narrative = res.get("narrative") or {}
     zones = res.get("zones") or {}
     hierarchy = narrative.get("base_hierarchy") or {}
     structure = hierarchy.get("structure") or {}
     nodes = structure.get("nodes") or []
+    research = res.get("historical_structure_analysis") or {}
+    tf_research = (research.get("timeframes") or {}).get(timeframe.upper(), {})
+    swings = [level for level in (tf_research.get("levels") or [])
+              if level.get("type") in ("SWING_HIGH", "SWING_LOW")]
     return {
         "symbol": symbol,
         "timeframe": timeframe,
-        "status": "BASE_ONLY" if hierarchy else "DISABLED_NON_BASE",
-        "decision_authority": "BASE_HIERARCHY_ONLY",
-        # Legacy swing/OB/FVG engines are retired; never synthesize their output.
-        "swings": [],
+        "status": "BASE_ONLY" if hierarchy else "STRUCTURE_RESEARCH_AVAILABLE",
+        "decision_authority": "BASE_HIERARCHY_WITH_HISTORICAL_STRUCTURE_CONTEXT",
+        "swings": swings,
+        "latest_swing_high": tf_research.get("latest_swing_high"),
+        "latest_swing_low": tf_research.get("latest_swing_low"),
+        "historical_structure_analysis": research,
         "structure_nodes": nodes if isinstance(nodes, list) else [],
         "order_blocks": zones.get("order_blocks") or [],
         "fair_value_gaps": zones.get("fair_value_gaps") or [],

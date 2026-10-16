@@ -13,7 +13,7 @@ class TestScopedExplorationRisk(unittest.TestCase):
             switch = DailyLossKillSwitch(persistence_path=tempfile.mktemp(suffix=".json"))
             self.assertEqual(switch.effective_max_daily_loss_pct(), 10.0)
 
-    def test_sixty_percent_only_when_all_demo_exploration_flags_are_explicit(self):
+    def test_demo_exploration_keeps_the_hard_ten_percent_daily_loss_limit(self):
         env = {
             "YARTRADER_DEMO_EXPLORATION_MODE": "true",
             "YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED": "true",
@@ -21,33 +21,18 @@ class TestScopedExplorationRisk(unittest.TestCase):
         }
         with patch.dict(os.environ, env, clear=True):
             switch = DailyLossKillSwitch(persistence_path=tempfile.mktemp(suffix=".json"))
-            self.assertEqual(switch.effective_max_daily_loss_pct(), 60.0)
             from datetime import datetime, timezone
             session_key, _, _ = switch.get_session_key_and_window(datetime.now(timezone.utc))
             self.assertTrue(switch.set_session_baseline(1000.0, session_key))
-            allowed, reason, meta = switch.evaluate_daily_loss(
-                1000.0, bot_daily_pnl=-550.0
-            )
+            self.assertEqual(switch.effective_max_daily_loss_pct(), 10.0)
+            allowed, reason, meta = switch.evaluate_daily_loss(1000.0, bot_daily_pnl=-99.0)
             self.assertTrue(allowed)
             self.assertIsNone(reason)
-            self.assertEqual(meta["max_daily_loss_pct"], 60.0)
-            self.assertEqual(meta["loss_pct"], 55.0)
-
-    def test_sixty_percent_limit_blocks_at_sixty_percent_loss(self):
-        env = {
-            "YARTRADER_DEMO_EXPLORATION_MODE": "true",
-            "YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED": "true",
-            "YARTRADER_TRADING_MODE": "DEMO",
-        }
-        with patch.dict(os.environ, env, clear=True):
-            switch = DailyLossKillSwitch(persistence_path=tempfile.mktemp(suffix=".json"))
-            from datetime import datetime, timezone
-            session_key, _, _ = switch.get_session_key_and_window(datetime.now(timezone.utc))
-            self.assertTrue(switch.set_session_baseline(1000.0, session_key))
-            allowed, reason, meta = switch.evaluate_daily_loss(1000.0, bot_daily_pnl=-600.0)
+            self.assertEqual(meta["max_daily_loss_pct"], 10.0)
+            allowed, reason, meta = switch.evaluate_daily_loss(1000.0, bot_daily_pnl=-100.0)
             self.assertFalse(allowed)
             self.assertEqual(reason, "DAILY_LOSS_LIMIT_REACHED")
-            self.assertEqual(meta["max_daily_loss_pct"], 60.0)
+            self.assertEqual(meta["max_daily_loss_pct"], 10.0)
 
     def test_portfolio_threshold_argument_is_honored_and_default_stays_ten(self):
         self.assertEqual(PortfolioRiskIntelligenceEngine().max_daily_drawdown_pct, 10.0)

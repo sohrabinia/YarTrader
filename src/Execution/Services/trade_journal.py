@@ -80,6 +80,13 @@ class TradeJournalRecord:
     data_source: str = "UNKNOWN"
     costs: Dict[str, Any] = None
     data_quality: Dict[str, Any] = None
+    # Multi-timeframe structure and historical reaction evidence captured at decision time.
+    historical_structure_analysis: Dict[str, Any] = None
+    structural_levels: List[Dict[str, Any]] = None
+    structural_hierarchy: Dict[str, Any] = None
+    level_reaction_evidence: Dict[str, Any] = None
+    entry_level_context: Dict[str, Any] = None
+    breakout_rejection_outcome: Dict[str, Any] = None
 
     def __post_init__(self) -> None:
         self.context_timeframes = list(self.context_timeframes or [])
@@ -87,6 +94,12 @@ class TradeJournalRecord:
         self.style_transitions = list(self.style_transitions or [])
         self.costs = dict(self.costs or {})
         self.data_quality = dict(self.data_quality or {})
+        self.historical_structure_analysis = dict(self.historical_structure_analysis or {})
+        self.structural_levels = list(self.structural_levels or [])
+        self.structural_hierarchy = dict(self.structural_hierarchy or {})
+        self.level_reaction_evidence = dict(self.level_reaction_evidence or {})
+        self.entry_level_context = dict(self.entry_level_context or {})
+        self.breakout_rejection_outcome = dict(self.breakout_rejection_outcome or {})
         timestamp = self.entry_time_utc or self.open_time
         try:
             dt = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
@@ -172,6 +185,9 @@ class TradeJournalManager:
     def append_event(self, event: Dict[str, Any]) -> None:
         """Durably append one lifecycle event without rewriting prior evidence."""
         payload = dict(event)
+        payload.setdefault("event", "journal_record_event")
+        payload.setdefault("symbol", "UNKNOWN")
+        payload.setdefault("strategy_style", "UNKNOWN")
         now = datetime.now(timezone.utc)
         payload.setdefault("timestamp_utc", now.isoformat())
         payload.setdefault("trade_type", "UNKNOWN")

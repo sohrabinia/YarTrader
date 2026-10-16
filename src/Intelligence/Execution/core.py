@@ -221,4 +221,5 @@ class ExecutionIntelligenceCore:
             },
             "portfolio_risk": portfolio_risk,
             "plan": plan, "base_analysis": base_result,
+            "historical_structure_analysis": base_result.get("historical_structure_analysis", {}),
         }

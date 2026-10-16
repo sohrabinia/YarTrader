@@ -25,11 +25,21 @@ $explorationLine = Select-String -Path (Join-Path $root '.env.production') -Patt
 $explorationFlag = if ($explorationLine) { $explorationLine.Matches[0].Groups[1].Value.Trim().Trim('"').Trim("'").ToLowerInvariant() } else { 'false' }
 $env:YARTRADER_TRADING_MODE = 'DEMO'
 $env:YARTRADER_DEMO_EXPLORATION_MODE = $explorationFlag
+# Read multi-slot DEMO controls from the reviewed project config rather than
+# inheriting stale machine-level false/1 values that silently suppress entries.
+$multiLine = Select-String -Path (Join-Path $root '.env.production') -Pattern '^YARTRADER_DEMO_ALLOW_MULTIPLE_POSITIONS=(.*)$' | Select-Object -First 1
+$multiFlag = if ($multiLine) { $multiLine.Matches[0].Groups[1].Value.Trim().Trim('"').Trim("'").ToLowerInvariant() } else { 'false' }
+$maxPositionsLine = Select-String -Path (Join-Path $root '.env.production') -Pattern '^YARTRADER_DEMO_MAX_POSITIONS_PER_SYMBOL=(.*)$' | Select-Object -First 1
+$maxPositions = if ($maxPositionsLine) { $maxPositionsLine.Matches[0].Groups[1].Value.Trim().Trim('"').Trim("'") } else { '1' }
+if ($multiFlag -notin @('true','1','yes','on')) { $multiFlag = 'false' }
+if ($maxPositions -notmatch '^([1-9]|10)$') { throw 'Invalid YARTRADER_DEMO_MAX_POSITIONS_PER_SYMBOL; refusing worker start.' }
+$env:YARTRADER_DEMO_ALLOW_MULTIPLE_POSITIONS = $multiFlag
+$env:YARTRADER_DEMO_MAX_POSITIONS_PER_SYMBOL = $maxPositions
 $env:YARTRADER_ENV = 'production'
 $env:RG_ENV = 'production'
 $env:PYTHONUNBUFFERED = '1'
 
-Add-Content -Path $log -Value (([Environment]::NewLine) + '=== Base DEMO worker started ' + (Get-Date -Format o) + '; enabled=' + $demoFlag + '; exploration=' + $explorationFlag + ' ===')
+Add-Content -Path $log -Value (([Environment]::NewLine) + '=== Base DEMO worker started ' + (Get-Date -Format o) + '; enabled=' + $demoFlag + '; exploration=' + $explorationFlag + '; multi_positions=' + $multiFlag + '; max_positions=' + $maxPositions + ' ===')
 $python = Join-Path $root '.venv\Scripts\python.exe'
 $script = Join-Path $root 'scripts\run_base_behavior_demo_worker.py'
 $proc = Start-Process -FilePath $python -ArgumentList @('-u', $script) -WorkingDirectory $root -PassThru -Wait -RedirectStandardOutput $stdout -RedirectStandardError $stderr
