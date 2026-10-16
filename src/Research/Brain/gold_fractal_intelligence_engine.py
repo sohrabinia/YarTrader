@@ -407,6 +407,65 @@ class GoldFractalIntelligenceEngine:
     # ---------------------------------------------------------
     # 4. MULTI-SCALE FRACTAL MAPPING & ACTIVE SCALE DETECTION
     # ---------------------------------------------------------
+    def determine_structural_relationship(
+        self,
+        child_base: Dict[str, Any],
+        parent_base: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Determines the explicit spatial and structural relationship between a child base and a HTF parent base:
+        - STRICT_CONTAINMENT: Child High/Low fully inside Parent High/Low
+        - OVERLAPPING_BOUNDARY: Child overlaps Parent boundary (partial containment)
+        - OUTSIDE_PARENT: Child is outside Parent structure
+        """
+        if not child_base or not parent_base:
+            return {"relationship": "NO_RELATIONSHIP", "containment_pct": 0.0, "location_in_parent": "UNKNOWN"}
+
+        try:
+            ch_h = float(child_base["High"])
+            ch_l = float(child_base["Low"])
+            pa_h = float(parent_base["High"])
+            pa_l = float(parent_base["Low"])
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return {"relationship": "INVALID_GEOMETRY", "containment_pct": 0.0, "location_in_parent": "UNKNOWN"}
+        if not all(math.isfinite(value) for value in (ch_h, ch_l, pa_h, pa_l)) or ch_h <= ch_l or pa_h <= pa_l:
+            return {"relationship": "INVALID_GEOMETRY", "containment_pct": 0.0, "location_in_parent": "UNKNOWN"}
+        pa_range = pa_h - pa_l
+
+        # Containment percentage
+        overlap_h = min(ch_h, pa_h)
+        overlap_l = max(ch_l, pa_l)
+        overlap_range = max(0.0, overlap_h - overlap_l)
+        child_range = max(1e-6, ch_h - ch_l)
+        containment_pct = round((overlap_range / child_range) * 100.0, 2)
+
+        # Location relative to parent midpoint and boundaries
+        pa_mid = (pa_h + pa_l) / 2.0
+        ch_mid = (ch_h + ch_l) / 2.0
+
+        if containment_pct >= 95.0:
+            rel = "STRICT_CONTAINMENT"
+        elif containment_pct > 20.0:
+            rel = "OVERLAPPING_BOUNDARY"
+        else:
+            rel = "OUTSIDE_PARENT"
+
+        if ch_mid >= pa_mid + (0.3 * pa_range):
+            loc = "PARENT_PREMIUM_UPPER_ZONE"
+        elif ch_mid <= pa_mid - (0.3 * pa_range):
+            loc = "PARENT_DISCOUNT_LOWER_ZONE"
+        else:
+            loc = "PARENT_EQUILIBRIUM_CENTER"
+
+        return {
+            "relationship": rel,
+            "containment_pct": containment_pct,
+            "location_in_parent": loc,
+            "parent_high": pa_h,
+            "parent_low": pa_l,
+            "parent_type": parent_base.get("Type", "Neutral Base")
+        }
+
     def map_multi_timeframe_fractals(
         self,
         timeframe_candles: Dict[str, List[Dict[str, Any]]],
@@ -464,12 +523,33 @@ class GoldFractalIntelligenceEngine:
                 elif sc_upper == "W1": hierarchy["Weekly"] = entry
                 elif sc_upper == "D1": hierarchy["Daily"] = entry
 
+        child_base = hierarchy.get(dominant_scale, {}).get("active_base")
+
+        # Select true HTF Parent Base ONLY if child base is spatially overlapping or contained within it
+        parent_base = None
+        structural_rel = {"relationship": "NO_PARENT_BASE", "containment_pct": 0.0, "location_in_parent": "NEUTRAL"}
+
+        if child_base and scale_family == "STANDARD_MT5":
+            canonical_tf = ALIAS_MAP.get(str(dominant_scale).upper(), str(dominant_scale).upper())
+            tf_order = {tf: index for index, tf in enumerate(STANDARD_MT5_TIMEFRAMES)}
+            child_order = tf_order.get(canonical_tf, len(STANDARD_MT5_TIMEFRAMES))
+            for htf in STANDARD_MT5_TIMEFRAMES[:child_order]:
+                cand_parent = hierarchy.get(htf, {}).get("active_base")
+                if cand_parent:
+                    rel_check = self.determine_structural_relationship(child_base, cand_parent)
+                    if rel_check["relationship"] in ["STRICT_CONTAINMENT", "OVERLAPPING_BOUNDARY"]:
+                        parent_base = cand_parent
+                        structural_rel = rel_check
+                        break
+
         return {
             "symbol": self.symbol,
             "scale_family": scale_family,
             "hierarchy_tree": hierarchy,
             "dominant_scale": dominant_scale,
             "active_bases_count": len(active_bases_by_tf),
+            "parent_base": parent_base,
+            "structural_relationship": structural_rel,
             "controlling_context": {
                 sc: hierarchy.get(sc, {}).get("status", "EXPANSION_PHASE")
                 for sc in scale_list[:3]
@@ -485,70 +565,120 @@ class GoldFractalIntelligenceEngine:
         as_of_time: Optional[str] = None,
         scale_family: str = "STANDARD_MT5"
     ) -> Dict[str, Any]:
-        """
-        Generates Active Fractal Report at any point in time.
-        Calculates Target Zone without predicting exact price.
-        """
+        """Generate a data-grounded report; do not invent prices or targets when structure is absent."""
         mtf_map = self.map_multi_timeframe_fractals(timeframe_candles, scale_family=scale_family)
         dom_tf = mtf_map["dominant_scale"]
-
         candles = timeframe_candles.get(dom_tf, timeframe_candles.get(dom_tf.upper(), []))
-        latest_price = float(candles[-1].get("close", candles[-1].get("Close", 2350.0))) if candles else 2350.0
-
         active_base = mtf_map["hierarchy_tree"].get(dom_tf, {}).get("active_base")
-        if active_base:
-            base_high = active_base["High"]
-            base_low = active_base["Low"]
-            base_range = active_base["Range"]
 
-            if active_base["Type"] == "Bullish Base":
-                target_low = round(base_high + (1.5 * base_range), 2)
-                target_high = round(base_high + (2.5 * base_range), 2)
-                direction = "Bullish"
-                expected_behavior = "Expansion towards Upper Target Zone"
-            elif active_base["Type"] == "Bearish Base":
-                target_low = round(base_low - (2.5 * base_range), 2)
-                target_high = round(base_low - (1.5 * base_range), 2)
-                direction = "Bearish"
-                expected_behavior = "Continuation Breakdown towards Lower Target Zone"
-            else:
-                target_low = round(latest_price - (1.0 * base_range), 2)
-                target_high = round(latest_price + (1.0 * base_range), 2)
-                direction = "Neutral"
-                expected_behavior = "Range Consolidation / Return to Base Center"
-        else:
-            base_range = 25.0
-            target_low = round(latest_price + 15.0, 2)
-            target_high = round(latest_price + 35.0, 2)
-            direction = "Bullish"
-            expected_behavior = "Expansion Leg Continuation"
+        latest_price = None
+        if candles:
+            raw_price = candles[-1].get("close", candles[-1].get("Close"))
+            try:
+                candidate_price = float(raw_price)
+                if math.isfinite(candidate_price):
+                    latest_price = candidate_price
+            except (TypeError, ValueError, OverflowError):
+                latest_price = None
 
+        structural_rel = mtf_map.get("structural_relationship") or {}
         report = {
             "Symbol": self.symbol,
             "Time": as_of_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "Scale_Family": scale_family,
             "Dominant_Scale": dom_tf,
+            "Latest_Price": latest_price,
+            "Parent_Base": mtf_map.get("parent_base"),
+            "Structural_Relationship": structural_rel,
+        }
+
+        if not active_base or latest_price is None:
+            report.update({
+                "status": "INSUFFICIENT_STRUCTURE",
+                "Higher_Context": "UNKNOWN",
+                "Current_Structure": f"{dom_tf} NO_ACTIVE_BASE",
+                "Phase": "INSUFFICIENT_DATA",
+                "Expected_Structural_Behavior": "No target generated because a valid active Base and latest price are required.",
+                "Confidence": 0.0,
+                "Confidence_Basis": {"active_base": False, "valid_latest_price": latest_price is not None},
+                "Target_Zone": None,
+                "Chart_Markings": {"BASE": None, "EXPANSION": None, "LEG": None, "RETURN": None,
+                                   "FRACTAL_DETECTED": None, "TARGET_ZONE": None, "ACTIVE_SCALE": dom_tf},
+            })
+            return report
+
+        base_high = float(active_base["High"])
+        base_low = float(active_base["Low"])
+        base_range = float(active_base["Range"])
+        if not all(math.isfinite(v) for v in (base_high, base_low, base_range)) or base_range <= 0 or base_high <= base_low:
+            report.update({
+                "status": "INSUFFICIENT_STRUCTURE", "Higher_Context": "UNKNOWN",
+                "Current_Structure": f"{dom_tf} INVALID_ACTIVE_BASE", "Phase": "INVALID_BASE_GEOMETRY",
+                "Expected_Structural_Behavior": "No target generated because the active Base geometry is invalid.",
+                "Confidence": 0.0, "Confidence_Basis": {"active_base": True, "valid_geometry": False},
+                "Target_Zone": None,
+                "Chart_Markings": {"BASE": None, "EXPANSION": None, "LEG": None, "RETURN": None,
+                                   "FRACTAL_DETECTED": None, "TARGET_ZONE": None, "ACTIVE_SCALE": dom_tf},
+            })
+            return report
+
+        base_type = active_base.get("Type", "Neutral Base")
+        behavior = active_base.get("Internal_Behavior") or {}
+        pressure = behavior.get("directional_pressure", 0.0)
+        try:
+            pressure = min(1.0, max(-1.0, float(pressure)))
+            if not math.isfinite(pressure):
+                pressure = 0.0
+        except (TypeError, ValueError, OverflowError):
+            pressure = 0.0
+        duration = max(0, int(active_base.get("Duration", 0) or 0))
+        candle_support = min(25.0, 25.0 * len(candles) / 20.0)
+        duration_support = min(25.0, 25.0 * duration / 10.0)
+        behavior_support = 25.0 * abs(pressure)
+        relationship = structural_rel.get("relationship")
+        structure_support = 25.0 if relationship == "STRICT_CONTAINMENT" else 15.0 if relationship == "OVERLAPPING_BOUNDARY" else 0.0
+        confidence = round(min(100.0, candle_support + duration_support + behavior_support + structure_support), 1)
+
+        if base_type == "Bullish Base":
+            target_low = round(base_high + 1.5 * base_range, 2)
+            target_high = round(base_high + 2.5 * base_range, 2)
+            direction = "Bullish"
+            expected_behavior = "Expansion towards Upper Target Zone"
+        elif base_type == "Bearish Base":
+            target_low = round(base_low - 2.5 * base_range, 2)
+            target_high = round(base_low - 1.5 * base_range, 2)
+            direction = "Bearish"
+            expected_behavior = "Continuation Breakdown towards Lower Target Zone"
+        else:
+            target_low = round(latest_price - base_range, 2)
+            target_high = round(latest_price + base_range, 2)
+            direction = "Neutral"
+            expected_behavior = "Range Consolidation / Return to Base Center"
+
+        report.update({
+            "status": "ACTIVE_BASE",
             "Higher_Context": f"Macro {direction}",
-            "Current_Structure": f"{dom_tf} {active_base['Type'] if active_base else 'Expansion Leg'}",
-            "Phase": active_base["Internal_Behavior"]["state"] if active_base else "Expansion Preparation",
+            "Current_Structure": f"{dom_tf} {base_type}",
+            "Phase": behavior.get("state", "UNKNOWN"),
             "Expected_Structural_Behavior": expected_behavior,
-            "Confidence": 85 if active_base else 70,
+            "Confidence": confidence,
+            "Confidence_Basis": {
+                "candle_support": round(candle_support, 1),
+                "duration_support": round(duration_support, 1),
+                "behavior_support": round(behavior_support, 1),
+                "structural_relationship_support": structure_support,
+            },
             "Target_Zone": {
-                "Zone_Low": target_low,
-                "Zone_High": target_high,
-                "Status": "ACTIVE_UNTOUCHED",
-                "Reaction_Area": f"{target_low} - {target_high}"
+                "Zone_Low": target_low, "Zone_High": target_high,
+                "Status": "ACTIVE_UNTOUCHED", "Reaction_Area": f"{target_low} - {target_high}",
             },
             "Chart_Markings": {
-                "BASE": f"{active_base['Low']} - {active_base['High']}" if active_base else f"{latest_price-10} - {latest_price+10}",
-                "EXPANSION": "ACTIVE",
-                "LEG": "Leg 1 in Progress",
-                "RETURN": "Pending Expansion Completion",
-                "FRACTAL_DETECTED": f"FRACTAL_{dom_tf}_ACTIVE",
-                "TARGET_ZONE": f"{target_low} - {target_high}",
-                "ACTIVE_SCALE": dom_tf
-            }
-        }
+                "BASE": f"{base_low} - {base_high}", "EXPANSION": "ACTIVE",
+                "LEG": "Leg 1 in Progress", "RETURN": "Pending Expansion Completion",
+                "FRACTAL_DETECTED": f"FRACTAL_{dom_tf}_ACTIVE", "TARGET_ZONE": f"{target_low} - {target_high}",
+                "ACTIVE_SCALE": dom_tf,
+            },
+        })
         return report
 
     # ---------------------------------------------------------

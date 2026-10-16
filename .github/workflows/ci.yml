@@ -1,23 +1,54 @@
-name: TradeYar AI Production Acceptance & Release Validation
+name: YarTrader Production Validation
 
 on:
   push:
-    branches:
-      - main
-      - master
   pull_request:
-    branches:
-      - main
-      - master
   schedule:
-    # Nightly run at 2:00 AM UTC
     - cron: '0 2 * * *'
 
 jobs:
   validate-and-test:
-    name: Production Validation Workflow
+    name: Validation - ${{ matrix.name }}
     runs-on: ubuntu-latest
-
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - index: 0
+            name: Gate 1 Suite
+          - index: 1
+            name: Gate 2 Suite
+          - index: 2
+            name: Forensic Safety
+          - index: 3
+            name: Risk
+          - index: 4
+            name: Agents Growth Collaboration
+          - index: 5
+            name: Dashboard Communication Conversation
+          - index: 6
+            name: Data Timeframes Providers Monitoring Universe
+          - index: 7
+            name: Execution Bridge Demo
+          - index: 8
+            name: Learning Memory Context
+          - index: 9
+            name: Backtesting
+          - index: 10
+            name: Audit SDDL Compliance Explainability
+          - index: 11
+            name: Pipeline Infrastructure Deployment
+          - index: 12
+            name: Brain Research
+          - index: 13
+            name: Integration Services Shadow Supervisor
+          - index: 14
+            name: Architecture Intelligence Knowledge Orchestration Decision
+          - index: 15
+            name: Runtime Validation
+          - index: 16
+            name: Remaining General Tests
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v4
@@ -33,15 +64,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Execute Autonomous Validation Runner
-        run: |
-          python validate_release.py
+      - name: Execute Validation Partition
+        env:
+          VALIDATION_PARTITION_INDEX: ${{ matrix.index }}
+          PYTHONPATH: .
+        run: python validate_release.py
 
-      - name: Archive Production Validation Artifacts
+      - name: Archive Validation Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tradeyar-validation-reports
+          name: yartrader-validation-${{ matrix.index }}
           path: |
             validation/
             logs/validation.log
