@@ -168,12 +168,7 @@ class DailyLossKillSwitch:
 
     @classmethod
     def effective_max_daily_loss_pct(cls) -> float:
-        """60% is allowed only in the explicitly opted-in DEMO exploration process."""
-        enabled = lambda key: os.environ.get(key, "").strip().lower() in {"1", "true", "yes", "on"}
-        if (enabled("YARTRADER_DEMO_EXPLORATION_MODE")
-                and enabled("YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED")
-                and os.environ.get("YARTRADER_TRADING_MODE", "").strip().upper() == "DEMO"):
-            return 60.0
+        """Daily loss is a hard 10% ceiling in every mode, including DEMO exploration."""
         return float(cls.MAX_DAILY_LOSS_PCT)
 
     def set_session_baseline(self, equity: float, session_date: str) -> bool:

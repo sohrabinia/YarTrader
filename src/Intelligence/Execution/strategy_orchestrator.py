@@ -18,6 +18,7 @@ from src.Decision.Intelligence.base_reaction_decision_engine import BaseReaction
 from src.Decision.Intelligence.pending_order_planner import PendingOrderPlanner
 from src.Research.Brain.multitimeframe_base_transition_engine import TIMEFRAME_SECONDS
 from src.Research.Brain.multitimeframe_base_transition_engine import detect_base_departures
+from src.Intelligence.Execution.historical_structure_research import analyze_historical_structure_levels
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -166,9 +167,10 @@ class StrategyOrchestrator:
         if result.get("status") != "PROPOSED":
             return None
         result["setup_type"] = "IN_BASE_ROTATION"
-        result["reason"] = ("DEMO EXPLORATION ONLY: directional closed M1 candle inside confirmed Base; "
-                            "minimum net R:R and daily-loss threshold are bypassed for research, "
-                            "broker minimum volume and protective SL remain; no preset TP.")
+        result["reason"] = ("DEMO EXPLORATION ONLY: directional closed candle inside a confirmed Base; "
+                            "candidate generation may relax the research R:R floor, but the execution-stage "
+                            "10% daily-loss gate, 1% per-trade sizing, broker validation, and protective SL/TP "
+                            "remain mandatory.")
         return result
 
     def evaluate_all_strategies(
@@ -204,6 +206,10 @@ class StrategyOrchestrator:
                                                                         scan_step=step, horizon=0)
             else:
                 events_by_tf[str(tf).upper()] = []
+        historical_structure = analyze_historical_structure_levels(
+            bars_by_tf, now=int(datetime.now().timestamp()),
+            current_prices={tf: rows[-1]["close"] for tf, rows in bars_by_tf.items() if rows},
+        )
         demo_exploration = bool(exploration_mode) or (
             os.environ.get("YARTRADER_DEMO_EXPLORATION_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
             and os.environ.get("YARTRADER_AUTONOMOUS_DEMO_TRADING_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
@@ -227,6 +233,9 @@ class StrategyOrchestrator:
         spread = max(0.0, float(spread_pip)) * pip_factor
         quote = {"bid": price - spread / 2, "ask": price + spread / 2}
         hierarchy = engine.analyze(events_by_tf, quote, now=float(latest_epoch), exploration_mode=demo_exploration)
+        # Attach causal swing levels and measured historical reactions to the same
+        # context consumed by the Base/reaction decision path and its diagnostics.
+        hierarchy["historical_structure_analysis"] = historical_structure
         if demo_exploration:
             # DEMO/backtest-only trigger fallback: derive an explicit exploratory M1
             # trigger from a real closed candle that touches the selected child Base
@@ -358,34 +367,55 @@ class StrategyOrchestrator:
             # confirmed before the current decision candle; never freeze targets
             # at the older source-Base confirmation timestamp.
             decision_time = int(latest_epoch)
-            known_destination_events = sorted(
-                [event for event in events_by_tf.get(tf, [])
-                 if event.get("event_id") != child.get("event_id")
-                 and int(event.get("confirmation_time", 0)) <= decision_time],
-                key=lambda event: int(event.get("confirmation_time", 0)),
-            )
+            # Search every available timeframe for the nearest confirmed destination
+            # Base. Restricting targets to the child timeframe misses valid H1/H4/D1
+            # objectives (especially on XAUUSD) and can leave a stale or undersized TP
+            # after the execution layer widens a structural stop.
+            all_destination_events = []
+            seen_destination_ids = set()
+            for destination_tf, tf_events in events_by_tf.items():
+                for event in tf_events:
+                    event_id = str(event.get("event_id") or "")
+                    if (not event_id or event_id == str(child.get("event_id") or "")
+                            or event_id in seen_destination_ids):
+                        continue
+                    try:
+                        confirmed_at = int(event.get("confirmation_time", 0))
+                        base_low = float(event["base_low"])
+                        base_high = float(event["base_high"])
+                    except (KeyError, TypeError, ValueError, OverflowError):
+                        continue
+                    if confirmed_at <= decision_time and base_low > 0 and base_high >= base_low:
+                        candidate = dict(event)
+                        candidate["_target_timeframe"] = str(event.get("timeframe") or destination_tf).upper()
+                        all_destination_events.append(candidate)
+                        seen_destination_ids.add(event_id)
             if direction_sign > 0:
                 known_destination_events = sorted(
-                    (event for event in known_destination_events if float(event["base_low"]) > high),
+                    (event for event in all_destination_events if float(event["base_low"]) > high),
                     key=lambda event: float(event["base_low"]),
-                )[:32]
+                )[:64]
             else:
                 known_destination_events = sorted(
-                    (event for event in known_destination_events if float(event["base_high"]) < low),
+                    (event for event in all_destination_events if float(event["base_high"]) < low),
                     key=lambda event: float(event["base_high"]), reverse=True,
-                )[:32]
+                )[:64]
             destinations = []
             for event in known_destination_events:
                 if direction_sign > 0 and float(event["base_low"]) > max(high, price):
-                    destinations.append((float(event["base_low"]) - price, float(event["base_low"])))
+                    destinations.append((float(event["base_low"]) - price, float(event["base_low"]), event))
                 elif direction_sign < 0 and float(event["base_high"]) < min(low, price):
-                    destinations.append((price - float(event["base_high"]), float(event["base_high"])))
+                    destinations.append((price - float(event["base_high"]), float(event["base_high"]), event))
             # Prefer the next confirmed structural Base as target. In explicit DEMO
             # exploration only, if no destination Base exists, derive the smallest
             # cost-aware target that still clears strict net reward/risk > 1.0.
             # This is not a fixed-R target and does not relax quote, geometry, or
             # broker-risk checks. Production/validated mode still waits for structure.
-            target = min(destinations, key=lambda item: item[0])[1] if destinations else None
+            selected_destination = min(destinations, key=lambda item: item[0]) if destinations else None
+            target = selected_destination[1] if selected_destination else None
+            target_event = selected_destination[2] if selected_destination else None
+            target_source = "CONFIRMED_DESTINATION_BASE" if target_event else "DEMO_EXPLORATION_COST_AWARE_FALLBACK"
+            target_timeframe = str(target_event.get("_target_timeframe") or target_event.get("timeframe") or "UNKNOWN") if target_event else None
             trigger_mode = str(micro.get("exploration_trigger_mode", "")) if micro else ""
             # A quote-confirmed breakout has already crossed the Base edge. Do not
             # submit a stale stop-chase; in DEMO exploration sample the pullback
@@ -402,6 +432,8 @@ class StrategyOrchestrator:
                 target_distance = risk_distance + 2.0 * (spread_cost + extra_cost) + max(0.01, risk_distance * 0.01)
                 target_anchor = max(planned_entry, float(quote["ask"])) if direction_sign > 0 else min(planned_entry, float(quote["bid"]))
                 target = target_anchor + (1 if direction_sign > 0 else -1) * target_distance
+                target_source = "DEMO_EXPLORATION_COST_AWARE_FALLBACK"
+                target_timeframe = None
             reaction_result = reaction_engine.evaluate(
                 setup={"timeframe": tf, "base_type": str(child.get("base_type", "UNKNOWN")),
                        "parent_relation": str(structure.get("parent_relation", "NESTED")),
@@ -409,7 +441,10 @@ class StrategyOrchestrator:
                        "hierarchy_complete_to_m1": bool(structure.get("hierarchy_complete_to_m1", False)),
                        "setup_type": setup_type,
                        "entry_price": price, "zone_low": low, "zone_high": high,
-                       "invalidation": stop, "target": target, "base_width": base_width,
+                       "invalidation": stop, "target": target, "target_source": target_source,
+                       "target_timeframe": target_timeframe,
+                       "target_event_id": str(target_event.get("event_id")) if target_event else None,
+                       "base_width": base_width,
                        "confidence": 100.0,
                        "expires_at": float(latest_epoch) + 8 * TIMEFRAME_SECONDS.get(tf, 60)},
                 quote=quote, now=float(latest_epoch), parent=parent, child=child, micro=micro,
@@ -420,6 +455,15 @@ class StrategyOrchestrator:
                 exploration_mode=demo_exploration,
             )
             reaction_result["model_status"] = reaction_model_status
+            reaction_result["target_source"] = target_source
+            reaction_result["target_timeframe"] = target_timeframe
+            reaction_result["target_event_id"] = str(target_event.get("event_id")) if target_event else None
+            reaction_result["structural_target_candidates"] = [
+                {"price": float(item[1]), "timeframe": str(item[2].get("_target_timeframe") or item[2].get("timeframe") or "UNKNOWN"),
+                 "event_id": str(item[2].get("event_id") or ""), "distance_from_decision_price": float(item[0]),
+                 "confirmation_time": int(item[2].get("confirmation_time", 0))}
+                for item in sorted(destinations, key=lambda value: value[0])
+            ]
 
         # Separate Base-interior rotation path. It is deliberately available only
         # in explicitly enabled DEMO exploration until costed historical profiles
@@ -484,7 +528,8 @@ class StrategyOrchestrator:
                 "reasoning": [str(reaction_result.get("reason") or "Validated Base re-entry reaction proposal.")],
                 "market_context": {"strategy": str((reaction_result.get("structure") or {}).get("strategy_type") or "BASE_HIERARCHY"),
                                    "order_type": plan.get("order_type"),
-                                   "base_structure": reaction_result.get("structure")},
+                                   "base_structure": reaction_result.get("structure"),
+                                   "historical_structure_analysis": historical_structure},
                 "invalidation_level": float(plan.get("stop_loss") or 0),
                 "holding_period": "Base-reaction / next-Base",
             }
@@ -493,6 +538,7 @@ class StrategyOrchestrator:
                 "candidates": candidates, "active_candidates_count": len(candidates),
                 "best_candidate": candidates[0] if candidates else None,
                 "base_plan": plan, "hierarchy": hierarchy, "reaction_analysis": reaction_result,
+                "historical_structure_analysis": historical_structure,
                 "model_status": reaction_model_status,
                 "exploration_mode": demo_exploration,
                 "summary": ("DEMO/BACKTEST EXPLORATION: unvalidated profiles are sampled; results are not evidence of profitability."

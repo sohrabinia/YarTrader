@@ -1,5 +1,7 @@
 import unittest
 
+import pytest
+
 from src.Execution.Services.autonomous_demo_trader import calculate_demo_volume_by_risk
 
 
@@ -104,3 +106,55 @@ if __name__ == "__main__":
     unittest.main()
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_gold_minimum_lot_with_eight_dollar_stop_fits_one_percent_of_2726_wallet():
+    # Broker minimum 0.01 XAUUSD lot risks about $8 with an $8 price stop
+    # under this broker's 100-unit contract. 1% of $2,726.52 is $27.2652;
+    # the old three-slot allocator incorrectly passed only about $9.09.
+    result = calculate_demo_volume_by_risk(
+        FakeMT5(), "XAUUSD", "SELL", 4161.0, 4169.0,
+        {"volume_min": 0.01, "volume_max": 100.0, "volume_step": 0.01},
+        balance=2726.52, equity=2726.52, risk_pct=1.0,
+    )
+    assert result["allowed"] is True
+    assert result["risk_budget_usd"] == pytest.approx(27.2652)
+    assert result["minimum_lot_risk_usd"] == pytest.approx(8.0)
+    assert result["volume"] >= 0.01
+    assert result["estimated_risk_usd"] <= result["risk_budget_usd"]
+
+
+def test_gold_tp_promotes_to_nearest_confirmed_structural_base_when_stop_widening_breaks_rr():
+    from src.Execution.Services.autonomous_demo_trader import AutonomousDemoTrader
+
+    # Entry 2350, final structural stop 2340 => $10 risk distance.
+    # The nearest target at 2355 only pays 0.5R and must be skipped; the next
+    # confirmed base at 2365 pays 1.5R before costs. A future/unconfirmed target
+    # and a target on the wrong side must never be used.
+    candidates = [
+        {"price": 2355.0, "timeframe": "M15", "event_id": "near", "confirmation_time": 100},
+        {"price": 2365.0, "timeframe": "H1", "event_id": "next", "confirmation_time": 100},
+        {"price": 2400.0, "timeframe": "H4", "event_id": "future", "confirmation_time": 9999},
+        {"price": 2300.0, "timeframe": "H4", "event_id": "wrong-side", "confirmation_time": 100},
+    ]
+    selected = AutonomousDemoTrader._best_structural_target_for_net_rr(
+        candidates, "BUY", entry=2350.0, risk_distance=10.0,
+        cost_allowance=0.5, min_net_rr=1.0, decision_time=200,
+    )
+    assert selected is not None
+    price, evidence, net_rr = selected
+    assert price == 2365.0
+    assert evidence["event_id"] == "next"
+    assert evidence["timeframe"] == "H1"
+    assert net_rr > 1.0
+
+
+def test_gold_tp_does_not_invent_target_when_no_confirmed_structure_clears_net_rr():
+    from src.Execution.Services.autonomous_demo_trader import AutonomousDemoTrader
+
+    selected = AutonomousDemoTrader._best_structural_target_for_net_rr(
+        [{"price": 2355.0, "timeframe": "M15", "event_id": "near", "confirmation_time": 100}],
+        "BUY", entry=2350.0, risk_distance=10.0,
+        cost_allowance=0.5, min_net_rr=1.0, decision_time=200,
+    )
+    assert selected is None

@@ -14,6 +14,120 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
 
     def setUp(self):
         self.report_file = "reports/autonomous_demo_runtime_report.json"
+        # Execution-path unit tests opt in explicitly; production remains watch-only
+        # through YARTRADER_DEMO_ORDER_SUBMISSION_ENABLED=false in .env.production.
+        self._order_submission_patch = patch.dict(os.environ, {"YARTRADER_DEMO_ORDER_SUBMISSION_ENABLED": "true"})
+        self._order_submission_patch.start()
+        self.addCleanup(self._order_submission_patch.stop)
+
+    def test_watch_only_mode_journals_setup_without_sending_order(self):
+        from unittest.mock import MagicMock
+        adapter = MagicMock()
+        adapter.get_active_orders.return_value = []
+        trader = AutonomousDemoTrader(adapter=adapter)
+        trader._log_event = MagicMock()
+        plan = {"status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY",
+                "order_plan": {"status": "PROPOSED", "direction": "SELL",
+                               "order_type": "SELL_LIMIT", "entry": 1.1266,
+                               "stop_loss": 1.1270, "take_profit": 1.1241}}
+        with patch.dict(os.environ, {"YARTRADER_DEMO_ORDER_SUBMISSION_ENABLED": "false"}):
+            result = trader._reconcile_base_pending_order(
+                "EURUSD", plan, {"bid": 1.1260, "ask": 1.1261, "time": 1000},
+                {"balance": 10000.0, "equity": 10000.0},
+                {"digits": 5, "point": 0.00001})
+        self.assertEqual(result["status"], "WATCH_ONLY")
+        adapter.send_order_to_broker.assert_not_called()
+        self.assertTrue(any(call.args[0].get("event") == "setup_zone_watch_only"
+                            for call in trader._log_event.call_args_list))
+
+    def test_demo_exploration_uses_lower_rr_floor_only_when_demo_exploration_is_enabled(self):
+        from unittest.mock import MagicMock, patch
+        trader = AutonomousDemoTrader(adapter=MagicMock())
+        plan = {"execution_mode": "DEMO_STYLE_DISCOVERY"}
+        with patch("src.Execution.Services.autonomous_demo_trader._demo_exploration_enabled", return_value=True):
+            self.assertEqual(trader._minimum_net_rr_for_plan(plan), 0.20)
+        with patch("src.Execution.Services.autonomous_demo_trader._demo_exploration_enabled", return_value=False):
+            self.assertEqual(trader._minimum_net_rr_for_plan(plan), float(trader.MIN_RR))
+        self.assertEqual(trader._minimum_net_rr_for_plan({"execution_mode": "PRODUCTION"}), float(trader.MIN_RR))
+
+    def test_tp_extension_requires_confirmed_completed_m5_momentum_and_structure(self):
+        from src.Execution.Services.autonomous_demo_trader import AutonomousDemoTrader
+        bullish = [
+            {"open": 10.0, "high": 10.3, "low": 9.9, "close": 10.2},
+            {"open": 10.2, "high": 10.5, "low": 10.1, "close": 10.4},
+            {"open": 10.4, "high": 10.7, "low": 10.3, "close": 10.6},
+            {"open": 10.6, "high": 10.8, "low": 10.5, "close": 10.7},  # forming; ignored
+        ]
+        bearish = [
+            {"open": 10.6, "high": 10.8, "low": 10.4, "close": 10.5},
+            {"open": 10.5, "high": 10.6, "low": 10.2, "close": 10.3},
+            {"open": 10.3, "high": 10.4, "low": 10.0, "close": 10.1},
+            {"open": 10.1, "high": 10.2, "low": 9.9, "close": 10.0},  # forming; ignored
+        ]
+        self.assertTrue(AutonomousDemoTrader._has_confirmed_tp_extension_momentum("BUY", {"M5": bullish}))
+        self.assertTrue(AutonomousDemoTrader._has_confirmed_tp_extension_momentum("SELL", {"M5": bearish}))
+        self.assertFalse(AutonomousDemoTrader._has_confirmed_tp_extension_momentum("BUY", {"M5": bearish}))
+        self.assertFalse(AutonomousDemoTrader._has_confirmed_tp_extension_momentum("BUY", {"M5": bullish[:3]}))
+
+    def test_zone_watch_state_requires_proximity_then_a_new_closed_candle_rejection(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from unittest.mock import MagicMock, patch
+        from src.Execution.Services import autonomous_demo_trader as trader_module
+
+        trader = AutonomousDemoTrader(adapter=MagicMock())
+        trader._log_event = MagicMock()
+        plan = {"direction": "BUY", "entry": 100.0, "stop_loss": 99.0, "take_profit": 102.0}
+        info = {"point": 0.01}
+        far_tick = {"bid": 98.0, "ask": 98.02}
+        near_tick = {"bid": 99.99, "ask": 100.01}
+        bars_far = [
+            {"timestamp": 1, "open": 98.0, "high": 98.3, "low": 97.8, "close": 98.1},
+            {"timestamp": 2, "open": 98.1, "high": 98.2, "low": 97.9, "close": 98.0},
+            {"timestamp": 3, "open": 98.0, "high": 98.1, "low": 97.8, "close": 97.9},
+        ]
+        with TemporaryDirectory() as folder, patch.object(trader_module, "_PROJECT_ROOT", Path(folder)):
+            first = trader._advance_setup_zone_watch("EURUSD", "BASE_HIERARCHY", plan, far_tick, info, {"M1": bars_far})
+            self.assertEqual(first["state"], "WAITING_FOR_ZONE")
+            bars_near = bars_far + [
+                {"timestamp": 4, "open": 99.8, "high": 100.2, "low": 99.5, "close": 100.1}
+            ]
+            second = trader._advance_setup_zone_watch("EURUSD", "BASE_HIERARCHY", plan, near_tick, info, {"M1": bars_near})
+            self.assertEqual(second["state"], "NEAR_ZONE")
+            self.assertFalse(second["reaction_confirmed"])
+            # A distinct completed bullish rejection candle is required after the near-zone state.
+            bars_reaction = bars_near + [
+                {"timestamp": 5, "open": 99.95, "high": 100.3, "low": 99.7, "close": 100.15}
+            ]
+            third = trader._advance_setup_zone_watch("EURUSD", "BASE_HIERARCHY", plan, near_tick, info, {"M1": bars_reaction})
+            self.assertEqual(third["state"], "REACTION_CONFIRMED")
+            self.assertTrue(third["reaction_confirmed"])
+            saved = json.loads((Path(folder) / "runtime_logs" / "setup_zone_watch_state_EURUSD_BASE_HIERARCHY.json").read_text(encoding="utf-8"))
+            self.assertTrue(saved["EURUSD|BASE_HIERARCHY"]["reaction_confirmed"])
+
+    def test_zone_watch_state_does_not_confirm_wrong_direction_candle(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from unittest.mock import MagicMock, patch
+        from src.Execution.Services import autonomous_demo_trader as trader_module
+
+        trader = AutonomousDemoTrader(adapter=MagicMock())
+        plan = {"direction": "SELL", "entry": 1.1000, "stop_loss": 1.1010, "take_profit": 1.0980}
+        tick = {"bid": 1.09995, "ask": 1.10005}
+        bars = [
+            {"timestamp": 1, "open": 1.0990, "high": 1.0992, "low": 1.0988, "close": 1.0991},
+            {"timestamp": 2, "open": 1.0991, "high": 1.0993, "low": 1.0989, "close": 1.0990},
+            {"timestamp": 3, "open": 1.0990, "high": 1.0992, "low": 1.0988, "close": 1.0991},
+        ]
+        with TemporaryDirectory() as folder, patch.object(trader_module, "_PROJECT_ROOT", Path(folder)):
+            trader._advance_setup_zone_watch("EURUSD", "RTM", plan, {"bid": 1.0980, "ask": 1.0981}, {"point": 0.00001}, {"M1": bars})
+            near = trader._advance_setup_zone_watch("EURUSD", "RTM", plan, tick, {"point": 0.00001}, {"M1": bars})
+            self.assertEqual(near["state"], "NEAR_ZONE")
+            # Next closed candle is bullish, so it cannot confirm a SELL rejection.
+            next_bars = bars + [{"timestamp": 4, "open": 1.0997, "high": 1.1003, "low": 1.0996, "close": 1.1001}]
+            result = trader._advance_setup_zone_watch("EURUSD", "RTM", plan, tick, {"point": 0.00001}, {"M1": next_bars})
+            self.assertEqual(result["state"], "NEAR_ZONE")
+            self.assertFalse(result["reaction_confirmed"])
 
     def test_post_exit_tracker_records_price_path_after_sl_or_tp(self):
         from tempfile import TemporaryDirectory
@@ -263,7 +377,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         adapter.send_order_to_broker.return_value = MagicMock(Status="Placed", OrderId="123", DealTicket="456", Comment="filled")
         trader = AutonomousDemoTrader(adapter=adapter)
         plan = {"status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY", "order_plan": {
-            "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
+            "status": "PROPOSED", "direction": "BUY", "order_type": "BUY",
             "entry": 2480.0, "stop_loss": 2470.0, "take_profit": None,
             "net_reward_risk": 1.5, "expires_at": 2000,
         }, "reaction_analysis": {"scenario": {"target": 2525.0}}}
@@ -288,8 +402,8 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         trader = AutonomousDemoTrader(adapter=adapter)
         plan = {
             "status": "ORDER_PROPOSAL", "selected_strategy": "BASE_ENGULF_REVERSAL",
-            "order_plan": {"status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
-                           "entry": 2500.1, "stop_loss": 2490.3, "take_profit": None,
+            "order_plan": {"status": "PROPOSED", "direction": "BUY", "order_type": "BUY",
+                           "entry": 2500.2, "stop_loss": 2490.3, "take_profit": None,
                            "net_reward_risk": 1.5, "expires_at": 2000},
             "reaction_analysis": {"scenario": {"target": None}},
             "strategy_results": {"BASE_ENGULF_REVERSAL": {"research_target": 2525.0}},
@@ -323,11 +437,15 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         adapter.cancel_pending_order.assert_called_once_with(778899)
         adapter.send_order_to_broker.assert_not_called()
 
-    def test_exploration_replaces_legacy_pending_with_market_deal(self):
+    def test_exploration_replaces_legacy_pending_with_protected_pending_order(self):
         from unittest.mock import MagicMock
         adapter = MagicMock()
         adapter._mt5.ORDER_TYPE_BUY = 0
         adapter._mt5.ORDER_TYPE_SELL = 1
+        adapter._mt5.ORDER_TYPE_BUY_LIMIT = 2
+        adapter._mt5.ORDER_TYPE_SELL_LIMIT = 3
+        adapter._mt5.ORDER_TYPE_BUY_STOP = 4
+        adapter._mt5.ORDER_TYPE_SELL_STOP = 5
         adapter._mt5.order_calc_profit.side_effect = lambda typ, sym, vol, entry, stop: -abs(entry - stop) * vol * 100
         adapter.get_active_orders.return_value = [{"magic": 100001, "comment": "YarBase", "ticket": 55501,
                                                    "type": 2, "price_open": 1998.0, "sl": 1995.0, "tp": 0.0}]
@@ -345,14 +463,17 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         result = trader._reconcile_base_pending_order(
             "XAUUSD", plan, {"bid": 2000.0, "ask": 2000.2, "time": 1000},
             {"balance": 100000.0, "equity": 100000.0},
-            {"digits": 2, "volume_min": 0.01, "volume_step": 0.01, "volume_max": 10.0, "trade_contract_size": 100.0},
+            {"digits": 2, "point": 0.01, "volume_min": 0.01, "volume_step": 0.01, "volume_max": 10.0, "trade_contract_size": 100.0},
             per_tf={"M5": bars(2.0), "M15": bars(4.0)},
         )
-        self.assertEqual(result["status"], "MARKET_OPENED")
+        self.assertEqual(result["status"], "PENDING_ORDER_SUBMITTED")
         adapter.cancel_pending_order.assert_called_once_with(55501)
         request = adapter.send_order_to_broker.call_args.args[0]
-        self.assertEqual(request.OrderType, "BUY")
-        self.assertEqual(request.Price, 2000.2)
+        self.assertEqual(request.OrderType, "BUY_LIMIT")
+        self.assertEqual(request.Price, 1999.5)
+        self.assertEqual(request.StopLoss, 1994.5)
+        self.assertEqual(request.TakeProfit, 2012.0)
+        self.assertEqual(request.Expiration, 4600)
 
     def test_new_market_entry_sets_validated_broker_tp_and_volatility_aware_stop(self):
         from unittest.mock import MagicMock
@@ -364,8 +485,8 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         adapter.send_order_to_broker.return_value = MagicMock(Status="Placed", OrderId="98765", DealTicket="12345", Comment="filled")
         trader = AutonomousDemoTrader(adapter=adapter)
         plan = {"status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY", "order_plan": {
-            "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
-            "entry": 1999.5, "stop_loss": 1994.5, "take_profit": None,
+            "status": "PROPOSED", "direction": "BUY", "order_type": "BUY",
+            "entry": 2000.2, "stop_loss": 1994.5, "take_profit": None,
             "net_reward_risk": 1.5, "expires_at": 5000,
         }, "reaction_analysis": {"scenario": {"target": 2012.0}}}
         def bars(rng):
@@ -384,7 +505,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(request.StopLoss, 1994.5)
         self.assertEqual(request.TakeProfit, 2012.0)
 
-    def test_too_close_child_stop_promotes_to_nearest_parent_boundary(self):
+    def test_too_close_child_stop_rejects_out_of_envelope_parent_boundary(self):
         from unittest.mock import MagicMock
         adapter = MagicMock()
         adapter._mt5.ORDER_TYPE_SELL_LIMIT = 3
@@ -419,7 +540,7 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
             per_tf={"M5": bars(0.0004), "M15": bars(0.0004)},
         )
         self.assertEqual(result["status"], "BLOCKED")
-        self.assertIn("too wide for current volatility", result["reason"])
+        self.assertIn("net R:R", result["reason"])
         adapter.send_order_to_broker.assert_not_called()
 
     def test_legacy_pending_is_cancelled_before_market_entry(self):
@@ -434,8 +555,8 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         adapter.send_order_to_broker.return_value = MagicMock(Status="Placed", OrderId="54321", DealTicket="67890", Comment="filled")
         trader = AutonomousDemoTrader(adapter=adapter)
         plan = {"status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY", "order_plan": {
-            "status": "PROPOSED", "direction": "BUY", "order_type": "BUY_LIMIT",
-            "entry": 1999.5, "stop_loss": 1995.0, "take_profit": None,
+            "status": "PROPOSED", "direction": "BUY", "order_type": "BUY",
+            "entry": 2000.2, "stop_loss": 1995.0, "take_profit": None,
             "net_reward_risk": 1.5, "expires_at": 5000,
         }, "reaction_analysis": {"scenario": {"target": 2012.0}}}
         result = trader._reconcile_base_pending_order(
@@ -446,3 +567,44 @@ class TestAutonomousDemoRuntime(unittest.TestCase):
         self.assertEqual(result["status"], "MARKET_OPENED")
         adapter.cancel_pending_order.assert_called_once_with(12345)
         self.assertEqual(adapter.send_order_to_broker.call_args.args[0].OrderType, "BUY")
+
+
+    def test_near_zone_confirmed_rejection_converts_pending_setup_to_market_entry(self):
+        from unittest.mock import MagicMock
+        adapter = MagicMock()
+        adapter._mt5.ORDER_TYPE_BUY = 0
+        adapter._mt5.ORDER_TYPE_SELL = 1
+        adapter._mt5.order_calc_profit.side_effect = lambda typ, sym, vol, entry, stop: -abs(entry - stop) * vol * 100
+        adapter.get_active_orders.return_value = []
+        adapter.send_order_to_broker.return_value = MagicMock(Status="Placed", OrderId="98767", DealTicket="12346", Comment="filled")
+        trader = AutonomousDemoTrader(adapter=adapter)
+        trader._log_event = MagicMock()
+        trader._advance_setup_zone_watch = lambda *args, **kwargs: {
+            "state": "REACTION_CONFIRMED", "reaction_confirmed": True,
+            "distance_to_entry": 0.2, "proximity_tolerance": 0.5,
+            "reaction_evidence": {"candle_timestamp": 970, "rejection": True},
+        }
+        plan = {"status": "ORDER_PROPOSAL", "selected_strategy": "BASE_HIERARCHY", "order_plan": {
+            "status": "PROPOSED", "direction": "SELL", "order_type": "SELL_LIMIT",
+            "entry": 2000.1, "stop_loss": 2001.1, "take_profit": None,
+            "net_reward_risk": 2.0, "expires_at": 5000,
+        }, "reaction_analysis": {"scenario": {"target": 1993.0}}}
+        def bars(rng):
+            return [{"timestamp": 100 + i * 30, "open": 2000.0, "high": 2000.0 + rng / 2,
+                     "low": 2000.0 - rng / 2, "close": 2000.0} for i in range(20)]
+        result = trader._reconcile_base_pending_order(
+            "XAUUSD", plan, {"bid": 1999.9, "ask": 2000.0, "time": 1000},
+            {"balance": 100000.0, "equity": 100000.0},
+            {"digits": 2, "point": 0.01, "volume_min": 0.01, "volume_step": 0.01,
+             "volume_max": 10.0, "trade_contract_size": 100.0},
+            per_tf={"M5": bars(2.0), "M15": bars(4.0)},
+        )
+        self.assertEqual(result["status"], "MARKET_OPENED")
+        request = adapter.send_order_to_broker.call_args.args[0]
+        self.assertEqual(request.OrderType, "SELL")
+        self.assertEqual(request.Price, 1999.9)
+        decision_events = [call.args[0] for call in trader._log_event.call_args_list
+                           if call.args and call.args[0].get("event") == "live_entry_context_decision"]
+        self.assertEqual(decision_events[-1]["decision_mode"], "MARKET_AFTER_CONFIRMED_ZONE_REACTION")
+        self.assertTrue(decision_events[-1]["reaction_confirmed"])
+        self.assertFalse(decision_events[-1]["broker_confirmed"])

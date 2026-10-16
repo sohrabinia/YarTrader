@@ -106,7 +106,7 @@ def run_forever():
         years = int(job.get("years", 10))
         balance = float(job.get("initial_balance", 10000.0))
         sleep_sec = float(job.get("sleep", 1.0))
-        chunk_timeout_sec = max(60.0, float(job.get("chunk_timeout_sec", 900.0)))
+        chunk_timeout_sec = max(60.0, float(job.get("chunk_timeout_sec", 3600.0)))
 
         cp = checkpoint(job)
         if cp and cp.get("status") == "COMPLETED":
@@ -135,16 +135,31 @@ def run_forever():
         ]
         log(f"CHUNK_START {symbol}/{timeframe}")
         try:
-            result = subprocess.run(
+            process = subprocess.Popen(
                 cmd, cwd=str(ROOT), stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT, text=True, timeout=chunk_timeout_sec,
+                stderr=subprocess.STDOUT, text=True,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
-            for line in result.stdout.splitlines()[-8:]:
-                log(line)
-            log(f"CHUNK_EXIT rc={result.returncode}")
-        except subprocess.TimeoutExpired:
-            log(f"CHUNK_TIMEOUT seconds={chunk_timeout_sec:.0f}")
+            try:
+                output, _ = process.communicate(timeout=chunk_timeout_sec)
+            except subprocess.TimeoutExpired:
+                log(f"CHUNK_TIMEOUT seconds={chunk_timeout_sec:.0f} pid={process.pid}; terminating full process tree")
+                if os.name == "nt":
+                    subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
+                else:
+                    process.kill()
+                try:
+                    output, _ = process.communicate(timeout=10)
+                except subprocess.TimeoutExpired:
+                    output = ""
+                for line in (output or "").splitlines()[-8:]:
+                    log(line)
+                log(f"CHUNK_EXIT rc=TIMEOUT_KILLED pid={process.pid}")
+            else:
+                for line in (output or "").splitlines()[-8:]:
+                    log(line)
+                log(f"CHUNK_EXIT rc={process.returncode}")
         except Exception as exc:
             log(f"CHUNK_EXCEPTION {type(exc).__name__}: {exc}")
         time.sleep(max(2.0, sleep_sec))
