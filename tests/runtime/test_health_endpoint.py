@@ -94,7 +94,9 @@ class TestHealthEndpoint(unittest.TestCase):
     def test_api_v1_health_endpoint(self):
         """Verifies calling /api/v1/health returns detailed diagnostics."""
         research_tracker["mt5_status"] = "CONNECTED"
-        response = self.client.get("/api/v1/health")
+        with patch.object(global_research_runtime.provider.delegate, "get_connection_health",
+                          return_value=SimpleNamespace(connected=True)):
+            response = self.client.get("/api/v1/health")
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "Healthy")

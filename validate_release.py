@@ -311,6 +311,7 @@ class ReleaseValidationPlatform:
         parsed_any = False
 
         for partition_index, (partition_name, paths) in active_partitions:
+            partition_failure_start = len(failures_list)
             valid_paths = [item for item in paths if Path(item).exists()]
             if not valid_paths:
                 self.log(
@@ -429,6 +430,17 @@ class ReleaseValidationPlatform:
                 if current_fail_test:
                     failures_list.append(
                         self._analyze_failure(current_fail_test, "\n".join(current_traceback))
+                    )
+                for failure in failures_list[partition_failure_start:]:
+                    details = str(failure.get("traceback", "")).strip().replace("\n", " | ")
+                    self.log(
+                        f"Failed test [{partition_index}]: {failure.get('test', 'unknown')}: {details[-1200:]}",
+                        "ERROR",
+                    )
+                if len(failures_list) == partition_failure_start:
+                    self.log(
+                        f"Partition {partition_index} reported {p_failed} test failure(s); pytest summary was parsed but no failure block was recognized.",
+                        "ERROR",
                     )
 
         elapsed = time.perf_counter() - start_time
