@@ -1,5 +1,5 @@
 #property strict
-#property version "1.0"
+#property version "1.1"
 #property description "YarTrader MT4 DEMO bridge - fail closed"
 
 #define AUTH_ACCOUNT 252031952
@@ -11,11 +11,10 @@ int OnInit()
 {
    if(!IsDemo() || AccountNumber()!=AUTH_ACCOUNT || AccountServer()!=AUTH_SERVER)
    {
-      Print("YarTrader MT4 bridge REFUSED: account/server/demo check failed.");
+      Print("YarTrader MT4 DEMO bridge REFUSED: account/server/demo check failed.");
       return(INIT_FAILED);
    }
-   EventSetTimer(1);
-   WriteHeartbeat();
+   EventSetTimer(1); WriteHeartbeat();
    Print("YarTrader MT4 DEMO bridge ready for account ",AccountNumber()," on ",AccountServer());
    return(INIT_SUCCEEDED);
 }
@@ -33,8 +32,8 @@ void WriteHeartbeat()
    if(h==INVALID_HANDLE) return;
    FileWriteString(h,IntegerToString(AccountNumber())+"|"+AccountServer()+"|1|"+sym+"|"+
                    DoubleToString(bid,Digits)+"|"+DoubleToString(ask,Digits)+"|"+
-                   IntegerToString((int)TimeCurrent()));
-   FileClose(h);
+                   IntegerToString((int)TimeCurrent())+"|"+TerminalInfoString(TERMINAL_PATH));
+   FileFlush(h); FileClose(h);
 }
 void Respond(string id,string payload)
 {
@@ -55,11 +54,48 @@ void ProcessRequest()
    string id=p[0], op=p[1];
 
    if(op=="ACCOUNT"){ Respond(id,"OK|"+IntegerToString(AccountNumber())+"|"+AccountServer()+"|1|"+DoubleToString(AccountBalance(),2)); return; }
+
+   if(op=="HISTORY" && n>=5)
+   {
+      string sym=p[2], tf=p[3]; int bars=(int)StrToInteger(p[4]); bool allowPartial=(n>=6 && p[5]=="1");
+      int code=TfCode(tf); int mins=TfMinutes(tf);
+      if(code==0 || mins<=0 || bars<=0 || StringLen(sym)==0){ Respond(id,"ERROR|BAD_REQUEST"); return; }
+      if(!SymbolSelect(sym,true)){ Respond(id,"ERROR|SYMBOL_SELECT"); return; }
+      long serverFirst=0; SeriesInfoInteger(sym,PERIOD_M1,SERIES_SERVER_FIRSTDATE,serverFirst);
+      datetime requestedFirst=(datetime)(TimeCurrent()-(long)bars*mins*60);
+      datetime probe[1]; int copied=0,lastErr=0,available=0; datetime oldest=0;
+      for(int i=0;i<180;i++)
+      {
+         ResetLastError(); copied=CopyTime(sym,code,requestedFirst,1,probe); lastErr=GetLastError();
+         available=iBars(sym,code);
+         if(copied>0 && available>0)
+         {
+            oldest=iTime(sym,code,available-1);
+            if(oldest>0 && oldest<=requestedFirst) break;
+         }
+         if(available>0){ datetime t=iTime(sym,code,available-1); if(t>0) oldest=t; }
+         Sleep(1000);
+      }
+      available=iBars(sym,code);
+      if(available<=0 || oldest<=0){ Respond(id,"ERROR|NO_HISTORY|"+IntegerToString(lastErr)); return; }
+      if(oldest>requestedFirst && !allowPartial)
+      {
+         Respond(id,"ERROR|HISTORY_INCOMPLETE|"+IntegerToString(available)+"|"+
+                     IntegerToString((int)oldest)+"|"+IntegerToString(mins)+"|"+
+                     IntegerToString((int)serverFirst)+"|"+IntegerToString(lastErr));
+         return;
+      }
+      Respond(id,"OK|"+sym+"|"+tf+"|"+IntegerToString(available)+"|"+
+                  IntegerToString((int)oldest)+"|"+IntegerToString(mins)+"|"+
+                  IntegerToString((int)serverFirst));
+      return;
+   }
+
    if(op=="TICK" && n>=3)
    {
       string sym=p[2]; double bid=MarketInfo(sym,MODE_BID), ask=MarketInfo(sym,MODE_ASK);
       if(bid<=0 || ask<=0){ Respond(id,"ERROR|NO_TICK"); return; }
-      Respond(id,"OK|"+sym+"|"+DoubleToString(bid,Digits)+"|"+DoubleToString(ask,Digits)+"|"+IntegerToString((int)TimeCurrent())); return;
+      Respond(id,"OK|"+sym+"|"+DoubleToString(bid,Digits)+"|"+DoubleToString(ask,Digits)+"|"+IntegerToString((int)TimeCurrent())+"|"+TerminalInfoString(TERMINAL_PATH)); return;
    }
    if(op=="POSITIONS")
    {
@@ -98,3 +134,5 @@ void ProcessRequest()
    }
    Respond(id,"ERROR|UNKNOWN_OPERATION");
 }
+int TfMinutes(string tf){if(tf=="M1")return 1;if(tf=="M5")return 5;if(tf=="M15")return 15;if(tf=="M30")return 30;if(tf=="H1")return 60;if(tf=="H4")return 240;if(tf=="D1")return 1440;if(tf=="W1")return 10080;if(tf=="MN1")return 43200;return 0;}
+int TfCode(string tf){if(tf=="M1")return PERIOD_M1;if(tf=="M5")return PERIOD_M5;if(tf=="M15")return PERIOD_M15;if(tf=="M30")return PERIOD_M30;if(tf=="H1")return PERIOD_H1;if(tf=="H4")return PERIOD_H4;if(tf=="D1")return PERIOD_D1;if(tf=="W1")return PERIOD_W1;if(tf=="MN1")return PERIOD_MN1;return 0;}

@@ -13,8 +13,8 @@ from src.Application.Backtesting.mt4_history_acquisition import MT4HistoryAcquis
 from src.Data.Providers.MT4.historical import MT4HistoricalDataProvider
 from src.Execution.Adapters.mt4_file_bridge import MT4FileBridge
 
-SIGNAL_LOGIN = "143056202"
-SIGNAL_SERVER = "Alpari-Pro.ECN"
+DEMO_LOGIN = "252031952"
+DEMO_SERVER = "Alpari-Pro.ECN-Demo"
 
 
 def required_bars(tf: str, years: float) -> int:
@@ -28,21 +28,21 @@ def required_bars(tf: str, years: float) -> int:
     return min(requested, caps[tf])
 
 
-def find_signal_bridge():
+def find_demo_bridge():
     for common_dir in glob.glob(r"C:\Users\*\AppData\Roaming\MetaQuotes\Terminal\Common\Files"):
         candidate = MT4FileBridge(common_dir=common_dir)
         hb = candidate.heartbeat()
-        if hb and hb.get("login") == SIGNAL_LOGIN and hb.get("server") == SIGNAL_SERVER and not hb.get("is_demo"):
+        if hb and hb.get("login") == DEMO_LOGIN and hb.get("server") == DEMO_SERVER and hb.get("is_demo") is True:
             return candidate
     return None
 
 
 def acquire_all(symbol: str, max_years: float) -> tuple[list[dict], float]:
-    bridge = find_signal_bridge()
+    bridge = find_demo_bridge()
     hb = bridge.heartbeat() if bridge else None
-    if not hb or hb.get("login") != SIGNAL_LOGIN or hb.get("server") != SIGNAL_SERVER or hb.get("is_demo") is not False:
+    if not hb or hb.get("login") != DEMO_LOGIN or hb.get("server") != DEMO_SERVER or hb.get("is_demo") is not True:
         raise RuntimeError(
-            "Historical acquisition requires the authorized read-only MT4 Signal terminal "
+            "Historical acquisition requires the authorized MT4 DEMO terminal "
             f"for {symbol}; no order operations are permitted."
         )
     provider = MT4HistoricalDataProvider()
@@ -85,7 +85,7 @@ def run(symbol: str, max_years: float, initial_balance: float, sleep_sec: float,
         json.dumps({
             "schema": 2, "symbol": symbol.upper(),
             "source": "MT4_BROKER_HST",
-            "account": SIGNAL_LOGIN, "server": SIGNAL_SERVER,
+            "account": DEMO_LOGIN, "server": DEMO_SERVER,
             "synthetic_data": False, "future_data_injected": False,
             "requested_max_years": max_years,
             "effective_learning_years": effective_years,
@@ -123,7 +123,7 @@ def run(symbol: str, max_years: float, initial_balance: float, sleep_sec: float,
         json.dumps({
             "schema": 2, "symbol": symbol.upper(),
             "source": "MT4_BROKER_HST",
-            "account": SIGNAL_LOGIN, "server": SIGNAL_SERVER,
+            "account": DEMO_LOGIN, "server": DEMO_SERVER,
             "synthetic_data": False, "future_data_injected": False,
             "requested_max_years": max_years,
             "effective_learning_years": effective_years,
@@ -154,15 +154,15 @@ def run(symbol: str, max_years: float, initial_balance: float, sleep_sec: float,
         if result.get("status") != "COMPLETED":
             return {"symbol": symbol.upper(), "status": "INCOMPLETE",
                     "effective_learning_years": effective_years,
-                    "timeframes": results, "source_account": SIGNAL_LOGIN,
-                    "source_server": SIGNAL_SERVER}
+                    "timeframes": results, "source_account": DEMO_LOGIN,
+                    "source_server": DEMO_SERVER}
     from src.Application.Backtesting.historical_dataset import cleanup_staged_dataset
     cleanup_staged_dataset(symbol_dir / "dataset.sqlite")
     return {"symbol": symbol.upper(), "status": "COMPLETED",
             "requested_max_years": max_years,
             "effective_learning_years": effective_years,
-            "timeframes": results, "source_account": SIGNAL_LOGIN,
-            "source_server": SIGNAL_SERVER}
+            "timeframes": results, "source_account": DEMO_LOGIN,
+            "source_server": DEMO_SERVER}
 
 
 def _try_acquire_windows_lock(path: Path):
