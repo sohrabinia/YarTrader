@@ -800,9 +800,10 @@ class AutonomousDemoTrader:
                         handle.write(line)
                         handle.flush()
                         os.fsync(handle.fileno())
-        except OSError:
-            # Do not hide audit persistence failures; they must be visible in logs.
+        except Exception as exc:
+            # An event that cannot be durably journaled must not be treated as safely processed.
             logger.exception("Unable to persist autonomous DEMO trader event/journal")
+            raise RuntimeError("Autonomous DEMO event persistence failed; stopping this cycle safely.") from exc
         logger.info("Autonomous DEMO trader: %s", event)
 
     def _trade_review_file(self) -> Path:
