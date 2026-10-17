@@ -540,7 +540,6 @@ class BacktestAndLearningEngine:
                 if exit_reason:
                     # Close position with execution friction (spread + commission)
                     pnl_dist = (exit_price - open_position["entry"]) if pos_direction == "BUY" else (open_position["entry"] - exit_price)
-                    sym_upper = symbol.upper()
                     # Share one accounting contract with the research CostModel.
                     # This keeps research reports and backtest trade outcomes in parity.
                     cost_result = calculate_backtest_cost_adjusted_pnl(
