@@ -7,6 +7,7 @@ minimum-sample and expectancy gates.
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Any, Dict, Mapping, Sequence
 import math
 
@@ -131,7 +132,8 @@ class HierarchicalBaseBehaviorEngine:
                 quote: Mapping[str, Any], now: float,
                 slippage_allowance: float = 0.0,
                 commission_price_allowance: float = 0.0,
-                exploration_mode: bool = False) -> Dict[str, Any]:
+                exploration_mode: bool = False,
+                structural_behavior_analysis: Mapping[str, Any] | None = None) -> Dict[str, Any]:
         """Return parent/child interpretation and a proposal-only conditional order plan."""
         events = [dict(e) for vals in events_by_tf.values() for e in vals
                   if int(e.get("confirmation_time", 0)) <= int(now)]
@@ -306,6 +308,8 @@ class HierarchicalBaseBehaviorEngine:
             "child_zone_high": child_high,
             "child_confirmation_time": child_confirm,
             "parent_direction": int(parent.get("exit_direction", 0)) if parent else None,
+            "parent_zone_low": float(parent.get("base_low", 0.0)) if parent else None,
+            "parent_zone_high": float(parent.get("base_high", 0.0)) if parent else None,
             "parent_child_alignment": "ALIGNED" if aligned else ("OPPOSED" if parent else "NO_PARENT"),
             "parent_base_type": parent.get("base_type") if parent else None,
             "child_base_type": child.get("base_type"),
@@ -315,6 +319,48 @@ class HierarchicalBaseBehaviorEngine:
             "known_at": int(now),
             "causal_cutoff": max(int(child.get("confirmation_time", 0)),
                                  int(parent.get("confirmation_time", 0)) if parent else 0),
+        }
+        # Match the selected structural context to durable historical relations. These
+        # are visible to analysis, but cannot independently authorize an order until
+        # a separate out-of-sample, broker-costed validation gate is implemented.
+        behavior = structural_behavior_analysis or {}
+        now_hour = datetime.fromtimestamp(max(0, int(now)), timezone.utc).hour
+        current_session = ("ASIA" if now_hour < 7 else "LONDON" if now_hour < 12 else
+                           "NEW_YORK" if now_hour < 16 else "NEW_YORK_LATE" if now_hour < 21 else "ROLLOVER")
+        zone_segment = None
+        current_price = (float(quote.get("bid", 0.0)) + float(quote.get("ask", 0.0))) / 2.0
+        if parent and float(parent["base_low"]) <= current_price <= float(parent["base_high"]):
+            zone_width = float(parent["base_high"]) - float(parent["base_low"])
+            if zone_width > 0:
+                fraction = (current_price - float(parent["base_low"])) / zone_width
+                zone_segment = "LOWER" if fraction < 1/3 else "UPPER" if fraction > 2/3 else "MIDDLE"
+        nested_child_tfs = sorted({
+            str(e.get("timeframe", "")).upper()
+            for group in events_by_tf.values() for e in group
+            if str(e.get("timeframe", "")).upper() in TIMEFRAME_ORDER
+            and _tf_rank(str(e.get("timeframe", "")).upper()) > _tf_rank(str(parent_tf or ""))
+            and int(e.get("confirmation_time", 0) or 0) <= int(now)
+            and parent is not None
+            and float(e.get("base_low", float("inf"))) <= float(parent.get("base_high", 0.0))
+            and float(e.get("base_high", float("-inf"))) >= float(parent.get("base_low", 0.0))
+        }, key=_tf_rank)
+        nested_signature = ">".join(nested_child_tfs) if nested_child_tfs else "NONE"
+        matching_motifs = [m for m in behavior.get("motifs", [])
+            if m.get("parent_timeframe") == parent_tf
+            and m.get("child_timeframe") == str(child.get("timeframe"))
+            and (not parent or m.get("parent_direction") == int(parent.get("exit_direction", 0)))
+            and (not parent or m.get("parent_base_type") == str(parent.get("base_type", "UNKNOWN")))
+            and (m.get("child_timeframes_signature") or "NONE") == nested_signature
+            and m.get("session_utc") == current_session
+            and (zone_segment is None or m.get("zone_segment") == zone_segment)]
+        context["structural_behavior_evidence"] = {
+            "current_session_utc": current_session,
+            "current_parent_zone_segment": zone_segment,
+            "current_nested_child_timeframes": nested_child_tfs,
+            "current_child_timeframes_signature": nested_signature,
+            "matching_historical_motifs": matching_motifs[:12],
+            "durable_observation_count": int(behavior.get("durable_observation_count", 0)),
+            "decision_use": "DIAGNOSTIC_ONLY_NOT_A_TRADE_GATE",
         }
         # Parent/child direction is a learned feature, not a hard-coded trading rule.
         # Both ALIGNED and OPPOSED relations may proceed to the same historical
