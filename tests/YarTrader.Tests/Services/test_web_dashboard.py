@@ -5,6 +5,7 @@ import tempfile
 from unittest.mock import patch
 from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app, val_state
+from src.Application.Dashboard.auth_service import global_auth_service
 
 class TestWebDashboardFastAPI(unittest.TestCase):
     """
@@ -15,6 +16,8 @@ class TestWebDashboardFastAPI(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.client = TestClient(app)
+        token = global_auth_service.create_session({"email": "dashboard-test-admin@yartrader.app", "role": "ADMIN"})
+        cls.admin_headers = {"Authorization": f"Bearer {token}"}
 
     def test_get_dashboard_spa(self):
         """Verifies SPA root pages render successfully with HTML contents across localized and static paths."""
@@ -196,7 +199,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
              patch("MetaTrader5.copy_rates_range", return_value=rates) as history, \
              patch("src.Application.Backtesting.backtest_learning_engine.BacktestAndLearningEngine.run_backtest", return_value=expected_result) as base_backtest, \
              patch("src.Application.Services.web_dashboard.BACKTEST_RUNS_FILE", os.path.join(tmp, "runs.json")):
-            resp = self.client.post("/api/backtest/run", json={"symbol": "EURUSD", "timeframe": "H1"})
+            resp = self.client.post("/api/backtest/run", json={"symbol": "EURUSD", "timeframe": "H1"}, headers=self.admin_headers)
 
         self.assertEqual(resp.status_code, 200, resp.text)
         payload = resp.json()
@@ -230,7 +233,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
     def test_async_validation_run_lifecycle(self):
         """Verifies trigger, progress retrieval, history and downloading."""
         # 1. Trigger
-        resp_run = self.client.post("/api/validation/run")
+        resp_run = self.client.post("/api/validation/run", headers=self.admin_headers)
         self.assertEqual(resp_run.status_code, 200)
         self.assertIn(resp_run.json()["status"], ["Accepted", "Already Running"])
 
