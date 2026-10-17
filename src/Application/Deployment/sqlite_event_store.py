@@ -75,14 +75,18 @@ def compact_event(event: dict[str, Any]) -> dict[str, Any]:
     if any(key in event for key in ("record", "updated_record")):
         return dict(event)
     compact = dict(event)
+    removed_context = False
     for key in (
         "base_plan", "plan", "base_analysis", "hierarchy_structure", "structure",
         "historical_structure_analysis", "structural_levels", "structural_hierarchy",
         "level_reaction_evidence", "entry_level_context", "breakout_rejection_outcome",
         "market_structure_snapshot", "indicator_snapshot", "raw_candles",
     ):
-        compact.pop(key, None)
-    compact["storage_compaction"] = "large_redundant_context_omitted"
+        if key in compact:
+            compact.pop(key, None)
+            removed_context = True
+    if removed_context:
+        compact["storage_compaction"] = "large_redundant_context_omitted"
     return compact
 
 
