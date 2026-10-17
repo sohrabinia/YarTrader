@@ -21,6 +21,71 @@ class EventIdentityConflict(RuntimeError):
     """Raised when one explicit event ID is reused for different event content."""
 
 
+IMPORTANT_EVENT_NAMES = {
+    "trade_record_created", "trade_record_updated", "backtest_trade_closed",
+    "trade_outcome_learned", "trade_outcome_learning_failed", "entry_execution_outcome",
+    "execution_reconciliation_required", "strategy_position_exit", "base_position_exit",
+    "base_position_exit_reconciliation", "strategy_structural_trailing_stop",
+    "strategy_take_profit_extended", "base_structural_profit_protection",
+    "strategy_learning_sync", "strategy_learning_sync_unavailable",
+    "pending_order_replacement_completed", "pending_order_cancel_result",
+    "watch_only_existing_pending_order_cancelled",
+    "watch_only_existing_pending_order_cancel_failed", "duplicate_pending_order_reconciled",
+    "trade_review_started", "trade_style_transition", "post_exit_price_tracking_completed",
+    "post_exit_price_tracking_incomplete", "post_exit_price_tracking_started",
+    "entry_blocked_invalid_risk_sizing_facts", "entry_rejected_crossed_trigger",
+    "entry_rejected_excessive_drift", "reentry_blocked_identical_closed_setup",
+    "demo_strategy_exploration_selected", "demo_exploration_rr_floor_applied",
+    "setup_zone_watch_state_transition", "setup_zone_watch_only",
+}
+LOW_VALUE_EVENT_NAMES = {
+    "cycle_status", "pending_order_review_cycle", "heartbeat", "worker_heartbeat",
+    "market_snapshot", "analysis_snapshot", "research_snapshot",
+}
+
+
+def is_important_event(event: dict[str, Any]) -> bool:
+    """Keep decision/execution/risk/trade/learning evidence, not periodic telemetry."""
+    if not isinstance(event, dict):
+        return False
+    name = str(event.get("event") or event.get("event_type") or "").strip().lower()
+    has_lifecycle_id = any(
+        event.get(key)
+        for key in (
+            "trade_id", "decision_id", "order_ticket", "deal_ticket", "broker_order_id",
+            "position_id", "execution_id", "reconciliation_id",
+        )
+    )
+    if name in LOW_VALUE_EVENT_NAMES and not has_lifecycle_id:
+        return False
+    if name in IMPORTANT_EVENT_NAMES or has_lifecycle_id:
+        return True
+    return any(
+        token in name
+        for token in (
+            "trade", "order", "execution", "risk", "kill_switch", "learning",
+            "decision", "position", "reconcil", "entry_blocked", "entry_rejected",
+            "reentry_blocked", "stop", "profit", "take_profit",
+        )
+    )
+
+
+def compact_event(event: dict[str, Any]) -> dict[str, Any]:
+    """Drop repeated bulky analysis blobs while retaining lifecycle and outcome facts."""
+    if any(key in event for key in ("record", "updated_record")):
+        return dict(event)
+    compact = dict(event)
+    for key in (
+        "base_plan", "plan", "base_analysis", "hierarchy_structure", "structure",
+        "historical_structure_analysis", "structural_levels", "structural_hierarchy",
+        "level_reaction_evidence", "entry_level_context", "breakout_rejection_outcome",
+        "market_structure_snapshot", "indicator_snapshot", "raw_candles",
+    ):
+        compact.pop(key, None)
+    compact["storage_compaction"] = "large_redundant_context_omitted"
+    return compact
+
+
 class SQLiteEventStore:
     """Append-only event ledger with durable commits and content-aware deduplication."""
 
@@ -161,8 +226,19 @@ class SQLiteEventStore:
                 connection.rollback()
                 raise
 
-    def import_jsonl_file(self, source_path: str | os.PathLike[str]) -> dict[str, int]:
-        """Import one JSONL or gzip-compressed JSONL atomically and idempotently.
+    def append_important_event(self, event: dict[str, Any], *, source: str = "runtime") -> bool:
+        """Persist only material lifecycle evidence, with repeated bulky context removed."""
+        if not is_important_event(event):
+            return False
+        return self.append_event(compact_event(event), source=source)
+
+    def import_jsonl_file(
+        self,
+        source_path: str | os.PathLike[str],
+        *,
+        important_only: bool = False,
+    ) -> dict[str, int]:
+        """Import one JSONL/gzip file atomically; optionally discard non-material telemetry.
 
         Any malformed non-empty line rolls back the entire file import. Callers
         must not delete a source unless this method succeeds and integrity_check passes.
@@ -188,6 +264,10 @@ class SQLiteEventStore:
                                 f"Expected a JSON object at {source}:{line_number}"
                             )
                         rows += 1
+                        if important_only and not is_important_event(event):
+                            continue
+                        if important_only:
+                            event = compact_event(event)
                         inserted = self._insert(
                             connection, event, source_file=str(source), source_line=line_number
                         )
