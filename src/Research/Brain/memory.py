@@ -327,7 +327,7 @@ class MarketMemorySystem:
             # Filter validated or resolved experiences, and skip those flagged by Judge as Lucky Wins
             validated_exps = [
                 exp for exp in self.experiences.values()
-                if (exp.meta.get("is_validated") is True or exp.outcome_result in ["SUCCESS", "FAILURE"])
+                if exp.meta.get("is_validated") is True
                 and not exp.meta.get("is_observed_event_only", False)
                 and not exp.meta.get("is_lucky_win", False)
                 and not exp.meta.get("is_promoted_to_pattern", False)

@@ -2375,6 +2375,21 @@ class AutonomousDemoTrader:
         except (KeyError, TypeError, ValueError, OverflowError) as exc:
             return {"status": "BLOCKED", "reason": f"Invalid Base pending order plan: {exc}"}
 
+        # An ambiguous/partial broker response is a durable stop for new entries
+        # on this symbol until a human reconciles the broker state. Existing position
+        # management runs earlier and remains available; do not auto-clear this lock.
+        if type(self.adapter) is RealMT5BrokerAdapter:
+            symbol_key = symbol.upper()
+            if symbol_key in getattr(self, "_unresolved_execution_symbols", set()):
+                return {"status": "BLOCKED_UNRESOLVED_EXECUTION",
+                        "reason": "A previous broker submission has unresolved status; reconcile it manually before another entry."}
+            review_state = self._load_trade_review_state()
+            unresolved_orders = review_state.get("unresolved_order_by_symbol", {})
+            if symbol_key in unresolved_orders:
+                self._unresolved_execution_symbols = set(getattr(self, "_unresolved_execution_symbols", set())) | {symbol_key}
+                return {"status": "BLOCKED_UNRESOLVED_EXECUTION",
+                        "reason": "A persisted unresolved broker submission exists for this symbol; reconcile it manually before another entry."}
+
         # Reconcile only this strategy's own pending order. Keep other strategy
         # slots independent; never cancel a different strategy's valid setup.
         strategy_owned = [
@@ -2633,6 +2648,33 @@ class AutonomousDemoTrader:
             Comment=strategy_comment, Magic=100001, Expiration=expires, RiskPct=allocated_risk_pct,
         )
         response = self.adapter.send_order_to_broker(request)
+        if getattr(response, "Status", "") in {"Partial", "Uncertain"}:
+            symbol_key = symbol.upper()
+            self._unresolved_execution_symbols = set(getattr(self, "_unresolved_execution_symbols", set())) | {symbol_key}
+            if type(self.adapter) is RealMT5BrokerAdapter:
+                try:
+                    review_state = self._load_trade_review_state()
+                    review_state.setdefault("unresolved_order_by_symbol", {})[symbol_key] = {
+                        "order_id": str(getattr(response, "OrderId", "") or ""),
+                        "deal_ticket": str(getattr(response, "DealTicket", "") or ""),
+                        "retcode": getattr(response, "Retcode", None),
+                        "status": str(getattr(response, "Status", "Uncertain")),
+                        "comment": str(getattr(response, "Comment", ""))[:300],
+                        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+                        "resolution": "MANUAL_BROKER_RECONCILIATION_REQUIRED",
+                    }
+                    self._save_trade_review_state(review_state)
+                except Exception:
+                    # Keep the in-process fail-closed lock even if durable persistence fails.
+                    logger.exception("Could not persist unresolved execution lock for %s", symbol_key)
+            self._log_event({
+                "event": "execution_reconciliation_required", "symbol": symbol_key,
+                "status": getattr(response, "Status", "Uncertain"),
+                "order_id": str(getattr(response, "OrderId", "") or ""),
+                "deal_ticket": str(getattr(response, "DealTicket", "") or ""),
+                "retcode": getattr(response, "Retcode", None),
+                "new_entries_blocked": True,
+            })
         deal_ticket = getattr(response, "DealTicket", None)
         structure = base_plan.get("structure") or (base_plan.get("hierarchy") or {}).get("structure") or {}
         event_name = "strategy_pending_order_submission" if pending_order else "strategy_market_deal_submission"
@@ -2674,7 +2716,9 @@ class AutonomousDemoTrader:
             })
         if response.Status == "Placed" and not pending_order:
             self._remember_submitted_setup(symbol, base_plan, plan, response)
-        if response.Status != "Placed":
+        if response.Status in {"Partial", "Uncertain"}:
+            result_status = "EXECUTION_UNCERTAIN"
+        elif response.Status != "Placed":
             result_status = "ORDER_FAILED"
         elif pending_order:
             result_status = "PENDING_ORDER_SUBMITTED"
