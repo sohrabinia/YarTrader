@@ -21,8 +21,8 @@ python scripts/migrate_runtime_journal_to_sqlite.py --runtime-root runtime_logs 
 python scripts/migrate_runtime_journal_to_sqlite.py --runtime-root runtime_logs --database runtime_logs/yartrader_events.sqlite3 --apply
 ```
 
-4. Confirm event counts and `PRAGMA integrity_check` returns `ok`. Re-run the import if needed; it is idempotent.
-5. Only after reconciliation, and only when intentionally discarding the old event streams, run with `--apply --delete-sources`. This removes only matching journal JSONL/gzip source files that were imported successfully. It does not clean unrelated datasets, state files, or application logs.
+4. Confirm event counts and `PRAGMA integrity_check` returns `ok`. Re-run the import if needed; it is idempotent. The script also imports the legacy `trade_journal.json` snapshot from `runtime_logs/` and `storage/Logs/` when present; pass `--snapshot <path>` for any additional configured storage root.
+5. Only after reconciliation, and only when intentionally discarding the old journal sources, run with `--apply --delete-sources`. This removes only matching journal JSONL/gzip sources and imported trade-journal snapshots. It does not clean unrelated datasets, state files, or application logs.
 6. Use `SQLiteEventStore.backup_to()` for a consistent backup. Do not copy the live database file directly while it is open.
 
 ## What must not be removed by generic cleanup
