@@ -4130,8 +4130,9 @@ def get_prop_challenge_status_endpoint(
 
 
 @app.post("/api/prop/config")
-def update_prop_challenge_config_endpoint(payload: PropConfigPayload):
+def update_prop_challenge_config_endpoint(payload: PropConfigPayload, request: Request):
     """Updates configurable Prop Firm Challenge rules and activates challenge monitoring."""
+    check_admin_guard(request)
     from src.Risk.Services.prop_challenge_engine import prop_challenge_engine
     updated = prop_challenge_engine.save_config(payload.model_dump())
     return {
@@ -4141,8 +4142,9 @@ def update_prop_challenge_config_endpoint(payload: PropConfigPayload):
     }
 
 @app.post("/api/validation/run")
-def trigger_validation_run(background_tasks: BackgroundTasks):
+def trigger_validation_run(background_tasks: BackgroundTasks, request: Request):
     """Triggers acceptance validation asynchronously."""
+    check_admin_guard(request)
     global val_state
     with state_lock:
         if val_state.is_running:
@@ -4336,8 +4338,9 @@ def transition_operating_mode(payload: Dict[str, Any], request: Request):
 
 
 @app.post("/api/backtest/run")
-def trigger_backtesting_job(params: Dict[str, Any]):
+def trigger_backtesting_job(params: Dict[str, Any], request: Request):
     """Triggers real, non-trading intelligence backtesting job over historical data."""
+    check_admin_guard(request)
     symbol = str(params.get("symbol", "XAUUSD")).upper()
     timeframe = str(params.get("timeframe", "H1")).upper()
     # Strategy selection is intentionally fixed to the canonical Base hierarchy.
@@ -4541,8 +4544,9 @@ def get_backtest_history():
 
 
 @app.post("/api/demo/run")
-def run_demo_trading_scenario(payload: Dict[str, Any]):
+def run_demo_trading_scenario(payload: Dict[str, Any], request: Request):
     """Triggers an independent Demo Trading scenario run and compiles trade journal records."""
+    check_admin_guard(request)
     scenario_name = str(payload.get("scenario_id", "trend_continuation")).lower()
     asset = str(payload.get("asset", "EURUSD")).upper()
 
