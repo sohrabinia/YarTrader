@@ -713,6 +713,14 @@ class MarketMemorySystem:
                 )
             os.replace(tmp_manifest_path, self._artifact_manifest_path)
         except Exception:
+            import logging
+
+            logging.getLogger("yartrader_memory").error(
+                "Failed to persist memory layer '%s' to '%s'; in-memory state may be ahead of disk.",
+                layer,
+                filepath,
+                exc_info=True,
+            )
             for temp_path in (temp_filepath, tmp_manifest_path):
                 if temp_path and os.path.exists(temp_path):
                     try:
