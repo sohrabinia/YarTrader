@@ -9,6 +9,7 @@ import gzip
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import zlib
 from contextlib import closing
@@ -42,6 +43,33 @@ LOW_VALUE_EVENT_NAMES = {
     "cycle_status", "pending_order_review_cycle", "heartbeat", "worker_heartbeat",
     "market_snapshot", "analysis_snapshot", "research_snapshot",
 }
+_EVENT_NAME_PATTERN = re.compile(r'"(?:event|event_type)"\s*:\s*"([^"]+)"')
+_EVENT_ID_PATTERN = re.compile(
+    r'"(?:trade_id|decision_id|order_ticket|deal_ticket|broker_order_id|'
+    r'position_id|execution_id|reconciliation_id)"\s*:'
+)
+
+
+def is_important_event_line(line: str) -> bool:
+    """Cheaply skip known low-value telemetry before decoding huge JSON payloads."""
+    match = _EVENT_NAME_PATTERN.search(line)
+    if not match:
+        # Unknown/malformed framing must be parsed so corruption is not silently hidden.
+        return True
+    name = match.group(1).strip().lower()
+    has_lifecycle_id = bool(_EVENT_ID_PATTERN.search(line))
+    if name in LOW_VALUE_EVENT_NAMES and not has_lifecycle_id:
+        return False
+    if name in IMPORTANT_EVENT_NAMES or has_lifecycle_id:
+        return True
+    return any(
+        token in name
+        for token in (
+            "trade", "order", "execution", "risk", "kill_switch", "learning",
+            "decision", "position", "reconcil", "entry_blocked", "entry_rejected",
+            "reentry_blocked", "stop", "profit", "take_profit",
+        )
+    )
 
 
 def is_important_event(event: dict[str, Any]) -> bool:
@@ -256,6 +284,9 @@ class SQLiteEventStore:
                 with opener(source, "rt", encoding="utf-8") as handle:
                     for line_number, line in enumerate(handle, start=1):
                         if not line.strip():
+                            continue
+                        if important_only and not is_important_event_line(line):
+                            rows += 1
                             continue
                         try:
                             event = json.loads(line)
