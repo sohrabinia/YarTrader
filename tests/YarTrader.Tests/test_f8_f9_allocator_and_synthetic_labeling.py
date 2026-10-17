@@ -17,3 +17,15 @@ def test_randomized_reality_audit_cannot_claim_a_real_market_edge():
     assert SYNTHETIC_AUDIT_METADATA["edge_claim_allowed"] is False
     assert SYNTHETIC_AUDIT_METADATA["metrics_empirically_validated"] is False
     assert SYNTHETIC_AUDIT_METADATA["max_drawdown_metric_is_placeholder"] is True
+
+
+def test_demo_allocator_reports_per_trade_cap_and_slot_capacity_separately():
+    from src.Execution.Services.strategy_risk_allocator import allocate_demo_slot_risk_pct
+
+    result = allocate_demo_slot_risk_pct(
+        ["BASE_HIERARCHY"], "BASE_ENGULF_REVERSAL", max_slots=3, total_risk_pct=1.0
+    )
+    assert result["risk_pct"] == 1.0
+    assert result["occupied_slot_count"] == 2
+    assert result["reserved_slot_count"] == 1
+    assert result["allocation_method"] == "PER_TRADE_TARGET_RISK_WITH_SEPARATE_DAILY_CAP"
