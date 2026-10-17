@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 from src.Data.MarketData.Models.models import MarketDataPoint
 from src.Execution.Adapters.mt5_adapter import RealMT5BrokerAdapter
 from src.Execution.Models.models import OrderRequest
+from src.Execution.Services.market_session_engine import MarketSessionEngine
 from src.Execution.Safety.demo_exploration_policy import demo_exploration_autonomy_enabled
 from src.Infrastructure.exceptions import ValidationException
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, ProductionRiskPolicy
@@ -613,6 +614,12 @@ class AutonomousDemoTrader:
         event_status = str(event.get("status", "")).upper()
         compact_context = (
             event_name == "pending_order_review_cycle"
+            or (
+                event_name == "hierarchical_base_primary_decision"
+                and isinstance(event.get("base_plan_summary"), dict)
+                and str(event["base_plan_summary"].get("status", "")).upper()
+                not in {"ORDER_PROPOSAL", "ENTRY_PROPOSAL"}
+            )
             or (event_name == "pending_order_review" and review_decision in {
                 "KEEP_EXISTING", "KEEP_EXISTING_WITHIN_RISK_BUDGET",
                 "KEEP_UNTIL_EXPIRY_NO_QUALIFIED_REPLACEMENT",
@@ -760,11 +767,25 @@ class AutonomousDemoTrader:
         try:
             folder = _PROJECT_ROOT / "runtime_logs"
             folder.mkdir(parents=True, exist_ok=True)
+            # The canonical journal is the forensic source of truth. The runtime stream
+            # is an operational index: avoid duplicating large market-structure payloads
+            # into a second append-only file on the same volume.
             payload = json.dumps(event, ensure_ascii=False, default=str, sort_keys=True) + "\n"
-            # Preserve the existing runtime stream and a dedicated journal stream.
-            for filename in ("autonomous_demo_trader.jsonl", "trade_journal_events_v2.jsonl"):
+            runtime_event = dict(event)
+            for large_key in (
+                "base_plan", "plan", "base_analysis", "hierarchy_structure", "structure",
+                "historical_structure_analysis", "structural_levels", "structural_hierarchy",
+                "level_reaction_evidence", "entry_level_context", "breakout_rejection_outcome",
+            ):
+                runtime_event.pop(large_key, None)
+            runtime_event["runtime_log_payload"] = "COMPACT; see trade_journal_events_v2.jsonl for canonical event and available structure context"
+            runtime_payload = json.dumps(runtime_event, ensure_ascii=False, default=str, sort_keys=True) + "\n"
+            for filename, line in (
+                ("autonomous_demo_trader.jsonl", runtime_payload),
+                ("trade_journal_events_v2.jsonl", payload),
+            ):
                 with (folder / filename).open("a", encoding="utf-8") as handle:
-                    handle.write(payload)
+                    handle.write(line)
                     handle.flush()
                     os.fsync(handle.fileno())
         except OSError:
@@ -781,18 +802,120 @@ class AutonomousDemoTrader:
         if type(self.adapter) is not RealMT5BrokerAdapter and _PROJECT_ROOT == Path(__file__).resolve().parents[3]:
             payload = {}
         else:
-            try:
-                payload = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
-            except (OSError, ValueError, TypeError):
+            if path.exists():
+                try:
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError, TypeError) as exc:
+                    # Never silently replace a damaged/unreadable state file with an
+                    # empty state: that can erase pending post-close evidence and the
+                    # idempotency ledger, causing duplicate processing on the next cycle.
+                    raise RuntimeError(f"Trade review state could not be loaded safely: {path}") from exc
+            else:
                 payload = {}
         if not isinstance(payload, dict):
-            payload = {}
+            raise RuntimeError(f"Trade review state has an invalid root object: {path}")
         payload.setdefault("open_positions", {})
         payload.setdefault("last_closed_setup_by_symbol", {})
         payload.setdefault("last_submitted_setup_by_symbol", {})
         payload.setdefault("processed_position_ids", {})
         payload.setdefault("ignored_untracked_position_ids", {})
+        payload.setdefault("post_close_followups", {})
+        payload.setdefault("post_close_followups_completed", {})
         return payload
+
+    def _update_post_close_followups(self, state: Dict[str, Any], symbol: str, now: datetime) -> None:
+        """Persist the first five fully closed M1 bars after each broker-confirmed exit.
+
+        This is post-trade outcome evidence only; it must never feed the entry decision
+        or be merged into pre-trade features. Pending items live in the atomic review
+        state so a restart does not lose the follow-up window.
+        """
+        pending = state.setdefault("post_close_followups", {})
+        completed = state.setdefault("post_close_followups_completed", {})
+        symbol_upper = str(symbol or "").upper()
+        mt5 = self.adapter._mt5
+        timeframe = getattr(mt5, "TIMEFRAME_M1", None)
+        if timeframe is None:
+            return
+        now_epoch = int(now.timestamp())
+        for key, item in list(pending.items()):
+            if not isinstance(item, dict) or str(item.get("symbol", "")).upper() != symbol_upper:
+                continue
+            try:
+                close_epoch = int(item["closed_at_epoch"])
+                first_bar_epoch = ((close_epoch + 59) // 60) * 60
+                # Wait until five complete one-minute bars could exist. Actual bars are
+                # queried below, so weekend/session gaps do not get fabricated.
+                if now_epoch < first_bar_epoch + 5 * 60:
+                    continue
+                rates = mt5.copy_rates_range(
+                    symbol_upper, timeframe,
+                    datetime.fromtimestamp(first_bar_epoch, timezone.utc),
+                    now,
+                )
+                if rates is None:
+                    continue
+                rows = []
+                for rate in rates:
+                    bar_time = int(self._field(rate, "time", 0) or 0)
+                    if bar_time < first_bar_epoch or bar_time + 60 > now_epoch:
+                        continue
+                    rows.append({
+                        "time_utc": datetime.fromtimestamp(bar_time, timezone.utc).isoformat(),
+                        "time_epoch": bar_time,
+                        "open": float(self._field(rate, "open", 0.0)),
+                        "high": float(self._field(rate, "high", 0.0)),
+                        "low": float(self._field(rate, "low", 0.0)),
+                        "close": float(self._field(rate, "close", 0.0)),
+                        "tick_volume": int(self._field(rate, "tick_volume", 0) or 0),
+                    })
+                rows.sort(key=lambda row: row["time_epoch"])
+                # Require five distinct M1 candles; missing bars are not synthesized.
+                deduped = {row["time_epoch"]: row for row in rows}
+                rows = [deduped[t] for t in sorted(deduped)][:5]
+                if len(rows) < 5:
+                    continue
+                exit_price = float(item["exit_price"])
+                sign = 1.0 if str(item.get("direction", "")).upper() == "BUY" else -1.0
+                favorable = max(
+                    max(sign * (bar["high"] - exit_price), sign * (bar["low"] - exit_price))
+                    for bar in rows
+                )
+                adverse = max(
+                    max(-sign * (bar["high"] - exit_price), -sign * (bar["low"] - exit_price))
+                    for bar in rows
+                )
+                result = {
+                    "event": "trade_post_close_m1_followup_completed",
+                    "schema_version": 1,
+                    "position_id": item.get("position_id"),
+                    "symbol": symbol_upper,
+                    "direction": item.get("direction"),
+                    "exit_reason": item.get("exit_reason"),
+                    "closed_at_utc": item.get("closed_at_utc"),
+                    "closed_at_epoch": close_epoch,
+                    "exit_price": exit_price,
+                    "followup_window_start_utc": rows[0]["time_utc"],
+                    "followup_window_end_utc": rows[-1]["time_utc"],
+                    "requested_closed_m1_bars": 5,
+                    "stored_closed_m1_bars": len(rows),
+                    "bars": rows,
+                    "post_close_max_favorable_price_move": round(max(0.0, favorable), 10),
+                    "post_close_max_adverse_price_move": round(max(0.0, adverse), 10),
+                    "close_after_five_m1_bars": rows[-1]["close"],
+                    "signed_close_move_after_five_bars": round(sign * (rows[-1]["close"] - exit_price), 10),
+                    "data_source": "MT5_CLOSED_M1_BARS",
+                    "usage": "POST_TRADE_OUTCOME_ONLY_NOT_A_PRE_TRADE_FEATURE",
+                    "recorded_at_utc": now.astimezone(timezone.utc).isoformat(),
+                }
+                # Persist the event before removing the pending item from state.
+                # If event construction/logging raises, the pending item remains retryable.
+                self._log_event(result)
+                completed[str(key)] = result
+                del pending[key]
+            except Exception:
+                # Broker API/data-shape failures must not discard this pending follow-up.
+                logger.exception("Post-close M1 follow-up failed for position %s; keeping it pending", key)
 
     def _save_trade_review_state(self, state: Dict[str, Any]) -> None:
         # Test doubles must not mutate the real runtime journal.
@@ -801,7 +924,13 @@ class AutonomousDemoTrader:
         path = self._trade_review_file()
         path.parent.mkdir(parents=True, exist_ok=True)
         temp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-        temp.write_text(json.dumps(state, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+        serialized = json.dumps(state, ensure_ascii=False, indent=2, default=str)
+        # Flush the complete JSON snapshot to disk before atomically replacing the
+        # previous state. A crash must not leave a truncated review/follow-up file.
+        with temp.open("w", encoding="utf-8", newline="\n") as handle:
+            handle.write(serialized)
+            handle.flush()
+            os.fsync(handle.fileno())
         temp.replace(path)
 
     def _minimum_net_rr_for_plan(self, base_plan: Dict[str, Any]) -> float:
@@ -921,6 +1050,7 @@ class AutonomousDemoTrader:
             tracked = state["open_positions"]
             active_ids = set()
             mt5 = self.adapter._mt5
+            self._update_post_close_followups(state, symbol, now)
             buy_type = int(getattr(mt5, "POSITION_TYPE_BUY", 0))
             deal_buy = int(getattr(mt5, "DEAL_TYPE_BUY", 0))
             deal_sell = int(getattr(mt5, "DEAL_TYPE_SELL", 1))
@@ -1184,10 +1314,27 @@ class AutonomousDemoTrader:
                         })
                         logger.exception("Broker-confirmed outcome learning failed for position %s; will retry", position_id)
                         continue
+                    closed_at_epoch = int(self._field(exit_deal, "time", now.timestamp()) or now.timestamp())
+                    closed_at_utc = datetime.fromtimestamp(closed_at_epoch, timezone.utc).isoformat()
+                    followup_key = str(position_id)
+                    state.setdefault("post_close_followups", {}).setdefault(followup_key, {
+                        "position_id": int(position_id),
+                        "symbol": symbol.upper(),
+                        "direction": direction,
+                        "exit_reason": exit_reason,
+                        "exit_price": exit_price,
+                        "entry_price": entry_price,
+                        "pnl_net_including_costs": pnl,
+                        "closed_at_epoch": closed_at_epoch,
+                        "closed_at_utc": closed_at_utc,
+                        "decision_id": decision_id,
+                        "status": "WAITING_FOR_FIVE_CLOSED_M1_BARS",
+                    })
                     state["processed_position_ids"][position_id] = {
                         "symbol": symbol.upper(), "exit_reason": exit_reason, "pnl": pnl,
-                        "exit_price": exit_price, "closed_at_utc": now.isoformat(),
+                        "exit_price": exit_price, "closed_at_utc": closed_at_utc,
                         "learning_status": "CONFIRMED", "decision_id": decision_id,
+                        "post_close_followup_status": "PENDING_FIVE_M1_BARS",
                     }
                     if signature:
                         state["last_closed_setup_by_symbol"][symbol.upper()] = {
@@ -2545,6 +2692,22 @@ class AutonomousDemoTrader:
         if not _read_flag():
             return {"status": "DISABLED", "reason": "Explicit DEMO auto-trading opt-in is disabled."}
 
+        symbol = str(symbol_override or os.environ.get("YARTRADER_MT5_SYMBOL", "XAUUSD")).strip().upper()
+        market_gate = MarketSessionEngine.live_activity_status(symbol)
+        if not market_gate.get("allowed"):
+            # Do not initialize MT5, fetch ticks/candles, run learning/research, or write
+            # runtime journals while the instrument's market is closed. Historical
+            # backtests use their own data timeline and are deliberately unaffected.
+            return {
+                "status": "MARKET_CLOSED" if market_gate.get("state") != "UNKNOWN" else "BLOCKED",
+                "symbol": symbol,
+                "reason": market_gate.get("reason", "MARKET_NOT_OPEN"),
+                "market_calendar": market_gate,
+                "execution_enabled": False,
+                "data_collection_enabled": False,
+                "backtest_allowed": True,
+            }
+
         try:
             self.adapter.verify_safety_and_account(operation_type="DEMO")
             account = self.adapter.get_account_info()
@@ -2556,7 +2719,6 @@ class AutonomousDemoTrader:
             if not terminal.get("connected") or not terminal.get("trade_allowed") or terminal.get("tradeapi_disabled"):
                 raise ValidationException("MT5 terminal is disconnected or trading permissions are disabled.")
 
-            symbol = str(symbol_override or os.environ.get("YARTRADER_MT5_SYMBOL", "XAUUSD")).strip().upper()
             symbol_info = self.adapter.get_symbol_info(symbol)
             tick = self.adapter.get_symbol_tick(symbol)
             if not symbol_info or not tick or float(tick.get("bid") or 0) <= 0 or float(tick.get("ask") or 0) <= 0:
@@ -3217,15 +3379,21 @@ def run_autonomous_demo_trading_loop() -> None:
             if not _read_flag():
                 time.sleep(10)
                 continue
-            if trader is None:
-                trader = AutonomousDemoTrader()
             try:
                 symbols = _enabled_demo_symbols()
             except Exception as exc:
                 logger.error("Cannot resolve canonical DEMO symbol universe; failing closed: %s", exc)
                 symbols = []
+            # If every enabled market is closed, avoid even initializing the broker
+            # adapter or entering the research/learning loop. Backtests run separately.
+            open_symbols = [symbol for symbol in symbols if MarketSessionEngine.live_activity_status(symbol).get("allowed")]
+            if not open_symbols:
+                time.sleep(60)
+                continue
+            if trader is None:
+                trader = AutonomousDemoTrader()
             results = []
-            for symbol in symbols:
+            for symbol in open_symbols:
                 result = trader.run_once(symbol_override=symbol)
                 results.append(result)
                 # A managed position on one symbol must not starve the rest of the

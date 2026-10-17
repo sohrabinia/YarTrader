@@ -37,6 +37,13 @@ class TestAutonomousDemoReversalConfirmation(unittest.TestCase):
         self.assertIn("re-query failed", result["reason"])
 
     def _configure_cycle(self, positions, plan):
+        # These tests exercise reversal/position reconciliation, not the market calendar.
+        market_gate_patch = patch(
+            "src.Execution.Services.autonomous_demo_trader.MarketSessionEngine.live_activity_status",
+            return_value={"allowed": True, "state": "OPEN", "reason": "TEST_MARKET_OPEN"},
+        )
+        market_gate_patch.start()
+        self.addCleanup(market_gate_patch.stop)
         self.adapter.verify_safety_and_account.return_value = None
         self.adapter.get_account_info.return_value = {"trade_mode": 0, "balance": 10000, "equity": 10000}
         self.adapter.get_terminal_info.return_value = {

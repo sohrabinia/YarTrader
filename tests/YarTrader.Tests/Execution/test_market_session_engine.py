@@ -316,3 +316,54 @@ class TestMarketSessionEngine:
         h = interval.compute_hash()
         assert isinstance(h, str)
         assert len(h) == 64  # SHA256 length
+
+
+class TestRecurringLiveMarketCalendar:
+    def test_live_calendar_closes_fx_weekend_and_rollover(self):
+        from zoneinfo import ZoneInfo
+        ny = ZoneInfo("America/New_York")
+        assert not MarketSessionEngine.live_activity_status("XAUUSD", datetime(2026, 10, 18, 16, 0, tzinfo=ny))["allowed"]
+        assert MarketSessionEngine.live_activity_status("XAUUSD", datetime(2026, 10, 18, 18, 0, tzinfo=ny))["allowed"]
+        assert not MarketSessionEngine.live_activity_status("XAUUSD", datetime(2026, 10, 16, 17, 0, tzinfo=ny))["allowed"]
+        assert not MarketSessionEngine.live_activity_status("EURUSD", datetime(2026, 10, 19, 17, 2, tzinfo=ny))["allowed"]
+        assert MarketSessionEngine.live_activity_status("EURUSD", datetime(2026, 10, 19, 17, 6, tzinfo=ny))["allowed"]
+
+    def test_live_calendar_closes_major_fx_holidays_and_configured_holidays(self, monkeypatch):
+        from zoneinfo import ZoneInfo
+        ny = ZoneInfo("America/New_York")
+        christmas = datetime(2026, 12, 25, 10, 0, tzinfo=ny)
+        assert MarketSessionEngine.live_activity_status("XAUUSD", christmas)["reason"] == "MARKET_HOLIDAY"
+        monkeypatch.setenv("YARTRADER_MARKET_HOLIDAYS", "XAUUSD:2026-10-21,EURUSD:2026-10-22")
+        assert not MarketSessionEngine.live_activity_status("XAUUSD", datetime(2026, 10, 21, 10, 0, tzinfo=ny))["allowed"]
+        assert not MarketSessionEngine.live_activity_status("EURUSD", datetime(2026, 10, 22, 10, 0, tzinfo=ny))["allowed"]
+        assert MarketSessionEngine.live_activity_status("EURUSD", datetime(2026, 10, 21, 10, 0, tzinfo=ny))["allowed"]
+
+    def test_us_equity_hours_holidays_and_early_close(self):
+        from zoneinfo import ZoneInfo
+        ny = ZoneInfo("America/New_York")
+        assert MarketSessionEngine.live_activity_status("AAPL", datetime(2026, 10, 19, 10, 0, tzinfo=ny))["allowed"]
+        assert not MarketSessionEngine.live_activity_status("AAPL", datetime(2026, 10, 19, 8, 0, tzinfo=ny))["allowed"]
+        assert not MarketSessionEngine.live_activity_status("AAPL", datetime(2026, 11, 26, 10, 0, tzinfo=ny))["allowed"]
+        assert not MarketSessionEngine.live_activity_status("AAPL", datetime(2026, 11, 27, 14, 0, tzinfo=ny))["allowed"]
+
+    def test_unknown_market_calendar_fails_closed_and_backtest_remains_allowed(self):
+        result = MarketSessionEngine.live_activity_status("UNLISTED_ASSET", datetime(2026, 10, 19, 10, 0, tzinfo=timezone.utc))
+        assert not result["allowed"]
+        assert result["reason"] == "UNSUPPORTED_MARKET_CALENDAR"
+        assert result["backtest_allowed"] is True
+
+    def test_registered_calendar_fallback_uses_recurring_session(self):
+        engine = MarketSessionEngine()
+        now = datetime(2026, 10, 19, 14, 0, tzinfo=timezone.utc)
+        state, interval, source = engine.get_market_state("XAUUSD", current_time=now)
+        assert state == MarketState.OPEN
+        assert interval is not None and interval.utc_end is not None
+        assert interval.utc_end > now
+
+    def test_market_hours_are_configurable(self, monkeypatch):
+        from zoneinfo import ZoneInfo
+        ny = ZoneInfo("America/New_York")
+        monkeypatch.setenv("YARTRADER_FX_SUNDAY_OPEN", "18:00")
+        assert not MarketSessionEngine.live_activity_status("XAUUSD", datetime(2026, 10, 18, 17, 30, tzinfo=ny))["allowed"]
+        monkeypatch.setenv("YARTRADER_EQUITY_OPEN", "10:00")
+        assert not MarketSessionEngine.live_activity_status("AAPL", datetime(2026, 10, 19, 9, 45, tzinfo=ny))["allowed"]

@@ -1,4 +1,7 @@
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 from datetime import datetime
 from src.Application.Backtesting.backtest_learning_engine import BacktestAndLearningEngine
 
@@ -14,7 +17,21 @@ class TestAntiLookAheadRegression(unittest.TestCase):
     """
 
     def setUp(self) -> None:
-        self.engine = BacktestAndLearningEngine()
+        # Isolate test state from the production research journal and avoid scanning
+        # an ever-growing runtime JSONL file on every test invocation.
+        self._temporary_storage = tempfile.TemporaryDirectory(prefix="yartrader-lookahead-")
+        # StrategyOrchestrator persists structural research under its project root too;
+        # redirect that journal to the same temporary directory to keep tests hermetic.
+        self._project_root_patch = patch(
+            "src.Intelligence.Execution.strategy_orchestrator._PROJECT_ROOT",
+            Path(self._temporary_storage.name),
+        )
+        self._project_root_patch.start()
+        self.engine = BacktestAndLearningEngine(
+            storage_dir=self._temporary_storage.name,
+            memory_autosave_every=1000,
+            learning_interval_bars=1000,
+        )
         # Build 30 historical candles with a distinct future spike at bar 20
         self.candles = []
         base_price = 2000.0
@@ -38,6 +55,10 @@ class TestAntiLookAheadRegression(unittest.TestCase):
             "close": 2095.0,
             "volume": 1000
         }
+
+    def tearDown(self) -> None:
+        self._project_root_patch.stop()
+        self._temporary_storage.cleanup()
 
     def test_future_data_does_not_influence_past_decision(self):
         """

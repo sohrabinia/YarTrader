@@ -2,6 +2,7 @@ import os
 import json
 import uuid
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 
@@ -19,6 +20,10 @@ class TestHierarchicalM5M15Trading(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        # This suite validates virtual shadow orders; never inherit production DEMO/LIVE mode.
+        self._trading_mode_patch = patch.dict(os.environ, {"YARTRADER_TRADING_MODE": "SHADOW"})
+        self._trading_mode_patch.start()
+        self.addCleanup(self._trading_mode_patch.stop)
         self.client = TestClient(app)
         self.symbol = "XAUUSD"
         self.perception = MultiTimeframePerception(symbol=self.symbol)

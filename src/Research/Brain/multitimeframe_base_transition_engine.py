@@ -17,22 +17,16 @@ TIMEFRAME_ORDER = ["MN1","W1","D1","H4","H1","M30","M15","M5","M1"]
 
 
 def _bar_end_time(bars: Sequence[Mapping[str, Any]], index: int, timeframe: str) -> int:
-    """Return a conservative candle-close timestamp; monthly bars use calendar boundaries."""
+    """Return a candle-close timestamp using this bar only (causal, independent of future bars)."""
     start = int(bars[index]["time"])
     if timeframe == "MN1":
-        if index+1 < len(bars):
-            return int(bars[index+1]["time"])
         dt = datetime.fromtimestamp(start, tz=timezone.utc)
         if dt.month == 12:
             return int(datetime(dt.year+1, 1, 1, tzinfo=timezone.utc).timestamp())
         return int(datetime(dt.year, dt.month+1, 1, tzinfo=timezone.utc).timestamp())
-    nominal = start + TIMEFRAME_SECONDS.get(timeframe, 60)
-    if index+1 < len(bars):
-        next_start = int(bars[index+1]["time"])
-        # Use observed next open to handle broker DST shifts, but do not bridge weekend/session gaps.
-        if abs((next_start-start)-TIMEFRAME_SECONDS.get(timeframe, 60)) <= 3600:
-            return next_start
-    return nominal
+    # Bar close is determined from the bar's timeframe, never by inspecting the next bar.
+    # This remains stable when the input series is truncated at the decision timestamp.
+    return start + TIMEFRAME_SECONDS.get(timeframe, 60)
 
 
 def detect_base_departures(bars: Sequence[Mapping[str, Any]], timeframe: str,
@@ -43,16 +37,22 @@ def detect_base_departures(bars: Sequence[Mapping[str, Any]], timeframe: str,
                            horizon: int = 24) -> List[Dict[str, Any]]:
     """Detect RBR/DBD/DBR/RBD using Base geometry and raw price only.
 
-    No technical indicator is calculated or consulted. Consolidation width is the
-    unit of measurement for the incoming leg, departure, and invalidation buffer.
+    The default horizon preserves legacy behavior. Set horizon=0 when using this
+    detector to construct features at a decision cutoff; outcome-labeling workflows
+    may explicitly reserve future bars where their research protocol requires it.
     """
     if scan_step < 1:
         raise ValueError("scan_step must be >= 1")
+    if horizon < 0:
+        raise ValueError("horizon must be >= 0")
     n = len(bars)
-    if n < 50:
+    # Earliest eligible confirmation is index 30; do not require future bars just
+    # to satisfy the outcome-labeling horizon.
+    if n < 31:
         return []
     events, last_conf = [], -10**9
-    for conf in range(30, n-horizon-1, scan_step):
+    # conf + horizon < n; with horizon=0 the final closed bar is eligible.
+    for conf in range(30, n-horizon, scan_step):
         best = None
         for delay in (1, 2, 3):
             bend = conf-delay
