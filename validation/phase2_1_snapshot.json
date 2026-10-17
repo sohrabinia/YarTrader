@@ -1,4 +1,9 @@
 {
+    "synthetic_data": true,
+    "market_data_is_real": false,
+    "evidence_grade": "SYNTHETIC_PIPELINE_ONLY",
+    "edge_claim_allowed": false,
+    "interpretation": "Synthetic outputs validate reporting/pipeline behavior only; they are not evidence of profitability, robustness, or a live trading edge.",
     "type": "synthetic_experiment",
     "git_commit_hash": "01f4a3a5e90950f9477052db276cd692a337e1ef",
     "branch_name": "feat/phase2.1-pure-learning-validation",
