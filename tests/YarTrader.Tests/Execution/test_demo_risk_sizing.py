@@ -74,18 +74,13 @@ class TestDynamicDemoRiskSizing(unittest.TestCase):
         with patch("src.Market.Universe.symbol_registry.SymbolRegistry.get_instance", return_value=registry):
             self.assertEqual(_enabled_demo_symbols(), ["XAUUSD", "EURUSD"])
 
-    def test_allows_adaptive_risk_above_one_percent_but_rejects_above_safety_ceiling(self):
-        result = calculate_demo_volume_by_risk(
-            self.mt5, "XAUUSD", "BUY", 4184.17, 4173.04,
-            self.symbol_info, balance=100000.0, equity=100000.0, risk_pct=2.0,
-        )
-        self.assertTrue(result["allowed"])
-        self.assertAlmostEqual(result["risk_budget_usd"], 2000.0, places=2)
-        with self.assertRaises(Exception):
-            calculate_demo_volume_by_risk(
-                self.mt5, "XAUUSD", "BUY", 4184.17, 4173.04,
-                self.symbol_info, balance=100000.0, equity=100000.0, risk_pct=3.01,
-            )
+    def test_rejects_adaptive_risk_above_one_percent_safety_ceiling(self):
+        for risk_pct in (1.01, 2.0, 3.01):
+            with self.subTest(risk_pct=risk_pct), self.assertRaises(Exception):
+                calculate_demo_volume_by_risk(
+                    self.mt5, "XAUUSD", "BUY", 4184.17, 4173.04,
+                    self.symbol_info, balance=100000.0, equity=100000.0, risk_pct=risk_pct,
+                )
 
     def test_rejects_legacy_lower_risk_override(self):
         with self.assertRaises(Exception):
