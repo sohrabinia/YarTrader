@@ -79,3 +79,24 @@ def test_backup_uses_consistent_database_copy(tmp_path):
     with sqlite3.connect(backup) as connection:
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert connection.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1
+
+
+def test_import_legacy_trade_journal_snapshot(tmp_path):
+    snapshot = tmp_path / "trade_journal.json"
+    record = {
+        "trade_id": "TR-LEGACY-1",
+        "decision_id": "DEC-LEGACY-1",
+        "symbol": "XAUUSD",
+        "trade_type": "DEMO",
+        "strategy_style": "BASE_HIERARCHY",
+        "result": "WIN",
+    }
+    snapshot.write_text(json.dumps([record]), encoding="utf-8")
+    store = SQLiteEventStore(tmp_path / "canonical.sqlite3")
+    assert store.import_trade_journal_snapshot(snapshot) == {
+        "rows": 1, "imported": 1, "duplicates": 0
+    }
+    event = list(store.iter_events())[0]
+    assert event["event"] == "trade_record_created"
+    assert event["trade_id"] == "TR-LEGACY-1"
+    assert event["record"] == record
