@@ -40,10 +40,12 @@ def allocate_demo_slot_risk_pct(
 ) -> dict[str, float | str | int]:
     """Allocate risk by actual/configured concurrent slots, not unselected candidates.
 
-    The percentage is the per-trade risk target (normally 1%), not a portfolio
-    budget to divide by candidate count or concurrency. Unused slots reserve only
-    concurrency capacity; aggregate realized/floating loss is enforced separately
-    by the 10% daily kill switch. Each additional trade gets its own per-trade cap.
+    The percentage is a per-trade sizing ceiling (normally 1%), not an aggregate
+    portfolio budget to divide by candidate count or concurrency. Unused slots reserve
+    only concurrency capacity. Before a new order is submitted, the execution service
+    separately caps the combined stop-loss risk of all open positions and pending orders
+    at the authoritative portfolio ceiling; the daily-loss kill switch remains a
+    separate realized/floating-loss control.
     """
     try:
         slot_count = int(max_slots)
