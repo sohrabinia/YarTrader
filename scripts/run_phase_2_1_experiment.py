@@ -7,6 +7,18 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Any
 
+SYNTHETIC_EVIDENCE = {
+    "synthetic_data": True,
+    "market_data_is_real": False,
+    "evidence_grade": "SYNTHETIC_PIPELINE_ONLY",
+    "edge_claim_allowed": False,
+    "interpretation": (
+        "Synthetic outputs validate experiment/reporting plumbing only; they are not evidence "
+        "of profitability, robustness, or a live trading edge."
+    ),
+}
+
+
 def generate_deterministic_hash(data: Any) -> str:
     serialized = json.dumps(data, sort_keys=True)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
@@ -40,6 +52,7 @@ def run_phase_2_1():
     }
 
     snapshot = {
+        **SYNTHETIC_EVIDENCE,
         "type": "synthetic_experiment",
         "git_commit_hash": git_hash,
         "branch_name": "feat/phase2.1-pure-learning-validation",
@@ -109,6 +122,7 @@ def run_phase_2_1():
         })
 
     walk_forward = {
+        **SYNTHETIC_EVIDENCE,
         "type": "synthetic_experiment",
         "asset": "XAUUSD",
         "total_windows": 8,
@@ -174,6 +188,7 @@ def run_phase_2_1():
     metrics_b = compile_metrics(engine_b_trades, "engine_b")
 
     learning_delta = {
+        **SYNTHETIC_EVIDENCE,
         "type": "synthetic_experiment",
         "engine_a_baseline": metrics_a,
         "engine_b_adaptive": metrics_b,
@@ -212,6 +227,7 @@ def run_phase_2_1():
             })
 
     lookahead_audit = {
+        **SYNTHETIC_EVIDENCE,
         "type": "synthetic_experiment",
         "experiment_name": "Phase 2.1 Synthetic Temporal Simulation Audit",
         "total_setups_audited": total_setups,
@@ -259,6 +275,7 @@ def run_phase_2_1():
     prob_of_ruin = (ruined_count / 1000.0) * 100.0
 
     monte_carlo = {
+        **SYNTHETIC_EVIDENCE,
         "type": "synthetic_experiment",
         "simulations_count": 1000,
         "median_projected_return_pct": round(median_return, 2),
@@ -287,6 +304,7 @@ def run_phase_2_1():
     honest_compliance = (0.0 < metrics_a["win_rate_pct"] < 100.0) and (0.0 < metrics_b["win_rate_pct"] < 100.0)
 
     integrity = {
+        **SYNTHETIC_EVIDENCE,
         "type": "synthetic_experiment",
         "experiment_id": "exp-phase2.1-" + generate_deterministic_hash({"type": "walk_forward", "windows": 8})[:6],
         "git_commit_hash": git_hash,
@@ -307,12 +325,12 @@ def run_phase_2_1():
 *Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
 *Git Commit Hash: {git_hash}*
 
-## Executive Summary
-This report presents the synthetic validation results of the TradeYar AI Pure Learning experiment. In strict accordance with the **Zero Manual Knowledge Injection** constraint, no technical indicators, candlestick rules, or manual patterns were added. This synthetic walk-forward simulation compares the learning delta of the adaptive memory engine against a static, non-learning baseline to validate system reporting and metrics generation pipelines.
+## Executive Summary — Synthetic Pipeline Check Only
+This report uses randomized synthetic inputs, not historical broker market data. It checks that the experiment, metric, and reporting pipelines execute and produce deterministic-shaped outputs. **None of the reported performance metrics establish a profitable edge, live robustness, or real-market learning improvement.**
 
 ---
 
-## Walk-Forward Rolling Windows
+## Synthetic Walk-Forward Fixture (Not a Market Backtest)
 Synthetic simulation was executed over XAUUSD across 8 rolling windows from **2024-01-01 to 2026-01-01**. Memory writes were simulated as frozen during the validation periods to validate reporting integrity.
 
 - **Total Analyzed Market Events (Synthetic)**: {total_events:,}
@@ -323,7 +341,7 @@ Synthetic simulation was executed over XAUUSD across 8 rolling windows from **20
 
 ---
 
-## Learning Delta: Engine B vs Engine A (Synthetic Validation)
+## Synthetic Learning-Delta Fixture (Not Evidence of Edge)
 By simulating the four-layered Experience Memory accumulation and statistical confidence gates, Engine B demonstrates a consistent, measurable improvement over the non-learning baseline Engine A:
 
 - **Win Rate Improvement**: +{learning_delta['learning_delta']['win_rate_improvement_pct']}%
@@ -334,14 +352,14 @@ By simulating the four-layered Experience Memory accumulation and statistical co
 
 ---
 
-## Anti-Lookahead Temporal Audit (Synthetic)
+## Synthetic Timestamp Fixture Check (Not a Snapshot-Builder Audit)
 A rigorous temporal boundary audit was conducted, validating all {total_setups} decision points.
 - **Leakage Condition**: `feature_timestamp <= decision_timestamp`
 - **Audit Status**: **PASSED** (0 instances of future unclosed bar leaks detected).
 
 ---
 
-## Monte Carlo Robustness Analysis (Synthetic)
+## Synthetic Monte Carlo Plumbing Check (Not Empirical Robustness)
 We ran **1,000 randomized simulations** of trade orderings to test strategy resilience:
 - **Median Projected Return**: {monte_carlo['median_projected_return_pct']}%
 - **Worst 5th Percentile Drawdown**: {monte_carlo['worst_5th_percentile_drawdown_pct']}%
@@ -350,31 +368,26 @@ We ran **1,000 randomized simulations** of trade orderings to test strategy resi
 
 ---
 
-## Pure Learning Proof Verification
+## Evidence Limits
 
-1. **Did memory improve future decisions?**
-   **YES**. Engine B's simulated adaptive memory suppressed false counter-trend signals, increasing the overall profit factor and setup quality.
+1. **Did memory improve real future decisions?** NOT ESTABLISHED.
+2. **Did confidence calibration improve on real broker data?** NOT ESTABLISHED.
+3. **Did the adaptive engine demonstrate a real-market edge?** NO CONCLUSION CAN BE DRAWN.
+4. **Was improvement validated on genuinely unseen broker data?** NOT ESTABLISHED by this synthetic fixture.
 
-2. **Did confidence calibration improve?**
-   **YES**. The calibration score increased from 0.55 to 0.88, demonstrating that the statistical confidence gate correctly matches occurrences to mathematical win rates.
-
-3. **Did the adaptive engine outperform the baseline?**
-   **YES**. A robust expectancy increase of +{learning_delta['learning_delta']['expectancy_increase_pct']}% confirms a clear, reproducible cognitive advantage in the simulation.
-
-4. **Was improvement maintained on unseen data?**
-   **YES**. The out-of-sample walk-forward validations remained highly stable and consistent throughout the entire 2-year testing window.
+The numerical differences below are outputs of the synthetic generator and metric pipeline. They must not be used as performance claims, risk justification, or a reason to enable live trading.
 
 ---
 
 ## Conclusion
-The validation experiment confirms that **TradeYar AI's adaptive learning engine exhibits consistent experience calibration** in walk-forward simulation pipelines without requiring any manual rule tuning.
+This run validates only that synthetic experiment data can pass through the reporting pipeline. Empirical claims require real broker history, a documented causal feature/snapshot builder, explicit fees and execution fills, frozen holdout evaluation, and reproducible tests. The edge-claim flag is false by design.
 """
 
     with open("runtime_logs/HISTORICAL_INTELLIGENCE_REPORT.md", "w", encoding="utf-8") as f:
         f.write(historical_md)
     print("[INFO] Saved runtime_logs/HISTORICAL_INTELLIGENCE_REPORT.md")
     print("==========================================================================")
-    print("PHASE 2.1 SCIENTIFIC EXPERIMENT RUN COMPLETED WITH 100% SUCCESS")
+    print("PHASE 2.1 SYNTHETIC PIPELINE CHECK COMPLETED; NO EDGE CLAIM IS VALID")
     print("==========================================================================")
 
 if __name__ == "__main__":
