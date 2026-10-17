@@ -111,7 +111,7 @@ def _append_backtest_journal_events(
             ),
             "journaled_at_utc": datetime.now(timezone.utc).isoformat(),
         }
-        store.append_event(event, source=f"backtest:{run_id}")
+        store.append_important_event(event, source=f"backtest:{run_id}")
         written += 1
     return written
 
