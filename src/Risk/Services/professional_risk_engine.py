@@ -123,6 +123,60 @@ class ProfessionalRiskEngine:
         else:
             return entry_price
 
+    def evaluate_aggregate_open_risk(
+        self,
+        account_equity: float,
+        open_risk_usd: List[float],
+        candidate_risk_usd: float,
+        max_aggregate_risk_pct: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Fail-closed portfolio risk gate for open positions, pending orders, and a new entry.
+
+        The configured aggregate ceiling can be tightened, but never raised above the
+        authoritative hard risk ceiling. Unknown/non-finite risk inputs reject entry.
+        """
+        try:
+            equity = float(account_equity)
+            candidate = float(candidate_risk_usd)
+            risks = [float(value) for value in open_risk_usd]
+            requested_pct = (
+                float(ProductionRiskPolicy.HARD_CEILING_RISK_PCT)
+                if max_aggregate_risk_pct is None
+                else float(max_aggregate_risk_pct)
+            )
+        except (TypeError, ValueError, OverflowError):
+            return {"allowed": False, "reason": "AGGREGATE_RISK_INPUT_INVALID"}
+
+        if not math.isfinite(equity) or equity <= 0:
+            return {"allowed": False, "reason": "AGGREGATE_RISK_EQUITY_INVALID"}
+        if not math.isfinite(candidate) or candidate < 0:
+            return {"allowed": False, "reason": "AGGREGATE_RISK_CANDIDATE_INVALID"}
+        if any(not math.isfinite(value) or value < 0 for value in risks):
+            return {"allowed": False, "reason": "AGGREGATE_RISK_OPEN_POSITION_UNKNOWN"}
+        if not math.isfinite(requested_pct) or requested_pct <= 0:
+            return {"allowed": False, "reason": "AGGREGATE_RISK_LIMIT_INVALID"}
+
+        effective_pct = min(
+            requested_pct,
+            float(ProductionRiskPolicy.HARD_CEILING_RISK_PCT),
+        )
+        open_total = sum(risks)
+        total = open_total + candidate
+        limit_usd = equity * effective_pct / 100.0
+        if not all(math.isfinite(value) for value in (open_total, total, limit_usd)):
+            return {"allowed": False, "reason": "AGGREGATE_RISK_TOTAL_OVERFLOW"}
+        allowed = total <= limit_usd + 1e-6
+        return {
+            "allowed": allowed,
+            "reason": None if allowed else "AGGREGATE_OPEN_RISK_LIMIT_EXCEEDED",
+            "account_equity": round(equity, 2),
+            "existing_open_risk_usd": round(open_total, 2),
+            "candidate_risk_usd": round(candidate, 2),
+            "aggregate_open_risk_usd": round(total, 2),
+            "max_open_risk_usd": round(limit_usd, 2),
+            "max_open_risk_pct": round(effective_pct, 4),
+        }
+
     def evaluate_equity_risk_and_position_size(
         self,
         symbol: str,
