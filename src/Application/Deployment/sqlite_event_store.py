@@ -105,8 +105,20 @@ class SQLiteEventStore:
         source_line: int = 0,
     ) -> bool:
         event_id, event_type, symbol, timestamp, payload, digest = SQLiteEventStore._serialize(event)
+        # Resolve duplicates before compression; legacy archives can repeat millions
+        # of events across rotated files, and recompressing duplicates wastes CPU.
+        existing = connection.execute(
+            "SELECT payload_sha256 FROM events WHERE event_id=?", (event_id,)
+        ).fetchone()
+        if existing is not None:
+            if existing["payload_sha256"] != digest:
+                raise EventIdentityConflict(
+                    f"event_id {event_id!r} already exists with different content."
+                )
+            return False
+
         raw_payload = payload.encode("utf-8")
-        compressed_payload = zlib.compress(raw_payload, level=3)
+        compressed_payload = zlib.compress(raw_payload, level=1)
         if len(compressed_payload) < len(raw_payload):
             payload_blob, payload_codec = compressed_payload, "zlib"
         else:
@@ -123,6 +135,9 @@ class SQLiteEventStore:
             (event_id, event_type, symbol, timestamp, payload_blob, payload_codec,
              len(raw_payload), digest, str(source_file), int(source_line), now),
         )
+        if cursor.rowcount == 1:
+            return True
+        # A concurrent writer may have inserted between the lookup and insert.
         row = connection.execute(
             "SELECT payload_sha256 FROM events WHERE event_id=?", (event_id,)
         ).fetchone()
@@ -132,7 +147,7 @@ class SQLiteEventStore:
             raise EventIdentityConflict(
                 f"event_id {event_id!r} already exists with different content."
             )
-        return cursor.rowcount == 1
+        return False
 
     def append_event(self, event: dict[str, Any], *, source: str = "runtime") -> bool:
         """Append one event; return False for an exact/idempotent duplicate."""
