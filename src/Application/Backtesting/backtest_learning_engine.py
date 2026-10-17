@@ -11,6 +11,35 @@ from src.Research.Brain.memory import MarketMemorySystem
 from src.Research.Brain.judge import JudgeBrain
 
 
+def calculate_backtest_cost_adjusted_pnl(
+    symbol: str,
+    direction: str,
+    entry_price: float,
+    exit_price: float,
+    volume_lots: float,
+) -> Dict[str, float]:
+    """Use the canonical CostModel with the backtest's established spread assumptions."""
+    from src.Application.Research.optimization.cost_model import CostModel
+
+    symbol_upper = symbol.upper()
+    if "XAU" in symbol_upper or "GOLD" in symbol_upper:
+        spread_pips = 2.0
+    elif "XAG" in symbol_upper or "SILVER" in symbol_upper:
+        spread_pips = 2.0
+    else:
+        spread_pips = 1.0
+    return CostModel(
+        spread_pips=spread_pips,
+        commission_per_lot=7.0,
+        slippage_pips=0.0,
+    ).calculate_cost_adjusted_pnl(
+        symbol=symbol,
+        direction=direction,
+        entry_price=float(entry_price),
+        exit_price=float(exit_price),
+        volume_lots=float(volume_lots),
+    )
+
 
 class BacktestAndLearningEngine:
     """
@@ -513,20 +542,8 @@ class BacktestAndLearningEngine:
                     pnl_dist = (exit_price - open_position["entry"]) if pos_direction == "BUY" else (open_position["entry"] - exit_price)
                     sym_upper = symbol.upper()
                     # Share one accounting contract with the research CostModel.
-                    # Preserve the engine's existing spread conventions while ensuring
-                    # contract multipliers and JPY quote conversion stay in parity.
-                    from src.Application.Research.optimization.cost_model import CostModel
-                    if "XAU" in sym_upper or "GOLD" in sym_upper:
-                        spread_pips = 2.0  # $0.20 price spread on a 100 oz contract
-                    elif "XAG" in sym_upper or "SILVER" in sym_upper:
-                        spread_pips = 2.0  # $0.02 price spread on a 5,000 oz contract
-                    else:
-                        spread_pips = 1.0
-                    cost_result = CostModel(
-                        spread_pips=spread_pips,
-                        commission_per_lot=7.0,
-                        slippage_pips=0.0,
-                    ).calculate_cost_adjusted_pnl(
+                    # This keeps research reports and backtest trade outcomes in parity.
+                    cost_result = calculate_backtest_cost_adjusted_pnl(
                         symbol=symbol,
                         direction=pos_direction,
                         entry_price=float(open_position["entry"]),
