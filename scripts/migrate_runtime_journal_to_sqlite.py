@@ -71,7 +71,7 @@ def main() -> int:
     totals = {"rows": 0, "imported": 0, "duplicates": 0}
     for source in sources:
         try:
-            result = store.import_jsonl_file(source)
+            result = store.import_jsonl_file(source, important_only=True)
         except Exception as exc:
             failures.append((source, str(exc)))
             print(f"FAILED_JSONL {source}: {type(exc).__name__}: {exc}")
@@ -81,7 +81,7 @@ def main() -> int:
             totals[key] += result[key]
         print(
             f"IMPORTED_JSONL {source} rows={result['rows']} "
-            f"new={result['imported']} duplicates={result['duplicates']}"
+            f"new={result['imported']} duplicates={result['duplicates']} skipped={result['rows'] - result['imported'] - result['duplicates']}"
         )
     for source in snapshots:
         try:
