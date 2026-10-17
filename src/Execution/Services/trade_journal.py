@@ -164,7 +164,9 @@ class TradeJournalManager:
             # do not keep a second full JSON snapshot beside the same event history.
             records: Dict[str, Dict[str, Any]] = {}
             try:
-                for event in SQLiteEventStore(self.event_store_path).iter_events():
+                for event in SQLiteEventStore(self.event_store_path).iter_events(
+                    event_types=("trade_record_created", "trade_record_updated")
+                ):
                     event_type = event.get("event")
                     trade_id = str(event.get("trade_id") or "")
                     if not trade_id:
