@@ -151,8 +151,8 @@ def test_important_event_writer_skips_periodic_telemetry_and_compacts_context(tm
 def test_migration_can_filter_non_material_telemetry(tmp_path):
     source = tmp_path / "events.jsonl"
     source.write_text(
-        json.dumps({"event": "cycle_status", "status": "running"}) + "\\n"
-        + json.dumps({"event": "trade_outcome_learned", "trade_id": "TR-2", "result": "WIN"}) + "\\n",
+        json.dumps({"event": "cycle_status", "status": "running"}) + "\n"
+        + json.dumps({"event": "trade_outcome_learned", "trade_id": "TR-2", "result": "WIN"}) + "\n",
         encoding="utf-8",
     )
     store = SQLiteEventStore(tmp_path / "canonical.sqlite3")
