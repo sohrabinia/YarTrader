@@ -11,6 +11,50 @@ from src.Research.Brain.memory import MarketMemorySystem
 from src.Research.Brain.judge import JudgeBrain
 
 
+def resolve_bar_exit_fill(
+    direction: str,
+    open_price: float,
+    high_price: float,
+    low_price: float,
+    stop_loss: float,
+    take_profit: Optional[float],
+) -> tuple[Optional[str], float]:
+    """Resolve OHLC stop/target fills without look-ahead.
+
+    A gap through a stop fills at the worse bar open. A gap through a target
+    fills at the open. If both levels are touched intrabar and the open is
+    between them, stop-loss wins the ambiguity conservatively.
+    """
+    side = str(direction).upper()
+    opening = float(open_price)
+    high = float(high_price)
+    low = float(low_price)
+    stop = float(stop_loss)
+    target = float(take_profit) if take_profit is not None and float(take_profit) > 0 else None
+
+    if side == "BUY":
+        if opening <= stop:
+            return "STOP_LOSS_HIT", opening
+        if target is not None and opening >= target:
+            return "TAKE_PROFIT_HIT", opening
+        if low <= stop:
+            return "STOP_LOSS_HIT", stop
+        if target is not None and high >= target:
+            return "TAKE_PROFIT_HIT", target
+    elif side == "SELL":
+        if opening >= stop:
+            return "STOP_LOSS_HIT", opening
+        if target is not None and opening <= target:
+            return "TAKE_PROFIT_HIT", opening
+        if high >= stop:
+            return "STOP_LOSS_HIT", stop
+        if target is not None and low <= target:
+            return "TAKE_PROFIT_HIT", target
+    else:
+        raise ValueError("direction must be BUY or SELL")
+
+    return None, opening
+
 
 class BacktestAndLearningEngine:
     """
@@ -476,32 +520,25 @@ class BacktestAndLearningEngine:
                 sl = open_position["stop_loss"]
                 tp = open_position.get("take_profit")
 
-                exit_reason = None
-                exit_price = current_price
-
-                # Track MFE and MAE
+                # Track MFE and MAE independently of the execution fill.
                 if pos_direction == "BUY":
                     mfe = max(open_position.get("mfe", 0.0), high_price - open_position["entry"])
                     mae = min(open_position.get("mae", 0.0), low_price - open_position["entry"])
-                    if low_price <= sl:
-                        exit_reason = "STOP_LOSS_HIT"
-                        exit_price = sl
-                    elif tp is not None and float(tp) > 0 and high_price >= float(tp):
-                        exit_reason = "TAKE_PROFIT_HIT"
-                        exit_price = float(tp)
-                    elif autonomous_exploration_mode and str(((latest_brain_report or {}).get("best_candidate") or {}).get("direction", "")).upper() == "SELL":
-                        exit_reason = "OPPOSITE_BASE_SIGNAL"
-                        exit_price = current_price
                 else:  # SELL
                     mfe = max(open_position.get("mfe", 0.0), open_position["entry"] - low_price)
                     mae = min(open_position.get("mae", 0.0), open_position["entry"] - high_price)
-                    if high_price >= sl:
-                        exit_reason = "STOP_LOSS_HIT"
-                        exit_price = sl
-                    elif tp is not None and float(tp) > 0 and low_price <= float(tp):
-                        exit_reason = "TAKE_PROFIT_HIT"
-                        exit_price = float(tp)
-                    elif autonomous_exploration_mode and str(((latest_brain_report or {}).get("best_candidate") or {}).get("direction", "")).upper() == "BUY":
+
+                exit_reason, exit_price = resolve_bar_exit_fill(
+                    pos_direction,
+                    float(current_bar.get("open", current_price)),
+                    high_price,
+                    low_price,
+                    float(sl),
+                    tp,
+                )
+                if not exit_reason and autonomous_exploration_mode:
+                    opposite_direction = "SELL" if pos_direction == "BUY" else "BUY"
+                    if str(((latest_brain_report or {}).get("best_candidate") or {}).get("direction", "")).upper() == opposite_direction:
                         exit_reason = "OPPOSITE_BASE_SIGNAL"
                         exit_price = current_price
 
