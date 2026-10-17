@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import zlib
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
@@ -51,7 +52,9 @@ class SQLiteEventStore:
                     event_type TEXT NOT NULL,
                     symbol TEXT NOT NULL,
                     timestamp_utc TEXT NOT NULL,
-                    payload_json TEXT NOT NULL,
+                    payload_blob BLOB NOT NULL,
+                    payload_codec TEXT NOT NULL CHECK(payload_codec IN ('raw', 'zlib')),
+                    payload_size INTEGER NOT NULL,
                     payload_sha256 TEXT NOT NULL,
                     source_file TEXT NOT NULL,
                     source_line INTEGER NOT NULL,
@@ -102,16 +105,23 @@ class SQLiteEventStore:
         source_line: int = 0,
     ) -> bool:
         event_id, event_type, symbol, timestamp, payload, digest = SQLiteEventStore._serialize(event)
+        raw_payload = payload.encode("utf-8")
+        compressed_payload = zlib.compress(raw_payload, level=3)
+        if len(compressed_payload) < len(raw_payload):
+            payload_blob, payload_codec = compressed_payload, "zlib"
+        else:
+            payload_blob, payload_codec = raw_payload, "raw"
         now = datetime.now(timezone.utc).isoformat()
         cursor = connection.execute(
             """
             INSERT OR IGNORE INTO events
-                (event_id, event_type, symbol, timestamp_utc, payload_json,
-                 payload_sha256, source_file, source_line, created_at_utc)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (event_id, event_type, symbol, timestamp_utc, payload_blob,
+                 payload_codec, payload_size, payload_sha256, source_file,
+                 source_line, created_at_utc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (event_id, event_type, symbol, timestamp, payload, digest,
-             str(source_file), int(source_line), now),
+            (event_id, event_type, symbol, timestamp, payload_blob, payload_codec,
+             len(raw_payload), digest, str(source_file), int(source_line), now),
         )
         row = connection.execute(
             "SELECT payload_sha256 FROM events WHERE event_id=?", (event_id,)
@@ -238,7 +248,10 @@ class SQLiteEventStore:
         return result
 
     def iter_events(self, *, limit: int | None = None) -> Iterable[dict[str, Any]]:
-        query = "SELECT payload_json FROM events ORDER BY rowid"
+        query = (
+            "SELECT payload_blob, payload_codec, payload_size, payload_sha256 "
+            "FROM events ORDER BY rowid"
+        )
         params: tuple[Any, ...] = ()
         if limit is not None:
             query += " LIMIT ?"
@@ -246,7 +259,13 @@ class SQLiteEventStore:
         with closing(self._connect()) as connection:
             rows = connection.execute(query, params).fetchall()
         for row in rows:
-            yield json.loads(row["payload_json"])
+            blob = bytes(row["payload_blob"])
+            raw = zlib.decompress(blob) if row["payload_codec"] == "zlib" else blob
+            if len(raw) != int(row["payload_size"]):
+                raise RuntimeError("SQLite event payload size verification failed.")
+            if hashlib.sha256(raw).hexdigest() != row["payload_sha256"]:
+                raise RuntimeError("SQLite event payload checksum verification failed.")
+            yield json.loads(raw.decode("utf-8"))
 
     def backup_to(self, destination: str | os.PathLike[str]) -> Path:
         """Create a consistent SQLite backup using SQLite's backup API (not file copy)."""
