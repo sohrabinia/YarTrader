@@ -41,7 +41,8 @@ class TestShadowReadinessRemediation(unittest.TestCase):
         shadow_count_before = len(self.engine.trades)
 
         # Trigger Demo trade
-        demo_resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"}, headers=self.admin_headers)
+        with patch.object(global_auth_service, "validate_session", return_value={"email": "shadow-test-admin@yartrader.app", "role": "ADMIN"}):
+            demo_resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"}, headers=self.admin_headers)
         self.assertEqual(demo_resp.status_code, 200)
 
         # Confirm shadow count is unchanged
