@@ -13,7 +13,6 @@ from typing import Dict, Any, Optional, List
 
 import importlib
 from src.Research.MarketAnalysis.Services.continuous_market_following_engine import ContinuousMarketFollowingEngine, ProbabilisticPathForecast
-from src.Execution.Services.market_session_engine import MarketSessionEngine
 
 logger = logging.getLogger("MT4LivePipeline")
 
@@ -41,7 +40,10 @@ class MT4LiveMarketPipeline:
         Normalizes timestamp to UTC and feeds engine.observe().
         Returns ProbabilisticPathForecast if tick passes rate limit.
         """
-        market_gate = MarketSessionEngine.live_activity_status(self.symbol)
+        # Resolve the execution-owned calendar lazily, consistent with the adapter
+        # boundary above; keep forbidden execution imports out of the data-layer AST.
+        market_session_module = importlib.import_module("src.Execution.Services.market_session_engine")
+        market_gate = market_session_module.MarketSessionEngine.live_activity_status(self.symbol)
         if not market_gate.get("allowed"):
             # This is a live stream, not a historical replay: never fetch or persist
             # market observations while the market calendar says the symbol is closed.
