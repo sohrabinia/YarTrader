@@ -54,3 +54,13 @@ def test_aggregate_risk_fails_closed_for_invalid_inputs(equity, open_risk, candi
         candidate_risk_usd=candidate,
     )
     assert result["allowed"] is False
+
+
+def test_aggregate_risk_fails_closed_when_totals_overflow():
+    result = ProfessionalRiskEngine().evaluate_aggregate_open_risk(
+        account_equity=1e308,
+        open_risk_usd=[1e308],
+        candidate_risk_usd=1e308,
+    )
+    assert result["allowed"] is False
+    assert result["reason"] == "AGGREGATE_RISK_TOTAL_OVERFLOW"
