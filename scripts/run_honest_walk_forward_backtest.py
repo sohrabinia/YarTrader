@@ -151,7 +151,7 @@ def metrics(trades: list[dict], initial: float, final: float) -> dict:
     }
 
 
-def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root: Path, train_fraction: float) -> dict:
+def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root: Path, train_fraction: float, mode: str = "evaluation") -> dict:
     provider = MT4HistoricalDataProvider()
     source_path = provider._history_file(symbol, timeframe)
     if not source_path.exists():
@@ -217,7 +217,7 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
     train_result = engine.run_backtest(
         symbol, timeframe, train, initial_balance=initial_balance,
         start_index=50, context_window=500, all_timeframe_candles_provider=all_timeframe_provider, learn_from_outcomes=True,
-        autonomous_exploration_mode=True,
+        autonomous_exploration_mode=(mode == "exploration"),
     )
     trained_state = dict(train_result.get("state") or {})
     trained_balance = float(trained_state.get("balance", initial_balance))
@@ -229,7 +229,7 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
     print(f"[{symbol}] training complete: trades={len(train_trades)} journaled={train_journal_events} pnl={train_result.get('net_pnl')}; checking bootstrap viability", flush=True)
     if not train_trades:
         return {
-            "run_id": run_id, "symbol": symbol.upper(), "timeframe": timeframe.upper(),
+            "run_id": run_id, "symbol": symbol.upper(), "timeframe": timeframe.upper(), "mode": mode,
             "status": "INCONCLUSIVE_NO_TRAINING_TRADES", "evaluation_conclusive": False,
             "data_source": "LOCAL_MT4_BROKER_HST_REAL_HISTORY", "data_file": str(source_path),
             "data_sha256": hashlib.sha256(raw).hexdigest(), "synthetic_data": False,
@@ -257,7 +257,7 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
     baseline_engine.run_backtest(
         symbol, timeframe, train, initial_balance=initial_balance,
         start_index=50, context_window=500, all_timeframe_candles_provider=all_timeframe_provider, learn_from_outcomes=False,
-        autonomous_exploration_mode=True,
+        autonomous_exploration_mode=(mode == "exploration"),
     )
     trained_state = dict(train_result.get("state") or {})
     trained_balance = float(trained_state.get("balance", initial_balance))
@@ -277,7 +277,7 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
         symbol, timeframe, candles, initial_balance=trained_balance,
         start_index=split, context_window=500, state=test_state,
         all_timeframe_candles_provider=all_timeframe_provider, learn_from_outcomes=False,
-        autonomous_exploration_mode=True,
+        autonomous_exploration_mode=(mode == "exploration"),
     )
     baseline_test_state = {
         "balance": initial_balance, "equity": initial_balance, "open_position": None,
@@ -288,7 +288,7 @@ def run_symbol(symbol: str, timeframe: str, initial_balance: float, output_root:
         symbol, timeframe, candles, initial_balance=initial_balance,
         start_index=split, context_window=500, state=baseline_test_state,
         all_timeframe_candles_provider=all_timeframe_provider, learn_from_outcomes=False,
-        autonomous_exploration_mode=True,
+        autonomous_exploration_mode=(mode == "exploration"),
     )
     print(f"[{symbol}] holdout complete: learned_pnl={test_result.get('net_pnl')} baseline_pnl={baseline_result.get('net_pnl')}", flush=True)
     test_trades = test_result.get("closed_trades") or []
@@ -366,6 +366,12 @@ def main() -> None:
     parser.add_argument("--timeframe", default="H1")
     parser.add_argument("--initial-balance", type=float, default=10000.0)
     parser.add_argument("--train-fraction", type=float, default=0.70)
+    parser.add_argument(
+        "--mode",
+        choices=("evaluation", "exploration"),
+        default="evaluation",
+        help="evaluation uses the guarded strategy path; exploration explicitly enables exploratory entries.",
+    )
     parser.add_argument("--output", default="runtime_logs/backtest_validation")
     args = parser.parse_args()
     if not 0.5 <= args.train_fraction <= 0.9:
@@ -378,13 +384,14 @@ def main() -> None:
     root.mkdir(parents=True, exist_ok=True)
     for symbol in [s.strip().upper() for s in args.symbols.split(",") if s.strip()]:
         try:
-            reports.append(run_symbol(symbol, args.timeframe.upper(), args.initial_balance, root, args.train_fraction))
+            reports.append(run_symbol(symbol, args.timeframe.upper(), args.initial_balance, root, args.train_fraction, args.mode))
         except Exception as exc:
             traceback.print_exc()
             errors.append({"symbol": symbol, "error": f"{type(exc).__name__}: {exc}"})
     payload = {
         "schema": 1,
         "method": "CHRONOLOGICAL_70_30_ADAPTIVE_TRAIN_FROZEN_HOLDOUT",
+        "mode": args.mode,
         "risk_policy_pct": ProductionRiskPolicy.TARGET_RISK_PCT,
         "lookahead_control": "Train ends before holdout starts; holdout outcome-learning and scheduled learning cycles disabled.",
         "reports": reports,
