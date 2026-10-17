@@ -45,7 +45,7 @@ LOW_VALUE_EVENT_NAMES = {
 }
 _EVENT_NAME_PATTERN = re.compile(r'"(?:event|event_type)"\s*:\s*"([^"]+)"')
 _EVENT_ID_PATTERN = re.compile(
-    r'"(?:trade_id|decision_id|order_ticket|deal_ticket|broker_order_id|'
+    r'"(?:trade_id|order_ticket|deal_ticket|broker_order_id|'
     r'position_id|execution_id|reconciliation_id)"\s*:'
 )
 
@@ -77,16 +77,16 @@ def is_important_event(event: dict[str, Any]) -> bool:
     if not isinstance(event, dict):
         return False
     name = str(event.get("event") or event.get("event_type") or "").strip().lower()
-    has_lifecycle_id = any(
+    has_execution_or_trade_id = any(
         event.get(key)
         for key in (
-            "trade_id", "decision_id", "order_ticket", "deal_ticket", "broker_order_id",
+            "trade_id", "order_ticket", "deal_ticket", "broker_order_id",
             "position_id", "execution_id", "reconciliation_id",
         )
     )
-    if name in LOW_VALUE_EVENT_NAMES and not has_lifecycle_id:
+    if name in LOW_VALUE_EVENT_NAMES and not has_execution_or_trade_id:
         return False
-    if name in IMPORTANT_EVENT_NAMES or has_lifecycle_id:
+    if name in IMPORTANT_EVENT_NAMES or has_execution_or_trade_id:
         return True
     return any(
         token in name
