@@ -2697,8 +2697,8 @@ class AutonomousDemoTrader:
                 "execution_enabled": False,
             }
 
-        from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
-        aggregate_risk = ProfessionalRiskEngine().evaluate_aggregate_open_risk(
+        from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine as AggregateRiskEngine
+        aggregate_risk = AggregateRiskEngine().evaluate_aggregate_open_risk(
             account_equity=float(account.get("equity") or 0.0),
             open_risk_usd=risk_inputs,
             candidate_risk_usd=candidate_risk_usd,
