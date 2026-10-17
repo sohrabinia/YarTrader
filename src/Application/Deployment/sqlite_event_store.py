@@ -157,7 +157,7 @@ class SQLiteEventStore:
         source = Path(source_path).resolve()
         opener = gzip.open if source.name.lower().endswith(".gz") else open
         imported = duplicates = rows = 0
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:
                 with opener(source, "rt", encoding="utf-8") as handle:
