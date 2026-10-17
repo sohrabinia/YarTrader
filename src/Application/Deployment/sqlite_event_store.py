@@ -188,6 +188,49 @@ class SQLiteEventStore:
                 raise
         return {"rows": rows, "imported": imported, "duplicates": duplicates}
 
+    def import_trade_journal_snapshot(self, source_path: str | os.PathLike[str]) -> dict[str, int]:
+        """Import the legacy trade_journal.json array as canonical lifecycle events."""
+        source = Path(source_path).resolve()
+        try:
+            raw = json.loads(source.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Unable to parse trade journal snapshot: {source}") from exc
+        if isinstance(raw, dict):
+            raw = raw.get("records")
+        if not isinstance(raw, list):
+            raise ValueError(f"Trade journal snapshot must contain a list of records: {source}")
+        imported = duplicates = rows = 0
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                for line_number, record in enumerate(raw, start=1):
+                    if not isinstance(record, dict) or not record.get("trade_id"):
+                        raise ValueError(
+                            f"Invalid trade record at {source}:record {line_number}"
+                        )
+                    event = {
+                        "event": "trade_record_created",
+                        "trade_type": record.get("trade_type", "UNKNOWN"),
+                        "trade_id": record["trade_id"],
+                        "decision_id": record.get("decision_id"),
+                        "symbol": record.get("symbol", "UNKNOWN"),
+                        "strategy_style": record.get("strategy_style", "UNKNOWN"),
+                        "record": record,
+                    }
+                    rows += 1
+                    inserted = self._insert(
+                        connection, event, source_file=str(source), source_line=line_number
+                    )
+                    if inserted:
+                        imported += 1
+                    else:
+                        duplicates += 1
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+        return {"rows": rows, "imported": imported, "duplicates": duplicates}
+
     def count_events(self) -> int:
         with closing(self._connect()) as connection:
             return int(connection.execute("SELECT COUNT(*) FROM events").fetchone()[0])
@@ -205,7 +248,7 @@ class SQLiteEventStore:
         return result
 
     def iter_events(self, *, limit: int | None = None) -> Iterable[dict[str, Any]]:
-        query = "SELECT payload_json FROM events ORDER BY timestamp_utc, event_id"
+        query = "SELECT payload_json FROM events ORDER BY rowid"
         params: tuple[Any, ...] = ()
         if limit is not None:
             query += " LIMIT ?"
