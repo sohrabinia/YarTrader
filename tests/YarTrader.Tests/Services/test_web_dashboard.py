@@ -173,7 +173,7 @@ class TestWebDashboardFastAPI(unittest.TestCase):
                 resp = self.client.post("/api/mode", json={"mode": mode}, headers=headers)
                 self.assertEqual(resp.status_code, 503)
                 self.assertIn("no runtime controller", resp.json()["detail"].lower())
-            resp_err = self.client.post("/api/mode", json={"mode": "LiveActiveTrading"}, headers=headers)
+            resp_err = self.client.post("/api/mode", json={"mode": "NotARealMode"}, headers=headers)
             self.assertEqual(resp_err.status_code, 400)
 
     def test_trigger_backtesting_job_uses_base_only_and_real_history(self):
