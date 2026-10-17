@@ -387,7 +387,7 @@ This run validates only that synthetic experiment data can pass through the repo
         f.write(historical_md)
     print("[INFO] Saved runtime_logs/HISTORICAL_INTELLIGENCE_REPORT.md")
     print("==========================================================================")
-    print("PHASE 2.1 SCIENTIFIC EXPERIMENT RUN COMPLETED WITH 100% SUCCESS")
+    print("PHASE 2.1 SYNTHETIC PIPELINE CHECK COMPLETED; NO EDGE CLAIM IS VALID")
     print("==========================================================================")
 
 if __name__ == "__main__":
