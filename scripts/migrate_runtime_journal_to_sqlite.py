@@ -28,6 +28,10 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--runtime-root", type=Path, default=Path("runtime_logs"))
     parser.add_argument("--database", type=Path, default=Path("runtime_logs/yartrader_events.sqlite3"))
+    parser.add_argument(
+        "--snapshot", action="append", type=Path, default=[],
+        help="Legacy trade_journal.json snapshot to import; may be supplied more than once.",
+    )
     parser.add_argument("--apply", action="store_true", help="Import into SQLite; default is read-only inventory.")
     parser.add_argument(
         "--delete-sources", action="store_true",
@@ -41,12 +45,23 @@ def main() -> int:
     if not runtime_root.is_dir():
         parser.error(f"Runtime root does not exist: {runtime_root}")
     sources = _sources(runtime_root)
+    default_snapshots = [
+        runtime_root / "trade_journal.json",
+        runtime_root.parent / "storage" / "Logs" / "trade_journal.json",
+    ]
+    snapshots = sorted({
+        path.resolve() for path in [*default_snapshots, *args.snapshot]
+        if path.is_file()
+    })
     print(f"Runtime root: {runtime_root}")
     print(f"Target database: {database}")
-    print(f"Source candidates: {len(sources)}")
+    print(f"JSONL/gzip source candidates: {len(sources)}")
+    print(f"Trade snapshot candidates: {len(snapshots)}")
     if not args.apply:
         for source in sources:
-            print(f"WOULD_IMPORT bytes={source.stat().st_size} {source}")
+            print(f"WOULD_IMPORT_JSONL bytes={source.stat().st_size} {source}")
+        for source in snapshots:
+            print(f"WOULD_IMPORT_SNAPSHOT bytes={source.stat().st_size} {source}")
         print("Dry-run only; no data changed.")
         return 0
 
@@ -59,7 +74,16 @@ def main() -> int:
         for key in totals:
             totals[key] += result[key]
         print(
-            f"IMPORTED {source} rows={result['rows']} "
+            f"IMPORTED_JSONL {source} rows={result['rows']} "
+            f"new={result['imported']} duplicates={result['duplicates']}"
+        )
+    for source in snapshots:
+        result = store.import_trade_journal_snapshot(source)
+        successful.append(source)
+        for key in totals:
+            totals[key] += result[key]
+        print(
+            f"IMPORTED_SNAPSHOT {source} rows={result['rows']} "
             f"new={result['imported']} duplicates={result['duplicates']}"
         )
     print(f"TOTAL {totals}")
