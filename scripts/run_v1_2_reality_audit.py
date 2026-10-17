@@ -12,6 +12,21 @@ SYMBOLS = ["XAUUSD", "EURUSD", "GBPUSD", "BTCUSD", "ETHUSD", "NAS100", "US30"]
 STYLES = ["FAST_SCALPING", "SCALPING", "INTRADAY", "SWING"]
 TIMEFRAMES = ["M1", "M5", "M15", "H1", "H4", "D1", "W1"]
 
+SYNTHETIC_AUDIT_METADATA = {
+    "synthetic_data": True,
+    "market_data_is_real": False,
+    "data_source": "randomly_generated_synthetic_candles",
+    "evidence_grade": "SYNTHETIC_PIPELINE_ONLY",
+    "edge_claim_allowed": False,
+    "metrics_empirically_validated": False,
+    "max_drawdown_metric_is_placeholder": True,
+    "interpretation": (
+        "This report is generated from random synthetic candles. It is useful only for "
+        "pipeline/report formatting checks and is not evidence of market performance or edge."
+    ),
+}
+
+
 def generate_historical_candles(symbol: str, count: int = 500, start_date: datetime = None, base_price: float = 2000.0) -> List[MarketDataPoint]:
     candles = []
     if start_date is None:
@@ -147,17 +162,7 @@ def run_reality_audit():
 
     audit_payload = {
         "timestamp": datetime.now().isoformat(),
-        "synthetic_data": True,
-        "market_data_is_real": False,
-        "data_source": "randomly_generated_synthetic_candles",
-        "evidence_grade": "SYNTHETIC_PIPELINE_ONLY",
-        "edge_claim_allowed": False,
-        "metrics_empirically_validated": False,
-        "max_drawdown_metric_is_placeholder": True,
-        "interpretation": (
-            "This report is generated from random synthetic candles. It is useful only for "
-            "pipeline/report formatting checks and is not evidence of market performance or edge."
-        ),
+        **SYNTHETIC_AUDIT_METADATA,
         "total_trades": total_t,
         "winning_trades": total_w,
         "losing_trades": total_l,
