@@ -1,6 +1,8 @@
 import os
 import time
 import json
+import gzip
+import shutil
 import threading
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
@@ -564,20 +566,44 @@ class ResearchRuntime:
 
         self._log_evidence(f"Saved research snapshot to: {filepath}")
 
-        # Rotation strategy: keep the last 50 snapshots
+        # The dashboard reads only the newest snapshot; keep ten recent snapshots for diagnosis.
         try:
             files = [f for f in os.listdir(snapshot_dir) if f.endswith(".json")]
-            if len(files) > 50:
+            if len(files) > 10:
                 files_paths = [os.path.join(snapshot_dir, f) for f in files]
                 files_paths.sort(key=os.path.getmtime)
-                # Delete the oldest files
-                for old_file in files_paths[:-50]:
+                for old_file in files_paths[:-10]:
                     try:
                         os.remove(old_file)
                     except OSError:
                         pass
         except Exception:
             pass
+
+    @staticmethod
+    def _rotate_evidence_log(evidence_file: str, max_bytes: int = 2 * 1024 * 1024) -> None:
+        """Keep one compressed evidence-log segment; never delete the active log on failure."""
+        if not os.path.isfile(evidence_file):
+            return
+        try:
+            if os.path.getsize(evidence_file) < max_bytes:
+                return
+            rotated = evidence_file + ".1.gz"
+            temporary = rotated + ".tmp"
+            try:
+                with open(evidence_file, "rb") as source:
+                    with open(temporary, "wb") as raw_target:
+                        with gzip.GzipFile(fileobj=raw_target, mode="wb", compresslevel=6, mtime=0) as target:
+                            shutil.copyfileobj(source, target, length=1024 * 1024)
+                os.replace(temporary, rotated)
+                with open(evidence_file, "w", encoding="utf-8"):
+                    pass
+            finally:
+                if os.path.exists(temporary):
+                    os.remove(temporary)
+        except Exception:
+            # Diagnostics must never stop research or erase the original evidence log.
+            return
 
     def _log_evidence(self, message: str) -> None:
         """Write runtime evidence without allowing diagnostics to abort research cycles."""
@@ -587,6 +613,7 @@ class ResearchRuntime:
 
         try:
             os.makedirs(self._evidence_dir, exist_ok=True)
+            self._rotate_evidence_log(evidence_file)
             with open(evidence_file, "a", encoding="utf-8") as f:
                 f.write(log_entry)
         except Exception as exc:
