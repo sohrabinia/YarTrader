@@ -1,4 +1,9 @@
 {
+    "synthetic_data": true,
+    "market_data_is_real": false,
+    "evidence_grade": "SYNTHETIC_PIPELINE_ONLY",
+    "edge_claim_allowed": false,
+    "interpretation": "Synthetic outputs validate reporting/pipeline behavior only; they are not evidence of profitability, robustness, or a live trading edge.",
     "type": "synthetic_experiment",
     "engine_a_baseline": {
         "type": "synthetic_experiment",
