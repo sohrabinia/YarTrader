@@ -67,9 +67,15 @@ def main() -> int:
 
     store = SQLiteEventStore(database)
     successful: list[Path] = []
+    failures: list[tuple[Path, str]] = []
     totals = {"rows": 0, "imported": 0, "duplicates": 0}
     for source in sources:
-        result = store.import_jsonl_file(source)
+        try:
+            result = store.import_jsonl_file(source)
+        except Exception as exc:
+            failures.append((source, str(exc)))
+            print(f"FAILED_JSONL {source}: {type(exc).__name__}: {exc}")
+            continue
         successful.append(source)
         for key in totals:
             totals[key] += result[key]
@@ -78,7 +84,12 @@ def main() -> int:
             f"new={result['imported']} duplicates={result['duplicates']}"
         )
     for source in snapshots:
-        result = store.import_trade_journal_snapshot(source)
+        try:
+            result = store.import_trade_journal_snapshot(source)
+        except Exception as exc:
+            failures.append((source, str(exc)))
+            print(f"FAILED_SNAPSHOT {source}: {type(exc).__name__}: {exc}")
+            continue
         successful.append(source)
         for key in totals:
             totals[key] += result[key]
@@ -89,13 +100,17 @@ def main() -> int:
     print(f"TOTAL {totals}")
     print(f"EVENTS={store.count_events()} SOURCES={store.count_sources()}")
     print(f"INTEGRITY={store.integrity_check()}")
+    print(f"FAILED_SOURCES={len(failures)}")
     if args.delete_sources:
-        # Verify the committed database again before deleting any source.
+        # Delete only sources that fully imported; malformed sources remain for review.
         if store.integrity_check() != "ok":
             raise RuntimeError("Refusing source deletion: SQLite integrity check did not pass.")
         for source in successful:
             source.unlink()
         print(f"DELETED_IMPORTED_SOURCES={len(successful)}")
+    if failures:
+        print("Some sources were not migrated completely; they were preserved.")
+        return 2
     return 0
 
 
