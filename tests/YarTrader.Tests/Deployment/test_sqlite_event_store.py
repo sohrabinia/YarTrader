@@ -121,3 +121,41 @@ def test_repetitive_payload_is_losslessly_compressed(tmp_path):
     assert codec == "zlib"
     assert stored_size < payload_size
     assert list(store.iter_events()) == [event]
+
+
+def test_important_event_writer_skips_periodic_telemetry_and_compacts_context(tmp_path):
+    store = SQLiteEventStore(tmp_path / "events.sqlite3")
+    assert store.append_important_event(
+        {"event": "cycle_status", "symbol": "XAUUSD", "status": "running"}
+    ) is False
+    assert store.count_events() == 0
+
+    event = {
+        "event": "trade_outcome_learned",
+        "trade_id": "TR-1",
+        "decision_id": "DEC-1",
+        "symbol": "XAUUSD",
+        "result": "WIN",
+        "base_plan": {"huge": "redundant context"},
+        "structure": {"levels": [2300.0, 2310.0]},
+    }
+    assert store.append_important_event(event) is True
+    saved = list(store.iter_events())[0]
+    assert saved["trade_id"] == "TR-1"
+    assert saved["result"] == "WIN"
+    assert "base_plan" not in saved
+    assert "structure" not in saved
+    assert saved["storage_compaction"] == "large_redundant_context_omitted"
+
+
+def test_migration_can_filter_non_material_telemetry(tmp_path):
+    source = tmp_path / "events.jsonl"
+    source.write_text(
+        json.dumps({"event": "cycle_status", "status": "running"}) + "\\n"
+        + json.dumps({"event": "trade_outcome_learned", "trade_id": "TR-2", "result": "WIN"}) + "\\n",
+        encoding="utf-8",
+    )
+    store = SQLiteEventStore(tmp_path / "canonical.sqlite3")
+    result = store.import_jsonl_file(source, important_only=True)
+    assert result == {"rows": 2, "imported": 1, "duplicates": 0}
+    assert [event["event"] for event in store.iter_events()] == ["trade_outcome_learned"]
