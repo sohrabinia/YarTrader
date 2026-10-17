@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 from src.Application.Services.web_dashboard import app
 from src.Application.Dashboard.auth_service import global_auth_service
@@ -37,7 +38,8 @@ class TestPropChallengeAPI(unittest.TestCase):
             "news_rule": "NO_NEW_ENTRIES_AROUND_HIGH_IMPACT"
         }
 
-        post_res = self.client.post("/api/prop/config", json=config_payload, headers=self.admin_headers)
+        with patch.object(global_auth_service, "validate_session", return_value={"email": "prop-test-admin@yartrader.app", "role": "ADMIN"}):
+            post_res = self.client.post("/api/prop/config", json=config_payload, headers=self.admin_headers)
         self.assertEqual(post_res.status_code, 200)
         post_data = post_res.json()
         self.assertEqual(post_data["status"], "Success")
