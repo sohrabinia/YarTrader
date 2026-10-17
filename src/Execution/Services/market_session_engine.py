@@ -6,6 +6,8 @@ import hashlib
 import json
 import logging
 import math
+import os
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 logger = logging.getLogger("MarketSessionEngine")
 
@@ -105,6 +107,60 @@ class MarketSessionValidationResult:
     source_authority: CalendarSourcePrecedence = CalendarSourcePrecedence.GENERIC_FALLBACK
     message: str = ""
 
+def _nth_weekday(year: int, month: int, weekday: int, occurrence: int) -> date:
+    first = date(year, month, 1)
+    return date(year, month, 1 + (weekday - first.weekday()) % 7 + 7 * (occurrence - 1))
+
+
+def _last_weekday(year: int, month: int, weekday: int) -> date:
+    last_day = (date(year + (month == 12), (month % 12) + 1, 1) - timedelta(days=1))
+    return last_day - timedelta(days=(last_day.weekday() - weekday) % 7)
+
+
+def _easter_sunday(year: int) -> date:
+    # Gregorian computus; used to derive Good Friday without a third-party dependency.
+    a = year % 19
+    b, c = divmod(year, 100)
+    d, e = divmod(b, 4)
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = divmod(c, 4)
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = (h + l - 7 * m + 114) % 31 + 1
+    return date(year, month, day)
+
+
+def _observed_fixed_holiday(year: int, month: int, day: int) -> date:
+    value = date(year, month, day)
+    if value.weekday() == 5:
+        return value - timedelta(days=1)
+    if value.weekday() == 6:
+        return value + timedelta(days=1)
+    return value
+
+
+def _nyse_holidays(year: int) -> set[date]:
+    holidays = {
+        _observed_fixed_holiday(year, 1, 1),
+        _nth_weekday(year, 1, 0, 3),       # Martin Luther King Jr. Day
+        _nth_weekday(year, 2, 0, 3),       # Presidents Day
+        _easter_sunday(year) - timedelta(days=2),  # Good Friday
+        _last_weekday(year, 5, 0),         # Memorial Day
+        _observed_fixed_holiday(year, 6, 19),
+        _observed_fixed_holiday(year, 7, 4),
+        _nth_weekday(year, 9, 0, 1),       # Labor Day
+        _nth_weekday(year, 11, 3, 4),      # Thanksgiving
+        _observed_fixed_holiday(year, 12, 25),
+    }
+    # When Jan 1 falls on Sunday, the observed closure is in this calendar year.
+    if date(year, 1, 1).weekday() == 6:
+        holidays.add(date(year, 1, 2))
+    return holidays
+
+
 class MarketSessionEngine:
     """
     Canonical Market Session & Broker Trading Calendar Engine for YarTrader.
@@ -123,6 +179,127 @@ class MarketSessionEngine:
         self.symbol_schedules: Dict[str, List[SessionInterval]] = {}
         self.holiday_calendar: List[HolidayEvent] = []
         self.forexfactory_enrichment: List[Dict[str, Any]] = []
+
+    @staticmethod
+    def live_activity_status(symbol: str, current_time: Optional[datetime] = None) -> Dict[str, Any]:
+        """Fail-closed live-work gate. Backtesting intentionally does not call this method.
+
+        FX/metals use the New York 17:00 close/reopen convention (DST-aware); equities
+        use the regular US cash session; crypto is continuous unless explicitly closed.
+        Broker-specific dates can be added through YARTRADER_MARKET_HOLIDAYS as ISO dates
+        or SYMBOL:ISO-date entries. Unknown instruments are blocked rather than guessed.
+        """
+        now = current_time or datetime.now(timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        now_utc = now.astimezone(timezone.utc)
+        symbol_upper = str(symbol or "").strip().upper()
+        if not symbol_upper:
+            return {"allowed": False, "state": MarketState.UNKNOWN.value, "reason": "SYMBOL_REQUIRED", "symbol": symbol_upper, "backtest_allowed": True}
+
+        crypto_tokens = ("BTC", "ETH", "LTC", "XRP", "SOL", "ADA", "DOGE", "DOT", "AVAX")
+        equity_symbols = {"AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "TSLA", "SPY", "QQQ"}
+        fx_metal_symbols = ("XAUUSD", "XAGUSD", "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD", "EURGBP", "EURJPY", "GBPJPY")
+        if any(token in symbol_upper for token in crypto_tokens):
+            market_type = "CRYPTO"
+        elif symbol_upper in equity_symbols or symbol_upper.endswith((".NASDAQ", ".NYSE")) or any(symbol_upper.startswith(base) for base in equity_symbols):
+            market_type = "US_EQUITY"
+        elif symbol_upper == "GOLD" or symbol_upper == "SILVER" or any(symbol_upper.startswith(base) for base in fx_metal_symbols):
+            market_type = "FX_METALS"
+        else:
+            configured_type = os.environ.get("YARTRADER_DEFAULT_MARKET_TYPE", "").strip().upper()
+            if configured_type not in {"CRYPTO", "US_EQUITY", "FX_METALS"}:
+                return {"allowed": False, "state": MarketState.UNKNOWN.value, "reason": "UNSUPPORTED_MARKET_CALENDAR", "symbol": symbol_upper, "timestamp": now_utc.isoformat(), "backtest_allowed": True}
+            market_type = configured_type
+
+        custom_holidays: set[date] = set()
+        symbol_holidays: set[date] = set()
+        for raw in os.environ.get("YARTRADER_MARKET_HOLIDAYS", "").split(","):
+            item = raw.strip()
+            if not item:
+                continue
+            try:
+                if ":" in item:
+                    holiday_symbol, holiday_date = item.split(":", 1)
+                    if holiday_symbol.strip().upper() != symbol_upper:
+                        continue
+                    symbol_holidays.add(date.fromisoformat(holiday_date.strip()))
+                else:
+                    custom_holidays.add(date.fromisoformat(item))
+            except ValueError:
+                logger.warning("Ignoring invalid YARTRADER_MARKET_HOLIDAYS entry: %s", item)
+
+        try:
+            market_tz = ZoneInfo(os.environ.get("YARTRADER_MARKET_TIMEZONE", "America/New_York"))
+        except (ZoneInfoNotFoundError, ValueError):
+            return {"allowed": False, "state": MarketState.UNKNOWN.value, "reason": "INVALID_MARKET_TIMEZONE", "symbol": symbol_upper, "timestamp": now_utc.isoformat(), "backtest_allowed": True}
+        local_now = now_utc.astimezone(market_tz)
+        local_date, local_time = local_now.date(), local_now.time().replace(tzinfo=None)
+
+        def configured_time(name: str, default: str) -> Optional[time]:
+            try:
+                return time.fromisoformat(os.environ.get(name, default).strip()).replace(tzinfo=None)
+            except (TypeError, ValueError):
+                return None
+
+        fx_sunday_open = configured_time("YARTRADER_FX_SUNDAY_OPEN", "17:05")
+        fx_friday_close = configured_time("YARTRADER_FX_FRIDAY_CLOSE", "17:00")
+        fx_break_start = configured_time("YARTRADER_FX_DAILY_BREAK_START", "17:00")
+        fx_break_end = configured_time("YARTRADER_FX_DAILY_BREAK_END", "17:05")
+        equity_open = configured_time("YARTRADER_EQUITY_OPEN", "09:30")
+        equity_close = configured_time("YARTRADER_EQUITY_CLOSE", "16:00")
+        equity_early_close = configured_time("YARTRADER_EQUITY_EARLY_CLOSE", "13:00")
+        if any(value is None for value in (fx_sunday_open, fx_friday_close, fx_break_start, fx_break_end, equity_open, equity_close, equity_early_close)):
+            return {"allowed": False, "state": MarketState.UNKNOWN.value, "reason": "INVALID_MARKET_HOURS_CONFIG", "symbol": symbol_upper, "timestamp": now_utc.isoformat(), "backtest_allowed": True}
+
+        holiday_dates = custom_holidays | symbol_holidays
+        if market_type == "US_EQUITY":
+            holiday_dates |= _nyse_holidays(local_date.year)
+            # Early closes on the day after Thanksgiving and Christmas Eve when open.
+            early_close_dates = {_nth_weekday(local_date.year, 11, 3, 4) + timedelta(days=1), date(local_date.year, 12, 24)}
+            if local_date in holiday_dates:
+                allowed, reason = False, "MARKET_HOLIDAY"
+            elif local_date.weekday() >= 5:
+                allowed, reason = False, "WEEKEND_CLOSED"
+            else:
+                close_time = equity_early_close if local_date in early_close_dates else equity_close
+                allowed = equity_open <= local_time < close_time
+                reason = "MARKET_OPEN" if allowed else "OUTSIDE_MARKET_HOURS"
+        elif market_type == "FX_METALS":
+            holiday_dates |= {
+                _observed_fixed_holiday(local_date.year, 1, 1),
+                _easter_sunday(local_date.year) - timedelta(days=2),
+                _observed_fixed_holiday(local_date.year, 12, 25),
+            }
+            if date(local_date.year + 1, 1, 1).weekday() == 5:
+                holiday_dates.add(date(local_date.year, 12, 31))
+            if local_date in holiday_dates:
+                allowed, reason = False, "MARKET_HOLIDAY"
+            elif local_date.weekday() == 5:
+                allowed, reason = False, "WEEKEND_CLOSED"
+            elif local_date.weekday() == 6 and local_time < fx_sunday_open:
+                allowed, reason = False, "WEEKLY_SESSION_CLOSED"
+            elif local_date.weekday() == 4 and local_time >= fx_friday_close:
+                allowed, reason = False, "WEEKLY_SESSION_CLOSED"
+            elif fx_break_start <= local_time < fx_break_end:
+                allowed, reason = False, "DAILY_ROLLOVER_MAINTENANCE"
+            else:
+                allowed, reason = True, "MARKET_OPEN"
+        else:  # Crypto trades continuously unless a configured full-day closure applies.
+            allowed = local_date not in holiday_dates
+            reason = "MARKET_OPEN" if allowed else "MARKET_HOLIDAY"
+
+        return {
+            "allowed": allowed,
+            "state": MarketState.OPEN.value if allowed else (MarketState.HOLIDAY_CLOSED.value if reason == "MARKET_HOLIDAY" else MarketState.CLOSED.value),
+            "reason": reason,
+            "symbol": symbol_upper,
+            "market_type": market_type,
+            "market_timezone": market_tz.key,
+            "market_local_time": local_now.isoformat(),
+            "timestamp": now_utc.isoformat(),
+            "backtest_allowed": True,
+        }
 
     def register_session_interval(self, interval: SessionInterval) -> None:
         """Register a session interval for a symbol."""
@@ -178,9 +355,52 @@ class MarketSessionEngine:
                     break
 
         if not intervals:
-            # Schedule unknown -> FAIL CLOSED (UNKNOWN)
-            logger.warning(f"[MarketSessionEngine] Schedule unknown for symbol {symbol} broker {broker}. Failing closed.")
-            return MarketState.UNKNOWN, None, CalendarSourcePrecedence.GENERIC_FALLBACK
+            # Use the canonical recurring calendar when no broker-provided interval was
+            # registered. Unknown symbols still fail closed; known symbols get a DST-aware
+            # session interval so the dashboard and entry gate share the same policy.
+            gate = self.live_activity_status(symbol, now)
+            if not gate.get("allowed"):
+                if gate.get("reason") in {"UNSUPPORTED_MARKET_CALENDAR", "INVALID_MARKET_TIMEZONE", "INVALID_MARKET_HOURS_CONFIG", "SYMBOL_REQUIRED"}:
+                    logger.warning("[MarketSessionEngine] Schedule unknown for %s/%s; failing closed.", broker, symbol)
+                    return MarketState.UNKNOWN, None, CalendarSourcePrecedence.GENERIC_FALLBACK
+                state = MarketState.HOLIDAY_CLOSED if gate.get("state") == MarketState.HOLIDAY_CLOSED.value else MarketState.CLOSED
+                return state, None, CalendarSourcePrecedence.BROKER_CONTRACT_SPEC
+            try:
+                market_tz = ZoneInfo(str(gate["market_timezone"]))
+                local_now = now.astimezone(market_tz)
+                market_type = str(gate["market_type"])
+                if market_type == "US_EQUITY":
+                    early_close = local_now.date() in {
+                        _nth_weekday(local_now.year, 11, 3, 4) + timedelta(days=1),
+                        date(local_now.year, 12, 24),
+                    }
+                    close_local = datetime.combine(local_now.date(), time(13 if early_close else 16, 0), market_tz)
+                elif market_type == "FX_METALS":
+                    close_date = local_now.date()
+                    if local_now.weekday() == 6 or local_now.time().replace(tzinfo=None) >= time(17, 5):
+                        close_date += timedelta(days=1)
+                    configured_close = time.fromisoformat(os.environ.get("YARTRADER_FX_FRIDAY_CLOSE", "17:00")).replace(tzinfo=None)
+                    close_local = datetime.combine(close_date, configured_close, market_tz)
+                else:
+                    close_local = local_now + timedelta(hours=24)
+                utc_start = now.astimezone(timezone.utc)
+                utc_end = close_local.astimezone(timezone.utc)
+                if utc_end <= utc_start:
+                    return MarketState.UNKNOWN, None, CalendarSourcePrecedence.GENERIC_FALLBACK
+                interval = SessionInterval(
+                    session_id=f"AUTO_{market_type}_{symbol.upper()}_{local_now.date().isoformat()}",
+                    broker=broker.upper(), symbol=symbol.upper(), market=market_type,
+                    date_str=local_now.date().isoformat(), weekday=local_now.weekday(),
+                    session_start=local_now.timetz().replace(tzinfo=None),
+                    session_end=close_local.timetz().replace(tzinfo=None),
+                    utc_start=utc_start, utc_end=utc_end,
+                    source=CalendarSourcePrecedence.BROKER_CONTRACT_SPEC,
+                    tz_name=market_tz.key,
+                )
+                return MarketState.OPEN, interval, CalendarSourcePrecedence.BROKER_CONTRACT_SPEC
+            except (KeyError, TypeError, ValueError, ZoneInfoNotFoundError):
+                logger.exception("Unable to build canonical session interval for %s", symbol)
+                return MarketState.UNKNOWN, None, CalendarSourcePrecedence.GENERIC_FALLBACK
 
         # Check for active holiday override affecting this symbol
         date_str = now.strftime("%Y-%m-%d")

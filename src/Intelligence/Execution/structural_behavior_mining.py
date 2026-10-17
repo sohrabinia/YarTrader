@@ -246,11 +246,12 @@ def persist_and_aggregate_structural_behaviors(
     """
     import json
     import sqlite3
+    from contextlib import closing
     from pathlib import Path
 
     path = Path(database_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(str(path), timeout=10.0) as db:
+    with closing(sqlite3.connect(str(path), timeout=10.0)) as db:
         db.execute("""CREATE TABLE IF NOT EXISTS structural_observations (
             observation_id TEXT PRIMARY KEY, parent_base_id TEXT, parent_timeframe TEXT NOT NULL,
             parent_base_type TEXT NOT NULL, parent_direction INTEGER NOT NULL,

@@ -1008,27 +1008,7 @@ from src.Execution.Services.market_session_engine import (
 
 global_market_session_engine = MarketSessionEngine()
 
-# Register sample/default session intervals for common symbols (XAUUSD, EURUSD, BTCUSD)
-from datetime import time as dt_time
-_now_utc = datetime.now(timezone.utc)
-_today_str = _now_utc.strftime("%Y-%m-%d")
-
-# XAUUSD 24-hour weekday session
-global_market_session_engine.register_session_interval(
-    SessionInterval(
-        session_id="XAUUSD_DAILY_MAIN",
-        broker="DEFAULT",
-        symbol="XAUUSD",
-        market="FOREX",
-        date_str=_today_str,
-        weekday=_now_utc.weekday(),
-        session_start=dt_time(0, 0),
-        session_end=dt_time(23, 59, 59),
-        utc_start=_now_utc.replace(hour=0, minute=0, second=0, microsecond=0),
-        utc_end=_now_utc.replace(hour=23, minute=59, second=59, microsecond=0),
-        source=CalendarSourcePrecedence.LIVE_BROKER_MT5
-    )
-)
+# Recurring sessions are resolved by MarketSessionEngine.live_activity_status; do not seed a one-day sample interval.
 
 
 @app.get("/api/market/session-status")

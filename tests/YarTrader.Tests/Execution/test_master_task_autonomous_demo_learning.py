@@ -138,7 +138,7 @@ def test_corrupt_journal_fails_closed_without_treating_it_as_empty(tmp_path):
     assert journal_file.read_text(encoding="utf-8") == "{broken json"
 
 
-def test_autonomous_demo_event_is_durably_written_to_both_journal_streams(tmp_path):
+def test_autonomous_demo_event_keeps_full_canonical_journal_and_compact_runtime_stream(tmp_path):
     trader = demo_trader_module.AutonomousDemoTrader.__new__(demo_trader_module.AutonomousDemoTrader)
     with patch.object(demo_trader_module, "_PROJECT_ROOT", tmp_path):
         trader._log_event({
@@ -155,7 +155,10 @@ def test_autonomous_demo_event_is_durably_written_to_both_journal_streams(tmp_pa
     assert runtime_path.exists() and journal_path.exists()
     runtime_event = json.loads(runtime_path.read_text(encoding="utf-8").splitlines()[-1])
     journal_event = json.loads(journal_path.read_text(encoding="utf-8").splitlines()[-1])
-    assert runtime_event == journal_event
+    assert runtime_event["event"] == journal_event["event"] == "trade_review_started"
+    assert runtime_event["runtime_log_payload"].startswith("COMPACT;")
+    assert "hierarchy_structure" not in runtime_event
+    assert journal_event["hierarchy_structure"]["child_timeframe"] == "M5"
     assert journal_event["trade_type"] == "DEMO"
     assert journal_event["strategy_style"] == "BASE_HIERARCHY"
     assert journal_event["decision_timeframe"] == "MULTI_TIMEFRAME"
@@ -165,6 +168,103 @@ def test_autonomous_demo_event_is_durably_written_to_both_journal_streams(tmp_pa
     assert journal_event["context_timeframes"] == ["H4", "H1", "M15", "M5", "M1"]
     assert journal_event["session_utc"]
     assert journal_event["weekday_utc"]
+
+
+def test_trade_review_state_is_atomically_persisted_with_post_close_followup(tmp_path):
+    trader = demo_trader_module.AutonomousDemoTrader.__new__(demo_trader_module.AutonomousDemoTrader)
+    trader.adapter = object()
+    state = {
+        "open_positions": {},
+        "processed_position_ids": {"123": {"learning_status": "CONFIRMED"}},
+        "post_close_followups": {
+            "123": {"symbol": "XAUUSD", "status": "WAITING_FOR_FIVE_CLOSED_M1_BARS"}
+        },
+        "post_close_followups_completed": {},
+    }
+    with patch.object(demo_trader_module, "_PROJECT_ROOT", tmp_path):
+        trader._save_trade_review_state(state)
+        loaded = trader._load_trade_review_state()
+
+    assert loaded["post_close_followups"]["123"]["status"] == "WAITING_FOR_FIVE_CLOSED_M1_BARS"
+    assert loaded["processed_position_ids"]["123"]["learning_status"] == "CONFIRMED"
+    assert not list((tmp_path / "runtime_logs").glob("*.tmp"))
+
+
+def test_post_close_followup_records_only_five_closed_m1_bars():
+    class FakeMT5:
+        TIMEFRAME_M1 = 1
+
+        def copy_rates_range(self, symbol, timeframe, start, end):
+            start_epoch = int(start.timestamp())
+            return [
+                {"time": start_epoch + i * 60, "open": 100.0 + i,
+                 "high": 102.0 + i, "low": 99.0 + i,
+                 "close": 101.0 + i, "tick_volume": 10}
+                for i in range(5)
+            ]
+
+    trader = demo_trader_module.AutonomousDemoTrader.__new__(demo_trader_module.AutonomousDemoTrader)
+    trader.adapter = type("FakeAdapter", (), {"_mt5": FakeMT5()})()
+    logged = []
+    trader._log_event = lambda event: logged.append(event)
+    close_epoch = 1_700_000_040  # exact M1 boundary
+    now = datetime.fromtimestamp(close_epoch + 5 * 60, demo_trader_module.timezone.utc)
+    state = {
+        "post_close_followups": {
+            "123": {"position_id": 123, "symbol": "XAUUSD", "direction": "BUY",
+                     "exit_price": 100.0, "closed_at_epoch": close_epoch,
+                     "closed_at_utc": now.isoformat(), "exit_reason": "SL"}
+        },
+        "post_close_followups_completed": {},
+    }
+
+    trader._update_post_close_followups(state, "XAUUSD", now)
+
+    assert state["post_close_followups"] == {}
+    result = state["post_close_followups_completed"]["123"]
+    assert result["stored_closed_m1_bars"] == 5
+    assert result["post_close_max_favorable_price_move"] == 6.0
+    assert result["post_close_max_adverse_price_move"] == 1.0
+    assert result["signed_close_move_after_five_bars"] == 5.0
+    assert len(logged) == 1 and logged[0]["event"] == "trade_post_close_m1_followup_completed"
+
+
+def test_corrupt_trade_review_state_is_not_silently_reset(tmp_path):
+    trader = demo_trader_module.AutonomousDemoTrader.__new__(demo_trader_module.AutonomousDemoTrader)
+    trader.adapter = object()
+    state_path = tmp_path / "runtime_logs" / "autonomous_trade_review_state.json"
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text("{broken json", encoding="utf-8")
+
+    with patch.object(demo_trader_module, "_PROJECT_ROOT", tmp_path):
+        with pytest.raises(RuntimeError, match="could not be loaded safely"):
+            trader._load_trade_review_state()
+
+    assert state_path.read_text(encoding="utf-8") == "{broken json"
+
+
+def test_wait_primary_decision_compacts_repeated_structure_in_canonical_journal(tmp_path):
+    trader = demo_trader_module.AutonomousDemoTrader.__new__(demo_trader_module.AutonomousDemoTrader)
+    with patch.object(demo_trader_module, "_PROJECT_ROOT", tmp_path):
+        trader._log_event({
+            "event": "hierarchical_base_primary_decision", "symbol": "XAUUSD",
+            "base_plan_summary": {"status": "WAIT"},
+            "structure": {"parent_timeframe": "H4", "child_timeframe": "M5", "direction": "SELL"},
+            "historical_structure_analysis": {
+                "status": "OK",
+                "timeframes": {"M5": {"levels": [{"type": "SWING_HIGH", "price": 1.5}],
+                                      "reaction_summary": {"touches": 2, "rejections": 1}}},
+                "current_price_context": {"price": 1.4},
+            },
+        })
+    event_path = tmp_path / "runtime_logs" / "trade_journal_events_v2.jsonl"
+    event = json.loads(event_path.read_text(encoding="utf-8").splitlines()[-1])
+    assert event["event"] == "hierarchical_base_primary_decision"
+    assert "historical_structure_analysis" not in event
+    assert "structure" not in event
+    assert event["structural_level_count"] == 1
+    assert event["level_reaction_evidence_summary"]["M5"] == {"touches": 2, "rejections": 1}
+    assert event["entry_level_context"] == {"price": 1.4}
 
 
 def test_backtest_closed_trade_is_saved_with_backtest_type_and_calendar(tmp_path):
