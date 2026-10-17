@@ -68,7 +68,7 @@ def allocate_demo_slot_risk_pct(
     # 1% across three slots incorrectly reduced each trade to 0.333%.
     occupied_count = len(names)
     result = allocate_strategy_risk_pct([selected], selected, total_risk_pct)
-    result["allocation_method"] = "PER_TRADE_TARGET_RISK_WITH_SEPARATE_DAILY_CAP"
+    result["allocation_method"] = "PER_TRADE_TARGET_WITH_SEPARATE_AGGREGATE_AND_DAILY_CAPS"
     result["max_concurrent_slots"] = slot_count
     result["occupied_slot_count"] = occupied_count
     result["reserved_slot_count"] = slot_count - occupied_count
