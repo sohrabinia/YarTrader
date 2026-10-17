@@ -163,6 +163,8 @@ class ProfessionalRiskEngine:
         open_total = sum(risks)
         total = open_total + candidate
         limit_usd = equity * effective_pct / 100.0
+        if not all(math.isfinite(value) for value in (open_total, total, limit_usd)):
+            return {"allowed": False, "reason": "AGGREGATE_RISK_TOTAL_OVERFLOW"}
         allowed = total <= limit_usd + 1e-6
         return {
             "allowed": allowed,
