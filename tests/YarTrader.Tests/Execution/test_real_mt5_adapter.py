@@ -12,6 +12,19 @@ class TestRealMT5BrokerAdapter(unittest.TestCase):
     def setUp(self):
         self.adapter = RealMT5BrokerAdapter(auto_initialize=False)
 
+    def test_order_send_status_classification_is_conservative(self):
+        mock_mt5 = MagicMock()
+        mock_mt5.TRADE_RETCODE_DONE = 10009
+        mock_mt5.TRADE_RETCODE_PLACED = 10008
+        mock_mt5.TRADE_RETCODE_DONE_PARTIAL = 10010
+
+        classify = self.adapter._classify_order_send_status
+        self.assertEqual(classify(10010, mock_mt5), "Partial")
+        self.assertEqual(classify(None, mock_mt5), "Uncertain")
+        self.assertEqual(classify(-1, mock_mt5), "Uncertain")
+        self.assertEqual(classify(10006, mock_mt5), "Failed")
+        self.assertEqual(classify(10009, mock_mt5), "Placed")
+
     @patch("src.Execution.Adapters.mt5_adapter.MetaTraderSafetyGate.verify_operation")
     def test_verify_safety_and_account_unauthorized_account(self, mock_verify):
         mock_mt5 = MagicMock()

@@ -398,6 +398,20 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
                 "risk_basis": risk_basis, "risk_budget": risk_budget,
                 "estimated_risk": estimated_risk, "risk_pct": configured_risk_pct}
 
+    @staticmethod
+    def _classify_order_send_status(retcode: Any, mt5: Any) -> str:
+        """Conservatively classify MT5 results; partial/ambiguous means reconcile, never retry."""
+        done_code = getattr(mt5, "TRADE_RETCODE_DONE", 10009)
+        placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", 10008)
+        partial_code = getattr(mt5, "TRADE_RETCODE_DONE_PARTIAL", 10010)
+        if retcode == partial_code:
+            return "Partial"
+        if retcode in [done_code, placed_code, 0, 10009, 10008]:
+            return "Placed"
+        if retcode is None or (isinstance(retcode, (int, float)) and retcode < 0):
+            return "Uncertain"
+        return "Failed"
+
     def send_order_to_broker(self, request: OrderRequest) -> OrderResponse:
         """
         Sends order to real MT5 terminal via mt5.order_send().
@@ -625,10 +639,10 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
             return OrderResponse(
                 OrderId="0",
                 Symbol=request.Symbol,
-                Status="Failed",
+                Status="Uncertain",
                 SubmittedAt=datetime.now(timezone.utc),
                 Retcode=err_code,
-                Comment=f"order_send returned None: {err_msg}",
+                Comment=f"order_send returned None; broker execution status is uncertain and requires reconciliation: {err_msg}",
                 RawResponse={"error_code": err_code, "error_msg": err_msg}
             )
 
@@ -640,9 +654,8 @@ class RealMT5BrokerAdapter(IBrokerAdapter):
         fill_price = float(getattr(res, "price", price))
         fill_volume = float(getattr(res, "volume", volume))
 
-        done_code = getattr(mt5, "TRADE_RETCODE_DONE", 10009)
-        placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", 10008)
-        status = "Placed" if retcode in [done_code, placed_code, 0, 10009, 10008] else "Failed"
+        # Partial/ambiguous responses are locked by the caller until manually reconciled.
+        status = self._classify_order_send_status(retcode, mt5)
 
         logger.info(
             f"[RealMT5BrokerAdapter] Real mt5.order_send response: "

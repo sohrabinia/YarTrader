@@ -107,17 +107,88 @@ class BrainLearningBridge:
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Evaluate a completed DEMO outcome through JudgeBrain and promote it."""
+        if not isinstance(decision_id, str) or not decision_id.strip():
+            raise ValueError("A stable decision_id is required for DEMO outcome attribution.")
+        numeric_outcome = {}
+        for field_name, value in (("entry_price", entry_price), ("exit_price", exit_price),
+                                  ("pnl", pnl), ("mfe", mfe), ("mae", mae)):
+            if isinstance(value, bool):
+                raise ValueError(f"Invalid DEMO outcome field: {field_name}")
+            try:
+                numeric_value = float(value)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError(f"Invalid DEMO outcome field: {field_name}") from exc
+            if not math.isfinite(numeric_value):
+                raise ValueError(f"Non-finite DEMO outcome field: {field_name}")
+            numeric_outcome[field_name] = numeric_value
+        if numeric_outcome["entry_price"] <= 0 or numeric_outcome["exit_price"] <= 0:
+            raise ValueError("DEMO outcome entry and exit prices must be positive.")
+        entry_price = numeric_outcome["entry_price"]
+        exit_price = numeric_outcome["exit_price"]
+        pnl = numeric_outcome["pnl"]
+        mfe = numeric_outcome["mfe"]
+        mae = numeric_outcome["mae"]
         pending = self._load_pending()
         prediction = pending.get(decision_id)
+        outcome_context = dict(context or {})
+        # The autonomous worker keys closed positions differently from pending signal IDs.
+        # Recover only from its persisted submitted setup, and validate its symbol/direction/SL/TP.
+        if prediction is None:
+            snapshot = outcome_context.get("setup_snapshot")
+            try:
+                snapshot_symbol = str(snapshot.get("symbol", "")).upper() if isinstance(snapshot, dict) else ""
+                snapshot_direction = str(snapshot.get("direction", "")).upper() if isinstance(snapshot, dict) else ""
+                snapshot_entry = float(snapshot.get("entry", snapshot.get("entry_price", entry_price))) if isinstance(snapshot, dict) else float("nan")
+                snapshot_stop = float(snapshot.get("stop_loss", outcome_context.get("stop_loss"))) if isinstance(snapshot, dict) else float("nan")
+                snapshot_target = float(snapshot.get("take_profit", outcome_context.get("take_profit"))) if isinstance(snapshot, dict) else float("nan")
+                geometry_valid = (
+                    (direction.upper() == "BUY" and snapshot_stop < snapshot_entry < snapshot_target)
+                    or (direction.upper() == "SELL" and snapshot_target < snapshot_entry < snapshot_stop)
+                )
+                snapshot_valid = (
+                    snapshot_symbol == str(symbol).upper()
+                    and snapshot_direction == direction.upper()
+                    and all(math.isfinite(v) and v > 0 for v in (snapshot_entry, snapshot_stop, snapshot_target))
+                    and geometry_valid
+                )
+            except (TypeError, ValueError, OverflowError):
+                snapshot_valid = False
+            if snapshot_valid:
+                prediction = {
+                    "symbol": snapshot_symbol, "timeframe": timeframe.upper(),
+                    "direction": snapshot_direction, "entry_price": snapshot_entry,
+                    "stop_loss": snapshot_stop, "take_profit": snapshot_target,
+                    "confidence": snapshot.get("confidence", 0.5),
+                    "confidence_source": "recorded_setup_or_neutral_default",
+                }
+            else:
+                return {
+                    "source": "DEMO", "decision_id": decision_id, "status": "UNVALIDATED",
+                    "reason": "No persisted prediction or valid submitted setup exists; learning was skipped.",
+                }
         # Do not consume or learn from a signal under a different symbol.
-        if prediction and str(prediction.get("symbol", "")).upper() != str(symbol).upper():
+        if str(prediction.get("symbol", "")).upper() != str(symbol).upper():
             raise ValueError(
                 f"Signal symbol mismatch for {decision_id}: "
                 f"expected {prediction.get('symbol')}, received {symbol}"
             )
+        memory = self.get_market_memory(symbol)
+        # Durable deduplication also covers outcomes re-read after the worker's bounded
+        # in-memory processed-ID cache is truncated or the process restarts.
+        existing = next((
+            exp for exp in memory.experiences.values()
+            if exp.meta.get("source") == "DEMO"
+            and str(exp.meta.get("decision_id", "")) == decision_id
+        ), None)
+        if existing is not None:
+            pending.pop(decision_id, None)
+            self._save_pending(pending)
+            return {
+                "source": "DEMO", "decision_id": decision_id, "status": "DUPLICATE_IGNORED",
+                "outcome": existing.outcome_result, "symbol": str(symbol).upper(),
+            }
         pending.pop(decision_id, None)
         self._save_pending(pending)
-        memory = self.get_market_memory(symbol)
         active_learning = self.active_learners.setdefault(str(symbol).upper(), ActiveLearningEngine())
 
         final_result = "SUCCESS" if pnl > 0 else ("FAILURE" if pnl < 0 else "NEUTRAL")
