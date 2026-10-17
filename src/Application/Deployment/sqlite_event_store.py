@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import sqlite3
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -41,7 +42,7 @@ class SQLiteEventStore:
         return connection
 
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute("PRAGMA journal_mode=WAL")
             connection.executescript(
                 """
@@ -71,7 +72,7 @@ class SQLiteEventStore:
             )
 
     @staticmethod
-    def _serialize(event: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    def _serialize(event: dict[str, Any]) -> tuple[str, str, str, str, str, str]:
         if not isinstance(event, dict):
             raise TypeError("A journal event must be a JSON object.")
         try:
@@ -137,7 +138,7 @@ class SQLiteEventStore:
 
     def append_event(self, event: dict[str, Any], *, source: str = "runtime") -> bool:
         """Append one event; return False for an exact/idempotent duplicate."""
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             try:
                 inserted = self._insert(connection, event, source_file=source, source_line=0)
@@ -188,15 +189,15 @@ class SQLiteEventStore:
         return {"rows": rows, "imported": imported, "duplicates": duplicates}
 
     def count_events(self) -> int:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             return int(connection.execute("SELECT COUNT(*) FROM events").fetchone()[0])
 
     def count_sources(self) -> int:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             return int(connection.execute("SELECT COUNT(*) FROM event_sources").fetchone()[0])
 
     def integrity_check(self) -> str:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             rows = connection.execute("PRAGMA integrity_check").fetchall()
         result = "; ".join(str(row[0]) for row in rows)
         if result.lower() != "ok":
@@ -209,7 +210,7 @@ class SQLiteEventStore:
         if limit is not None:
             query += " LIMIT ?"
             params = (max(0, int(limit)),)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             rows = connection.execute(query, params).fetchall()
         for row in rows:
             yield json.loads(row["payload_json"])
@@ -220,6 +221,6 @@ class SQLiteEventStore:
         if target == self.path:
             raise ValueError("Backup destination must differ from the live database.")
         target.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as source, sqlite3.connect(str(target)) as backup:
+        with closing(self._connect()) as source, closing(sqlite3.connect(str(target))) as backup:
             source.backup(backup)
         return target
