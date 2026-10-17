@@ -6,6 +6,7 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, asdict
 
 from src.Application.Deployment.storage import YarTraderStorageManager
+from src.Application.Deployment.sqlite_event_store import SQLiteEventStore
 
 logger = logging.getLogger("TradeJournal")
 
@@ -182,6 +183,11 @@ class TradeJournalManager:
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         return os.path.join(project_root, "runtime_logs", "trade_journal_events_v2.jsonl")
 
+    @property
+    def event_store_path(self) -> str:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        return os.path.join(project_root, "runtime_logs", "yartrader_events.sqlite3")
+
     def append_event(self, event: Dict[str, Any]) -> None:
         """Durably append one lifecycle event without rewriting prior evidence."""
         payload = dict(event)
@@ -201,11 +207,16 @@ class TradeJournalManager:
             "NEW_YORK_OVERLAP" if minute < 960 else "NEW_YORK" if minute < 1260
             else "LATE_US_OR_ROLLOVER"
         ))
-        os.makedirs(os.path.dirname(self.events_file), exist_ok=True)
-        with open(self.events_file, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, ensure_ascii=False, default=str, sort_keys=True) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+        if self._custom_journal_file:
+            # Isolated tests and explicit custom journals keep their text fixture contract.
+            os.makedirs(os.path.dirname(self.events_file), exist_ok=True)
+            with open(self.events_file, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, ensure_ascii=False, default=str, sort_keys=True) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            return
+        # Production lifecycle events have one canonical, deduplicated durable destination.
+        SQLiteEventStore(self.event_store_path).append_event(payload, source="trade_journal")
 
     def save_journal(self) -> None:
         try:
