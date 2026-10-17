@@ -53,6 +53,8 @@ class SQLiteEventStore:
                     timestamp_utc TEXT NOT NULL,
                     payload_json TEXT NOT NULL,
                     payload_sha256 TEXT NOT NULL,
+                    source_file TEXT NOT NULL,
+                    source_line INTEGER NOT NULL,
                     created_at_utc TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS idx_events_timestamp
@@ -61,13 +63,6 @@ class SQLiteEventStore:
                     ON events(event_type, timestamp_utc);
                 CREATE INDEX IF NOT EXISTS idx_events_symbol_timestamp
                     ON events(symbol, timestamp_utc);
-                CREATE TABLE IF NOT EXISTS event_sources (
-                    event_id TEXT NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
-                    source_file TEXT NOT NULL,
-                    source_line INTEGER NOT NULL,
-                    imported_at_utc TEXT NOT NULL,
-                    PRIMARY KEY(event_id, source_file, source_line)
-                );
                 """
             )
 
@@ -112,10 +107,11 @@ class SQLiteEventStore:
             """
             INSERT OR IGNORE INTO events
                 (event_id, event_type, symbol, timestamp_utc, payload_json,
-                 payload_sha256, created_at_utc)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                 payload_sha256, source_file, source_line, created_at_utc)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (event_id, event_type, symbol, timestamp, payload, digest, now),
+            (event_id, event_type, symbol, timestamp, payload, digest,
+             str(source_file), int(source_line), now),
         )
         row = connection.execute(
             "SELECT payload_sha256 FROM events WHERE event_id=?", (event_id,)
@@ -126,14 +122,6 @@ class SQLiteEventStore:
             raise EventIdentityConflict(
                 f"event_id {event_id!r} already exists with different content."
             )
-        connection.execute(
-            """
-            INSERT OR IGNORE INTO event_sources
-                (event_id, source_file, source_line, imported_at_utc)
-            VALUES (?, ?, ?, ?)
-            """,
-            (event_id, str(source_file), int(source_line), now),
-        )
         return cursor.rowcount == 1
 
     def append_event(self, event: dict[str, Any], *, source: str = "runtime") -> bool:
@@ -237,7 +225,9 @@ class SQLiteEventStore:
 
     def count_sources(self) -> int:
         with closing(self._connect()) as connection:
-            return int(connection.execute("SELECT COUNT(*) FROM event_sources").fetchone()[0])
+            return int(connection.execute(
+                "SELECT COUNT(DISTINCT source_file) FROM events"
+            ).fetchone()[0])
 
     def integrity_check(self) -> str:
         with closing(self._connect()) as connection:
