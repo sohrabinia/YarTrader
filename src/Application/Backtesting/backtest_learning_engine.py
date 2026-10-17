@@ -512,16 +512,6 @@ class BacktestAndLearningEngine:
                     # Close position with execution friction (spread + commission)
                     pnl_dist = (exit_price - open_position["entry"]) if pos_direction == "BUY" else (open_position["entry"] - exit_price)
                     sym_upper = symbol.upper()
-                    if "XAU" in sym_upper or "GOLD" in sym_upper:
-                        multiplier = 100.0
-                    elif "XAG" in sym_upper or "SILVER" in sym_upper:
-                        multiplier = 5000.0
-                    elif any(token in sym_upper for token in ("BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK", "LTC", "BCH", "NEAR", "UNI", "ATOM")):
-                        multiplier = 1.0
-                    elif "JPY" in sym_upper:
-                        multiplier = 100000.0 / max(exit_price, 1e-9)  # quote-currency JPY converted to USD
-                    else:
-                        multiplier = 100000.0  # standard FX contract size
                     # Share one accounting contract with the research CostModel.
                     # Preserve the engine's existing spread conventions while ensuring
                     # contract multipliers and JPY quote conversion stay in parity.
