@@ -775,7 +775,7 @@ class AutonomousDemoTrader:
                 and _PROJECT_ROOT == Path(__file__).resolve().parents[3]
             )
             if is_real_runtime:
-                SQLiteEventStore(folder / "yartrader_events.sqlite3").append_event(
+                SQLiteEventStore(folder / "yartrader_events.sqlite3").append_important_event(
                     event, source="autonomous_demo_trader"
                 )
             else:
