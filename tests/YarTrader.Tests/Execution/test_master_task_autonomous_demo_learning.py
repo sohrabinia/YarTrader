@@ -7,6 +7,8 @@ import src.Execution.Services.autonomous_demo_trader as demo_trader_module
 import scripts.run_honest_walk_forward_backtest as backtest_module
 from src.Decision.Models.models import AutonomousTradingDecision
 from src.Execution.Services.trade_journal import TradeJournalManager, TradeJournalRecord
+from src.Application.Deployment.sqlite_event_store import SQLiteEventStore
+import src.Execution.Services.trade_journal as trade_journal_module
 from src.Learning.Services.post_trade_analysis import OutcomeAnalyzer, EvidenceBasedAdaptationEngine
 from src.Infrastructure.exceptions import ValidationException
 
@@ -128,6 +130,47 @@ def test_trade_journal_persistence(tmp_path):
     assert mgr_reload.get_all_records()[0].entry_timeframe == "M5"
     assert mgr_reload.get_all_records()[0].decision_timeframe == "H4"
     assert mgr_reload.get_all_records()[0].conclusion == "Review the M5 entry zone."
+
+
+
+def test_default_trade_journal_uses_sqlite_without_duplicate_json_snapshot(tmp_path, monkeypatch):
+    db_path = tmp_path / "yartrader_events.sqlite3"
+    logs_dir = tmp_path / "Logs"
+
+    class StorageStub:
+        def get_logs_dir(self):
+            return str(logs_dir)
+
+    monkeypatch.setattr(
+        trade_journal_module.YarTraderStorageManager,
+        "get_manager",
+        classmethod(lambda cls: StorageStub()),
+    )
+    monkeypatch.setattr(
+        TradeJournalManager,
+        "event_store_path",
+        property(lambda self: str(db_path)),
+    )
+
+    record = TradeJournalRecord(
+        decision_id="DEC-SQL-1", trade_id="TR-SQL-1", cycle_id="CYC-SQL-1",
+        symbol="XAUUSD", timeframe="M5", direction="BUY",
+        planned_entry=2300.0, planned_sl=2290.0, planned_tp=2320.0, planned_rr=2.0,
+        actual_entry=2300.0, actual_exit=2320.0, volume=0.01, confidence=0.8,
+        reasoning=["fixture"], evidence={}, order_ticket="1", deal_ticket="2",
+        open_time="2026-10-17T10:00:00+00:00", close_time="2026-10-17T10:05:00+00:00",
+        exit_reason="TP", pnl=2.0, pnl_percent=1.0, mfe=20.0, mae=1.0, duration=300.0,
+        market_regime="RANGE", result="WIN", configuration_version="test",
+    )
+    manager = TradeJournalManager()
+    manager.add_record(record)
+
+    assert not (logs_dir / "trade_journal.json").exists()
+    assert SQLiteEventStore(db_path).count_events() == 1
+
+    reloaded = TradeJournalManager()
+    assert len(reloaded.get_all_records()) == 1
+    assert reloaded.get_all_records()[0].trade_id == "TR-SQL-1"
 
 
 def test_corrupt_journal_fails_closed_without_treating_it_as_empty(tmp_path):
@@ -284,8 +327,8 @@ def test_backtest_closed_trade_is_saved_with_backtest_type_and_calendar(tmp_path
             cohort="HOLDOUT_LEARNED_FROZEN", data_file="fixture.hst",
         )
     assert written == 1
-    event_path = tmp_path / "runtime_logs" / "trade_journal_events_v2.jsonl"
-    event = json.loads(event_path.read_text(encoding="utf-8").splitlines()[0])
+    event_path = tmp_path / "runtime_logs" / "yartrader_events.sqlite3"
+    event = list(SQLiteEventStore(event_path).iter_events())[0]
     assert event["trade_type"] == "BACKTEST"
     assert event["strategy_style"] == "BASE_HIERARCHY"
     assert event["decision_timeframe"] == "H1"

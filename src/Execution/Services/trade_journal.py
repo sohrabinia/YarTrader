@@ -6,6 +6,7 @@ from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, asdict
 
 from src.Application.Deployment.storage import YarTraderStorageManager
+from src.Application.Deployment.sqlite_event_store import SQLiteEventStore
 
 logger = logging.getLogger("TradeJournal")
 
@@ -158,14 +159,35 @@ class TradeJournalManager:
         self.records: List[TradeJournalRecord] = self._load_journal()
 
     def _load_journal(self) -> List[TradeJournalRecord]:
+        if not self._custom_journal_file:
+            # Production record state is reconstructed from the canonical event ledger;
+            # do not keep a second full JSON snapshot beside the same event history.
+            records: Dict[str, Dict[str, Any]] = {}
+            try:
+                for event in SQLiteEventStore(self.event_store_path).iter_events(
+                    event_types=("trade_record_created", "trade_record_updated")
+                ):
+                    event_type = event.get("event")
+                    trade_id = str(event.get("trade_id") or "")
+                    if not trade_id:
+                        continue
+                    if event_type == "trade_record_created" and isinstance(event.get("record"), dict):
+                        records[trade_id] = event["record"]
+                    elif event_type == "trade_record_updated" and isinstance(event.get("updated_record"), dict):
+                        records[trade_id] = event["updated_record"]
+                return [TradeJournalRecord.from_dict(record) for record in records.values()]
+            except Exception as exc:
+                logger.exception("[TradeJournalManager] Canonical SQLite journal load failed.")
+                raise RuntimeError(
+                    f"Trade journal could not be loaded safely from {self.event_store_path}."
+                ) from exc
         if os.path.exists(self.journal_file):
             try:
                 with open(self.journal_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     return [TradeJournalRecord.from_dict(d) for d in data]
             except Exception as e:
-                # A corrupt journal is not an empty journal. Fail closed so a later
-                # save cannot silently replace the only surviving trade history.
+                # A corrupt custom journal is not an empty journal.
                 logger.exception("[TradeJournalManager] Journal load failed; refusing to treat it as empty.")
                 raise RuntimeError(
                     f"Trade journal could not be loaded safely: {self.journal_file}. "
@@ -175,12 +197,15 @@ class TradeJournalManager:
 
     @property
     def events_file(self) -> str:
-        # Production DEMO and backtest workers share one chronological event stream.
-        # Explicit test/custom journals remain isolated beside their custom record file.
+        # Custom/test journals retain their JSONL fixture contract.
         if self._custom_journal_file:
             return os.path.join(os.path.dirname(self.journal_file), "trade_journal_events_v2.jsonl")
+        return self.event_store_path
+
+    @property
+    def event_store_path(self) -> str:
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        return os.path.join(project_root, "runtime_logs", "trade_journal_events_v2.jsonl")
+        return os.path.join(project_root, "runtime_logs", "yartrader_events.sqlite3")
 
     def append_event(self, event: Dict[str, Any]) -> None:
         """Durably append one lifecycle event without rewriting prior evidence."""
@@ -201,20 +226,28 @@ class TradeJournalManager:
             "NEW_YORK_OVERLAP" if minute < 960 else "NEW_YORK" if minute < 1260
             else "LATE_US_OR_ROLLOVER"
         ))
-        os.makedirs(os.path.dirname(self.events_file), exist_ok=True)
-        with open(self.events_file, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, ensure_ascii=False, default=str, sort_keys=True) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+        if self._custom_journal_file:
+            # Isolated tests and explicit custom journals keep their text fixture contract.
+            os.makedirs(os.path.dirname(self.events_file), exist_ok=True)
+            with open(self.events_file, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, ensure_ascii=False, default=str, sort_keys=True) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            return
+        # Production lifecycle events have one canonical, deduplicated durable destination.
+        SQLiteEventStore(self.event_store_path).append_event(payload, source="trade_journal")
 
     def save_journal(self) -> None:
+        if not self._custom_journal_file:
+            # Each create/update event is already durably committed to SQLite.
+            return
         try:
             temp_path = self.journal_file + ".tmp"
             with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump([r.to_dict() for r in self.records], f, indent=2)
             os.replace(temp_path, self.journal_file)
         except Exception as e:
-            logger.exception("[TradeJournalManager] Failed to save journal; caller must treat persistence as failed.")
+            logger.exception("[TradeJournalManager] Failed to save custom journal.")
             raise RuntimeError(f"Trade journal persistence failed: {self.journal_file}") from e
 
     def add_record(self, record: TradeJournalRecord) -> None:

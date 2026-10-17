@@ -23,6 +23,7 @@ from src.Execution.Services.market_session_engine import MarketSessionEngine
 from src.Execution.Safety.demo_exploration_policy import demo_exploration_autonomy_enabled
 from src.Infrastructure.exceptions import ValidationException
 from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine, ProductionRiskPolicy
+from src.Application.Deployment.sqlite_event_store import SQLiteEventStore
 
 logger = logging.getLogger("AutonomousDemoTrader")
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -767,30 +768,42 @@ class AutonomousDemoTrader:
         try:
             folder = _PROJECT_ROOT / "runtime_logs"
             folder.mkdir(parents=True, exist_ok=True)
-            # The canonical journal is the forensic source of truth. The runtime stream
-            # is an operational index: avoid duplicating large market-structure payloads
-            # into a second append-only file on the same volume.
-            payload = json.dumps(event, ensure_ascii=False, default=str, sort_keys=True) + "\n"
-            runtime_event = dict(event)
-            for large_key in (
-                "base_plan", "plan", "base_analysis", "hierarchy_structure", "structure",
-                "historical_structure_analysis", "structural_levels", "structural_hierarchy",
-                "level_reaction_evidence", "entry_level_context", "breakout_rejection_outcome",
-            ):
-                runtime_event.pop(large_key, None)
-            runtime_event["runtime_log_payload"] = "COMPACT; see trade_journal_events_v2.jsonl for canonical event and available structure context"
-            runtime_payload = json.dumps(runtime_event, ensure_ascii=False, default=str, sort_keys=True) + "\n"
-            for filename, line in (
-                ("autonomous_demo_trader.jsonl", runtime_payload),
-                ("trade_journal_events_v2.jsonl", payload),
-            ):
-                with (folder / filename).open("a", encoding="utf-8") as handle:
-                    handle.write(line)
-                    handle.flush()
-                    os.fsync(handle.fileno())
-        except OSError:
-            # Do not hide audit persistence failures; they must be visible in logs.
+            # The real runtime writes each event once to the canonical SQLite ledger.
+            # Test fixtures retain their JSONL compatibility outputs in isolated temp roots.
+            is_real_runtime = (
+                type(getattr(self, "adapter", None)) is RealMT5BrokerAdapter
+                and _PROJECT_ROOT == Path(__file__).resolve().parents[3]
+            )
+            if is_real_runtime:
+                SQLiteEventStore(folder / "yartrader_events.sqlite3").append_important_event(
+                    event, source="autonomous_demo_trader"
+                )
+            else:
+                payload = json.dumps(event, ensure_ascii=False, default=str, sort_keys=True) + "\n"
+                runtime_event = dict(event)
+                for large_key in (
+                    "base_plan", "plan", "base_analysis", "hierarchy_structure", "structure",
+                    "historical_structure_analysis", "structural_levels", "structural_hierarchy",
+                    "level_reaction_evidence", "entry_level_context", "breakout_rejection_outcome",
+                ):
+                    runtime_event.pop(large_key, None)
+                runtime_event["runtime_log_payload"] = (
+                    "COMPACT; canonical event and available structure context are stored in "
+                    "yartrader_events.sqlite3"
+                )
+                runtime_payload = json.dumps(runtime_event, ensure_ascii=False, default=str, sort_keys=True) + "\n"
+                for filename, line in (
+                    ("autonomous_demo_trader.jsonl", runtime_payload),
+                    ("trade_journal_events_v2.jsonl", payload),
+                ):
+                    with (folder / filename).open("a", encoding="utf-8") as handle:
+                        handle.write(line)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+        except Exception as exc:
+            # An event that cannot be durably journaled must not be treated as safely processed.
             logger.exception("Unable to persist autonomous DEMO trader event/journal")
+            raise RuntimeError("Autonomous DEMO event persistence failed; stopping this cycle safely.") from exc
         logger.info("Autonomous DEMO trader: %s", event)
 
     def _trade_review_file(self) -> Path:

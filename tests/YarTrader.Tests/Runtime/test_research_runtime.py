@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+import gzip
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
 from types import SimpleNamespace
@@ -480,3 +481,18 @@ class TestResearchRuntimeAndAdapter(unittest.TestCase):
                             content = f.read()
                         for keyword in forbidden:
                             self.assertNotIn(keyword + "(", content.replace(" ", ""))
+
+
+def test_research_evidence_log_rotation_keeps_one_compressed_segment(tmp_path):
+    evidence_file = tmp_path / "research_runtime_evidence.log"
+    content = ("important runtime evidence line\n" * 10).encode("utf-8")
+    evidence_file.write_bytes(content)
+
+    ResearchRuntime._rotate_evidence_log(str(evidence_file), max_bytes=64)
+
+    rotated = tmp_path / "research_runtime_evidence.log.1.gz"
+    assert rotated.is_file()
+    assert evidence_file.is_file()
+    assert evidence_file.stat().st_size == 0
+    with gzip.open(rotated, "rb") as handle:
+        assert handle.read() == content
