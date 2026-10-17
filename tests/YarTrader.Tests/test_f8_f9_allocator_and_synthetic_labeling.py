@@ -28,4 +28,4 @@ def test_demo_allocator_reports_per_trade_cap_and_slot_capacity_separately():
     assert result["risk_pct"] == 1.0
     assert result["occupied_slot_count"] == 2
     assert result["reserved_slot_count"] == 1
-    assert result["allocation_method"] == "PER_TRADE_TARGET_RISK_WITH_SEPARATE_DAILY_CAP"
+    assert result["allocation_method"] == "PER_TRADE_TARGET_WITH_SEPARATE_AGGREGATE_AND_DAILY_CAPS"
