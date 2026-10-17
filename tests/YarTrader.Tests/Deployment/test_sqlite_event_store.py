@@ -159,3 +159,16 @@ def test_migration_can_filter_non_material_telemetry(tmp_path):
     result = store.import_jsonl_file(source, important_only=True)
     assert result == {"rows": 2, "imported": 1, "duplicates": 0}
     assert [event["event"] for event in store.iter_events()] == ["trade_outcome_learned"]
+
+
+def test_iter_events_can_filter_by_event_type(tmp_path):
+    store = SQLiteEventStore(tmp_path / "events.sqlite3")
+    store.append_event({"event": "cycle_status", "symbol": "XAUUSD"})
+    store.append_event({"event": "trade_record_created", "trade_id": "TR-3", "record": {"trade_id": "TR-3"}})
+    store.append_event({"event": "trade_record_updated", "trade_id": "TR-3", "updated_record": {"trade_id": "TR-3"}})
+
+    selected = list(store.iter_events(event_types=("trade_record_created", "trade_record_updated")))
+    assert [event["event"] for event in selected] == [
+        "trade_record_created", "trade_record_updated"
+    ]
+    assert list(store.iter_events(event_types=())) == []
