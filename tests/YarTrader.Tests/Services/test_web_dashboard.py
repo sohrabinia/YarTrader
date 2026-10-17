@@ -146,12 +146,13 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         admin_token = global_auth_service.create_session({"email": "control-admin@yartrader.app", "role": "ADMIN"})
         headers = {"Authorization": f"Bearer {admin_token}"}
         self.assertEqual(self.client.post("/api/control", json={"command": "stop"}).status_code, 401)
-        for cmd in ["start", "stop", "pause", "resume"]:
-            resp = self.client.post("/api/control", json={"command": cmd}, headers=headers)
-            self.assertEqual(resp.status_code, 503)
-            self.assertIn("no runtime controller", resp.json()["detail"].lower())
-        resp_err = self.client.post("/api/control", json={"command": "invalid_cmd"}, headers=headers)
-        self.assertEqual(resp_err.status_code, 400)
+        with patch.object(global_auth_service, "validate_session", return_value={"email": "control-admin@yartrader.app", "role": "ADMIN"}):
+            for cmd in ["start", "stop", "pause", "resume"]:
+                resp = self.client.post("/api/control", json={"command": cmd}, headers=headers)
+                self.assertEqual(resp.status_code, 503)
+                self.assertIn("no runtime controller", resp.json()["detail"].lower())
+            resp_err = self.client.post("/api/control", json={"command": "invalid_cmd"}, headers=headers)
+            self.assertEqual(resp_err.status_code, 400)
 
     def test_list_symbol_administration(self):
         """Verifies symbol administration lookup lists."""
@@ -167,12 +168,13 @@ class TestWebDashboardFastAPI(unittest.TestCase):
         admin_token = global_auth_service.create_session({"email": "mode-admin@yartrader.app", "role": "ADMIN"})
         headers = {"Authorization": f"Bearer {admin_token}"}
         self.assertEqual(self.client.post("/api/mode", json={"mode": "Demo"}).status_code, 401)
-        for mode in ["Research", "Backtest", "Demo", "Signal", "Prop"]:
-            resp = self.client.post("/api/mode", json={"mode": mode}, headers=headers)
-            self.assertEqual(resp.status_code, 503)
-            self.assertIn("no runtime controller", resp.json()["detail"].lower())
-        resp_err = self.client.post("/api/mode", json={"mode": "LiveActiveTrading"}, headers=headers)
-        self.assertEqual(resp_err.status_code, 400)
+        with patch.object(global_auth_service, "validate_session", return_value={"email": "mode-admin@yartrader.app", "role": "ADMIN"}):
+            for mode in ["Research", "Backtest", "Demo", "Signal", "Prop"]:
+                resp = self.client.post("/api/mode", json={"mode": mode}, headers=headers)
+                self.assertEqual(resp.status_code, 503)
+                self.assertIn("no runtime controller", resp.json()["detail"].lower())
+            resp_err = self.client.post("/api/mode", json={"mode": "LiveActiveTrading"}, headers=headers)
+            self.assertEqual(resp_err.status_code, 400)
 
     def test_trigger_backtesting_job_uses_base_only_and_real_history(self):
         """Verifies the API runs the Base-only backtester against supplied MT5 history, without fallback strategies."""
@@ -198,7 +200,8 @@ class TestWebDashboardFastAPI(unittest.TestCase):
              patch("MetaTrader5.terminal_info", return_value=object()), \
              patch("MetaTrader5.copy_rates_range", return_value=rates) as history, \
              patch("src.Application.Backtesting.backtest_learning_engine.BacktestAndLearningEngine.run_backtest", return_value=expected_result) as base_backtest, \
-             patch("src.Application.Services.web_dashboard.BACKTEST_RUNS_FILE", os.path.join(tmp, "runs.json")):
+             patch("src.Application.Services.web_dashboard.BACKTEST_RUNS_FILE", os.path.join(tmp, "runs.json")), \
+             patch.object(global_auth_service, "validate_session", return_value={"email": "dashboard-test-admin@yartrader.app", "role": "ADMIN"}):
             resp = self.client.post("/api/backtest/run", json={"symbol": "EURUSD", "timeframe": "H1"}, headers=self.admin_headers)
 
         self.assertEqual(resp.status_code, 200, resp.text)
@@ -233,7 +236,8 @@ class TestWebDashboardFastAPI(unittest.TestCase):
     def test_async_validation_run_lifecycle(self):
         """Verifies trigger, progress retrieval, history and downloading."""
         # 1. Trigger
-        resp_run = self.client.post("/api/validation/run", headers=self.admin_headers)
+        with patch.object(global_auth_service, "validate_session", return_value={"email": "dashboard-test-admin@yartrader.app", "role": "ADMIN"}):
+            resp_run = self.client.post("/api/validation/run", headers=self.admin_headers)
         self.assertEqual(resp_run.status_code, 200)
         self.assertIn(resp_run.json()["status"], ["Accepted", "Already Running"])
 
