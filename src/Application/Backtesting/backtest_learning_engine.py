@@ -11,6 +11,35 @@ from src.Research.Brain.memory import MarketMemorySystem
 from src.Research.Brain.judge import JudgeBrain
 
 
+def calculate_backtest_cost_adjusted_pnl(
+    symbol: str,
+    direction: str,
+    entry_price: float,
+    exit_price: float,
+    volume_lots: float,
+) -> Dict[str, float]:
+    """Use the canonical CostModel with the backtest's established spread assumptions."""
+    from src.Application.Research.optimization.cost_model import CostModel
+
+    symbol_upper = symbol.upper()
+    if "XAU" in symbol_upper or "GOLD" in symbol_upper:
+        spread_pips = 2.0
+    elif "XAG" in symbol_upper or "SILVER" in symbol_upper:
+        spread_pips = 2.0
+    else:
+        spread_pips = 1.0
+    return CostModel(
+        spread_pips=spread_pips,
+        commission_per_lot=7.0,
+        slippage_pips=0.0,
+    ).calculate_cost_adjusted_pnl(
+        symbol=symbol,
+        direction=direction,
+        entry_price=float(entry_price),
+        exit_price=float(exit_price),
+        volume_lots=float(volume_lots),
+    )
+
 
 class BacktestAndLearningEngine:
     """
@@ -511,45 +540,18 @@ class BacktestAndLearningEngine:
                 if exit_reason:
                     # Close position with execution friction (spread + commission)
                     pnl_dist = (exit_price - open_position["entry"]) if pos_direction == "BUY" else (open_position["entry"] - exit_price)
-                    sym_upper = symbol.upper()
-                    if "XAU" in sym_upper or "GOLD" in sym_upper:
-                        multiplier = 100.0
-                    elif "XAG" in sym_upper or "SILVER" in sym_upper:
-                        multiplier = 5000.0
-                    elif any(token in sym_upper for token in ("BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK", "LTC", "BCH", "NEAR", "UNI", "ATOM")):
-                        multiplier = 1.0
-                    elif "JPY" in sym_upper:
-                        multiplier = 100000.0 / max(exit_price, 1e-9)  # quote-currency JPY converted to USD
-                    else:
-                        multiplier = 100000.0  # standard FX contract size
-                    raw_pnl = pnl_dist * open_position["volume"] * multiplier
-
-                    # Asset-Class Specific Execution Friction Model
-                    sym_upper = symbol.upper()
-                    vol = open_position["volume"]
-
-                    if "XAU" in sym_upper:
-                        # Gold: $0.20 spread ($20/lot) + $7/lot commission
-                        spread_cost_usd = 0.20 * vol * 100.0
-                        commission_cost_usd = 7.0 * vol
-                        total_friction_usd = spread_cost_usd + commission_cost_usd
-                    elif "XAG" in sym_upper:
-                        # Silver: $0.02 spread ($100/lot on 5000 oz) + $7/lot commission
-                        spread_cost_usd = 0.02 * vol * 5000.0
-                        commission_cost_usd = 7.0 * vol
-                        total_friction_usd = spread_cost_usd + commission_cost_usd
-                    elif any(c in sym_upper for c in ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "DOT", "LINK", "LTC", "BCH", "NEAR", "UNI", "ATOM"]):
-                        # Crypto: 0.10% (10 bps) combined fee/spread on trade value
-                        notional_value_usd = exit_price * vol
-                        total_friction_usd = notional_value_usd * 0.0010
-                    else:
-                        # Forex: 1.0 pip spread + $7/lot commission
-                        pip_dist = 0.01 if "JPY" in sym_upper else 0.0001
-                        spread_cost_usd = 1.0 * pip_dist * vol * 100000.0
-                        commission_cost_usd = 7.0 * vol
-                        total_friction_usd = spread_cost_usd + commission_cost_usd
-
-                    trade_pnl = raw_pnl - total_friction_usd
+                    # Share one accounting contract with the research CostModel.
+                    # This keeps research reports and backtest trade outcomes in parity.
+                    cost_result = calculate_backtest_cost_adjusted_pnl(
+                        symbol=symbol,
+                        direction=pos_direction,
+                        entry_price=float(open_position["entry"]),
+                        exit_price=float(exit_price),
+                        volume_lots=float(open_position["volume"]),
+                    )
+                    raw_pnl = float(cost_result["gross_pnl"])
+                    total_friction_usd = float(cost_result["total_cost"])
+                    trade_pnl = float(cost_result["net_pnl"])
                     balance += trade_pnl
                     equity = balance
                     daily_realized_pnl += trade_pnl
