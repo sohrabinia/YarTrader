@@ -215,8 +215,12 @@ class MultitimeframeBaseBehaviorMonitor:
                 events_by_tf[tf] = []
                 continue
             bars_by_tf[tf] = bars
+            # Decision-time detection must not reserve future bars for outcome labels.
+            # Preserve the legacy event de-duplication spacing independently of that horizon.
+            legacy_spacing_horizon = min(24, max(5, len(bars)//20))
             events_by_tf[tf] = detect_base_departures(
-                bars, tf, scan_step=SCAN_STEPS.get(tf, 1), horizon=min(24, max(5, len(bars)//20))
+                bars, tf, scan_step=SCAN_STEPS.get(tf, 1), horizon=0,
+                min_event_spacing=max(3, legacy_spacing_horizon//2),
             )
         all_events = sorted((dict(e) for vals in events_by_tf.values() for e in vals
                              if int(e["confirmation_time"]) <= now_i),

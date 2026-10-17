@@ -34,7 +34,8 @@ def detect_base_departures(bars: Sequence[Mapping[str, Any]], timeframe: str,
                            min_departure_base_width: float = 1.0,
                            max_base_width_to_incoming_leg: float = 0.8,
                            max_mean_body_to_base_width: float = 0.55,
-                           horizon: int = 24) -> List[Dict[str, Any]]:
+                           horizon: int = 24,
+                           min_event_spacing: int | None = None) -> List[Dict[str, Any]]:
     """Detect RBR/DBD/DBR/RBD using Base geometry and raw price only.
 
     The default horizon preserves legacy behavior. Set horizon=0 when using this
@@ -96,7 +97,8 @@ def detect_base_departures(bars: Sequence[Mapping[str, Any]], timeframe: str,
                 if best is None or score > best[0]:
                     best = (score, bs, bend, hi, lo, width, 1 if incoming > 0 else -1,
                             outdir, length, delay, incoming, dist)
-        if best is None or conf-last_conf < max(3, horizon//2):
+        event_spacing = max(3, horizon//2) if min_event_spacing is None else max(3, min_event_spacing)
+        if best is None or conf-last_conf < event_spacing:
             continue
         _, bs, bend, hi, lo, width, indir, outdir, length, delay, incoming, dist = best
         typ = ("R" if indir > 0 else "D")+"B"+("R" if outdir > 0 else "D")
