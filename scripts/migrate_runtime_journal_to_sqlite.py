@@ -102,12 +102,16 @@ def main() -> int:
     print(f"INTEGRITY={store.integrity_check()}")
     print(f"FAILED_SOURCES={len(failures)}")
     if args.delete_sources:
-        # Delete only sources that fully imported; malformed sources remain for review.
-        if store.integrity_check() != "ok":
+        # Fail closed for the entire source set. If any candidate failed import,
+        # keep every source so the operator can inspect and retry without partial cleanup.
+        if failures:
+            print("Refusing source deletion: one or more source files failed import; all sources preserved.")
+        elif store.integrity_check() != "ok":
             raise RuntimeError("Refusing source deletion: SQLite integrity check did not pass.")
-        for source in successful:
-            source.unlink()
-        print(f"DELETED_IMPORTED_SOURCES={len(successful)}")
+        else:
+            for source in successful:
+                source.unlink()
+            print(f"DELETED_IMPORTED_SOURCES={len(successful)}")
     if failures:
         print("Some sources were not migrated completely; they were preserved.")
         return 2
