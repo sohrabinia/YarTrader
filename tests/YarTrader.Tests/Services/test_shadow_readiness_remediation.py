@@ -3,12 +3,15 @@ import unittest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
-from src.Application.Services.web_dashboard import app, val_state, state_lock
+from src.Application.Services.web_dashboard import app
+from src.Application.Dashboard.auth_service import global_auth_service, val_state, state_lock
 from src.ShadowTrading.Engine.PredictiveShadowEngine import PredictiveShadowEngine, ShadowTrade
 
 class TestShadowReadinessRemediation(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
+        token = global_auth_service.create_session({"email": "shadow-test-admin@yartrader.app", "role": "ADMIN"})
+        self.admin_headers = {"Authorization": f"Bearer {token}"}
         self.engine = PredictiveShadowEngine.get_instance()
 
     @unittest.skip("Shadow mode retired")
@@ -38,7 +41,8 @@ class TestShadowReadinessRemediation(unittest.TestCase):
         shadow_count_before = len(self.engine.trades)
 
         # Trigger Demo trade
-        demo_resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"})
+        with patch.object(global_auth_service, "validate_session", return_value={"email": "shadow-test-admin@yartrader.app", "role": "ADMIN"}):
+            demo_resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"}, headers=self.admin_headers)
         self.assertEqual(demo_resp.status_code, 200)
 
         # Confirm shadow count is unchanged

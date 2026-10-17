@@ -19,10 +19,13 @@ from src.Decision.Intelligence.engine import DecisionEngine
 from src.Data.connector import ExternalDataPipelineConnector
 from src.Execution.Safety.safety_gate import MetaTraderSafetyGate
 from src.Application.Services.web_dashboard import app
+from src.Application.Dashboard.auth_service import global_auth_service
 
 class TestTradingModesAndIsolation(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
+        token = global_auth_service.create_session({"email": "mode-test-admin@yartrader.app", "role": "ADMIN"})
+        self.admin_headers = {"Authorization": f"Bearer {token}"}
 
         self.supervisor = IntelligenceSupervisor()
         self.supervisor.register_agent(ResearchAgent())
@@ -88,7 +91,8 @@ class TestTradingModesAndIsolation(unittest.TestCase):
 
     def test_demo_scenario_does_not_fabricate_execution_records(self) -> None:
         """Scenario approval is not an executed trade and must not create fake PnL."""
-        resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"})
+        with patch.object(global_auth_service, "validate_session", return_value={"email": "mode-test-admin@yartrader.app", "role": "ADMIN"}):
+            resp = self.client.post("/api/demo/run", json={"scenario_id": "trend_continuation", "asset": "EURUSD"}, headers=self.admin_headers)
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertTrue(data["success"])
