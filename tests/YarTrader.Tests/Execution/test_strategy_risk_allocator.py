@@ -11,7 +11,7 @@ def test_demo_risk_is_per_trade_and_not_divided_by_concurrent_slots():
     assert result["strategy_count"] == 1
     assert result["max_concurrent_slots"] == 3
     assert result["reserved_slot_count"] == 2
-    assert result["allocation_method"] == "PER_TRADE_TARGET_RISK_WITH_SEPARATE_DAILY_CAP"
+    assert result["allocation_method"] == "PER_TRADE_TARGET_WITH_SEPARATE_AGGREGATE_AND_DAILY_CAPS"
 
 
 def test_demo_risk_reserves_budget_for_existing_and_future_slots():
