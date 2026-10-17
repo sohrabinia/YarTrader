@@ -100,3 +100,24 @@ def test_import_legacy_trade_journal_snapshot(tmp_path):
     assert event["event"] == "trade_record_created"
     assert event["trade_id"] == "TR-LEGACY-1"
     assert event["record"] == record
+
+
+def test_repetitive_payload_is_losslessly_compressed(tmp_path):
+    import sqlite3
+
+    event = {
+        "event_id": "large-1",
+        "event": "structure_snapshot",
+        "symbol": "XAUUSD",
+        "levels": [{"timeframe": "H1", "kind": "SWING_HIGH", "price": 2300.0}] * 1000,
+    }
+    path = tmp_path / "events.sqlite3"
+    store = SQLiteEventStore(path)
+    store.append_event(event)
+    with sqlite3.connect(path) as connection:
+        codec, payload_size, stored_size = connection.execute(
+            "SELECT payload_codec, payload_size, length(payload_blob) FROM events"
+        ).fetchone()
+    assert codec == "zlib"
+    assert stored_size < payload_size
+    assert list(store.iter_events()) == [event]
