@@ -41,8 +41,25 @@ class CostModel:
             # Standard FX contract: 100,000 base-currency units per standard lot.
             pip_size, multiplier = 0.0001, 100000.0
 
-        # Raw Price Distance PnL
-        raw_dist = (exit_price - entry_price) if direction == "BUY" else (entry_price - exit_price)
+        # Crypto uses the same 10 bps combined execution-friction convention as
+        # BacktestAndLearningEngine, rather than FX pip/lot accounting.
+        crypto_symbols = (
+            "BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX",
+            "DOT", "LINK", "LTC", "BCH", "NEAR", "UNI", "ATOM",
+        )
+        raw_dist = (exit_price - entry_price) if direction.upper() == "BUY" else (entry_price - exit_price)
+        if any(token in symbol_upper for token in crypto_symbols):
+            gross_pnl = raw_dist * volume_lots
+            combined_cost = abs(float(exit_price)) * volume_lots * 0.0010
+            return {
+                "gross_pnl": round(gross_pnl, 2),
+                "total_cost": round(combined_cost, 2),
+                "net_pnl": round(gross_pnl - combined_cost, 2),
+                "spread_cost": round(combined_cost, 2),
+                "commission_cost": 0.0,
+                "slippage_cost": 0.0,
+            }
+
         gross_pnl = raw_dist * volume_lots * multiplier
 
         # Transaction Costs
