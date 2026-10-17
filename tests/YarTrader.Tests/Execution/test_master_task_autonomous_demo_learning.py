@@ -7,6 +7,7 @@ import src.Execution.Services.autonomous_demo_trader as demo_trader_module
 import scripts.run_honest_walk_forward_backtest as backtest_module
 from src.Decision.Models.models import AutonomousTradingDecision
 from src.Execution.Services.trade_journal import TradeJournalManager, TradeJournalRecord
+from src.Application.Deployment.sqlite_event_store import SQLiteEventStore
 from src.Learning.Services.post_trade_analysis import OutcomeAnalyzer, EvidenceBasedAdaptationEngine
 from src.Infrastructure.exceptions import ValidationException
 
@@ -284,8 +285,8 @@ def test_backtest_closed_trade_is_saved_with_backtest_type_and_calendar(tmp_path
             cohort="HOLDOUT_LEARNED_FROZEN", data_file="fixture.hst",
         )
     assert written == 1
-    event_path = tmp_path / "runtime_logs" / "trade_journal_events_v2.jsonl"
-    event = json.loads(event_path.read_text(encoding="utf-8").splitlines()[0])
+    event_path = tmp_path / "runtime_logs" / "yartrader_events.sqlite3"
+    event = list(SQLiteEventStore(event_path).iter_events())[0]
     assert event["trade_type"] == "BACKTEST"
     assert event["strategy_style"] == "BASE_HIERARCHY"
     assert event["decision_timeframe"] == "H1"
