@@ -377,15 +377,30 @@ class SQLiteEventStore:
             raise RuntimeError(f"SQLite integrity check failed: {result}")
         return result
 
-    def iter_events(self, *, limit: int | None = None) -> Iterable[dict[str, Any]]:
+    def iter_events(
+        self,
+        *,
+        event_types: Iterable[str] | None = None,
+        limit: int | None = None,
+    ) -> Iterable[dict[str, Any]]:
         query = (
             "SELECT payload_blob, payload_codec, payload_size, payload_sha256 "
-            "FROM events ORDER BY rowid"
+            "FROM events"
         )
-        params: tuple[Any, ...] = ()
+        params_list: list[Any] = []
+        if event_types is not None:
+            types = tuple(str(value) for value in event_types)
+            if not types:
+                query += " WHERE 0"
+            else:
+                placeholders = ",".join("?" for _ in types)
+                query += f" WHERE event_type IN ({placeholders})"
+                params_list.extend(types)
+        query += " ORDER BY rowid"
         if limit is not None:
             query += " LIMIT ?"
-            params = (max(0, int(limit)),)
+            params_list.append(max(0, int(limit)))
+        params = tuple(params_list)
         with closing(self._connect()) as connection:
             rows = connection.execute(query, params).fetchall()
         for row in rows:
