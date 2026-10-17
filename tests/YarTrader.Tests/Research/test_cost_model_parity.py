@@ -42,3 +42,18 @@ def test_gold_contract_multiplier_remains_one_hundred_ounces():
     )
     assert result["gross_pnl"] == 100.0
     assert result["net_pnl"] == 100.0
+
+
+def test_crypto_combined_friction_matches_backtest_convention():
+    result = CostModel().calculate_cost_adjusted_pnl(
+        symbol="BTCUSD",
+        direction="BUY",
+        entry_price=50_000.0,
+        exit_price=51_000.0,
+        volume_lots=0.01,
+    )
+    assert result["gross_pnl"] == 10.0
+    assert result["spread_cost"] == 0.51
+    assert result["commission_cost"] == 0.0
+    assert result["slippage_cost"] == 0.0
+    assert result["net_pnl"] == 9.49
