@@ -2592,6 +2592,133 @@ class AutonomousDemoTrader:
                 except (TypeError, ValueError, OverflowError, AttributeError):
                     continue
 
+        # Aggregate portfolio risk must be checked across every symbol before
+        # replacing/adding an order. Unknown broker state or an unprotected position
+        # fails closed; replaced same-strategy pending orders are excluded because
+        # cancellation is verified below before the replacement is submitted.
+        all_positions = self.adapter.get_positions()
+        all_active_orders = self.adapter.get_active_orders()
+        if all_positions is None or all_active_orders is None:
+            return {
+                "status": "RISK_BLOCKED",
+                "symbol": symbol,
+                "reason": "Aggregate open risk cannot be verified because broker positions/orders are unknown.",
+                "execution_enabled": False,
+            }
+
+        risk_inputs: List[float] = []
+        buy_order_type = int(getattr(mt5, "ORDER_TYPE_BUY", 0))
+        sell_order_type = int(getattr(mt5, "ORDER_TYPE_SELL", 1))
+        buy_position_type = int(getattr(mt5, "POSITION_TYPE_BUY", 0))
+        sell_position_type = int(getattr(mt5, "POSITION_TYPE_SELL", 1))
+        try:
+            for position in all_positions:
+                pos_symbol = str(self._field(position, "symbol", "") or "").upper()
+                pos_volume = float(self._field(position, "volume", 0.0) or 0.0)
+                pos_entry = float(self._field(position, "price_open", 0.0) or 0.0)
+                pos_stop = float(self._field(position, "sl", 0.0) or 0.0)
+                pos_type = int(self._field(position, "type", -1))
+                if (not pos_symbol or not math.isfinite(pos_volume) or pos_volume <= 0
+                        or not math.isfinite(pos_entry) or pos_entry <= 0
+                        or not math.isfinite(pos_stop) or pos_stop <= 0):
+                    raise ValueError("An open position has unknown volume, entry, or protective stop.")
+                if pos_type == buy_position_type:
+                    calc_type = buy_order_type
+                elif pos_type == sell_position_type:
+                    calc_type = sell_order_type
+                else:
+                    raise ValueError("An open position has an unknown direction.")
+                loss = mt5.order_calc_profit(calc_type, pos_symbol, pos_volume, pos_entry, pos_stop)
+                if loss is None or not math.isfinite(float(loss)):
+                    raise ValueError(f"Broker risk calculation failed for open position {pos_symbol}.")
+                risk_inputs.append(abs(float(loss)))
+
+            replaced_ticket_set = {
+                int(self._field(order, "ticket", 0) or 0)
+                for order in strategy_owned
+                if int(self._field(order, "ticket", 0) or 0) > 0
+            }
+            pending_buy_types = {
+                int(getattr(mt5, name)) for name in ("ORDER_TYPE_BUY_LIMIT", "ORDER_TYPE_BUY_STOP", "ORDER_TYPE_BUY_STOP_LIMIT")
+                if hasattr(mt5, name)
+            }
+            pending_sell_types = {
+                int(getattr(mt5, name)) for name in ("ORDER_TYPE_SELL_LIMIT", "ORDER_TYPE_SELL_STOP", "ORDER_TYPE_SELL_STOP_LIMIT")
+                if hasattr(mt5, name)
+            }
+            for order in all_active_orders:
+                ticket = int(self._field(order, "ticket", 0) or 0)
+                if ticket in replaced_ticket_set:
+                    continue
+                order_symbol = str(self._field(order, "symbol", "") or "").upper()
+                order_volume = float(self._field(
+                    order, "volume_current", self._field(order, "volume_initial", 0.0)
+                ) or 0.0)
+                order_entry = float(self._field(order, "price_open", 0.0) or 0.0)
+                order_stop = float(self._field(order, "sl", 0.0) or 0.0)
+                order_type = int(self._field(order, "type", -1))
+                if (not order_symbol or not math.isfinite(order_volume) or order_volume <= 0
+                        or not math.isfinite(order_entry) or order_entry <= 0
+                        or not math.isfinite(order_stop) or order_stop <= 0):
+                    raise ValueError("An active pending order has unknown volume, entry, or protective stop.")
+                if order_type in pending_buy_types:
+                    calc_type = buy_order_type
+                elif order_type in pending_sell_types:
+                    calc_type = sell_order_type
+                else:
+                    raise ValueError("An active pending order has an unsupported order type.")
+                loss = mt5.order_calc_profit(calc_type, order_symbol, order_volume, order_entry, order_stop)
+                if loss is None or not math.isfinite(float(loss)):
+                    raise ValueError(f"Broker risk calculation failed for pending order {order_symbol}.")
+                risk_inputs.append(abs(float(loss)))
+
+            candidate_volume = float(sizing.get("volume") or 0.0)
+            candidate_type = getattr(mt5, f"ORDER_TYPE_{direction}", None)
+            if not math.isfinite(candidate_volume) or candidate_volume <= 0 or candidate_type is None:
+                raise ValueError("Candidate volume or direction is invalid.")
+            candidate_loss = mt5.order_calc_profit(
+                int(candidate_type), symbol, candidate_volume, entry, stop
+            )
+            if candidate_loss is None or not math.isfinite(float(candidate_loss)):
+                raise ValueError("Broker could not calculate candidate order risk.")
+            candidate_risk_usd = abs(float(candidate_loss))
+        except (TypeError, ValueError, OverflowError, AttributeError) as exc:
+            self._log_event({
+                "event": "entry_blocked_aggregate_open_risk",
+                "symbol": symbol,
+                "reason": str(exc),
+                "broker_state_known": True,
+                "execution_enabled": False,
+            })
+            return {
+                "status": "RISK_BLOCKED",
+                "symbol": symbol,
+                "reason": f"Aggregate open risk could not be verified: {exc}",
+                "execution_enabled": False,
+            }
+
+        from src.Risk.Services.professional_risk_engine import ProfessionalRiskEngine
+        aggregate_risk = ProfessionalRiskEngine().evaluate_aggregate_open_risk(
+            account_equity=float(account.get("equity") or 0.0),
+            open_risk_usd=risk_inputs,
+            candidate_risk_usd=candidate_risk_usd,
+        )
+        if not aggregate_risk.get("allowed"):
+            self._log_event({
+                "event": "entry_blocked_aggregate_open_risk",
+                "symbol": symbol,
+                "strategy": strategy_name,
+                **aggregate_risk,
+                "execution_enabled": False,
+            })
+            return {
+                "status": "RISK_BLOCKED",
+                "symbol": symbol,
+                "reason": aggregate_risk.get("reason", "AGGREGATE_OPEN_RISK_LIMIT_EXCEEDED"),
+                "aggregate_risk": aggregate_risk,
+                "execution_enabled": False,
+            }
+
         # Replace only after the candidate has passed structural, RR and risk
         # sizing gates. Confirm each cancellation and refresh broker state before
         # sending the replacement; never submit into an unknown order state.
